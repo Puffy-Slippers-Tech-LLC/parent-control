@@ -197,16 +197,19 @@ class ParentAccessQualification(ParentJourneyQualification):
 
 
 class KioskEntryQualification(ParentJourneyQualification):
+    def prepare_context(self, context):
+        super().prepare_context(context)
+        from app_snapshot import snapshot_name
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+
     def journey_failure(self, journey, category, code):
         super().journey_failure(journey, category, code)
         journey.collect_failure()
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_entry import KioskEntryJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskEntryJourney(context, progress)
 
     def attach_installed_snapshot(self, lease):
@@ -246,7 +249,6 @@ class KioskEntryQualification(ParentJourneyQualification):
         }
         lease.installed_name, lease.installed_xml = name, xml
         if online:
-            lease.installed_name, lease.installed_xml = name, xml
             lease.online_pending = True
             return
         with lease.snapshot_status('Restoring', name):
@@ -268,20 +270,14 @@ class KioskEntryQualification(ParentJourneyQualification):
 class PublicDesktopSelectionQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from public_desktop_selection import PublicDesktopSelectionJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PublicDesktopSelectionJourney(context, progress)
 
 
 class StationShortcutsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from station_shortcuts import StationShortcutsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return StationShortcutsJourney(context, progress)
 
 
@@ -360,10 +356,7 @@ class KioskRoutingVariationQualification(KioskEntryQualification):
 class KioskPreferencesConfinementQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_preferences_confinement import KioskPreferencesConfinementJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskPreferencesConfinementJourney(context, progress)
 
 
@@ -376,80 +369,56 @@ class KioskFeedbackConfinementQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_feedback_confinement import KioskFeedbackConfinementJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskFeedbackConfinementJourney(context, progress)
 
 
 class KioskNotificationWellbeingQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_notification_wellbeing import KioskNotificationWellbeingJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskNotificationWellbeingJourney(context, progress)
 
 
 class KioskServiceRecoveryQualification(KioskFeedbackConfinementQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_service_recovery import KioskServiceRecoveryJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskServiceRecoveryJourney(context, progress)
 
 
 class KioskValidDurationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_valid_duration import KioskValidDurationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskValidDurationJourney(context, progress)
 
 
 class RestrictedStationAboutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from restricted_station_about import RestrictedStationAboutJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RestrictedStationAboutJourney(context, progress)
 
 
 class RequestDurationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from request_duration import RequestDurationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RequestDurationJourney(context, progress)
 
 
 class KioskApprovalQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_approval import KioskApprovalJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskApprovalJourney(context, progress)
 
 
 class BaselineAuthPauseQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from baseline_auth_pause import BaselineAuthPauseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return BaselineAuthPauseJourney(context, progress)
 
 
@@ -460,20 +429,14 @@ class BaselineAppEffectsQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from baseline_app_effects import BaselineAppEffectsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return BaselineAppEffectsJourney(context, progress)
 
 
 class ConfinementUsabilityQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from confinement_usability import ConfinementUsabilityJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ConfinementUsabilityJourney(context, progress)
 
 
@@ -521,11 +484,8 @@ class KioskOptionalArtworkQualification(KioskEntryQualification):
     fault = None
 
     def journey(self, context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_optional_artwork import KioskOptionalArtworkJourney
         from optional_artwork_fault import OptionalArtworkFault
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         journey = KioskOptionalArtworkJourney(context, progress)
         self.fault = OptionalArtworkFault(journey, context.lease)
         check_settings = journey.check_settings
@@ -566,11 +526,8 @@ class ChildIsolationQualification(KioskEntryQualification):
     fault = None
 
     def journey(self, context, progress):
-        from app_snapshot import snapshot_name
         from child_isolation import ChildIsolationJourney
         from child_isolation_fault import ChildIsolationFault
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         journey = ChildIsolationJourney(context, progress)
         self.fault = ChildIsolationFault(journey, context.lease)
         check_settings = journey.check_settings
@@ -728,10 +685,7 @@ class BaselineJourneyQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from baseline_journey import BaselineJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return BaselineJourney(context, progress)
 
 
@@ -741,40 +695,28 @@ class ActiveGrantDisableQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from active_grant_disable import ActiveGrantDisableJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ActiveGrantDisableJourney(context, progress)
 
 
 class ActiveGrantDisableEngineeringQualification(ActiveGrantDisableQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from active_grant_disable import ActiveGrantDisableJourney, ENGINEERING_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ActiveGrantDisableJourney(context, progress, ENGINEERING_PLAN)
 
 
 class ChineseNativeAuthQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from chinese_native_auth import ChineseNativeAuthJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ChineseNativeAuthJourney(context, progress)
 
 
 class KioskApprovedFlowQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_approved_flow import KioskApprovedFlowJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskApprovedFlowJourney(context, progress)
 
 
@@ -783,10 +725,7 @@ class ApprovalFlowRejectionQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from approval_flow import ApprovalFlowJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         from approval_flow import plan
         return ApprovalFlowJourney(context, progress, plan(cls.outcome))
 
@@ -798,100 +737,70 @@ class ApprovalFlowCancelQualification(ApprovalFlowRejectionQualification):
 class AuthResultQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from auth_result import AuthResultJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AuthResultJourney(context, progress)
 
 
 class KioskRejectionQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_rejection import KioskRejectionJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskRejectionJourney(context, progress)
 
 
 class MatePromptQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from mate_prompt import MatePromptJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return MatePromptJourney(context, progress)
 
 
 class KioskMultipleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_multiple import KioskMultipleJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskMultipleJourney(context, progress)
 
 
 class KioskIneligibleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_multiple import KioskIneligibleJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskIneligibleJourney(context, progress)
 
 
 class RequestFlowQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from request_flow import RequestFlowJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RequestFlowJourney(context, progress)
 
 
 class KioskEligibleChoicesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_eligible_choices import KioskEligibleChoicesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskEligibleChoicesJourney(context, progress)
 
 
 class KioskNoChildQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_no_child import KioskNoChildJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskNoChildJourney(context, progress)
 
 
 class KioskNoApproverQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_no_approver import KioskNoApproverJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskNoApproverJourney(context, progress)
 
 
 class RequestChoicesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from request_choices import RequestChoicesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RequestChoicesJourney(context, progress)
 
 
@@ -900,10 +809,7 @@ class LockSurfaceQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import DesktopSessionJourney, LOCK_PLAN, SUPPLIED_LOCK_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DesktopSessionJourney(context, progress,
                                      SUPPLIED_LOCK_PLAN if cls.supplied else LOCK_PLAN)
 
@@ -915,30 +821,21 @@ class SuppliedLockSurfaceQualification(LockSurfaceQualification):
 class LockRecipientQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import DesktopSessionJourney, LOCK_RECIPIENT_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DesktopSessionJourney(context, progress, LOCK_RECIPIENT_PLAN)
 
 
 class RetainedParentQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from retained_parent import RetainedParentJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RetainedParentJourney(context, progress)
 
 
 class RetainedEntryQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from retained_entry import RetainedEntryJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RetainedEntryJourney(context, progress)
 
 
@@ -947,10 +844,7 @@ class RetainedUnlockQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import RetainedUnlockJourney, CHILD_UNLOCK_PLAN, RETAINED_UNLOCK_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RetainedUnlockJourney(context, progress,
                                     RETAINED_UNLOCK_PLAN if cls.retained else CHILD_UNLOCK_PLAN)
 
@@ -964,10 +858,7 @@ class RetainedDenialQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import RetainedDenialJourney, CHILD_DENIAL_PLAN, RETAINED_DENIAL_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RetainedDenialJourney(context, progress,
                                     RETAINED_DENIAL_PLAN if cls.retained else CHILD_DENIAL_PLAN)
 
@@ -979,40 +870,28 @@ class ChildDenialQualification(RetainedDenialQualification):
 class DesktopLogoutQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import DesktopSessionJourney, LOGOUT_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DesktopSessionJourney(context, progress, LOGOUT_PLAN)
 
 
 class DesktopSwitchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from desktop_session import DesktopSessionJourney, SWITCH_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DesktopSessionJourney(context, progress, SWITCH_PLAN)
 
 
 class GdmNavigationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from gdm_navigation import GdmNavigationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return GdmNavigationJourney(context, progress)
 
 
 class GdmRecipientQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from gdm_recipient import GdmRecipientJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return GdmRecipientJourney(context, progress)
 
 
@@ -1020,10 +899,7 @@ class FreshDesktopQualification(KioskEntryQualification):
     role = None
 
     def journey(self, context, progress):
-        from app_snapshot import snapshot_name
         from fresh_desktop import FreshDesktopJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FreshDesktopJourney(context, progress, role=self.role)
 
 
@@ -1035,12 +911,9 @@ class IndependentNetworkQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
         from dataclasses import replace
-        from app_snapshot import snapshot_name
         from fresh_desktop import PARENT_PLAN
         from installed_journey import InstalledJourney
         from vm_internet_qualification import qualify
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         plan = replace(PARENT_PLAN, stage_actions={'desktop': 'independent-network'})
         return InstalledJourney(context, progress, plan, actions={'independent-network': qualify})
 
@@ -1049,12 +922,9 @@ class SyntheticFilesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
         from dataclasses import replace
-        from app_snapshot import snapshot_name
         from fresh_desktop import PARENT_PLAN
         from installed_journey import InstalledJourney
         from synthetic_files import qualify
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         plan = replace(PARENT_PLAN, stage_actions={'desktop': 'synthetic-files'})
         return InstalledJourney(context, progress, plan, actions={'synthetic-files': qualify})
 
@@ -1063,12 +933,9 @@ class DocumentOpenQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
         from dataclasses import replace
-        from app_snapshot import snapshot_name
         from fresh_desktop import PARENT_PLAN
         from installed_journey import InstalledJourney
         from synthetic_files import qualify_text
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         plan = replace(PARENT_PLAN, stage_actions={'desktop': 'document-open'})
         return InstalledJourney(context, progress, plan, actions={'document-open': qualify_text})
 
@@ -1077,12 +944,9 @@ class ArchiveOpenQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
         from dataclasses import replace
-        from app_snapshot import snapshot_name
         from fresh_desktop import PARENT_PLAN
         from installed_journey import InstalledJourney
         from synthetic_files import qualify_zip
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         plan = replace(PARENT_PLAN, stage_actions={'desktop': 'archive-open'})
         return InstalledJourney(context, progress, plan, actions={'archive-open': qualify_zip})
 
@@ -1091,12 +955,9 @@ class SourceChangeQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
         from dataclasses import replace
-        from app_snapshot import snapshot_name
         from fresh_desktop import PARENT_PLAN
         from installed_journey import InstalledJourney
         from synthetic_files import qualify_source_change
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         plan = replace(PARENT_PLAN, stage_actions={'desktop': 'source-change'})
         return InstalledJourney(context, progress, plan,
                                 actions={'source-change': qualify_source_change})
@@ -1105,90 +966,63 @@ class SourceChangeQualification(KioskEntryQualification):
 class ShellSearchResultsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from shell_search_results import ShellSearchResultsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ShellSearchResultsJourney(context, progress)
 
 
 class ParentSearchLaunchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_search_launch import ParentSearchLaunchJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentSearchLaunchJourney(context, progress)
 
 
 class ParentTerminalProviderQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_terminal_provider import ParentTerminalProviderJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentTerminalProviderJourney(context, progress)
 
 
 class LicenseViewerProviderQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from license_viewer_provider import LicenseViewerProviderJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return LicenseViewerProviderJourney(context, progress)
 
 
 class ParentWebsiteQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from license_viewer_provider import ParentWebsiteJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentWebsiteJourney(context, progress)
 
 
 class ParentPrivacyQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from license_viewer_provider import ParentPrivacyJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentPrivacyJourney(context, progress)
 
 
 class ParentSupportQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from license_viewer_provider import ParentSupportJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentSupportJourney(context, progress)
 
 
 class ParentInformationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from license_viewer_provider import ParentInformationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentInformationJourney(context, progress)
 
 
 class ChallengesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from challenges import ChallengesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ChallengesJourney(context, progress)
 
     def record_progress(self, journey, stage, observed):
@@ -1209,30 +1043,21 @@ class ChallengesQualification(KioskEntryQualification):
 class FreshChildAllowedQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from fresh_child_allowed import FreshChildAllowedJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FreshChildAllowedJourney(context, progress)
 
 
 class FreshChildDeniedQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from fresh_child_denied import FreshChildDeniedJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FreshChildDeniedJourney(context, progress)
 
 
 class JordanDailyAccessQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from jordan_daily_access import JordanDailyAccessJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return JordanDailyAccessJourney(context, progress)
 
 
@@ -1240,10 +1065,7 @@ class CountdownQualification(ChallengesQualification):
     present = True
 
     def journey(self, context, progress):
-        from app_snapshot import snapshot_name
         from countdown_qualification import CountdownJourney, PLAN, OFF_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CountdownJourney(context, progress, PLAN if self.present else OFF_PLAN)
 
 
@@ -1254,40 +1076,28 @@ class CountdownOffQualification(CountdownQualification):
 class CountdownSessionQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from countdown_qualification import CountdownJourney, SESSION_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CountdownJourney(context, progress, SESSION_PLAN)
 
 
 class CountdownAnimationQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from countdown_animation import CountdownAnimationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CountdownAnimationJourney(context, progress)
 
 
 class CountdownMinutesQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from countdown_qualification import CountdownMinutesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CountdownMinutesJourney(context, progress)
 
 
 class CountdownTicksQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from countdown_qualification import CountdownTicksJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CountdownTicksJourney(context, progress)
 
 
@@ -1297,90 +1107,63 @@ class NaturalExpiryQualification(ChallengesQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from natural_expiry import NaturalExpiryJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NaturalExpiryJourney(context, progress)
 
 
 class ShellPanelQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from shell_panel import ShellPanelJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ShellPanelJourney(context, progress)
 
 
 class OverlayValidChoicesQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_valid_choices import OverlayValidChoicesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayValidChoicesJourney(context, progress)
 
 
 class OverlayPromptQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_prompt import OverlayPromptJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayPromptJourney(context, progress)
 
 
 class PendingOverlayLockQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from pending_overlay_lock import PendingOverlayLockJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PendingOverlayLockJourney(context, progress)
 
 
 class PendingOverlaySwitchQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from pending_overlay_switch import PendingOverlaySwitchJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PendingOverlaySwitchJourney(context, progress)
 
 
 class PendingOverlaySignoutQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from pending_overlay_signout import PendingOverlaySignoutJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PendingOverlaySignoutJourney(context, progress)
 
 
 class PendingOverlayCloseQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from pending_overlay_close import PendingOverlayCloseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PendingOverlayCloseJourney(context, progress)
 
 
 class PendingStationCloseQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from pending_station_close import PendingStationCloseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PendingStationCloseJourney(context, progress)
 
 
@@ -1390,10 +1173,7 @@ class OverlayApprovedExitQualification(ChallengesQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_approved_exit import OverlayApprovedExitJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayApprovedExitJourney(context, progress)
 
 
@@ -1402,10 +1182,7 @@ class ApprovalReturnNewQualification(OverlayApprovedExitQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from approval_return import ApprovalReturnJourney, NEW_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ApprovalReturnJourney(context, progress, NEW_PLAN)
 
 
@@ -1413,29 +1190,20 @@ class ApprovalReturnOpenQualification(ApprovalReturnNewQualification):
     @staticmethod
     def journey(context, progress):
         from approval_return import ApprovalReturnJourney, OPEN_PLAN
-        from app_snapshot import snapshot_name
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ApprovalReturnJourney(context, progress, OPEN_PLAN)
 
 
 class KioskFreshReturnNewQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_fresh_return import KioskFreshReturnJourney, NEW_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskFreshReturnJourney(context, progress, NEW_PLAN)
 
 
 class KioskFreshReturnOpenQualification(KioskFreshReturnNewQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_fresh_return import KioskFreshReturnJourney, OPEN_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskFreshReturnJourney(context, progress, OPEN_PLAN)
 
 
@@ -1445,30 +1213,21 @@ class KioskRetainedReturnNewQualification(ChallengesQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_fresh_return import KioskFreshReturnJourney, RETAINED_NEW_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskFreshReturnJourney(context, progress, RETAINED_NEW_PLAN)
 
 
 class KioskRetainedReturnOpenQualification(KioskRetainedReturnNewQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_fresh_return import KioskFreshReturnJourney, RETAINED_OPEN_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskFreshReturnJourney(context, progress, RETAINED_OPEN_PLAN)
 
 
 class OverlayRejectionQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_rejection import OverlayRejectionJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayRejectionJourney(context, progress)
 
 
@@ -1522,61 +1281,43 @@ class OverlayChoicesQualification(ChallengesQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_choices import OverlayChoicesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayChoicesJourney(context, progress)
 
 
 class ChoicesOverlayToKioskQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from choices_overlay_to_kiosk import ChoicesOverlayToKioskJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ChoicesOverlayToKioskJourney(context, progress)
 
 
 class CrossSurfaceQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from cross_surface import PLAN
         from request_composition import KioskRequestJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskRequestJourney(context, progress, PLAN)
 
 
 class OverlayLicenseQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_license import OverlayLicenseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayLicenseJourney(context, progress)
 
 
 class OverlayBrowserLinksQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_license import BROWSER_LINKS_PLAN, OverlayLicenseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayLicenseJourney(context, progress, BROWSER_LINKS_PLAN)
 
 
 class OverlayInformationQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_license import INFORMATION_PLAN, OverlayLicenseJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayLicenseJourney(context, progress, INFORMATION_PLAN)
 
 
@@ -1585,10 +1326,7 @@ class RepeatedOperationsQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from repeated_operations import RepeatedOperationsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RepeatedOperationsJourney(context, progress)
 
     def record_progress(self, journey, stage, observed):
@@ -1612,10 +1350,7 @@ class RepeatedOperationsQualification(KioskEntryQualification):
 class ShellSearchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from shell_search import ShellSearchJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ShellSearchJourney(context, progress)
 
 
@@ -1627,10 +1362,7 @@ class KeyringStandardDesktopQualification(FreshDesktopQualification):
     role = 'standard'
 
     def journey(self, context, progress):
-        from app_snapshot import snapshot_name
         from fresh_desktop import KeyringDesktopJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KeyringDesktopJourney(context, progress)
 
 
@@ -1880,80 +1612,56 @@ class ChineseCurrentInstallQualification(ProductFreeEntryQualification):
 class RequestExitQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from request_exit import RequestExitJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RequestExitJourney(context, progress)
 
 
 class RevokeCancelQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_explanation import RevokeCancelJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RevokeCancelJourney(context, progress)
 
 
 class RevocationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_explanation import RevokeConfirmJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RevokeConfirmJourney(context, progress)
 
 
 class TimeExplanationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_explanation import TimeExplanationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return TimeExplanationJourney(context, progress)
 
 
 class AppRestartQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from app_restart import AppRestartJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AppRestartJourney(context, progress)
 
 
 class SetAllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from set_allowance import SetAllowanceJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SetAllowanceJourney(context, progress)
 
 
 class DailyTimeProfileQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_profiles_daily import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class SameDailyTimeProfileQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_profiles_daily import journey, SAME_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress, SAME_PLAN)
 
 
@@ -1963,10 +1671,7 @@ class GrantOnlyProfileQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from grant_only_profile import GrantOnlyProfileJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return GrantOnlyProfileJourney(context, progress, revoke_first=cls.revoke_first,
                                        daily_minutes=cls.daily_minutes)
 
@@ -1981,10 +1686,7 @@ class SuspendActiveGrantQualification(GrantOnlyProfileQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from suspend_active_grant import SuspendActiveGrantJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SuspendActiveGrantJourney(context, progress)
 
 
@@ -1993,10 +1695,7 @@ class SuspendExpiredGrantQualification(SuspendActiveGrantQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from suspend_active_grant import SuspendActiveGrantJourney, EXPIRED_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SuspendActiveGrantJourney(context, progress, plan=EXPIRED_PLAN)
 
 
@@ -2007,10 +1706,7 @@ class CombinedTimeProfileQualification(GrantOnlyProfileQualification):
 class DailyDominantProfileQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from time_profiles_dominant import DailyDominantProfileJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DailyDominantProfileJourney(context, progress)
 
 
@@ -2020,390 +1716,273 @@ class DailySoftProfileQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from daily_soft_profile import DailySoftProfileJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return DailySoftProfileJourney(context, progress)
 
 
 class RealIntervalQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from real_interval_qualification import RealIntervalJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RealIntervalJourney(context, progress)
 
 
 class FreshThirtyAllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from fresh_thirty_allowance import FreshThirtyAllowanceJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FreshThirtyAllowanceJourney(context, progress)
 
 
 class JordanThirtyAllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from fresh_thirty_allowance import FreshThirtyAllowanceJourney, JORDAN_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FreshThirtyAllowanceJourney(context, progress, JORDAN_PLAN)
 
 
 class AllowanceBoundariesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from allowance_boundaries import AllowanceBoundariesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AllowanceBoundariesJourney(context, progress)
 
 
 class AllowanceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from allowance import AllowanceJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AllowanceJourney(context, progress)
 
 
 class AllowancePresetsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from allowance_presets import AllowancePresetsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AllowancePresetsJourney(context, progress)
 
 
 class TextQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from text_qualification import TextJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return TextJourney(context, progress)
 
 
 class WindowSwitchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from window_switch import WindowSwitchJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return WindowSwitchJourney(context, progress)
 
 
 class FeedbackLengthQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_length import FeedbackLengthJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackLengthJourney(context, progress)
 
 
 class FeedbackRejectionQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_rejection import FeedbackRejectionJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackRejectionJourney(context, progress)
 
 
 class BlockSemanticsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_block_semantics import BlockSemanticsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return BlockSemanticsJourney(context, progress)
 
 
 class FeedbackFormatsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_formats_qualification import FeedbackFormatsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackFormatsJourney(context, progress)
 
 
 class FeedbackLinkQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_formats_qualification import FeedbackLinkJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackLinkJourney(context, progress)
 
 
 class FormatQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from format_qualification import FormatJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FormatJourney(context, progress)
 
 
 class TraceStableStateQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from trace_stable_state import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class TraceTransitionQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from trace_transition import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class AccessibilityInputTraceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from accessibility_input_trace import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class CustomSaveTraceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from custom_save_trace import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class NamedChildCustomSavesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from named_child_custom_saves import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class FeedbackCollectionQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_collection import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class ParentSaveTraceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_save_trace import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class ComposeObservationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from compose_observation import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class FeedbackStatesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_states import FeedbackStatesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackStatesJourney(context, progress)
 
 
 class FeedbackPrivacyQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_privacy import FeedbackPrivacyJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackPrivacyJourney(context, progress)
 
 
 class FeedbackResetQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_reset import FeedbackResetJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackResetJourney(context, progress)
 
 
 class DiagnosticExportQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from diagnostic_export import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class SaveChooserQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from save_chooser import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class FileChooserQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from file_chooser import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class AttachmentItemsQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from attachment_items import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class AttachmentPreviewQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from attachment_preview import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class AttachmentBoundariesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from attachment_boundaries import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class FeedbackReadQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from feedback_read import FeedbackReadJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FeedbackReadJourney(context, progress)
 
 
 class AppRowQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from app_row_observations import AppRowJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return AppRowJourney(context, progress)
 
 
 class MatchSaveCancelQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from match_save_cancel import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class MatchEditorQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from match_save_cancel import journey, EDITOR_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress, EDITOR_PLAN)
 
 
 class RejectedParentRuleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from rejected_parent_rule import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class AccessChoicesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from access_choices import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
 class PolicyQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from policy_qualification import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)
 
 
@@ -2413,40 +1992,28 @@ class NamedAppSetQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from named_app_set import NamedAppSetJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NamedAppSetJourney(context, progress)
 
 
 class PolicyLegendQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from policy_legend import PolicyLegendJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PolicyLegendJourney(context, progress)
 
 
 class CatalogueQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from catalogue import CatalogueJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CatalogueJourney(context, progress)
 
 
 class CatalogueSearchQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from catalogue_search import CatalogueSearchJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return CatalogueSearchJourney(context, progress)
 
 
@@ -2455,10 +2022,7 @@ class NativeFixtureQualification(KioskEntryQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from native_fixture_qualification import NativeFixtureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeFixtureJourney(context, progress, profile=cls.fixture_profile)
 
 
@@ -2473,10 +2037,7 @@ class GameActivityQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from game_activity import GameActivityJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return GameActivityJourney(context, progress)
 
 
@@ -2486,10 +2047,7 @@ class GameExpiryQualification(GameActivityQualification):
 
     @classmethod
     def journey(cls, context, progress):
-        from app_snapshot import snapshot_name
         from game_expiry import GameExpiryJourney, PLAN, FULLSCREEN_PLAN
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return GameExpiryJourney(context, progress,
             FULLSCREEN_PLAN if cls.game_mode == 'fullscreen' else PLAN)
 
@@ -2504,130 +2062,91 @@ class FullscreenRequestQualification(GameActivityQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from fullscreen_request import FullscreenRequestJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FullscreenRequestJourney(context, progress)
 
 
 class SnapFixtureQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from snap_fixtures import SnapFixtureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SnapFixtureJourney(context, progress)
 
 
 class FlatpakFixtureQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from flatpak_fixtures import FlatpakFixtureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FlatpakFixtureJourney(context, progress)
 
 
 class SnapCommandQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from snap_command_usable import SnapCommandJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SnapCommandJourney(context, progress)
 
 
 class FlatpakCommandQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from flatpak_command_usable import FlatpakCommandJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FlatpakCommandJourney(context, progress)
 
 
 class SnapGridQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from snap_grid import SnapGridJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SnapGridJourney(context, progress)
 
 
 class FlatpakGridQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from flatpak_grid import FlatpakGridJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FlatpakGridJourney(context, progress)
 
 
 class NativeDesktopNewWindowQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_desktop_new_window import NativeDesktopNewWindowJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeDesktopNewWindowJourney(context, progress)
 
 
 class NativeDesktopQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_desktop_usable import NativeDesktopJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeDesktopJourney(context, progress)
 
 
 class NativeFilesQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_files_usable import NativeFilesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeFilesJourney(context, progress)
 
 
 class NativeDesktopRouteQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_desktop_route import NativeDesktopRouteJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeDesktopRouteJourney(context, progress)
 
 
 class NativeFilesRoutesQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_files_routes import NativeFilesRoutesJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeFilesRoutesJourney(context, progress)
 
 
 class NativeActivityQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_activity import NativeActivityJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeActivityJourney(context, progress)
 
 
@@ -2637,230 +2156,161 @@ class RetainedAppVisitsQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from retained_app_visits import RetainedAppVisitsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RetainedAppVisitsJourney(context, progress)
 
 
 class NativeDenialQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_denial import NativeDenialJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeDenialJourney(context, progress)
 
 
 class NativePolicyClosureQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_policy_closure import NativePolicyClosureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativePolicyClosureJourney(context, progress)
 
 
 class FlatpakPolicyClosureQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from flatpak_policy_closure import FlatpakPolicyClosureJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FlatpakPolicyClosureJourney(context, progress)
 
 
 class FlatpakRetainedWorkQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from flatpak_retained_work import FlatpakRetainedWorkJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return FlatpakRetainedWorkJourney(context, progress)
 
 
 class SharedTargetLaunchersQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from shared_target_launchers import SharedTargetLaunchersJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return SharedTargetLaunchersJourney(context, progress)
 
 
 class NativeSpacePathQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_space_path import NativeSpacePathJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeSpacePathJourney(context, progress)
 
 
 class VersionedAppImageAssetsQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from versioned_appimage_assets import VersionedAppImageAssetsJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return VersionedAppImageAssetsJourney(context, progress)
 
 
 class NativeCommaPathQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_space_path import NativeSpacePathJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeSpacePathJourney(context, progress, profile='comma')
 
 
 class NativeAppQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_app import NativeAppJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeAppJourney(context, progress)
 
 
 class RileyNativeGridQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from riley_native_grid import RileyNativeGridJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return RileyNativeGridJourney(context, progress)
 
 
 class NativeGridQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from native_grid_usable import NativeGridJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return NativeGridJourney(context, progress)
 
 
 class ParentLanguageQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_language import ParentLanguageJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentLanguageJourney(context, progress)
 
 
 class ParentRtlQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_language import ParentRtlJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentRtlJourney(context, progress)
 
 
 class ParentDialogLanguageQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_language import ParentDialogLanguageJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentDialogLanguageJourney(context, progress)
 
 
 class ParentHebrewPolicyQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_language import ParentHebrewPolicyJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentHebrewPolicyJourney(context, progress)
 
 
 class ParentLanguageIsolationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_language import ParentLanguageIsolationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentLanguageIsolationJourney(context, progress)
 
 
 class KioskLanguageQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_language import KioskLanguageJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskLanguageJourney(context, progress)
 
 
 class KioskLanguageRestorationQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_language_restoration import KioskLanguageRestorationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskLanguageRestorationJourney(context, progress)
 
 
 class OverlayLanguageQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_language import OverlayLanguageJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayLanguageJourney(context, progress)
 
 
 class PanelLanguageQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from panel_language import PanelLanguageJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return PanelLanguageJourney(context, progress)
 
 
 class OverlayReminderEditingQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from overlay_reminders import OverlayReminderJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return OverlayReminderJourney(context, progress)
 
 
 class KioskReminderBindingQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from kiosk_reminders import KioskReminderJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return KioskReminderJourney(context, progress)
 
 
@@ -2869,38 +2319,26 @@ class ReminderChildStationBindingQualification(KioskEntryQualification):
 
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from reminder_child_station import ReminderChildStationJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ReminderChildStationJourney(context, progress)
 
 
 class ReminderFullscreenPreferenceQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from reminder_fullscreen import ReminderFullscreenJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ReminderFullscreenJourney(context, progress)
 
 
 class ParentToggleQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from parent_toggle import ParentToggleJourney
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return ParentToggleJourney(context, progress)
 
 class PublicConnectivityControlsQualification(ParentToggleQualification):
     """Reuse UI17's qualified sign-in/launch and LIFE06's public composition."""
     @staticmethod
     def journey(context, progress):
-        from app_snapshot import snapshot_name
         from public_connectivity_controls import journey
-        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
-        context.installed_snapshot = snapshot_name(version)
         return journey(context, progress)

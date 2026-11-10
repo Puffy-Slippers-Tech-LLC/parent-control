@@ -576,7 +576,7 @@
     function latestOutput(section) {
         const entry = section.entry;
         const session = entry.session && !(entry.session_inactive ?? !entry.session_active);
-        const label = tabLabel(entry, Number.isInteger(entry.session_number) ? 'session' : 'launcher');
+        const label = tabLabel(entry, session ? 'session' : 'launcher');
         section.latestTitle.textContent = label;
         section.latestLabel.setAttribute('aria-label', `Resize ${label} output`);
         section.latest.setAttribute('aria-label', label);

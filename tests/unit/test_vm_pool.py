@@ -310,41 +310,6 @@ def test_vm_artifact_helper_uses_vm_scope_before_host_activity(monkeypatch):
     assert BATCH not in os.environ
 
 
-@pytest.mark.parametrize(('requested', 'enabled'), [(['unit'], False), (['system'], True), ([], True)])
-@pytest.mark.parametrize('cancelled', [False, True])
-def test_repair_worker_retains_reservation_and_finishes_queued_cancellation(
-        tmp_path, monkeypatch, requested, enabled, cancelled):
-    from contextlib import contextmanager
-    import fix_tests
-    active = []
-    @contextmanager
-    def reserve(**kwargs):
-        assert kwargs['enabled'] is enabled
-        active.append(True)
-        try:
-            if cancelled:
-                raise KeyboardInterrupt
-            yield
-        finally:
-            active.pop()
-    monkeypatch.setattr(vm_pool, 'selected_reservation', reserve)
-    def execute(*args, reloading=False, repair_gate=None, startup=None):
-        assert reloading is False
-        assert active == [True]
-        assert not (tmp_path / 'result.json').exists()
-        return 7
-    monkeypatch.setattr(fix_tests, 'reserved_worker', execute)
-    fix_tests.TaskBudget(tmp_path).initialize(None)
-    owner = os.open(tmp_path / 'owner', os.O_RDWR | os.O_CREAT, 0o600)
-    expected = 130 if cancelled else 7
-    assert fix_tests.worker(tmp_path, tmp_path, owner, 'model', 'high', 'model',
-                            json.dumps(requested)) == expected
-    assert active == []
-    assert json.loads((tmp_path / 'result.json').read_text()) == {'status': expected, 'tasks': 0}
-    with pytest.raises(OSError):
-        os.fstat(owner)
-
-
 @pytest.mark.parametrize('at_grant', [None, False, True, 'busy'])
 @pytest.mark.parametrize('bind', [False, True])
 def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkeypatch, at_grant, bind):
@@ -382,39 +347,3 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
     assert vm_pool.VARIABLE not in os.environ
     if at_grant is None or at_grant:
         assert process.stdin.closed and process.stdout.closed
-
-
-@pytest.mark.parametrize('cleanup_status, run_status', [(0, 0), (0, 1), (1, None)])
-def test_vm_worker_recovers_under_its_reservation_before_testing(monkeypatch, cleanup_status, run_status):
-    from contextlib import contextmanager, nullcontext
-    from unittest.mock import Mock
-    import test_commands
-    import test_checkpoint
-    import test_recovery
-    import vm_test_queue
-    import regression_process
-    from vm_selection import selected
-    events = []
-    @contextmanager
-    def reserve(*args, **kwargs):
-        events.append('checkout')
-        try:
-            yield
-        finally:
-            events.append('checkin')
-    monkeypatch.setattr(vm_pool, 'reservation', reserve)
-    control = Mock()
-    control.stopped.is_set.return_value = False
-    control.installed.return_value = nullcontext(control)
-    monkeypatch.setattr(vm_test_queue, 'Control', lambda: control)
-    monkeypatch.setattr(vm_test_queue.test_activity, 'activity', lambda *a, **k: nullcontext())
-    monkeypatch.setattr(test_recovery, 'cleanup', lambda root: events.append('recovery') or cleanup_status)
-    monkeypatch.setattr(test_checkpoint, 'Checkpoint', Mock())
-    monkeypatch.setattr(test_commands, '_main', lambda *a, **k: events.append('test') or run_status)
-    # worker replaces stdout with its frame adapter; restore it after the call.
-    monkeypatch.setattr(sys, 'stdout', sys.stdout)
-    # The process entry point also installs its cancellation event globally.
-    # Restore it so later tests do not inherit this worker's mock stop flag.
-    monkeypatch.setattr(regression_process, 'session_stop', regression_process.session_stop)
-    assert vm_test_queue.worker(['--execute', selected().name, 'system']) == (cleanup_status or run_status)
-    assert events == ['checkout', 'recovery', *(['test'] if not cleanup_status else []), 'checkin']

@@ -594,7 +594,7 @@
                 if (view.simplified && row.some(part => part.compact)) {
                     latest = row;
                     while (rows.length && rows[rows.length - 1].every(part => !part.text.trim())) rows.pop();
-                } else {
+                } else if (rows.length || row.some(part => part.text.trim())) {
                     rows.push(row);
                 }
             }

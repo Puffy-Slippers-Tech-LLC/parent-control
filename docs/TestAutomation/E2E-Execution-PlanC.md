@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **263 — [Check station report success and logout callback](E2E-Tasks/263-case-221.md)**.
+Next task: **189k — [Check Send without logs with the fake sender](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

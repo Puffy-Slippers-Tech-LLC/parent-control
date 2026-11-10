@@ -664,9 +664,15 @@ def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
             if target['phase'] in ('fetch', 'upstream', 'merge'):
                 _expect_head(git, destination, target['head'], 'propagation merge')
             if target['phase'] == 'stash':
-                if _head(git, destination) != target['head']:
-                    raise ValueError('destination HEAD changed before propagation stash')
                 found = [oid for oid, subject in _stashes(git, destination) if subject.endswith(target['marker'])]
+                head = _expect_head(git, destination, target['head'], 'propagation stash', exact=bool(found))
+                if head != target['head']:
+                    # No stash was written, so this transaction has not moved
+                    # active work. Resume from the descendant and today's edits.
+                    # An existing stash instead retains its exact original base.
+                    _idle(git, destination)
+                    target.update(head=head, active=_active_snapshot(git, destination))
+                    save()
                 if not found and git(destination, 'status', '--porcelain', '--untracked-files=all').stdout:
                     _run(git, destination, 'stash', 'push', '-u', '-m', target['marker'])
                     found = [oid for oid, subject in _stashes(git, destination) if subject.endswith(target['marker'])]

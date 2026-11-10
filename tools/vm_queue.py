@@ -4,6 +4,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from contextlib import contextmanager, ExitStack
 from pathlib import Path
 import os
+import queue
 import sys
 import threading
 
@@ -235,6 +236,171 @@ class Executor:
             future.add_done_callback(finished)
         for future in as_completed(pending):
             results[pending[future]] = future.result()
+        return results
+
+    def run_ready(self, execute, *, choose, needed, completed=None):
+        """Dispatch one admitted attempt at a time from coordinator-selected VMs.
+
+        ``choose(ready_names, active_names)`` may select only a ready name.
+        Returning None pauses new admission until a later readiness round;
+        ``needed(vm)`` ends waiting when that VM has no further work.
+        Availability is probed without waiting for occupied VMs. Each probe and
+        operation stays on its owning thread, including source lease teardown.
+        Successful workers return for more work; failures retain their checkout
+        until the enclosing executor joins and closes.
+        ``completed(vm, result)`` runs on the coordinator before refill. Success
+        is notified only after source and reservation teardown; the callback may
+        return a replacement result to reject an attempt's acceptance.
+        """
+        import launcher_reload
+        import test_source
+        from detached_launcher import Stopped
+        from vm_pool import Busy, reservation
+        if self._pool is None or self._ran or self._closing.is_set():
+            raise ValueError('vm-queue: run_ready requires a fresh active executor')
+        self._ran = True
+        self._needed = needed
+        events = queue.Queue()
+        commands = {vm.name: queue.Queue() for vm in self.vms}
+        results = {vm.name: dict(status=0, handoffs=[]) for vm in self.vms}
+
+        def worker_loop(vm):
+            inbox = commands[vm.name]
+            while True:
+                command = inbox.get()
+                if command == 'close':
+                    return
+                published = False
+                result_sent = False
+                worker = None
+                try:
+                    self._check(vm)
+                    with reservation(vm.name, stopped=lambda: self._abort(vm),
+                                     bind=False, wait=False) as receipt:
+                        with test_source.reader(self.root, stopped=lambda: self._abort(vm), wait=False):
+                            self._check(vm)
+                            worker = _Worker(self, vm, receipt)
+                            events.put(('ready', vm.name, None))
+                            published = True
+                            command = inbox.get()
+                            if command == 'close':
+                                return
+                            if command != 'run':
+                                continue
+                            try:
+                                with worker.operation():
+                                    value = execute(worker)
+                                    if not isinstance(value, dict) or type(value.get('status')) is not int:
+                                        raise ValueError('vm-queue: an attempt must return a dictionary with integer status')
+                            except (_NoWork, Stopped, launcher_reload.ReloadRequested):
+                                raise
+                            except Exception as error:
+                                value = dict(status=2, handoffs=[], error=str(error))
+                        if value.get('status') and worker.used and not worker.source_refused:
+                            events.put(('done', vm.name, value))
+                            result_sent = True
+                            self._closing.wait()
+                            return
+                    events.put(('done', vm.name, value))
+                except (Busy, test_source.SourceBusy):
+                    events.put(('idle' if not published else 'done', vm.name, None))
+                except _NoWork:
+                    events.put(('idle' if not published else 'done', vm.name, None))
+                except (Stopped, KeyboardInterrupt):
+                    events.put(('terminal', vm.name, dict(status=130, handoffs=[])))
+                    return
+                except launcher_reload.ReloadRequested:
+                    events.put(('terminal', vm.name, dict(status=launcher_reload.STATUS, handoffs=[])))
+                    return
+                except BaseException as error:
+                    if result_sent:
+                        raise
+                    events.put(('terminal', vm.name, dict(status=2, handoffs=[],
+                                                         cleanup=False, error=str(error))))
+                    return
+
+        for vm in self.vms:
+            self._futures.append(self._pool.submit(worker_loop, vm))
+        active, retired = set(), set()
+        targets = {vm.name: vm for vm in self.vms}
+
+        def receive():
+            kind, name, value = events.get()
+            if kind in ('done', 'terminal'):
+                active.discard(name)
+                if value is not None:
+                    if completed is not None:
+                        try:
+                            replacement = completed(targets[name], dict(value))
+                            if replacement is not None:
+                                if (not isinstance(replacement, dict)
+                                        or type(replacement.get('status')) is not int):
+                                    raise ValueError('vm-queue: completion must return an integer-status result')
+                                if value['status'] and not replacement['status']:
+                                    raise ValueError('vm-queue: completion cannot accept a failed attempt')
+                                value = replacement
+                        except Exception as error:
+                            value = dict(status=2, handoffs=value.get('handoffs', []),
+                                         cleanup=False, error=str(error))
+                    previous = results[name]
+                    results[name] = dict(value, handoffs=[*previous.get('handoffs', []),
+                                                         *value.get('handoffs', [])])
+                    if value.get('status'):
+                        retired.add(name)
+                if kind == 'terminal':
+                    retired.add(name)
+            return kind, name
+
+        try:
+            while True:
+                candidates = [vm for vm in self.vms if vm.name not in active | retired and needed(vm)]
+                if not candidates and not active:
+                    break
+                if len(active) >= self.limit or not candidates:
+                    receive()
+                    continue
+                for vm in candidates:
+                    commands[vm.name].put('probe')
+                probing = {vm.name for vm in candidates}
+                ready = set()
+                while probing:
+                    kind, name = receive()
+                    if name in probing:
+                        probing.remove(name)
+                        if kind == 'ready':
+                            ready.add(name)
+                selected = []
+                try:
+                    while ready and len(active) + len(selected) < self.limit:
+                        available = tuple(vm.name for vm in self.vms if vm.name in ready and needed(vm))
+                        if not available:
+                            break
+                        name = choose(available, tuple(vm.name for vm in self.vms
+                                                       if vm.name in active or vm.name in selected))
+                        if name is None:
+                            break
+                        if name not in available:
+                            raise ValueError('vm-queue: chooser selected a VM that is not ready')
+                        selected.append(name)
+                        ready.remove(name)
+                except BaseException:
+                    for name in selected:
+                        commands[name].put('release')
+                    raise
+                finally:
+                    for name in ready:
+                        commands[name].put('release')
+                for name in selected:
+                    active.add(name)
+                    commands[name].put('run')
+                if not selected:
+                    if self._cancelled() or launcher_reload.pending():
+                        # Probes translate cancellation into terminal results.
+                        continue
+                    self._closing.wait(.1)
+        finally:
+            for inbox in commands.values():
+                inbox.put('close')
         return results
 
 

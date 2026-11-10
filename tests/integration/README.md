@@ -598,6 +598,16 @@ before consuming it.
 
 ## Aggregate scheduling
 
+Ordinary VM work uses the single
+[pass coordinator](../README.md#all-established-regressions): one ordered FIFO
+per selected family across categories, with indivisible histories, area attempts
+and standalone checks. Ready equivalent VMs take one item on demand. Admission
+balances available families and rotates ties; occupied families retain their full
+coverage. Only the coordinator accepts attempt evidence after teardown and owned
+cleanup. [Resume and recovery](../README.md#resuming-test-execution) preserve
+original-VM uncertain ownership and independent family passing credit. Public
+repair keeps its existing path until the planned repair cutover.
+
 `tools/run-tests vm` and `all` include current-package system tests, two separate
 upgrade histories (287 policy preservation and 288 trusted native fixtures),
 registered standalone checks and ready E2E cases. Bare `system` includes those

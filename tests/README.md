@@ -291,7 +291,7 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-`system` and `e2e` remain sequential within each VM. VM tests default to every
+Each VM executes one attempt at a time. VM tests default to every
 VM in `config/environment.json` whose `enabled` equals the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
@@ -310,6 +310,14 @@ All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
+The ordinary `execute_pass` coordinator owns one FIFO per family across the
+selected categories. Ready VMs pull one item at a time; there are no advance
+shards or category barriers. Every included family keeps its complete selection,
+including while its VMs are occupied. Admission fills one available worker per
+family before a second, rotates equal-count priority on refill, and uses spare
+capacity when a family is busy or drained. Required-VM recovery stays with its
+original worker. Host work runs once per pass through the existing host scheduler
+and the shared source-admission boundary, without consuming VM slots.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
 with `tools/prepare-vm` defaulting to `all` online VMs in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the
@@ -346,6 +354,11 @@ Failed workers release capacity but retain their reservation until the executor
 closes after the worker join. Preparation uses one finite per-VM operation and
 continues after individual failures. These rules also cover explicit single-VM
 selections; legacy repair keeps its existing resource path until its cutover.
+Workers return bounded attempt evidence to the coordinator. Passing credit
+requires matching run, pass, assignment, attempt, VM, original selection and
+source identity, plus teardown and owned cleanup. Missing, diagnostic, stale or
+mismatched evidence cannot complete work. A late report or cleanup failure
+leaves the original claim unfinished.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
@@ -416,6 +429,12 @@ the selected VMs and runs maintained VM-only cleanup for those owners
 the VM reservation and excludes competing queue writers before returning claims
 to pending; a failed recovery preserves the claims and stops the launch.
 Resumed queues retain their ownership and recover through their original workers.
+Ordinary pass state has one exclusive coordinator gate. Its family partitions,
+accepted attempt receipts and uncertain claims share the same record. Resume
+cleans uncertain claims through their original VM before requeueing them;
+standalone cleanup and reset use that same recovery transition under ownership.
+They cannot rewrite a live coordinator's claims. A crash may repeat work, but
+worker checkpoints alone never become family completion authority.
 Explicit resume parameters must match the saved request; omitted options are
 inherited. VM names and IDs are compatible when they resolve to the same VM set.
 Incompatible parameters fail before attachment or execution and report the previous
@@ -461,7 +480,14 @@ use the shared storage/state route; retained reports keep their normal lifetime.
 
 ### Scheduling state compatibility
 
-The shared checkpoint admission boundary records scheduling version `1` and
+The ordinary pass record uses scheduling version `1`, implementation
+`ordinary-pass-v1`, separately from bounded worker checkpoints and the remaining
+legacy repair path. It never relabels retained pipeline family progress: resume
+refuses that progress until it finishes through its original supported
+implementation, or the existing explicitly authorized reset recovers it. Fresh
+passes preserve settled legacy history and refuse uncertain claims.
+
+The legacy checkpoint admission boundary records scheduling version `1` and
 implementation `pipeline-v1`. The immediately preceding markerless pipeline
 records have that same identity. Adding the marker preserves their allowed VM
 selection, per-family passes, claims, source ownership, transaction references

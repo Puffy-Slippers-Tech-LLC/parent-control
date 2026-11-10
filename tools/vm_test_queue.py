@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
-import uuid
 
 # Workers use isolated Python; restore only this checkout's sibling modules.
 if __name__ == '__main__':
@@ -24,8 +23,7 @@ from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import Executor
 from vm_pool import reservation
 import launcher_reload
-from vm_case_queue import (case_inventory, work_items, work_key, claim, arguments,
-                           family_binding)
+from vm_case_queue import case_inventory, work_items, arguments
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -92,8 +90,8 @@ def split(root, argv):
 @test_source.protected
 def _plan(root, argv):
     """Load one coherent inventory before waiting for any VM reservation."""
-    from test_commands import _main, selections
-    from test_checkpoint import Checkpoint, guard_scheduling_checkpoints
+    from test_commands import selections
+    from test_checkpoint import guard_scheduling_checkpoints
     guard_scheduling_checkpoints(root)
     snapshot = json.loads(os.environ[BATCH])
     configured = vm_config.registry()
@@ -107,47 +105,15 @@ def _plan(root, argv):
             if vm.family in families:
                 continue
             vm_config.select(vm.name)
-            names = {worker.name for worker in vms if worker.family == vm.family}
-            checkpoint = Checkpoint(root, guest_selection, resume='--resume' in argv,
-                                    binding=family_binding(vm.family, names), namespace='run-tests-family')
             items = [work for category, options in guest_selection
                      for work in work_items(category, options, case_inventory(
                          root, category, options, vm=vm.name,
                          pass_fds=test_source.descriptors()))]
-            all_items = items
             replay = [arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')]
             if replay:
-                category = guest_selection[0][0]
-                checkpoint.event(category, dict(kind='failure', nodeid=replay[0]), set())
-                if '--resume-case-only' in guest_args or '--resume-area-only' in guest_args:
-                    area = '--resume-area-only' in guest_args
-                    checkpoint.retry(category, replay[0], area=area)
-                    items = [dict(work, case=replay[0], area=area,
-                                  credit=work['cases'],
-                                  cases=work['cases'] if area else [replay[0]])
-                             for work in items if replay[0] in work['cases']]
-                    if not items:
-                        raise ValueError('case retry is outside the selected VM inventory')
-            claims = checkpoint.state.get('queue_claims', {})
-            retained = checkpoint.state.get('queue_items', {})
-            if (not isinstance(claims, dict) or not isinstance(retained, dict)
-                    or any(not isinstance(key, str) or not isinstance(owner, str)
-                           or key not in retained or not isinstance(retained[key], dict)
-                           or work_key(retained[key]) != key for key, owner in claims.items())):
-                raise ValueError('invalid retained family case claims')
-            if any(owner not in names for owner in claims.values()):
-                raise ValueError('family case recovery requires its original VM owner in the selection')
-            scoped = '--resume-case-only' in guest_args or '--resume-area-only' in guest_args
-            retained_items = [retained[key] for key in claims
-                              if retained[key]['category'] in checkpoint.selected
-                              and (not scoped or replay[0] in retained[key]['cases'])]
-            views = {work_key(item): next(work for work in items
-                                         if replay[0] in work['cases'])
-                     for item in retained_items} if scoped else {}
-            items = list({work_key(item): item for item in (
-                *retained_items, *items)}.values())
-            families[vm.family] = dict(checkpoint=checkpoint, items=items, all_items=all_items,
-                                      claims=dict(claims), views=views, scoped=scoped)
+                if len(guest_selection) != 1 or not any(replay[0] in work['cases'] for work in items):
+                    raise ValueError('case retry requires one category and a selected case')
+            families[vm.family] = items
     finally:
         if original_vm is None:
             os.environ.pop(VARIABLE, None)
@@ -156,16 +122,226 @@ def _plan(root, argv):
     return snapshot, vms, host_args, guest_args, guest_selection, families
 
 
+class FamilyAdmission:
+    """Balance ready workers, rotating ties without preempting active work."""
+
+    def __init__(self, vms):
+        self.families = {vm.name: vm.family for vm in vms}
+        self.order = list(dict.fromkeys(self.families.values()))
+
+    def choose(self, ready, active):
+        counts = {family: sum(self.families[name] == family for name in active)
+                  for family in self.order}
+        candidates = {self.families[name] for name in ready}
+        family = min((family for family in self.order if family in candidates),
+                     key=lambda family: counts[family])
+        self.order.remove(family)
+        self.order.append(family)
+        return next(name for name in ready if self.families[name] == family)
+
+
+def source_identity(root):
+    from regression_inputs import identity
+    return dict(digest=identity(root), generation=test_source.SourceProtection(
+        test_source.source_directory(root)).generation())
+
+
+def execute_pass(root, plan, control, execute, *, host=None, actions=None,
+                 pass_identity=None):
+    """Own a finite pass; callbacks execute one assignment, never another queue.
+
+    ``actions`` may hold admission and observe accepted/failing attempts. It
+    supplies repair policy only; claims, acceptance and recovery stay here.
+    A saved run/pass identity may be supplied by the composing repair workflow.
+    """
+    from test_checkpoint import PassCheckpoint
+    snapshot, vms, host_args, guest_args, guest_selection, families = plan
+    actions = actions or {}
+    lock = threading.RLock()
+    admission = FamilyAdmission(vms)
+    accepted, failures = [], []
+    repair_status = []
+    suspended = False
+    changed = False
+    inflight = {}
+    deferred = []
+    focused = '--resume-case-only' in guest_args or '--resume-area-only' in guest_args
+    replay = next((arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')), None)
+    focus_finished = set()
+    if focused and replay is None:
+        raise ValueError('focused retry requires a selected case')
+    if '--resume-area-only' in guest_args:
+        from test_checkpoint import INDEPENDENT_SYSTEM_AREAS
+        if (len(guest_selection) != 1 or guest_selection[0][0] != 'system'
+                or replay.partition('::')[0] not in INDEPENDENT_SYSTEM_AREAS):
+            raise ValueError('area retry requires an independent system area')
+    pool = {vm.name: vm.family for vm in vms}
+    # Selection includes host and focused retry options; transport/control flags
+    # do not change the original selected inventory on resume.
+    def original(args):
+        return [arg for arg in args if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
+                and not arg.startswith('--resume-case=')]
+    selection = [['_host', original(host_args)], ['_guest', original(guest_args)]]
+    with PassCheckpoint(root, selection, pool, families,
+                        resume='--resume' in guest_args) as checkpoint:
+        focus_owners = {claim['family']: claim['vm'] for claim in checkpoint.claims()
+                        if focused and replay in claim['work']['cases']}
+        if pass_identity is not None and pass_identity != {
+                key: checkpoint.state[key] for key in ('run', 'pass')}:
+            raise ValueError('saved pass identity differs from the selected run')
+        if replay is not None:
+            for family in families:
+                checkpoint.retry(family, replay, area='--resume-area-only' in guest_args)
+
+        def claims(family):
+            return [claim for claim in checkpoint.claims(family)
+                    if not focused or replay in claim['work']['cases']]
+
+        def pending(family):
+            return [work for work in checkpoint.pending(family)
+                    if not focused or family not in focus_finished and replay in work['cases']]
+        if host_args and not checkpoint.state['host_complete']:
+            with test_source.reader(root, stopped=control.stopped.is_set):
+                status = host() if host is not None else 2
+                if not status:
+                    checkpoint.state['host_complete'] = True
+                    checkpoint.save()
+            if status:
+                return dict(status=status, results={}, accepted=[], failures=[dict(
+                    vm='', status=status)], stopped=status == 130,
+                    suspended=False, source_changed=False, repair_status=[])
+
+        def admitted():
+            nonlocal suspended
+            if (control.stopped.is_set() or launcher_reload.pending() or changed or suspended
+                    or 'admit' in actions and not actions['admit']()):
+                suspended = not control.stopped.is_set()
+                return False
+            return True
+
+        def needed(vm):
+            with lock:
+                unrelated = focused and any(claim['vm'] == vm.name and replay not in claim['work']['cases']
+                                            for claim in checkpoint.claims(vm.family))
+                return (not unrelated and (not focused or focus_owners.get(vm.family, vm.name) == vm.name)
+                        and admitted() and (any(claim['vm'] == vm.name for claim in claims(vm.family))
+                                            or bool(pending(vm.family))))
+
+        def attempt(worker):
+            vm = worker.vm
+            with lock:
+                # Uncertain claims are cleaned by their original worker before
+                # returning to FIFO; its old checkpoint cannot award new credit.
+                retained = next((claim for claim in claims(vm.family)
+                                 if claim['vm'] == vm.name), None)
+                recovering = retained is not None
+                if recovering:
+                    assignment = retained
+                else:
+                    available = pending(vm.family)
+                    if not available or not admitted():
+                        return dict(status=0, handoffs=[])
+                    execution = None
+                    if focused:
+                        unit = available[0]
+                        area = '--resume-area-only' in guest_args
+                        execution = dict(unit, case=replay, area=area,
+                                         cases=unit['cases'] if area else [replay])
+                    assignment = checkpoint.claim(vm.family, vm.name, available[0], source_identity(root),
+                                                  execution=execution)
+                    if assignment is None:
+                        return dict(status=0, handoffs=[])
+                inherited = {kind: sorted(checkpoint.passed(vm.family, kind))
+                             for kind, _ in guest_selection}
+                inflight[vm.name] = assignment, recovering
+            return execute(worker, assignment, inherited, recovering)
+
+        def completed(vm, result):
+            nonlocal changed, suspended
+            with lock:
+                current = inflight.pop(vm.name, None)
+                if current is None:
+                    if result['status']:
+                        failures.append(dict(vm=vm.name, status=result['status']))
+                    return result
+                assignment, recovering = current
+                evidence = result.get('evidence')
+                if recovering:
+                    if (not result['status'] and isinstance(evidence, dict)
+                            and evidence.get('assignment') == assignment
+                            and evidence.get('cleanup') is True):
+                        checkpoint.recover(assignment, cleanup=True)
+                    elif not result['status']:
+                        result = dict(result, status=2, error='missing original-worker cleanup result')
+                else:
+                    changed |= isinstance(evidence, dict) and evidence.get('diagnostic') is True
+                    complete = False
+                    if result['status']:
+                        # Failure notification can precede the retained worker's
+                        # final check-in. Save partial credit only after join.
+                        deferred.append((assignment, evidence, result['status']))
+                    else:
+                        try:
+                            complete = checkpoint.accept(assignment, evidence, result['status'])
+                        except ValueError as error:
+                            result = dict(result, status=2, error=str(error))
+                    if complete:
+                        accepted.append(assignment)
+                        if focused:
+                            focus_finished.add(vm.family)
+                    elif not result['status']:
+                        result = dict(result, status=2,
+                                      error='case runner returned success without qualified completion')
+                if result['status']:
+                    failures.append(dict(assignment=assignment, status=result['status']))
+                if 'result' in actions:
+                    outcome = actions['result'](assignment, result) or {}
+                    changed |= bool(outcome.get('source_changed'))
+                    suspended |= bool(outcome.get('suspended'))
+                    if outcome.get('repair_status') is not None:
+                        repair_status.append(outcome['repair_status'])
+                if result['status'] not in (0, launcher_reload.STATUS) and '--stop-on-error' in guest_args:
+                    control.stop()
+            return result
+
+        def choose(ready, active):
+            with lock:
+                eligible = [name for name in ready if sum(pool[other] == pool[name]
+                    for other in active) < len(pending(pool[name]))
+                    + len(claims(pool[name]))]
+                return admission.choose(eligible, active) if eligible and admitted() else None
+
+        with Executor(root, vms, snapshot['concurrency'], control.stopped) as executor:
+            results = executor.run_ready(attempt, choose=choose, needed=needed, completed=completed)
+        for assignment, evidence, status in deferred:
+            try:
+                checkpoint.accept(assignment, evidence, status)
+            except ValueError:
+                # Missing or unqualified failure evidence leaves its original
+                # claim untouched; the terminal worker result already fails.
+                pass
+        unfinished = any((family not in focus_finished if focused else bool(checkpoint.pending(family)))
+                         or claims(family) for family in families)
+        statuses = [value['status'] for value in results.values()]
+        stopped = control.stopped.is_set()
+        status = (130 if stopped else launcher_reload.STATUS if launcher_reload.pending()
+                  and all(value in (0, launcher_reload.STATUS) for value in statuses)
+                  else 1 if any(statuses) or unfinished else 0)
+        return dict(status=status, results=results, accepted=accepted, failures=failures,
+                    stopped=stopped, suspended=suspended or unfinished and not any(statuses),
+                    source_changed=changed, repair_status=repair_status,
+                    run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']})
+
+
 def run(root, argv, *, reloading=False):
-    snapshot, vms, host_args, guest_args, guest_selection, families = _plan(root, argv)
+    plan = _plan(root, argv)
+    snapshot, vms, host_args, guest_args, guest_selection, families = plan
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
-    if host_args:
+    def execute_host():
         with test_activity.activity(root, host_only=True), test_source.reader(root):
-            status = _main(host_args, detached=True, checkpoint=Checkpoint(
+            return _main(host_args, detached=True, checkpoint=Checkpoint(
                 root, selections(root, host_args), resume='--resume' in host_args))
-        if status:
-            return status
     with Control().installed() as control:
         store = test_retention.Store(test_activity.retention_path(root))
         # The inherited owner lease excludes live workers; every VM still
@@ -189,7 +365,9 @@ def run(root, argv, *, reloading=False):
                         lines.extend([f'VM: {name}', *frames[name]])
                     sys.stdout.frame(lines)
 
-            def execute_worker(vm, work, inherited, receipt):
+            def execute_worker(worker, assignment, inherited, recovering):
+                vm, receipt = worker.vm, worker.receipt
+                work = assignment.get('execution', assignment['work'])
                 if launcher_reload.pending():
                     return dict(status=launcher_reload.STATUS, handoffs=[])
                 environment = test_launcher.environment(root)
@@ -204,8 +382,9 @@ def run(root, argv, *, reloading=False):
                 environment[CHECKOUT] = receipt
                 environment.pop('ONPC_RUNNER_INVOCATION', None)
                 request = directory / (vm.name + '-work.json')
-                attempt = uuid.uuid4().hex
-                request.write_text(json.dumps(dict(selection=guest_args, passed=inherited, attempt=attempt)))
+                attempt = assignment['attempt']
+                request.write_text(json.dumps(dict(selection=guest_args, passed=inherited,
+                                                  assignment=assignment, recovering=recovering)))
                 request.chmod(0o600)
                 environment[FAMILY_WORK] = str(request)
                 worker_args = arguments(work)
@@ -244,14 +423,19 @@ def run(root, argv, *, reloading=False):
                     if pending:
                         with output_lock:
                             print(f'[{vm.name}] ' + pending.decode('utf-8', errors='replace'), flush=True)
-                return {'status': status, 'handoffs': handoffs, 'attempt': attempt, 'ready': ready}
+                evidence = None
+                if ready:
+                    saved = Checkpoint(root, guest_selection, resume=True, binding=vm.name)
+                    evidence = saved.state.get('queue_evidence')
+                return dict(status=status, handoffs=handoffs, evidence=evidence)
 
-            def execute_case(vm, work, inherited, receipt):
+            def execute_case(worker, assignment, inherited, recovering):
+                vm = worker.vm
                 with output_lock:
                     frames[vm.name] = ['Starting worker']
                     publish_frames()
                 try:
-                    result = execute_worker(vm, work, inherited, receipt)
+                    result = execute_worker(worker, assignment, inherited, recovering)
                 except (ValueError, OSError):
                     with output_lock:
                         frames[vm.name] = ['Failed (worker error)']
@@ -265,96 +449,11 @@ def run(root, argv, *, reloading=False):
                     publish_frames()
                 return result
 
-            queue_lock = threading.Lock()
-
-            def completed(family):
-                checkpoint = family['checkpoint']
-                items = [*family['all_items'], *family['items']]
-                saved = set(checkpoint.state.get('queue_completed', []))
-                return {work_key(work) for work in items if work_key(work) in saved
-                        and set(work['cases']) <= checkpoint.passed(work['category'])}
-
-            def execute_claims(worker):
-                vm, receipt = worker.vm, worker.receipt
-                family = families[vm.family]
-                handoffs = []
-                while not control.stopped.is_set() and not launcher_reload.pending():
-                    # Claim only after this reserved worker has passed source
-                    # admission and obtained execution capacity. Waiting for a
-                    # VM or source owner never claims a normal case.
-                    with worker.operation():
-                        with queue_lock:
-                            unit = next((item for item in family['items']
-                                         if family['claims'].get(work_key(item)) == vm.name), None)
-                            unit = unit or claim(family['items'], completed(family), family['claims'], vm.name)
-                            if unit is None:
-                                return dict(status=0, handoffs=handoffs)
-                            key = work_key(unit)
-                            work = family['views'].get(key, unit)
-                            checkpoint = family['checkpoint']
-                            inherited = {category: sorted(checkpoint.passed(category))
-                                         for category in checkpoint.selected}
-                            checkpoint.state['queue_claims'] = dict(family['claims'])
-                            checkpoint.state.setdefault('queue_items', {})[key] = unit
-                            checkpoint.save()
-                        result = execute_case(vm, work, inherited, receipt)
-                        handoffs.extend(result['handoffs'])
-                        # The supervised child returned through owned cleanup;
-                        # the executor still retains this worker's reservation.
-                        with queue_lock:
-                            saved = (Checkpoint(root, guest_selection, resume=True, binding=vm.name)
-                                     if result.get('ready') else None)
-                            current = saved is not None and saved.state.get('queue_attempt') == result.get('attempt')
-                            credited = set(work.get('credit', work['cases']))
-                            for case in (credited & saved.passed(work['category']) if current else set()):
-                                checkpoint.event(work['category'], dict(kind='finished', nodeid=case), set())
-                            if not result['status']:
-                                if not current or work['cases'] and not set(work['cases']) <= checkpoint.passed(work['category']):
-                                    raise ValueError('case runner returned success without teardown-complete case evidence')
-                                checkpoint.state['queue_completed'] = sorted(
-                                    set(checkpoint.state.get('queue_completed', [])) | {work_key(work)} | {
-                                        work_key(item) for item in family['all_items']
-                                        if item['category'] == work['category']
-                                        and set(item['cases']) & credited
-                                        and set(item['cases']) <= checkpoint.passed(item['category'])})
-                                # Failed histories retain their original owner.
-                                if set(unit['cases']) <= checkpoint.passed(unit['category']):
-                                    del family['claims'][key]
-                            elif work['case'] is not None:
-                                # A report or cleanup audit can fail after case
-                                # events; require the terminal target again.
-                                checkpoint.event(work['category'],
-                                    dict(kind='failure', nodeid=work['case']), set())
-                            checkpoint.state['queue_claims'] = dict(family['claims'])
-                            checkpoint.save()
-                        if result['status']:
-                            if '--stop-on-error' in guest_args and result['status'] != launcher_reload.STATUS:
-                                control.stop()
-                            return dict(status=result['status'], handoffs=handoffs)
-                        if family['scoped']:
-                            return dict(status=0, handoffs=handoffs)
-                return dict(status=130 if control.stopped.is_set() else launcher_reload.STATUS,
-                            handoffs=handoffs)
-
-            def needed(vm):
-                family = families[vm.family]
-                with queue_lock:
-                    done = completed(family)
-                    return (any(family['claims'].get(work_key(item)) == vm.name for item in family['items']) or any(
-                        work_key(item) not in done and work_key(item) not in family['claims']
-                        for item in family['items']))
-
             publish_frames()
-            with Executor(root, vms, snapshot['concurrency'], control.stopped) as executor:
-                results = executor.run_each(execute_claims, needed=needed)
-            for family in families.values():
-                checkpoint = family['checkpoint']
-                done = completed(family)
-                for category in checkpoint.selected:
-                    selected = [work for work in family['all_items'] if work['category'] == category]
-                    if selected and all(work_key(work) in done for work in selected):
-                        checkpoint.entry(category)['complete'] = True
-                checkpoint.save()
+            outcome = execute_pass(root, plan, control, execute_case, host=execute_host)
+            results = outcome['results']
+            if not results:
+                return outcome['status']
             # Keep the actual joined results even if failure-detail processing
             # below cannot read a diagnostic handoff.
             (directory / 'results.json').write_text(json.dumps(results, indent=2))
@@ -420,10 +519,21 @@ def run(root, argv, *, reloading=False):
             # Each directly spawned worker returns only after its guarded
             # execution and cleanup. Its exit status owns the result; report
             # archives and diagnostic file lifetimes do not qualify it again.
-            return 130 if control.stopped.is_set() else 1 if failed else 0
+            return outcome['status']
 
 
 def worker(argv):
+    finished = []
+    status = _worker(argv, finished)
+    # Both the guest controller and this child's enclosing leases have now
+    # finished cleanup. A failed context exit publishes no attempt evidence.
+    for checkpoint, evidence in finished:
+        checkpoint.state['queue_evidence'] = evidence
+        checkpoint.save()
+    return status
+
+
+def _worker(argv, finished):
     mode, name, *args = argv
     if mode not in ('--execute', '--execute-reload'):
         raise ValueError('private VM queue entry only')
@@ -463,9 +573,17 @@ def worker(argv):
                 checkpoint.entry(category).update(passed=passed, complete=False)
                 checkpoint.excluded[category] = set(passed)
                 checkpoint.snapshot(category)
-            checkpoint.state['queue_attempt'] = work['attempt']
+            assignment = work['assignment']
+            if assignment['vm'] != name:
+                raise ValueError('assignment belongs to another VM')
+            checkpoint.state['queue_assignment'] = assignment
             checkpoint.save()
-            print(CHECKPOINT_READY + work['attempt'], flush=True)
+            print(CHECKPOINT_READY + assignment['attempt'], flush=True)
+            if work['recovering']:
+                finished.append((checkpoint, dict(assignment=assignment, cleanup=True)))
+                return 0
+            if assignment['source'] != source_identity(root):
+                raise ValueError('assignment source inputs changed before execution')
         replay = [arg.partition('=')[2] for arg in args if arg.startswith('--resume-case=')]
         if replay:
             groups = selections(root, args)
@@ -485,9 +603,21 @@ def worker(argv):
             else:
                 checkpoint.event(groups[0][0], dict(kind='failure', nodeid=replay[0]), set())
         try:
-            return _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
+            status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
         except launcher_reload.ReloadRequested:
             return launcher_reload.STATUS
+        if work:
+            # An inherited pass is never evidence that this attempt executed it.
+            # The report owns case teardown; main returns through retained-output
+            # finalization before this bounded result is made available.
+            category = assignment['work']['category']
+            executed = assignment.get('execution', assignment['work'])
+            observed = checkpoint.passed(category) & set(executed['cases'])
+            evidence = dict(assignment, passed=sorted(observed),
+                cleanup=bool(getattr(checkpoint, 'queue_finalized', False)),
+                diagnostic=assignment['source'] != source_identity(root))
+            finished.append((checkpoint, evidence))
+        return status
 
 
 if __name__ == '__main__':

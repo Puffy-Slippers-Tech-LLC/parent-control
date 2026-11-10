@@ -215,6 +215,9 @@ spans the panel above the completed task recaps and current task/session rows.
 The **Total Tasks:** label is bold. When the whole plan
 finishes, the same line adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.
+An accepted safe-boundary stop shows **Stopped** in red, even when cleanup
+succeeds with exit code zero. **Finished** is reserved for a completed plan;
+an incomplete plan never receives that label.
 The summary stays pinned at the top. Only the task/session history between the
 full-width dividers scrolls, following the bottom until you scroll up.
 Below it, a pinned read-only box shows the latest text output. Its bold label

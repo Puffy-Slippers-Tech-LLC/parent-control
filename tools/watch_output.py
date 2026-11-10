@@ -266,7 +266,7 @@ class Output:
         if not active and self.completion_status() == 'stopped':
             details = [line for line in details
                        if not clean(line).startswith('Tests interrupted.')]
-            details.append('\033[32mLauncher has stopped.\033[0m')
+            details.append('\033[31mLauncher has stopped.\033[0m')
         return steps, details
 
     def closing_task(self, steps, *, session_inactive):
@@ -330,8 +330,15 @@ class Output:
             status = result.get('status') if workflow else result
             if type(status) is not int:
                 return 'incomplete'
+            if status == 0 and workflow and (self.run / 'stop').exists():
+                return 'stopped'
             if status == 0 and workflow and (self.run / 'limited').exists():
                 return 'task limit reached'
+            if status == 0 and self.execution_plan:
+                from launcher_view import observed_plan_totals
+                totals = observed_plan_totals(self.root, self.run, self.reader)
+                if totals is None or totals[1]:
+                    return 'incomplete'
             return {0: 'finished', 130: 'stopped'}.get(status, 'failed')
         except (OSError, ValueError, KeyError, TypeError):
             return 'incomplete'

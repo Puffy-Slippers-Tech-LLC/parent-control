@@ -224,9 +224,14 @@ def test_parent_discovery_error_opens_prefilled_feedback(
                               "feedback confirmation opens")
 
 
-@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("overlay,send_without_logs", (
+    pytest.param(False, False, id="kiosk"),
+    pytest.param(True, False, id="child-overlay"),
+    pytest.param(False, True, id="kiosk-send-without-logs"),
+))
 def test_removing_logs_after_preparation_failure_preserves_edited_report(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay,
+        send_without_logs):
     from tests.support.application_ui import utf16_length
     ui = automation
     _process, path = launch_request(
@@ -246,6 +251,11 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
     wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
                               "error feedback opens")
     editor, original = wait_for_error_draft(ui, wait_for_accessible_state)
+    expected = "Logs could not be prepared. You can send this feedback without the attachment."
+    wait_for_accessible_state(lambda: ui.text("feedback-status") == expected,
+                              "collection failure is public")
+    assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+    assert ui.state("feedback-retry-logs", ui.api.StateType.SENSITIVE)
     ui.setValue('feedback-editor-selection', {
         'index': utf16_length(ui.getText(editor)), 'length': 0})
     ui.setText('feedback-editor-insert', "\nMy account of what happened.")
@@ -253,20 +263,50 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
                               "edited error draft loaded")
     draft = ui.content(editor)
     assert original.strip() in draft
-    expected = "Logs could not be prepared. You can send this feedback without the attachment."
-    wait_for_accessible_state(lambda: ui.text("feedback-status") == expected,
-                              "collection failure is public")
-    assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
-    assert ui.state("feedback-retry-logs", ui.api.StateType.SENSITIVE)
-    ui.activate("feedback-toggle-logs")
-    wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "No logs attached",
-                              "failed diagnostics are removed")
-    assert ui.content(editor) == draft
-    assert not events(path, "feedback")
-    ui.activate("feedback-send")
+    if send_without_logs:
+        assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+        for identity in ("feedback-add-files", "feedback-download-logs",
+                         "feedback-format-attachment"):
+            assert ui.absent(identity, within="feedback-dialog")
+        ui.activate("feedback-privacy-link")
+        wait_for_accessible_state(lambda: ui.showing("feedback-privacy-dialog"),
+                                  "privacy explanation opens")
+        assert ui.text("feedback-privacy-text").strip()
+        assert ui.absent("feedback-full-privacy-link", within="feedback-privacy-dialog")
+        dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-privacy-dialog",
+                                within="feedback-dialog")
+        assert ui.content(editor) == draft
+        assert not events(path, "feedback")
+        assert not events(path, "logout") and not events(path, "close_overlay")
+        ui.activate("feedback-send-without-logs")
+    else:
+        ui.activate("feedback-toggle-logs")
+        wait_for_accessible_state(lambda: ui.text("feedback-logs-row") == "No logs attached",
+                                  "failed diagnostics are removed")
+        assert ui.content(editor) == draft
+        assert not events(path, "feedback")
+        ui.activate("feedback-send")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "feedback confirmation opens")
-    assert draft.strip() in events(path, "feedback")[0]["message"]
+    submissions = events(path, "feedback")
+    assert len(submissions) == 1
+    assert draft.strip() in submissions[0]["message"]
+    assert submissions[0]["attachments"] == []
+    if send_without_logs:
+        assert submissions[0]["subject"] == "[Oh No! Parent Control] [Kiosk App] Error Report"
+        assert ui.text("feedback-success-text") == (
+            "Your feedback was sent successfully. We appreciate your help making the app better.")
+        assert ui.state("feedback-success-dialog", ui.api.StateType.MODAL)
+        assert ui.absent("feedback-dialog", within="kiosk-request-window")
+        assert not events(path, "logout") and not events(path, "close_overlay")
+        dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog",
+                                within="kiosk-request-window")
+        wait_for_accessible_state(lambda: bool(events(path, "logout")),
+                                  "station exits after manual thanks dismissal")
+        assert len(events(path, "logout")) == 1
+        assert not events(path, "close_overlay")
+        assert ui.absent("feedback-dialog", within="kiosk-request-window")
+        assert len(events(path, "feedback")) == 1
 
 
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))

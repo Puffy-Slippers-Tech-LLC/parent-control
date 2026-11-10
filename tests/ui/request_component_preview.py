@@ -331,7 +331,9 @@ feedback.collect_logs = feedback_logs
 
 def feedback_post(_url, **kwargs):
     parts = dict(kwargs["files"])
-    BROKER.record("feedback", subject=parts["title"][1], message=parts["body"][1])
+    BROKER.record("feedback", subject=parts["title"][1], message=parts["body"][1],
+                  attachments=[part[0] for name, part in kwargs["files"]
+                               if name == "attachments"])
     response = Mock(status_code=202, json=Mock(return_value={"ok": True}))
     response.__enter__ = Mock(return_value=response)
     response.__exit__ = Mock()

@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **262 — [Check overlay report success and close callback](E2E-Tasks/262-case-220.md)**.
+Next task: **263 — [Check station report success and logout callback](E2E-Tasks/263-case-221.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

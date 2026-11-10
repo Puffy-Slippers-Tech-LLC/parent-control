@@ -161,23 +161,38 @@ def test_request_error_review_restrictions_and_submission(
     )
     assert (ui.showing("feedback-download-logs") if overlay
             else ui.absent("feedback-download-logs", within="feedback-dialog"))
+    if overlay:
+        ui.setText("feedback-reply-email", "first@example.invalid")
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "error report is ready")
     ui.activate("feedback-send")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "feedback confirmation opens")
     component = "Child App" if overlay else "Kiosk App"
-    assert events(path, "feedback")[0]["subject"] == (
+    submissions = events(path, "feedback")
+    assert len(submissions) == 1
+    assert submissions[0]["subject"] == (
         f"[Oh No! Parent Control] [{component}] Error Report"
     )
+    body = "Your feedback was sent successfully. We appreciate your help making the app better."
+    if overlay:
+        assert "Reply email: first@example.invalid\n" in submissions[0]["message"]
+        body += ("\n\nWe may contact you at the email address you provided if we have "
+                 "any follow-up questions.")
+    assert ui.text("feedback-success-text") == body
+    assert ui.state("feedback-success-dialog", ui.api.StateType.MODAL)
     assert not events(path, "close_overlay" if overlay else "logout")
-    assert ui.absent("feedback-dialog", within="feedback-success-dialog")
+    assert ui.absent("feedback-dialog", within="kiosk-request-window")
     dismiss_feedback_dialog(ui, wait_for_accessible_state, "feedback-success-dialog",
                             within="kiosk-request-window")
     wait_for_accessible_state(
         lambda: bool(events(path, "close_overlay" if overlay else "logout")),
         "exit after success confirmation closes",
     )
+    assert len(events(path, "close_overlay" if overlay else "logout")) == 1
+    assert not events(path, "logout" if overlay else "close_overlay")
+    assert ui.absent("feedback-dialog", within="kiosk-request-window")
+    assert len(events(path, "feedback")) == 1
 
 
 def test_parent_discovery_error_opens_prefilled_feedback(

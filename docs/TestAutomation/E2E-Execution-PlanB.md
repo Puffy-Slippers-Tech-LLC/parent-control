@@ -24,7 +24,7 @@ wait for this plan's installed cooldown or collection-failure triggers.
 
 ## Next task
 
-Next task: **217 — [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md)**.
+Next task: **187a — [Observe and decline an overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

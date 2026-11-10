@@ -252,6 +252,70 @@ sub pending_station_close {
     $journey->finish();
 }
 
+sub station_close_case {
+    onpc_progress::operation('Cancelling a station request and approving fresh time for the intended child');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'station-close:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'station-close-case', review => 0);
+    $journey->{kiosk_request} = ['child', 'parent', 75, 1];
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    # Jordan's untouched policy and request choices are independent witnesses;
+    # only Riley's request is ever submitted.
+    onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing');
+    $journey->seen($_) for qw(peer-allowance peer-settings peer-apps-page peer-apps);
+    my $select = sub {
+        my ($prefix, $child) = @_;
+        my $scope = $journey->scope($prefix);
+        onpc_parent::select_child($scope, $child, $scope->seen('child-picker-opened'),
+            'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+    };
+    $select->('selected', 'child');
+    $journey->seen('allowance-configured');
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['S', 'match-soft-wildcard', 'conditional']];
+    onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'child', $apps, 'rules');
+    onpc_gdm::enter_station($journey, '');
+    $journey->seen('peer-choices-before');
+    prepare($journey, 'open', 'open', 'observed', 'fixture-child', 'fixture-parent', 75, 1, 'kiosk');
+    station_close($journey->scope('interruption'));
+    onpc_gdm::enter_station($journey, 'cancel-');
+    $journey->seen($_) for qw(reopened-form peer-choices-returned selected-restored cancel cancel-returned);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
+    onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'return', 0);
+    $journey->seen($_) for qw(balance-returned returned-apps);
+    onpc_app_rows::saved_rows($journey, $apps, 'returned');
+    $select->('peer-returned', 'existing');
+    $journey->seen($_) for qw(peer-returned-settings peer-returned-balance peer-returned-apps-page peer-returned-apps);
+    $select->('selected-returned', 'child');
+    my $parent = $journey->scope('cancelled-parent');
+    onpc_desktop_session::switch_user($parent, $parent->seen('desktop'), 'desktop');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'cancelled-child');
+    for my $role ('H', 'S') {
+        onpc_app_rows::native_blocked_app($journey->scope($role eq 'H' ? 'cancelled-hard' : 'cancelled-soft'), $role);
+    }
+    onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'preapproval');
+    $journey->seen('preapproval-balance');
+    $parent = $journey->scope('recovery-parent');
+    onpc_desktop_session::switch_user($parent, $parent->seen('desktop'), 'desktop');
+    onpc_gdm::enter_station($journey->scope('recovery'), '');
+    $journey->seen('recovery-form');
+    approve($journey, 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'approved-child');
+    $journey->seen('countdown');
+    onpc_app_rows::native_blocked_app($journey->scope('approved-hard'), 'H');
+    my $soft = $journey->scope('approved-soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    $journey->seen($_) for qw(soft-close soft-closed);
+    onpc_parent::open_for_child($journey, 'desktop', 'retained', 'retained', 'child', 'final');
+    $journey->seen('approved-balance');
+    $select->('peer-final', 'existing');
+    $journey->seen($_) for qw(peer-final-settings peer-final-balance peer-final-apps-page peer-final-apps);
+    $journey->finish();
+}
+
 # The fixed kiosk request's existing AUTH01 proofs authorize only one normal
 # surface close here. No password or agent Cancel is delivered.
 sub station_close {

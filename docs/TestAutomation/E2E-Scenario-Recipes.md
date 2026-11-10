@@ -1870,6 +1870,18 @@ The `overlay-lock`, `overlay-switch` and `overlay-signout` compositions use
 `onpc_request_flow::overlay_interruption_case`. Runtime bindings belong to the
 [inventory](../../tests/e2e/scenarios.json).
 
+The `kiosk-close` composition uses `station_close_case.StationCloseCaseJourney`
+and `onpc_request_flow::station_close_case`. Both children have 30-minute daily
+allowances; Riley has the named A/H/S rules and requests Custom 1.25 minutes
+with Soft apps included from Jamie. Normal Close under the real pending prompt
+returns to GDM. Fresh station entry reads Riley's unchanged choices and Jordan's
+untouched default choices before any request edit. Parent independently compares
+both balances and saved policy; Riley's H/S command launches remain denied.
+After a fresh balance read, a new station request requires new authentication,
+actual added time and usable GDM. Legitimate retained Riley entry must show a
+running countdown, Hard denial and usable Soft work. Final Parent readback checks
+Riley's actual grant and Jordan's unchanged settings, app rules and zero grant.
+
 **Leave a pending approval or request again too soon.** Cases 171, 172, 173, 174, 175, 176, 178.
 
 Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close / kiosk-close / overlay-cooldown / kiosk-cooldown-other.

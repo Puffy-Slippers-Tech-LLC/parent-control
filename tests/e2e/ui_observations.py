@@ -123,6 +123,7 @@ OPERATION_LABELS = {
     'overlay-shell-lock-ready': 'Observing the pending parent approval before locking the child screen',
     'overlay-shell-close-ready': 'Observing the pending parent approval before closing the child request',
     'overlay-pending-close': 'Closing the child request through its normal window action',
+    'kiosk-pending-close': 'Closing the station through its normal window action during parent approval',
     'overlay-shell-switch-user-ready': 'Observing the pending parent approval before switching users',
     'overlay-shell-sign-out-ready': 'Observing the pending parent approval before signing out',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
@@ -1394,7 +1395,7 @@ class UiObservations:
                             and previous_operation == 'kiosk-mate-open',
                             'ui:mate-agent-loss-order')
                 if 0 < getattr(self, 'mate_approval_index', 0) < 4:
-                    if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS | {'kiosk-agent-refused'}:
+                    if operation not in accessible_ui.MATE_APPROVAL_OPERATIONS | {'kiosk-agent-refused', 'kiosk-pending-close'}:
                         self.challenge_failed = True
                         require(False, 'ui:mate-intervening-operation')
                 if operation in accessible_ui.MATE_APPROVAL_OPERATIONS:
@@ -1473,6 +1474,12 @@ class UiObservations:
                     self.mate_approval_index = 0
                     self.mate_approval_identity = None
                     self.mate_request_binding = None
+                if operation == 'kiosk-pending-close':
+                    # Closing consumed this challenge, without delivering any
+                    # credential. Fresh requests retain globally used IDs.
+                    self.mate_approval_index = 0
+                    self.mate_approval_identity = None
+                    self.mate_request_binding = None
                 if operation == accessible_ui.PAUSE_MATE_ORDER[0]:
                     self.mate_approval_checked = time.monotonic()
                 if operation in ('revoke-balances', 'revoke-saved-balances', 'revoke-cleared-balances'):
@@ -1535,7 +1542,7 @@ class UiObservations:
                     self.language_failed = True
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
                                  | {'kiosk-agent-refused'}
-                                 | {'overlay-pending-close'}
+                                 | {'overlay-pending-close', 'kiosk-pending-close'}
                                  | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
                                  ) or 0 < getattr(self, 'shell_approval_index', 0) < len(accessible_ui.SHELL_APPROVAL_ORDER):
                     self.challenge_failed = True
@@ -1570,6 +1577,14 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
+        if operation == 'kiosk-pending-close':
+            require(not self.challenge_failed
+                    and self.last_operation == 'kiosk-mate-rechecked'
+                    and getattr(self, 'mate_approval_index', 0) == 3
+                    and self.kiosk_request == self.mate_request_binding
+                    and getattr(self, 'mate_approval_identity', None)
+                    and time.monotonic() - self.mate_approval_checked < 30,
+                    'ui:pending-station-close-order')
         if operation == 'overlay-pending-close':
             require(not self.challenge_failed
                     and self.last_operation == 'overlay-shell-close-ready'
@@ -1637,6 +1652,9 @@ class UiObservations:
         if operation == 'overlay-pending-close':
             binding = [self.boot_guard or '', self.pending_close_challenge]
             self.pending_close_challenge = None  # Consume before dispatch, including uncertain replies.
+        if operation == 'kiosk-pending-close':
+            binding = [self.boot_guard or '', self.mate_approval_identity]
+            self.mate_approval_identity = None  # Consume before dispatch, including uncertain replies.
         if operation == 'kiosk-reminder-preview-cancel':
             require(self.last_operation == 'kiosk-reminder-preview' and
                     hasattr(self, 'kiosk_reminder_source'), 'ui:kiosk-reminder-order')

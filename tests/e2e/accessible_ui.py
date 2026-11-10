@@ -1417,9 +1417,9 @@ def shell_request_matches(text, child, seconds, soft, language):
 
 OPERATIONS |= SHELL_PROMPT_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_PROMPT_OPERATIONS
-OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused'}
+OPERATIONS |= MATE_OPERATIONS | {'parent-mate-refused', 'kiosk-pending-close'}
 OPERATIONS |= frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS) | KIOSK_ACCOUNT_REFUSALS
-KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel',
+KIOSK_EXIT_OPERATIONS = frozenset({'kiosk-request-cancel', 'kiosk-pending-close',
                                    'kiosk-request-escape-ready'})
 KIOSK_SESSION_OPERATIONS = (KIOSK_OPERATIONS | {'kiosk-agent-refused'} | KIOSK_DIAGNOSTIC_OPERATIONS | KIOSK_REMINDER_OPERATIONS | KIOSK_EXIT_OPERATIONS | KIOSK_CHOICE_OPERATIONS
                             | frozenset(KIOSK_ACCOUNT_REQUESTS) | frozenset(KIOSK_DISABLED_REQUESTS)
@@ -3182,23 +3182,36 @@ class AccessibleUI:
         """Read the public editor document, independently of editing actions."""
         return self.get_value('feedback-editor-document')
 
-    def close_id(self, identity, *, pending_shell_challenge=None):
+    def close_id(self, identity, *, pending_shell_challenge=None, pending_mate_challenge=None):
         """Request the owned product surface's ordinary close action once."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        if pending_shell_challenge is None:
+        require(pending_shell_challenge is None or pending_mate_challenge is None,
+                'ui:pending-close-binding')
+        if pending_shell_challenge is None and pending_mate_challenge is None:
             node = self.id_target(identity, showing=False)
         else:
-            # Only this owned overlay may close under its already proved real
+            # Only this owned request may close under its already proved real
             # approval prompt. Keep the API's actual modal/availability guards.
             require(identity == 'kiosk-request-window', 'ui:pending-close-surface')
-            self.require_child_overlay_session(self.overlay_bound_values()[0])
+            if pending_mate_challenge is not None:
+                require(os.getuid() == pwd.getpwnam(KIOSK_USERNAME).pw_uid,
+                        'ui:station-desktop-identity')
+                require_active_launch_session()
+            else:
+                self.require_child_overlay_session(self.overlay_bound_values()[0])
             self.invalidate_observation()
             observation = self.read_snapshot(protect_text=True)
-            owner = self.shell_prompt_owner(observation)
-            challenge = self.shell_prompt(owner.get_process_id(), os.getuid(),
-                                          observation=observation)
+            if pending_mate_challenge is not None:
+                pid = self.mate_agent_pid()
+                challenge = self.mate_prompt(pid, observation=observation)
+                expected = pending_mate_challenge
+            else:
+                owner = self.shell_prompt_owner(observation)
+                pid = owner.get_process_id()
+                challenge = self.shell_prompt(pid, os.getuid(), observation=observation)
+                expected = pending_shell_challenge
             require(challenge is not None and self.mate_challenge_identity(
-                owner.get_process_id(), challenge) == pending_shell_challenge,
+                pid, challenge) == expected,
                 'ui:pending-close-challenge')
             node = self.snapshot_owned_target(identity, observation=observation)
             require(node is not None and self.surface_available(node),
@@ -15757,6 +15770,10 @@ class AccessibleUI:
             require(self.expected_mate_challenge is not None, 'ui:pending-close-proof')
             self.close_id('kiosk-request-window',
                           pending_shell_challenge=self.expected_mate_challenge)
+        elif operation == 'kiosk-pending-close':
+            require(self.expected_mate_challenge is not None, 'ui:pending-close-proof')
+            self.close_id('kiosk-request-window',
+                          pending_mate_challenge=self.expected_mate_challenge)
         elif operation == 'overlay-shell-dismissed':
             self.require_child_overlay_session(self.overlay_bound_values()[0])
             def absent():
@@ -16770,7 +16787,7 @@ def main():
         and not binding_reminder_binding and not natural_expiry_binding
         and not countdown_session_binding else None)
     require(ui.expected_mate_challenge is None or (
-        sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS | {'overlay-pending-close'} and
+        sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS | {'overlay-pending-close', 'kiosk-pending-close'} and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     # Identify a disappearing external owner at the retained failure boundaries,
     # including the attachment Open preflight, fresh attachment read and

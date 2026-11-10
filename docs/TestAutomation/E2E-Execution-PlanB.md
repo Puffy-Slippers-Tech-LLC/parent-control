@@ -24,7 +24,7 @@ wait for this plan's installed cooldown or collection-failure triggers.
 
 ## Next task
 
-Next task: **183e — [Close the station during pending approval](E2E-Tasks/183e-close-the-station-during-pending-approval.md)**.
+Next task: **217 — [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

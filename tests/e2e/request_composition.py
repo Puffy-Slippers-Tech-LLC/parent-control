@@ -158,7 +158,7 @@ class CancelledRequestJourney(KioskRequestJourney):
         require(before in stages and after in stages and stages.index(before) < stages.index(after)
                 and type(maximum_elapsed) is int and maximum_elapsed > 0,
                 'pending-lock:balance-plan')
-        require(bool(session_checks) and all(earlier in stages and later in stages
+        require(type(session_checks) is dict and all(earlier in stages and later in stages
                 and stages.index(earlier) < stages.index(later)
                 and plan.screen_tags[earlier] == plan.screen_tags[later]
                 == 'system:child-desktop-identity'

@@ -17,6 +17,16 @@ The tab starts with a 30:70 left/right split. Drag the divider to resize it;
 the tab remembers its ratio. Focus the divider and use the arrow keys to resize
 with the keyboard, or double-click it to restore 30:70.
 
+The left panel has a **Launchers** toolbar with right-aligned **Auto**,
+**Horizontal** and **Vertical** layout controls. It defaults to **Vertical**;
+the viewer defaults to **Auto**. Both panes share the same layout controls and
+tile grid, and remember their layout choices independently. Choosing a layout
+expands all tiles in that pane. Launcher dividers remain available in Vertical
+mode and retain resized proportions when returning to that mode.
+In Auto and Horizontal modes, minimized launchers use the same compact title
+strip and overflow menu as minimized viewers, leaving the grid space for expanded
+tiles. Double-click a minimized title to restore the launcher's chosen layout.
+
 The left panel shows **Run Status** across related Git worktrees, using shared
 runner discovery and the pipeline dashboard. Each concurrent launcher gets its
 own section, including launchers in the same worktree. Sections
@@ -24,16 +34,16 @@ share the panel in equal sections initially. A `run-tests` child that publishes
 its controlling launcher is shown through that launcher's progress, even across
 worktrees. Independent runners keep their own sections. Older child runs without
 that publication remain visible until their next normal start.
-The horizontal dividers can be
+In Vertical mode, the horizontal dividers can be
 dragged to resize adjacent sections, or focused
 and adjusted with Up/Down. A vertical divider separates each actions menu from
 **Minimize** and **Maximize** / **Restore**, using the same controls as viewer tiles.
 Minimize leaves only the title row with its view dropdown and buttons, hiding content.
 Its button becomes **Restore tile layout** while minimized and restores the same
-stacked layout as the maximized tile's Restore button.
+chosen layout as the maximized tile's Restore button.
 Maximize expands the selected launcher and minimizes every other launcher.
-Restore expands all launchers into their stacked layout, retaining resized proportions
-and selected tabs. Inactive launchers (finished, failed or stopped) minimize by default,
+Restore expands all launchers into their chosen layout, retaining Vertical mode's
+resized proportions and selected tabs. Inactive launchers (finished, failed or stopped) minimize by default,
 including when a running launcher exits. A new active run expands by default.
 Manual minimization and resizing survive live refreshes until the next
 run or activity transition. Maximization survives those transitions until a tile

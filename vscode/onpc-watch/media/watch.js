@@ -27,14 +27,15 @@
     let maximizedRun;
     const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
-    let tileLayout = ['auto', 'vertical', 'horizontal'].includes(saved?.tileLayout) ? saved.tileLayout : 'auto';
+    let tileLayout;
+    let runTileLayout;
+    let manualRunTiles = false;
     const minimized = new Set(saved?.minimized || []);
     let manualTiles = Boolean(saved?.manualTiles);
     let viewerEntries = [];
-    const minimizedFooter = document.getElementById('minimized-tiles');
-    const minimizedTitles = document.getElementById('minimized-titles');
-    const tileOverflow = document.getElementById('tile-overflow');
-    const tileList = document.getElementById('tile-list');
+    const viewerTileStrip = minimizedTileStrip(document.getElementById('viewer'));
+    const launcherTileStrip = minimizedTileStrip(document.getElementById('launchers'),
+        (title, entry) => launcherTitle(tileTitle(title, entry), entry));
     let split = Number.isFinite(saved?.split) ? saved.split : 30;
     let pending = Promise.resolve();
     const resourceSamples = new Map();
@@ -436,12 +437,7 @@
         menu.prepend(copy, copyCommand);
         element('span', 'run-controls-divider', controls).setAttribute('aria-hidden', 'true');
         const restore = () => {
-            maximizedRun = undefined;
-            for (const panel of sections.values()) {
-                panel.collapsed = false;
-                sessionHeading(panel);
-            }
-            runDividers();
+            arrangeLaunchers();
         };
         const toggleMaximize = () => {
             if (maximizedRun === entry.id) {
@@ -449,6 +445,7 @@
                 return;
             }
             maximizedRun = entry.id;
+            manualRunTiles = true;
             for (const panel of sections.values()) {
                 panel.collapsed = panel.entry.id !== maximizedRun;
                 sessionHeading(panel);
@@ -465,6 +462,7 @@
                 return;
             }
             if (maximizedRun === entry.id) maximizedRun = undefined;
+            manualRunTiles = true;
             section.collapsed = true;
             sessionHeading(section);
             runDividers();
@@ -617,31 +615,91 @@
     }
 
     function persist() {
-        vscode.setState({ ...state, split, tileLayout, manualTiles, minimized: [...minimized] });
+        vscode.setState({ ...state, split, tileLayout, runTileLayout, manualTiles, minimized: [...minimized] });
+    }
+
+    // Both panes use the same controls and grid engine. Pane owners supply only
+    // selection state and, for resizable launcher rows, optional track sizes.
+    function tileLayoutControl({ container, defaultLayout, savedLayout, label, choose }) {
+        const options = {
+            auto: 'M3 3h5v5H3z M12 3h5v5h-5z M3 12h5v5H3z M12 12h5v5h-5z',
+            horizontal: 'M3 3h5v14H3z M12 3h5v14h-5z',
+            vertical: 'M3 3h14v5H3z M3 12h14v5H3z',
+        };
+        container.classList.add('tile-layout');
+        container.setAttribute('role', 'group');
+        container.setAttribute('aria-label', label);
+        for (const [value, path] of Object.entries(options)) {
+            const button = element('button', '', container);
+            button.type = 'button';
+            button.dataset.layout = value;
+            button.title = value.charAt(0).toUpperCase() + value.slice(1);
+            button.setAttribute('aria-label', `${button.title} tile layout`);
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('viewBox', '0 0 20 20');
+            icon.setAttribute('aria-hidden', 'true');
+            const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            shape.setAttribute('d', path);
+            icon.append(shape);
+            button.append(icon);
+            button.addEventListener('click', () => choose(value));
+        }
+        return {
+            initial: Object.hasOwn(options, savedLayout) ? savedLayout : defaultLayout,
+            update(value, active) {
+                for (const button of container.children) {
+                    button.setAttribute('aria-pressed', String(active && button.dataset.layout === value));
+                }
+            },
+        };
+    }
+
+    function applyTileLayout({ container, control, value, count, active, rows = [] }) {
+        container.dataset.layout = value;
+        container.classList.toggle('single', count === 1);
+        const tracks = value === 'vertical' ? rows.join(' ') : '';
+        if (container.style.gridTemplateRows !== tracks) container.style.gridTemplateRows = tracks;
+        control.update(value, active);
+    }
+
+    const viewerLayoutControl = tileLayoutControl({
+        container: document.getElementById('tile-layout'), defaultLayout: 'auto',
+        savedLayout: saved?.tileLayout, label: 'Viewer tile layout',
+        choose(value) {
+            arrangeTiles(value);
+            select(state.scope, 'all');
+        },
+    });
+    const launcherLayoutControl = tileLayoutControl({
+        container: document.getElementById('launcher-layout'), defaultLayout: 'vertical',
+        savedLayout: saved?.runTileLayout, label: 'Launcher tile layout',
+        choose: arrangeLaunchers,
+    });
+    tileLayout = viewerLayoutControl.initial;
+    runTileLayout = launcherLayoutControl.initial;
+
+    function arrangeLaunchers(value = runTileLayout) {
+        runTileLayout = value;
+        manualRunTiles = false;
+        maximizedRun = undefined;
+        for (const section of sections.values()) {
+            section.collapsed = false;
+            sessionHeading(section);
+        }
+        runDividers();
+        persist();
     }
 
     function arrangeTiles(value) {
         tileLayout = value;
         manualTiles = false;
         minimized.clear();
-        grid.dataset.layout = value;
         persist();
     }
 
-    function tileLayoutButtons() {
-        document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
-            button.setAttribute('aria-pressed', String(!manualTiles &&
-                ['all', 'run-time'].includes(state.selected) && button.dataset.layout === tileLayout));
-        });
-    }
-    document.querySelectorAll('#tile-layout button[data-layout]').forEach(button => {
-        button.addEventListener('click', () => {
-            arrangeTiles(button.dataset.layout);
-            select(state.scope, 'all');
-        });
-    });
-    grid.dataset.layout = tileLayout;
-    tileLayoutButtons();
+    applyTileLayout({ container: grid, control: viewerLayoutControl, value: tileLayout,
+        count: 0, active: !manualTiles && ['all', 'run-time'].includes(state.selected) });
+    runDividers();
 
     function maximizeTile(id) {
         manualTiles = true;
@@ -662,34 +720,74 @@
         }
     }
 
-    function fitMinimizedTitles() {
-        if (minimizedFooter.hidden) return;
-        const buttons = [...minimizedTitles.children];
-        buttons.forEach(button => { button.hidden = false; });
-        const total = buttons.reduce((width, button) => width + button.getBoundingClientRect().width, 0);
-        const fullWidth = minimizedTitles.clientWidth + tileOverflow.getBoundingClientRect().width;
-        tileOverflow.hidden = total <= fullWidth;
-        if (tileOverflow.hidden) {
-            tileOverflow.open = false;
-            return;
-        }
-        let used = 0;
-        const available = minimizedTitles.clientWidth;
-        for (const button of buttons) {
-            used += button.getBoundingClientRect().width;
-            button.hidden = used > available;
-        }
+    function minimizedTileStrip(parent, renderTitle = tileTitle) {
+        const footer = element('div', 'minimized-tiles', parent);
+        footer.setAttribute('aria-label', 'Minimized tiles');
+        footer.hidden = true;
+        const titles = element('div', 'minimized-titles', footer);
+        const overflow = element('details', 'tile-overflow', footer);
+        const summary = element('summary', '', overflow);
+        summary.title = 'Show all tiles';
+        summary.setAttribute('aria-label', summary.title);
+        summary.textContent = '>>';
+        const list = element('div', 'tile-list', overflow);
+        list.setAttribute('aria-label', 'All tiles');
+        const fit = () => {
+            if (footer.hidden) return;
+            const buttons = [...titles.children];
+            buttons.forEach(button => { button.hidden = false; });
+            const total = buttons.reduce((width, button) => width + button.getBoundingClientRect().width, 0);
+            const fullWidth = titles.clientWidth + overflow.getBoundingClientRect().width;
+            overflow.hidden = total <= fullWidth;
+            if (overflow.hidden) {
+                overflow.open = false;
+                return;
+            }
+            let used = 0;
+            for (const button of buttons) {
+                used += button.getBoundingClientRect().width;
+                button.hidden = used > titles.clientWidth;
+            }
+        };
+        new ResizeObserver(fit).observe(footer);
+        document.addEventListener('click', event => {
+            if (!overflow.contains(event.target)) overflow.open = false;
+        });
+        overflow.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                overflow.open = false;
+                summary.focus();
+            }
+        });
+        return {
+            update(entries, collapsed, hidden, restore) {
+                footer.hidden = hidden || !collapsed.length;
+                const signature = JSON.stringify([collapsed.map(entry => entry.id),
+                    entries.map(entry => [entry.id, entry.label, entry.title_label, entry.server,
+                        entry.transport, entry.custom_title, entry.status])]);
+                if (footer.dataset.signature !== signature) {
+                    footer.dataset.signature = signature;
+                    const titleButton = entry => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'watch-tile minimized-tile';
+                        const heading = element('span', 'watch-tile-heading tile-titlebar', button);
+                        renderTitle(element('span', 'title', heading), entry);
+                        button.title = entry.label;
+                        tileSelection(button, heading, () => {
+                            overflow.open = false;
+                            restore(entry);
+                        });
+                        return button;
+                    };
+                    titles.replaceChildren(...collapsed.map(titleButton));
+                    list.replaceChildren(...entries.map(titleButton));
+                    overflow.open = false;
+                }
+                fit();
+            },
+        };
     }
-    new ResizeObserver(() => fitMinimizedTitles()).observe(minimizedFooter);
-    document.addEventListener('click', event => {
-        if (!tileOverflow.contains(event.target)) tileOverflow.open = false;
-    });
-    tileOverflow.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            tileOverflow.open = false;
-            tileOverflow.querySelector('summary').focus();
-        }
-    });
 
     function viewerLayout() {
         const runtime = state.selected === 'run-time';
@@ -698,36 +796,17 @@
             (maximized ? entry.id === state.selected : !minimized.has(entry.id)));
         const visibleIds = new Set(visible.map(entry => entry.id));
         for (const [id, view] of cards) view.body.hidden = !visibleIds.has(id);
-        grid.classList.toggle('single', maximized || visible.length === 1);
-        tileLayoutButtons();
+        applyTileLayout({ container: grid, control: viewerLayoutControl, value: tileLayout,
+            count: maximized ? 1 : visible.length,
+            active: !manualTiles && ['all', 'run-time'].includes(state.selected) });
         const collapsed = viewerEntries.filter(entry => !visibleIds.has(entry.id));
-        minimizedFooter.hidden = runtime || !collapsed.length;
-        const signature = JSON.stringify([collapsed.map(entry => [entry.id, entry.label]),
-            viewerEntries.map(entry => [entry.id, entry.label])]);
-        if (minimizedFooter.dataset.signature !== signature) {
-            minimizedFooter.dataset.signature = signature;
-            const titleButton = entry => {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'watch-tile minimized-tile';
-                const heading = element('span', 'watch-tile-heading tile-titlebar', button);
-                tileTitle(element('span', 'title', heading), entry);
-                button.title = entry.label;
-                tileSelection(button, heading, () => {
-                    tileOverflow.open = false;
-                    if (state.selected === entry.id || minimized.has(entry.id) ||
-                            !['all', 'run-time'].includes(state.selected)) {
-                        arrangeTiles(tileLayout);
-                        select(state.scope, 'all');
-                    } else maximizeTile(entry.id);
-                });
-                return button;
-            };
-            minimizedTitles.replaceChildren(...collapsed.map(titleButton));
-            tileList.replaceChildren(...viewerEntries.map(titleButton));
-            tileOverflow.open = false;
-        }
-        fitMinimizedTitles();
+        viewerTileStrip.update(viewerEntries, collapsed, runtime, entry => {
+            if (state.selected === entry.id || minimized.has(entry.id) ||
+                    !['all', 'run-time'].includes(state.selected)) {
+                arrangeTiles(tileLayout);
+                select(state.scope, 'all');
+            } else maximizeTile(entry.id);
+        });
         const empty = grid.querySelector('.empty');
         if (empty && viewerEntries.length) empty.remove();
     }
@@ -995,15 +1074,30 @@
 
     function runDividers() {
         let previous;
+        const rows = [];
+        const value = maximizedRun ? 'vertical' : runTileLayout;
+        const stacked = value === 'vertical';
+        const visible = [...sections.values()].filter(section => stacked || !section.collapsed);
+        const expandedWeight = [...sections.values()].reduce((sum, section) =>
+            sum + (section.collapsed ? 0 : section.weight), 0);
         for (const body of runs.querySelectorAll('.run')) {
             const section = sections.get(body.dataset.root);
+            body.hidden = !stacked && section.collapsed;
             section.previous = previous;
-            section.divider.hidden = !previous;
-            const enabled = Boolean(previous);
+            const enabled = Boolean(previous) && value === 'vertical';
+            section.divider.hidden = !enabled;
             section.divider.setAttribute('aria-disabled', String(!enabled));
             section.divider.tabIndex = enabled ? 0 : -1;
+            if (previous) rows.push('8px');
+            rows.push(section.collapsed ? 'max-content' :
+                `minmax(${section.minimum || 100}px, ${section.weight / expandedWeight}fr)`);
             previous = section;
         }
+        applyTileLayout({ container: runs, control: launcherLayoutControl, value,
+            count: visible.length, active: !manualRunTiles && !maximizedRun, rows });
+        const entries = [...runs.querySelectorAll('.run')].map(body => sections.get(body.dataset.root).entry);
+        launcherTileStrip.update(entries, entries.filter(entry => sections.get(entry.id).collapsed),
+            stacked, () => arrangeLaunchers());
     }
 
     function runMinimum(section) {
@@ -1011,6 +1105,7 @@
             (section.view === 'status' ? section.latestLabel.offsetHeight : 0) + 80;
         section.minimum = Math.max(100, minimum);
         section.body.style.minHeight = `${section.minimum}px`;
+        runDividers();
     }
 
     function previewDivider(section) {
@@ -1104,8 +1199,8 @@
             const weight = previous.weight + section.weight;
             previous.weight = weight * height / total;
             section.weight = weight - previous.weight;
-            previous.body.style.flexGrow = previous.weight;
-            section.body.style.flexGrow = section.weight;
+            manualRunTiles = true;
+            runDividers();
         };
         handle.addEventListener('pointerdown', event => {
             if (event.button !== 0 || handle.getAttribute('aria-disabled') === 'true') return;

@@ -42,7 +42,12 @@ BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
 BINDINGS['child-desktop-identity'] = ('child', 'desktop-identity')
+BINDINGS['standard-desktop-identity'] = ('standard', 'desktop-identity')
 LABELS['desktop-identity'] = 'Verifying the preserved desktop identity'
+for _action in ('overview-open', 'overview-close'):
+    BINDINGS['standard-' + _action] = ('standard', _action)
+LABELS['overview-open'] = 'Showing the desktop panel above fullscreen work'
+LABELS['overview-close'] = 'Returning to the fullscreen work'
 for _role in ACCOUNTS:
     for _mode in ('fresh', 'retained', 'same', 'lock', 'refusals'):
         BINDINGS[_role + '-entry-' + _mode] = (_role, 'entry-' + _mode)
@@ -597,6 +602,27 @@ def execute(binding, *, diagnostic=False):
         diagnostic=logout_trace if diagnostic else
                    'before-submit' if switch_diagnostic else None),
         account.pw_uid, locked=locked) == source, 'source-changed')
+    if action in ('overview-open', 'overview-close'):
+        active = action == 'overview-open'
+        command = ['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
+                   '--object-path', '/org/gnome/Shell',
+                   '--method', 'org.freedesktop.DBus.Properties.']
+        # One supported Shell action, under the already verified child account.
+        # Never toggle blindly or retry a submission after an uncertain reply.
+        call([*command[:-1], command[-1] + 'Set', 'org.gnome.Shell',
+              'OverviewActive', '<true>' if active else '<false>'])
+        deadline = time.monotonic() + 45
+        while True:
+            observed = call([*command[:-1], command[-1] + 'Get',
+                             'org.gnome.Shell', 'OverviewActive'])
+            require(observed.strip() in ('(<true>,)', '(<false>,)'), 'overview-state')
+            if (observed.strip() == '(<true>,)') == active:
+                break
+            require(time.monotonic() < deadline, 'overview-timeout')
+            time.sleep(.2)
+        require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                'overview': active}
     if action == 'continuous-activity':
         previous = prepare_continuous_activity()
         require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
@@ -672,6 +698,12 @@ def observe(transport, binding, *, diagnostic=False):
             and result['interface'] == 'system session' and result['unlocked'] is True
             and type(result['session_sha256']) is str
             and re.fullmatch('[0-9a-f]{64}', result['session_sha256']), 'response')
+        return result
+    if action in ('overview-open', 'overview-close'):
+        require(type(result) is dict and type(result.get('overview')) is bool
+                and result == {'operation': binding, 'outcome': 'passed',
+                           'interface': 'system session',
+                           'overview': action == 'overview-open'}, 'response')
         return result
     if action == 'retained-locked':
         require(type(result) is dict and set(result) == {

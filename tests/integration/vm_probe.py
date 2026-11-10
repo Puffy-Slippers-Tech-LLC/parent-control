@@ -748,6 +748,19 @@ def reproduce_natural_expiry(lease, fixture_selection):
                             fixture_selection=selection, timeout=1800)
 
 
+def reproduce_fullscreen_return(lease, fixture_selection):
+    """Retain case 127 after child recovery, before the countdown read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from game_access_case import GameAccessJourney, FULLSCREEN_PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, GameAccessJourney, FULLSCREEN_PLAN,
+        'recovery-countdown', 'fullscreen-return', assets=assets,
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_rest_of_day(lease, fixture_selection):
     """Retain the real midnight lock before the later input challenge."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -759,6 +772,15 @@ def reproduce_rest_of_day(lease, fixture_selection):
     return reproduce_denial(lease, RestOfDayJourney, PLAN,
         'lock-input-ready', 'rest-of-day', assets=assets,
         fixture_selection=selection, timeout=1800)
+
+
+def probe_fullscreen_return(lease):
+    """Read the original game and recovered countdown independently."""
+    for ui_operation in ('game-activity', 'child-countdown-present'):
+        observe_maintenance(lease, check='probe_fullscreen_return',
+            label='fullscreen-return-probe',
+            intention='Reading the recovered child game and countdown',
+            ui_operation=ui_operation, child='existing')
 
 
 def reproduce_retained_unlock(lease):
@@ -870,7 +892,7 @@ def reproduce_countdown_resume(lease):
                  'inactive-interval': interval_action(70)})
 
 
-def observe_maintenance(lease, *, check, label, intention, ui_operation):
+def observe_maintenance(lease, *, check, label, intention, ui_operation, child=None):
     """Retain one shared UI observation under the existing maintenance owner."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations
@@ -881,7 +903,8 @@ def observe_maintenance(lease, *, check, label, intention, ui_operation):
         private.mkdir(mode=0o700)
         lease.commands.directory = private
         print(label + ': evidence=' + str(directory), flush=True)
-        observed = UiObservations(connect(lease)).observe(ui_operation)
+        observed = UiObservations(connect(lease)).observe(
+            ui_operation, **({'child': child} if child is not None else {}))
         (directory / 'observed.json').write_text(json.dumps(observed))
         lease.guard()
         print(label + ': observation passed', flush=True)
@@ -1849,6 +1872,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
         from natural_expiry import NaturalExpiryJourney, PLAN as NATURAL_EXPIRY_PLAN
+        from game_access_case import GameAccessJourney, FULLSCREEN_PLAN
         from ordinary_rest_of_day import RestOfDayJourney, PLAN as REST_OF_DAY_PLAN
         from suspend_active_grant import (SuspendActiveGrantJourney, PLAN as SUSPEND_ACTIVE_GRANT_PLAN,
                                          EXPIRED_PLAN as SUSPEND_EXPIRED_GRANT_PLAN)
@@ -1903,6 +1927,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         natural_expiry = (surface == 'natural-expiry'
             and journey_type is NaturalExpiryJourney and plan is NATURAL_EXPIRY_PLAN
             and boundary == 'natural-expiry' and boundary_operation is None)
+        fullscreen_return = (surface == 'fullscreen-return'
+            and journey_type is GameAccessJourney and plan is FULLSCREEN_PLAN
+            and boundary == 'recovery-countdown' and boundary_operation is None)
         rest_of_day = (surface == 'rest-of-day'
             and journey_type is RestOfDayJourney and plan is REST_OF_DAY_PLAN
             and boundary == 'lock-input-ready' and boundary_operation is None)
@@ -1981,7 +2008,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2051,6 +2078,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'daily-soft-balance': 'E2E-038/none',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
+            if surface == 'fullscreen-return':
+                from e2e_fixture_preparation import GAME_SUBSETS
+                context.fixture_subsets = GAME_SUBSETS
+                context.fixture_caller = 'E2E-023/fullscreen'
             context.installed_snapshot = lease.installed_name
         expected_inputs = {}
         if assets is not None:

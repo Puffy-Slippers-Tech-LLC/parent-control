@@ -4423,8 +4423,18 @@ worker/callback shutdown and baseline restoration passed; the VM was observed of
 The display collector reported a nonfatal timeout/connection reset during cleanup;
 the runner and final recording both completed successfully with no recording
 errors. This qualifies only Jordan's fullscreen APP05/FLOW10/TIME04 binding.
-Complete case 127, retained fullscreen recovery and fullscreen request/return
-remain separate pending scope.
+
+`game_access_case.FULLSCREEN_PLAN` / `GameAccessJourney` and
+`onpc_app_rows::game_access(..., 'fullscreen')` passed complete case 127
+(`E2E-023/fullscreen`) on Ubuntu 26.04 in `20261110T033059Z-72c7121a`.
+After natural expiry and the native time restriction, a real twenty-minute
+kiosk approval returned to the preserved unlocked child session. Fullscreen
+hides Activities and the panel: `standard-desktop-identity` proves the session,
+while `standard-overview-open/close` bracket the unchanged public countdown
+read. APP04 compares the original endpoint and one-move activity; APP03 makes
+a second real move and independently reads `Moves: 2; token: 2`.
+Collection, worker/callback shutdown, suite cleanup and baseline restoration
+passed; the VM was observed off. Fullscreen request/return remains separate scope.
 
 ### Native fixture preparation
 

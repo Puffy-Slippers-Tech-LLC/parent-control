@@ -1647,7 +1647,7 @@
       },
       "variants": [
         {"coverage_id": 126, "id": "windowed", "owner": "continuous-journeys", "parameters": {"gameplay": "windowed"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/game_access_case.py", "test_id": "windowed"}},
-        {"coverage_id": 127, "id": "fullscreen", "owner": "continuous-journeys", "parameters": {"gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 127, "id": "fullscreen", "owner": "continuous-journeys", "parameters": {"gameplay": "fullscreen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/game_access_case.py", "test_id": "fullscreen"}}
       ]
     },
     {

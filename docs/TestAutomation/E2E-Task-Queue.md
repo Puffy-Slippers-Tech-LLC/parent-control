@@ -315,9 +315,10 @@ the remaining account-change consumers.
 Task **256** and standalone inventory case **214** are absorbed into
 [task 151 / case 156](UI-and-E2E-Coverage.md#feedback-sending-allocation), neither completed nor deferred.
 Do not recreate the brief or separate ordinary-feedback send or reuse case ID 214.
-Former case 156 sends without a reply address; [task 262 / former case 220](E2E-Tasks/262-case-220.md)
-sends an error report with a synthetic address. Both are pending UI obligations
-using the existing fake sender, without real-service acceptance credit. The
+Former case 156 sends without a reply address;
+[task 262 / former case 220](../../tests/ui/test_error_feedback.py)
+checks an overlay error report with a synthetic address. Both use the existing
+fake sender, without real-service acceptance credit. The
 [UI coverage owner](UI-and-E2E-Coverage.md#duplicate-review-and-allocation)
 retains both exact confirmation wordings as focused dialog checks.
 

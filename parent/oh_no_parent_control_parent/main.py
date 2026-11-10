@@ -1372,7 +1372,17 @@ class ParentWindow(Adw.ApplicationWindow):
             }, access=False,
         ), 2, 0, 1, 1)
 
-        card.append(sections)
+        # Let GTK shrink the explanation area instead of dismissing a popup
+        # whose minimum height exceeds the space around its anchor. Keep the
+        # heading and close action available while the explanations scroll.
+        explanations = Gtk.ScrolledWindow(
+            hscrollbar_policy=Gtk.PolicyType.NEVER,
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            propagate_natural_width=True, propagate_natural_height=True,
+            max_content_height=420,
+        )
+        explanations.set_child(sections)
+        card.append(explanations)
         popover.set_child(card)
         button.connect("toggled", self._legend_toggled, popover)
         popover.connect("closed", lambda *_: button.set_active(False))

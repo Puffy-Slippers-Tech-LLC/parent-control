@@ -38,12 +38,16 @@ def confirm_preparation(args):
 
 def build_artifacts(root, package_format, control, environment, *, label='prepare-appsnapshot'):
     """Build once in the caller's active retained session, using owned transport."""
+    target = vm_config.selected().require_build_target()
+    if target.package_format != package_format:
+        raise ValueError('configured build target does not match baseline package format')
     directory = test_retention.allocate(tempfile.mkdtemp,
         prefix='onpc-test-artifacts-')
     print(label + ': artifacts=' + directory, flush=True)
     status = control.run(['/usr/bin/python3', '-B',
         str(root / 'tools/build_test_artifacts.py'), '--output', directory,
-        '--package-format', package_format], cwd=root, env=environment)
+        '--package-format', package_format, '--build-target', target.name,
+        '--architecture', target.architecture], cwd=root, env=environment)
     return directory, status
 
 

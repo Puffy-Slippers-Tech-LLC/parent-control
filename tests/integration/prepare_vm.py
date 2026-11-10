@@ -80,6 +80,7 @@ SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
                          'tests/fixtures/native_assets.py')) + (
     'tests/integration/baseline_guest.py', 'tests/integration/prepare_baseline.py',
     'tests/integration/baseline_mounts.py',
+    'tools/build_targets.py',
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/baseline_environment.py', 'tests/fixtures/snap_assets.py',
     'tests/integration/baseline_snaps.py', 'tests/fixtures/build_test_applications.py',
@@ -156,6 +157,7 @@ REQUIRED_CHECKOUT_ENTRIES = (
     "tests/integration/guest_test_dependencies.py",
     "tests/integration/vm_config.py",
     "config/environment.json",
+    "tools/build_targets.py",
 )
 
 # Each installed-state category has its own fail-closed probes so a partial or

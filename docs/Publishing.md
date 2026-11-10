@@ -9,12 +9,13 @@ make updateversion
 
 This needs no version parameter. It reads the newest history version (including an
 undated draft), updates `data/app.json` and the Debian changelog for private
-builds, and builds both Debian and RPM on Ubuntu and Fedora 44. The host's native
-format builds directly; the other uses a prepared container.
+builds, and builds every configured target/architecture combination: Ubuntu
+26.04, Fedora 44 and Fedora 45 on x86_64. An exact matching host builds natively;
+other targets use their prepared containers or matching Fedora Mock chroots.
 `PACKAGE_FORMAT=deb|rpm|both` overrides this selection. Both
 formats share one frozen source snapshot when built together. For product 1.3, the private Debian version is
 `1.3+local1~ubuntu26.04.1`; RPM uses Version `1.3` and the configured `RPM_RELEASE`
-(default `0.1.dev`). Outputs are in `output/deb/` and `output/rpm/`.
+(default `0.1.dev`). Outputs are in `output/FORMAT/BUILD_TARGET/ARCHITECTURE/`.
 The selected builders' prerequisites must already be installed; a failure in either
 fails the command and retains successful artifacts. Metadata remains prepared
 if a build fails. Development setup uses `./setup.sh --dependencies-only` for
@@ -91,7 +92,12 @@ official 1.3. It allocates only
 the unused Debian/PPA revision, ordinarily `1.3+ppa1~ubuntu26.04.1`, which sorts
 above `1.3+local1~ubuntu26.04.1`. The DEB channel uploads signed source to the
 Launchpad PPA; the RPM channel submits the shared signed product commit to
-`puffyslipperstechllc/oh-no-parent-control` in COPR for `fedora-44-x86_64`.
+`puffyslipperstechllc/oh-no-parent-control` in COPR for the configured Fedora
+target/architecture pairs, currently `fedora-44-x86_64` and `fedora-45-x86_64`.
+One source submission covers both; completion requires matching built packages,
+repository indexes and downloaded checksums for both targets. The publisher
+refuses a project whose chroots do not match this matrix; project configuration
+remains an operator responsibility.
 Running it is the release decision: it creates signed source and tags in the
 public Git repository and submits missing channel releases. Editing or
 testing the publishing tool does not authorize a live release.
@@ -304,8 +310,19 @@ and I/O headroom permit. Either can also run alone, for example
 logs, result and resume state. Neither depends on the other's result or tools:
 RPM needs Podman and no Debian builder; DEB needs sbuild/Lintian and no Podman.
 Normal runner stop-on-error and cancellation rules still apply.
-These commands take no arguments and perform no signing,
+Each category checks every configured target of its format, with a separate
+snapshot, build and result per target/architecture pair. Use
+`tools/run-tests publish-rpm --build-target fedora45 --architecture x86_64`
+to select one combination. These commands perform no signing,
 pushes, uploads or publication API requests. It needs no publisher credentials.
+
+The separate `artifacts` category builds every configured target/architecture
+combination twice and compares each package and fixture payload for
+reproducibility. Its matrix manifest requires every configured combination;
+one format's success cannot satisfy another target. VM consumers select their
+matching member into an independently owned artifact allocation.
+Within each matrix, distro-independent fixtures are built once per architecture
+and copied into its members; the two matrices still build those fixtures independently.
 
 Each job checks its host build prerequisites and version consistency, then freezes
 the `PACKAGE_SOURCE_FILES` allowlist in the Makefile into a private snapshot in
@@ -320,7 +337,7 @@ official metadata. The real checkout is unchanged. Publication still requires
 dated release history and allocates the unused PPA revision from remote history.
 
 Fedora validation runs the actual `.copr/Makefile` with its SCM helper inputs in
-a disposable rootless Fedora 44 container. A separate fresh Fedora environment
+a disposable rootless container matching each Fedora build target. A separate fresh Fedora environment
 installs Mock's standard `@buildsys-build` group and resolves `BuildRequires`
 from that SRPM. It rebuilds the SRPM as an unprivileged user with network access
 disabled and `%check` enabled, then checks the resulting RPMs with `rpmlint`.

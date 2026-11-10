@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 
-from tools import build_rpm, package_inputs, test_storage, host_disk
+from tools import build_rpm, package_inputs, test_storage, host_disk, build_targets
 
 
 # These are SCM source-generation inputs, not shipped product sources. Keep
@@ -18,7 +18,7 @@ from tools import build_rpm, package_inputs, test_storage, host_disk
 SCM_INPUTS = tuple(map(Path, (
     '.copr/Makefile', 'tools/build_rpm.py', 'tools/package_inputs.py',
     'tools/rpm_builder.py', 'tools/test_storage.py', 'tools/test_retention.py',
-    'tools/test_io.py',
+    'tools/test_io.py', 'tools/build_targets.py',
 )))
 
 RECIPE = '''FROM registry.fedoraproject.org/fedora:44 AS source
@@ -79,9 +79,10 @@ def prerequisites():
         raise ValueError('missing COPR validation tools; run ./setup.sh --rpm-build-tools')
 
 
-def check_build(root, checkout, directory):
+def check_build(root, checkout, directory, *, target='fedora44', architecture='x86_64'):
     """Use a private context, exact SCM recipe and fresh dependency environment."""
     prerequisites()
+    selected = build_targets.get(target, architecture, 'rpm')
     attempt = directory / 'rpm'
     attempt.mkdir()
     context, output = attempt / 'context', attempt / 'output'
@@ -92,18 +93,18 @@ def check_build(root, checkout, directory):
     package_inputs.copy(checkout, frozen)
     before = package_inputs.digest(root, SCM_INPUTS)
     for relative in SCM_INPUTS:
-        target = frozen / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(root / relative, target)
+        destination = frozen / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(root / relative, destination)
     if (package_inputs.digest(root, SCM_INPUTS) != before
             or package_inputs.digest(frozen, SCM_INPUTS) != before):
         raise ValueError('COPR source recipe changed while freezing inputs')
-    (context / 'Containerfile').write_text(RECIPE)
+    (context / 'Containerfile').write_text(RECIPE.replace('fedora:44', 'fedora:' + selected.version))
     lint_config = attempt / 'rpmlint.toml'
     lint_config.write_text('Filters = ' + json.dumps(LINT_FILTERS, indent=2) + '\n')
     iid = attempt / 'image-id'
     report = dict(status='running', directory=str(attempt),
-                  distribution='fedora-44', architecture='x86_64',
+                  distribution='fedora-' + selected.version, architecture=architecture, build_target=target,
                   backend='podman-clean', build_network=False,
                   scm_sha256=before)
 
@@ -132,11 +133,11 @@ def check_build(root, checkout, directory):
                 '--userns=keep-id', '--cap-drop=all',
                 '--env', f'SOURCE_DATE_EPOCH={epoch}',
                 '--volume', f'{output}:/output:rw,Z', image,
-                '/bin/sh', '-ec', BINARY, stage='binary')
+                '/bin/sh', '-ec', BINARY.replace('.fc44', selected.dist), stage='binary')
         product = json.loads((checkout / 'data/app.json').read_text())['version']
         # RPM generates filenames from package headers. Require this product's
         # binary and source package, not merely a successful builder exit.
-        binaries = [p for p in output.glob(f'oh-no-parent-control-{product}-*.x86_64.rpm')
+        binaries = [p for p in output.glob(f'oh-no-parent-control-{product}-*{selected.dist}.{architecture}.rpm')
                     if p.is_file() and not p.is_symlink() and p.stat().st_size]
         srpms = list(output.glob(f'oh-no-parent-control-{product}-*.src.rpm'))
         if len(binaries) != 1 or len(srpms) != 1:
@@ -144,7 +145,8 @@ def check_build(root, checkout, directory):
         command('podman', 'run', '--rm', '--pull=never',
                 '--volume', f'{output}:/output:ro,Z',
                 '--volume', f'{lint_config}:/rpmlint.toml:ro,Z', image,
-                '/bin/sh', '-ec', DEPENDENCIES, 'onpc-check', binaries[0].name,
+                '/bin/sh', '-ec', DEPENDENCIES.replace('--releasever=44', '--releasever=' + selected.version),
+                'onpc-check', binaries[0].name,
                 stage='lint-and-runtime-dependencies')
         report['output_sha256'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                                    for p in (*srpms, *binaries)}

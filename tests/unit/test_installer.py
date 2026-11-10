@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import struct
 import subprocess
 import unittest
@@ -9,10 +10,28 @@ from pathlib import Path
 import pytest
 
 from tools.render_polkit_policy import render
+from tools import build_targets
 
 
 from tests.support.paths import ROOT
 from tests.support.package_scripts import script_source
+
+
+def installer_checkout(directory, family):
+    target = build_targets.from_family(family)
+    tools = directory / 'tools'
+    tools.mkdir()
+    shutil.copy2(ROOT / 'tools/build_targets.py', tools / 'build_targets.py')
+    # Exercise the real target lookup with private, host-independent OS metadata.
+    (tools / 'platform.py').write_text(
+        'def freedesktop_os_release():\n'
+        f'    return {dict(ID=target.distribution, VERSION_ID=target.version)!r}\n'
+        'def machine():\n'
+        f'    return {target.architecture!r}\n')
+    (directory / 'config').mkdir()
+    (directory / 'config/environment.json').write_text(json.dumps({'families': [
+        {'family': family, 'package_format': target.package_format}]}))
+    return target.output(directory)
 
 
 @pytest.mark.parametrize("failure, status, step", [
@@ -50,7 +69,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
             )
         command.write_text(source)
         command.chmod(0o755)
-    output = tmp_path / "output/deb"
+    output = installer_checkout(tmp_path, 'ubuntu26.04-x86_64')
     output.mkdir(parents=True)
     package = output / "oh-no-parent-control_1.0_amd64.deb"
     if failure != "package":
@@ -66,12 +85,12 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
     os_release.write_text('ID=ubuntu\n')
     result = subprocess.run(
         ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
-         "install", f"OS_RELEASE={os_release}", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
+         "install", "PACKAGE_FORMAT=deb", f"OS_RELEASE={os_release}", f"CURDIR={tmp_path}", f"LIBEXECDIR={bin_dir}",
          f"APT={bin_dir / 'apt'}"],
         env={**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
              "APT_ARGUMENTS": str(arguments), "APT_FAILURE": failure or "",
              "APT_STAGED_COPY": str(staged_copy), "APT_STAGED_MODE": str(staged_mode)},
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
+        cwd=tmp_path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=10,
     )
     update_arguments = "update -o APT::Update::Error-Mode=any -o Acquire::Retries=5"
     if failure is None:
@@ -152,7 +171,7 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
         command = bin_dir / name
         command.write_text(source)
         command.chmod(0o755)
-    output = tmp_path / 'output/rpm'
+    output = installer_checkout(tmp_path, 'fedora44-x86_64')
     output.mkdir(parents=True)
     package = output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm'
     if failure != 'package':
@@ -176,7 +195,7 @@ def test_rpm_installer_resolves_dependencies_and_reinstalls_local_build(
         env={**os.environ, 'RPM_IDENTITY': identity,
              'INSTALLED_IDENTITY': installed_identity,
              'INSTALL_FAILURE': failure or '', 'DNF_ARGUMENTS': str(arguments)},
-        capture_output=True, text=True, timeout=10,
+        cwd=tmp_path, capture_output=True, text=True, timeout=10,
     )
     output_text = result.stdout + result.stderr
     if failure in ('package', 'identity'):

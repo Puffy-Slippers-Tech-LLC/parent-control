@@ -711,7 +711,7 @@ def test_copr_make_entrypoint_exports_srpm_without_host_setup(tmp_path, prerequi
     # COPR checks out the repository, including the source-preparation tools;
     # these development helpers must remain absent from the product tarball.
     for name in ('build_rpm.py', 'rpm_builder.py', 'package_inputs.py',
-                 'test_storage.py', 'test_retention.py', 'test_io.py'):
+                 'test_storage.py', 'test_retention.py', 'test_io.py', 'build_targets.py'):
         shutil.copy2(ROOT / 'tools' / name, checkout / 'tools' / name)
     (checkout / '.copr').mkdir()
     shutil.copy2(ROOT / '.copr/Makefile', checkout / '.copr/Makefile')
@@ -756,6 +756,9 @@ def test_container_recipe_tracks_build_dependencies_without_freezing_runtime_edi
     original = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
     spec.write_text(original)
     first = rpm_builder.inputs(tmp_path)
+    fedora45 = rpm_builder.inputs(tmp_path, target='fedora45')
+    assert b'fedora:45\n' in fedora45[0]
+    assert fedora45[2] != first[2]
     assert '@VERSION@' not in first[1] and '@RELEASE@' not in first[1]
     spec.write_text(original.replace('Requires:       accountsservice', 'Requires:       accountsservice >= 1'))
     assert rpm_builder.inputs(tmp_path)[2] == first[2]
@@ -801,7 +804,7 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None if name == 'mock' else '/fixture/' + name)
-    monkeypatch.setattr(rpm_builder, 'require_image', lambda root: 'localhost/fixture:fc44')
+    monkeypatch.setattr(rpm_builder, 'require_image', lambda root, **_: 'localhost/fixture:fc44')
     monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')
     original_run = subprocess.run
     commands = []

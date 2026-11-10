@@ -43,6 +43,15 @@ class VMConfig:
     owning_branch: str = ''
     host: HostConfig = HostConfig()
 
+    def require_build_target(self):
+        # Standalone helpers can import vm_config before adding the checkout.
+        sys.path.insert(0, str(ROOT))
+        try:
+            from tools.build_targets import from_family
+            return from_family(self.family, self.require_package_format())
+        finally:
+            sys.path.pop(0)
+
     def require_package_format(self):
         # Consumers must never infer a format from a VM or family name.
         if self.package_format not in ('deb', 'rpm'):

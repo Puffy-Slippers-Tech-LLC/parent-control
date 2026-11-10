@@ -1,4 +1,4 @@
-# Fedora Workstation 44 packaging
+# Fedora Workstation packaging
 
 This is a development target with local builds and a COPR publishing channel, not a
 release-qualified platform. The functional acceptance baseline remains Ubuntu
@@ -57,29 +57,41 @@ puts Version/Release in its filename and changes the shipped debug-link checksum
 
 ## Local builds
 
-On Fedora 44 and Ubuntu, `make build` starts both binary formats concurrently
-from one frozen source generation, with separate working copies. Fedora builds
-RPMs natively and DEBs in a prepared Ubuntu 26.04 container; Ubuntu builds DEBs
-natively and RPMs in a prepared Fedora 44 container.
+`config/environment.json` declares each `family` as `BUILD_TARGET-ARCHITECTURE`,
+for example `fedora45-x86_64`, alongside its `package_format`. The shared helper in
+[`tools/build_targets.py`](../tools/build_targets.py) splits the family at the last
+hyphen and validates both parts against the supported build environments. There
+are no separate build-target or architecture attributes. Only `x86_64` is supported
+(mapped to Debian's `amd64`). Adding an architecture requires implementing its
+builder and publishing support before configuring it.
+
+`make build` builds each distinct configured target/architecture pair once:
+Ubuntu 26.04, Fedora 44 and Fedora 45, all x86_64. Workers share one frozen source
+generation and use separate working copies and output directories. Native builds
+require the exact distro, release and architecture; other targets use prepared
+containers (or the matching Fedora Mock chroot). Automated builds use
+`tools/build_package.py` with queued disk admission.
 `PACKAGE_FORMAT=deb|rpm|both` overrides the default for both
-`make build` and `make updateversion`. Debian outputs, including debug
-packages, `.changes` and `.buildinfo`, go to `output/deb/`. RPM sources, rendered
-spec, input fingerprint, SRPM and binary RPMs go to `output/rpm/`. A failed
-backend makes the command fail after both workers finish; successful artifacts
+`make build` and `make updateversion`; `rpm` builds both Fedora targets. Outputs
+live under `output/FORMAT/BUILD_TARGET/ARCHITECTURE/`, for example
+`output/rpm/fedora45/x86_64/` and `output/deb/ubuntu26.04/x86_64/`. Each directory
+contains its package, metadata and build diagnostics. A failed
+backend makes the command fail after all workers finish; successful artifacts
 from the other backend remain.
 
 Full `./setup.sh` and `./setup.sh --dependencies-only` install development and
-local-check prerequisites without requiring VMs. Fedora 44 receives native RPM
+local-check prerequisites without requiring VMs. Fedora receives native RPM
 build dependencies from the spec's inventory, Debian archive helpers used by
 local regression fixtures and rootless Podman, then prepares a caller-owned
-Ubuntu 26.04 build image. DEB product binaries use Ubuntu libraries inside that
-image. Ubuntu receives DEB prerequisites,
-RPM tools and rootless Podman, then prepares a caller-owned Fedora 44 build image.
+Ubuntu 26.04 build image and any other configured Fedora target image. DEB
+product binaries use Ubuntu libraries inside that image. Ubuntu receives DEB
+prerequisites, RPM tools and rootless Podman, then prepares caller-owned images
+for both Fedora targets. Exact native targets need no container image.
 An existing development host can prepare just its RPM path with
 `./setup.sh --rpm-build-tools`. Refresh installed setup helpers first with
 `./setup.sh --test-tools-only` when upgrading a checkout that predates this mode.
 
-The [container recipe](../rpm/Containerfile) uses Fedora's official 44 image and
+The [container recipe](../rpm/Containerfile) selects Fedora's official image for the target and
 installs the spec's `BuildRequires` through
 [DNF builddep](https://dnf5.readthedocs.io/en/latest/dnf5_plugins/builddep.8.html).
 Its local image tag fingerprints the recipe and build dependencies; changes to
@@ -95,8 +107,8 @@ image build. DEB builds mount only their private workspace, with a private
 SELinux label on Fedora, and run without networking or image pulls, with dropped
 capabilities. Missing or outdated images fail with setup guidance.
 
-Binary builds use native Fedora 44 `rpmbuild`, a configured noninteractive Mock
-builder for `fedora-44-x86_64`, or the prepared Podman image on Ubuntu. Container
+Binary builds use matching native Fedora `rpmbuild`, a configured noninteractive Mock
+builder for `fedora-VERSION-x86_64`, or the target's prepared Podman image. Container
 builds run without networking or image pulls, with dropped capabilities and only
 their private RPM workspace mounted. The build never installs dependencies.
 Fedora binaries are compiled against Fedora libraries. The image is a development
@@ -116,19 +128,21 @@ Host preparation follows [the setup contract](Approval-Tools.md#one-time-setup).
 The default RPM release is `0.1.dev`; increase it when distributing another local
 build with the same product version. Source-only preparation never claims a
 binary build. A missing `rpmbuild` still leaves the tarball, fingerprint and
-spec under `output/rpm/`. Native/container build output is retained in
-`output/rpm/build.log`, including failures. A successful binary build must produce
+spec under the selected target's directory. Native/container build output is retained in
+the target's `build.log`, including failures. A successful binary build must produce
 the product RPM. `make install` is the sole checkout product installation entry
 point. Its internal `installdeb` module reads the current version's package from
-`output/deb/`. Its internal `installrpm` module selects the most recently modified binary
-product RPM in `output/rpm/`, excluding source and debug packages, and uses
+the host's matching target directory. Its internal `installrpm` module selects the most recently modified binary
+product RPM in that host's exact target/architecture directory, excluding source and debug packages, and uses
 DNF to install it and resolve missing dependencies from enabled repositories.
 An equal installed version is reinstalled from the local RPM; an older or newer
 installed version is replaced by the selected build. RPM queries inspect the
 package identity without privilege; only the DNF transaction uses `sudo` for
 non-root callers. `make install` selects DEB or RPM from an explicit
 `INSTALL_PACKAGE` path, `PACKAGE_FORMAT=deb|rpm`, or available package-manager
-commands (APT/dpkg first, then DNF/RPM); it does not consult `os-release`.
+commands (APT/dpkg first, then DNF/RPM). Format selection does not consult
+`os-release`; implicit artifact selection requires an exact configured host
+target. `INSTALL_PACKAGE` still selects an explicit artifact independently.
 Package lifecycle safety checks still apply. This target installs the
 app on the calling machine and are not development build or validation commands.
 
@@ -353,13 +367,14 @@ An actual COPR build remains separate qualification.
 The [publisher](Publishing.md#independent-channel-gates) configures the repository
 root, this source method and `rpm/oh-no-parent-control.spec.in` as the recipe
 path. It verifies the shared signed product tag and pins that exact commit,
-restricting the build to `fedora-44-x86_64` in
+restricting the build to the configured Fedora chroots (`fedora-44-x86_64` and
+`fedora-45-x86_64`) in
 `puffyslipperstechllc/oh-no-parent-control`. It reads API credentials only from
 the caller's private `~/.config/copr`; public monitoring needs no token.
 Each product version has an independent RPM publication gate. Published versions
 are skipped, pending builds are monitored, and uncertain submission results
 never trigger an automatic retry. Completion requires matching repository
-metadata and a verified RPM download as well as a successful build.
+metadata and a verified RPM download for every target, as well as a successful build.
 
 Before publishing, complete native/Mock binary validation and Fedora VM
 acceptance, choose the owner/project and packaging release, review the generated

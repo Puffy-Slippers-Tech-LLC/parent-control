@@ -1,6 +1,7 @@
 """Category dispatch, with no caller-selected commands, makefiles or interpreters."""
 
 from dataclasses import dataclass
+import argparse
 import json
 import os
 from pathlib import Path
@@ -129,7 +130,7 @@ def suite_inventory(categories=(), *, inventory=None):
     Composite selections expand to implemented leaves in inventory order. An
     already discovered inventory may be supplied by reconnectable consumers;
     its explicit argument arrays remain authoritative.
-    """
+"""
     if inventory is None:
         from regression_ui import HOST_ARGS
         leaves = {kind: spec for kind, spec in CATEGORIES.items() if spec.leaf and spec.implemented}
@@ -933,11 +934,26 @@ def plan(root, category, argv):
         argv, _ = vm_input_options(category, argv)
         fixture_execution_target(category, argv)
     if category in ('publish', *PUBLISH_CATEGORIES):
-        if argv:
-            raise ValueError('publishing tests accept no arguments')
+        options = argparse.ArgumentParser(add_help=False, allow_abbrev=False, exit_on_error=False)
+        options.add_argument('--build-target')
+        options.add_argument('--architecture', default='x86_64')
+        try:
+            selected_options, unknown = options.parse_known_args(argv)
+            if unknown:
+                raise ValueError('publishing tests accept only --build-target and --architecture')
+        except argparse.ArgumentError as error:
+            raise ValueError('publishing tests accept only --build-target and --architecture') from error
+        import build_targets
+        targets = build_targets.configured(root)
         formats = ('deb', 'rpm') if category == 'publish' else (category.removeprefix('publish-'),)
-        return [python_file(root, 'tools/publishing_checks.py', '--package-format', value)
-                for value in formats], False
+        targets = [target for target in targets if target.package_format in formats
+                   and (selected_options.build_target is None or target.name == selected_options.build_target)
+                   and target.architecture == selected_options.architecture]
+        if not targets:
+            raise ValueError('no configured publishing targets match the selection')
+        return [python_file(root, 'tools/publishing_checks.py', '--package-format', target.package_format,
+                            '--build-target', target.name, '--architecture', target.architecture)
+                for target in targets], False
     if category == 'source':
         if argv:
             raise ValueError('source checks accept no arguments')
@@ -1090,7 +1106,7 @@ def plan(root, category, argv):
                 else 'tools/build_test_artifacts.py')
         command = python_file(root, path)
         if action == 'build' and len(argv) <= 1:
-            return [[*command, *(['--package-format', 'deb'] if category == 'artifacts' else [])]], False
+            return [[*command, *(['--matrix'] if category == 'artifacts' else [])]], False
         if category == 'artifacts' and argv == ['prepare']:
             return [[*command, '--package-format', 'deb', '--reuse']], False
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--upgrade-inputs']:
@@ -1117,7 +1133,7 @@ def plan(root, category, argv):
             return [python_file(root, 'tools/vm_artifacts.py', '--output',
                                 artifact_output(argv[3]), *arguments())], False
         if category == 'artifacts' and len(argv) == 3 and argv[:2] == ['build', '--output']:
-            return [[*command, '--package-format', 'deb', '--output', artifact_output(argv[2])]], False
+            return [[*command, '--matrix', '--output', artifact_output(argv[2])]], False
         if action == 'verify' and len(argv) == 2:
             return [[*command, '--verify', '--output', artifact_path(argv[1])]], False
         if category == 'artifacts' and action == 'verify-native' and len(argv) == 2:

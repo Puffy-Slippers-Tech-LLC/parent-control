@@ -9,19 +9,15 @@ import subprocess
 import tempfile
 
 if __package__:
+    from . import build_targets
     from .test_storage import scratch_directory, scratch_descriptors
 else:
+    import build_targets
     from test_storage import scratch_directory, scratch_descriptors
 
 
 def native_debian() -> bool:
-    release = {}
-    for line in Path('/etc/os-release').read_text().splitlines():
-        key, separator, value = line.partition('=')
-        if separator:
-            release[key] = value.strip('\"\'')
-    return bool({'ubuntu', 'debian'} & set(
-        (release.get('ID', '') + ' ' + release.get('ID_LIKE', '')).split()))
+    return build_targets.get('ubuntu26.04').native()
 
 
 def inputs(root: Path):
@@ -65,10 +61,13 @@ def setup(root: Path) -> None:
     print('setup: Ubuntu 26.04 DEB builder is ready', flush=True)
 
 
-def command(root: Path, workspace: Path, architecture: str) -> list[str]:
+def command(root: Path, workspace: Path, architecture: str, *, environment=None) -> list[str]:
+    environment = os.environ if environment is None else environment
     return ['podman', 'run', '--rm', '--pull=never', '--network=none',
             '--userns=keep-id', '--cap-drop=all',
-            '--env', f'DEB_BUILD_OPTIONS={os.environ.get("DEB_BUILD_OPTIONS", "")}',
+            '--env', f'DEB_BUILD_OPTIONS={environment.get("DEB_BUILD_OPTIONS", "")}',
+            *(['--env', 'SOURCE_DATE_EPOCH=' + environment['SOURCE_DATE_EPOCH']]
+              if 'SOURCE_DATE_EPOCH' in environment else []),
             '--volume', f'{workspace}:/build:rw,Z', require_image(root),
             'make', '--no-print-directory', '_build-package', f'DEB_HOST_ARCH={architecture}']
 
@@ -78,6 +77,9 @@ if __name__ == '__main__':
     if len(sys.argv) != 1:
         sys.exit('setup-deb-builder: invoke through ./setup.sh')
     try:
-        setup(Path(__file__).resolve().parents[1])
+        root = Path(__file__).resolve().parents[1]
+        for target in build_targets.configured(root):
+            if target.package_format == 'deb' and not target.native():
+                setup(root)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         sys.exit(f'setup-deb-builder: {error}')

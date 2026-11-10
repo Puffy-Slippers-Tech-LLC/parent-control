@@ -9,7 +9,7 @@ GNOME Shell 50, the version declared by the packaged child extension.
 DEB and RPM installation and runtime behavior have no distribution identity,
 version or edition admission gates. Package dependencies and native integration
 checks still apply; accepting installation does not qualify another platform.
-The [Fedora Workstation 44 packaging target](Fedora-Packaging.md) is prepared
+The [Fedora Workstation 44 and 45 packaging targets](Fedora-Packaging.md) are prepared
 for local VM qualification and the COPR channel; it is not release-qualified.
 Both wrappers share the
 payload map, lifecycle templates and activation classifier.

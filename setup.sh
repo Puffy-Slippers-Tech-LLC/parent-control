@@ -8,14 +8,14 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
-  (no mode)             Set up/refresh an Ubuntu or Fedora 44 development machine (no VMs needed)
+  (no mode)             Set up/refresh an Ubuntu or Fedora 44/45 development machine (no VMs needed)
   --server              Set up an Ubuntu 26.04+ SSH automation server; disable sleep
                        No VM hosting or Codex CLI installation
   --connect-server      Interactively configure private client SSH access and a Watch workspace
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites
-  --rpm-build-tools     Install native Fedora RPM tools, or prepare the Fedora 44 builder on Ubuntu
+  --rpm-build-tools     Install RPM tools and prepare configured Fedora target builders
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
                        Includes guarded root guest commands through tools/test-vm exec
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
@@ -66,18 +66,12 @@ if [[ $mode == --ppa-build-tools && $setup_platform == fedora ]]; then
 fi
 
 prepare_rpm_builder() {
-    # Fedora 44 builds natively. Ubuntu builds RPMs in the prepared image.
-    if [[ $setup_platform != fedora ]]; then
-        /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
-    fi
+    /usr/bin/python3 -B "$script_dir/tools/rpm_builder.py"
 }
 
 prepare_package_builders() {
-    if [[ $setup_platform == fedora ]]; then
-        /usr/bin/python3 -B "$script_dir/tools/deb_builder.py"
-    else
-        prepare_rpm_builder
-    fi
+    /usr/bin/python3 -B "$script_dir/tools/deb_builder.py"
+    prepare_rpm_builder
 }
 
 run_root() {

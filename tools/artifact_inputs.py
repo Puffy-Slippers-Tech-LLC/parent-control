@@ -160,7 +160,8 @@ def capture(builder):
                           imports=('tools/artifact_inputs.py',))
     inputs = {
         'package': {'source': digest(metadata['source']), 'build': digest(metadata['build_inputs']),
-                    'builder': source_files(root, ('tools/package_inputs.py',),
+                    'builder': source_files(root, ('tools/package_inputs.py', 'tools/build_package.py',
+                                                   'tools/build_targets.py', 'tools/deb_builder.py'),
                                             imports=('tools/package_inputs.py',)),
                     'shared': shared, **runtime['package']},
         'fixtures': {'source': source_files(root, FIXTURE_SOURCES, imports=FIXTURE_IMPORTS),

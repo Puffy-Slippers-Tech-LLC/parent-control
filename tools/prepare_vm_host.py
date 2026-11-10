@@ -119,7 +119,7 @@ def prepare(mode, assume_yes, vm, caller):
                 capture.state = capture.read_state()
                 capture.revalidate(off=True)
                 capture.verify_snapshot()
-                package_format = system_runner.package_format(capture.state['guest'])
+                package_format = system_runner.package_target(capture.state['guest']).package_format
                 for attempt in range(3):
                     try:
                         with built_artifacts(package_format, caller) as artifacts:

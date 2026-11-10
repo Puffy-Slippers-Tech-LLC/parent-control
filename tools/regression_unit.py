@@ -5,6 +5,14 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+Build-matrix checks use private source/output trees and joined backend threads;
+all native/container commands are doubled there. Publishing matrix checks use
+process-local API responses and private SCM contexts. They add no shared cache,
+network, VM, bus or cleanup owner; existing unit classifications remain valid.
+Installer target lookup runs in private checkouts with local platform doubles;
+historical DEB image checks also double every Podman command. Neither acquires
+host package state, shared images or new cleanup resources.
+
 Core deadline/order checks add one bounded, joined thread with private Events
 and recording adapters per case; no bus, process, shared path or VM is acquired.
 

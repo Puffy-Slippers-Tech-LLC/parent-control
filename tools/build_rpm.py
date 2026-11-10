@@ -14,11 +14,12 @@ import tarfile
 import tempfile
 
 if __package__:
-    from . import package_inputs, rpm_builder
+    from . import package_inputs, rpm_builder, build_targets
     from .test_storage import scratch_directory, scratch_descriptors
 else:
     import package_inputs
     import rpm_builder
+    import build_targets
     from test_storage import scratch_directory, scratch_descriptors
 
 
@@ -36,7 +37,8 @@ def metadata(root: Path, release: str):
     return version, epoch
 
 
-def sources(root: Path, workspace: Path, release: str):
+def sources(root: Path, workspace: Path, release: str, *, target='fedora44', architecture='x86_64'):
+    build_targets.get(target, architecture, 'rpm')
     source = workspace / 'source'
     source.mkdir()
     selected = package_inputs.copy(root, source)
@@ -67,6 +69,7 @@ def sources(root: Path, workspace: Path, release: str):
     identity = top / 'SOURCES' / f'{name}.inputs.json'
     identity.write_text(json.dumps({
         'version': version, 'release': release,
+        'build_target': target, 'architecture': architecture,
         'source_sha256': package_inputs.digest(source, selected),
         'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest(),
         'files': [p.as_posix() for p in selected],
@@ -85,17 +88,17 @@ def export(artifact: Path, output: Path):
 
 
 def native_fedora44():
-    release_file = Path('/etc/os-release').read_text()
-    return bool(re.search(r'^ID=[\"\']?fedora[\"\']?$', release_file, re.MULTILINE)
-                and re.search(r'^VERSION_ID=[\"\']?44[\"\']?$', release_file, re.MULTILINE))
+    return build_targets.get('fedora44').native()
 
 
 def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
-          inherited_fds=(), inherited_environment=None):
+          inherited_fds=(), inherited_environment=None, target='fedora44', architecture='x86_64'):
+    selected = build_targets.get(target, architecture, 'rpm')
     if mode not in ('rpm', 'srpm', 'rpm-source'):
         raise ValueError('invalid RPM build mode')
     with tempfile.TemporaryDirectory(prefix='onpc-rpm-', dir=scratch_directory()) as temporary:
-        top, spec, archive, identity = sources(root, Path(temporary), release)
+        top, spec, archive, identity = sources(root, Path(temporary), release,
+                                             target=target, architecture=architecture)
         # The caller's environment must not change an identical RPM's header,
         # scripts or payload timestamps. Containers receive this explicitly.
         epoch = metadata(root, release)[1]
@@ -105,17 +108,18 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
         for artifact in (archive, identity, spec):
             export(artifact, output)
         if mode != 'rpm-source':
-            native = mode == 'rpm' and native_fedora44()
+            native = mode == 'rpm' and (native_fedora44() if target == 'fedora44' else selected.native())
             mock = mode == 'rpm' and not native and shutil.which('mock') is not None
             container = not native and not mock and (mode == 'rpm' or shutil.which('rpmbuild') is None)
             if container:
                 if shutil.which('podman') is None:
-                    raise ValueError(f'rpmbuild or Fedora 44 builder is missing; sources retained in {output}; run ./setup.sh --rpm-build-tools')
-                arguments = rpm_builder.command(root, top, mode, epoch=epoch)
+                    raise ValueError(f'rpmbuild or {target} builder is missing; sources retained in {output}; run ./setup.sh --rpm-build-tools')
+                arguments = rpm_builder.command(root, top, mode, epoch=epoch,
+                                                target=target, architecture=architecture)
             else:
                 if shutil.which('rpmbuild') is None:
                     raise ValueError('rpmbuild is missing; run ./setup.sh --rpm-build-tools')
-                arguments = ['rpmbuild', '--define', f'_topdir {top}', '--define', 'dist .fc44',
+                arguments = ['rpmbuild', '--define', f'_topdir {top}', '--define', 'dist ' + selected.dist,
                              '-ba' if native else '-bs', str(spec)]
             log = top / 'build.log'
             try:
@@ -131,7 +135,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
                 export(srpm, output)
                 result = top / 'mock-results'
                 try:
-                    subprocess.run(['mock', '--root', 'fedora-44-x86_64', '--rebuild', str(srpm),
+                    subprocess.run(['mock', '--root', f'fedora-{selected.version}-{architecture}', '--rebuild', str(srpm),
                                     '--resultdir', str(result)], cwd=top, check=True,
                                    env=environment,
                                    pass_fds=(*scratch_descriptors(), *inherited_fds))
@@ -145,6 +149,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
             else:
                 binaries = list(top.glob('RPMS/x86_64/*.rpm'))
             if mode == 'rpm' and not any(artifact.name.startswith('oh-no-parent-control-')
+                                          and artifact.name.endswith(selected.dist + '.' + architecture + '.rpm')
                                           and not artifact.name.startswith(('oh-no-parent-control-debuginfo-',
                                                                            'oh-no-parent-control-debugsource-'))
                                           for artifact in binaries):
@@ -161,11 +166,15 @@ if __name__ == '__main__':
     modes.add_argument('--srpm', action='store_true')
     modes.add_argument('--sources-only', action='store_true')
     parser.add_argument('--release', default='0.1.dev')
+    parser.add_argument('--build-target', default='fedora44')
+    parser.add_argument('--architecture', default='x86_64')
     parser.add_argument('--output', type=Path)
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     try:
-        build(root, arguments.output or root / 'output/rpm', release=arguments.release,
+        target = build_targets.get(arguments.build_target, arguments.architecture, 'rpm')
+        build(root, arguments.output or target.output(root), release=arguments.release,
+              target=target.name, architecture=target.architecture,
               mode='rpm-source' if arguments.sources_only else 'srpm' if arguments.srpm else 'rpm')
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'FAIL: RPM build: {error}\n')

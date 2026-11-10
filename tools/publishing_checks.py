@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools import publish, package_inputs
+from tools import publish, package_inputs, build_targets
 from tools.bump_version import update_from_history
 from tools import test_retention
 from tools.publishing import build, rpm, source
@@ -64,9 +64,11 @@ def check_deb(root, checkout, directory, log, report):
                     cwd=checkout, log=log, temporary_directory=directory)
 
 
-def run(root=ROOT, *, package_format):
+def run(root=ROOT, *, package_format, build_target=None, architecture='x86_64'):
     if package_format not in ('deb', 'rpm'):
         raise ValueError('select one publishing package format: deb or rpm')
+    target = build_targets.get(build_target or ('fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
+                               architecture, package_format)
     if os.geteuid() == 0:
         raise ValueError('run publishing tests as an unprivileged user')
     tools = ('git', 'make')
@@ -80,14 +82,16 @@ def run(root=ROOT, *, package_format):
             raise ValueError('missing publishing test tools; use ./setup.sh --dependencies-only')
     directory = Path(test_retention.allocate(tempfile.mkdtemp, prefix=f'onpc-test-publish-{package_format}-'))
     checkout, log = directory / 'source', directory / 'test.log'
-    report = dict(status='running', directory=str(directory), package_format=package_format)
-    print(f'test-publish: evidence: {directory}', flush=True)
+    report = dict(status='running', directory=str(directory), package_format=package_format,
+                  build_target=target.name, architecture=target.architecture)
+    print(f'test-publish: target={target.name}/{target.architecture}; evidence: {directory}', flush=True)
     try:
         publish.command('make', 'check-release-version', cwd=root, log=log)
         snapshot(root, checkout, log)
         publish.command('make', 'check-release-version', cwd=checkout, log=log)
         if package_format == 'rpm':
-            report['rpm'] = rpm.check_build(root, checkout, directory)
+            report['rpm'] = rpm.check_build(root, checkout, directory,
+                                           target=target.name, architecture=target.architecture)
         else:
             check_deb(root, checkout, directory, log, report)
         report['status'] = 'passed'
@@ -103,6 +107,8 @@ def run(root=ROOT, *, package_format):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--package-format', choices=('deb', 'rpm'), required=True)
+    parser.add_argument('--build-target')
+    parser.add_argument('--architecture', default='x86_64')
     args = parser.parse_args(argv)
     original_env = dict(os.environ)
     try:
@@ -110,7 +116,21 @@ def main(argv=None):
         safe_env.update(test_retention.environment())
         os.environ.clear()
         os.environ.update(safe_env)
-        run(package_format=args.package_format)
+        targets = build_targets.configured(ROOT)
+        targets = [target for target in targets if target.package_format == args.package_format
+                   and (args.build_target is None or target.name == args.build_target)
+                   and target.architecture == args.architecture]
+        if not targets:
+            raise ValueError('no configured publishing targets match the selection')
+        failures = []
+        for target in targets:
+            try:
+                run(package_format=args.package_format, build_target=target.name,
+                    architecture=target.architecture)
+            except (ValueError, OSError, subprocess.SubprocessError) as error:
+                failures.append(f'{target.name}/{target.architecture}: {error}')
+        if failures:
+            raise ValueError('; '.join(failures))
     except (ValueError, OSError, KeyError, TypeError, tarfile.TarError, subprocess.SubprocessError) as error:
         detail = str(error) if isinstance(error, ValueError) else type(error).__name__
         print(f'test-publish: failed ({detail}); see retained evidence', file=sys.stderr)

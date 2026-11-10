@@ -171,6 +171,9 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         package_manifest = verify(assets, package_only=True)
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     system.require(package.is_file(), 'suite:package-platform-mismatch')
+    target = system.package_target(lease.capture.state['guest'])
+    from build_test_artifacts import verify_package_target
+    verify_package_target(package, target)
     version = system.package_version(suite.commands, package)
     name = snapshot_name(version)
     bundle = suite.input_bundle(root)

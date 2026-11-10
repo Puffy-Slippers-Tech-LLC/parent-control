@@ -130,13 +130,14 @@ def test_upgrade_builder_uses_exact_format_release_without_rewriting(tmp_path, m
     monkeypatch.setattr(artifacts, 'verify_upgrade', verify)
     output = tmp_path / 'output'
     artifacts.build_upgrade(output, package_format=package_format)
-    current.assert_called_once_with(output / 'current', package_format=package_format)
+    current.assert_called_once_with(output / 'current', package_format=package_format,
+                                    build_target=None, architecture='x86_64')
     assert release_calls == [{'package_format': package_format}]
     args, kwargs = previous.call_args
     assert args[1] == root
     assert args[4]['source']['revision'] == release['commit']
     assert args[4]['source']['release_tag'] == release['tag']
-    assert kwargs == {'package_format': package_format}
+    assert kwargs == {'package_format': package_format, 'build_target': None, 'architecture': 'x86_64'}
     run.assert_called_once_with(['git', 'show', '-s', '--format=%ct', release['commit']], cwd=ROOT)
     verify.assert_called_once_with(output)
 
@@ -169,6 +170,55 @@ def write_artifact(directory: Path, *, package_bytes: bytes = b"package", fixtur
     )
 
 
+def test_package_matrix_cannot_pass_with_a_missing_target_or_changed_rpm(tmp_path, monkeypatch):
+    wrong_target = False
+
+    def identity(path):
+        target = artifacts.build_targets.get(path.parents[2].name)
+        version = ('0:1.0-1' + ('.fc44' if wrong_target else target.dist)
+                   if target.package_format == 'rpm' else '1.0+local1~ubuntu26.04.1')
+        return dict(name='oh-no-parent-control', architecture=target.package_architecture, version=version)
+
+    def build(directory, *, package_format, build_target, architecture, reuse):
+        write_artifact(directory)
+        path = directory / artifacts.MANIFEST_NAME
+        manifest = json.loads(path.read_text())
+        manifest['build_inputs'].update(build_target=build_target, target_architecture=architecture)
+        package = directory / manifest['artifacts']['package']['path']
+        renamed = package.with_suffix('.' + package_format)
+        package.rename(renamed)
+        manifest['artifacts']['package']['path'] = str(renamed.relative_to(directory))
+        path.write_text(json.dumps(manifest))
+
+    monkeypatch.setattr(artifacts, 'build', build)
+    monkeypatch.setattr(artifacts, 'package_identity', identity)
+    monkeypatch.setattr(artifacts, '_run', lambda command: subprocess.CompletedProcess(command, 0))
+    first, second = tmp_path / 'first', tmp_path / 'second'
+    artifacts.build_matrix(first)
+    artifacts.build_matrix(second)
+    artifacts.compare(first, second)
+    wrong_target = True
+    with pytest.raises(artifacts.ArtifactError, match='package build target or architecture mismatch'):
+        artifacts.verify_matrix(first)
+    wrong_target = False
+    matrix_path = second / artifacts.MATRIX_NAME
+    matrix = json.loads(matrix_path.read_text())
+    assert {entry['build_target'] for entry in matrix['targets']} == {'ubuntu26.04', 'fedora44', 'fedora45'}
+    matrix_path.write_text(json.dumps({**matrix, 'targets': matrix['targets'][:-1]}))
+    with pytest.raises(artifacts.ArtifactError, match='matrix verification failed'):
+        artifacts.compare(first, second)
+    matrix_path.write_text(json.dumps(matrix))
+    member = second / 'fedora45/x86_64'
+    manifest_path = member / artifacts.MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text())
+    package = member / manifest['artifacts']['package']['path']
+    package.write_bytes(b'changed Fedora 45 package')
+    manifest['artifacts']['package']['sha256'] = artifacts._sha256(package)
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(artifacts.ArtifactError, match='repeated build changed the package'):
+        artifacts.compare(first, second)
+
+
 class TestBuildTestArtifacts(unittest.TestCase):
     def test_output_must_be_empty_and_outside_checkout(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -189,12 +239,16 @@ class TestBuildTestArtifacts(unittest.TestCase):
                 "tools": {"flatpak": "Flatpak 1"},
             }
 
+            def fake_build(cwd, architecture, *, destination, **kwargs):
+                self.assertNotEqual(cwd, ROOT)
+                self.assertTrue((cwd / "README.md").is_file())
+                self.assertEqual(kwargs['environment']['DEB_BUILD_OPTIONS'], 'nocheck')
+                self.assertEqual(kwargs['builder_root'], ROOT)
+                destination.mkdir()
+                (destination / "oh-no-parent-control_1_amd64.deb").write_bytes(b"package")
+
             def fake_run(command, *, cwd=None, environment=None):
-                if command == ["dpkg-buildpackage"]:
-                    self.assertNotEqual(cwd, ROOT)
-                    self.assertTrue((cwd / "README.md").is_file())
-                    (cwd.parent / "oh-no-parent-control_1_amd64.deb").write_bytes(b"package")
-                elif str(artifacts.FIXTURE_BUILDER) in command:
+                if str(artifacts.FIXTURE_BUILDER) in command:
                     fixture_output = Path(command[-1])
                     fixture_output.mkdir()
                     (fixture_output / "SHA256SUMS.json").write_text(
@@ -205,6 +259,10 @@ class TestBuildTestArtifacts(unittest.TestCase):
             with mock.patch.object(artifacts.package_inputs, "paths", return_value=[Path("README.md")]), \
                  mock.patch.object(artifacts.package_inputs, "digest", return_value="b" * 64), \
                  mock.patch.object(artifacts, "_metadata", return_value=metadata), \
+                 mock.patch('tools.build_package.build', side_effect=fake_build), \
+                 mock.patch.object(artifacts, 'package_identity', return_value={
+                     'name': 'oh-no-parent-control', 'architecture': 'amd64',
+                     'version': '1.0+local1~ubuntu26.04.1'}), \
                  mock.patch.object(artifacts, "_run", side_effect=fake_run):
                 manifest_path = artifacts.build(output, package_format='deb')
 
@@ -273,6 +331,8 @@ def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monke
         output.mkdir()
         (output / 'SHA256SUMS.json').write_text(json.dumps({'algorithm': 'sha256', 'files': {}}))
     monkeypatch.setattr(build_rpm, 'build', rpm)
+    monkeypatch.setattr(artifacts, 'package_identity', lambda _: {
+        'name': 'oh-no-parent-control', 'architecture': 'x86_64', 'version': '0:1.2-0.1.dev.fc44'})
     monkeypatch.setattr(artifacts, '_run', fixture)
     output = tmp_path / 'output'
     artifacts.build(output, package_format='rpm')

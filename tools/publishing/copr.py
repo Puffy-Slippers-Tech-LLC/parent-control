@@ -16,6 +16,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import xml.etree.ElementTree as ET
 
 from . import source
+from tools import build_targets
 
 BASE = 'https://copr.fedorainfracloud.org'
 API = BASE + '/api_3'
@@ -25,6 +26,12 @@ CHROOT = 'fedora-44-x86_64'
 GIT_URL = source.ORIGIN.replace('git@github.com:', 'https://github.com/')
 PENDING = {'pending', 'starting', 'importing', 'waiting', 'running', 'forked'}
 FAILED = {'failed', 'canceled', 'cancelled', 'unknown', 'skipped'}
+
+
+def chroots():
+    return {f'fedora-{target.version}-{target.architecture}': target
+            for target in build_targets.configured(Path(__file__).resolve().parents[2])
+            if target.package_format == 'rpm'}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -65,8 +72,8 @@ def project():
     result = api('/project', ownername=OWNER, projectname=PROJECT)
     if (result.get('ownername'), result.get('name')) != (OWNER, PROJECT):
         raise ValueError('COPR project identity mismatch')
-    if set(result['chroot_repos']) != {CHROOT}:
-        raise ValueError('COPR project must enable only fedora-44-x86_64')
+    if set(result['chroot_repos']) != set(chroots()):
+        raise ValueError('COPR project chroots must match configured RPM build targets')
     return result
 
 
@@ -116,13 +123,14 @@ def submit(revision, authorization):
         raise ValueError('COPR source must be pinned to an exact Git commit')
     data = dict(ownername=OWNER, projectname=PROJECT, clone_url=GIT_URL, committish=revision,
         subdirectory='', spec='rpm/oh-no-parent-control.spec.in', scm_type='git',
-        source_build_method='make_srpm', chroots=[CHROOT], enable_net=False)
+        source_build_method='make_srpm', chroots=list(chroots()), enable_net=False)
     return json.loads(read(API + '/build/create/scm', data=json.dumps(data).encode(),
                            authorization=authorization))
 
 
-def indexed_package(product, build, repository):
+def indexed_package(product, build, repository, *, target='fedora44', architecture='x86_64'):
     """Require the selected build's RPM in repodata and verify its download."""
+    selected = build_targets.get(target, architecture, 'rpm')
     repository = repository.rstrip('/') + '/'
     repomd = ET.fromstring(read(repository + 'repodata/repomd.xml'))
     ns = {'r': 'http://linux.duke.edu/metadata/repo'}
@@ -139,7 +147,9 @@ def indexed_package(product, build, repository):
     for package in metadata.findall('p:package', ns):
         version = package.find('p:version', ns).attrib
         if (package.findtext('p:name', namespaces=ns), version['ver'],
-                package.findtext('p:arch', namespaces=ns)) != (source.PACKAGE, product, 'x86_64'):
+                package.findtext('p:arch', namespaces=ns)) != (source.PACKAGE, product, architecture):
+            continue
+        if not version['rel'].endswith(selected.dist):
             continue
         href = package.find('p:location', ns).attrib['href']
         # COPR's result directory includes the numeric build ID (zero padded on
@@ -169,6 +179,7 @@ def source_matches(build_id, revision):
 
 def status(product, record):
     configuration = project()
+    targets = chroots()
     candidates = []
     listed = builds()
     unresolved = set(record.get('unidentified_ids', []))
@@ -202,15 +213,19 @@ def status(product, record):
     # A published product wins over a later pending/failed rebuild. Until that
     # is proven, keep following the retained submission rather than retarget it.
     for build in sorted(candidates, key=lambda item: item['id'], reverse=True):
-        if build['state'] != 'succeeded' or set(build['chroots']) != {CHROOT}:
+        if build['state'] != 'succeeded' or set(build['chroots']) != set(targets):
             continue
-        packages = api('/build/built-packages/' + str(build['id'])).get(CHROOT, {}).get('packages', [])
-        if not any((item['name'], item['version'], item['arch']) ==
-                   (source.PACKAGE, product, 'x86_64') for item in packages):
+        packages = api('/build/built-packages/' + str(build['id']))
+        if not all(any((item['name'], item['version'], item['arch']) ==
+                       (source.PACKAGE, product, target.architecture)
+                       for item in packages.get(chroot, {}).get('packages', []))
+                   for chroot, target in targets.items()):
             successful[build['id']] = 'COPR build has no matching product RPM'
             continue
         try:
-            if indexed_package(product, build, configuration['chroot_repos'][CHROOT]):
+            if all(indexed_package(product, build, configuration['chroot_repos'][chroot],
+                                   target=target.name, architecture=target.architecture)
+                   for chroot, target in targets.items()):
                 record['published_build_id'] = build['id']
                 return 'published', 'repository metadata and RPM checksum verified'
         except HTTPError as error:
@@ -228,8 +243,8 @@ def status(product, record):
     if candidates:
         build = recorded or max(candidates, key=lambda item: item['id'])
         record['build_id'] = build['id']
-        if set(build['chroots']) != {CHROOT}:
-            raise ValueError('COPR candidate must target only fedora-44-x86_64')
+        if set(build['chroots']) != set(targets):
+            raise ValueError('COPR candidate must match configured RPM build targets')
         if build['state'] in FAILED:
             raise ValueError(f'COPR build {build["id"]} failed; inspect the project before retrying')
         if build['state'] == 'succeeded':

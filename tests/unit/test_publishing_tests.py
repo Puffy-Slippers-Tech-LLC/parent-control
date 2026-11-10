@@ -115,7 +115,7 @@ def test_pipeline_runs_source_and_binary_checks_and_retains_failure(tmp_path, mo
     monkeypatch.setattr(checks.publish, 'command', command)
     monkeypatch.setattr(checks.source, 'inspect_archive', inspect)
     monkeypatch.setattr(checks.build, 'check_build', build)
-    def rpm_build(root, checkout, directory):
+    def rpm_build(root, checkout, directory, **target):
         calls.append(('rpm',))
         if failure == 'rpm':
             raise ValueError('rpm failed')
@@ -181,14 +181,16 @@ def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, categ
 def test_category_dispatch_uses_shared_script_and_rejects_options():
     # The maintained launcher imports these modules from tools/.
     from test_commands import plan, suite_inventory
+    from tools import build_targets
     commands, safety = plan(ROOT, 'publish', [])
     assert commands == [['/usr/bin/python3', '-B', str(ROOT / 'tools/publishing_checks.py'),
-                         '--package-format', value] for value in ('deb', 'rpm')]
-    for category, command in zip(('publish-deb', 'publish-rpm'), commands, strict=True):
-        assert plan(ROOT, category, []) == ([command], False)
+                         '--package-format', target.package_format, '--build-target', target.name,
+                         '--architecture', target.architecture] for target in build_targets.configured(ROOT)]
+    assert plan(ROOT, 'publish-deb', []) == (commands[:1], False)
+    assert plan(ROOT, 'publish-rpm', []) == (commands[1:], False)
     assert list(suite_inventory(('publish',))) == ['publish-deb', 'publish-rpm']
     previous = {'publish': {'scope': 'host', 'args': []}}
     assert suite_inventory(('publish',), inventory=previous) == previous
     assert not safety
-    with pytest.raises(ValueError, match='no arguments'):
+    with pytest.raises(ValueError, match='accept only'):
         plan(ROOT, 'publish', ['--skip-build'])

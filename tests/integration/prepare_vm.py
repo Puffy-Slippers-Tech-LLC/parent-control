@@ -908,7 +908,7 @@ def verify_marker_permissions(info: os.stat_result) -> None:
 
 
 def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
-    """Install once; repeats verify without network or package transactions.
+    """Install prerequisites; refresh Fedora 45's native daemon before fixtures.
 
     Keep directory services unconfigured. Their supported package reconfiguration
     and identities belong to the selected runtime fixture, after product install.
@@ -927,6 +927,12 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
             if str(error) != 'guest-tools:missing-or-mismatched-package':
                 raise PreparationError('guest-tools:package-status', 'package database is ambiguous or unsupported') from error
             runner.run(['dnf5', '--refresh', '-y', 'install', *guest_tools.FEDORA_VERSIONS], timeout=1800)
+        if vm_config.selected().require_build_target().name == 'fedora45':
+            # Presence alone accepts the older broken daemon. Require the fixed
+            # release, then take the latest available update in either prep mode.
+            runner.run(['dnf5', '--refresh', '--best', '-y', 'install',
+                        'fapolicyd >= 2.0.2-1.fc45'], timeout=1800)
+            runner.run(['dnf5', '--best', '-y', 'upgrade', 'fapolicyd'], timeout=1800)
         try:
             guest_tools.verify_installed(os_id, runner=runner, root=root)
         except ValueError as error:

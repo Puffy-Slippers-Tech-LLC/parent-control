@@ -208,13 +208,21 @@ def overlay_authentication(*, result, prefix, exit='automatic', language='en'):
     does not qualify another request or provider tuple.
     """
     import re
-    require(result in ('cancel', 'approval', 'rejection', 'lock', 'switch-user', 'sign-out'), 'overlay-authentication:result')
+    require(result in ('cancel', 'approval', 'rejection', 'lock', 'switch-user', 'sign-out', 'close'), 'overlay-authentication:result')
     require(language == 'en' or language == 'he' and result == 'approval'
             and exit == 'automatic', 'overlay-authentication:language')
     require(exit in ('automatic', 'immediate') and (result == 'approval' or exit == 'automatic'),
             'overlay-authentication:exit')
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix),
             'overlay-authentication:prefix')
+    if result == 'close':
+        from journey_blocks import prefixed_stages
+        return prefixed_stages(prefix, {
+            'pending-approval': 'ui:overlay-shell-close-ready',
+            'close': 'ui:overlay-pending-close',
+            'dismissed': 'ui:overlay-shell-dismissed',
+            'closed': 'ui:overlay-desktop',
+        })
     if result in ('switch-user', 'sign-out'):
         from journey_blocks import desktop_entry, prefixed_stages
         return prefixed_stages(prefix, {

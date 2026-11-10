@@ -1284,7 +1284,8 @@ def chinese_mate_texts(provider_version=None):
                             if version == '1.28.1' else
                             '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready',
-                                    'overlay-shell-switch-user-ready', 'overlay-shell-sign-out-ready'})
+                                    'overlay-shell-switch-user-ready', 'overlay-shell-sign-out-ready',
+                                    'overlay-shell-close-ready'})
 SHELL_APPROVAL_ORDER = ('overlay-shell-open', 'overlay-shell-qualified',
                         'overlay-shell-rechecked', 'overlay-shell-submit-ready',
                         'overlay-approval-success')
@@ -1301,8 +1302,8 @@ SHELL_REJECTION_ORDER = tuple('overlay-shell-rejection-' + suffix for suffix in
 SHELL_APPROVAL_OPERATIONS |= frozenset(SHELL_REJECTION_ORDER)
 OPERATIONS |= SHELL_APPROVAL_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= SHELL_APPROVAL_OPERATIONS
-OPERATIONS |= {'overlay-shell-dismissed'}
-CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed'}
+OPERATIONS |= {'overlay-shell-dismissed', 'overlay-pending-close'}
+CHILD_DESKTOP_OPERATIONS |= {'overlay-shell-dismissed', 'overlay-pending-close'}
 SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
 SHELL_REQUEST_LANGUAGES = frozenset({'en', 'he'})
 # FLOW20 callers own these finite choices. The same binding follows the form,
@@ -1313,7 +1314,7 @@ OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
                             180: '3 minutes', 300: '5 minutes', 900: '15 minutes'}
 OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
-    *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed',
+    *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed', 'overlay-pending-close',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
     'overlay-desktop', 'overlay-request-cancel', 'child-countdown-present'})
 OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
@@ -3181,10 +3182,27 @@ class AccessibleUI:
         """Read the public editor document, independently of editing actions."""
         return self.get_value('feedback-editor-document')
 
-    def close_id(self, identity):
+    def close_id(self, identity, *, pending_shell_challenge=None):
         """Request the owned product surface's ordinary close action once."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        node = self.id_target(identity, showing=False)
+        if pending_shell_challenge is None:
+            node = self.id_target(identity, showing=False)
+        else:
+            # Only this owned overlay may close under its already proved real
+            # approval prompt. Keep the API's actual modal/availability guards.
+            require(identity == 'kiosk-request-window', 'ui:pending-close-surface')
+            self.require_child_overlay_session(self.overlay_bound_values()[0])
+            self.invalidate_observation()
+            observation = self.read_snapshot(protect_text=True)
+            owner = self.shell_prompt_owner(observation)
+            challenge = self.shell_prompt(owner.get_process_id(), os.getuid(),
+                                          observation=observation)
+            require(challenge is not None and self.mate_challenge_identity(
+                owner.get_process_id(), challenge) == pending_shell_challenge,
+                'ui:pending-close-challenge')
+            node = self.snapshot_owned_target(identity, observation=observation)
+            require(node is not None and self.surface_available(node),
+                    'ui:pending-close-unavailable')
         self.input_uncertain = True
         node.close()
         self.input_uncertain = False
@@ -12135,7 +12153,7 @@ class AccessibleUI:
         Session transitions use the public session command with the prompt open.
         A separate form observation and immutable comparison prove the result.
         """
-        require(action in ('cancel', 'lock', 'switch-user', 'sign-out'), 'ui:shell-interruption-action')
+        require(action in ('cancel', 'lock', 'switch-user', 'sign-out', 'close'), 'ui:shell-interruption-action')
         require(not self.input_uncertain, 'ui:uncertain-input')
         child, approver, seconds, soft = self.overlay_bound_values()
         self.kiosk_valid_choice('overlay-request-estimate' if getattr(self, 'overlay_request', None) is not None
@@ -15732,6 +15750,10 @@ class AccessibleUI:
                 action=operation.removeprefix('overlay-shell-').removesuffix('-ready'))
         elif operation in SHELL_APPROVAL_OPERATIONS:
             result['approval'] = self.overlay_shell_approval(operation)
+        elif operation == 'overlay-pending-close':
+            require(self.expected_mate_challenge is not None, 'ui:pending-close-proof')
+            self.close_id('kiosk-request-window',
+                          pending_shell_challenge=self.expected_mate_challenge)
         elif operation == 'overlay-shell-dismissed':
             self.require_child_overlay_session(self.overlay_bound_values()[0])
             def absent():
@@ -16745,7 +16767,7 @@ def main():
         and not binding_reminder_binding and not natural_expiry_binding
         and not countdown_session_binding else None)
     require(ui.expected_mate_challenge is None or (
-        sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS and
+        sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS | {'overlay-pending-close'} and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')
     # Identify a disappearing external owner at the retained failure boundaries,
     # including the attachment Open preflight, fresh attachment read and

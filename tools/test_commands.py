@@ -92,6 +92,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     license_viewer locale_discovery_auth lock_recipient lock_surface lock_during_pending_overlay_approval match_editor match_save_cancel mate_prompt
     switch_user_during_pending_overlay_approval
     sign_out_during_pending_overlay_approval
+    close_the_overlay_during_pending_approval
     named_child_custom_saves native_app native_desktop_new_window native_desktop_usable native_files_usable native_file_routes native_denial native_space_path qualify_native_fixtures_with_spaces_and_commas native_fixtures snap_fixtures flatpak_fixtures flatpak flatpak_command_usable flatpak_retained_work flatpak_grid snap_command_usable snap_grid native_grid_usable natural_expiry shared_target_launchers
     native_desktop_route observe_native_policy_denial_and_existing_window_closure
     qualify_versioned_appimage_pattern_assets

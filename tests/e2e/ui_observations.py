@@ -121,6 +121,8 @@ OPERATION_LABELS = {
     'chinese-standard-desktop': 'Observing the renewed Chinese child desktop',
     'overlay-shell-cancel-ready': 'Qualifying the real Shell request and fresh Cancel recipient',
     'overlay-shell-lock-ready': 'Observing the pending parent approval before locking the child screen',
+    'overlay-shell-close-ready': 'Observing the pending parent approval before closing the child request',
+    'overlay-pending-close': 'Closing the child request through its normal window action',
     'overlay-shell-switch-user-ready': 'Observing the pending parent approval before switching users',
     'overlay-shell-sign-out-ready': 'Observing the pending parent approval before signing out',
     'overlay-shell-dismissed': 'Independently requiring Shell challenge disappearance',
@@ -1513,6 +1515,8 @@ class UiObservations:
                 if operation in accessible_ui.SHELL_PROMPT_OPERATIONS:
                     self.shell_cancel_active = True
                     self.shell_dismissed = False
+                    if operation == 'overlay-shell-close-ready':
+                        self.pending_close_challenge = result['shell_prompt']['challenge_id']
                 self.last_mate_operation = operation
                 return result
             except BaseException:
@@ -1531,6 +1535,7 @@ class UiObservations:
                     self.language_failed = True
                 if operation in (accessible_ui.MATE_OPERATIONS | accessible_ui.MATE_APPROVAL_OPERATIONS
                                  | {'kiosk-agent-refused'}
+                                 | {'overlay-pending-close'}
                                  | accessible_ui.SHELL_PROMPT_OPERATIONS | accessible_ui.SHELL_APPROVAL_OPERATIONS
                                  ) or 0 < getattr(self, 'shell_approval_index', 0) < len(accessible_ui.SHELL_APPROVAL_ORDER):
                     self.challenge_failed = True
@@ -1565,6 +1570,10 @@ class UiObservations:
             raise
 
     def _observe(self, operation, *, child=None):
+        if operation == 'overlay-pending-close':
+            require(not self.challenge_failed
+                    and self.last_operation == 'overlay-shell-close-ready'
+                    and getattr(self, 'pending_close_challenge', None), 'ui:pending-close-order')
         if operation in accessible_ui.NATIVE_FILES_BINDINGS and operation.endswith('-denied'):
             require(self.last_operation == operation.removesuffix('denied') + 'launch',
                     'ui:native-files-denial-order')
@@ -1625,6 +1634,9 @@ class UiObservations:
             binding = [self.boot_guard or '', self.mate_approval_identity]
         if operation in accessible_ui.SHELL_APPROVAL_OPERATIONS and operation not in accessible_ui.SHELL_OPEN_OPERATIONS:
             binding = [self.boot_guard or '', self.shell_approval_identity]
+        if operation == 'overlay-pending-close':
+            binding = [self.boot_guard or '', self.pending_close_challenge]
+            self.pending_close_challenge = None  # Consume before dispatch, including uncertain replies.
         if operation == 'kiosk-reminder-preview-cancel':
             require(self.last_operation == 'kiosk-reminder-preview' and
                     hasattr(self, 'kiosk_reminder_source'), 'ui:kiosk-reminder-order')

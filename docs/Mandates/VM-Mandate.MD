@@ -328,6 +328,11 @@ rules.
   matters, retain same-boot guest observation times so a delayed reply does not
   become product latency. An unobserved interval cannot prove timely enforcement;
   preserve that uncertainty rather than infer a timely lock from a later state.
+  For a calendar deadline, project the original guest observation bracket
+  directly through the same-boot clock bracket. Combining an initial sample
+  interval with an elapsed interval counts their shared endpoint's uncertainty
+  twice. Keep the original product bound and measured uncertainty; do not widen
+  the bound to compensate for that arithmetic.
 - **Wait for state and return promptly.** Replace arbitrary settling sleeps,
   repeated full discovery and unrelated checks with the required scoped
   observation. Retain every fresh input-recipient guard and independently

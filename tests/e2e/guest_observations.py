@@ -47,6 +47,18 @@ print(json.dumps({'projection':projection,'timezone':zone,'boot_sha256':boot,
 '''
 
 
+def calendar_epoch_bounds(clock, guest_read_bounds):
+    """Project a same-boot guest read interval using TIME05's original bracket.
+
+    Callers retain boot/clock continuity checks and their precision and deadline
+    assertions. Project the observed interval directly: composing it with an
+    elapsed interval would count their shared endpoint's uncertainty twice.
+    """
+    start, end = guest_read_bounds
+    return (clock['epoch_ns'] + start - clock['guest_monotonic_end_ns'],
+            clock['epoch_ns'] + end - clock['guest_monotonic_start_ns'])
+
+
 def parse_local_calendar(raw):
     """Accept only complete, internally consistent system-clock observations."""
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'calendar:invalid-output')

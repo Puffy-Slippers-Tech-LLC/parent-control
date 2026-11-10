@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from accessible_ui import KIOSK_BOUND_OPERATIONS, OVERLAY_BOUND_OPERATIONS, NAMED_TIME_OPERATIONS
 from calendar_fixture import preset_spring_forward
 from countdown import CountdownSample
+from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
                             native_activity_resume, parent_management, parent_selection, prefixed_stages)
@@ -219,8 +220,7 @@ class PairedGrantsJourney(InstalledJourney):
             child = 'existing-fixture-child' if name == 'jordan' else 'fixture-child'
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'], child=child)
             clock = self.calendar()
-            low = clock['epoch_ns'] + sample.guest_read_bounds[0] - clock['guest_monotonic_end_ns']
-            high = clock['epoch_ns'] + sample.guest_read_bounds[1] - clock['guest_monotonic_start_ns']
+            low, high = calendar_epoch_bounds(clock, sample.guest_read_bounds)
             seconds = sample.countdown.seconds
             require(type(seconds) is int and seconds > 0 and high - low < 10_000_000_000,
                     'spring-grants:countdown-precision')
@@ -274,8 +274,7 @@ class PairedGrantsJourney(InstalledJourney):
                 else:
                     original = self.deadlines[name]
                     start, end = value['estimate_read_bounds']
-                    low = clock['epoch_ns'] + start - clock['guest_monotonic_end_ns']
-                    high = clock['epoch_ns'] + end - clock['guest_monotonic_start_ns']
+                    low, high = calendar_epoch_bounds(clock, (start, end))
                     require(0 < start <= end <= clock['guest_monotonic_start_ns']
                             and end - start <= 45_000_000_000,
                             'spring-grants:estimate-calculation-bounds')
@@ -308,9 +307,7 @@ class PairedGrantsJourney(InstalledJourney):
         require(journey.expiry_sample is not None and journey.expiry is None, 'spring-grants:expiry-entry')
         result = await_natural_expiry(journey, guard, journey.expiry_sample,
             journey.activity_observations['riley-activity-capture'], maximum_seconds=600)
-        clock = journey.last_calendar
-        low = clock['epoch_ns'] + result['lock_read_bounds'][0] - clock['guest_monotonic_end_ns']
-        high = clock['epoch_ns'] + result['lock_read_bounds'][1] - clock['guest_monotonic_start_ns']
+        low, high = calendar_epoch_bounds(journey.last_calendar, result['lock_read_bounds'])
         original = journey.deadlines['riley']
         require(original[0] - 1_000_000_000 <= low <= high < original[1] + 15_000_000_000,
                 'spring-grants:original-deadline-lock')

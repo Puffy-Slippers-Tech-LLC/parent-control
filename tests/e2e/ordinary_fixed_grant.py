@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from calendar_fixture import preset_ordinary_midnight
 from countdown import CountdownSample
+from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
                             native_activity_resume, parent_management, prefixed_stages)
@@ -186,8 +187,7 @@ class FixedGrantJourney(InstalledJourney):
         if stage in TIME_STAGES:
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             clock = self.countdown_clock or self.last_calendar
-            low = clock['epoch_ns'] + sample.guest_read_bounds[0] - clock['guest_monotonic_end_ns']
-            high = clock['epoch_ns'] + sample.guest_read_bounds[1] - clock['guest_monotonic_start_ns']
+            low, high = calendar_epoch_bounds(clock, sample.guest_read_bounds)
             seconds = sample.countdown.seconds
             require(type(seconds) is int and seconds > 0 and high - low <= 10_000_000_000,
                     'fixed-grant:countdown-precision')
@@ -257,10 +257,7 @@ class FixedGrantJourney(InstalledJourney):
                 'fixed-grant:expiry-entry')
         result = await_natural_expiry(journey, guard, journey.initial_countdown,
             journey.activity_observations['continued-activity-capture'], maximum_seconds=1500)
-        clock = journey.last_calendar
-        start, end = result['lock_read_bounds']
-        low = clock['epoch_ns'] + start - clock['guest_monotonic_end_ns']
-        high = clock['epoch_ns'] + end - clock['guest_monotonic_start_ns']
+        low, high = calendar_epoch_bounds(journey.last_calendar, result['lock_read_bounds'])
         require(journey.deadline_bounds[0] - 1_000_000_000 <= low <= high
                 < journey.deadline_bounds[1] + 15_000_000_000,
                 'fixed-grant:original-deadline-lock')

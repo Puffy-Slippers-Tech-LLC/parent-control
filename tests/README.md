@@ -353,7 +353,7 @@ cancel unused waiters when their family's work drains.
 Failed workers release capacity but retain their reservation until the executor
 closes after the worker join. Preparation uses one finite per-VM operation and
 continues after individual failures. These rules also cover explicit single-VM
-selections; legacy repair keeps its existing resource path until its cutover.
+selections and repair attempts through the shared pass coordinator.
 Workers return bounded attempt evidence to the coordinator. Passing credit
 requires matching run, pass, assignment, attempt, VM, original selection and
 source identity, plus teardown and owned cleanup. Missing, diagnostic, stale or

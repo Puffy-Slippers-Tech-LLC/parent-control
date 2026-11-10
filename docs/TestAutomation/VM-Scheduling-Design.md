@@ -1,13 +1,14 @@
 # Unified VM scheduling execution plan
 
-Status: in progress. Completion is recorded in the ordered task queue.
+Status: complete. Completion is recorded in the ordered task queue.
 
-Current validation constraint: all VMs are occupied and expected to remain so
-for a very long time. Use non-VM validation only; do not attempt or wait for VM
-validation. Required live qualification remains pending until VMs are available.
+The developer replaced task 005's live acceptance with host validation because
+the VMs are occupied, and authorized closing the task on that basis. All 15
+selected host checks and the source ownership audit passed. Live VM qualification
+was not run. Task-owned cleanup finished.
 
 Task queue: [Ordered task queue](VM-Scheduling-Task-Queue.md).
-Next task: **005 — [Check the shared workflow on live VMs](VM-Scheduling-Tasks/005.md)**.
+Next task: none.
 
 ## Goal and launcher
 
@@ -119,8 +120,8 @@ Preserve local-only execution and
 the existing SSH-host refusal; remote workers, machine-wide concurrency changes,
 general policy frameworks and unrelated test/fixture redesign are outside scope.
 
-Each task owns its scoped validation and cleanup. Task 005 supplies bounded live
-qualification; earlier host checks do not claim it. Maintain existing critical
+Each task owns its scoped validation and cleanup. Task 005 closed with the
+developer-authorized host substitution recorded above. Maintain existing critical
 execution/ownership coverage under the [test scope mandate](../Mandates/Test-Scope-Mandate.md),
 without test-tool UI coverage or a helper-by-helper matrix. Move enduring rules
 into [test maintenance](../../tests/README.md), the

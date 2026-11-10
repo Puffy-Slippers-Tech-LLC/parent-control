@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5835</span>/<span style="color: gray">0</span>/5835 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5838</span>/<span style="color: gray">0</span>/5838 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">300</span>/<span style="color: gray">0</span>/300 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">66</span>/<span style="color: gray">0</span>/66 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">147</span>/<span style="color: gray">51</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6587</span>/<span style="color: gray">51</span>/6638** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">148</span>/<span style="color: gray">50</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6592</span>/<span style="color: gray">50</span>/6642** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">146</span>/<span style="color: gray">51</span>/197 |
+| customer-journey | <span style="color: green">147</span>/<span style="color: gray">50</span>/197 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -118,6 +118,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [126](#scenario-126) | Zero allowance to kiosk approval, real gameplay and expiry (gameplay: windowed) | `E2E-023/windowed` | ready |
 | [127](#scenario-127) | Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen) | `E2E-023/fullscreen` | ready |
 | [128](#scenario-128) | Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant) | `E2E-024/daily-dominant-windowed` | ready |
+| [131](#scenario-131) | Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant) | `E2E-024/grant-dominant-fullscreen` | ready |
 | [132](#scenario-132) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded) | `E2E-025/excluded-new-login` | ready |
 | [133](#scenario-133) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded) | `E2E-025/excluded-retained-unlock` | ready |
 | [134](#scenario-134) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: included) | `E2E-025/included-new-login` | ready |
@@ -206,7 +207,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[131](#scenario-131)</span> | <span style="color: gray">Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)</span> | <span style="color: gray">`E2E-024/grant-dominant-fullscreen`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
@@ -1417,6 +1417,20 @@ Variant: gameplay: fullscreen
 Case: `E2E-024/daily-dominant-windowed` · Category: customer-journey · Status: **ready**
 
 Variant: gameplay: windowed; time: daily dominant
+
+**Steps:**
+
+- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
+- While both balances remain positive and distinguishably ordered, open the overlay through the direct child command when windowed or the public panel launch API while the game stays fullscreen. Select Jamie, Custom 1.25 Minutes (75 seconds), soft apps excluded. Approve and compare the new countdown with max(D,G)+75 minus elapsed time.
+- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
+
+### Scenario 131
+
+**Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)**
+
+Case: `E2E-024/grant-dominant-fullscreen` · Category: customer-journey · Status: **ready**
+
+Variant: gameplay: fullscreen; time: grant dominant
 
 **Steps:**
 
@@ -2806,26 +2820,6 @@ Variant: transaction: revoke
 - Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
 
 Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 131
-
-**Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant)**
-
-Case: `E2E-024/grant-dominant-fullscreen` · Category: customer-journey · Status: **pending**
-
-Variant: gameplay: fullscreen; time: grant dominant
-
-**Steps:**
-
-- Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
-- While both balances remain positive and distinguishably ordered, open the overlay through the direct child command when windowed or the public panel launch API while the game stays fullscreen. Select Jamie, Custom 1.25 Minutes (75 seconds), soft apps excluded. Approve and compare the new countdown with max(D,G)+75 minus elapsed time.
-- Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

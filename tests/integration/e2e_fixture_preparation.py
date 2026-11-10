@@ -9,7 +9,7 @@ GAME_CALLER = 'check_e2e_game_fixture'
 GAME_CALLERS = (GAME_CALLER, 'check_e2e_game_activity', 'check_e2e_game', 'check_e2e_game_fullscreen',
                 'check_e2e_fullscreen_request',
                 'E2E-023/windowed', 'E2E-023/fullscreen',
-                'E2E-024/daily-dominant-windowed')
+                'E2E-024/daily-dominant-windowed', 'E2E-024/grant-dominant-fullscreen')
 ACTIVITY_SUBSETS = ('native', 'activity', 'baseline-child')
 ACTIVITY_CALLER = 'check_e2e_baseline_journey'
 ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',

@@ -1561,8 +1561,8 @@ the original countdown's natural-lock deadline.
 
 ### E2E-024
 
-The daily-dominant/windowed composition is implemented in
-`tests/e2e/game_time_extension.py`; grant-dominant/fullscreen remains unimplemented.
+Both compositions are implemented in `tests/e2e/game_time_extension.py`, using
+the same game, approval, countdown comparison and natural-expiry operations.
 
 **Additional time accumulates during gameplay.** Cases 128, 131.
 

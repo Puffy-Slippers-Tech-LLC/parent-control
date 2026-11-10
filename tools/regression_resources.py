@@ -95,6 +95,9 @@ DEMANDS.update({kind: DEMANDS['unit'] for kind in ('cleanup', 'cleanup-exclusive
 # cleanup. They may overlap each other and artifacts; shared Podman storage uses
 # its native locks. Each job receives its own CPU/memory reservation.
 # No host product installation, display, bus, socket or VM is involved.
+# Each RPM target is a separate command within its existing category lifetime;
+# targets run serially under the same reservation, with independent private
+# snapshots/images/results. The matrix adds no simultaneous resource demand.
 DEMANDS.update(publish=Demand(2, 6 * GIB), artifacts=Demand(2, 4 * GIB),
                system=Demand(0, 0), e2e=Demand(0, 0))
 DEMANDS['publish-deb'] = DEMANDS['publish']

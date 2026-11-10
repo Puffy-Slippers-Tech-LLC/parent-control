@@ -483,7 +483,7 @@ def copr_service(monkeypatch):
     copr = channels.copr
     repository = 'https://download.copr.fedorainfracloud.org/results/test/project/fedora-44-x86_64/'
     build = dict(id=10, ownername=copr.OWNER, projectname=copr.PROJECT, state='succeeded',
-                 chroots=[copr.CHROOT], source_package={'name': publish.release.PACKAGE, 'version': '1.1-1'})
+                 chroots=list(copr.chroots()), source_package={'name': publish.release.PACKAGE, 'version': '1.1-1'})
     listing = [build]
     payload = b'published RPM fixture'
     primary = (f'<metadata xmlns="http://linux.duke.edu/metadata/common"><package>'
@@ -498,12 +498,25 @@ def copr_service(monkeypatch):
     responses = {repository + 'repodata/repomd.xml': repomd,
                  repository + 'repodata/primary.xml.gz': packed,
                  repository + f'00000010-{publish.release.PACKAGE}/package.rpm': payload}
+    repositories = {copr.CHROOT: repository}
+    for chroot, target in copr.chroots().items():
+        if chroot == copr.CHROOT:
+            continue
+        other = repository.replace(copr.CHROOT, chroot)
+        repositories[chroot] = other
+        other_packed = gzip.compress(primary.replace(b'1.fc44', ('1' + target.dist).encode()))
+        other_repomd = repomd.replace(hashlib.sha256(packed).hexdigest().encode(),
+                                      hashlib.sha256(other_packed).hexdigest().encode())
+        responses.update({other + 'repodata/repomd.xml': other_repomd,
+                          other + 'repodata/primary.xml.gz': other_packed,
+                          other + f'00000010-{publish.release.PACKAGE}/package.rpm': payload})
 
     def api(endpoint, **params):
         if endpoint == '/project':
-            return dict(ownername=copr.OWNER, name=copr.PROJECT, chroot_repos={copr.CHROOT: repository})
+            return dict(ownername=copr.OWNER, name=copr.PROJECT, chroot_repos=repositories)
         if endpoint.startswith('/build/built-packages/'):
-            return {copr.CHROOT: {'packages': [dict(name=publish.release.PACKAGE, version='1.1', arch='x86_64')]}}
+            return {chroot: {'packages': [dict(name=publish.release.PACKAGE, version='1.1', arch='x86_64')]}
+                    for chroot in repositories}
         if endpoint.startswith('/build/source-build-config/'):
             return {'source_type': 'scm', 'source_dict': dict(
                 type='git', clone_url=copr.GIT_URL, committish='a' * 40, subdirectory='',

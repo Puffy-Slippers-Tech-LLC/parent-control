@@ -6,8 +6,8 @@
 case "${ID-}" in
     ubuntu|debian) readonly setup_platform=debian ;;
     fedora)
-        if [[ ${VERSION_ID-} != 44 ]]; then
-            echo 'setup: Fedora Workstation 44 is required by the native RPM builder' >&2
+        if [[ ${VERSION_ID-} != 44 && ${VERSION_ID-} != 45 ]]; then
+            echo 'setup: Fedora Workstation 44 or 45 is required' >&2
             exit 1
         fi
         readonly setup_platform=fedora

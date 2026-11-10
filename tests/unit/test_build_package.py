@@ -1,4 +1,5 @@
 """Local builds clean only their private packaging source copy."""
+import os
 import subprocess
 
 import pytest
@@ -73,11 +74,11 @@ def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fa
         if fail:
             with pytest.raises(subprocess.CalledProcessError):
                 build_package.build(checkout, 'amd64')
-            assert not (checkout / 'output/deb/example.deb').exists()
+            assert not (checkout / 'output/deb/ubuntu26.04/x86_64/example.deb').exists()
         else:
             build_package.build(checkout, 'amd64')
-            assert (checkout / 'output/deb/example.deb').read_text() == 'package'
-            assert (checkout / 'output/deb/example.changes').read_text() == 'metadata'
+            assert (checkout / 'output/deb/ubuntu26.04/x86_64/example.deb').read_text() == 'package'
+            assert (checkout / 'output/deb/ubuntu26.04/x86_64/example.changes').read_text() == 'metadata'
         assert bytecode.read_bytes() == b'preserved'
         assert list(scratch.iterdir()) == []
     finally:
@@ -86,10 +87,10 @@ def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fa
     assert evidence.read_text() == 'preserved'
 
 
-@pytest.mark.parametrize('failure', [None, 'deb', 'rpm'])
+@pytest.mark.parametrize('failure', [None, 'ubuntu26.04', 'fedora45'])
 def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypatch, failure):
     from threading import Barrier
-    from tools import build_rpm
+    from tools import build_rpm, build_targets
 
     checkout = tmp_path / 'checkout'
     checkout.mkdir()
@@ -98,7 +99,9 @@ def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypa
     scratch = tmp_path / 'scratch'
     scratch.mkdir()
     monkeypatch.setattr(build_package, 'scratch_directory', lambda: scratch)
-    overlap = Barrier(2, timeout=5)
+    targets = tuple(build_targets.TARGETS.values())
+    monkeypatch.setattr(build_targets, 'configured', lambda _: targets)
+    overlap = Barrier(3, timeout=5)
     seen = {}
 
     def backend(name, root, output):
@@ -112,20 +115,20 @@ def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypa
         (output / f'package.{name}').write_text(name)
 
     monkeypatch.setattr(build_package, 'build',
-                        lambda root, architecture, destination, **_cancel: backend('deb', root, destination))
+                        lambda root, architecture, destination, target, **_cancel: backend(target, root, destination))
     monkeypatch.setattr(build_rpm, 'build',
-                        lambda root, output, release, **_lifetime: backend('rpm', root, output))
+                        lambda root, output, release, target, **_lifetime: backend(target, root, output))
     if failure:
-        with pytest.raises(ValueError, match=f'{failure}: injected backend failure'):
-            build_package.build_both(checkout, 'amd64', '0.1.dev')
+        with pytest.raises(ValueError, match=f'{failure}/x86_64: injected backend failure'):
+            build_package.build_both(checkout, 'amd64', '0.1.dev', disk_queue=False)
     else:
-        build_package.build_both(checkout, 'amd64', '0.1.dev')
+        build_package.build_both(checkout, 'amd64', '0.1.dev', disk_queue=False)
     assert seen == {
-        name: ('one source generation', checkout / 'output' / name)
-        for name in ('deb', 'rpm')
+        target.name: ('one source generation', target.output(checkout))
+        for target in targets
     }
-    for name in ('deb', 'rpm'):
-        assert (checkout / 'output' / name / f'package.{name}').exists() == (name != failure)
+    for target in targets:
+        assert (target.output(checkout) / f'package.{target.name}').exists() == (target.name != failure)
     assert list(scratch.iterdir()) == []
 
 
@@ -181,11 +184,20 @@ def test_deb_setup_uses_only_metadata_and_stops_on_failure(tmp_path, monkeypatch
 def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path, monkeypatch, failure):
     from pathlib import Path
 
+    # Released product sources need not contain today's container tooling.
+    checkout = tmp_path / 'checkout'
+    (checkout / 'debian').mkdir(parents=True)
+    for name in ('control', 'rules'):
+        (checkout / 'debian' / name).write_bytes((ROOT / 'debian' / name).read_bytes())
+    (checkout / 'Makefile').write_text(
+        'package-source-files:\n\t@printf "%s\\n" Makefile debian/control debian/rules\n')
+    package_command = ['dpkg-buildpackage', '--build=binary', '--no-sign', '-aamd64']
+    environment = {'HOME': str(tmp_path / 'build-home'), 'DEB_BUILD_OPTIONS': 'parallel=2',
+                   'SOURCE_DATE_EPOCH': '123'}
     monkeypatch.setattr(build_package, 'scratch_directory', lambda: tmp_path)
     monkeypatch.setattr(deb_builder, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(deb_builder, 'native_debian', lambda: False)
     monkeypatch.setattr(deb_builder.shutil, 'which', lambda _: None if failure == 'missing' else '/fixture/podman')
-    monkeypatch.setenv('DEB_BUILD_OPTIONS', 'parallel=2')
     original_run = subprocess.run
     commands = []
 
@@ -194,33 +206,37 @@ def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path
             return original_run(arguments, **kwargs)
         commands.append(arguments)
         if arguments[1:3] == ['image', 'exists']:
+            assert arguments[-1] == deb_builder.inputs(ROOT)[2]
             return subprocess.CompletedProcess(arguments, 1 if failure == 'outdated' else 0)
         assert '--network=none' in arguments and '--pull=never' in arguments
         assert '--userns=keep-id' in arguments and '--cap-drop=all' in arguments
         assert 'DEB_BUILD_OPTIONS=parallel=2' in arguments
-        assert arguments[-1] == 'DEB_HOST_ARCH=amd64'
+        assert 'SOURCE_DATE_EPOCH=123' in arguments
+        assert kwargs['env']['HOME'] == os.environ['HOME'] != environment['HOME']
+        assert arguments[-4:] == package_command
         volume = arguments[arguments.index('--volume') + 1]
         assert volume.endswith(':/build:rw,Z')  # Private SELinux label on Fedora.
         workspace = Path(volume.removesuffix(':/build:rw,Z'))
         assert workspace / 'source' == kwargs['cwd']
         assert (workspace / 'source/debian/rules').is_file()
+        assert not (workspace / 'source/debian/Containerfile').exists()
         if failure == 'build':
             raise subprocess.CalledProcessError(7, arguments)
-        artifacts = workspace / 'source/output/deb'
-        artifacts.mkdir(parents=True)
-        (artifacts / 'product.deb').write_bytes(b'Ubuntu package')
+        (workspace / 'product.deb').write_bytes(b'Ubuntu package')
         return subprocess.CompletedProcess(arguments, 0)
 
     monkeypatch.setattr(deb_builder.subprocess, 'run', run)
     destination = tmp_path / 'exported'
     if failure:
         with pytest.raises((ValueError, subprocess.CalledProcessError)) as error:
-            build_package.build(ROOT, 'amd64', destination=destination)
+            build_package.build(checkout, 'amd64', destination=destination,
+                                builder_root=ROOT, package_command=package_command, environment=environment)
         if failure != 'build':
             assert './setup.sh --dependencies-only' in str(error.value)
         assert not destination.exists()
     else:
-        build_package.build(ROOT, 'amd64', destination=destination)
+        build_package.build(checkout, 'amd64', destination=destination,
+                            builder_root=ROOT, package_command=package_command, environment=environment)
         assert (destination / 'product.deb').read_bytes() == b'Ubuntu package'
     assert not any(path.name.startswith('onpc-package-') for path in tmp_path.iterdir())
     assert not any('build' in arguments[1:2] or 'pull' in arguments[1:2] for arguments in commands)

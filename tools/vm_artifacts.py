@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shutil
 from pathlib import Path
 import sys
 import tempfile
@@ -52,6 +53,7 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
     if native_inputs and upgrade_inputs:
         raise ValueError('native dependency and product upgrade inputs are separate operations')
     package_format = selected().require_package_format()
+    target = selected().require_build_target()
     helper = '/usr/local/libexec/onpc-test-runner'
     check(helper)
     # This existing probe only reads provenance under the VM lock. Overwrite
@@ -78,6 +80,20 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         else:
             output = allocate_artifact_output(str(output))
     if candidate is not None:
+        from build_test_artifacts import MATRIX_NAME, verify_matrix
+        if (Path(candidate) / MATRIX_NAME).is_file():
+            if native_inputs or upgrade_inputs:
+                raise ValueError('package matrix is not an upgrade or native dependency input')
+            matrix = verify_matrix(Path(candidate))
+            member = next(entry for entry in matrix['targets']
+                          if (entry['build_target'], entry['architecture']) == (target.name, target.architecture))
+            member_path = Path(candidate) / member['path']
+            if output is None:
+                output = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
+            from build_test_artifacts import _require_empty_output
+            output = _require_empty_output(Path(output))
+            shutil.copytree(member_path, output, dirs_exist_ok=True, symlinks=True)
+            candidate = output
         if native_inputs:
             from native_transaction_inputs import verify
             verify(Path(candidate), package_format=package_format)
@@ -95,7 +111,9 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
             if reboot_inputs and receipt.get('activation') != 'reboot':
                 raise ValueError('reboot input profile mismatch')
             expected_architecture = {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]
-            if receipt['packages']['current']['architecture'] != expected_architecture:
+            current = receipt['packages']['current']
+            if (current['architecture'] != expected_architecture
+                    or (package_format == 'rpm' and not current['version'].endswith(target.dist))):
                 print('run-tests: upgrade input package format does not match '
                       'the verified VM baseline; existing inputs preserved', file=sys.stderr)
                 return 2
@@ -103,7 +121,10 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
             return 0
         from build_test_artifacts import verify
         manifest = verify(Path(candidate))
-        if Path(manifest['artifacts']['package']['path']).suffix == '.' + package_format:
+        inputs = manifest.get('build_inputs', {})
+        if (Path(manifest['artifacts']['package']['path']).suffix == '.' + package_format
+                and inputs.get('build_target') == target.name
+                and inputs.get('target_architecture') == target.architecture):
             print('run-tests: output=' + str(candidate), flush=True)
             return 0
         if output is not None:
@@ -119,7 +140,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
           ['--process-inputs'] if process_inputs else ['--no-action-inputs'] if no_action_inputs else
           ['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
           else ['--reuse'] if package_format == 'deb' else []),
-        '--package-format', package_format, '--output', str(output)],
+        '--package-format', package_format, '--build-target', target.name,
+        '--architecture', target.architecture, '--output', str(output)],
         cwd=root, env=environment)
 
 

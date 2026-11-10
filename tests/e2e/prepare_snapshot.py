@@ -50,7 +50,7 @@ def preparation_format(source, commands):
         capture.state['source']['layout'], capture.description())
     system.require(all(capture.state['proof'].get(key) == value for key, value in proof.items()),
                    'baseline:changed')
-    return system.package_format(capture.state['guest'])
+    return system.package_target(capture.state['guest']).package_format
 
 
 def probe(expected_uuid, *, overwrite=True):

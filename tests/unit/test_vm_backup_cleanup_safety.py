@@ -202,7 +202,7 @@ def backup_rig(rig, tmp_path, monkeypatch):
          'backup_root': str(tmp_path / 'backups')},
         {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'concurrency': 6,
          'backup_root': '/remote/backups'}],
-        'families': [{'family': 'backup fixture', 'package_format': 'deb',
+        'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb',
                       'fixture_path': 'common/ubuntu/common',
         'vms': [{'id': '9', 'name': 'Backup-guest', 'host': 'local',
                  'disk_anchor': str(rig.anchor), 'enabled': 'true'},

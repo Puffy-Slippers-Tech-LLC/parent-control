@@ -109,11 +109,15 @@ The controller stays on the laptop. Future SSH hosts will run VM operations;
 scheduling, assertions, builds and coding agents remain local. Implementing that
 remote execution path is separate work when the new host is available.
 
-Its `families` array groups equivalent VMs. Each family has an opaque literal
-`family` label, an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
+Its `families` array groups equivalent VMs. Each family has a
+`family` value in `BUILD_TARGET-ARCHITECTURE` form (for example
+`fedora45-x86_64`), an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
-first VM is created. Family names are not parsed or
-checked against guest OS metadata. Fixture directory composition follows the
+first VM is created. Package consumers split `family` at the last hyphen to
+derive the build target and architecture; separate attributes are unnecessary.
+The parsed target must match the verified guest release before package
+preparation/installation. Only `x86_64` is currently supported. Format alone never
+selects a package for a different target. Fixture directory composition follows the
 [fixture contract](../support/README.md#frozen-native-fixture-bundles).
 Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
 `disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup

@@ -338,6 +338,16 @@ def package_version(commands, package):
     return commands.run(argv, merge_stderr=False).decode().strip()
 
 
+def package_target(guest):
+    """Bind the declared builder to the verified guest release before installation."""
+    target = baseline.guest_contract.vm_config.selected().require_build_target()
+    distribution = guest.get('os_id', 'ubuntu' if 'ubuntu_version' in guest else None)
+    version = guest.get('version', guest.get('ubuntu_version'))
+    require((distribution, version) == (target.distribution, target.version),
+            'guest:configured-build-target-mismatch')
+    return target
+
+
 class RunLedger:
     """Accumulate monotonic stage timings and independent first-failure results."""
 
@@ -1495,6 +1505,7 @@ def stage_asset_inventory(destination, manifest, *, package_only=False):
         package = manifest['artifacts']['package']
         (destination / PACKAGE_INPUT_NAME).write_bytes(baseline.encode({
             'schema': PACKAGE_INPUT_SCHEMA, 'source': manifest['source'],
+            **({'build_inputs': manifest['build_inputs']} if 'build_inputs' in manifest else {}),
             'artifacts': {'package': {'path': 'package' + Path(package['path']).suffix,
                                       'sha256': package['sha256']}},
             'installed_files_sha256': baseline.digest(destination / 'installed-files.json')}))

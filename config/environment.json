@@ -57,7 +57,7 @@
   ],
   "families": [
     {
-      "family": "ubuntu26.04",
+      "family": "ubuntu26.04-x86_64",
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",
       "package_format": "deb",
       "fixture_path": "common/ubuntu/common",
@@ -81,7 +81,7 @@
       ]
     },
     {
-      "family": "fedora44",
+      "family": "fedora44-x86_64",
       "iso": "Fedora-Workstation-Live-44-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
@@ -97,7 +97,7 @@
       ]
     },
     {
-      "family": "fedora45",
+      "family": "fedora45-x86_64",
       "iso": "Fedora-Workstation-Live-45-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",

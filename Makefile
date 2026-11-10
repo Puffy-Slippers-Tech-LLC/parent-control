@@ -292,7 +292,8 @@ define installdeb
 		step='reading package architecture'; \
 		architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
 		step='locating built package'; \
-		deb_file="$(CURDIR)/output/deb/oh-no-parent-control_$${version}_$${architecture}.deb"; \
+		package_output="$$( $(PYTHON) -B tools/build_targets.py --native-output deb)"; \
+		deb_file="$$package_output/oh-no-parent-control_$${version}_$${architecture}.deb"; \
 	fi; \
 	test -f "$$deb_file" || (echo "Expected built package $$deb_file; run make build first" >&2; exit 1); \
 	echo "Installing $$deb_file"; \
@@ -318,7 +319,8 @@ define installrpm
 	if [ -n "$$rpm_file" ]; then \
 		case "$$rpm_file" in /*.rpm) ;; *) echo 'INSTALL_PACKAGE must be an absolute RPM path' >&2; exit 1 ;; esac; \
 	else \
-		for candidate in "$(CURDIR)/output/rpm/"oh-no-parent-control-[0-9]*.rpm; do \
+		package_output="$$( $(PYTHON) -B tools/build_targets.py --native-output rpm)"; \
+		for candidate in "$$package_output/"oh-no-parent-control-[0-9]*.rpm; do \
 			case "$$candidate" in *.src.rpm|*.nosrc.rpm) continue ;; esac; \
 			test -f "$$candidate" || continue; \
 			if [ -z "$$rpm_file" ] || [ "$$candidate" -nt "$$rpm_file" ]; then rpm_file="$$candidate"; fi; \

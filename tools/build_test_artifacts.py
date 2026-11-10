@@ -26,12 +26,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from tools import package_inputs
+from tools import package_inputs, build_targets
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 FIXTURE_BUILDER = REPOSITORY / "tests/fixtures/build_test_applications.py"
 MANIFEST_NAME = "artifact-manifest.json"
+MATRIX_NAME = 'package-matrix.json'
 SCHEMA_VERSION = 1
 PACKAGE_INPUT_NAME = 'package-input.json'
 PACKAGE_INPUT_SCHEMA = 'onpc-package-input-v1'
@@ -200,6 +201,7 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
         "source": {"revision": revision, "digest_sha256": source_digest, "file_count": len(source_paths),
                    "scope": "package"},
         "build_inputs": {"source_date_epoch": int(epoch), "architecture": architecture,
+                         "build_target": "ubuntu26.04", "target_architecture": "x86_64",
                          "deb_build_options": "nocheck parallel=2",
                          "package_command": ["dpkg-buildpackage", "--build=binary", "--no-sign", f"-a{architecture}"]},
         "tools": {"dpkg-architecture": _command_version(["dpkg-architecture", "--version"]),
@@ -209,22 +211,26 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     }
 
 
-def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None) -> Path:
+def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None,
+          build_target=None, architecture='x86_64') -> Path:
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     source_paths = package_inputs.paths(REPOSITORY)
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
     return _build(output, REPOSITORY, source_paths, source_digest, metadata,
-                  reuse=reuse, package_format=package_format)
+                  reuse=reuse, package_format=package_format, build_target=build_target, architecture=architecture)
 
 
 def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None,
-           rpm_release='0.1.dev'):
+           rpm_release='0.1.dev', build_target=None, architecture='x86_64'):
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
+    target = build_targets.get(build_target or ('fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
+                               architecture, package_format)
     output = _require_empty_output(output)
     reuse = reuse or {}
+    metadata['build_inputs'].update(build_target=target.name, target_architecture=target.architecture)
     if package_format == 'rpm':
         from tools.build_rpm import metadata as rpm_metadata
         metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
@@ -260,19 +266,23 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                 # Keep the caller's rootless build image/storage identity. The
                 # maintained builder freezes inputs and disables networking.
                 from tools.build_package import build_rpm
-                build_rpm(source_copy, package_output, release=rpm_release)
+                build_rpm(source_copy, package_output, release=rpm_release,
+                          target=target.name, architecture=target.architecture)
                 packages = sorted(package_output.glob('oh-no-parent-control-[0-9]*.x86_64.rpm'))
             else:
-                from tools import host_disk
-                with host_disk.operation('Building the test DEB package'):
-                    _run(metadata["build_inputs"]["package_command"], cwd=source_copy, environment=environment)
-                packages = sorted(temporary.glob("oh-no-parent-control_*.deb"))
-                package_output.mkdir()
+                from tools import build_package
+                # Historical releases predate the container recipe. Use the
+                # maintained prepared environment without altering their sources.
+                build_package.build(source_copy, target.architecture, destination=package_output,
+                                    target=target.name, environment=environment, builder_root=REPOSITORY,
+                                    package_command=metadata['build_inputs']['package_command'])
+                packages = sorted(package_output.glob("oh-no-parent-control_*.deb"))
         if len(packages) != 1:
             raise ArtifactError("package build did not produce exactly one binary package")
         destination = package_output / packages[0].name
         if packages[0] != destination:
             shutil.copyfile(packages[0], destination)
+        verify_package_target(destination, target)
         fixture_output = output / "fixtures"
         if 'fixtures' in reuse:
             shutil.copytree(reuse['fixtures'], fixture_output)
@@ -331,7 +341,7 @@ def historical_identity(root, revision):
             'digest_sha256': package_inputs.digest(root, selected), 'file_count': len(selected)}
 
 
-def build_no_action(output, *, package_format):
+def build_no_action(output, *, package_format, build_target=None, architecture='x86_64'):
     """Build genuine increasing packages without rewriting product sources."""
     output = _require_empty_output(output)
     if package_format == 'rpm':
@@ -344,6 +354,7 @@ def build_no_action(output, *, package_format):
             metadata['source']['rpm_release'] = release
             _build(output / label, REPOSITORY, selected, digest, metadata,
                    package_format=package_format, rpm_release=release,
+                   build_target=build_target, architecture=architecture,
                    reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
         verify_upgrade(output)
         return
@@ -400,7 +411,7 @@ def build_session(output, *, package_format):
     return build_activation(output, package_format=package_format, profile='session')
 
 
-def build_activation(output, *, package_format, profile):
+def build_activation(output, *, package_format, profile, build_target=None, architecture='x86_64'):
     if package_format != 'rpm':
         raise ArtifactError('activation profile is supported only for Fedora RPM')
     source, baseline = {'process': (process_source, PROCESS_BASELINE),
@@ -417,6 +428,7 @@ def build_activation(output, *, package_format, profile):
                 metadata['source'][profile + '_baseline'] = baseline
             _build(output / label, root, selected, digest, metadata,
                    package_format=package_format, rpm_release=release,
+                   build_target=build_target, architecture=architecture,
                    reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
     verify_upgrade(output)
 
@@ -472,11 +484,12 @@ def _require_previous_release(package_format):
     return PREVIOUS_RELEASES[package_format]
 
 
-def build_upgrade(output, *, package_format):
+def build_upgrade(output, *, package_format, build_target=None, architecture='x86_64'):
     """Finite genuine release/current preparation; no fabricated predecessor."""
     release = _require_previous_release(package_format)
     output = _require_empty_output(output)
-    build(output / 'current', package_format=package_format)
+    build(output / 'current', package_format=package_format,
+          build_target=build_target, architecture=architecture)
     with released_source(package_format=package_format) as root:
         selected = package_inputs.paths(root)
         source = release_identity(root, package_format=package_format)
@@ -485,7 +498,7 @@ def build_upgrade(output, *, package_format):
         metadata['build_inputs']['source_date_epoch'] = int(_run(
             ['git', 'show', '-s', '--format=%ct', release['commit']], cwd=REPOSITORY).stdout.strip())
         _build(output / 'previous', root, selected, source['digest_sha256'], metadata,
-               package_format=package_format)
+               package_format=package_format, build_target=build_target, architecture=architecture)
     verify_upgrade(output)
 
 
@@ -504,6 +517,17 @@ def package_identity(path):
         raise ArtifactError('package identity unavailable')
     return {'name': fields['Package'], 'version': fields['Version'],
             'architecture': fields['Architecture'], 'sha256': _sha256(path)}
+
+
+def verify_package_target(path, target):
+    """Check headers independently of filenames and claimed build inputs."""
+    identity = package_identity(path)
+    matches_release = (identity['version'].endswith(target.dist) if target.package_format == 'rpm'
+                       else '~ubuntu' + target.version + '.' in identity['version'])
+    if (identity['name'] != 'oh-no-parent-control'
+            or identity['architecture'] != target.package_architecture or not matches_release):
+        raise ArtifactError('package build target or architecture mismatch')
+    return identity
 
 
 def _require_newer_version(new, old, *, package_format):
@@ -620,15 +644,19 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     old, new = identities['previous'], identities['current']
     if package_format == 'rpm':
         from tools.build_rpm import metadata as rpm_metadata
-        expected = f"0:{rpm_metadata(repository, '0.1.dev')[0]}-0.1.dev.fc44"
+        target = build_targets.get(current.get('build_inputs', {}).get('build_target', 'fedora44'),
+                                   current.get('build_inputs', {}).get('target_architecture', 'x86_64'), 'rpm')
+        expected = f"0:{rpm_metadata(repository, '0.1.dev')[0]}-0.1.dev{target.dist}"
     else:
         expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
                          '-S', 'Version']).stdout.strip()
-    old_version = release['version']
+    old_version = (release['version'].removesuffix('.fc44') + target.dist
+                   if package_format == 'rpm' and previous.get('build_inputs', {}).get('build_target')
+                   else release['version'])
     if rpm_no_action or rpm_process or rpm_session or rpm_reboot:
         version = rpm_metadata(repository, NO_ACTION_RPM_RELEASES['current'])[0]
-        old_version = f"0:{version}-{NO_ACTION_RPM_RELEASES['previous']}.fc44"
-        expected = f"0:{version}-{NO_ACTION_RPM_RELEASES['current']}.fc44"
+        old_version = f"0:{version}-{NO_ACTION_RPM_RELEASES['previous']}{target.dist}"
+        expected = f"0:{version}-{NO_ACTION_RPM_RELEASES['current']}{target.dist}"
     elif historical_no_action:
         old_version, expected = NO_ACTION_VERSIONS[package_format]
     if (old['version'] != old_version or new['version'] != expected
@@ -656,7 +684,7 @@ def verify_package_input(output: Path) -> dict[str, Any]:
     """
     try:
         manifest = json.loads((output / PACKAGE_INPUT_NAME).read_text(encoding='utf-8'))
-        if (type(manifest) is not dict or set(manifest) != {
+        if (type(manifest) is not dict or set(manifest) - {'build_inputs'} != {
                 'schema', 'source', 'artifacts', 'installed_files_sha256'}
                 or manifest['schema'] != PACKAGE_INPUT_SCHEMA
                 or type(manifest['source']) is not dict
@@ -664,6 +692,13 @@ def verify_package_input(output: Path) -> dict[str, Any]:
                 or set(manifest['artifacts']) != {'package'}):
             raise ValueError('fields')
         package = manifest['artifacts']['package']
+        if 'build_inputs' in manifest:
+            inputs = manifest['build_inputs']
+            if type(inputs) is not dict:
+                raise ValueError('build inputs')
+            if 'build_target' in inputs or 'target_architecture' in inputs:
+                build_targets.get(inputs.get('build_target'), inputs.get('target_architecture'),
+                                  Path(package['path']).suffix.removeprefix('.'))
         if (type(package) is not dict or set(package) != {'path', 'sha256'}
                 or package['path'] not in ('package.deb', 'package.rpm')
                 or any(type(value) is not str or re.fullmatch(r'[0-9a-f]{64}', value) is None
@@ -705,7 +740,53 @@ def verify(output: Path, *, package_only=False) -> dict[str, Any]:
     return manifest
 
 
+def build_matrix(output):
+    output = _require_empty_output(output)
+    targets = build_targets.configured(REPOSITORY)
+    members = []
+    fixtures = {}
+    for target in targets:
+        relative = target.name + '/' + target.architecture
+        build(output / relative, package_format=target.package_format,
+              build_target=target.name, architecture=target.architecture,
+              reuse={'fixtures': fixtures[target.architecture]} if target.architecture in fixtures else None)
+        fixtures.setdefault(target.architecture, output / relative / 'fixtures')
+        members.append({'build_target': target.name, 'architecture': target.architecture, 'path': relative})
+    (output / MATRIX_NAME).write_text(json.dumps({'schema': 1, 'targets': members}, indent=2) + '\n')
+    verify_matrix(output)
+
+
+def verify_matrix(output):
+    try:
+        matrix = json.loads((output / MATRIX_NAME).read_text())
+        expected = [{'build_target': target.name, 'architecture': target.architecture,
+                     'path': target.name + '/' + target.architecture}
+                    for target in build_targets.configured(REPOSITORY)]
+        if matrix != {'schema': 1, 'targets': expected}:
+            raise ValueError('matrix target selection mismatch')
+        for entry in expected:
+            manifest = verify(output / entry['path'])
+            inputs = manifest['build_inputs']
+            target = build_targets.get(entry['build_target'], entry['architecture'])
+            if Path(manifest['artifacts']['package']['path']).suffix != '.' + target.package_format:
+                raise ValueError('matrix package format mismatch')
+            verify_package_target(output / entry['path'] / manifest['artifacts']['package']['path'], target)
+            if any(inputs[key] != value for key, value in (
+                    ('build_target', entry['build_target']), ('target_architecture', entry['architecture']))):
+                raise ValueError('matrix target provenance mismatch')
+        return matrix
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        raise ArtifactError('package matrix verification failed') from error
+
+
 def compare(first: Path, second: Path) -> None:
+    if (first / MATRIX_NAME).exists() or (second / MATRIX_NAME).exists():
+        matrix = verify_matrix(first)
+        if matrix != verify_matrix(second):
+            raise ArtifactError('package matrix mismatch')
+        for entry in matrix['targets']:
+            compare(first / entry['path'], second / entry['path'])
+        return
     first_manifest = verify(first)
     second_manifest = verify(second)
     for key in ("source", "build_inputs"):
@@ -734,6 +815,9 @@ def main() -> int:
     parser.add_argument("--reuse", action="store_true", help="prepare verified matching inputs, building on a cache miss")
     parser.add_argument('--package-format', choices=('deb', 'rpm'),
                         help='required for every build; no default package format')
+    parser.add_argument('--build-target')
+    parser.add_argument('--architecture', default='x86_64')
+    parser.add_argument('--matrix', action='store_true', help='build every configured target/architecture combination')
     parser.add_argument('--upgrade-inputs', action='store_true',
                         help='build pinned genuine prior-release/current inputs for the selected format')
     parser.add_argument('--no-action-inputs', action='store_true',
@@ -750,9 +834,22 @@ def main() -> int:
                         help='reverify a native dependency bundle without changing it')
     parser.add_argument("--compare", nargs=2, type=Path, metavar=("FIRST", "SECOND"), help="compare two built artifact directories")
     arguments = parser.parse_args()
-    if not (arguments.verify or arguments.compare or arguments.verify_native_inputs) and arguments.package_format is None:
+    if not (arguments.verify or arguments.compare or arguments.verify_native_inputs or arguments.matrix) and arguments.package_format is None:
         parser.error('--package-format deb|rpm is required when building')
     try:
+        if arguments.package_format:
+            build_targets.get(arguments.build_target or
+                              ('fedora44' if arguments.package_format == 'rpm' else 'ubuntu26.04'),
+                              arguments.architecture, arguments.package_format)
+        if arguments.matrix:
+            if (arguments.output is None or arguments.package_format or arguments.build_target
+                    or arguments.reuse or arguments.upgrade_inputs or arguments.no_action_inputs
+                    or arguments.native_inputs or arguments.verify_native_inputs or arguments.verify
+                    or arguments.compare or arguments.process_inputs or arguments.session_inputs or arguments.reboot_inputs
+                    or arguments.architecture != 'x86_64'):
+                raise ArtifactError('--matrix requires only --output')
+            build_matrix(arguments.output)
+            return 0
         if arguments.process_inputs or arguments.session_inputs or arguments.reboot_inputs:
             if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
                     or arguments.upgrade_inputs or arguments.no_action_inputs or arguments.native_inputs
@@ -760,6 +857,7 @@ def main() -> int:
                     or sum((arguments.process_inputs, arguments.session_inputs, arguments.reboot_inputs)) != 1):
                 raise ArtifactError('activation inputs require only --output and --package-format')
             build_activation(arguments.output, package_format=arguments.package_format,
+                             build_target=arguments.build_target, architecture=arguments.architecture,
                              profile='reboot' if arguments.reboot_inputs else
                                      'session' if arguments.session_inputs else 'process')
             return 0
@@ -767,7 +865,8 @@ def main() -> int:
             if (arguments.output is None or arguments.verify or arguments.compare or arguments.reuse
                     or arguments.upgrade_inputs or arguments.native_inputs or arguments.verify_native_inputs):
                 raise ArtifactError('--no-action-inputs requires only --output and --package-format')
-            build_no_action(arguments.output, package_format=arguments.package_format)
+            build_no_action(arguments.output, package_format=arguments.package_format,
+                            build_target=arguments.build_target, architecture=arguments.architecture)
             return 0
         if arguments.native_inputs or arguments.verify_native_inputs:
             from tools.native_transaction_inputs import prepare, verify as verify_native
@@ -782,12 +881,19 @@ def main() -> int:
         elif arguments.upgrade_inputs:
             if arguments.output is None or arguments.verify or arguments.compare or arguments.reuse:
                 raise ArtifactError('--upgrade-inputs requires --output and --package-format')
-            build_upgrade(arguments.output, package_format=arguments.package_format)
+            build_upgrade(arguments.output, package_format=arguments.package_format,
+                          build_target=arguments.build_target, architecture=arguments.architecture)
         elif arguments.reuse:
             if arguments.package_format != 'deb':
                 raise ArtifactError('--reuse currently requires Debian artifacts')
             if arguments.output is None or arguments.verify or arguments.compare:
                 raise ArtifactError('--reuse requires only --output')
+            # The existing cache fingerprints the native Ubuntu toolchain.
+            # Other hosts use the shared target builder without that cache.
+            if not build_targets.get('ubuntu26.04', arguments.architecture).native():
+                build(arguments.output, package_format='deb', build_target='ubuntu26.04',
+                      architecture=arguments.architecture)
+                return 0
             # Import by the same tools path used by the maintained launchers.
             from e2e_startup_cache import prepare_artifacts
             prepare_artifacts(sys.modules[__name__], arguments.output.resolve(strict=True))
@@ -797,12 +903,15 @@ def main() -> int:
             if arguments.output is None:
                 raise ArtifactError("--verify requires --output")
             output = arguments.output.resolve(strict=True)
-            if (output / 'previous').is_dir() and (output / 'current').is_dir():
+            if (output / MATRIX_NAME).is_file():
+                verify_matrix(output)
+            elif (output / 'previous').is_dir() and (output / 'current').is_dir():
                 verify_upgrade(output)
             else:
                 verify(output)
         elif arguments.output is not None:
-            build(arguments.output, package_format=arguments.package_format)
+            build(arguments.output, package_format=arguments.package_format,
+                  build_target=arguments.build_target, architecture=arguments.architecture)
         else:
             raise ArtifactError("--output is required when building")
     except (ArtifactError, ValueError, OSError, subprocess.SubprocessError) as error:

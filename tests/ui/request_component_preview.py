@@ -330,15 +330,28 @@ def feedback_logs():
 feedback.collect_logs = feedback_logs
 
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
-feedback_accepted = {202: True, 400: False}[feedback_status]
+feedback_retry_release = os.environ.get("ONPC_FEEDBACK_RETRY_RELEASE")
+feedback_attempts = 0
 
 def feedback_post(_url, **kwargs):
+    global feedback_attempts
+    feedback_attempts += 1
     parts = dict(kwargs["files"])
     BROKER.record("feedback", subject=parts["title"][1], message=parts["body"][1],
                   attachments=[part[0] for name, part in kwargs["files"]
                                if name == "attachments"])
-    response = Mock(status_code=feedback_status,
-                    json=Mock(return_value={"ok": feedback_accepted}))
+    status = feedback_status
+    if feedback_retry_release and feedback_attempts > 1:
+        assert feedback_attempts == 2
+        release = Path(feedback_retry_release)
+        deadline = time.monotonic() + 60
+        while not release.is_file():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("feedback retry fixture was not released")
+            time.sleep(0.02)
+        status = 202
+    response = Mock(status_code=status,
+                    json=Mock(return_value={"ok": status == 202}))
     response.__enter__ = Mock(return_value=response)
     response.__exit__ = Mock()
     return response

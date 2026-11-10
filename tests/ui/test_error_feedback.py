@@ -116,13 +116,19 @@ def test_child_panel_stdin_entry_opens_a_prefilled_report(
     assert ui.state("feedback-add-files", ui.api.StateType.SENSITIVE)
 
 
-@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("overlay,retry", (
+    pytest.param(False, False, id="kiosk"),
+    pytest.param(True, False, id="child-overlay"),
+    pytest.param(True, True, id="child-overlay-retry"),
+))
 def test_request_error_review_restrictions_and_submission(
-        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay):
+        launch_ui, automation, wait_for_accessible_state, tmp_path, overlay, retry):
     ui = automation
+    retry_release = tmp_path / "feedback-retry-release" if retry else None
     _process, path = launch_request(
         launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
         wait_for_application=False,
+        feedback_status=503 if retry else 202, feedback_retry_release=retry_release,
     )
     submit_request(ui, wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
@@ -161,14 +167,30 @@ def test_request_error_review_restrictions_and_submission(
         assert ui.content("feedback-reply-email") == ""
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "error report is ready")
-    ui.activate("feedback-send")
+    try:
+        ui.activate("feedback-send")
+        if retry:
+            wait_for_accessible_state(
+                lambda: ui.text("feedback-status").startswith(
+                    "Could not confirm submission. Retrying in "),
+                "child sees the automatic report retry",
+            )
+            assert ui.showing("feedback-dialog")
+            assert ui.text("feedback-close") == "Stop sending and close"
+            assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+            assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+            assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
+            assert not events(path, "close_overlay") and not events(path, "logout")
+    finally:
+        if retry_release is not None:
+            retry_release.touch()
     if not overlay:
         assert ui.absent("feedback-anonymous-dialog", within="kiosk-request-window")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "feedback confirmation opens")
     component = "Child App" if overlay else "Kiosk App"
     submissions = events(path, "feedback")
-    assert len(submissions) == 1
+    assert len(submissions) == (2 if retry else 1)
     assert submissions[0]["subject"] == (
         f"[Oh No! Parent Control] [{component}] Error Report"
     )
@@ -192,7 +214,7 @@ def test_request_error_review_restrictions_and_submission(
     assert len(events(path, "close_overlay" if overlay else "logout")) == 1
     assert not events(path, "logout" if overlay else "close_overlay")
     assert ui.absent("feedback-dialog", within="kiosk-request-window")
-    assert len(events(path, "feedback")) == 1
+    assert len(events(path, "feedback")) == (2 if retry else 1)
 
 
 def test_parent_discovery_error_opens_prefilled_feedback(

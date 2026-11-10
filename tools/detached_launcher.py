@@ -734,7 +734,10 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 limit = SessionAllowance(run).add(add_session)
                 print(f'{name}: session allowance is now {limit}.', flush=True)
             if not stop:
-                atomic(directory / 'current.json', dict(record, launcher=launcher_name or name))
+                # Control-only attachments keep the published public launcher,
+                # which can differ from the storage namespace.
+                atomic(directory / 'current.json', dict(
+                    record, launcher=launcher_name or record.get('launcher') or name))
             if stop:
                 with lock(run / 'stop-gate') as stop_gate:
                     fcntl.flock(stop_gate, fcntl.LOCK_EX)

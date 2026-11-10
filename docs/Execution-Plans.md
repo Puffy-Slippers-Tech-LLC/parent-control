@@ -705,6 +705,11 @@ paths changed by those commits require the resolver's preservation review rather
 than an obsolete snapshot comparison.
 Existing stashes remain untouched.
 
+Before a transaction has written its active-work stash, a resumed destination
+may adopt a descendant HEAD and refresh its active-work snapshot. Branch and
+upstream identity checks still apply. A matching transaction stash retains its
+original base; a rewritten or unrelated HEAD still refuses recovery.
+
 Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
 High resolution turns in the affected destination, using the shared agent and
 cleanup infrastructure and the adapter's `conflict_resolver` profile.

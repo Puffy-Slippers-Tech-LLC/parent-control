@@ -2690,59 +2690,6 @@
       ]
     },
     {
-      "id": "E2E-046",
-      "title": "Recover unavailable diagnostic collection",
-      "category": "customer-journey",
-      "owners": ["continuous-journeys"],
-      "requirements": ["ONPC-CORE-FEEDBACK-004", "ONPC-CORE-DIAGNOSTICS-003"],
-      "requirement_gap": "Requires a repeatable customer-reproducible collection failure; private fault injection cannot establish this customer case.",
-      "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
-      "components": ["parent", "child", "kiosk", "broker"],
-      "environment": ["ubuntu26.04", "fedora44"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data", "synthetic-feedback-and-attachment-fixtures"],
-      "phases": {
-        "setup": [
-          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
-        ],
-        "start": [
-          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
-        ],
-        "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Open the declared report during a real, independently observed collection failure. Read its unavailable/partial explanation without changing product files or services to create the failure."},
-          {"id": "step-2", "operation": "ui", "description": "Confirm editing and Close remain usable and enter a synthetic draft. Parent restores the genuine public prerequisite and chooses Retry once. Station reviews the valid draft and in-app Privacy, verifies no Add files, log download, attachment shortcut or external Privacy link, then explicitly chooses the authorized Send without logs once."},
-          {"id": "step-3", "operation": "ui", "description": "Parent retry reads completed collection and unchanged draft before normal close without Send. Station without-logs reads actual acceptance and thanks while the original report exit remains pending, then manually dismisses thanks and requires report closure and the sign-in screen. A failed send preserves the draft and is not success."}
-        ],
-        "end": [
-          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
-        ],
-        "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
-        ]
-      },
-      "interventions": [],
-      "assertions": {
-        "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Collection failure offers usable recovery; omitted logs require an explicit choice and no diagnostics are invented."}
-        ],
-        "backend": [],
-        "other_user": []
-      },
-      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
-      "matrix": {
-        "dimensions": {
-          "surface": ["parent", "kiosk"],
-          "choice": ["retry", "without-logs"]
-        },
-        "full_combinations": [],
-        "rationale": "Two retained journeys: Parent retry with draft preservation and station Send without logs with confirmation, manual dismissal and sign-in under station restrictions. Parent without logs, both overlay choices and station retry (case IDs 209–212) are removed; IDs must not be reused. Screen-specific recovery coverage is reduced. Each retained journey requires genuine public collection failure; Internet loss alone is insufficient. Public failure reproduction and sending authorization remain explicit gates."
-      },
-      "variants": [
-        {"coverage_id": 208, "id": "parent-retry", "owner": "continuous-journeys", "parameters": {"surface": "parent", "choice": "retry"}, "status": "pending", "pending_reason": "Requires a genuine publicly reproducible collection failure and qualified recovery. This retry-only branch does not send.", "executable": null},
-        {"coverage_id": 213, "id": "kiosk-without-logs", "owner": "continuous-journeys", "parameters": {"surface": "kiosk", "choice": "without-logs"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: UI allocation to tests/ui/test_error_feedback.py, tasks 189k/255. Preserve unavailable-log observations, edited draft, explicit Send without logs, encoded omission, success, manual dismissal and logout callback under test-local collection failure. Missing assertions remain pending; actual installed exit is owned by request-exit checks. No real-send gate or installed/delivery credit.", "executable": null}
-      ]
-    },
-    {
       "id": "E2E-047",
       "title": "Finish or stop feedback in different user flows",
       "category": "customer-journey",

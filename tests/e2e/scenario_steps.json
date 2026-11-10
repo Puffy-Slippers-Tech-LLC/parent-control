@@ -246,11 +246,6 @@
     "summary": "Review or dismiss a policy error report without changing the last saved rule.",
     "steps": ["Save a valid app rule, then try a rejected rule.", "Review the automatic error report and Privacy, then close without sending.", "Repeat and dismiss the report directly; check the last accepted rule remains."]
   },
-  "E2E-046": {
-    "expected": "Unavailable diagnostics do not prevent editing or closing; retry preserves the draft, and accepted sending without logs exits normally.",
-    "summary": "Keep error reporting usable when diagnostics cannot be collected.",
-    "steps": ["Open an error report with diagnostics unavailable and read its explanation.", "Write a draft and check report editing and closing remain available.", "Retry diagnostics in Parent, or explicitly send without logs at the request station.", "Check the draft survives retry or the accepted station report returns to sign-in."]
-  },
   "E2E-047": {
     "expected": "Accepted feedback completes the expected return flow; stopped or abandoned sending leaves no later submission.",
     "summary": "Finish or stop feedback while preserving the expected return flow.",

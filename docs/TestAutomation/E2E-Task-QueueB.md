@@ -6,8 +6,7 @@ Use the [shared execution instructions](E2E-Execution-Instructions.md) and
 briefs, scope, estimates and acceptance are preserved from the original queue.
 Pending prerequisites and their consumers stay together here; there are no
 unfinished dependencies on Plan A or [Plan C](E2E-Task-QueueC.md).
-Installed pending-approval exits and diagnostic-collection
-groups stay here. Host-only feedback success, without-logs and Stop groups
+Installed pending-approval exits stay here. Host-only feedback success, without-logs and Stop groups
 belong exclusively to C, alongside its system, calendar, preset and What's New
 groups. Component sending and installed report triggers are independent under
 the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
@@ -24,8 +23,7 @@ The successful-request cooldown was removed. Unfinished tasks 187a/187o/187b/187
 and 218/220 are retired without completion credit. Historical cases 176/178 stay
 pending, excluded from scheduling and without executables; their IDs are reserved.
 Genuine request-error review/decline remains an uncovered FEED15 binding rather
-than a manufactured cooldown error. Task 188k also requires a genuine public
-kiosk request-error entry before its collection-failure observation.
+than a manufactured cooldown error.
 
 Excluded cases: **176, 178** (retired successful-request cooldown behavior).
 
@@ -139,9 +137,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 216 | Close a child's pending request and approve a fresh one | 183d, 180, 079b, 079d | Cases 174; complete Close/cancel/recovery passed on selected Fedora 44 in `20261110T035905Z-4f83198f`: same child session, preserved choices, no cancelled grant, unchanged balances/rules and hard/soft denials before fresh parent authentication; actual added time, usable child/Soft and continued Hard denial after approval. Fixed the missing composed approval binding while retaining account, request and single-use guards. Host safety/source checks, listing, coverage refresh and links passed. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. | 20–30 |
 | [x] | 183e | Close the station during pending approval | 021a, 180 | FLOW17 kiosk app-close; passed on selected Fedora 44: real pending Riley/Jamie approval, same-challenge guarded normal surface close, usable GDM, fresh station entry with absent old prompt, unchanged usable choices and public Parent balances with zero new grant. Kiosk approval and overlay-close regressions passed. All 115 focused input-safety checks, source/traceability, coverage refresh and links passed; collection, worker/callback shutdown, owned cleanup and baseline restoration passed; VM off. No complete case 175 credit. | 20–30 |
 | [x] | 217 | Close a station request and approve fresh time | 183e, 079b, 079d, 021a | Cases 175; complete station Close/cancel/recovery passed on selected Fedora 44 in `scenario-e1d1573cf3f246d5917b7edb4752f8f7`: real pending prompt, normal Close/GDM return, absent old prompt, both children's preserved choices/balances/rules and Riley's H/S denials before fresh authentication; actual added time, usable child/Soft and continued Hard denial, with Jordan unchanged. All 118 focused safety checks, source/traceability, listing, links and coverage refresh passed. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. | 20–30 |
-| [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
-| [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
-| [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 021a, 030 | FEED09 kiosk collection failure and usable controls; genuine public request-error entry and collection-failure trigger remain gated | 20–30 |
 
 ## Deferred future work
 

@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from accessible_ui import countdown_seconds
 from calendar_fixture import preset_ordinary_midnight
 from countdown import CountdownSample
+from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_activity_entry,
                             parent_management, prefixed_stages)
@@ -177,8 +178,7 @@ class RestOfDayJourney(InstalledJourney):
                     'rest-of-day:missing-or-replayed-countdown')
             sample = CountdownSample.from_ui(observed['ui'], boot_sha256=observed['boot_sha256'])
             clock = self.countdown_clock
-            lower = clock['epoch_ns'] + sample.guest_read_bounds[0] - clock['guest_monotonic_end_ns']
-            upper = clock['epoch_ns'] + sample.guest_read_bounds[1] - clock['guest_monotonic_start_ns']
+            lower, upper = calendar_epoch_bounds(clock, sample.guest_read_bounds)
             low, high = countdown_seconds(sample.countdown.text)
             require(300 <= low <= high <= 1500 and upper - lower <= 10_000_000_000
                     and type(sample.countdown.seconds) is int
@@ -200,13 +200,7 @@ class RestOfDayJourney(InstalledJourney):
         result = await_natural_expiry(journey, guard, journey.initial_countdown,
             journey.activity_observations['activity-capture'], maximum_seconds=1500)
         # The display's minute rounding cannot widen the actual midnight bound.
-        # Project the actual guest lock reads directly. Combining an initial
-        # sample interval with an elapsed interval loses their shared endpoint
-        # and counts its uncertainty twice; SSH latency is not lock timing.
-        clock = journey.countdown_clock
-        start, end = result['lock_read_bounds']
-        lower = clock['epoch_ns'] + start - clock['guest_monotonic_end_ns']
-        upper = clock['epoch_ns'] + end - clock['guest_monotonic_start_ns']
+        lower, upper = calendar_epoch_bounds(journey.countdown_clock, result['lock_read_bounds'])
         boundary = journey.window['midnight_epoch_ns']
         offsets = [(lower - boundary) / 1e9, (upper - boundary) / 1e9]
         print('rest-of-day:lock-offset-seconds '

@@ -49,6 +49,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
 | Connection to a restored baseline | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` | Fixture snapshot and provisioning checks share observation-only SSH bootstrap, owned start, host-key binding and guarded readiness. Callers prepare the private directory and finite selection; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
 | Real elapsed time inside an installed journey | [real_interval.py](../e2e/real_interval.py) | `interval_action(duration)` waits one finite interval; `wait_until(journey, guard, target)` reaches a caller-owned controller-monotonic target in bounded intervals under the same attempt deadline, ownership checks and watch output. Keep the original grant deadline, lead time and independent expiry/suspend-crossing assertions in the caller; elapsed time alone proves no product result. |
+| Guest observations against a calendar deadline | [guest_observations.py](../e2e/guest_observations.py) `calendar_epoch_bounds` | Project the original same-boot countdown, estimate-calculation or lock-read bracket through TIME05's guest clock bracket. Callers retain clock continuity, calendar windows, precision and product deadline assertions; see [timing resilience](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). |
 | Package changes during a journey | [package_command.py](../e2e/package_command.py) `PackageCommand` | Product and catalogue-fixture commands share single-use submission, disk admission, guarded transport, input rechecks and bounded output. Keep package identity/phase checks and independent completion/version results in their respective readers. Cases own the package-change order and public policy/draft assertions; see the [catalogue update/removal bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-launch-denial-qualification). Installed engineering histories retain `system_guest`'s checkout installation through `make install`. |
 
 ## Development-only extension isolation
@@ -1383,7 +1384,9 @@ its cached label read. Cases 171–173 and failed-approval histories reuse
 equivalent public edits preserve the request choices and bracket a fresh
 calculation. Keep the final Parent read as the elapsed-time endpoint and retain
 the existing precision and grant-addition assertions; a larger tolerance does
-not correct an undated estimate.
+not correct an undated estimate. Calendar journeys likewise project
+`estimate_read_bounds`, not the later clock or cached-label observation, when
+comparing an estimate with the original grant deadline.
 
 After lock cancellation, the shared request estimate reader waits through the
 documented advisory unavailability for the form's normal refresh, within its
@@ -1409,7 +1412,11 @@ Carry the explicit child binding through nested input helpers too. For example,
 `child_countdown_animation(child=...)` passes that child to `set_toggle`; allowing
 the inner guard to use its default Riley binding rejects Jordan's valid panel.
 Trace both children through the outer read, setter and session guard before a
-both-child journey. Keep wrong-account refusal and independent saved-value reads.
+both-child journey. Declare the kiosk request, overlay request and named-child
+read bindings separately: a kiosk override does not bind a later overlay.
+The paired spring-clock journey in
+[spring_forward_paired_grants.py](../e2e/spring_forward_paired_grants.py) composes
+all three maps. Keep wrong-account refusal and independent saved-value reads.
 
 Graphical qualification workers must load their helper modules with compile-time
 `use`, alongside the existing imports in `smoke.pm`. The loader's temporary Perl

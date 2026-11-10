@@ -2554,7 +2554,7 @@
           "time": ["daily-reset", "rest-of-day", "fixed-grant", "paired-grants"]
         },
         "full_combinations": [],
-        "rationale": "Five calendar journeys: case 196 has an explicitly authorized preset guest clock before customer input; the other two ordinary-midnight checks and each paired seasonal offset-change journey retain natural windows. Cases 200/203 absorb fixed-grant cases 201/204; seasonal daily-reset cases 199/202 are dropped because they cross midnight rather than the offset change. Former IDs 199, 201, 202 and 204 must not be reused. Separate daily-renewal proof on those dates is given up. Public deadline arithmetic avoids full-day waits."
+        "rationale": "Five calendar journeys allow developer-authorized clock preparation before customer input; midnight and seasonal offset changes still occur at normal speed. Cases 200/203 absorb fixed-grant cases 201/204; seasonal daily-reset cases 199/202 are dropped because they cross midnight rather than the offset change. Former IDs 199, 201, 202 and 204 must not be reused. Separate daily-renewal proof on those dates is given up. Public deadline arithmetic avoids full-day waits."
       },
       "variants": [
         {"coverage_id": 196, "id": "ordinary-daily-reset", "owner": "continuous-journeys", "parameters": {"calendar": "ordinary", "time": "daily-reset"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/ordinary_daily_reset.py", "test_id": "ordinary-daily-reset"}},

@@ -598,15 +598,25 @@ before consuming it.
 
 ## Aggregate scheduling
 
-Ordinary VM work uses the single
+Ordinary and repair VM work use the single
 [pass coordinator](../README.md#all-established-regressions): one ordered FIFO
 per selected family across categories, with indivisible histories, area attempts
 and standalone checks. Ready equivalent VMs take one item on demand. Admission
 balances available families and rotates ties; occupied families retain their full
 coverage. Only the coordinator accepts attempt evidence after teardown and owned
 cleanup. [Resume and recovery](../README.md#resuming-test-execution) preserve
-original-VM uncertain ownership and independent family passing credit. Public
-repair keeps its existing path until the planned repair cutover.
+original-VM uncertain ownership and independent family passing credit. Repair
+adds bounded impact triage and serialized repairs through that same coordinator;
+it owns no second family queue or VM dispatcher. Pending, shared or uncertain
+impact holds new admission across participating checkout workflows while admitted
+attempts finish cleanup. An evidenced isolated failure permits normal work to
+continue and waits for natural pass drain before exclusive source edits. Its
+original VM reservation remains owned and can serve other eligible family work
+after failed-attempt cleanup. Each repair retains its own hold; one isolated
+decision cannot clear another ticket's hold. See the
+[repair loop](../README.md#scripted-repair-loop) for triage profiles, required-VM
+verification and close-out. Rounds span all selected families and host work;
+logical task charges do not multiply with the VM count.
 
 `tools/run-tests vm` and `all` include current-package system tests, two separate
 upgrade histories (287 policy preservation and 288 trusted native fixtures),

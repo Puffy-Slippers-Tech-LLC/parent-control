@@ -164,12 +164,13 @@ def _clean(root, scopes, names, stack, source):
     if removed:
         print(f'Reset: removed {removed} empty orphan scratch allocation(s).', flush=True)
     state = directory('state', root=root)
-    from test_checkpoint import PassCheckpoint, PASS_NAMESPACE
+    from test_checkpoint import PassCheckpoint, PASS_NAMESPACES
     # Use the ordinary coordinator's validated ownership record, rather than
     # independently decoding or rewriting its claims during reset.
-    with PassCheckpoint.saved(root) as checkpoint:
-        if checkpoint is not None:
-            names.update(assignment['vm'] for assignment in checkpoint.claims())
+    for checkpoint_scope in PASS_NAMESPACES:
+        with PassCheckpoint.saved(root, scope=checkpoint_scope) as checkpoint:
+            if checkpoint is not None:
+                names.update(assignment['vm'] for assignment in checkpoint.claims())
     # A former queue may retain claims for VMs no longer in a current pointer.
     # Recover those exact VM owners before retiring their claim checkpoints.
     for path in sorted(state.glob('run-tests-family-vm-*')):
@@ -198,11 +199,12 @@ def _clean(root, scopes, names, stack, source):
     stack.enter_context(idle_resources(root, source))
     # Keep the same coordinator gate until retirement finishes. The maintained
     # cleanup above already used recover(), which never awards completion.
-    checkpoint = stack.enter_context(PassCheckpoint.saved(root))
-    if checkpoint is not None and checkpoint.claims():
-        raise ValueError('reset: ordinary pass still has uncertain claims; state preserved; retry --reset')
+    for checkpoint_scope in PASS_NAMESPACES:
+        checkpoint = stack.enter_context(PassCheckpoint.saved(root, scope=checkpoint_scope))
+        if checkpoint is not None and checkpoint.claims():
+            raise ValueError('reset: ordinary pass still has uncertain claims; state preserved; retry --reset')
     for path in sorted(state.iterdir()):
-        if path.name == PASS_NAMESPACE or re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}|(?:run-tests|fix-tests)-request', path.name):
+        if path.name in PASS_NAMESPACES.values() or re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}|(?:run-tests|fix-tests)-request', path.name):
             launcher.private_directory(path)
             for record in path.iterdir():
                 if record.suffix in ('.json', '.tmp'):

@@ -37,7 +37,7 @@ class _PushAdvanced(Exception):
 
 
 def _synchronization_command(root, run, git):
-    """Use the public invocation, including for a repair pipeline worker."""
+    """Use the owning public invocation for shared repair attempts too."""
     try:
         source = launcher.propagation_source_run(root, run)
         record = json.loads((source.parent / 'current.json').read_text())
@@ -875,9 +875,9 @@ return continue with exact remaining work. No other task or launcher execution.
         launcher._publish_start(previous, dict(owner_record, agent_selection=selected.record()))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--resolve', str(root), str(session), str(owner)]
-        from fix_tests_queue import repair_descriptors
+        from test_source import descriptors as source_descriptors
         with subprocess.Popen(command, cwd=root, env=launcher.environment(), stdin=subprocess.PIPE,
-                pass_fds=(owner, *launcher.scratch_descriptors(), *repair_descriptors()),
+                pass_fds=(owner, *launcher.scratch_descriptors(), *source_descriptors()),
                 start_new_session=True) as child:
             signalled = False
             while True:

@@ -67,7 +67,7 @@ one attempt at a time, retaining its own lease and journals.
 Preparation remains per VM: each free slot takes the next registered VM, and
 the preparation queue drains even after an individual VM fails.
 Baseline helper refresh runs once after preparation workers finish.
-Ordinary tests and both preparation tools use the shared `vm_queue.py` executor,
+Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
 including explicit single-VM selections. Each worker reserves only its canonical
 target from the selected pool. Reservation waiters consume no execution capacity;
 workers recheck source protection after reservation and acquire capacity only
@@ -78,8 +78,15 @@ claims follow that admission. Waiters whose
 family work has drained are cancelled without waiting for the occupied VM.
 Failed test workers retain their reservations while the remaining workers finish,
 with their execution slots released. Reservation release follows joined owned
-cleanup, never a progress event or timeout. Legacy repair scheduling remains
-separate until its planned cutover.
+cleanup, never a progress event or timeout. Isolated repair tickets may keep
+their owned worker serving normal family cases after validated cleanup, until
+the finite pass drains naturally. Pending, shared or uncertain failure impact
+holds new normal admission while admitted work drains; no waiting isolated
+repair may publish writer intent merely to force that drain. Required-VM
+recheck and verification keep the failed attempt's original target and borrow
+the active repair's fenced source lease. The
+[repair contract](../../tests/README.md#scripted-repair-loop) owns durable impact
+decisions, run-wide rounds and VM-independent task charges.
 Cancellation stops queued work and waits for active cleanup; an active baseline
 replacement finishes before returning cancellation because it has no cooperative
 stop protocol. Multiple preparation selections are confirmed together before

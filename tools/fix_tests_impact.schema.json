@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "impact": {"type": "string", "enum": ["yes", "no", "unsure"]},
+    "reason": {"type": "string"},
+    "scope": {"type": "array", "items": {"type": "string"}},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "classification": {"type": "string", "enum": ["test_issue", "app_issue", "uncertain"]}
+  },
+  "required": ["impact", "reason", "scope", "evidence", "classification"],
+  "additionalProperties": false
+}

@@ -87,6 +87,8 @@ Privileged source borrowing duplicates an owned child's real open description
 through pidfd_getfd, then forwards it to one bounded descendant; all children
 are reaped. It changes no credentials or ptrace policy. A private-checkout
 controller race uses one waited child and an import hook around real admission.
+Impact-session and logical-task admission checks use private JSON records and
+process-local session/input doubles; they start no agent, VM or external service.
 Checkpoint admission checks use private JSON records and local implementation
 bindings. Private checkout fixtures in test_launchers, unit_test_launcher and
 privileged_test_runner exclude the outer runner's source lease without closing

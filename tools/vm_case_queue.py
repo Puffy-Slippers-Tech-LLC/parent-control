@@ -1,11 +1,10 @@
-"""Finite VM case work shared by the ordinary and repair queues."""
+"""Pure finite VM inventory, ordering and prerequisite planning."""
 
 import hashlib
 import json
 import os
 import re
 import subprocess
-from contextlib import contextmanager, ExitStack
 
 
 def family_binding(family, workers=None):
@@ -91,65 +90,9 @@ def work_key(work):
     return hashlib.sha256(json.dumps(work, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def claim(items, completed, claims, owner):
-    """Caller holds its shared lock; claims stay owned until cleanup finishes."""
-    active = {(work['category'], case) for work in items if work_key(work) in claims
-              for case in work['cases']}
-    for work in items:
-        key = work_key(work)
-        identities = {(work['category'], case) for case in work['cases']}
-        if key not in completed and key not in claims and not identities & active:
-            claims[key] = owner
-            return work
-    return None
-
-
 def arguments(work):
     args = ['--resume', work['category'], *work['options']]
     if work['case'] is not None:
         args[1:1] = ['--resume-case=' + work['case'],
                      '--resume-area-only' if work['area'] else '--resume-case-only']
     return args
-
-
-@contextmanager
-def available_worker(vm, slots, stopped, *, needed=lambda: True):
-    """Obtain the VM before a case slot, without changing process environment.
-
-    Yield None when other workers drained this VM's work while it was queued.
-    The ordinary reservation still verifies and owns the receipt in the child.
-    """
-    import launcher_reload
-    from detached_launcher import Stopped
-    from vm_pool import reservation
-    def cancelled():
-        return stopped() if callable(stopped) else stopped.is_set()
-    def abort():
-        return cancelled() or launcher_reload.pending() or not needed()
-    with ExitStack() as lifetime:
-        try:
-            receipt = lifetime.enter_context(reservation(
-                getattr(vm, 'name', vm), stopped=abort, bind=False))
-        except KeyboardInterrupt:
-            if launcher_reload.pending():
-                raise launcher_reload.ReloadRequested
-            if cancelled():
-                raise Stopped
-            yield None
-            return
-        while not slots.acquire(timeout=.1):
-            if abort():
-                if launcher_reload.pending():
-                    raise launcher_reload.ReloadRequested
-                if cancelled():
-                    raise Stopped
-                yield None
-                return
-        try:
-            if launcher_reload.pending():
-                raise launcher_reload.ReloadRequested
-            if cancelled():
-                raise Stopped
-            yield receipt if needed() else None
-        finally:
-            slots.release()

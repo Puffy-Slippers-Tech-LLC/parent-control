@@ -670,9 +670,9 @@ blocker and completed destinations. Do not modify the controller checkpoint.
         launcher.atomic(session / 'intent.json', dict(intent, agent_selection=selected.record()))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--commit-skill', str(root), str(session), str(owner)]
-        from fix_tests_queue import repair_descriptors
+        from test_source import descriptors as source_descriptors
         with subprocess.Popen(command, cwd=root, env=launcher.environment(), stdin=subprocess.PIPE,
-                pass_fds=(owner, *launcher.scratch_descriptors(), *repair_descriptors()),
+                pass_fds=(owner, *launcher.scratch_descriptors(), *source_descriptors()),
                 start_new_session=True) as child:
             signalled = False
             expired = False

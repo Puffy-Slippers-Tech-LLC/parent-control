@@ -84,7 +84,7 @@ def split(root, argv):
                                                 for kind, options in groups):
             result.append('--continue-on-errors')
         return result
-    return flatten(host) if host else [], flatten(guests)
+    return flatten(host) if host else [], flatten(guests) if guests else []
 
 
 @test_source.protected
@@ -93,11 +93,13 @@ def _plan(root, argv):
     from test_commands import selections
     from test_checkpoint import guard_scheduling_checkpoints
     guard_scheduling_checkpoints(root)
-    snapshot = json.loads(os.environ[BATCH])
-    configured = vm_config.registry()
-    vms = tuple(configured[name] for name in snapshot['vms'])
     host_args, guest_args = split(root, argv)
-    guest_selection = selections(root, guest_args)
+    snapshot = json.loads(os.environ[BATCH]) if BATCH in os.environ else dict(concurrency=1, vms=[])
+    configured = vm_config.registry() if snapshot['vms'] else {}
+    vms = tuple(configured[name] for name in snapshot['vms'])
+    if not vms and guest_args:
+        raise ValueError('VM work requires its configured allowed pool')
+    guest_selection = selections(root, guest_args) if guest_args else []
     families = {}
     original_vm = os.environ.get(VARIABLE)
     try:
@@ -146,8 +148,32 @@ def source_identity(root):
         test_source.source_directory(root)).generation())
 
 
+def repair_case_inventory(root, work, control, *, vm=None):
+    """Collect bounded retry candidates under the ticket's original selectors."""
+    if work['category'] in ('system', 'e2e'):
+        return case_inventory(root, work['category'], work['options'], vm=vm,
+                              pass_fds=test_source.descriptors())
+    if work['category'] not in ('unit', 'component', 'ui', 'fixture-runtime'):
+        return None
+    from regression_events import PREFIX
+    command = [str(root / 'tools/run-tests'), work['category'], '--unattended',
+               *work['options'], '--collect-only', '-q']
+    output = []
+    status = control.run(command, cwd=root, env=test_launcher.environment(root),
+                         output=output.append, cooperative=True,
+                         pass_fds=test_source.descriptors())
+    if status:
+        raise ValueError('bounded repair case collection failed with status ' + str(status))
+    cases = [case for line in b''.join(output).decode('utf-8', errors='replace').splitlines()
+             if line.startswith(PREFIX) for event in [json.loads(line[len(PREFIX):])]
+             if event.get('kind') == 'collection' for case in event.get('nodeids', [])]
+    if not cases:
+        raise ValueError('bounded repair case collection returned no cases')
+    return list(dict.fromkeys(cases))
+
+
 def execute_pass(root, plan, control, execute, *, host=None, actions=None,
-                 pass_identity=None):
+                 pass_identity=None, checkpoint_scope='ordinary'):
     """Own a finite pass; callbacks execute one assignment, never another queue.
 
     ``actions`` may hold admission and observe accepted/failing attempts. It
@@ -163,8 +189,30 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
     repair_status = []
     suspended = False
     changed = False
+    repaired_source_changed = False
     inflight = {}
     deferred = []
+    repair_mode = 'triage' in actions and 'repair' in actions
+    protection = test_source.SourceProtection(test_source.source_directory(root))
+    failure_results = {}
+    triaged = {}
+    impacts = {}
+    limited = False
+    prerequisite = False
+    denied_categories = set()
+    reserved_tickets = set()
+    reserved_tickets = set()
+
+    def impact_key(ticket):
+        return str(protection.directory / ('ticket-' + ticket['id']))
+
+    def hold(ticket, decision):
+        with protection.state():
+            protection.set_impact(impact_key(ticket), decision)
+
+    def release(ticket):
+        with protection.state():
+            protection.release_impact(impact_key(ticket))
     focused = '--resume-case-only' in guest_args or '--resume-area-only' in guest_args
     replay = next((arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')), None)
     focus_finished = set()
@@ -183,7 +231,8 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 and not arg.startswith('--resume-case=')]
     selection = [['_host', original(host_args)], ['_guest', original(guest_args)]]
     with PassCheckpoint(root, selection, pool, families,
-                        resume='--resume' in guest_args) as checkpoint:
+                        resume='--resume' in (*host_args, *guest_args), identity=pass_identity,
+                        scope=checkpoint_scope) as checkpoint:
         focus_owners = {claim['family']: claim['vm'] for claim in checkpoint.claims()
                         if focused and replay in claim['work']['cases']}
         if pass_identity is not None and pass_identity != {
@@ -195,27 +244,86 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
 
         def claims(family):
             return [claim for claim in checkpoint.claims(family)
-                    if not focused or replay in claim['work']['cases']]
+                    if (not focused or replay in claim['work']['cases'])
+                    and not (repair_mode and any(ticket['assignment'] == claim['assignment']
+                            for ticket in checkpoint.repair_tickets()))]
 
         def pending(family):
             return [work for work in checkpoint.pending(family)
-                    if not focused or family not in focus_finished and replay in work['cases']]
-        if host_args and not checkpoint.state['host_complete']:
+                    if (not focused or family not in focus_finished and replay in work['cases'])
+                    and not (repair_mode and any(ticket['family'] == family and ticket['work'] == work
+                        and ticket.get('outcome') != 'resolved'
+                        for ticket in checkpoint.state.get('repairs', [])))]
+        if repair_mode:
+            for ticket in checkpoint.repair_tickets():
+                hold(ticket, 'untriaged')
+        from test_commands import selections
+        host_categories = {kind for kind, _ in selections(root, host_args)} if host_args else set()
+        if checkpoint.state['host_complete']:
+            checkpoint.state['host_passed'] = sorted(host_categories)
+
+        def publish_progress():
+            if 'progress' not in actions:
+                return
+            counts = {}
+            for family, items in families.items():
+                by_category = {}
+                for work in items:
+                    by_category.setdefault(work['category'], set()).update(work['cases'])
+                counts[family] = {kind: dict(total=len(cases),
+                    completed=len(cases & checkpoint.passed(family, kind)))
+                    for kind, cases in by_category.items()}
+            actions['progress'](dict(run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']},
+                families=counts, host_completed=checkpoint.state.get('host_passed', []),
+                host_categories=sorted(host_categories)))
+
+        publish_progress()
+
+        def pending_host():
+            blocked = {ticket['work']['category'] for ticket in checkpoint.state.get('repairs', [])
+                       if not ticket['vm'] and ticket.get('outcome') != 'resolved'}
+            return host_categories - set(checkpoint.state.get('host_passed', [])) - blocked - denied_categories
+
+        def run_host():
+            nonlocal limited, suspended
+            categories = pending_host()
+            if not categories:
+                return False
             with test_source.reader(root, stopped=control.stopped.is_set):
-                status = host() if host is not None else 2
-                if not status:
-                    checkpoint.state['host_complete'] = True
-                    checkpoint.save()
-            if status:
-                return dict(status=status, results={}, accepted=[], failures=[dict(
-                    vm='', status=status)], stopped=status == 130,
-                    suspended=False, source_changed=False, repair_status=[])
+                value = host(categories=categories) if host is not None else dict(status=2)
+                status = value['status']
+                limited |= bool(value.get('limited'))
+                denied_categories.update(value.get('denied_categories', []))
+                passed = set(value.get('completed_categories', []))
+                if not status and value.get('complete', True):
+                    passed.update(categories - denied_categories)
+                checkpoint.state['host_passed'] = sorted(set(checkpoint.state.get('host_passed', [])) | passed)
+                checkpoint.state['host_complete'] = host_categories <= set(checkpoint.state['host_passed'])
+                checkpoint.save()
+                publish_progress()
+                if status:
+                    works = value.get('failure_works', [value['failure_work']] if value.get('failure_work') else [])
+                    if repair_mode and works:
+                        for work in works:
+                            ticket = checkpoint.host_failure(work, source_identity(root), status, case=work['case'])
+                            failure_results[ticket['id']] = value
+                            hold(ticket, 'untriaged')
+                    else:
+                        failures.append(dict(vm='', status=status))
+                        suspended = True
+            return True
+
+        if not repair_mode and host_args and not checkpoint.state['host_complete']:
+            run_host()
 
         def admitted():
             nonlocal suspended
             if (control.stopped.is_set() or launcher_reload.pending() or changed or suspended
                     or 'admit' in actions and not actions['admit']()):
                 suspended = not control.stopped.is_set()
+                return False
+            if repair_mode and any(impacts.get(ticket['id']) != 'no' or not ticket['cleanup']
+                    for ticket in checkpoint.repair_tickets()):
                 return False
             return True
 
@@ -225,9 +333,13 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                                             for claim in checkpoint.claims(vm.family))
                 return (not unrelated and (not focused or focus_owners.get(vm.family, vm.name) == vm.name)
                         and admitted() and (any(claim['vm'] == vm.name for claim in claims(vm.family))
-                                            or bool(pending(vm.family))))
+                                            or bool(eligible_pending(vm.family))))
+
+        def eligible_pending(family):
+            return [work for work in pending(family) if work['category'] not in denied_categories]
 
         def attempt(worker):
+            nonlocal limited
             vm = worker.vm
             with lock:
                 # Uncertain claims are cleaned by their original worker before
@@ -238,7 +350,12 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 if recovering:
                     assignment = retained
                 else:
-                    available = pending(vm.family)
+                    available = eligible_pending(vm.family)
+                    while available and 'admit_task' in actions and not actions['admit_task'](
+                            available[0]['category']):
+                        denied_categories.add(available[0]['category'])
+                        limited = True
+                        available = eligible_pending(vm.family)
                     if not available or not admitted():
                         return dict(status=0, handoffs=[])
                     execution = None
@@ -279,7 +396,16 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     if result['status']:
                         # Failure notification can precede the retained worker's
                         # final check-in. Save partial credit only after join.
-                        deferred.append((assignment, evidence, result['status']))
+                        if repair_mode and result.get('repair_ticket'):
+                            try:
+                                checkpoint.accept(assignment, evidence, result['status'])
+                                if evidence.get('cleanup') is True:
+                                    checkpoint.recover(assignment, cleanup=True)
+                            except ValueError as error:
+                                result = dict(result, error=str(error))
+                                suspended = True
+                        else:
+                            deferred.append((assignment, evidence, result['status']))
                     else:
                         try:
                             complete = checkpoint.accept(assignment, evidence, result['status'])
@@ -294,25 +420,188 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                                       error='case runner returned success without qualified completion')
                 if result['status']:
                     failures.append(dict(assignment=assignment, status=result['status']))
-                if 'result' in actions:
-                    outcome = actions['result'](assignment, result) or {}
-                    changed |= bool(outcome.get('source_changed'))
-                    suspended |= bool(outcome.get('suspended'))
-                    if outcome.get('repair_status') is not None:
-                        repair_status.append(outcome['repair_status'])
-                if result['status'] not in (0, launcher_reload.STATUS) and '--stop-on-error' in guest_args:
+                if (not repair_mode and result['status'] not in (0, launcher_reload.STATUS)
+                        and '--stop-on-error' in guest_args):
                     control.stop()
+                publish_progress()
+            if 'result' in actions:
+                outcome = actions['result'](assignment, result) or {}
+                changed |= bool(outcome.get('source_changed'))
+                suspended |= bool(outcome.get('suspended'))
+                if outcome.get('repair_status') is not None:
+                    repair_status.append(outcome['repair_status'])
             return result
+
+        def observed(vm, result):
+            nonlocal prerequisite
+            if not repair_mode or not result['status'] or result['status'] in (130, launcher_reload.STATUS):
+                return
+            with lock:
+                current = inflight.get(vm.name)
+                if current is None or current[1]:
+                    return
+                assignment = current[0]
+                if 'prerequisite' in actions and actions['prerequisite'](vm.name, result):
+                    # Persist the prerequisite before cancelling admitted work.
+                    # Preparation starts only after the executor joins cleanup.
+                    prerequisite = True
+                    result['prerequisite'] = True
+                    control.stop()
+                    return
+                failed_case = result.get('failure_case')
+                ticket = checkpoint.enqueue_failure(assignment, result.get('evidence'), result['status'],
+                                                     case=failed_case)
+                # The shared gate changes while the failed operation's source
+                # reader still protects its inputs and before any refill.
+                hold(ticket, 'untriaged')
+                result['repair_ticket'] = ticket['id']
+                failure_results[ticket['id']] = dict(result)
+
+        class Execution:
+            def __init__(self, ticket, executor):
+                self.ticket = ticket
+                self.failure = failure_results.get(ticket['id'])
+                self.executor = executor
+                self.drained = True
+
+            def attempt(self, purpose, target=None):
+                ticket = self.ticket
+                work = dict(ticket.get('execution', ticket['work']))
+                cases = repair_case_inventory(root, ticket['work'], control, vm=ticket['vm'] or None)
+                if isinstance(target, str):
+                    if cases is None or target not in cases:
+                        raise ValueError('repair target is outside the original selected work')
+                    work.update(case=target, cases=[target], area=False)
+                elif isinstance(target, dict):
+                    work = target
+                elif target is not None:
+                    raise ValueError('invalid bounded repair target')
+                elif cases is not None:
+                    candidates = [ticket['case'], *(attempt['execution']['case']
+                                  for attempt in reversed(ticket.get('attempts', [])))]
+                    if ticket['case']:
+                        candidates.extend(case for case in cases if case.startswith(ticket['case'] + '::'))
+                    case = next((case for case in candidates if case in cases), cases[0])
+                    work.update(case=case, cases=[case], area=False)
+                reference = checkpoint.begin_attempt(ticket['id'], purpose, source_identity(root), work,
+                                                       selected_cases=cases)
+                assignment = {field: ticket[field] for field in (
+                    'run', 'pass', 'selection', 'family', 'vm', 'work', 'assignment')}
+                assignment.update(attempt=reference['attempt'], source=reference['source'], execution=work)
+                if ticket['vm']:
+                    inherited = {kind: sorted(checkpoint.passed(ticket['family'], kind))
+                                 for kind, _ in guest_selection}
+                    value = self.executor.attempt(ticket['vm'], lambda worker:
+                        execute(worker, assignment, inherited, False))
+                else:
+                    value = host(assignment)
+                status = value['status'] if isinstance(value, dict) else value
+                evidence = value.get('evidence') if isinstance(value, dict) else None
+                accepted_reference = checkpoint.finish_attempt(ticket['id'], reference, evidence, status,
+                                                                source=source_identity(root))
+                return dict(value if isinstance(value, dict) else {}, status=status,
+                            accepted=accepted_reference['accepted'], reference=accepted_reference)
+
+        def service(executor, drained):
+            nonlocal repaired_source_changed, suspended, limited
+            if not repair_mode or suspended or control.stopped.is_set() or launcher_reload.pending():
+                return
+            for ticket in checkpoint.repair_tickets():
+                if ticket['vm'] and ticket['vm'] not in reserved_tickets:
+                    if ticket['vm'] in inflight:
+                        continue
+                    executor.reserve(ticket['vm'])
+                    reserved_tickets.add(ticket['vm'])
+                if triaged.get(ticket['id']) == source_identity(root):
+                    continue
+                try:
+                    with test_source.reader(root, stopped=control.stopped.is_set,
+                                            impact_ticket=impact_key(ticket), wait=False):
+                        envelope = actions['triage'](ticket, failure_results.get(ticket['id']))
+                        if envelope['source'] != source_identity(root):
+                            raise ValueError('triage source changed')
+                        with lock:
+                            checkpoint.record_impact(ticket['id'], envelope['decision'],
+                                source=envelope['source'], evidence_digest=envelope['evidence_digest'])
+                        hold(ticket, envelope['decision']['impact'])
+                        impacts[ticket['id']] = envelope['decision']['impact']
+                except Exception as error:
+                    hold(ticket, 'unsure')
+                    impacts[ticket['id']] = 'unsure'
+                    from detached_launcher import Stopped
+                    if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                        raise
+                triaged[ticket['id']] = source_identity(root)
+            tickets = checkpoint.repair_tickets()
+            if drained and admitted() and pending_host():
+                return run_host()
+            if not drained or not tickets:
+                return
+            blocking = any(impacts.get(ticket['id']) != 'no' or not ticket['cleanup']
+                           for ticket in tickets)
+            remaining = bool(pending_host()) or any(eligible_pending(family) or claims(family) for family in families)
+            if remaining and not blocking:
+                return
+            ticket = tickets[0]
+            try:
+                outcome = actions['repair'](ticket, Execution(ticket, executor))
+                if not isinstance(outcome, dict):
+                    raise ValueError('repair must return an outcome')
+                kind = outcome.get('outcome')
+                if kind == 'resolved' and (outcome.get('attempt', {}).get('source') != source_identity(root)
+                                           or protection.owner() is not None):
+                    kind = 'suspended'
+                if kind == 'leave_failed' and (impacts.get(ticket['id']) != 'no' or protection.owner() is not None):
+                    kind = 'suspended'
+                # Hold a reader through final validation and release the hold
+                # under the same gate. Another workflow's writer cannot race
+                # the accepted source check after the repair callback returns.
+                with test_source.reader(root, stopped=control.stopped.is_set,
+                                        impact_ticket=impact_key(ticket), wait=False):
+                    if kind == 'resolved' and (protection.owner() is not None
+                            or not isinstance(outcome.get('attempt'), dict)
+                            or outcome['attempt']['source'] != source_identity(root)):
+                        raise ValueError('resolved repair retains a writer or stale qualification')
+                    with protection.state():
+                        settled = checkpoint.settle_repair(ticket['id'], kind,
+                            reference=outcome.get('attempt'), repair_ref=outcome.get('repair_ref'))
+                        if kind != 'suspended':
+                            protection.release_impact(impact_key(ticket))
+                repaired_source_changed |= bool(outcome.get('source_changed'))
+                repair_status.append(dict(ticket=ticket['id'], outcome=kind))
+                if kind == 'suspended':
+                    suspended = True
+                    return
+                if ticket['vm'] and not any(value['vm'] == ticket['vm'] for value in checkpoint.repair_tickets()):
+                    executor.release(ticket['vm'])
+                    reserved_tickets.discard(ticket['vm'])
+                if kind == 'resolved':
+                    accepted.append(settled)
+                publish_progress()
+                return True
+            except Exception as error:
+                checkpoint.settle_repair(ticket['id'], 'suspended')
+                repair_status.append(dict(ticket=ticket['id'], outcome='suspended', error=str(error)))
+                suspended = True
+                from detached_launcher import Stopped
+                if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                    raise
 
         def choose(ready, active):
             with lock:
                 eligible = [name for name in ready if sum(pool[other] == pool[name]
-                    for other in active) < len(pending(pool[name]))
+                    for other in active) < len(eligible_pending(pool[name]))
                     + len(claims(pool[name]))]
                 return admission.choose(eligible, active) if eligible and admitted() else None
 
-        with Executor(root, vms, snapshot['concurrency'], control.stopped) as executor:
-            results = executor.run_ready(attempt, choose=choose, needed=needed, completed=completed)
+        if vms:
+            with Executor(root, vms, snapshot['concurrency'], control.stopped) as executor:
+                options = dict(observed=observed, service=service, keep_failed=True) if repair_mode else {}
+                results = executor.run_ready(attempt, choose=choose, needed=needed, completed=completed, **options)
+        else:
+            results = {}
+            while service(None, True):
+                pass
         for assignment, evidence, status in deferred:
             try:
                 checkpoint.accept(assignment, evidence, status)
@@ -320,28 +609,134 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 # Missing or unqualified failure evidence leaves its original
                 # claim untouched; the terminal worker result already fails.
                 pass
-        unfinished = any((family not in focus_finished if focused else bool(checkpoint.pending(family)))
-                         or claims(family) for family in families)
+        host_terminal = {ticket['work']['category'] for ticket in checkpoint.state.get('repairs', [])
+                         if not ticket['vm'] and ticket.get('outcome') == 'leave_failed'}
+        unfinished = bool(host_categories - set(checkpoint.state.get('host_passed', [])) - host_terminal) or any(
+            (family not in focus_finished if focused else bool(checkpoint.pending(family)))
+            or claims(family) for family in families)
         statuses = [value['status'] for value in results.values()]
         stopped = control.stopped.is_set()
+        terminal_failed = any(ticket.get('outcome') == 'leave_failed'
+                              for ticket in checkpoint.state.get('repairs', []))
+        resolved = {(ticket['assignment'], ticket['attempt'])
+                    for ticket in checkpoint.state.get('repairs', []) if ticket.get('outcome') == 'resolved'}
+        unhandled_failure = any(not failure.get('assignment') or (
+            failure['assignment']['assignment'], failure['assignment']['attempt']) not in resolved
+            for failure in failures)
+        resolved_tickets = {ticket['id'] for ticket in checkpoint.state.get('repairs', [])
+                            if ticket.get('outcome') == 'resolved'}
+        unhandled_failure |= any(value['status'] and value.get('repair_ticket') not in resolved_tickets
+                                 for value in results.values())
+        admitted_pending = bool(host_categories - set(checkpoint.state.get('host_passed', []))
+                                - host_terminal - denied_categories) or any(
+            work['category'] not in denied_categories
+            for family in families for work in pending(family)) or bool(checkpoint.claims())
+        clean_limit = (limited and not admitted_pending and not suspended and not terminal_failed
+                       and not checkpoint.repair_tickets() and not unhandled_failure)
         status = (130 if stopped else launcher_reload.STATUS if launcher_reload.pending()
                   and all(value in (0, launcher_reload.STATUS) for value in statuses)
-                  else 1 if any(statuses) or unfinished else 0)
+                  else 1 if (terminal_failed or checkpoint.repair_tickets() or unfinished and not clean_limit
+                             or (unhandled_failure if repair_mode else any(statuses))) else 0)
+        if 'settle_task' in actions:
+            unresolved = checkpoint.repair_tickets()
+            categories = {work['category'] for items in families.values() for work in items}
+            from test_commands import selections
+            categories.update(kind for kind, _ in (selections(root, host_args) if host_args else []))
+            for category in categories:
+                if (not any(work['category'] == category for family in families for work in pending(family))
+                        and not any(claim['work']['category'] == category for claim in checkpoint.claims())
+                        and not any(ticket['work']['category'] == category for ticket in unresolved)
+                        and (category not in host_categories
+                             or category in set(checkpoint.state.get('host_passed', [])) | host_terminal)):
+                    actions['settle_task'](category)
         return dict(status=status, results=results, accepted=accepted, failures=failures,
-                    stopped=stopped, suspended=suspended or unfinished and not any(statuses),
-                    source_changed=changed, repair_status=repair_status,
+                    stopped=stopped, suspended=suspended or unfinished and not clean_limit
+                        and not any(statuses) and not terminal_failed,
+                    source_changed=changed or repaired_source_changed, repair_status=repair_status,
+                    terminal_failed=terminal_failed, limited=limited,
+                    pending_repairs=bool(checkpoint.repair_tickets()),
+                    prerequisite=prerequisite,
                     run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']})
 
 
-def run(root, argv, *, reloading=False):
-    plan = _plan(root, argv)
+def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return_outcome=False,
+        checkpoint_scope='ordinary'):
+    # Recovery must inspect the original inventory even when its durable impact
+    # hold blocks normal readers. Release this finite bootstrap before waits.
+    with test_source.startup(root, argv, repair=bool(actions and 'repair' in actions)):
+        plan = _plan(root, argv)
     snapshot, vms, host_args, guest_args, guest_selection, families = plan
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
-    def execute_host():
+    host_ran = '--resume' in host_args
+    def execute_host(assignment=None, *, categories=None):
+        nonlocal host_ran
         with test_activity.activity(root, host_only=True), test_source.reader(root):
-            return _main(host_args, detached=True, checkpoint=Checkpoint(
-                root, selections(root, host_args), resume='--resume' in host_args))
+            groups = selections(root, host_args)
+            selected_groups = [group for group in groups if categories is None or group[0] in categories]
+            admitted_groups = [group for group in selected_groups if assignment is not None
+                               or not actions or 'admit_task' not in actions
+                               or actions['admit_task'](group[0])]
+            options = [*(['--resume'] if host_ran else []),
+                       *(['--stop-on-error'] if '--stop-on-error' in host_args else []),
+                       *(value for kind, args in admitted_groups for value in (kind, *args))]
+            if admitted_groups == groups:
+                options = list(host_args)
+            if assignment is not None:
+                options = arguments(assignment.get('execution', assignment['work']))
+            if not admitted_groups and assignment is None:
+                return dict(status=0, handoffs=[], complete=False, limited=True,
+                            denied_categories=[kind for kind, _ in selected_groups])
+            saved = Checkpoint(root, groups, resume=host_ran or assignment is not None)
+            host_ran = True
+            if assignment is not None and assignment['execution']['case'] is not None:
+                saved.retry_case = assignment['execution']['case']
+                saved.event(assignment['work']['category'], dict(kind='failure', nodeid=saved.retry_case), set())
+            stream = sys.stdout
+            handoffs, output_tail = [], ''
+            class Output:
+                def __getattr__(self, name):
+                    return getattr(stream, name)
+                def write(self, value):
+                    nonlocal output_tail
+                    output_tail = (output_tail + value)[-16000:]
+                    for line in value.splitlines():
+                        if line.startswith('Failure handoff: '):
+                            handoffs.append(line.removeprefix('Failure handoff: '))
+                    return stream.write(value)
+            try:
+                sys.stdout = Output()
+                status = _main(options, detached=True, checkpoint=saved)
+            finally:
+                sys.stdout = stream
+            result = dict(status=status, handoffs=handoffs, output_tail=output_tail,
+                          complete=len(admitted_groups) == len(selected_groups),
+                          limited=len(admitted_groups) != len(selected_groups),
+                          denied_categories=[group[0] for group in selected_groups if group not in admitted_groups],
+                          completed_categories=[kind for kind, _ in admitted_groups if saved.complete(kind)])
+            if assignment is not None:
+                work = assignment['execution']
+                result['evidence'] = dict(assignment, passed=sorted(saved.passed(work['category']) & set(work['cases'])),
+                    cleanup=bool(getattr(saved, 'queue_finalized', False)),
+                    diagnostic=assignment['source'] != source_identity(root))
+            elif status:
+                failures = []
+                for path in handoffs:
+                    try:
+                        failures.extend(json.loads(Path(path).read_text()).get('failures', []))
+                    except (OSError, ValueError):
+                        continue
+                works = []
+                for failure in failures or [{}]:
+                    kind, selected = next((group for group in admitted_groups
+                        if group[0] == failure.get('category')), admitted_groups[0])
+                    case = failure.get('case') or None
+                    work = dict(category=kind, options=selected, case=case,
+                                cases=[case] if case else [], area=False)
+                    if work not in works:
+                        works.append(work)
+                result['failure_works'] = works
+            return result
     with Control().installed() as control:
         store = test_retention.Store(test_activity.retention_path(root))
         # The inherited owner lease excludes live workers; every VM still
@@ -397,6 +792,8 @@ def run(root, argv, *, reloading=False):
                 ready = False
                 with (directory / (vm.name + '.log')).open('ab') as log:
                     os.fchmod(log.fileno(), 0o600)
+                    log.seek(0, os.SEEK_END)
+                    attempt_output_start = log.tell()
                     def output(data):
                         nonlocal pending, ready
                         log.write(data)
@@ -427,7 +824,22 @@ def run(root, argv, *, reloading=False):
                 if ready:
                     saved = Checkpoint(root, guest_selection, resume=True, binding=vm.name)
                     evidence = saved.state.get('queue_evidence')
-                return dict(status=status, handoffs=handoffs, evidence=evidence)
+                with (directory / (vm.name + '.log')).open('rb') as log:
+                    log.seek(0, os.SEEK_END)
+                    log.seek(max(attempt_output_start, log.tell() - 16000))
+                    output_tail = log.read(16000).decode('utf-8', errors='replace')
+                result = dict(status=status, handoffs=handoffs, evidence=evidence, output_tail=output_tail)
+                for path in handoffs:
+                    try:
+                        failed = json.loads(Path(path).read_text()).get('failures', [])
+                        case = next((item.get('case') for item in failed
+                                     if item.get('case') in work['cases']), None)
+                        if case is not None:
+                            result['failure_case'] = case
+                            break
+                    except (OSError, ValueError):
+                        continue
+                return result
 
             def execute_case(worker, assignment, inherited, recovering):
                 vm = worker.vm
@@ -450,10 +862,12 @@ def run(root, argv, *, reloading=False):
                 return result
 
             publish_frames()
-            outcome = execute_pass(root, plan, control, execute_case, host=execute_host)
+            outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
+                                   actions=actions, pass_identity=pass_identity,
+                                   checkpoint_scope=checkpoint_scope)
             results = outcome['results']
             if not results:
-                return outcome['status']
+                return outcome if return_outcome else outcome['status']
             # Keep the actual joined results even if failure-detail processing
             # below cannot read a diagnostic handoff.
             (directory / 'results.json').write_text(json.dumps(results, indent=2))
@@ -519,7 +933,7 @@ def run(root, argv, *, reloading=False):
             # Each directly spawned worker returns only after its guarded
             # execution and cleanup. Its exit status owns the result; report
             # archives and diagnostic file lifetimes do not qualify it again.
-            return outcome['status']
+            return outcome if return_outcome else outcome['status']
 
 
 def worker(argv):

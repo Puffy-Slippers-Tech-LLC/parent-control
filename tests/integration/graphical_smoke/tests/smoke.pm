@@ -637,6 +637,13 @@ sub run {
         onpc_challenges::countdown_ticks(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{spring_forward_paired_grants}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::spring_forward_paired_grants(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{ordinary_fixed_grant}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

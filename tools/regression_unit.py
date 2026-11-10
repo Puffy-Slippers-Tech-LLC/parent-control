@@ -15,6 +15,8 @@ host package state, shared images or new cleanup resources.
 
 Core deadline/order checks add one bounded, joined thread with private Events
 and recording adapters per case; no bus, process, shared path or VM is acquired.
+Production-clock cases read the immutable public OS timezone file and patch only
+process-local clock/file bindings; they mutate no host timezone or shared state.
 
 Suspend ownership checks in vm_control_cleanup_safety use only process-local
 domain, SSH and clock doubles; no new resources or cleanup lifetime are added.

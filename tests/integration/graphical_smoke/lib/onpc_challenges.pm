@@ -245,6 +245,66 @@ sub suspend_active_grant {
     $journey->finish();
 }
 
+sub spring_forward_paired_grants {
+    onpc_progress::operation('Checking both children keep their granted time across the spring clock change');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'spring-grants:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'spring-forward-paired-grants', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
+    $journey->seen($_) for qw(riley-before-grant riley-zero);
+    my $settings = $journey->scope('jordan-settings');
+    $settings->consume_observation('parent-selected', onpc_parent::select_child($settings, 'existing',
+        $settings->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen($_) for qw(jordan-before-grant jordan-zero);
+    onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
+    my $jordan = $journey->scope('jordan-request');
+    $jordan->{kiosk_request} = ['other-child', 'parent', 0, 0];
+    onpc_request_flow::obtain_time($jordan, 'observed', 'existing-fixture-child', 'fixture-parent', 0, 0, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-fresh');
+    onpc_app_rows::native_activity_entry($journey, 'jordan-activity', 'command', 'other-child');
+    $journey->invoke('jordan-before-countdown');
+    $journey->seen('jordan-before-estimate-' . $_) for qw(launch select read cancel desktop);
+    $journey->seen($_) for qw(jordan-switch jordan-greeter);
+    my $riley = $journey->scope('riley-request');
+    $riley->{kiosk_request} = ['child', 'parent', 600, 0];
+    onpc_request_flow::prepare($riley, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 600, 0, 'kiosk');
+    $journey->seen('approval-wait-' . $_) for 1 .. 6;
+    onpc_request_flow::approve($riley, 'fixture-child', 'fixture-parent', 600, 0, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'riley-fresh');
+    onpc_app_rows::native_activity_entry($journey, 'riley-activity', 'command', 'child');
+    $journey->seen('riley-before-estimate-' . $_) for qw(launch select read cancel desktop);
+    $journey->invoke($_) for qw(riley-before-countdown cross-transition riley-after-countdown);
+    $journey->seen('riley-after-estimate-' . $_) for qw(launch select read cancel desktop);
+    onpc_app_rows::native_activity_resume($journey, 'riley-continued');
+    $journey->seen($_) for qw(riley-switch riley-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'jordan-return');
+    $journey->invoke('jordan-after-countdown');
+    $journey->seen('jordan-after-estimate-' . $_) for qw(launch select read cancel desktop);
+    onpc_app_rows::native_activity_resume($journey, 'jordan-continued');
+    $journey->seen($_) for qw(jordan-return-switch jordan-return-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'riley-return');
+    onpc_app_rows::native_activity_resume($journey, 'riley-final-work');
+    $journey->invoke($_) for qw(riley-expiry-countdown natural-expiry);
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->seen($_) for qw(return-greeter returned-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'parent-return');
+    $journey->seen('parent-retained');
+    my $expired = $journey->scope('expired-settings');
+    $expired->consume_observation('parent-selected', onpc_parent::select_child($expired, 'child',
+        $expired->seen('child-picker-opened'), 'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
+    $journey->seen($_) for qw(expired-balance parent-switch denied-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'time-denied', 'denied');
+    onpc_gdm::return_from_time_denial($journey, 'denied-return-ready', 'denied-return-state', 'denied-returned');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'jordan-final');
+    $journey->invoke('jordan-final-countdown');
+    onpc_app_rows::native_activity_resume($journey, 'jordan-final-work');
+    $journey->finish();
+}
+
 sub ordinary_fixed_grant {
     onpc_progress::operation('Checking that midnight preserves the child fixed extra time');
     my ($exchange, $declared, $challenges, $binding) = @_;

@@ -21,7 +21,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **242 — [E2E-044: spring-forward-paired-grants](E2E-Tasks/242-case-200.md)**.
+Next task: **245 — [E2E-044: fall-back-paired-grants](E2E-Tasks/245-case-203.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

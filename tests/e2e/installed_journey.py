@@ -144,7 +144,7 @@ class JourneyPlan:
                     stage in self.screen_tags
                     and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.KIOSK_BOUND_OPERATIONS
                     and self.kiosk_request is not None
-                    and accessible_ui.validate_kiosk_request(binding)[0] == self.kiosk_request[0]
+                    and accessible_ui.validate_kiosk_request(binding)
                     for stage, binding in self.kiosk_requests.items()),
                 self.prefix + ':kiosk-stage-bindings')
         require(self.kiosk_request is None or self.overlay_request is None
@@ -159,7 +159,7 @@ class JourneyPlan:
                     stage in self.screen_tags
                     and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.OVERLAY_BOUND_OPERATIONS
                     and self.overlay_request is not None
-                    and accessible_ui.validate_overlay_request(binding)[0] == self.overlay_request[0]
+                    and accessible_ui.validate_overlay_request(binding)
                     for stage, binding in self.overlay_requests.items()),
                 self.prefix + ':overlay-stage-bindings')
         require(not any(tag in ('ui:overlay-request-select', 'ui:overlay-request-estimate')

@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **189k — [Check Send without logs with the fake sender](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md)**.
+Next task: **255 — [Check the station report without-logs flow](E2E-Tasks/255-case-213.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

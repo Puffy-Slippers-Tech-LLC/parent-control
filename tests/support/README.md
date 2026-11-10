@@ -47,6 +47,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
+| Connection to a restored baseline | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` | Fixture snapshot and provisioning checks share observation-only SSH bootstrap, owned start, host-key binding and guarded readiness. Callers prepare the private directory and finite selection; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
 | Real elapsed time inside an installed journey | [real_interval.py](../e2e/real_interval.py) | `interval_action(duration)` waits one finite interval; `wait_until(journey, guard, target)` reaches a caller-owned controller-monotonic target in bounded intervals under the same attempt deadline, ownership checks and watch output. Keep the original grant deadline, lead time and independent expiry/suspend-crossing assertions in the caller; elapsed time alone proves no product result. |
 | Package changes during a journey | [package_command.py](../e2e/package_command.py) `PackageCommand` | Product and catalogue-fixture commands share single-use submission, disk admission, guarded transport, input rechecks and bounded output. Keep package identity/phase checks and independent completion/version results in their respective readers. Cases own the package-change order and public policy/draft assertions; see the [catalogue update/removal bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-launch-denial-qualification). Installed engineering histories retain `system_guest`'s checkout installation through `make install`. |
 
@@ -1191,6 +1192,14 @@ Native desktop-icon operations use the same bounded complete-read policy for
 their window-absence preflight. A retiring unrelated provider discards that
 observation; a complete existing-window refusal stays terminal. Focus, Ctrl+A
 and Enter are never replayed by the read wait.
+Game Move, Resume and Close use that same read-only preflight wait before their
+single action. A disappearing provider invalidates the read, not the input
+delivery. Keep the expected progress bound to the declared operation:
+`game-activity` captures one move, while `game-resumed-activity` captures two.
+When extending a retained-work history, add its later capture rather than
+changing the earlier capture's expected state. Preserve the original immutable
+capture for the same-window/work comparison and the original countdown deadline
+for natural expiry.
 Native launch, live-owner comparison and attributed denial reads share
 `accessible_ui.NATIVE_EXECUTABLES`. A new path needs its exact finite binding
 through all three operations that the consumer uses: Allowed copy/use does not

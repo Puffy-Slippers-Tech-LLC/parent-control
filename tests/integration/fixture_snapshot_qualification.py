@@ -31,7 +31,6 @@ from qualification_storage import run_qualification
 from suite_lease import Suite
 import system_runner as system
 from tests.fixtures.native_trust import database_row, native_tool_paths
-from vm_transport import Transport
 
 
 def check_input_files(files, allowed):
@@ -273,25 +272,6 @@ def audit_online(transport, allowed, expected, os_id='ubuntu'):
     for files in value['trees'].values():
         check_input_files(files, allowed)
     return value
-
-
-def baseline_transport(suite, directory):
-    """Boot the restored baseline with only the shared observation SSH input."""
-    observation = directory / 'baseline-observation'
-    (observation / 'input').mkdir(parents=True, mode=0o700)
-    (observation / 'input/selected-inputs.json').write_bytes(system.baseline.encode({
-        'schema_version': 1, 'scope': 'fixture-snapshot-qualification'}))
-    host_key = system.bootstrap(suite.commands, suite.lease, observation, suite.guestfs,
-                                observation_only=True, environment_only=True)
-    suite.lease.start()
-    hostname = system.address(suite.source)
-    (observation / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-    transport = Transport({'directory': str(observation), 'hostname': hostname,
-        'domain_uuid': suite.source.uuid, 'domain_id': suite.lease.view.domain_id,
-        'run': suite.lease.state['run']}, suite.commands,
-        guard=lambda _: suite.lease.guard(), lease=suite.lease)
-    transport.probe_ready()
-    return transport
 
 
 def native_rows(raw, absent, product_paths, os_id='ubuntu'):
@@ -742,7 +722,10 @@ def qualify(directory, assets):
                 system.require(len(groups) == 1, 'fixture-snapshots:native-policy-group')
                 product_policy = installed_product_policy(
                     assets, suite.commands, groups.pop(), result['baseline']['broker_gid'])
-            baseline = baseline_transport(suite, directory)
+            observation = directory / 'baseline-observation'
+            observation.mkdir(mode=0o700)
+            baseline = suite.baseline_transport(observation, {
+                'schema_version': 1, 'scope': 'fixture-snapshot-qualification'})
             result['baseline']['native'], vendor = audit_native(
                 baseline, set(runtime_absence()), product_paths, result['baseline']['native_policy'],
                 os_id, None, result['baseline'].get('native_previous'))

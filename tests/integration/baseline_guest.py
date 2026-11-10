@@ -341,25 +341,13 @@ def prepare(capture, guestfs, password, *, mode='manual'):
 def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpak_payload):
     """Operate only on the off, journal-bound source selected by the controller."""
     require(mode in ('auto', 'manual'), 'guest:preparation-mode')
-    import baseline_mounts
     capture.revalidate(off=True)
-    shares = baseline_mounts.mappings(capture.source.domain.XMLDesc(
-        capture.source.api.VIR_DOMAIN_XML_INACTIVE))
     print('prepare-vm: Staging baseline setup on disk; VM is powered off', flush=True)
     with operation('Staging baseline setup on disk; VM is powered off'), mounted(guestfs, capture) as g:
         from baseline_console import reconcile as reconcile_console
         reconcile_console(g)
         directory(g, STAGE)
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
-        baseline_mounts.reconcile(g, shares)
-        if shares:
-            label_preparation(g, ['/etc/fstab', *(item['path'] for item in shares)])
-        share_record = json.dumps(shares, sort_keys=True).encode('utf-8')
-        if g.exists(baseline_mounts.RECORD) or g.is_symlink(baseline_mounts.RECORD):
-            from baseline_fixtures import regular
-            regular(g, baseline_mounts.RECORD, 0, 0, 0o600)
-        if not g.exists(baseline_mounts.RECORD) or g.read_file(baseline_mounts.RECORD) != share_record:
-            write(g, baseline_mounts.RECORD, share_record)
         os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
             g.read_file('/etc/os-release').decode()))
         from baseline_fixtures import (

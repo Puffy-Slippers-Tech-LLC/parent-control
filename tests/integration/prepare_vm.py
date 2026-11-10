@@ -79,7 +79,6 @@ SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
                          'tests/integration/baseline_fixtures.py', 'tests/fixtures/native_trust.py',
                          'tests/fixtures/native_assets.py')) + (
     'tests/integration/baseline_guest.py', 'tests/integration/prepare_baseline.py',
-    'tests/integration/baseline_mounts.py',
     'tools/build_targets.py',
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/baseline_environment.py', 'tests/fixtures/snap_assets.py',

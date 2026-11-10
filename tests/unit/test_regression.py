@@ -618,6 +618,9 @@ def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, 
     controller = SimpleNamespace(run=lambda command, **kwargs: calls.append(command) or 0)
     monkeypatch.setattr(regression_process.Control, 'installed', lambda *args, **kwargs: nullcontext(controller))
     monkeypatch.setattr(test_commands, 'plan', plan)
+    # Like the command plan, preparation options belong to the synthetic selection;
+    # do not send its placeholder argument through the real E2E preflight parser.
+    monkeypatch.setattr(test_commands, 'vm_preparation_flags', lambda category, argv: [])
     # Fixture production has its own dispatch coverage; this synthetic checkout
     # exercises package preparation and must not start the real fixture builder.
     monkeypatch.setattr(test_commands, 'qualification_fixture_options', lambda *args, **kwargs: [])

@@ -15,6 +15,34 @@ a complete scenario result; the inventory owns readiness.
 
 <a id="c04b-baseline-public-use-slice"></a>
 
+## Kiosk release notes and request return
+
+Case **265**, `E2E-064/kiosk`, composes `kiosk_release_notes.PLAN` /
+`KioskReleaseNotesJourney` and `onpc_kiosk_whats_new::run_case`. Its
+`installed-release-notes-upgrade` prerequisite selects the qualified genuine
+1.2→2.0 online snapshot recipe through the existing suite owner. Both package
+archives and the activation recipe are bound before a fresh installed restoration;
+there is no installation, history injection or acknowledgement injection in
+the customer's steps. Ordinary installed cases retain fresh-install preparation.
+
+Jamie publicly enables Riley with zero daily time. Capture Parent's saved
+time/app policy and zero grant, then enter the station and independently capture
+Riley/Jamie, Custom `1.25` Minutes/75 seconds and soft apps included. Open
+What's New through INFO03. Independently compare its installed-version title
+and meaningful English document blocks with the packaged Child 1.4 record,
+the sole eligible child release in the declared 1.2→2.0 range. Use immutable
+packaged inputs as the content oracle; customer acceptance never reads private
+installation history or acknowledgements. Parent-only notes are not an oracle.
+
+Close normally and compare the entire captured request, including account,
+duration, soft choice and usable Request action. Cancel to GDM, enter Jamie's
+retained desktop through the qualified sign-in operation, and independently
+require identical saved policy and zero daily/granted/total time. Log out to
+usable GDM. No approval, external navigation or additional About visit occurs.
+The finite 1800-second functional budget covers the complete public journey
+and worker shutdown; there is no short measured interval. Independent wrong-owner
+refusal and installation-history probes remain in the existing qualification.
+
 ## Saved request presets and units
 
 Case **264**, `E2E-063/saved-presets`, composes `request_presets.PLAN` /

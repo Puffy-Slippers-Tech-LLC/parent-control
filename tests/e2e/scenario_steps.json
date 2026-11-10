@@ -1,4 +1,9 @@
 {
+  "E2E-064": {
+    "expected": "Riley reads the child updates, returns to the same usable request and leaves without granting time or changing saved rules.",
+    "summary": "Read Riley's release notes and return to her request for Jamie.",
+    "steps": ["Record Riley's zero time and prepare her 75-second request for Jamie with soft apps included.", "Open What's New and read the child updates from the real upgrade.", "Close the notes, compare the unchanged request, then cancel and confirm Parent's rules and time stayed unchanged."]
+  },
   "E2E-063": {
     "expected": "The saved preset works, deleting it keeps the same request as Custom, and restored choices survive returning without granting time or changing rules.",
     "summary": "Save and remove a child's time choices, change units, then return to the request.",

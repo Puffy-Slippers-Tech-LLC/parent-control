@@ -8,6 +8,42 @@
   },
   "scenarios": [
     {
+      "id": "E2E-064",
+      "title": "Riley reads upgrade notes and returns to the same request",
+      "category": "customer-journey",
+      "owners": ["request-information"],
+      "requirements": ["ONPC-CORE-WHATSNEW-001", "ONPC-CORE-WHATSNEW-003", "ONPC-CORE-RECOVERY-004"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/State.md#whats-new-backend", "docs/TestAutomation/E2E-Scenario-Recipes.md#kiosk-release-notes-and-request-return"],
+      "components": ["parent", "kiosk", "broker"],
+      "environment": ["ubuntu26.04"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "installed-release-notes-upgrade", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the verified genuine-upgrade installed snapshot and bind fixture credentials under the owned attempt."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin at sign-in after the real 1.2 to 2.0 upgrade, with no grants or injected release-note history."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Jamie enables Riley with zero daily time. Record saved policy, enter the station and independently capture Riley's 75-second request for Jamie with soft apps included."},
+          {"id": "step-2", "operation": "ui", "description": "Open What's New and independently read the packaged Child 1.4 content offered for the installed 1.2 to 2.0 upgrade."},
+          {"id": "step-3", "operation": "ui", "description": "Close normally and require the same usable request. Cancel to sign-in, return to Parent to confirm unchanged policy and zero time, then log out normally."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile independent public results, collection and worker shutdown."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned cleanup and restore the powered-off baseline, preserving unrelated inputs."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "child-release-content", "step_id": "step-2", "description": "The owned release-note document matches meaningful packaged Child content within the real upgrade range, with the installed-version title."},
+          {"id": "unchanged-request", "step_id": "step-3", "description": "Normal close returns the same usable Riley/Jamie/75-second request with soft apps included and Request available."},
+          {"id": "unchanged-policy-and-no-grant", "step_id": "step-3", "description": "Normal Cancel and Parent readback show identical saved policy and zero daily, granted and total time, followed by usable sign-in."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {"dimensions": {"surface": ["kiosk"]}, "full_combinations": [], "rationale": "One complete English station information and unchanged-request history using the qualified genuine-upgrade installed preparation; independent refusal stays in qualification."},
+      "variants": [{"coverage_id": 265, "id": "kiosk", "owner": "request-information", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_release_notes.py", "test_id": "kiosk"}}]
+    },
+    {
       "id": "E2E-063",
       "title": "A child's saved request presets and units survive editing and return",
       "category": "customer-journey",

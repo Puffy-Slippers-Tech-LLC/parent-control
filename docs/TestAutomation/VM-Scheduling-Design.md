@@ -14,10 +14,31 @@ behind shared helpers or permanent compatibility paths.
 
 Reuse `tools/execute-plan 'docs/TestAutomation/VM-Scheduling-Design.md'` when
 execution is separately requested. A `tools/scheduling` wrapper adds only an
-alias: this plan needs no special acceptance engine, model policy or options.
+alias: this plan needs no special acceptance engine or options.
 Use the existing [ordinary-plan driver](../Execution-Plans.md#extension-boundary)
 and its task, recovery, delegation and close-out contracts. Do not add a launcher,
 namespace registry, service or new command protocol.
+
+## Core logic review mandate
+
+Every task in this plan inherits this mandate, including repairs, recovery and
+optimization; task briefs need not repeat it. Before completing any task that
+changes core scheduling, coordination, admission, persistence or ownership logic,
+obtain an independent, read-only review from an **Astra xHigh** subagent. This
+review requirement overrides ordinary reviewer model defaults while preserving
+the existing coordinator, implementation and escalation policies.
+
+Activate the following actual goal in the reviewer's session under the shared
+[goal activation contract](../Execution-Plans.md#execution-and-delegation);
+prompt text alone does not satisfy it:
+
+```text
+/goal Simple, lean, robust; do not overengineer. Prefer solutions that simplify the resulting codebase as a whole, not merely minimize the patch. Keep refactoring within the task’s scope.
+```
+
+Resolve actionable findings and revalidate material revisions before completing
+the task. Independent review does not replace the task's scoped validation or
+acceptance requirements.
 
 ## Resulting ownership
 

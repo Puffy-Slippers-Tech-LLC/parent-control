@@ -10,9 +10,10 @@ earlier work, including task 085, stays here. [Plan B’s queue](E2E-Task-QueueB
 owns separate unfinished task IDs and briefs, with no pending prerequisite across
 the queues. Each retains its original relative order and acceptance scopes.
 The later Flatpak, package update/removal, suspend and usage/expiry engineering
-groups now belong exclusively to
-[Plan C](E2E-Task-QueueC.md). Current task 160 and its consumers stay here;
-no unfinished dependency crosses between any of the three plans.
+groups belong to [Plan C](E2E-Task-QueueC.md), as do the remaining reminder
+tasks 311b, 311c and 311. Their fullscreen-game prerequisite 129 is already
+delivered. Game, retained-work, second-parent and Lunar/Minecraft work stays
+here; no unfinished dependency crosses between any of the three plans.
 
 The [Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary)
 applies to this entire queue. Its native, Flatpak, game and lifecycle tasks do
@@ -661,9 +662,6 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 312a | Qualify overlay reminder editing and persistence | 300i | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_overlay_reminder_editing`: defaults, literal 75-to-90-second editing with stable ID, independent Save/Cancel/empty-list readback, unchanged language/request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 312b | Qualify kiosk reminder ownership and persistence | 312a, 300j | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding`: exact saved-ID persistence from the 90-second overlay row through the 75-second kiosk edit and overlay readback, independent station reopen, Jordan list/language isolation, Riley preservation through Jamie → Casey and child switches, unchanged request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
 | [x] | 311a | Qualify the saved fullscreen reminder preference | 312a | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`: Save false and independently reopen, Cancel a true draft and read saved false, exact reminder/language/request preservation, unchanged public policy/time and zero grants, with owned cleanup. Reports `20261013T201225Z-b7411901` and `20261013T201225Z-058fe498`; no notification-delivery or complete-case credit. | 20–30 |
-| [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, independently bound saved threshold/live remaining balance and urgency; maintained natural observer and installed qualification pending | 20–30 |
-| [ ] | 311c | [Qualify owned reminder banners during fullscreen play](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | 311b, 129 | Public owned-banner visibility/suppression during genuine fullscreen play; qualification pending | 20–30 |
-| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i, 312b, 311c | Planned scenario; read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and latest-version reboot persistence; targeted schema/migration regressions cover upgrade handling; installed reminder-control, natural notification and owned fullscreen-banner qualifications are gates; no executable or acceptance | 40–60 (exception) |
 | [ ] | 295 | [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md) | 006 | FIX05; restored Lunar/AppImageLauncher/autostart/Minecraft prerequisites only. Blocker: profile and repeatable setup unqualified; resume when the manual assets and standard restore path are available. | 20–30 |
 | [ ] | 296c | [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md) | 295, 052c | APP01/02/03/UI18 Lunar original-AppImage usable launch and Quit | 20–30 |
 | [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore | 20–30 |

@@ -10,19 +10,17 @@ current branch. Explicit `--branch NAME` selects another checkout. Apply the sam
 [execution contracts](E2E-Execution-Contracts.md) as Plan A.
 This plan owns only its queue, task briefs and next-task pointer. It can run to
 completion without executing or completing any unfinished Plan A or
-[Plan C](E2E-Execution-PlanC.md) task. Later system, calendar,
-preset and What's New groups now belong exclusively to Plan C; current task
-135a and its lifecycle consumers stay here.
+[Plan C](E2E-Execution-PlanC.md) task. Installed pending-approval exits, cooldown
+reports and diagnostic-collection work stay here. Host-only feedback sending,
+without-logs and Stop obligations belong exclusively to Plan C, alongside its
+system, calendar, preset and What's New groups.
 
 Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 
-Routine feedback sending rows are explicit **UI obligation** tasks using the
-existing network-free component previews. Apply the
-[feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation): no
-inbox, recipient configuration, real-send permission or VM qualification gates
-those rows. Explicit UI markers select host-only launcher handling, and allocation
-metadata names the existing UI owners. Real sending is separate optional
-integration work and must not become a queue prerequisite.
+The installed report journeys retain their own acceptance under the
+[feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
+They do not wait for Plan C's component sending checks, and those checks do not
+wait for this plan's installed cooldown or collection-failure triggers.
 
 ## Next task
 

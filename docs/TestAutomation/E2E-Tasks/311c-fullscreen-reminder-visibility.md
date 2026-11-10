@@ -1,4 +1,4 @@
-# 311c — Qualify owned reminder visibility during fullscreen play
+# 311c — Qualify owned reminder banners during fullscreen play
 
 Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).

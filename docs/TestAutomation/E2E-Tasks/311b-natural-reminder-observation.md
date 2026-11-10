@@ -1,4 +1,4 @@
-# 311b — Qualify a natural remaining-time reminder observation
+# 311b — Qualify natural reminder content and urgency
 
 Follow the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).

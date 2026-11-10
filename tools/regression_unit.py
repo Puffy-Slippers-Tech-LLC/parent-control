@@ -47,6 +47,8 @@ with process-local account/root bindings. It owns no children, bus, display,
 shared cache or VM and is compatible with ordinary unit overlap.
 The desktop-entry binding uses the same private descriptors and a process-local
 metadata double; it adds no GVfs/session-bus or display access.
+Work-document guards use the same private files, descriptor pins and local
+account doubles; they add no process, display, service or shared storage owner.
 
 Privileged-runner source captures use tiny pytest-private checkout/scratch trees
 in the existing bounded, waited child processes. No live VM, service or shared

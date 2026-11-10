@@ -132,11 +132,13 @@ checks all declared movable destinations, aliases, literal launchers, symbolic r
 modes, finite native actions and absence controls without extracting the archive.
 It rejects duplicate/unknown fields, unsafe archives, extra/missing bytes and
 incompatible ELF64 loader/library/GLIBC requirements. System Python/GTK supplies
-the GUI runtime; bundles carry only the two adjacent modules.
+the GUI runtime; bundles carry the adjacent GUI, automation and bounded
+work-document/file modules declared in `native_assets.GUI_FILES`.
 
 `fixture_manifest.select()` returns finite subset unions. Native and Riley-grid
-contain 21 and sixteen files; baseline-child adds only Riley's five native launchers;
-activity three; trusted-hard/soft one executable each,
+include their declared GUI runtime and account-scoped launchers; baseline-child
+adds only Riley's five native launchers; activity includes its executable and
+adjacent runtime; trusted-hard/soft one executable each,
 with separate optional launcher subsets. Mechanical, command, whitespace,
 pattern, retention and catalogue retain their exact comparisons; compatibility
 selects the separate legacy S runtime. `legacy` selects the complete declaration.

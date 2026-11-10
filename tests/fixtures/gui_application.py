@@ -6,6 +6,7 @@ are declared by the scenario, so two windows never depend on titles or order.
 """
 
 import argparse
+import json
 import sys
 
 import gi
@@ -25,7 +26,15 @@ def main(argv=None):
     parser.add_argument('--kind', choices=KINDS, required=True)
     parser.add_argument('--instance', choices=INSTANCES, default='primary')
     parser.add_argument('--fullscreen', action='store_true', help='Open the fixed game level fullscreen')
+    parser.add_argument('--work-document', help='Exact child work-document receipt')
     options = parser.parse_args(argv)
+    document = None
+    if options.work_document is not None:
+        if options.kind != 'native' or options.instance != 'primary' or len(options.work_document) > 4096:
+            parser.error('Work documents belong to the primary native fixture')
+        from work_document import Document
+        receipt = json.loads(options.work_document)
+        document = Document(receipt['user'], receipt)
     if options.fullscreen and options.kind != 'game':
         parser.error('Fullscreen belongs to the game fixture')
     if options.kind not in ('native', 'flatpak') and options.instance in ('hard', 'soft'):
@@ -59,7 +68,7 @@ def main(argv=None):
         # the GtkEntry itself; Edit draft focuses it through normal GTK input.
         draft = set_automation_id(Gtk.Entry(), scope + '-draft')
         draft.set_max_length(256)
-        draft.set_text('ONPC fixture draft')
+        draft.set_text(document.read()[0] if document else 'ONPC fixture draft')
         content.append(draft)
         edit = set_automation_id(Gtk.Button(label='Edit draft'), scope + '-edit')
         edit.connect('clicked', lambda _button: draft.grab_focus())
@@ -69,6 +78,20 @@ def main(argv=None):
         submit.connect('clicked', lambda _button: submitted.set_label(draft.get_text()))
         content.append(submit)
         content.append(submitted)
+        if document:
+            saved = set_automation_id(Gtk.Label(label='Document opened'), scope + '-saved')
+            save = set_automation_id(Gtk.Button(label='Save document'), scope + '-save')
+            def save_document(_button):
+                save.set_sensitive(False)
+                try:
+                    document.save(draft.get_text())
+                except (ValueError, OSError):
+                    saved.set_label('Document save refused')
+                else:
+                    saved.set_label('Document saved')
+            save.connect('clicked', save_document)
+            content.append(save)
+            content.append(saved)
         # A finite turn-based game: move a token around a four-cell track.
         # Its score and token are public state that can survive session visits.
         moves = 0
@@ -91,7 +114,11 @@ def main(argv=None):
         window.present()
 
     app.connect('activate', activate)
-    return app.run([sys.argv[0]])
+    try:
+        return app.run([sys.argv[0]])
+    finally:
+        if document:
+            document.close()
 
 
 if __name__ == '__main__':

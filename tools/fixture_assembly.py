@@ -20,9 +20,11 @@ def assemble(source, compiled, output, inputs_path):
         key = declaration['source']
         if isinstance(key, bytes):
             payloads[member] = key
-        elif key in ('onpc-test-gui.py', 'gtk_automation.py'):
-            name = ('tests/fixtures/gui_application.py' if key == 'onpc-test-gui.py'
-                    else 'common/oh_no_parent_control_ui/gtk_automation.py')
+        elif key in ('onpc-test-gui.py', 'gtk_automation.py', 'work_document.py', 'guest_files.py'):
+            name = {'onpc-test-gui.py': 'tests/fixtures/gui_application.py',
+                    'gtk_automation.py': 'common/oh_no_parent_control_ui/gtk_automation.py',
+                    'work_document.py': 'tests/fixtures/work_document.py',
+                    'guest_files.py': 'tests/e2e/guest_files.py'}[key]
             payloads[member] = (source / name).read_bytes()
         else:
             payloads[member] = (compiled / key).read_bytes()

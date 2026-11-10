@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 import synthetic_files_guest as files
+from tests.fixtures import work_document as work
 
 
 @pytest.fixture
@@ -44,6 +45,81 @@ def desktop_boundary(tmp_path, monkeypatch, request):
             {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous},
             user=user, role=role)
     return source, desktop, call
+
+
+@pytest.fixture
+def work_boundary(tmp_path, monkeypatch):
+    home = tmp_path / 'child'
+    home.mkdir(mode=0o700)
+    monkeypatch.setattr(work, 'account_home', lambda user: home if user == work.USERS[0]
+                        else (_ for _ in ()).throw(ValueError('files:refused')))
+    user = work.USERS[0]
+    receipt = work.operate(user, 'stage', None)
+    return home, user, receipt
+
+
+def test_work_save_and_cleanup_use_the_original_inode_only(work_boundary):
+    home, user, receipt = work_boundary
+    unrelated = home / 'other work'
+    unrelated.write_text('preserve')
+    document = work.Document(user, receipt)
+    try:
+        document.save(work.SAVED[user])
+        with pytest.raises(ValueError, match='files:refused'):
+            document.save(work.SAVED[user])
+    finally:
+        document.close()
+    saved = work.operate(user, 'saved', receipt)
+    assert saved['file'][:5] == receipt['file'][:5]
+    assert work.operate(user, 'read', saved) == saved
+    assert work.operate(user, 'cleanup', saved) == {'absent': True}
+    assert unrelated.read_text() == 'preserve'
+
+
+@pytest.mark.parametrize('fault', ['symlink', 'hardlink', 'replacement', 'directory-link', 'undeclared'])
+def test_work_refuses_changed_paths_before_save_or_cleanup(work_boundary, fault):
+    home, user, receipt = work_boundary
+    root = home / work.DIRECTORY
+    path = root / work.NAME
+    before = path.read_bytes()
+    if fault in ('symlink', 'hardlink', 'replacement'):
+        path.rename(home / 'original')
+        if fault == 'symlink':
+            path.symlink_to(home / 'original')
+        elif fault == 'hardlink':
+            os.link(home / 'original', path)
+        else:
+            path.write_bytes(before)
+            path.chmod(0o600)
+    elif fault == 'directory-link':
+        root.rename(home / 'original-directory')
+        root.symlink_to(home / 'original-directory', target_is_directory=True)
+    else:
+        receipt = {**receipt, 'path': '/unrelated'}
+    for operation in ('read', 'saved', 'cleanup'):
+        with pytest.raises((ValueError, OSError)):
+            work.operate(user, operation, receipt)
+    assert path.read_bytes() == before
+
+
+def test_work_refuses_wrong_account_before_opening(monkeypatch):
+    monkeypatch.setattr(work.pwd, 'getpwnam', lambda name: SimpleNamespace(
+        pw_uid=os.getuid() + 1, pw_dir='/home/' + name))
+    monkeypatch.setattr(work.os, 'open', lambda *_args, **_kwargs: pytest.fail('opened before account refusal'))
+    with pytest.raises(ValueError, match='files:refused'):
+        work.Document(work.USERS[0], {})
+
+
+def test_work_uncertain_command_is_not_replayed():
+    from synthetic_files import SyntheticFiles
+    class Uncertain:
+        def call(self, *_args, **_kwargs):
+            raise OSError('uncertain delivery')
+    controller = SyntheticFiles(Uncertain(), 'work-jordan')
+    with pytest.raises(OSError, match='uncertain delivery'):
+        controller.call('stage')
+    with pytest.raises(Exception, match='files:replay'):
+        controller.call('stage')
 
 
 @pytest.mark.parametrize('desktop_boundary', [('onpc-child-jordan', 'A'), ('onpc-child-riley', 'A'),

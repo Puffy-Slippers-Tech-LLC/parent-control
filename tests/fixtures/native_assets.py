@@ -25,7 +25,7 @@ ASSETS = (
 SHARED_ALIAS = ('Alias', ASSETS[0][1], 'ONPC Shared Target Fixture',
                 'Second launcher for the exact native fixture', 'precise')
 LAUNCHERS = (*ASSETS, SHARED_ALIAS)
-GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py')
+GUI_FILES = ('onpc-test-gui.py', 'gtk_automation.py', 'work_document.py', 'guest_files.py')
 GAME_EXECUTABLE = PREFIX + '/onpc-test-game'
 GAME_DESKTOP_ID = 'com.puffyslippers.ONPCTest.Game.desktop'
 # Keep unrepresentable whitespace nonmatches outside A and S wildcard groups.
@@ -54,7 +54,7 @@ def trusted_file_modes():
 
 def activity_sources():
     return ('fixtures/native/identity-trusted-activity',
-            'fixtures/native/onpc-test-gui.py', 'fixtures/native/gtk_automation.py')
+            *('fixtures/native/' + name for name in GUI_FILES))
 
 
 def game_desktop_entry():
@@ -165,7 +165,7 @@ def native_policy_files(expected, child_uids):
     executables = [expected[key] for key in executable_sources()]
     gui = [expected[key] for key in gui_sources()]
     if (len(set(executables)) != len(ASSETS) or gui != gui[:len(GUI_FILES)] * len(GUI_DIRECTORIES)
-            or len(set(gui)) != 2 or set(gui) & set(executables)):
+            or len(set(gui)) != len(GUI_FILES) or set(gui) & set(executables)):
         raise ValueError('native:baseline-policy-inputs')
     next_version, nonmatch = (expected[key] for key in version_sources())
     if next_version in executables or nonmatch != expected['fixtures/image-root' + executable_path('N')]:
@@ -176,7 +176,7 @@ def native_policy_files(expected, child_uids):
         return ('# Finite reusable fixture admission; inputs remain untrusted.\n' + ''.join(
             f'allow perm={permission} uid={subject} : sha256hash={digest} trust=0\n'
             for digest in hashes)).encode('ascii')
-    return dict(zip(NATIVE_POLICY_PATHS, (rules('open', gui[:2]),
+    return dict(zip(NATIVE_POLICY_PATHS, (rules('open', gui[:len(GUI_FILES)]),
                                          rules('execute', executables))))
 
 

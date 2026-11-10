@@ -790,6 +790,11 @@ def save_operate(home, operation, previous):
 
 def operate(home, operation, previous, profile='standard'):
     """Validate everything before the first mutation; failures never clean up."""
+    if profile in ('work-jordan', 'work-riley'):
+        from work_document import operate as work_operate
+        user = 'onpc-child-' + profile.removeprefix('work-')
+        require(home == Path('/home') / user)
+        return work_operate(user, operation, previous)
     if profile in DESKTOP_PROFILES:
         return native_desktop_operate(home, operation, previous, user=DESKTOP_PROFILES[profile],
                                       role='H' if profile == 'native-desktop-hard' else
@@ -921,7 +926,9 @@ def main():
     administrative = len(sys.argv) == 5
     require(not administrative or sys.argv[4] == 'administrative' and sys.argv[3] in (
         'native-version-next', 'native-version-nonmatch'))
-    user = (DESKTOP_PROFILES[sys.argv[3]] if len(sys.argv) >= 4 and sys.argv[3] in DESKTOP_PROFILES else
+    user = ('onpc-child-' + sys.argv[3].removeprefix('work-')
+            if len(sys.argv) >= 4 and sys.argv[3] in ('work-jordan', 'work-riley') else
+            DESKTOP_PROFILES[sys.argv[3]] if len(sys.argv) >= 4 and sys.argv[3] in DESKTOP_PROFILES else
             'onpc-child-jordan' if len(sys.argv) >= 4 and sys.argv[3] in NATIVE_PROFILES
             else 'onpc-parent-jamie')
     account = pwd.getpwnam(user)

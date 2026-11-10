@@ -367,6 +367,8 @@ OPERATION_LABELS = {
 }
 
 
+OPERATION_LABELS.update({op: 'Saving, reopening or reading the child\'s synthetic work document'
+                        for op in accessible_ui.WORK_OPERATIONS})
 OPERATION_LABELS.update({
     'help-desktop-clear': 'Checking the desktop after command documentation',
 })
@@ -586,7 +588,7 @@ class AppActivityObservation:
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
                 and binding in ('native-primary', 'native-secondary', 'native-soft', 'snap-primary', 'snap-secondary',
                                 'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft',
-                                'game-primary')
+                                'game-primary', 'work-jordan', 'work-riley')
                 and value['binding'] == binding
                 and type(resumed) is bool and (not resumed or binding == 'game-primary'),
                 'ui:app-activity')
@@ -604,8 +606,11 @@ class AppActivityObservation:
                 and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
                 and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
                 and type(value['state']) is dict and value['state'] == {
-                    'draft': 'ONPC fixture draft',
-                    'submitted': 'No submitted draft' if binding == 'game-primary' else 'ONPC fixture draft',
+                    'draft': (binding.removeprefix('work-').title() + ' saved synthetic work'
+                              if binding.startswith('work-') else 'ONPC fixture draft'),
+                    'submitted': (binding.removeprefix('work-').title() + ' saved synthetic work'
+                                  if binding.startswith('work-') else
+                                  'No submitted draft' if binding == 'game-primary' else 'ONPC fixture draft'),
                     'score': ('Moves: 2; token: 2' if resumed else 'Moves: 1; token: 1')
                              if binding == 'game-primary' else 'Moves: 0; token: 0'},
                 'ui:app-activity')
@@ -1638,6 +1643,10 @@ class UiObservations:
         # previews even for product-free GDM observations before installation.
         # Every product value still comes from the live Application UI service.
         program = guest_ui_program()
+        if operation in accessible_ui.WORK_OPERATIONS:
+            receipt = getattr(self, 'work_document_receipt', None)
+            require(type(receipt) is dict, 'ui:work-receipt')
+            program = 'WORK_DOCUMENT_RECEIPT = ' + repr(receipt) + '\n' + program
         if operation == 'gdm-returned':
             # Keep privilege/session reacquisition inside the existing guarded
             # guest command, with one deadline and no retry of input operations.
@@ -2188,6 +2197,20 @@ class UiObservations:
             require(type(result) is dict and set(result) == {*expected, 'entry'} and
                     result['entry'] == {'destination': 'initial-request-window'}, 'ui:initial-entry-response')
             expected['entry'] = result['entry']
+        if operation in accessible_ui.WORK_OPERATIONS:
+            _work, who, action = operation.split('-')
+            if action in ('opened', 'saved', 'submitted'):
+                import hashlib
+                saved = who.title() + ' saved synthetic work'
+                text = (who.title() + ' original synthetic work' if action == 'opened'
+                        and self.work_document_receipt['sha256'] != hashlib.sha256(saved.encode()).hexdigest()
+                        else saved)
+                expected['activity'] = {'draft': text,
+                    'submitted': saved if action == 'submitted' else 'No submitted draft',
+                    'score': 'Moves: 0; token: 0'}
+            elif action == 'activity':
+                AppActivityObservation.from_value(result.get('activity'), binding='work-' + who)
+                expected['activity'] = result['activity']
         if operation in ('native-opened', 'native-submitted', 'overlay-native-opened',
                          'overlay-native-submitted', 'parent-native-opened', 'parent-native-submitted'):
             expected['activity'] = {'draft': 'ONPC fixture draft',

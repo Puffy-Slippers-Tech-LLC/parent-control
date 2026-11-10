@@ -1719,6 +1719,37 @@ sub native_files_usable {
     $journey->finish();
 }
 
+sub saved_work_document {
+    onpc_progress::operation('Saving and reopening the child\'s own synthetic document');
+    my ($journey) = @_;
+    die 'work:arguments' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    for my $stage (qw(open opened edit save saved submit submitted capture reread close closed
+                      reopen reopened reuse reused recovered finish finished)) {
+        $journey->consume_observation($stage, $journey->seen($stage));
+    }
+}
+
+sub child_saved_work {
+    my ($exchange, $declared, $challenges) = @_;
+    die 'work:arguments' unless @_ == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'child-saved-work', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    $journey->seen('logout');
+    onpc_gdm::sign_in_challenge($journey, 'work-jordan-login',
+        'jordan-installed-greeter', 'jordan-standard-focused', 'jordan-desktop');
+    saved_work_document($journey->scope('jordan'));
+    $journey->seen('jordan-logout');
+    onpc_gdm::sign_in_challenge($journey, 'work-riley-login',
+        'riley-installed-greeter', 'riley-child-focused', 'riley-desktop');
+    saved_work_document($journey->scope('riley'));
+    $journey->seen('cleanup');
+    $journey->finish();
+}
+
 sub app_activity {
     onpc_progress::operation('Qualifying native usable flows and same-window activity comparisons');
     my ($exchange, $declared, $challenges) = @_;

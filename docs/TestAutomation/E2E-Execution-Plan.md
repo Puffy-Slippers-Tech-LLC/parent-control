@@ -20,7 +20,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **196a — [Save and reopen a child's synthetic work document](E2E-Tasks/196a-child-saved-work.md)**.
+Next task: **289 — [E2E-050: overlay-first-retained](E2E-Tasks/289-case-247.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

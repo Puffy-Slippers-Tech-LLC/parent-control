@@ -24,7 +24,7 @@ from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAIT
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity
 from watch_model import ResourceUsage, VMMemory, viewer_entries
-from watch_output import Output, SessionOutput, JsonReader, active_launchers, TAIL_BYTES
+from watch_output import Output, SessionOutput, JsonReader, active_launchers, watch_closed, TAIL_BYTES
 from tests.integration.watch_activity import TerminalControls
 
 
@@ -237,6 +237,13 @@ class Viewer:
                 include_idle=True)
             if run != output.run:
                 raise ValueError('Launcher changed; refresh before trying again.')
+            if action['kind'] == 'close':
+                if (watch_closed(run) or any(candidate == run for candidate, _name in
+                                             active_launchers(output.root, JsonReader()))):
+                    raise ValueError('Launcher is running or already closed; refresh before trying again.')
+                record = read_json(run.parent / 'current.json', 4096)
+                return dict(ok=True, root=str(output.root), run=str(run),
+                            launcher=record.get('launcher', 'launcher'), argv=[])
             if action['kind'] == 'kill' and not any(
                     candidate == run for candidate, _name in active_launchers(output.root, JsonReader())):
                 raise ValueError('Launcher is no longer active; refresh before trying again.')
@@ -390,6 +397,8 @@ class Viewer:
                 self.sessions[root] = SessionOutput(output)
             session = self.sessions[root]
             session.poll()
+            if output.run is not None and not active and not session.active and watch_closed(output.run):
+                continue
             if supervisor(output.run) is not None:
                 continue
             status = '' if active else output.completion_status()
@@ -548,6 +557,7 @@ class Viewer:
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,
                 session_preview=self.cached_spans(root, 'session-preview', preview),
                 session_view=session_view))
+            sections[-1]['launcher_close'] = bool(output.run is not None and not active and not session.active)
             try:
                 record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
                 sections[-1]['launcher_controls'] = record.get('run') == output.run.name and isinstance(record.get('argv'), list)
@@ -826,7 +836,7 @@ def main():
                 if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
                         or set(action) != {'root', 'run', 'kind'}
                         or any(type(value) is not str for value in action.values())
-                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session')):
+                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue

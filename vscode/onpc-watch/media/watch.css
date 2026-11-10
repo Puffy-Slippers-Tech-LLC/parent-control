@@ -92,6 +92,10 @@ nav button { flex-shrink: 0; }
 .run-launcher-action { flex: 0 0 28px; }
 .run-launcher-action[data-kind="stop"] { color: var(--vscode-errorForeground, #f14c4c); }
 .run-launcher-action[data-kind="kill"] { color: #ff403f; }
+.run-launcher-action[data-kind="close"] {
+    color: var(--vscode-foreground); border-top: 1px solid var(--watch-border);
+    border-radius: 0; margin-top: 4px;
+}
 .run-launcher-action svg { flex: 0 0 18px; width: 18px; height: 18px; }
 .run-launcher-action:disabled { opacity: .4; cursor: default; }
 .tile-title-text {

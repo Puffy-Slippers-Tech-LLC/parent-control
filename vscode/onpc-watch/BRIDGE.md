@@ -219,9 +219,17 @@ Optional `launcher_add_session_command` contains the resolved command with
 only for an active adjustable allowance. Older adapters omit it.
 Optional `launcher_kill: true` advertises immediate cooperative cancellation of
 an active run. Older adapters omit it, leaving Kill disabled.
+Optional `launcher_close: true` enables **Close Finished Launcher** for a saved,
+inactive run. Disconnected sources and older adapters leave it disabled. The
+`close` launcher action resolves empty `argv` without requiring saved command
+parameters. After modal confirmation the extension revalidates the publication
+and calls `watch_output.close_finished_run` on the source host. It locks the idle
+owner and rechecks the run identity before persisting a private `watch-closed`
+marker inside that run. Readers omit dismissed idle tiles, including after
+restart; execution checkpoints and artifacts are preserved. New runs remain visible.
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
-(or `kind: "resume"`, `"cancel-stop"`, `"reload"`, `"add-session"` or `"kill"`). The adapter checks the displayed run against its current,
+(or `kind: "resume"`, `"cancel-stop"`, `"reload"`, `"add-session"`, `"kill"` or `"close"`). The adapter checks the displayed run against its current,
 owner-checked publication and returns `launcher_result` with `ok: false, error`
 or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extension
 host; the webview receives display IDs and command text only. The adapter uses

@@ -262,7 +262,7 @@ function activate(context) {
                     errors.show(panel);
                 }
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
-                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session'].includes(message.kind)) {
+                       typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(message.kind)) {
                 void launchControl(message);
             } else if (message?.type === 'renameLauncher' && runRoots.has(message.root) &&
                        displayedRuns.get(message.root) === message.run &&
@@ -338,8 +338,9 @@ function activate(context) {
             try {
                 let command = await current.launcherCommand(message.root, message.run, message.kind);
                 const allowanceKey = command.allowance_key;
-                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', kill: 'Kill', 'cancel-stop': 'Cancel stop request', 'add-session': 'Add 5 Sessions' }[message.kind];
-                const commandText = message.kind === 'kill' ? `Cancel run ${command.run} immediately; allow normal cleanup.` :
+                const action = { stop: 'Stop', resume: 'Resume', reload: 'Reload', kill: 'Kill', close: 'Close Finished Launcher', 'cancel-stop': 'Cancel stop request', 'add-session': 'Add 5 Sessions' }[message.kind];
+                const commandText = message.kind === 'close' ? 'Clear this saved launcher tile. It will stay closed after reconnecting or restarting VS Code. Launcher checkpoints and test artifacts are preserved.' :
+                    message.kind === 'kill' ? `Cancel run ${command.run} immediately; allow normal cleanup.` :
                     [ `tools/${command.launcher}`, ...command.argv ].map(value =>
                     /^[\w@%+=:,./-]+$/.test(value) ? value : "'" + value.replace(/'/g, "'\\''") + "'").join(' ');
                 const answer = await vscode.window.showWarningMessage(
@@ -361,6 +362,11 @@ sys.path.insert(0, str(root / 'tools'))
 from watch_output import read_json
 if read_json(run.parent / 'current.json')['run'] != run.name:
     sys.exit('Launcher changed; refresh before trying again.')
+if c['kind'] == 'close':
+    from watch_output import close_finished_run
+    close_finished_run(root, run)
+    print('Finished launcher closed.')
+    sys.exit(0)
 if c['kind'] == 'kill':
     from watch_output import cancel_run
     cancel_run(root, run)

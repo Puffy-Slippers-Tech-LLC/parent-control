@@ -332,8 +332,8 @@ Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
 inputs are prepared through the maintained builders. Repair agents remain serial
 within each host or VM workflow; implementation agents remain serial.
-`write-e2e` shares the VM execution queue through `run-tests`. `fix-tests`
-owns independent per-VM case pipelines under the
+`write-e2e` and `fix-tests` share that pass coordinator through `run-tests`;
+`fix-tests` supplies impact triage, repair actions and run-wide rounds under the
 [repair loop](#scripted-repair-loop).
 
 VM ownership is coordinated by the host-wide
@@ -480,26 +480,21 @@ use the shared storage/state route; retained reports keep their normal lifetime.
 
 ### Scheduling state compatibility
 
-The ordinary pass record uses scheduling version `1`, implementation
-`ordinary-pass-v1`, separately from bounded worker checkpoints and the remaining
-legacy repair path. It never relabels retained pipeline family progress: resume
+The shared pass record uses scheduling version `1`, implementation
+`ordinary-pass-v1`, separately from bounded worker checkpoints. It never
+relabels retained pipeline family progress: resume
 refuses that progress until it finishes through its original supported
 implementation, or the existing explicitly authorized reset recovers it. Fresh
 passes preserve settled legacy history and refuse uncertain claims.
 
-The legacy checkpoint admission boundary records scheduling version `1` and
-implementation `pipeline-v1`. The immediately preceding markerless pipeline
-records have that same identity. Adding the marker preserves their allowed VM
-selection, per-family passes, claims, source ownership, transaction references
-and charged task admissions; it does not recalculate rounds or budgets.
-Native checkpoint and ownership validation still applies. Unknown versions and
-different implementations refuse before retained progress is copied, reset or
-executed, including on a fresh invocation.
-
-A replacement scheduler must use this boundary and either provide a reviewed,
-lossless mapping of all those fields or refuse. Incompatible pipeline rounds or
-budgets cannot be adopted by renaming their format. Impact-based admission must
-also use the boundary; absent or stale impact decisions keep admission on hold.
+Repair allocations and journals use scheduling version `2`, implementation
+`repair-shared-v1`. The cutover deliberately changes admission, run-wide rounds
+and VM-independent task charges. Old per-VM repair records, including markerless
+or `pipeline-v1` rounds and budgets, refuse before copying or execution; they
+cannot be adopted by renaming their format. Bounded ordinary worker checkpoints
+retain their existing version `1` admission format. Native checkpoint and
+ownership validation still applies. Missing or stale impact decisions keep
+normal admission on hold.
 There is no compatibility path that starts a second historical scheduler.
 Finish unfinished repair and Git transactions using their original supported
 implementation before switching. The existing explicit `--reset` contract is
@@ -516,7 +511,7 @@ implicitly; guest prerequisites are described in [VM preparation](integration/En
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
 or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
-arguments, until each passes. After a failure, a fresh Codex process receives
+arguments, until its selected work settles. After bounded impact triage, a fresh repair session receives
 that run's generated investigation prompt, applies a repair, exits, and the
 script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry that exact case
 under its original selectors and on its failing VM, retaining required lifecycle
@@ -546,13 +541,13 @@ and its required prerequisites through the case-only runner, for diagnostic
 execution and corrective verification alike. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 
-For a configured VM queue, host categories run once. Each family owns one case
-queue per category and round, while each VM owns its pipeline, checkpoint and
-reports. Idle VMs pull work using an atomic shared claim, rather than receiving
-fixed shards or repeating the family's selection. Failed claims stay bound to
-their VM for recovery and exact repair verification. The
-host pipeline runs alongside the VM pipelines without consuming a VM slot;
-the registry concurrency cap limits only the VM pipelines. Normal cases execute in
+For a configured VM pool, host categories run once per pass. The shared
+coordinator owns one FIFO per family across selected categories and records each
+claim before execution. Every family retains its full selection; ready equivalent
+VMs pull work without fixed shards. Failed attempts keep their original VM for
+recovery and exact repair verification. Host work runs alongside VM work without
+consuming a VM slot; the registry concurrency cap limits active VM attempts.
+Normal cases execute in
 parallel through fresh runner invocations with the original selectors
 and required lifecycle prerequisites. For a system case spanning several phases,
 normal scheduling targets its last selected unfinished phase. The runner executes
@@ -571,8 +566,10 @@ Package preparation reuses content-qualified inputs, rebuilding when source
 changes; each next history, area or E2E case loads the current inputs instead of
 retaining a whole category's frozen inputs.
 
-The VM dashboard's `Overall` accumulates completed selected system and E2E cases
-over their combined selected total for that VM and round. Both inventories are
+The dashboard shows logical case progress by family and category in the current
+pass, one run-wide round/pass, and VM assignments, attempts and resource waits.
+`Overall` accumulates completed selected system and E2E cases
+over their combined selected total for that family and pass. Both inventories are
 discovered before the first case, so changing categories does not reset Overall.
 The installed-system/E2E row shows completed cases over that category's selected
 inventory. Discovery, prerequisite replays and package preparation still run but
@@ -593,34 +590,46 @@ selected case's persistent ID/title and case/category clocks,
 including while its prerequisites run. These display counts never grant a pass;
 the runner's teardown-complete checkpoint remains authoritative.
 
-Every failed case joins one launcher-wide FIFO repair queue. Admitted system
-histories/areas and active E2E cases finish their execution and owned cleanup;
-new normal work waits until the entire queue is empty. Exactly one repair,
-exact-case verification and commit/push/propagation transaction runs at a time.
-Its source lease survives worker reload and remains held by its supervisor during
-owned cleanup. Other VMs cannot load its unverified edits. A queued failure is
-rechecked after preceding repairs land, before spending another agent session,
-so a shared fix can resolve multiple VM failures without duplicate edits. A stopped
-repair with unresolved edits keeps the source fenced for its retained recovery.
-`RepairCoordinator` owns FIFO policy and repair recovery. The shared
-[`test_source.py`](../tools/test_source.py) owns checkout reader leases, durable
-writer fences and source generations; it owns no cases or scheduling policy.
-The existing `fix-tests-source` state directory and its lock/fence identities
-remain stable across extraction. Workers retain their execution and descriptor
-leases. Admission checks the queue, unfinished source owner and kernel lease in
-one transition.
-Explicit `--resume` derives `closeout`, `repair` or `complete` from the existing checkpoints:
-accepted Git work runs first, then each FIFO ticket drains in one recovery worker
-before normal work starts. The parent does not restart an incomplete recovery
-worker to retry it with fresh case budgets.
-Cancellation stops admission and waits for every active pipeline's owned cleanup;
-resuming retains each VM's completed work. Task limits count host categories once
-and VM categories per VM, across their independently advancing rounds.
-Worker startup and reload imports also hold a source lease, and propagation
-resolvers retain both workflow ownership and that transaction's lease through
-cleanup. Explicit resume drains every retained transaction for each FIFO ticket before
-host or normal VM work, retaining the source fence through ownership recovery;
-completed pipeline labels never bypass checkpoint selector/round validation.
+Every failed attempt joins the coordinator's observed FIFO before releasing
+source protection. A fresh read-only impact session receives bounded failure
+context and answers whether another case may be affected: `yes`, `no` or `unsure`,
+with a reason and affected scope. It considers other families, host work, shared
+source, fixtures and prerequisites; `no` requires positive scoped evidence.
+Pending, missing, malformed, stale, interrupted or unavailable triage remains
+`unsure`. Decisions bind to the ticket, failed attempt, source generation and
+relevant inputs; changed evidence invalidates `no` until retriage or an accepted
+recheck. Triage grants no passing credit.
+
+Pending triage, `yes` and `unsure` hold new normal admission across participating
+checkout workflows while admitted histories, areas and cases finish cleanup.
+An evidenced `no` clears only its own hold and allows other eligible normal work
+to continue. A nonempty repair FIFO alone never stops admission. Further failures
+receive prompt triage even while an isolated ticket waits. Each hold and normal
+admission change atomically through the shared source guard.
+
+Repairs remain serial in observed FIFO order and require the exclusive source
+lease. An isolated ticket waits for natural drain of the current finite pass;
+it cannot publish writer intent merely to force that drain. Its original owned
+VM can serve other eligible family work after failed-attempt cleanup. A later
+blocking failure may force an earlier drain. Recheck the FIFO head after prior
+repairs through the same coordinator and original VM before another agent turn.
+Recheck, diagnostic and exact-case verification borrow the active ticket's source
+lease; nested attempts never start another family scheduler. No other worker
+may load unverified repair edits. Owned cleanup and authorized recovery are
+allowed while impact holds normal admission.
+
+Repair results are exactly `resolved`, `leave_failed` or `suspended`, separate
+from impact. Resolution needs an accepted no-edit recheck or fresh verification
+and completed Git close-out. `leave_failed` grants no pass and settles only when
+no repair-owned edits or unfinished writer remain; unresolved `yes`/`unsure`
+impact stops or suspends the run. Suspension, exceptions, lost results and
+mismatched references retain the ticket, continuation and fences. Resume restores
+original ownership and finishes accepted Git work first, then restores impact
+decisions conservatively. Cancellation waits for all owned cleanup.
+[`test_source.py`](../tools/test_source.py) owns checkout admission holds,
+reader/writer leases, durable fences and source generation; it owns no case FIFO
+or completion ledger. Workers and propagation resolvers retain source descriptors
+through cleanup and reload.
 Lifecycle prerequisite rows are replayed by their dependent case's runner rather
 than dispatched again as separate normal cases.
 
@@ -671,11 +680,25 @@ category selectors must still match. This recovers older checkpoints replaced by
 another suite; it cannot recover passes no longer present in saved state. Normal
 execution then replays only work without retained completion credit.
 `--rounds X` defaults to 1, running only round 1.
-With X >= 2, it repeats verification X-1 times, labeled rounds 2 through X
-in the top frame. Each verification round runs `run-tests all`; failures trigger
-repair/category retries before another complete `all` run. Only a passing
-complete run finishes the loop. Concurrently reported failures are handled by
-category; interrupted companion categories are not falsely marked passed.
+With X >= 2, rounds 2 through X each require a full clean pass of the original
+selection, spanning every selected family and host work. Explicit selectors never
+widen to `all`; unfiltered runs retain full regression scope. A repair or admitted
+source change during verification requests a new complete pass after repairs
+settle, including changes from independent participating runs. Admission and
+finalization compare shared source generation. Exact-case verification never
+finishes a round. Resume retains the current pass and valid partial results;
+a requested new clean pass intentionally repeats its complete selection under
+a fresh identity. A terminal left-failed outcome finishes finitely as failure.
+
+Task limits count logical work independently of VM count. One round-1 category
+or explicitly selected verification category covers all its selected families.
+An unfiltered verification round is one composite task, retained across fresh
+passes until clean completion or terminal failure. Fresh selected verification
+passes charge their categories again. Each admission is recorded once before
+assignment and completed once when its scope settles, including failure without
+pass credit. Family partitions, bounded attempts and resumed close-out cost no
+extra tasks. A limit blocks new admissions while admitted family work, repair
+and close-out finish; resume retains those charges.
 For each round-1 category, the launcher highlights
 `Running category [category] (x/y)` beneath the test dashboard's `Overall` row,
 then retains it after the completed test output with its position in the discovered list.
@@ -722,9 +745,18 @@ Without `--stop`, no categories select the VM namespace.
 The launcher itself is Python scripting. The following model ladders remain the
 enforced Codex policy, including goal/review requirements. Escalation timing,
 explicit overrides, case budgets and acceptance remain here. New runs validate the selected model
-and effort against the Codex CLI catalog before testing. Classification and
-proven mechanical test repairs use **GPT-6.1 Sol Medium** in one session,
-or **GPT-6.1 Sol Low** for unit failures.
+and effort against the Codex CLI catalog before testing. Impact triage always
+uses the selected adapter's logical high-effort profile, resolved by that adapter:
+Codex **GPT-6.1 Sol High**. The planned Claude Code mapping is **Opus 5.5** with
+equivalent native high effort; current workflow qualification remains required,
+and this mapping neither enables an unqualified adapter nor switches providers.
+Capacity recovery preserves that tier. Triage takes a source reader lease that
+its own admission hold cannot block; an active source writer still fences it.
+Its classification counts once against the existing per-case session allowance,
+including unit failures. Accepted retained triage costs no extra session on
+resume, and repair reuses that classification for the same evidence.
+Proven mechanical repairs retain **GPT-6.1 Sol Medium**, or
+**GPT-6.1 Sol Low** for unit failures.
 App issues, uncertainty and unresolved security, concurrency, ownership or
 difficult diagnosis end that session without edits and transfer to a fresh
 **GPT-6.1 Sol High** session to recheck and repair, or **GPT-6.1 Sol Medium**
@@ -732,8 +764,8 @@ for unit failures. This raises reasoning effort
 at the judgment boundary without paying for an additional adviser and a second
 implementation context. Ordinary delegation stays disabled; the shared mandatory
 [backend review](../docs/Execution-Plans.md#execution-and-delegation) remains
-required only for core backend changes. Classification is not an
-extra read-only agent before every mechanical repair.
+required only for core backend changes. The impact session supplies classification
+without a duplicate session for the same evidence.
 
 If verification still reports the same case, its next repair escalates from
 **GPT-6.1 Sol Medium** to **GPT-6.1 Sol High**, from High to **GPT-6.1 Sol xHigh**,
@@ -745,8 +777,8 @@ within mixed selections, expanded aggregates and aggregate verification.
 The latest evidence and that case's previous repair summary accompany
 each fresh session. Selected tiers survive blocker answers and returns to an
 unresolved case; neither a blocker nor a diagnostic experiment is a failed repair.
-A newly exposed case starts with Low classification for unit failures and Medium
-otherwise, even in the same category.
+A newly exposed case receives high-effort impact triage, then the applicable
+repair tier, even in the same category.
 Before a repair or diagnostic retry, the launcher copies bounded private failure
 context into `failure-evidence-*.json` beside its control files. These snapshots
 include the runner handoff, per-VM report logs and recent failed-attempt command
@@ -772,7 +804,7 @@ baseline. Reloading grants no new session or retry credit and requires no
 reattachment or manual restart. Cancellation still takes priority. The separate
 E2E implementation launcher retains its source-change handoff behavior.
 
-For a VM pipeline reload, the drained coordinator carries its recorded FIFO
+For a repair coordinator reload, the drained coordinator carries its recorded FIFO
 writer's source lease through fresh imports, then drains retained recovery before
 normal admission. A failed interpreter replacement closes that temporary lease
 without clearing the repair journals or admitting unrelated readers.
@@ -808,8 +840,9 @@ Detaching preserves the live loop. After a stopped/dead owner, `fix-tests --resu
 restores the latest selection, completed categories, current round and pending
 runner checkpoint. Explicit categories retain their original selectors. Without
 `--resume`, a new run starts from its first category with empty repair, queue,
-pending close-out and pipeline status state. Both paths use fresh case
-budgets without loading old repair conversations; new verification rounds still
+pending close-out and pass state. Explicit resume retains charged task admissions;
+the existing fresh-run case-session renewal policy remains unchanged. Neither
+path loads old repair conversations; new verification rounds still
 execute the complete requested selection. After a repair within verification,
 the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
@@ -946,7 +979,7 @@ retrying the category. Host recovery requires no VM configuration or privilege.
 Recovery still fails closed when no actionable handoff is available.
 
 Explicit app-snapshot prerequisite refusals pause the current `fix-tests` VM
-selection as one batch. Running VM pipelines receive immediate cooperative
+selection as one batch. Running VM attempts receive immediate cooperative
 cancellation, including an in-progress case; the launcher joins their owned
 cleanup before preparing snapshots. Product-content changes (including an old
 version snapshot) rebuild every selected VM. Installation/fixture recipe changes

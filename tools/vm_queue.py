@@ -33,18 +33,18 @@ class _Worker:
         return self._vm
 
     @contextmanager
-    def operation(self):
+    def operation(self, *, recovery=False):
         """Admit one operation, keeping source and capacity through its cleanup."""
         import test_source
         from detached_launcher import Stopped
         executor = self.executor
-        executor._check(self.vm)
+        executor._check(self.vm, recovery=recovery)
         with ExitStack() as operation:
             try:
                 operation.enter_context(test_source.reader(
-                    executor.root, stopped=lambda: executor._abort(self.vm), wait=False))
+                    executor.root, stopped=lambda: executor._abort(self.vm, recovery=recovery), wait=False))
             except Stopped:
-                executor._check(self.vm)
+                executor._check(self.vm, recovery=recovery)
                 raise
             except test_source.SourceBusy:
                 raise
@@ -53,13 +53,13 @@ class _Worker:
                 # this worker completed an earlier operation successfully.
                 self.source_refused = True
                 raise
-            executor._check(self.vm)
+            executor._check(self.vm, recovery=recovery)
             with executor._capacity:
                 if executor._active >= executor.limit:
                     raise _CapacityWait()
                 executor._active += 1
             operation.callback(executor._release_slot)
-            executor._check(self.vm)
+            executor._check(self.vm, recovery=recovery)
             self.used = True
             yield
 
@@ -130,19 +130,19 @@ class Executor:
                 self._capacity.wait(.1)
         self._check(vm)
 
-    def _abort(self, vm):
+    def _abort(self, vm, *, recovery=False):
         import launcher_reload
         return (self._closing.is_set() or self._cancelled()
-                or launcher_reload.pending() or not self._needed(vm))
+                or launcher_reload.pending() or not recovery and not self._needed(vm))
 
-    def _check(self, vm):
+    def _check(self, vm, *, recovery=False):
         import launcher_reload
         from detached_launcher import Stopped
         if launcher_reload.pending():
             raise launcher_reload.ReloadRequested()
         if self._closing.is_set() or self._cancelled():
             raise Stopped()
-        if not self._needed(vm):
+        if not recovery and not self._needed(vm):
             raise _NoWork()
 
     def _execute(self, vm, execute, result):
@@ -238,7 +238,8 @@ class Executor:
             results[pending[future]] = future.result()
         return results
 
-    def run_ready(self, execute, *, choose, needed, completed=None):
+    def run_ready(self, execute, *, choose, needed, completed=None, observed=None,
+                  service=None, keep_failed=False):
         """Dispatch one admitted attempt at a time from coordinator-selected VMs.
 
         ``choose(ready_names, active_names)`` may select only a ready name.
@@ -246,8 +247,10 @@ class Executor:
         ``needed(vm)`` ends waiting when that VM has no further work.
         Availability is probed without waiting for occupied VMs. Each probe and
         operation stays on its owning thread, including source lease teardown.
-        Successful workers return for more work; failures retain their checkout
-        until the enclosing executor joins and closes.
+        ``observed`` records failures before their source reader exits. In repair
+        mode retained reservations may serve more normal work and bounded nested
+        attempts. ``service(controller, drained)`` runs between admissions; it
+        must request nested attempts only at a drained boundary.
         ``completed(vm, result)`` runs on the coordinator before refill. Success
         is notified only after source and reservation teardown; the callback may
         return a replacement result to reject an attempt's acceptance.
@@ -266,17 +269,47 @@ class Executor:
 
         def worker_loop(vm):
             inbox = commands[vm.name]
+            retained = False
+            reservation_stack = ExitStack()
+            receipt = None
             while True:
                 command = inbox.get()
                 if command == 'close':
+                    reservation_stack.close()
                     return
+                if command == 'release-reservation':
+                    reservation_stack.close()
+                    reservation_stack = ExitStack()
+                    retained, receipt = False, None
+                    continue
+                if isinstance(command, tuple):
+                    callback, environment, result = command
+                    try:
+                        self._check(vm, recovery=True)
+                        if receipt is None:
+                            receipt = reservation_stack.enter_context(reservation(
+                                vm.name, stopped=lambda: self._abort(vm, recovery=True), bind=False))
+                        retained = True
+                        if callback is None:
+                            result.set_result(None)
+                            continue
+                        with test_source.borrowed(self.root, environment):
+                            worker = _Worker(self, vm, receipt)
+                            with worker.operation(recovery=True):
+                                value = callback(worker)
+                        result.set_result(value)
+                    except BaseException as error:
+                        result.set_exception(error)
+                    continue
                 published = False
                 result_sent = False
                 worker = None
                 try:
                     self._check(vm)
-                    with reservation(vm.name, stopped=lambda: self._abort(vm),
-                                     bind=False, wait=False) as receipt:
+                    if receipt is None:
+                        receipt = reservation_stack.enter_context(reservation(
+                            vm.name, stopped=lambda: self._abort(vm), bind=False, wait=False))
+                    try:
                         with test_source.reader(self.root, stopped=lambda: self._abort(vm), wait=False):
                             self._check(vm)
                             worker = _Worker(self, vm, receipt)
@@ -284,6 +317,7 @@ class Executor:
                             published = True
                             command = inbox.get()
                             if command == 'close':
+                                reservation_stack.close()
                                 return
                             if command != 'run':
                                 continue
@@ -296,11 +330,22 @@ class Executor:
                                 raise
                             except Exception as error:
                                 value = dict(status=2, handoffs=[], error=str(error))
+                            if observed is not None:
+                                observed(vm, value)
                         if value.get('status') and worker.used and not worker.source_refused:
+                            retained = True
                             events.put(('done', vm.name, value))
                             result_sent = True
-                            self._closing.wait()
-                            return
+                            if not keep_failed:
+                                self._closing.wait()
+                                reservation_stack.close()
+                                return
+                            continue
+                    finally:
+                        if not retained:
+                            reservation_stack.close()
+                            reservation_stack = ExitStack()
+                            receipt = None
                     events.put(('done', vm.name, value))
                 except (Busy, test_source.SourceBusy):
                     events.put(('idle' if not published else 'done', vm.name, None))
@@ -308,15 +353,18 @@ class Executor:
                     events.put(('idle' if not published else 'done', vm.name, None))
                 except (Stopped, KeyboardInterrupt):
                     events.put(('terminal', vm.name, dict(status=130, handoffs=[])))
+                    reservation_stack.close()
                     return
                 except launcher_reload.ReloadRequested:
                     events.put(('terminal', vm.name, dict(status=launcher_reload.STATUS, handoffs=[])))
+                    reservation_stack.close()
                     return
                 except BaseException as error:
                     if result_sent:
                         raise
                     events.put(('terminal', vm.name, dict(status=2, handoffs=[],
                                                          cleanup=False, error=str(error))))
+                    reservation_stack.close()
                     return
 
         for vm in self.vms:
@@ -329,6 +377,7 @@ class Executor:
             if kind in ('done', 'terminal'):
                 active.discard(name)
                 if value is not None:
+                    completion_failed = False
                     if completed is not None:
                         try:
                             replacement = completed(targets[name], dict(value))
@@ -340,19 +389,49 @@ class Executor:
                                     raise ValueError('vm-queue: completion cannot accept a failed attempt')
                                 value = replacement
                         except Exception as error:
+                            completion_failed = True
                             value = dict(status=2, handoffs=value.get('handoffs', []),
                                          cleanup=False, error=str(error))
                     previous = results[name]
                     results[name] = dict(value, handoffs=[*previous.get('handoffs', []),
                                                          *value.get('handoffs', [])])
-                    if value.get('status'):
+                    if value.get('status') and (not keep_failed or completion_failed):
                         retired.add(name)
                 if kind == 'terminal':
                     retired.add(name)
             return kind, name
 
+        class Controller:
+            def reserve(inner, name):
+                if name not in commands or name in retired or name in active:
+                    raise ValueError('vm-queue: recovery target is unavailable')
+                result = Future()
+                commands[name].put((None, {}, result))
+                return result.result()
+
+            def attempt(inner, name, callback):
+                if active:
+                    raise ValueError('vm-queue: repair attempts require a drained boundary')
+                if name not in commands or name in retired:
+                    raise ValueError('vm-queue: repair target is unavailable')
+                environment = test_source.environment()
+                if test_source.WRITER not in environment:
+                    raise ValueError('vm-queue: repair attempts require the owning source writer')
+                result = Future()
+                commands[name].put((callback, environment, result))
+                return result.result()
+
+            def release(inner, name):
+                if name in commands:
+                    commands[name].put('release-reservation')
+
+        controller = Controller()
+
         try:
             while True:
+                if service is not None:
+                    if service(controller, not active):
+                        continue
                 candidates = [vm for vm in self.vms if vm.name not in active | retired and needed(vm)]
                 if not candidates and not active:
                     break

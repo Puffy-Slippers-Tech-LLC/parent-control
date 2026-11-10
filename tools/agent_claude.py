@@ -85,6 +85,13 @@ class ClaudeAdapter:
     name = 'claude'
 
     def resolve_profile(self, role, *, model=None, effort=None):
+        if role == 'impact_triage':
+            # This native mapping does not qualify Claude for workflow use;
+            # AgentSelection still owns that independent execution gate.
+            if ((model is not None and model != MODEL)
+                    or (effort is not None and effort != 'high')):
+                raise ValueError('impact triage requires Claude Opus 5.5 with high effort')
+            return ModelProfile(MODEL, 'high')
         if role != 'implementation':
             raise ValueError('Claude workflow/role profiles are not qualified yet')
         model, effort = model or MODEL, effort or 'high'

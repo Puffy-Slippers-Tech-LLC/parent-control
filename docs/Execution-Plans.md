@@ -242,10 +242,17 @@ when the queue is exhausted; the launcher never invents tasks to fill the limit.
 On attachment, an explicit `--tasks` **replaces** the active run's total limit;
 omitting it keeps that limit. Lowering a limit never interrupts accepted ongoing
 work. All shared launchers default to `0`, running all remaining tasks in their
-selected queue. In `fix-tests`, one task is a category pass; an unfiltered
-verification `all` pass is one composite task.
-Repair sessions and retries do not complete additional tasks. Its existing
-`--resume` preserves passed categories and original selectors.
+selected queue. In `fix-tests`, a round-1 category or explicitly selected
+verification category is one logical task across every selected family and host
+work. An unfiltered verification round is one composite task, retained across
+fresh passes until clean completion or terminal failure. Fresh selected
+verification passes charge their categories again. Family partitions, exact-case
+attempts, repair sessions and resumed close-out cost no additional tasks.
+Admission is charged once before assignment and completed once when its scope
+settles, including failure without passing credit. A limit blocks new tasks while
+admitted work and close-out finish; resume retains charged admissions, valid
+current-pass results and original selectors. Rounds are run-wide, independent of
+the number of VMs; see the [repair loop](../tests/README.md#scripted-repair-loop).
 
 `--add-session N` adds a positive integer to the running launcher's current
 task/case session allowance. Use the same plan, scope and VM selection as for
@@ -383,8 +390,9 @@ requests both active repair scopes. Shared request and descriptor handling lives
 [`launcher_reload.py`](../tools/launcher_reload.py). Internal test-frame forwarders
 stay under their existing supervisor. Controllers reload only after
 their admitted operations and cleanup finish. Ordinary plans and E2E implementation
-retain session/task checkpoints; repair pipelines drain to retained boundaries before
-their coordinator reloads; translations finish and retain their current batch.
+retain session/task checkpoints; repair coordinators drain admitted attempts and
+retain their pass, FIFO tickets and source ownership before reloading;
+translations finish and retain their current batch.
 The test scheduler stops admitting jobs, joins active work, saves completed cases
 and reloads with the original selectors and checkpoint. Cancellation takes precedence;
 cleanup/audit failures retain a failed result rather than being hidden by reload.
@@ -393,8 +401,8 @@ A controller import failure ends that owner with an incomplete result and its
 last checkpoint retained for manual recovery.
 
 Requests are asynchronous: “reload requested” confirms publication, not completed
-replacement. A pipeline waiting for controller reload has retained its boundary;
-the coordinator still waits for the other admitted pipelines and cleanup.
+replacement. A worker waiting for controller reload has retained its boundary;
+the coordinator still waits for other admitted attempts and cleanup.
 Owners started before this request protocol was installed cannot consume it;
 finish or stop them through their existing interface, then start current code.
 Reload keeps activity and scratch descriptors and an existing single-VM checkout

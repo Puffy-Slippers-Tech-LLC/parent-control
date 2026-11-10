@@ -3,7 +3,7 @@
 import json
 
 import detached_launcher as launcher
-from test_checkpoint import admit_scheduling_state
+from test_checkpoint import admit_repair_scheduling_state, repair_scheduling_marker
 from launcher_git import (closeout_lock, commit_push_propagate, git_output, stage_task, validate_closeout_ownership,
                           validate_pull_identity, worktree_fingerprint, worktree_snapshot,
                           session_changes)
@@ -23,11 +23,12 @@ class RepairCommits:
         self.selections = {}
         self.guard = lambda: None
         path = run / 'checkpoint.json'
-        self.state = admit_scheduling_state(
-            json.loads(path.read_text()) if path.exists() else {'repairs': {}})
+        self.state = admit_repair_scheduling_state(
+            json.loads(path.read_text()) if path.exists()
+            else {'scheduling': repair_scheduling_marker(), 'repairs': {}})
 
     def save(self):
-        self.state = admit_scheduling_state(self.state)
+        self.state = admit_repair_scheduling_state(self.state)
         launcher.atomic(self.run / 'checkpoint.json', self.state)
 
     @staticmethod
@@ -109,12 +110,6 @@ class RepairCommits:
         scope = dict(entry, stage_baseline=dict(entry['stage_baseline']))
         recovered = []
         provenance = list(self.state['repairs'].values())
-        from fix_tests_queue import parent_run
-        parent = parent_run(self.run)
-        if parent is not None and (parent / 'checkpoint.json').exists():
-            # Legacy batch repairs can share diagnostic edits across VMs. The
-            # migration retains their original ownership records in the parent.
-            provenance.extend(json.loads((parent / 'checkpoint.json').read_text()).get('repairs', {}).values())
         for path in entry['stage_paths']:
             if path not in scope['stage_baseline']:
                 continue

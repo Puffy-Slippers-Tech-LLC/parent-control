@@ -33,6 +33,9 @@ RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start wit
 SCHEDULING_VERSION = 1
 SCHEDULING_IMPLEMENTATION = 'pipeline-v1'
 PASS_NAMESPACE = 'run-tests-pass'
+PASS_NAMESPACES = {'ordinary': PASS_NAMESPACE,
+                   'repair-host': PASS_NAMESPACE + '-repair-host',
+                   'repair-vm': PASS_NAMESPACE + '-repair-vm'}
 PASS_MARKER = dict(version=1, implementation='ordinary-pass-v1')
 
 
@@ -66,6 +69,139 @@ def _pass_execution(assignment):
     return execution
 
 
+def _impact_source(source):
+    if (not isinstance(source, dict) or not isinstance(source.get('digest'), str)
+            or not re.fullmatch(r'[0-9a-f]{64}', source['digest'])
+            or type(source.get('generation')) is not int or source['generation'] < 0):
+        raise ValueError('invalid repair impact source/input identity')
+
+
+def _repair_execution(ticket, execution):
+    _pass_work(execution)
+    if any(execution[field] != ticket['work'][field] for field in ('category', 'options')):
+        raise ValueError('repair target is outside the original selected work')
+    case_based = bool(ticket['work']['cases']) or ticket['work']['category'] in (
+        'unit', 'component', 'ui', 'fixture-runtime')
+    if case_based and (len(execution['cases']) != 1 or execution['area']
+                       or execution['case'] != execution['cases'][0]):
+        raise ValueError('bounded repair requires one exact case')
+
+
+def validate_impact_decision(decision):
+    """Validate bounded triage; isolation requires positive scoped evidence."""
+    if (not isinstance(decision, dict)
+            or set(decision) != {'impact', 'reason', 'scope', 'evidence', 'classification'}
+            or decision['impact'] not in ('yes', 'no', 'unsure')
+            or decision['classification'] not in ('test_issue', 'app_issue', 'uncertain')
+            or not isinstance(decision['reason'], str) or not decision['reason'].strip()
+            or len(decision['reason']) > 4000
+            or any(not isinstance(decision[field], list) or len(decision[field]) > 32
+                   or any(not isinstance(value, str) or not value.strip() or len(value) > 2000
+                          for value in decision[field]) for field in ('scope', 'evidence'))
+            or decision['impact'] == 'no' and (not decision['scope'] or not decision['evidence'])):
+        raise ValueError('invalid repair impact decision; no requires positive scoped evidence')
+    return _copy(decision)
+
+
+def _repair_impact(ticket):
+    """Optional triage is untrusted until its complete binding is validated."""
+    impact = ticket.get('impact')
+    try:
+        if (not isinstance(impact, dict)
+                or set(impact) != {'ticket', 'attempt', 'source', 'evidence_digest', 'decision'}
+                or impact['ticket'] != ticket['id'] or impact['attempt'] != ticket['attempt']
+                or not isinstance(impact['evidence_digest'], str)
+                or not re.fullmatch(r'[0-9a-f]{64}', impact['evidence_digest'])):
+            return None
+        _impact_source(impact['source'])
+        validate_impact_decision(impact['decision'])
+    except ValueError:
+        return None
+    return impact
+
+
+def _repair_tickets(state):
+    """Validate optional failure records without creating another completion ledger."""
+    from vm_case_queue import work_key
+    tickets = state.get('repairs', [])
+    if not isinstance(tickets, list):
+        raise ValueError('invalid ordinary pass repair FIFO')
+    assignments = {identity for partition in state['families'].values()
+                   for collection in ('claims', 'completed')
+                   for assignment in partition[collection].values()
+                   for identity in (assignment['assignment'], assignment['attempt'])}
+    issued = {state['run'], state['pass'], *assignments}
+    failures = set()
+    required = {'id', 'transaction', 'run', 'pass', 'selection', 'family', 'vm', 'work',
+                'assignment', 'attempt', 'source', 'case', 'status', 'cleanup'}
+    for ticket in tickets:
+        if (not isinstance(ticket, dict) or not required <= ticket.keys()
+                or set(ticket) - required - {'execution', 'impact', 'attempts', 'outcome', 'repair_ref', 'resolution'}):
+            raise ValueError('invalid ordinary pass repair ticket')
+        for field in ('id', 'transaction', 'assignment', 'attempt'):
+            if not isinstance(ticket[field], str) or not re.fullmatch(r'[0-9a-f]{32}', ticket[field]):
+                raise ValueError('invalid ordinary pass repair identity')
+        if (ticket['id'] in issued or ticket['transaction'] in issued
+                or ticket['id'] == ticket['transaction']
+                or ticket['assignment'] == ticket['attempt']
+                or {ticket['assignment'], ticket['attempt']} & {state['run'], state['pass']}
+                or {ticket['id'], ticket['transaction']} & {ticket['assignment'], ticket['attempt']}):
+            raise ValueError('duplicate ordinary pass repair identity')
+        issued.update((ticket['id'], ticket['transaction']))
+        if not isinstance(ticket['family'], str) or not isinstance(ticket['vm'], str):
+            raise ValueError('invalid ordinary pass repair family or VM')
+        partition = state['families'].get(ticket['family'], {})
+        _pass_work(ticket['work'])
+        host = ticket['family'] == '' and ticket['vm'] == ''
+        if (ticket['run'] != state['run'] or ticket['pass'] != state['pass']
+                or ticket['selection'] != state['selection']
+                or not host and (state['pool'].get(ticket['vm']) != ticket['family']
+                    or partition.get('items', {}).get(work_key(ticket['work'])) != ticket['work'])
+                or not ticket['source'] or not isinstance(ticket['source'], (str, dict))
+                or type(ticket['status']) is not int or not ticket['status']
+                or type(ticket['cleanup']) is not bool):
+            raise ValueError('invalid ordinary pass repair assignment')
+        execution = _pass_execution(ticket)
+        if (set(ticket['work']) != {'category', 'options', 'cases', 'case', 'area'}
+                or set(execution) != {'category', 'options', 'cases', 'case', 'area'}
+                or ticket['case'] is not None and (not isinstance(ticket['case'], str)
+                                                  or ticket['case'] not in execution['cases'])
+                or ticket['case'] is None and execution['cases']):
+            raise ValueError('repair failure is outside its original execution')
+        failure = (ticket['assignment'], ticket['attempt'], ticket['case'])
+        if failure in failures:
+            raise ValueError('duplicate ordinary pass repair failure')
+        failures.add(failure)
+        for attempt in ticket.get('attempts', []):
+            if (not isinstance(attempt, dict)
+                    or set(attempt) != {'ticket', 'attempt', 'purpose', 'source', 'execution',
+                                       'status', 'accepted'}
+                    or attempt['ticket'] != ticket['id']
+                    or not isinstance(attempt['attempt'], str)
+                    or not re.fullmatch(r'[0-9a-f]{32}', attempt['attempt'])
+                    or attempt['purpose'] not in ('recheck', 'diagnostic', 'verification')
+                    or type(attempt['accepted']) is not bool
+                    or attempt['accepted'] and (attempt['status'] != 0 or attempt['purpose'] == 'diagnostic')
+                    or attempt['status'] is not None and type(attempt['status']) is not int):
+                raise ValueError('invalid bounded repair attempt reference')
+            _impact_source(attempt['source'])
+            _repair_execution(ticket, attempt['execution'])
+        if ticket.get('outcome') not in (None, 'resolved', 'leave_failed', 'suspended'):
+            raise ValueError('invalid repair outcome')
+        if ticket.get('outcome') == 'resolved':
+            reference = ticket.get('resolution')
+            if (not isinstance(reference, dict) or reference not in ticket.get('attempts', [])
+                    or reference.get('accepted') is not True
+                    or reference.get('purpose') == 'verification' and not ticket.get('repair_ref')):
+                raise ValueError('resolved repair lacks its accepted attempt or close-out reference')
+        if 'repair_ref' in ticket and (not isinstance(ticket['repair_ref'], str)
+                or not Path(ticket['repair_ref']).is_absolute()):
+            raise ValueError('invalid repair continuation reference')
+        # Retain invalid optional triage for diagnosis; it cannot authorize
+        # isolation because impact() validates the full envelope on every read.
+    return tickets
+
+
 class PassCheckpoint:
     """The coordinator's one ordinary pass record, held exclusively until exit.
 
@@ -74,18 +210,27 @@ class PassCheckpoint:
     Legacy pipeline/repair progress keeps its original format and authority.
     """
 
-    def __init__(self, root, selection, pool, families, *, resume=False):
+    def __init__(self, root, selection, pool, families, *, resume=False, identity=None,
+                 scope='ordinary'):
         self.root = root
         self.selection = _copy(selection)
         self.pool = _copy(pool)
         self.families = _copy(families)
         self.resume = resume
-        self.store = Store(directory('state', root=root) / PASS_NAMESPACE)
+        if not isinstance(scope, str) or scope not in PASS_NAMESPACES:
+            raise ValueError('invalid ordinary pass checkpoint scope')
+        self.scope = scope
+        if identity is not None and (not isinstance(identity, dict) or set(identity) != {'run', 'pass'}
+                or any(not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{32}', value)
+                       for value in identity.values()) or identity['run'] == identity['pass']):
+            raise ValueError('invalid requested pass identity')
+        self.identity = identity
+        self.store = Store(directory('state', root=root) / PASS_NAMESPACES[scope])
         self._lifetime = None
         self.fd = None
 
     @staticmethod
-    def validate(state):
+    def validate(state, *, scope=None):
         from vm_case_queue import work_key
         def token(value):
             return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{32}', value)
@@ -94,7 +239,10 @@ class PassCheckpoint:
                 or type(state['scheduling'].get('version')) is not int):
             raise ValueError('incompatible ordinary pass state; finish with its original supported '
                              'implementation or use the existing explicitly authorized --reset contract')
-        if (not token(state.get('run')) or not token(state.get('pass'))
+        if (not isinstance(state.get('scope', 'ordinary'), str)
+                or state.get('scope', 'ordinary') not in PASS_NAMESPACES
+                or scope is not None and state.get('scope', 'ordinary') != scope
+                or not token(state.get('run')) or not token(state.get('pass'))
                 or state['run'] == state['pass']
                 or not isinstance(state.get('selection'), list)
                 or any(not isinstance(group, list) or len(group) != 2
@@ -104,6 +252,8 @@ class PassCheckpoint:
                 or any(not isinstance(vm, str) or not vm or not isinstance(family, str) or not family
                        for vm, family in state['pool'].items())
                 or type(state.get('host_complete')) is not bool
+                or not isinstance(state.get('host_passed', []), list)
+                or any(not isinstance(kind, str) for kind in state.get('host_passed', []))
                 or not isinstance(state.get('families'), dict)
                 or set(state['families']) != set(state['pool'].values())):
             raise ValueError('invalid ordinary pass identity or selection')
@@ -121,11 +271,15 @@ class PassCheckpoint:
                     or not isinstance(partition.get('passed'), dict)):
                 raise ValueError('invalid ordinary pass family partition')
             inventory = {}
+            retired = partition.get('retired', [])
+            if (not isinstance(retired, list) or not set(retired) <= set(partition['items'])
+                    or any(not isinstance(key, str) for key in retired)):
+                raise ValueError('invalid retired ordinary pass work')
             for key, work in partition['items'].items():
                 _pass_work(work)
                 if work_key(work) != key:
                     raise ValueError('invalid ordinary pass work identity')
-                inventory.setdefault(work['category'], set()).update(work['cases'])
+                inventory.setdefault(work['category'], set()).update([] if key in retired else work['cases'])
             for category, passed in partition['passed'].items():
                 if category not in inventory or not completed_cases(json.dumps(passed)) <= inventory[category]:
                     raise ValueError('ordinary pass credit is outside its inventory')
@@ -169,6 +323,7 @@ class PassCheckpoint:
                 active.update(identities)
                 issued.update((assignment['assignment'], assignment['attempt']))
                 workers.add(assignment['vm'])
+        _repair_tickets(state)
         return state
 
     def _open(self):
@@ -181,7 +336,7 @@ class PassCheckpoint:
             lifetime.enter_context(self.store.locked(self.fd, 'gate', blocking=False))
             state = _read_scheduling_record('current.json', strict=True, dir_fd=self.fd)
             if state is not None:
-                self.validate(state)
+                self.validate(state, scope=self.scope)
             self._lifetime = lifetime
             return state
         except BaseException:
@@ -196,6 +351,16 @@ class PassCheckpoint:
             # Do not silently adopt another scheduler's accepted progress. Fresh
             # ordinary passes may leave settled historical family records alone.
             guard_scheduling_checkpoints(self.root)
+            if self.identity is not None:
+                for scope, namespace in PASS_NAMESPACES.items():
+                    if scope == self.scope:
+                        continue
+                    previous = _read_scheduling_record(
+                        directory('state', root=self.root) / namespace / 'current.json', strict=True)
+                    if previous is not None and self.identity == {
+                            key: previous[key] for key in ('run', 'pass')}:
+                        raise ValueError('requested pass identity belongs to another checkpoint scope; '
+                                         'resume its original supported workflow')
             for path in directory('state', root=self.root).glob('run-tests-family-vm-*'):
                 previous = _read_scheduling_record(path / 'current.json')
                 if previous and (previous.get('queue_claims') or self.resume and state is None
@@ -211,18 +376,25 @@ class PassCheckpoint:
                           for family, items in self.families.items()}
             fresh = dict(version=1, scheduling=dict(PASS_MARKER), run=uuid.uuid4().hex,
                          **{'pass': uuid.uuid4().hex}, selection=self.selection, pool=self.pool,
-                         host_complete=False, families=partitions)
+                         host_complete=False, families=partitions, scope=self.scope)
+            if self.identity is not None:
+                fresh.update(self.identity)
             self.validate(fresh)
             if state is not None and self.resume:
+                if self.identity is not None and self.identity != {key: state[key] for key in ('run', 'pass')}:
+                    raise ValueError('saved pass identity differs from the selected run')
                 if state['selection'] != self.selection or state['pool'] != self.pool:
                     raise ValueError(RESUME_SELECTION_MISMATCH)
                 for family, partition in partitions.items():
                     previous = state['families'][family]
                     if previous['order'] != partition['order'] or previous['items'] != partition['items']:
-                        self._resume_inventory(previous, partition)
+                        self._resume_inventory(previous, partition, state.get('repairs', []))
                 self.state = state
                 self.save()
             else:
+                if state is not None and any(ticket.get('outcome') not in ('resolved', 'leave_failed')
+                                              for ticket in state.get('repairs', [])):
+                    raise ValueError('ordinary pass has pending repairs; use --resume to preserve their transactions')
                 if state is not None and any(partition['claims'] for partition in state['families'].values()):
                     raise ValueError('ordinary pass has uncertain claims; use --resume or recover their original VM owners')
                 self.state = fresh
@@ -238,15 +410,15 @@ class PassCheckpoint:
             self._lifetime = None
             self.fd = None
 
-    def _resume_inventory(self, previous, current):
+    def _resume_inventory(self, previous, current, repairs=()):
         """Retain qualified cases across the existing narrow inventory changes."""
         from vm_case_queue import work_key
         from test_commands import selections
         groups = [group for kind, args in self.selection
                   for group in (selections(self.root, args) if kind == '_guest' else [(kind, args)])]
         whole_system = [args for kind, args in groups if kind == 'system'] == [[]]
-        # The persistent registry alone can retire a system identity. Unknown
-        # missing cases and changed selectors must still refuse resume.
+        # Registry retirement and the failed ticket's own changed identities
+        # permit bounded replacement. Unrelated missing work still refuses.
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
         try:
             from system_case_ids import UNBOUND_CASES, identity_for_event
@@ -256,30 +428,48 @@ class PassCheckpoint:
                    for case in work['cases']
                    if (identity := identity_for_event(case)) is not None
                    and UNBOUND_CASES.get(identity.numeric_id, (None,))[0] == 'retired'}
+        failed = [ticket['work'] for ticket in repairs if ticket['family']
+                  and ticket.get('outcome') not in ('resolved', 'leave_failed')
+                  and work_key(ticket['work']) in previous['items']]
+        def same_selection(left, right):
+            return all(left[field] == right[field] for field in ('category', 'options'))
+        def selected_cases(work):
+            return {case for item in current['items'].values() if same_selection(item, work)
+                    for case in item['cases']}
         keys, translated = [], {}
         for key in previous['order']:
+            if key in previous.get('retired', []):
+                continue
             work = previous['items'][key]
-            cases = [case for case in work['cases'] if case not in retired]
+            missing = {case for ticket in failed if same_selection(ticket, work)
+                       for case in ticket['cases'] if case not in selected_cases(work)}
+            cases = [case for case in work['cases'] if case not in retired | missing]
             changed = cases != work['cases']
-            if changed and key in previous['claims']:
-                raise ValueError('resume inventory changed an uncertain original VM claim; recover it first')
             if changed and not cases:
                 continue
-            item = dict(work, cases=cases, case=(cases[-1] if work['case'] in retired else work['case']))
+            item = dict(work, cases=cases, case=(cases[-1] if work['case'] in retired | missing else work['case']))
             mapped = work_key(item)
             if current['items'].get(mapped) != item:
-                raise ValueError('resume pass inventory differs from checkpoint; original selection required')
+                replacement = next((candidate for candidate in current['items'].values()
+                    if work in failed and same_selection(candidate, work)
+                    and set(cases) <= set(candidate['cases'])), None)
+                if replacement is None:
+                    raise ValueError('resume pass inventory differs from checkpoint; original selection required')
+                mapped = work_key(replacement)
             if mapped not in keys:
                 keys.append(mapped)
             translated[key] = mapped
         additions = [work for key, work in current['items'].items() if key not in keys]
         if ([key for key in current['order'] if key in keys] != keys
-                or additions and (not whole_system or any(work['category'] != 'system'
-                    or len(work['cases']) != 1
-                    or not re.fullmatch(r'check_[a-z][a-z0-9_]*', work['cases'][0]) for work in additions))):
+                or any(not any(same_selection(work, ticket) for ticket in failed)
+                       and (not whole_system or work['category'] != 'system'
+                            or len(work['cases']) != 1
+                            or not re.fullmatch(r'check_[a-z][a-z0-9_]*', work['cases'][0]))
+                       for work in additions)):
             raise ValueError('resume pass inventory differs from checkpoint; original selection required')
         current['claims'] = previous['claims']
-        current['passed'] = {category: sorted(set(passed) - retired)
+        current['passed'] = {category: sorted(set(passed) & {case for work in current['items'].values()
+                                                           if work['category'] == category for case in work['cases']})
                              for category, passed in previous['passed'].items()}
         current['completed'] = {}
         for key, receipt in previous['completed'].items():
@@ -288,13 +478,22 @@ class PassCheckpoint:
                 # must not be rewritten to claim a different execution.
                 if translated[key] == key:
                     current['completed'][key] = receipt
+        # Keep immutable ownership records for removed cases until their original
+        # worker and repair transaction finish. They are never normal work or credit.
+        retained = set(previous['claims']) | {work_key(ticket['work']) for ticket in repairs
+                    if ticket['family'] and work_key(ticket['work']) in previous['items']}
+        for key in previous['order']:
+            if key in retained and key not in current['items']:
+                current['items'][key] = previous['items'][key]
+                current['order'].append(key)
+                current.setdefault('retired', []).append(key)
         previous.update(current)
 
     @classmethod
     @contextmanager
-    def saved(cls, root):
+    def saved(cls, root, *, scope='ordinary'):
         """Open retained claims for maintained recovery, under the same gate."""
-        checkpoint = cls(root, [], {}, {})
+        checkpoint = cls(root, [], {}, {}, scope=scope)
         try:
             checkpoint.state = checkpoint._open()
             yield checkpoint if checkpoint.state is not None else None
@@ -304,7 +503,7 @@ class PassCheckpoint:
     def save(self):
         if self.fd is None:
             raise ValueError('ordinary pass requires exclusive coordinator ownership')
-        self.validate(self.state)
+        self.validate(self.state, scope=self.scope)
         self.store.save(self.fd, self.state)
 
     def claims(self, family=None):
@@ -319,7 +518,7 @@ class PassCheckpoint:
         active = {(assignment['work']['category'], case) for assignment in partition['claims'].values()
                   for case in assignment['work']['cases']}
         return [_copy(partition['items'][key]) for key in partition['order']
-                if key not in partition['claims']
+                if key not in partition['claims'] and key not in partition.get('retired', [])
                 and (partition['items'][key]['cases'] or key not in partition['completed'])
                 and not (partition['items'][key]['cases']
                          and set(partition['items'][key]['cases']) <= self.passed(
@@ -374,6 +573,183 @@ class PassCheckpoint:
             raise ValueError('stale or mismatched ordinary pass assignment')
         return partition, key
 
+    def repair_tickets(self):
+        """Return failures in observed order, independent of family completion."""
+        return _copy([ticket for ticket in self.state.get('repairs', [])
+                      if ticket.get('outcome') not in ('resolved', 'leave_failed')])
+
+    def host_failure(self, work, source, status, *, case=None):
+        """Record one bounded host operation without inventing VM ownership."""
+        _pass_work(work)
+        _impact_source(source)
+        if type(status) is not int or not status:
+            raise ValueError('host failure requires a failing status')
+        ticket = dict(id=uuid.uuid4().hex, transaction=uuid.uuid4().hex,
+                      run=self.state['run'], **{'pass': self.state['pass']},
+                      selection=_copy(self.selection), family='', vm='', work=_copy(work),
+                      assignment=uuid.uuid4().hex, attempt=uuid.uuid4().hex,
+                      source=_copy(source), case=case, status=status, cleanup=True)
+        candidate = _copy(self.state)
+        candidate.setdefault('repairs', []).append(ticket)
+        self.validate(candidate)
+        self.state = candidate
+        self.save()
+        return _copy(ticket)
+
+    def begin_attempt(self, ticket_id, purpose, source, execution, *, selected_cases=None):
+        if purpose not in ('recheck', 'diagnostic', 'verification'):
+            raise ValueError('invalid bounded repair purpose')
+        ticket = self._repair_ticket(ticket_id)
+        if ticket.get('outcome') in ('resolved', 'leave_failed'):
+            raise ValueError('repair ticket is already settled')
+        _impact_source(source)
+        _repair_execution(ticket, execution)
+        if ticket['family']:
+            partition = self.state['families'][ticket['family']]
+            selected_cases = {case for key, work in partition['items'].items()
+                              if key not in partition.get('retired', [])
+                              and all(work[field] == execution[field] for field in ('category', 'options'))
+                              for case in work['cases']}
+        if execution['cases'] and (selected_cases is None
+                and not set(execution['cases']) <= set(ticket['work']['cases'])
+                or selected_cases is not None and not set(execution['cases']) <= set(selected_cases)):
+            raise ValueError('repair target is outside the current original selection')
+        reference = dict(ticket=ticket_id, attempt=uuid.uuid4().hex, purpose=purpose,
+                         source=_copy(source), execution=_copy(execution), status=None, accepted=False)
+        ticket.setdefault('attempts', []).append(reference)
+        self.save()
+        return _copy(reference)
+
+    def finish_attempt(self, ticket_id, reference, evidence, status, *, source):
+        ticket = self._repair_ticket(ticket_id)
+        attempt = next((value for value in ticket.get('attempts', [])
+                        if value['attempt'] == reference.get('attempt')), None)
+        if attempt != reference or type(status) is not int:
+            raise ValueError('stale bounded repair attempt')
+        execution = attempt['execution']
+        expected = {field: ticket[field] for field in (
+            'run', 'pass', 'selection', 'family', 'vm', 'work', 'assignment')}
+        expected.update(attempt=attempt['attempt'], source=attempt['source'], execution=execution)
+        qualified = (isinstance(evidence, dict) and evidence.get('cleanup') is True
+                     and evidence.get('diagnostic') is False
+                     and source == attempt['source']
+                     and all(evidence.get(field) == value for field, value in expected.items())
+                     and set(execution['cases']) == completed_cases(json.dumps(evidence.get('passed', []))))
+        attempt.update(status=status, accepted=bool(not status and qualified
+                                                   and attempt['purpose'] != 'diagnostic'))
+        self.save()
+        return _copy(attempt)
+
+    def settle_repair(self, ticket_id, outcome, *, reference=None, repair_ref=None):
+        ticket = self._repair_ticket(ticket_id)
+        if outcome not in ('resolved', 'leave_failed', 'suspended'):
+            raise ValueError('invalid repair outcome')
+        if outcome == 'resolved' and not any(value == reference and value['accepted']
+                for value in ticket.get('attempts', [])):
+            raise ValueError('resolution requires an accepted bounded attempt')
+        if outcome == 'resolved' and reference['purpose'] == 'verification' and repair_ref is None:
+            raise ValueError('verified resolution requires completed repair close-out reference')
+        ticket['outcome'] = outcome
+        if outcome == 'resolved':
+            ticket['resolution'] = _copy(reference)
+        if repair_ref is not None:
+            ticket['repair_ref'] = repair_ref
+        if outcome == 'resolved' and ticket['family']:
+            from vm_case_queue import work_key
+            partition = self.state['families'][ticket['family']]
+            work = next((work for key, work in partition['items'].items()
+                         if key not in partition.get('retired', [])
+                         and all(work[field] == reference['execution'][field] for field in ('category', 'options'))
+                         and set(reference['execution']['cases']) <= set(work['cases'])), None)
+            if work is None:
+                raise ValueError('resolved repair target is no longer selected')
+            partition['passed'][work['category']] = sorted(self.passed(
+                ticket['family'], work['category']) | set(reference['execution']['cases']))
+            receipt = {field: _copy(ticket[field]) for field in (
+                'run', 'pass', 'selection', 'family', 'vm', 'work', 'assignment')}
+            receipt.update(work=_copy(work), attempt=reference['attempt'], source=reference['source'],
+                execution=reference['execution'], passed=reference['execution']['cases'],
+                cleanup=True, diagnostic=False, status=0)
+            partition['completed'][work_key(work)] = receipt
+            original_key = work_key(ticket['work'])
+            original = partition['claims'].get(original_key)
+            if original is not None and original['assignment'] == ticket['assignment']:
+                del partition['claims'][original_key]
+        self.save()
+        return _copy(ticket)
+
+    def enqueue_failure(self, assignment, evidence, status, *, case=None):
+        """Persist an exact claimed failure before its source reader is released.
+
+        Only identity, original selectors and bounded result metadata survive;
+        subprocess commands and arbitrary report payloads are never copied.
+        This records no acceptance and does not release the original VM claim.
+        """
+        self._claimed(assignment)
+        execution = _pass_execution(assignment)
+        if (type(status) is not int or not status or not isinstance(evidence, dict)
+                or any(evidence.get(field) != value for field, value in assignment.items())
+                or evidence.get('diagnostic') is not False
+                or type(evidence.get('cleanup')) is not bool
+                or not isinstance(evidence.get('passed'), list)
+                or not completed_cases(json.dumps(evidence['passed'])) <= set(execution['cases'])):
+            raise ValueError('missing, stale, mismatched or diagnostic repair failure evidence')
+        case = execution['case'] if case is None else case
+        for ticket in self.state.get('repairs', []):
+            if (ticket['assignment'], ticket['attempt'], ticket['case']) == (
+                    assignment['assignment'], assignment['attempt'], case):
+                if ticket['status'] != status or ticket['cleanup'] != evidence['cleanup']:
+                    raise ValueError('mismatched repeated repair failure evidence')
+                return _copy(ticket)
+        fields = ('run', 'pass', 'selection', 'family', 'vm', 'work',
+                  'assignment', 'attempt', 'source', 'execution')
+        ticket = {field: _copy(assignment[field]) for field in fields if field in assignment}
+        ticket.update(id=uuid.uuid4().hex, transaction=uuid.uuid4().hex, case=case,
+                      status=status, cleanup=evidence['cleanup'])
+        candidate = _copy(self.state)
+        candidate.setdefault('repairs', []).append(ticket)
+        self.validate(candidate)
+        self.state = candidate
+        self.save()
+        return _copy(ticket)
+
+    def _repair_ticket(self, ticket_id):
+        for ticket in self.state.get('repairs', []):
+            if ticket['id'] == ticket_id:
+                return ticket
+        raise ValueError('unknown ordinary pass repair ticket')
+
+    def record_impact(self, ticket_id, decision, *, source, evidence_digest):
+        """Bind triage to current source/inputs, without changing failed identity."""
+        ticket = self._repair_ticket(ticket_id)
+        _impact_source(source)
+        validate_impact_decision(decision)
+        if not isinstance(evidence_digest, str) or not re.fullmatch(r'[0-9a-f]{64}', evidence_digest):
+            raise ValueError('invalid repair impact evidence digest')
+        impact = dict(ticket=ticket_id, attempt=ticket['attempt'], source=_copy(source),
+                      evidence_digest=evidence_digest, decision=_copy(decision))
+        candidate = _copy(self.state)
+        next(value for value in candidate['repairs'] if value['id'] == ticket_id)['impact'] = impact
+        self.validate(candidate)
+        self.state = candidate
+        self.save()
+        return _copy(impact)
+
+    def impact(self, ticket_id, *, source, evidence_digest):
+        """Missing or changed triage always keeps the admission decision unsure."""
+        ticket = self._repair_ticket(ticket_id)
+        impact = _repair_impact(ticket)
+        try:
+            _impact_source(source)
+        except ValueError:
+            source = None
+        if (source is not None and impact is not None and impact['ticket'] == ticket_id
+                and impact['attempt'] == ticket['attempt'] and impact['source'] == source
+                and impact['evidence_digest'] == evidence_digest):
+            return _copy(impact['decision'])
+        return dict(impact='unsure', reason='Impact triage is missing or stale.',
+                    scope=[], evidence=[], classification='uncertain')
+
     def accept(self, assignment, evidence, status):
         partition, key = self._claimed(assignment)
         if (type(status) is not int or not isinstance(evidence, dict)
@@ -417,6 +793,22 @@ class PassCheckpoint:
 
 def scheduling_marker():
     return dict(version=SCHEDULING_VERSION, implementation=SCHEDULING_IMPLEMENTATION)
+
+
+def repair_scheduling_marker():
+    return dict(version=2, implementation='repair-shared-v1')
+
+
+def admit_repair_scheduling_state(state):
+    """Refuse old repair rounds and charges without reinterpreting their records."""
+    if (not isinstance(state, dict)
+            or state.get('scheduling') != repair_scheduling_marker()
+            or type(state['scheduling'].get('version')) is not int):
+        raise ValueError('incompatible repair scheduling state; finish retained repair/Git '
+                         'transactions with the original supported implementation before switching, '
+                         'or use the existing --reset recovery contract only when abandonment '
+                         'is explicitly authorized')
+    return dict(state, scheduling=repair_scheduling_marker())
 
 
 def admit_scheduling_state(state):
@@ -472,62 +864,83 @@ def _read_scheduling_record(path, *, strict=False, dir_fd=None):
 
 
 def guard_scheduling_run(run):
+    """Validate an ordinary runner allocation without adopting repair state."""
+    run = Path(run)
+    # Repair journals never enter through the ordinary bounded-worker format,
+    # even when a caller accidentally uses this general preflight boundary.
+    repair_paths = [*run.glob('pipeline-*'), *(run / name for name in (
+        'checkpoint.json', 'pipelines.json', 'family-cases', 'pipeline.json',
+        'repair-queue.json', 'repair-pending.json', 'repair-source-resume.json'))]
+    if any(path.exists() or path.is_symlink() for path in repair_paths):
+        return guard_repair_scheduling_run(run)
+    marker = _read_scheduling_record(run / 'scheduling.json')
+    admit_scheduling_state({} if marker is None else {'scheduling': marker})
+    limits = _read_scheduling_record(run / 'limits.json')
+    if limits is not None:
+        admit_scheduling_state(limits)
+        if (any(type(limits.get(key)) is not int or limits[key] < 0
+                for key in ('started', 'completed'))
+                or limits.get('tasks') is not None
+                and (type(limits['tasks']) is not int or limits['tasks'] < 1)):
+            raise ValueError('invalid retained task admissions')
+    return scheduling_marker()
+
+
+def guard_repair_scheduling_run(run):
     """Preflight a repair allocation before retention, copying or execution.
 
     Callers hold its existing workflow ownership. This reader neither adopts a
     source fence nor grants recovery authority; their native ownership guards
-    still apply. It accepts only current pipeline records and never starts a
+    still apply. It accepts only current shared repair records and never starts a
     historical scheduler. The returned marker may be published as scheduling.json
     after all preflight succeeds. Other records remain in their native formats.
     """
     run = Path(run)
     marker = _read_scheduling_record(run / 'scheduling.json')
-    admit_scheduling_state({} if marker is None else {'scheduling': marker})
-    allocations = [run, *sorted(run.glob('pipeline-*'))]
-    for allocation in allocations:
-        if allocation.is_symlink():
-            raise ValueError('retained scheduling allocation contains a symlink')
-        if not allocation.is_dir():
+    if marker is not None:
+        admit_repair_scheduling_state({'scheduling': marker})
+    # These records belong exclusively to the removed per-VM scheduler. Even a
+    # current top-level marker cannot turn their rounds or budgets into ours.
+    legacy = [*run.glob('pipeline-*'), *(run / name for name in (
+        'pipelines.json', 'family-cases', 'pipeline.json', 'repair-queue.json'))]
+    if any(path.exists() or path.is_symlink() for path in legacy):
+        admit_repair_scheduling_state({})
+    for name in ('checkpoint.json', 'limits.json', 'vm.json', 'repair-source-resume.json',
+                 'repair-pending.json'):
+        state = _read_scheduling_record(run / name)
+        if state is None:
             continue
-        nested = _read_scheduling_record(allocation / 'scheduling.json')
-        if nested is not None:
-            admit_scheduling_state({'scheduling': nested})
-        state = _read_scheduling_record(allocation / 'checkpoint.json')
-        if state is not None:
-            admit_scheduling_state(state)
-            if not isinstance(state.get('repairs'), dict):
-                raise ValueError('invalid retained repair checkpoint')
-        limits = _read_scheduling_record(allocation / 'limits.json')
-        if limits is not None:
-            admit_scheduling_state(limits)
-            if (any(type(limits.get(key)) is not int or limits[key] < 0
+        # A missing allocation marker must not adopt retained payloads, even if
+        # a single nested record happens to claim the current identity.
+        admit_repair_scheduling_state({'scheduling': marker})
+        if name == 'vm.json':
+            if not isinstance(state, dict) or set(state) != {'vm'}:
+                raise ValueError('invalid retained repair VM binding')
+            binding = state['vm']
+            if binding is None or isinstance(binding, str) and binding:
+                continue
+            if (not isinstance(binding, dict) or set(binding) != {'concurrency', 'vms'}
+                    or type(binding['concurrency']) is not int or binding['concurrency'] < 1
+                    or not isinstance(binding['vms'], list) or not binding['vms']
+                    or any(not isinstance(vm, str) or not vm for vm in binding['vms'])
+                    or len(binding['vms']) != len(set(binding['vms']))):
+                raise ValueError('invalid retained repair VM binding')
+            continue
+        if name == 'repair-source-resume.json':
+            if (not isinstance(state, dict) or set(state) != {'run'}
+                    or not isinstance(state['run'], str) or not Path(state['run']).is_absolute()):
+                raise ValueError('invalid retained repair source resume identity')
+            continue
+        admit_repair_scheduling_state(state)
+        if name == 'checkpoint.json' and not isinstance(state.get('repairs'), dict):
+            raise ValueError('invalid retained repair checkpoint')
+        if name == 'limits.json' and (
+                any(type(state.get(key)) is not int or state[key] < 0
                     for key in ('started', 'completed'))
-                    or limits.get('tasks') is not None
-                    and (type(limits['tasks']) is not int or limits['tasks'] < 1)):
-                raise ValueError('invalid retained task admissions')
-        for name in ('vm.json', 'pipeline.json', 'repair-source-resume.json', 'repair-pending.json'):
-            value = _read_scheduling_record(allocation / name)
-            if value is not None:
-                admit_scheduling_state(value)
-        waiting = _read_scheduling_record(allocation / 'repair-queue.json')
-        if waiting is not None and (not isinstance(waiting, list)
-                                   or any(not isinstance(ticket, str) for ticket in waiting)):
-            raise ValueError('invalid retained repair queue')
-    pipelines = _read_scheduling_record(run / 'pipelines.json')
-    if pipelines is not None:
-        admit_scheduling_state(pipelines)
-        if any(not isinstance(value, dict) for key, value in pipelines.items() if key != 'scheduling'):
-            raise ValueError('invalid retained pipeline state')
-    families = run / 'family-cases'
-    if families.is_symlink():
-        raise ValueError('retained family queues contain a symlink')
-    for path in sorted(families.glob('*.json')):
-        state = _read_scheduling_record(path)
-        admit_scheduling_state(state)
-        if (state.get('version') != 1 or not isinstance(state.get('completed'), list)
-                or not isinstance(state.get('claims'), dict) or not isinstance(state.get('items'), dict)):
-            raise ValueError('invalid retained family case queue')
-    return scheduling_marker()
+                or state.get('tasks') is not None
+                and (type(state['tasks']) is not int or state['tasks'] < 1)):
+            raise ValueError('invalid retained task admissions')
+    return repair_scheduling_marker()
 
 
 def guard_scheduling_checkpoints(root):
@@ -541,12 +954,13 @@ def guard_scheduling_checkpoints(root):
         path = directory('state', root=root, create=False)
     except FileNotFoundError:
         return
-    ordinary_path = path / PASS_NAMESPACE
-    if ordinary_path.exists() or ordinary_path.is_symlink():
-        private(ordinary_path.lstat())
-    ordinary = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
-    if ordinary is not None:
-        PassCheckpoint.validate(ordinary)
+    for scope, namespace in PASS_NAMESPACES.items():
+        ordinary_path = path / namespace
+        if ordinary_path.exists() or ordinary_path.is_symlink():
+            private(ordinary_path.lstat())
+        ordinary = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
+        if ordinary is not None:
+            PassCheckpoint.validate(ordinary, scope=scope)
     for candidate in sorted(path.iterdir()):
         if not re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}', candidate.name):
             continue
@@ -573,97 +987,37 @@ def recover_family_claims(root, vm_name):
 
 def _family_claims(root, vm_name, *, recover):
     import test_activity
-    from vm_case_queue import work_key
-    def read(store, fd):
-        try:
-            source = os.open('current.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-        except FileNotFoundError:
-            return None
-        with os.fdopen(source) as stream:
-            private(os.fstat(stream.fileno()), regular=True)
-            if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
-                raise ValueError('family queue recovery checkpoint is oversized')
-            state = json.load(stream)
-        state = admit_scheduling_state(state)
-        if (not isinstance(state, dict) or state.get('version') != 1
-                or not isinstance(state.get('categories'), dict)
-                or not isinstance(state.get('queue_completed', []), list)
-                or any(not isinstance(value, str) for value in state.get('queue_completed', []))):
-            raise ValueError('invalid retained family case progress')
-        for entry in state['categories'].values():
-            if (not isinstance(entry, dict) or not isinstance(entry.get('args'), list)
-                    or not isinstance(entry.get('passed'), list) or type(entry.get('complete')) is not bool):
-                raise ValueError('invalid retained family case progress')
-            completed_cases(json.dumps(entry['passed']))
-        claims, items = state.get('queue_claims', {}), state.get('queue_items', {})
-        if not isinstance(claims, dict) or not isinstance(items, dict):
-            raise ValueError('invalid retained family case claims')
-        for key, owner in claims.items():
-            item = items.get(key)
-            if (not isinstance(key, str) or not isinstance(owner, str) or not isinstance(item, dict)
-                    or not {'category', 'case', 'cases', 'options', 'area'} <= item.keys()
-                    or not isinstance(item['category'], str) or item['category'] not in state['categories']
-                    or not isinstance(item['cases'], list) or not isinstance(item['options'], list)
-                    or any(not isinstance(value, str) for value in (*item['cases'], *item['options']))
-                    or type(item['area']) is not bool
-                    or (item['case'] is not None and item['case'] not in item['cases'])
-                    or work_key(item) != key):
-                raise ValueError('invalid retained family case claims')
-        return state
-
     guard_scheduling_checkpoints(root)
+    # Recovery owns only authoritative shared claims. The normal admission
+    # guard refuses incompatible legacy progress; explicit reset retires those
+    # old records only after its maintained owned cleanup succeeds.
     ordinary = 0
-    ordinary_path = directory('state', root=root) / PASS_NAMESPACE
-    if ordinary_path.exists():
+    for scope, namespace in PASS_NAMESPACES.items():
+        ordinary_path = directory('state', root=root) / namespace
+        if not ordinary_path.exists():
+            continue
+        state = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
+        if state is None:
+            continue
+        PassCheckpoint.validate(state, scope=scope)
+        owned = [assignment for partition in state['families'].values()
+                 for assignment in partition['claims'].values() if assignment['vm'] == vm_name]
         if recover:
+            if not owned:
+                continue
             # Take the coordinator's gate before touching any queue. An active
             # coordinator's in-memory claims cannot race standalone recovery.
-            with PassCheckpoint.saved(root) as checkpoint:
+            with PassCheckpoint.saved(root, scope=scope) as checkpoint:
                 if checkpoint is not None:
                     owned = [assignment for assignment in checkpoint.claims() if assignment['vm'] == vm_name]
                     if owned:
                         with test_activity.exclusive_vm_progress():
                             for assignment in owned:
                                 checkpoint.recover(assignment, cleanup=True)
-                        ordinary = len(owned)
+                        ordinary += len(owned)
         else:
-            state = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
-            if state is not None:
-                PassCheckpoint.validate(state)
-                ordinary = sum(assignment['vm'] == vm_name for partition in state['families'].values()
-                               for assignment in partition['claims'].values())
-    paths = [path for path in directory('state', root=root).glob('run-tests-family-vm-*')
-             if re.fullmatch(r'run-tests-family-vm-[0-9a-f]{24}', path.name)]
-    candidates = []
-    for path in paths:
-        store = Store(path)
-        with store.opened() as fd:
-            state = read(store, fd)
-            if state is not None and vm_name in state.get('queue_claims', {}).values():
-                candidates.append(path)
-    if not recover or not candidates:
-        return len(candidates) + ordinary
-    recovered = 0
-    with test_activity.exclusive_vm_progress():
-        for path in candidates:
-            store = Store(path)
-            with store.opened() as fd:
-                state = read(store, fd)
-                if state is None:
-                    continue
-                claims = state.get('queue_claims', {})
-                owned = [key for key, owner in claims.items() if owner == vm_name]
-                for key in owned:
-                    item = state['queue_items'][key]
-                    category = state['categories'][item['category']]
-                    category['passed'] = [case for case in category['passed'] if case != item['case']]
-                    category['complete'] = False
-                    state['queue_completed'] = [value for value in state.get('queue_completed', []) if value != key]
-                    del claims[key]
-                    recovered += 1
-                if owned:
-                    store.save(fd, state, name='current.json')
-    return recovered + ordinary
+            ordinary += len(owned)
+    return ordinary
 
 
 def request_record(root, namespace, value=None):

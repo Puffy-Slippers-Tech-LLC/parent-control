@@ -22,6 +22,497 @@ import test_commands as commands
 VM_ARGS = ['--vm', vm_name()]
 
 
+def test_impact_triage_stays_read_only_and_bounded(tmp_path, monkeypatch):
+    import agent_adapter
+    import agent_claude
+    import agent_codex
+    import detached_launcher
+    import fix_tests
+
+    # Exercise the request boundary without a model session or native CLI.
+    prepared = []
+    monkeypatch.setattr(detached_launcher, 'prepare_session',
+                        lambda request, environment: prepared.append(request) or request)
+    selection = agent_adapter.AgentSelection('codex', tmp_path)
+    request = fix_tests.impact_command(tmp_path, tmp_path, selection=selection)
+    assert request.permissions == 'read_only'
+    assert not request.delegation.enabled and request.delegation.roles == ()
+    assert request.logical_tier == 'high'
+    assert (request.model, request.effort) == ('gpt-6.1-sol', 'high')
+    assert request.standard_speed and request.selection == selection
+    assert json.loads(request.schema.read_text())['properties']['impact']['enum'] == ['yes', 'no', 'unsure']
+    for adapter, model in ((agent_codex.CodexAdapter(), 'gpt-6.1-sol'),
+                           (agent_claude.ClaudeAdapter(), 'claude-opus-5-5')):
+        assert adapter.resolve_profile('impact_triage') == (model, 'high')
+        with pytest.raises(ValueError, match='impact triage'):
+            adapter.resolve_profile('impact_triage', effort='low')
+    with pytest.raises(ValueError, match='not qualified'):
+        fix_tests.impact_command(tmp_path, selection=agent_adapter.AgentSelection('claude', tmp_path))
+    assert len(prepared) == 1
+
+    # Native supervision receives an agent operation (including capacity
+    # recovery), while low unit-repair defaults cannot change triage's profile.
+    import launcher_chat
+    calls = []
+    monkeypatch.setattr(detached_launcher, 'prepare_session', lambda request, environment:
+                        SimpleNamespace(request=request, adapter=SimpleNamespace(name='codex')))
+    monkeypatch.setattr(detached_launcher, 'supervise',
+                        lambda *args, **kwargs: calls.append((args, kwargs)) or 0)
+    monkeypatch.setattr(launcher_chat, 'read_state', lambda _: {'task_id': 'unit'})
+    monkeypatch.setattr(fix_tests, 'record_usage', lambda *args, **kwargs: None)
+    (tmp_path / 'checkpoint.json').write_text(json.dumps({'agent_selection': selection.record()}))
+    metadata = dict(failure={'category': 'unit', 'case': 'case', 'vm': ''}, repair_session=1)
+    assert fix_tests.supervise(tmp_path, tmp_path, 0, 'impact-triage', 'impact triage',
+                               'gpt-6.1-sol', 'low', json.dumps(metadata)) == 0
+    args, kwargs = calls[0]
+    assert args[3] == 'agent' and kwargs['interactive']
+    assert (args[4].request.model, args[4].request.effort) == ('gpt-6.1-sol', 'high')
+    assert args[4].request.permissions == 'read_only'
+
+    ticket = dict(id='1' * 32, attempt='2' * 32, source={'digest': 'a' * 64, 'generation': 0},
+                  selection=[['unit', []]], work={'category': 'unit'}, case='case', vm='')
+    evidence = dict(output_tail='failed operation', limit_reached=True,
+                    files=[dict(source='log', tail='é' * 10000)] * 12,
+                    read_failures=[dict(source='other', error='PermissionError')])
+    failure = dict(prompt='failure', operation='setup', expected='ready', actual='failed')
+    context, digest = fix_tests.impact_context(ticket, failure, evidence=evidence,
+                                              shared_inputs={'fixture': 'current'})
+    assert len(context['logs']) == 8 and context['evidence_limits']['omitted_files'] == 4
+    assert context['logs'][0]['tail']['truncated']
+    assert len(context['logs'][0]['tail']['text'].encode('utf-8')) <= 8192
+    assert context['output']['text'] == 'failed operation'
+    assert context['evidence_limits']['failures']['value'] == evidence['read_failures']
+    assert digest != fix_tests.impact_context(ticket, dict(failure, actual='changed'),
+                                             evidence=evidence, shared_inputs={'fixture': 'current'})[1]
+    assert fix_tests.impact_context(ticket, failure)[0]['evidence_limits']['unavailable']
+
+
+def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_path, monkeypatch):
+    import fix_tests
+    import vm_test_queue
+
+    source = dict(digest='a' * 64, generation=0)
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(source))
+    monkeypatch.setattr(fix_tests, 'resolve_selection', lambda _: 'qualified')
+    monkeypatch.setattr(fix_tests, 'impact_command', lambda *args, **kwargs:
+                        SimpleNamespace(request=SimpleNamespace(model='native-high', effort='high')))
+    ticket = dict(id='1' * 32, transaction='2' * 32, attempt='3' * 32, source=dict(source),
+                  selection=[['_host', ['unit']]], work={'category': 'unit'}, case='case', vm='')
+    decision = dict(impact='no', reason='Only the private input is affected.',
+                    scope=['private input'], evidence=['The independent input is unchanged.'],
+                    classification='test_issue')
+    calls = []
+    charges = []
+    def charge(value):
+        charges.append(value['id'])
+        return len(charges)
+    def session(kind, phase, metadata, **options):
+        calls.append((kind, metadata, options))
+        (tmp_path / 'agent-result.json').write_text(json.dumps(decision))
+        return 0
+    def triage(value):
+        return fix_tests.triage_failure(tmp_path, tmp_path, value, {'error': 'failed input'},
+                                        session=session, charge=charge)
+
+    envelope = triage(ticket)
+    assert envelope['decision'] == decision
+    assert calls[0][0] == 'impact-triage'
+    assert calls[0][1]['repair_session'] == 1
+    assert calls[0][2] == dict(agent_model='native-high', agent_effort='high')
+    ticket['impact'] = dict(envelope, ticket=ticket['id'], attempt=ticket['attempt'])
+    assert triage(ticket) == envelope
+    assert len(charges) == 1
+    source.update(digest='b' * 64, generation=1)
+    decision = dict(decision, impact='unsure')
+    refreshed = triage(ticket)
+    assert refreshed['source'] == source
+    assert refreshed['evidence_digest'] != envelope['evidence_digest']
+    assert refreshed['decision']['impact'] == 'unsure'
+    assert len(charges) == 2
+    decision = {'impact': 'no'}  # A missing scoped witness never opens admission.
+    assert triage(ticket)['decision']['impact'] == 'unsure'
+
+
+@pytest.fixture
+def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
+    import fix_tests
+    import fix_tests_git
+    import launcher_git
+    import launcher_worktrees
+    import test_source
+    import vm_test_queue
+    from launcher_runtime import TaskBudget
+
+    run = tmp_path / 'run'
+    run.mkdir()
+    (run / 'output').touch()
+    TaskBudget(run).initialize(None)
+    from agent_adapter import AgentSelection
+    selection = AgentSelection('codex', tmp_path)
+    dependency = tmp_path / 'validation-input.py'
+    dependency.write_text('original')
+    control = SimpleNamespace(run=run, order=[], ticket=None,
+        response=dict(status='test_fixed', summary='Corrected the private input.',
+                      stage_paths=[dependency.name], verification_case='exact', blocker=None))
+    def snapshot(_):
+        return ({dependency.name: launcher_git.worktree_fingerprint(dependency)}
+                if dependency.read_text() != 'original' else {})
+    monkeypatch.setattr(fix_tests, 'requested_inventory', lambda *args, **kwargs:
+                        {'unit': {'args': ['original-selector']}})
+    monkeypatch.setattr(fix_tests, 'resolve_selection', lambda _: selection)
+    monkeypatch.setattr(launcher_worktrees, 'pull_at_boundary', lambda *args: None)
+    monkeypatch.setattr(launcher_git, 'worktree_snapshot', snapshot)
+    monkeypatch.setattr(fix_tests_git, 'worktree_snapshot', snapshot)
+    monkeypatch.setattr(launcher_git, 'git_output', lambda *args: SimpleNamespace(stdout='same-head'))
+    monkeypatch.setattr(fix_tests_git, 'git_output', lambda *args: SimpleNamespace(stdout=''))
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(
+        digest=('a' if dependency.read_text() == 'original' else 'b') * 64,
+        generation=isolated_source.generation()))
+    monkeypatch.setattr(fix_tests, 'record_usage', lambda *args, **kwargs: None)
+    order = control.order
+    ticket = dict(id='a' * 32, transaction='b' * 32, attempt='c' * 32,
+                  work=dict(category='unit', options=['original-selector'], cases=['exact'],
+                            case='exact', area=False), case='exact', vm='',
+                  impact=dict(decision=dict(classification='test_issue', reason='Only this test input.')))
+    control.ticket = ticket
+    def triage(root, directory, value, result, *, session, charge):
+        assert charge(value) == 1
+        order.append('triage')
+        return dict(decision=ticket['impact']['decision'])
+    monkeypatch.setattr(fix_tests, 'triage_failure', triage)
+    class Agent:
+        def __init__(self, command, **kwargs):
+            assert 'agent' in command
+            order.append('repair')
+            dependency.write_text('changed validation dependency')
+            (run / 'agent-result.json').write_text(json.dumps(control.response))
+        def __enter__(self):
+            return self
+        def __exit__(self, *_):
+            pass
+        def wait(self):
+            return 0
+    monkeypatch.setattr(fix_tests.subprocess, 'Popen', Agent)
+    def closeout(self):
+        order.append('closeout')
+        assert self.state['repairs'][self.state['pending']]['coordinator_attempt']['accepted']
+        self.state['repairs'].pop(self.state.pop('pending'))
+        self.save()
+    monkeypatch.setattr(fix_tests_git.RepairCommits, 'finish_pending', closeout)
+    control.gate = test_source.RepairGate(run, root=tmp_path)
+    control.worker = lambda **options: fix_tests.reserved_worker(
+        tmp_path, run, 0, 'gpt-6.1-sol', '', '', requested='["unit"]',
+        repair_gate=control.gate, **options)
+    control.saved = lambda: json.loads((run / 'checkpoint.json').read_text())
+    try:
+        yield control
+    finally:
+        control.gate.release()
+
+
+def test_public_repair_composes_triage_verification_and_closeout(
+        tmp_path, monkeypatch, isolated_source, _controlled_public_repair):
+    import base64
+    import fix_tests
+    import test_source
+    import vm_test_queue
+    from launcher_runtime import TaskBudget
+
+    control = _controlled_public_repair
+    run, order, ticket = control.run, control.order, control.ticket
+    resumed = False
+    class Execution:
+        drained = True
+        failure = None
+        def attempt(self, purpose, target=None):
+            order.append(purpose)
+            assert test_source.environment().get(test_source.WRITER) == str(run)
+            assert purpose == 'recheck' or target == 'exact'
+            accepted = purpose == 'verification'
+            return dict(status=0 if accepted else 1, accepted=accepted,
+                        reference=dict(source=vm_test_queue.source_identity(tmp_path), accepted=accepted))
+    def execute(root, args, *, actions, **kwargs):
+        assert args == (['--resume'] if resumed else []) + ['unit', 'original-selector']
+        assert actions['admit_task']('unit')
+        if not resumed:
+            actions['triage'](ticket, {})
+        result = actions['repair'](ticket, Execution())
+        assert result['outcome'] == 'resolved' and result['attempt']['accepted']
+        assert isolated_source.owner() is None
+        actions['settle_task']('unit')
+        return dict(status=0)
+    monkeypatch.setattr(vm_test_queue, 'run', execute)
+    with pytest.raises(fix_tests.ControllerReload):
+        control.worker()
+    saved = control.saved()
+    key = '["unit", "exact", ""]'
+    raw = saved['repairs'][key]['pending_response']
+    assert json.loads(base64.b64decode(raw['response'])) == control.response
+    assert isolated_source.owner() == str(run)
+    assert isolated_source.generation() == 1
+    assert order == ['triage', 'recheck', 'repair']
+
+    # Interpreter replacement retains the writer but must apply the new code's
+    # validators to the exact response before an attempt or Git close-out.
+    resumed = True
+    monkeypatch.setattr(test_source, '_generations', {})
+    (run / 'agent-result.json').write_text('{}')
+    validate = fix_tests.validate_result
+    def current_validate(value):
+        assert value == control.response
+        assert control.saved()['session_counts'] == {key: 2}
+        order.append('current validation')
+        validate(value)
+    monkeypatch.setattr(fix_tests, 'validate_result', current_validate)
+    assert control.worker(reloading=True) == 0
+    assert order == ['triage', 'recheck', 'repair', 'current validation', 'verification', 'closeout']
+    saved = control.saved()
+    assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
+    assert TaskBudget(run).read()['completed'] == 1
+
+
+def test_public_repair_keeps_dirty_suspension_owned_on_resume(
+        tmp_path, monkeypatch, isolated_source, _controlled_public_repair):
+    import fix_tests
+    import test_source
+    import vm_test_queue
+    from launcher_runtime import TaskBudget
+
+    control = _controlled_public_repair
+    control.response.update(status='stalled', summary='Cannot repair this input.', verification_case=None)
+    # A final tier's stalled turn is terminal rather than another escalation.
+    monkeypatch.setattr(fix_tests, 'next_tier', lambda model, effort, **kwargs: (model, effort))
+    resumed = False
+    class Execution:
+        drained = True
+        failure = None
+        def attempt(self, purpose, target=None):
+            control.order.append(purpose)
+            return dict(status=0 if resumed else 1, accepted=resumed,
+                        reference=dict(accepted=resumed))
+    def execute(root, args, *, actions, **kwargs):
+        assert actions['admit_task']('unit')
+        if not resumed:
+            actions['triage'](control.ticket, {})
+        result = actions['repair'](control.ticket, Execution())
+        assert result == dict(outcome='suspended')
+        return dict(status=1, suspended=True)
+    monkeypatch.setattr(vm_test_queue, 'run', execute)
+    with pytest.raises(fix_tests.ControllerReload):
+        control.worker()
+    assert control.order == ['triage', 'recheck', 'repair']
+
+    resumed = True
+    monkeypatch.setattr(test_source, '_generations', {})
+    assert control.worker(reloading=True) == 1
+    # A further resume still owns the edited ticket, even if a no-edit recheck
+    # could now pass. It may seek a repair, but cannot settle or release it.
+    assert control.worker(reloading=True) == 1
+    saved = control.saved()
+    entry = saved['repairs']['["unit", "exact", ""]']
+    assert entry['terminal_failure'].startswith('repair stalled:')
+    assert saved['active_ticket'] == control.ticket['id']
+    assert saved.get('pending') is None
+    assert isolated_source.owner() == str(control.run)
+    assert control.gate.fd is not None
+    assert control.order.count('recheck') == 1
+    assert 'verification' not in control.order and 'closeout' not in control.order
+    assert TaskBudget(control.run).read()['completed'] == 0
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_public_task_limit_preserves_the_coordinator_verdict(
+        tmp_path, monkeypatch, isolated_source, _controlled_public_repair, failed):
+    import fix_tests
+    import vm_test_queue
+    from regression_process import Control
+    from launcher_runtime import TaskBudget
+
+    current = _controlled_public_repair
+    TaskBudget(current.run).initialize(1)
+    monkeypatch.setattr(fix_tests, 'requested_inventory', lambda *args, **kwargs:
+                        {'backend': {'args': []}, 'static': {'args': ['shell']}})
+    monkeypatch.setattr(commands, 'selections', lambda *args:
+                        [('backend', []), ('static', ['shell'])])
+    def execute(root, args, *, actions, pass_identity, **kwargs):
+        def host(assignment=None, *, categories):
+            assert assignment is None
+            admitted = [kind for kind in ('backend', 'static')
+                        if kind in categories and actions['admit_task'](kind)]
+            assert admitted == ['backend']
+            value = dict(status=int(failed), limited=True, complete=False,
+                         denied_categories=['static'], completed_categories=[] if failed else ['backend'])
+            if failed:
+                value['failure_work'] = dict(category='backend', options=[], cases=[], case=None, area=False)
+            return value
+        actions = dict(actions,
+            triage=lambda *args: dict(source=vm_test_queue.source_identity(root), evidence_digest='e' * 64,
+                decision=dict(impact='no', reason='Only this private check.', scope=['backend'],
+                              evidence=['Independent static input.'], classification='test_issue')),
+            repair=lambda *args: dict(outcome='leave_failed'))
+        plan = (dict(concurrency=1), [], ['backend', 'static', 'shell'], [], [], {})
+        result = vm_test_queue.execute_pass(root, plan, Control(), lambda *args: None,
+            host=host, actions=actions, pass_identity=pass_identity)
+        assert result['limited'] and result['status'] == int(failed)
+        return result
+    monkeypatch.setattr(vm_test_queue, 'run', execute)
+    assert current.worker() == int(failed)
+    assert TaskBudget(current.run).read()['completed'] == 1
+    assert current.saved()['rounds']['done'] is failed
+
+
+def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monkeypatch):
+    from launcher_runtime import TaskBudget
+
+    budget = TaskBudget(tmp_path)
+    budget.initialize(3)
+    assert budget.admit(key='round-1:system', concurrent=True)
+    assert budget.admit(key='round-1:e2e', concurrent=True)
+    resumed = TaskBudget(tmp_path)
+    resumed.set_limit(1)
+    assert resumed.admit(key='round-1:system', concurrent=True)
+    assert resumed.admit(key='round-1:e2e', concurrent=True)
+    assert resumed.complete(key='round-1:system')
+    assert not budget.complete(key='round-1:system')
+    assert budget.complete(key='round-1:e2e')
+    assert not budget.admit(key='round-2:all', concurrent=True)
+    assert budget.admit(key='round-1:e2e', concurrent=True)
+    assert budget.read()['started'] == budget.read()['completed'] == 2
+    with pytest.raises(ValueError, match='no admission'):
+        budget.complete(key='round-2:all')
+
+    # The public resume parser must permit the same replacement without
+    # changing saved selectors or rounds before the budget can apply it.
+    import fix_tests
+    import test_checkpoint
+    from vm_selection import VARIABLE, BATCH
+    for name in (VARIABLE, BATCH):
+        monkeypatch.setenv(name, os.environ.get(name, ''))
+    monkeypatch.setattr(test_checkpoint, 'request_record', lambda *args: dict(
+        categories=['unit'], vm=None, rounds=2, model=None, effort=None, tasks=1))
+    admitted = []
+    monkeypatch.setattr(fix_tests, 'select', lambda root, **options:
+                        admitted.append(options) or (tmp_path, True))
+    monkeypatch.setattr(fix_tests.detached_launcher, 'report_start', lambda *args, **kwargs: 0)
+    assert fix_tests.main(['--resume', '--tasks', '2']) == 0
+    assert admitted[0]['tasks'] == 2 and admitted[0]['rounds'] == 2
+    assert admitted[0]['categories'] == ['unit'] and admitted[0]['resume'] is True
+
+
+def test_coordinator_host_continues_after_isolated_failure(tmp_path, monkeypatch, isolated_source):
+    import threading
+    import vm_test_queue
+
+    source = dict(digest='a' * 64, generation=0)
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(source))
+    monkeypatch.setattr(commands, 'selections', lambda root, args:
+                        [('unit', ['-k', 'selected']), ('static', [])])
+    inventories = []
+    def inventory(root, work, control, *, vm):
+        inventories.append((dict(work), vm))
+        return ['selected::current']
+    monkeypatch.setattr(vm_test_queue, 'repair_case_inventory', inventory)
+    events, settled = [], []
+    original = dict(category='unit', options=['-k', 'selected'], cases=['removed::case'],
+                    case='removed::case', area=False)
+    def host(assignment=None, *, categories=None):
+        if assignment is not None:
+            assert assignment['vm'] == '' and assignment['work'] == original
+            assert assignment['execution'] == dict(original, case='selected::current', cases=['selected::current'])
+            events.append('bounded recheck')
+            return dict(status=0, evidence=dict(assignment, passed=['selected::current'],
+                                                cleanup=True, diagnostic=False))
+        events.append(tuple(sorted(categories)))
+        if len(events) == 1:
+            return dict(status=1, failure_work=original, completed_categories=[])
+        return dict(status=0, completed_categories=sorted(categories))
+    def triage(ticket, result):
+        events.append('triage')
+        return dict(source=source, evidence_digest='b' * 64,
+                    decision=dict(impact='no', reason='Private selected input.', scope=['selected input'],
+                                  evidence=['Other inputs unchanged.'], classification='test_issue'))
+    def repair(ticket, execution):
+        assert execution.drained
+        assert events[-1] == ('static',), 'isolated repair ran before pending normal work'
+        result = execution.attempt('recheck')
+        assert result['accepted']
+        return dict(outcome='resolved', attempt=result['reference'])
+    plan = (dict(concurrency=1, vms=[]), (), ['unit', '-k', 'selected', 'static'], [], [], {})
+    outcome = vm_test_queue.execute_pass(tmp_path, plan,
+        SimpleNamespace(stopped=threading.Event()), Mock(), host=host,
+        actions=dict(triage=triage, repair=repair, settle_task=settled.append))
+    assert outcome['status'] == 0 and not outcome['suspended']
+    assert events == [('static', 'unit'), 'triage', ('static',), 'bounded recheck', ('unit',)]
+    assert sorted(settled) == ['static', 'unit']
+    assert inventories == [(original, None)]
+    with isolated_source.state():
+        assert not isolated_source.impact_holds()
+
+
+@pytest.mark.parametrize('selected,total', [(True, 6), (False, 3)])
+def test_run_wide_rounds_resume_and_repeat_changed_verification(tmp_path, selected, total):
+    import fix_tests
+    from launcher_runtime import TaskBudget
+
+    budget = TaskBudget(tmp_path)
+    budget.initialize(None)
+    state, calls, saved = {}, [], []
+    current_source = dict(digest='a' * 64, generation=0)
+    def save():
+        saved.append(json.loads(json.dumps(state)))
+    def execute(categories, **options):
+        calls.append((state['round'], options['pass_identity'], options['resume']))
+        assert saved[-1]['resume'] is True
+        for category in categories:
+            assert options['admit_task'](category)
+            assert options['admit_task'](category)  # A second family shares the task.
+            options['settle_task'](category)
+        if len(calls) == 1:
+            return dict(status=130)  # Resume keeps this pass and its admissions.
+        if len(calls) == 3:
+            current_source.update(digest='b' * 64, generation=1)
+        return dict(status=0)
+    def run():
+        return fix_tests.run_rounds(['system', 'e2e'], execute, rounds=2, selected=selected,
+            state=state, save=save, budget=budget, source=lambda: dict(current_source))
+
+    assert run()['status'] == 130
+    assert not state['done']
+    assert run()['status'] == 0
+    assert [number for number, _, _ in calls] == [1, 1, 2, 2]
+    assert calls[0][1] == calls[1][1]
+    assert calls[0][2] is False and calls[1][2] is True
+    assert calls[2][1] != calls[3][1] and calls[2][0] == calls[3][0]
+    assert budget.read()['started'] == budget.read()['completed'] == total
+    assert run()['status'] == 0 and len(calls) == 4
+
+
+def test_run_wide_terminal_failure_waits_for_suspended_repair(tmp_path):
+    import fix_tests
+    from launcher_runtime import TaskBudget
+
+    budget = TaskBudget(tmp_path)
+    budget.initialize(1)
+    state, calls = {}, []
+    def execute(categories, **options):
+        calls.append((options['pass_identity'], options['resume']))
+        assert options['admit_task']('system')
+        pending = len(calls) == 1
+        if not pending:
+            options['settle_task']('system')
+        return dict(status=1, limited=True, terminal_failed=True,
+                    pending_repairs=pending, suspended=pending)
+    def run():
+        return fix_tests.run_rounds(['system'], execute, rounds=2, selected=True,
+            state=state, save=lambda: None, budget=budget,
+            source=lambda: dict(digest='a' * 64, generation=0))
+    assert run()['status'] == 1 and not state['done']
+    assert run()['status'] == 1 and state['done']
+    assert calls[0][0] == calls[1][0] and calls[1][1] is True
+    assert budget.read()['started'] == budget.read()['completed'] == 1
+    assert run()['status'] == 1 and len(calls) == 2
+
+
 def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_path, monkeypatch):
     """A cancelled baseline replacement finishes before helper refresh."""
     from contextlib import contextmanager
@@ -336,7 +827,12 @@ def test_checkout_source_writer_drains_readers_and_shares_generation(tmp_path):
                 assert not independent.admit(writer, owner=owner)
             assert first.owner() is None
         with independent.state():
-            assert independent.admit(writer, owner=owner)
+            assert not independent.admit(writer, owner=owner, ready=lambda: False)
+            assert first.owner() is None
+        with launcher.lock(tmp_path / 'repair-owner') as reader, first.state():
+            assert first.admit(reader)  # Waiting isolated work published no intent.
+        with independent.state():
+            assert independent.admit(writer, owner=owner, ready=lambda: True)
             independent.finish(owner, changed=True)
     assert first.generation() == independent.generation() == 1
     with launcher.lock(tmp_path / 'repair-owner') as reader, first.state():
@@ -450,6 +946,116 @@ def isolated_source(tmp_path, monkeypatch):
     return test_source.SourceProtection(tmp_path)
 
 
+def test_checkout_source_impact_holds_fence_normal_work_but_allow_triage(
+        tmp_path, isolated_source):
+    import detached_launcher as launcher
+    import test_source
+
+    source = isolated_source
+    independent = test_source.SourceProtection(tmp_path)
+    first, second = (str(tmp_path / name) for name in ('first-ticket', 'second-ticket'))
+    with test_source.reader(tmp_path, wait=False) as admitted:
+        with source.state():
+            source.set_impact(first, 'untriaged')
+            source.set_impact(second, 'unsure')
+        # A finite operation retains its admitted source through owned cleanup.
+        with test_source.reader(tmp_path, wait=False) as cleanup:
+            assert cleanup == admitted
+    with pytest.raises(test_source.SourceBusy):
+        with test_source.reader(tmp_path, wait=False):
+            pytest.fail('normal work crossed a pending impact hold')
+    with source.state():
+        independent.set_impact(first, 'no')
+        assert source.impact_holds() == {second: 'unsure'}
+        independent.set_impact(first, 'yes')
+        with pytest.raises(ValueError, match='impact decision'):
+            source.set_impact(second, 'typo')
+        assert source.impact_holds() == {first: 'yes', second: 'unsure'}
+    # Both pending holds may be triaged promptly; neither can strand the other.
+    with test_source.reader(tmp_path, impact_ticket=second, wait=False):
+        with pytest.raises(ValueError, match='held ticket'):
+            with test_source.reader(tmp_path, impact_ticket=str(tmp_path / 'unknown'), wait=False):
+                pytest.fail('borrowed source accepted an unknown triage ticket')
+    with pytest.raises(ValueError, match='held ticket'):
+        with test_source.reader(tmp_path, impact_ticket=str(tmp_path / 'unknown'), wait=False):
+            pytest.fail('unknown ticket bypassed normal admission')
+    with launcher.lock(tmp_path / 'repair-owner') as writer:
+        with source.state():
+            assert source.admit(writer, owner=first)
+        with pytest.raises(test_source.SourceBusy):
+            with test_source.reader(tmp_path, impact_ticket=second, wait=False):
+                pytest.fail('triage read an active writer')
+        test_source.retain(writer, first)
+        try:
+            with pytest.raises(test_source.SourceBusy, match='cannot borrow a writer'):
+                with test_source.reader(tmp_path, impact_ticket=second, wait=False):
+                    pytest.fail('read-only triage borrowed an active writer')
+            with test_source.reader(tmp_path, wait=False) as verification:
+                assert verification == writer
+        finally:
+            test_source.forget(writer)
+        with source.state():
+            source.finish(first, unfinished=True)
+    # A crashed/cancelled writer stays fenced even for an otherwise valid triage.
+    with pytest.raises(ValueError, match='unfinished repair'):
+        with test_source.reader(tmp_path, impact_ticket=second, wait=False):
+            pytest.fail('triage read retained unverified edits')
+    with launcher.lock(tmp_path / 'repair-owner') as writer, source.state():
+        assert source.admit(writer, owner=first)
+        source.finish(first)
+        source.release_impact(first)
+        assert independent.impact_holds() == {second: 'unsure'}
+        source.release_impact(second)
+    with test_source.reader(tmp_path, wait=False):
+        pass
+    with source.state():
+        source.set_impact(first, 'no')
+        assert independent.impact_holds() == {}
+    with test_source.reader(tmp_path, impact_ticket=first, wait=False):
+        pass  # An inactive pending ticket can still retriage changed inputs.
+    with test_source.reader(tmp_path, wait=False):
+        pass
+    with launcher.lock(tmp_path / 'repair-owner') as writer, independent.state():
+        assert independent.admit(writer, owner=second)
+        independent.finish(second, changed=True)
+        assert source.impact_holds() == {first: 'unsure'}
+    with pytest.raises(test_source.SourceBusy):
+        with test_source.reader(tmp_path, wait=False):
+            pytest.fail('an independent source change kept stale isolation admission open')
+    with test_source.reader(tmp_path, impact_ticket=first, wait=False, fresh=True):
+        pass
+    with source.state():
+        source.release_impact(first)
+    with launcher.lock(tmp_path / 'repair-owner') as writer, independent.state():
+        assert independent.admit(writer, owner=second)
+        independent.finish(second, changed=True)
+        assert source.impact_holds() == {}  # Settled tickets never return.
+    with test_source.reader(tmp_path, wait=False, fresh=True):
+        pass
+
+
+def test_checkout_source_impact_updates_preserve_readable_state(tmp_path, isolated_source, monkeypatch):
+    import detached_launcher as launcher
+    import test_source
+
+    source = isolated_source
+    path = tmp_path / 'repair-impact-holds.json'
+    records = {str(tmp_path / (f'ticket-{index:04d}-' + 'x' * 80)):
+               {'hold': 'unsure', 'generation': 0} for index in range(512)}
+    launcher.atomic(path, records)
+    assert path.stat().st_size > 65536
+    with source.state():
+        source.set_impact(str(tmp_path / 'new-ticket'), 'no')
+        assert len(source.impact_holds()) == len(records)
+        previous = path.read_bytes()
+        monkeypatch.setattr(test_source, 'IMPACT_MAX_BYTES', len(previous) + 256)
+        with pytest.raises(ValueError, match='oversized'):
+            source.set_impact(str(tmp_path / ('large-ticket-' + 'x' * 240)), 'unsure')
+        assert path.read_bytes() == previous
+        source.release_impact(next(iter(records)))
+        assert len(source.impact_holds()) == len(records) - 1
+
+
 def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isolated_source):
     from concurrent.futures import ThreadPoolExecutor
     import threading
@@ -532,7 +1138,7 @@ def test_checkout_source_startup_release_clears_aliases_but_keeps_adopted_writer
 def test_checkout_source_generation_reloads_through_repair_continuation(tmp_path, isolated_source):
     import detached_launcher as launcher
     import launcher_reload
-    from fix_tests_queue import RepairGate
+    from test_source import RepairGate
 
     gate = RepairGate(tmp_path)
     with gate.source():

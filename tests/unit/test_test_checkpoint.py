@@ -68,6 +68,38 @@ def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path)
             pass
 
 
+def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_path):
+    from test_checkpoint import family_claims_pending, guard_scheduling_checkpoints
+
+    host_selection = [['_host', ['static']]]
+    work = pass_work('authorization::selected')
+    with PassCheckpoint(tmp_path, host_selection, {}, {}, scope='repair-host') as host:
+        host.state['host_complete'] = True
+        host.save()
+        host_identity = host.state['run'], host.state['pass']
+        with pytest.raises(ValueError, match='another checkpoint scope'):
+            with PassCheckpoint(tmp_path, host_selection, {}, {}, scope='repair-vm',
+                                identity=dict(zip(('run', 'pass'), host_identity))):
+                pass
+        with PassCheckpoint(tmp_path, [('system', work['options'])], {'one': 'deb'},
+                            {'deb': [work]}, scope='repair-vm') as guests:
+            claim = guests.claim('deb', 'one', work, 'a' * 64)
+            with PassCheckpoint(tmp_path, host_selection, {}, {}) as ordinary:
+                assert ordinary.store.path != host.store.path != guests.store.path
+                assert family_claims_pending(tmp_path, 'one') == 1
+                guard_scheduling_checkpoints(tmp_path)
+    with PassCheckpoint(tmp_path, host_selection, {}, {}):
+        pass  # A fresh ordinary pass must not replace either repair owner.
+    with PassCheckpoint(tmp_path, host_selection, {}, {}, scope='repair-host', resume=True) as host:
+        assert (host.state['run'], host.state['pass']) == host_identity
+        assert host.state['host_complete']
+        with PassCheckpoint.saved(tmp_path, scope='repair-vm') as guests:
+            assert guests.claims() == [claim]
+        invalid = dict(host.state, scope='repair-vm')
+        with pytest.raises(ValueError, match='identity or selection'):
+            PassCheckpoint.validate(invalid, scope='repair-host')
+
+
 def test_pass_failed_target_stays_on_original_vm_until_owned_recovery(tmp_path, monkeypatch):
     import test_activity
     from contextlib import nullcontext
@@ -99,6 +131,158 @@ def test_pass_failed_target_stays_on_original_vm_until_owned_recovery(tmp_path, 
         assert retried['assignment'] != assignment['assignment']
         assert retried['run'] == assignment['run']
         checkpoint.recover(retried, cleanup=True)
+
+
+def test_pass_failure_fifo_keeps_exact_attempts_without_accepting_them(tmp_path):
+    first, second = pass_work('authorization::first'), pass_work('authorization::second')
+    selection, pool, families = [('system', [])], {'one': 'deb', 'two': 'deb'}, {'deb': [first, second]}
+    source = dict(digest='a' * 64, generation=0)
+    with PassCheckpoint(tmp_path, selection, pool, families) as checkpoint:
+        assert 'repairs' not in checkpoint.state
+        assignment = checkpoint.claim('deb', 'one', first, source)
+        other = checkpoint.claim('deb', 'two', second, source)
+        evidence = pass_evidence(assignment, [], command=['never', 'persist', 'this'])
+        original = json.dumps(checkpoint.state, sort_keys=True)
+        with pytest.raises(ValueError, match='evidence'):
+            checkpoint.enqueue_failure(assignment, dict(evidence, attempt=other['attempt']), 1)
+        with pytest.raises(ValueError, match='evidence'):
+            checkpoint.enqueue_failure(assignment, dict(evidence, diagnostic=True), 1)
+        with pytest.raises(ValueError, match='outside'):
+            checkpoint.enqueue_failure(assignment, evidence, 1, case='authorization::unselected')
+        assert json.dumps(checkpoint.state, sort_keys=True) == original
+        ticket = checkpoint.enqueue_failure(assignment, evidence, 1)
+        assert checkpoint.enqueue_failure(assignment, evidence, 1) == ticket
+        for execution in (dict(first, cases=[], case=None, area=False),
+                          dict(first, case=None, area=False)):
+            with pytest.raises(ValueError, match='one exact case'):
+                checkpoint.begin_attempt(ticket['id'], 'verification', source, execution)
+        unfinished = dict(pass_evidence(other, []), cleanup=False)
+        later = checkpoint.enqueue_failure(other, unfinished, 2)
+        assert [item['id'] for item in checkpoint.repair_tickets()] == [ticket['id'], later['id']]
+        assert ticket['id'] != ticket['transaction']
+        assert {field: ticket[field] for field in assignment} == assignment
+        assert 'command' not in ticket
+        assert checkpoint.passed('deb', 'system') == set()
+        assert checkpoint.claims() == [assignment, other]
+        checkpoint.recover(assignment, cleanup=True)
+        checkpoint.recover(other, cleanup=True)
+    with pytest.raises(ValueError, match='pending repairs'):
+        with PassCheckpoint(tmp_path, selection, pool, families):
+            pass
+    with PassCheckpoint(tmp_path, selection, pool, families, resume=True) as checkpoint:
+        assert checkpoint.repair_tickets() == [ticket, later]
+        assert checkpoint.repair_tickets()[0]['vm'] == 'one'
+        assert checkpoint.pending('deb') == [first, second]
+        with pytest.raises(ValueError, match='stale'):
+            checkpoint.enqueue_failure(assignment, evidence, 1)
+
+
+def test_pass_retained_attempts_keep_exact_case_bounds(tmp_path):
+    work = pass_work('authorization::first', 'authorization::last')
+    source = dict(digest='a' * 64, generation=0)
+    with PassCheckpoint(tmp_path, [('system', [])], {'one': 'deb'}, {'deb': [work]}) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', work, source)
+        ticket = checkpoint.enqueue_failure(assignment, pass_evidence(assignment, []), 1)
+        target = dict(work, case=work['cases'][0], cases=work['cases'][:1], area=False)
+        checkpoint.begin_attempt(ticket['id'], 'verification', source, target)
+        for invalid in (dict(target, cases=[], case=None), dict(target, case=None), work):
+            saved = json.loads(json.dumps(checkpoint.state))
+            saved['repairs'][0]['attempts'][0]['execution'] = invalid
+            with pytest.raises(ValueError, match='one exact case'):
+                PassCheckpoint.validate(saved)
+    command = dict(category='static', options=[], cases=[], case=None, area=False)
+    with PassCheckpoint(tmp_path / 'command', [['_host', ['static']]], {}, {}) as checkpoint:
+        ticket = checkpoint.host_failure(command, source, 1)
+        checkpoint.begin_attempt(ticket['id'], 'verification', source, command)
+        PassCheckpoint.validate(checkpoint.state)
+
+
+def test_pass_retired_failure_keeps_ownership_and_only_credits_selected_replacement(tmp_path, monkeypatch):
+    import sys
+    retired = dict(category='system', options=['--area', 'authorization'],
+                   cases=['check_retired', 'check_removed'], case='check_removed', area=False)
+    replacement = dict(retired, cases=['check_current'], case='check_current')
+    source = dict(digest='a' * 64, generation=0)
+    selection, pool = [('system', ['--area', 'authorization'])], {'original': 'deb'}
+    with PassCheckpoint(tmp_path, selection, pool, {'deb': [retired]}) as checkpoint:
+        original = checkpoint.claim('deb', 'original', retired, source)
+        ticket = checkpoint.enqueue_failure(original, pass_evidence(original, []), 1)
+    monkeypatch.setitem(sys.modules, 'system_case_ids', SimpleNamespace(
+        UNBOUND_CASES={1: ('retired',)},
+        identity_for_event=lambda case: SimpleNamespace(numeric_id=1) if case == 'check_retired' else None))
+    with PassCheckpoint(tmp_path, selection, pool, {'deb': [replacement]}, resume=True) as checkpoint:
+        assert checkpoint.claims() == [original]
+        assert checkpoint.repair_tickets()[0]['work'] == retired
+        assert checkpoint.pending('deb') == [replacement]
+        with pytest.raises(ValueError, match='current original selection'):
+            checkpoint.begin_attempt(ticket['id'], 'recheck', source, dict(retired, cases=['check_removed']))
+        reference = checkpoint.begin_attempt(ticket['id'], 'recheck', source, replacement)
+        assignment = {field: ticket[field] for field in (
+            'run', 'pass', 'selection', 'family', 'vm', 'work', 'assignment')}
+        assignment.update(attempt=reference['attempt'], source=source, execution=replacement)
+        accepted = checkpoint.finish_attempt(ticket['id'], reference,
+            pass_evidence(assignment, ['check_current']), 0, source=source)
+        assert accepted['accepted']
+        checkpoint.settle_repair(ticket['id'], 'resolved', reference=accepted)
+        assert checkpoint.claims() == []
+        assert checkpoint.passed('deb', 'system') == {'check_current'}
+        assert checkpoint.pending('deb') == []
+    with PassCheckpoint(tmp_path, selection, pool, {'deb': [replacement]}, resume=True) as checkpoint:
+        assert checkpoint.passed('deb', 'system') == {'check_current'}
+        assert checkpoint.state['repairs'][0]['work'] == retired
+
+
+def test_pass_impact_requires_current_source_and_evidence_without_completion_credit(tmp_path):
+    work = pass_work('authorization::first')
+    selection, pool, families = [('system', [])], {'one': 'deb'}, {'deb': [work]}
+    original_source = dict(digest='a' * 64, generation=0)
+    current_source = dict(digest='b' * 64, generation=1, inputs={'fixture': 'f' * 64})
+    decision = dict(impact='no', reason='Only the selected private fixture failed.',
+                    scope=['selected case'], evidence=['Private fixture output'], classification='test_issue')
+    digest = 'c' * 64
+    with PassCheckpoint(tmp_path, selection, pool, families) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', work, original_source)
+        ticket = checkpoint.enqueue_failure(assignment, pass_evidence(assignment, []), 1)
+        assert checkpoint.impact(ticket['id'], source=current_source, evidence_digest=digest)['impact'] == 'unsure'
+        with pytest.raises(ValueError, match='positive scoped evidence'):
+            checkpoint.record_impact(ticket['id'], dict(decision, evidence=[]),
+                                     source=current_source, evidence_digest=digest)
+        binding = checkpoint.record_impact(ticket['id'], decision, source=current_source, evidence_digest=digest)
+        assert binding['ticket'] == ticket['id'] and binding['attempt'] == assignment['attempt']
+        assert checkpoint.impact(ticket['id'], source=current_source, evidence_digest=digest) == decision
+        for changed_source, changed_digest in (
+                (dict(current_source, digest='d' * 64), digest),
+                (dict(current_source, generation=2), digest),
+                (dict(current_source, generation=True), digest),
+                (dict(current_source, inputs={'fixture': 'g' * 64}), digest),
+                (current_source, 'e' * 64)):
+            assert checkpoint.impact(ticket['id'], source=changed_source,
+                                     evidence_digest=changed_digest)['impact'] == 'unsure'
+        assert checkpoint.repair_tickets()[0]['source'] == original_source
+        assert checkpoint.claims() == [assignment] and checkpoint.passed('deb', 'system') == set()
+        # Impact decisions cannot release claims or accept a failed execution.
+        checkpoint.record_impact(ticket['id'], dict(decision, impact='yes'),
+                                 source=current_source, evidence_digest=digest)
+        checkpoint.record_impact(ticket['id'], dict(decision, impact='unsure'),
+                                 source=current_source, evidence_digest=digest)
+        assert checkpoint.passed('deb', 'system') == set()
+        checkpoint.record_impact(ticket['id'], decision, source=current_source, evidence_digest=digest)
+    with PassCheckpoint(tmp_path, selection, pool, families, resume=True) as checkpoint:
+        assert checkpoint.impact(ticket['id'], source=current_source, evidence_digest=digest) == decision
+        assert checkpoint.repair_tickets()[0]['source'] == original_source
+        assert checkpoint.passed('deb', 'system') == set()
+        corrupted = json.loads(json.dumps(checkpoint.state))
+        corrupted['repairs'][0]['impact']['attempt'] = '0' * 32
+        PassCheckpoint.validate(corrupted)
+        checkpoint.state = corrupted
+        checkpoint.save()
+    with PassCheckpoint(tmp_path, selection, pool, families, resume=True) as checkpoint:
+        assert checkpoint.repair_tickets()[0]['impact']['attempt'] == '0' * 32
+        assert checkpoint.impact(ticket['id'], source=current_source, evidence_digest=digest)['impact'] == 'unsure'
+        checkpoint.state['repairs'][0]['impact']['attempt'] = assignment['attempt']
+        checkpoint.state['repairs'][0]['impact']['decision']['evidence'] = []
+        assert checkpoint.impact(ticket['id'], source=current_source, evidence_digest=digest)['impact'] == 'unsure'
+        assert checkpoint.passed('deb', 'system') == set()
 
 
 def test_pass_resume_adds_standalone_work_and_deduplicates_qualified_cases(tmp_path):
@@ -345,25 +529,27 @@ def test_run_cutover_preserves_legacy_claims_transactions_and_charged_admissions
     for path, value in records.items():
         atomic(path, value)
     original = {path: path.read_bytes() for path in records}
-    assert test_checkpoint.guard_scheduling_run(tmp_path) == test_checkpoint.scheduling_marker()
-    assert {path: path.read_bytes() for path in records} == original
-    admitted = test_checkpoint.admit_scheduling_state(records[child / 'checkpoint.json'])
-    assert {key: value for key, value in admitted.items() if key != 'scheduling'} == records[child / 'checkpoint.json']
-
-    # A replacement cannot relabel unversioned pipeline rounds and budgets.
-    monkeypatch.setattr(test_checkpoint, 'SCHEDULING_IMPLEMENTATION', 'replacement')
-    with pytest.raises(ValueError, match='original supported implementation.*--reset'):
-        test_checkpoint.guard_scheduling_run(tmp_path)
+    for guard in (test_checkpoint.guard_scheduling_run, test_checkpoint.guard_repair_scheduling_run):
+        with pytest.raises(ValueError, match='original supported implementation.*--reset'):
+            guard(tmp_path)
     assert {path: path.read_bytes() for path in records} == original
 
-    # A future family record must refuse before any other saved run is copied.
-    monkeypatch.setattr(test_checkpoint, 'SCHEDULING_IMPLEMENTATION', 'pipeline-v1')
-    records[family / 'retained.json']['scheduling'] = dict(version=2, implementation='replacement')
-    (family / 'retained.json').write_text(json.dumps(records[family / 'retained.json']))
-    original = {path: path.read_bytes() for path in records}
-    with pytest.raises(ValueError, match='incompatible scheduling state'):
-        test_checkpoint.guard_scheduling_run(tmp_path)
-    assert {path: path.read_bytes() for path in records} == original
+    # Fresh logical admissions have a distinct identity; neither ordinary
+    # bounded-worker state nor old family credit may be relabeled as repair state.
+    current = tmp_path / 'current'
+    current.mkdir()
+    marker = test_checkpoint.repair_scheduling_marker()
+    atomic(current / 'scheduling.json', marker)
+    atomic(current / 'vm.json', {'vm': {'vms': ['original-vm'], 'concurrency': 1}})
+    atomic(current / 'limits.json', dict(scheduling=marker, tasks=9, started=2, completed=1,
+                                        admissions={'round-1:system': False, 'round-1:unit': True}))
+    atomic(current / 'checkpoint.json', dict(scheduling=marker, repairs={}))
+    assert test_checkpoint.guard_repair_scheduling_run(current) == marker
+    atomic(current / 'limits.json', records[tmp_path / 'limits.json'])
+    unchanged = (current / 'limits.json').read_bytes()
+    with pytest.raises(ValueError, match='incompatible repair scheduling state'):
+        test_checkpoint.guard_repair_scheduling_run(current)
+    assert (current / 'limits.json').read_bytes() == unchanged
 
 
 def test_large_case_inventory_uses_private_snapshot_instead_of_large_environment(tmp_path, monkeypatch):

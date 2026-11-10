@@ -104,17 +104,29 @@ def test_game_input_refuses_another_account_before_window_discovery(monkeypatch,
     ui.native_app_snapshot.assert_not_called()
 
 
-def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch):
+@pytest.mark.parametrize('operation', ['reminder', 'panel-target', 'panel-launch', 'panel-form'])
+def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch, operation):
     module = ui_observations.accessible_ui
     ui = object.__new__(module.AccessibleUI)
     ui.input_uncertain = False
     ui.read_snapshot = Mock(side_effect=AssertionError('UI read on another child account'))
+    ui.id_target = Mock(side_effect=AssertionError('target discovery on another child account'))
+    ui._invoke_target = Mock(side_effect=AssertionError('input on another child account'))
     monkeypatch.setattr(module.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1002))
     monkeypatch.setattr(module.os, 'getuid', lambda: 1001)
     monkeypatch.setattr(module.os, 'geteuid', lambda: 1001)
     with pytest.raises(module.UiError, match='ui:overlay-account'):
-        ui.overlay_reminder_open(child=module.EXISTING_CHILD)
+        if operation == 'reminder':
+            ui.overlay_reminder_open(child=module.EXISTING_CHILD)
+        elif operation == 'panel-target':
+            ui.overlay_panel_target(child=module.EXISTING_CHILD)
+        elif operation == 'panel-launch':
+            ui.overlay_panel_launch(child=module.EXISTING_CHILD)
+        else:
+            ui.overlay_panel_form_present(child=module.EXISTING_CHILD)
     ui.read_snapshot.assert_not_called()
+    ui.id_target.assert_not_called()
+    ui._invoke_target.assert_not_called()
 
 
 def test_reminder_uncertain_deletion_cannot_release_another_input():

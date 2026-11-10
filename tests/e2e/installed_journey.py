@@ -31,6 +31,7 @@ from ui_observations import (
 # Cases retain their capture order and expected same/separate/closed result.
 ACTIVITY_BINDINGS = {
     'game-activity': ('game-primary', False),
+    'game-fullscreen-activity': ('game-primary', False),
     'game-resumed-activity': ('game-primary', False),
     **{operation: ('native-' + instance, False)
        for operation, (instance, action) in accessible_ui.NATIVE_WINDOW_BINDINGS.items()
@@ -624,7 +625,8 @@ class InstalledJourney:
             return
         require(stage not in self.request_observations, 'ui:request-replay')
         self.request_observations[stage] = RequestObservation.from_request(
-            value, operation=observed.get('ui', {}).get('operation', 'kiosk-request-form'))
+            value, operation=observed.get('ui', {}).get('operation', 'kiosk-request-form'),
+            binding=self.plan.overlay_requests.get(stage, self.plan.overlay_request))
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""

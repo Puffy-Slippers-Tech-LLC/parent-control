@@ -1239,6 +1239,12 @@ sub run {
             $ready->{kiosk_request}, $ready->{game_fullscreen} ? 'fullscreen' : 'windowed');
         return;
     }
+    if ($ready->{fullscreen_request}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::fullscreen_request(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{game_activity}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

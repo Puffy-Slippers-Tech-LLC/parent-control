@@ -1413,6 +1413,32 @@ sub game_expiry {
     $journey->finish();
 }
 
+sub fullscreen_request {
+    onpc_progress::operation('Opening a child request during fullscreen play and returning to the same game');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'fullscreen-request:arguments' unless @_ == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'fullscreen-request', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page parent-logout);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-entry');
+    $journey->seen('wrong-window');
+    for my $entry ('first', 'independent') {
+        my $play = $journey->scope($entry);
+        game_usable_app($play, 'fullscreen');
+        native_read_activity($play, 'capture');
+        onpc_request_flow::overlay_entry($play, 'request', 'panel');
+        $play->seen($_) for qw(cancel returned);
+        native_read_activity($play, 'game');
+        $play->seen($_) for qw(resume resumed close closed);
+    }
+    $journey->finish();
+}
+
 sub game_activity {
     onpc_progress::operation('Preparing ample child time and checking recognizable offline play');
     my ($exchange, $declared, $challenges) = @_;

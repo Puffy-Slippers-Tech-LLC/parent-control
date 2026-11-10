@@ -2499,6 +2499,18 @@ class GameFullscreenQualification(GameExpiryQualification):
     game_mode = 'fullscreen'
 
 
+class FullscreenRequestQualification(GameActivityQualification):
+    fixture_caller = 'check_e2e_fullscreen_request'
+
+    @staticmethod
+    def journey(context, progress):
+        from app_snapshot import snapshot_name
+        from fullscreen_request import FullscreenRequestJourney
+        version = json.loads((smoke.ROOT / 'data/app.json').read_bytes())['version']
+        context.installed_snapshot = snapshot_name(version)
+        return FullscreenRequestJourney(context, progress)
+
+
 class SnapFixtureQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

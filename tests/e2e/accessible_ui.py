@@ -200,7 +200,8 @@ OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
-    'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity'))
+    'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity',
+    'fullscreen-activity', 'resumed-close'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -1313,7 +1314,7 @@ OVERLAY_REQUEST_MINUTES = {0: None, 30: '0.5', 60: '1', 75: '1.25', 120: '2',
 OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15 seconds',
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
                             180: '3 minutes', 300: '5 minutes', 900: '15 minutes'}
-OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
+OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS, *OVERLAY_OPERATIONS,
     *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed', 'overlay-pending-close',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
     'overlay-desktop', 'overlay-request-cancel', 'child-countdown-present'})
@@ -10405,9 +10406,9 @@ class AccessibleUI:
             self.set_text('kiosk-custom-duration', OVERLAY_REQUEST_MINUTES[seconds], child=child)
         self.set_value('kiosk-soft-apps-toggle', soft)
 
-    def overlay_panel_form_present(self):
+    def overlay_panel_form_present(self, *, child=CHILD):
         """Acquire a complete entry read before choosing the panel action."""
-        self.require_child_overlay_session()
+        self.require_child_overlay_session(child)
         def observe():
             return {'present': self.snapshot_owned_target('kiosk-request-window') is not None}
         # An unrelated provider may exit between desktop discovery and its
@@ -10415,15 +10416,15 @@ class AccessibleUI:
         # whether to launch. No input is delivered or replayed by this wait.
         return self.wait(observe, 'overlay-panel-entry', prompt_in_predicate=True)['present']
 
-    def overlay_panel_target(self):
+    def overlay_panel_target(self, *, child=CHILD):
         """Resolve the child panel control by its desktop-neutral API endpoint."""
-        self.require_child_overlay_session()
+        self.require_child_overlay_session(child)
         return self.id_target('child-request-button', sensitive=True, showing=False)
 
-    def overlay_panel_launch(self):
+    def overlay_panel_launch(self, *, child=CHILD):
         """Activate the panel's ordinary request action once."""
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self._invoke_target(self.overlay_panel_target())
+        self._invoke_target(self.overlay_panel_target(child=child))
 
     def overlay_desktop(self, *, child=CHILD):
         """Independent complete absence and usable child desktop after Cancel."""
@@ -14228,6 +14229,14 @@ class AccessibleUI:
             self.wait(lambda: FixtureUI(self, 'game', require=require).text('mode') ==
                       mode.capitalize() + '; level: 1', 'game-mode-level')
             return {'mode': mode, 'level': 1}
+        if operation == 'game-fullscreen-activity':
+            self.wait(lambda: self.snapshot_owned_target('kiosk-request-window', showing=False) is None,
+                      'game-overlay-closed', prompt_in_predicate=True)
+            activity = self.wait(lambda: snapshot(1, pending=True, with_window=True), 'game-progress')
+            from fixture_ui import FixtureUI
+            require(FixtureUI(self, 'game', require=require).text('mode') == 'Fullscreen; level: 1',
+                    'ui:game-fullscreen-return')
+            return activity
         if operation == 'game-wrong-window':
             try:
                 snapshot()
@@ -14246,7 +14255,8 @@ class AccessibleUI:
         # A fresh complete window/owner/state proof precedes every action.
         # Providers can disappear between enumeration and the read. Reacquire
         # only this preflight, as for native Submit; never replay game input.
-        self.wait(lambda: snapshot(0 if operation == 'game-move' else 1),
+        self.wait(lambda: snapshot(0 if operation == 'game-move' else
+                                  2 if operation == 'game-resumed-close' else 1),
                   'game-action-ready', prompt_in_predicate=True)
         from fixture_ui import FixtureUI
         fixture = FixtureUI(self, 'game', require=require)
@@ -15275,28 +15285,28 @@ class AccessibleUI:
         elif operation == 'kiosk-request-select':
             self.select_kiosk_request()
         elif operation == 'overlay-panel-ready':
-            if not self.overlay_panel_form_present():
-                self.overlay_panel_target()
+            if not self.overlay_panel_form_present(child=bound_child):
+                self.overlay_panel_target(child=bound_child)
             else:
-                self.kiosk_request_form(enabled=True, overlay=True)
+                self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-panel-launch':
-            if not self.overlay_panel_form_present():
-                self.overlay_panel_launch()
+            if not self.overlay_panel_form_present(child=bound_child):
+                self.overlay_panel_launch(child=bound_child)
             else:
-                self.kiosk_request_form(enabled=True, overlay=True)
+                self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-panel-reveal-ready':
-            self.require_child_overlay_session()
-            self.kiosk_request_form(enabled=True, overlay=True)
+            self.require_child_overlay_session(bound_child)
+            self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-panel-overview':
-            self.require_child_overlay_session()
-            self.kiosk_request_form(enabled=True, overlay=True)
+            self.require_child_overlay_session(bound_child)
+            self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-request-form':
-            result['request'] = self.kiosk_request_form(enabled=True, overlay=True)
+            result['request'] = self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-grant-form':
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True,
-                duration_seconds=600, custom_text='10')
+                duration_seconds=600, custom_text='10', overlay_child=bound_child)
         elif operation == 'overlay-qualification-cancel':
-            self.require_child_overlay_session()
+            self.require_child_overlay_session(bound_child)
             nodes, edges, identities, facts = self.read_snapshot(protect_text=True)
             application = self.snapshot_matches(CHILD_APPLICATION, nodes, showing=False,
                                                 identities=identities)

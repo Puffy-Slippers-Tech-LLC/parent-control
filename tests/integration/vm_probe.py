@@ -761,6 +761,20 @@ def reproduce_fullscreen_return(lease, fixture_selection):
         fixture_selection=selection, timeout=1800)
 
 
+def reproduce_fullscreen_request(lease, fixture_selection):
+    """Retain Jordan's real fullscreen game before the panel preflight."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from fullscreen_request import PLAN
+    from policy_edits import AppPolicyJourney
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, AppPolicyJourney, PLAN,
+        'first-request-panel', 'fullscreen-request', assets=assets,
+        boundary_operation='overlay-panel-ready', fixture_selection=selection, timeout=1800)
+
+
 def reproduce_rest_of_day(lease, fixture_selection):
     """Retain the real midnight lock before the later input challenge."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1887,6 +1901,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
+        from fullscreen_request import PLAN as FULLSCREEN_REQUEST_PLAN
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
         from overlay_lock_case import OverlayLockCaseJourney, PLAN as OVERLAY_LOCK_PLAN
@@ -1930,6 +1945,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         fullscreen_return = (surface == 'fullscreen-return'
             and journey_type is GameAccessJourney and plan is FULLSCREEN_PLAN
             and boundary == 'recovery-countdown' and boundary_operation is None)
+        fullscreen_request = (surface == 'fullscreen-request'
+            and journey_type is AppPolicyJourney and plan is FULLSCREEN_REQUEST_PLAN
+            and boundary == 'first-request-panel' and boundary_operation == 'overlay-panel-ready')
         rest_of_day = (surface == 'rest-of-day'
             and journey_type is RestOfDayJourney and plan is REST_OF_DAY_PLAN
             and boundary == 'lock-input-ready' and boundary_operation is None)
@@ -2008,7 +2026,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2078,10 +2096,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'daily-soft-balance': 'E2E-038/none',
                                        'overlay-return': 'check_e2e_compose_approval_and_return_to_the_child'
                                        }.get(surface, ACTIVITY_CALLER))
-            if surface == 'fullscreen-return':
+            if surface in ('fullscreen-return', 'fullscreen-request'):
                 from e2e_fixture_preparation import GAME_SUBSETS
                 context.fixture_subsets = GAME_SUBSETS
-                context.fixture_caller = 'E2E-023/fullscreen'
+                context.fixture_caller = ('E2E-023/fullscreen' if surface == 'fullscreen-return'
+                                          else 'check_e2e_fullscreen_request')
             context.installed_snapshot = lease.installed_name
         expected_inputs = {}
         if assets is not None:
@@ -2179,6 +2198,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if surface == 'flatpak-temporary-access':
             from flatpak_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
+        if surface == 'fullscreen-request':
+            from native_fixtures import fixture_actions
+            actions = fixture_actions(include_refusal=False, profile='game')
         if surface == 'native-desktop':
             from native_fixtures import fixture_actions
             from synthetic_files import desktop_entry_actions
@@ -2237,7 +2259,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                         else:
                             # This diagnostic must retain the already qualified
                             # prompt identity and normal fresh-proof deadline.
-                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant', 'native-temporary-access', 'daily-soft-balance')
+                            observer = (journey.ui if surface in ('delayed-approval', 'suspend-active-grant', 'suspend-expired-grant', 'native-temporary-access', 'daily-soft-balance', 'fullscreen-request')
                                         else UiObservations(transport))
                             if surface == 'native-temporary-access':
                                 import accessible_ui

@@ -20,7 +20,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **129a — [Reach an overlay request from fullscreen gameplay](E2E-Tasks/129a-fullscreen-request.md)**.
+Next task: **131 — [E2E-024: grant-dominant-fullscreen](E2E-Tasks/131-case-131.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

@@ -120,6 +120,7 @@ def test_child_panel_stdin_entry_opens_a_prefilled_report(
     pytest.param(False, False, id="kiosk"),
     pytest.param(True, False, id="child-overlay"),
     pytest.param(True, True, id="child-overlay-retry"),
+    pytest.param(False, True, id="kiosk-retry"),
 ))
 def test_request_error_review_restrictions_and_submission(
         launch_ui, automation, wait_for_accessible_state, tmp_path, overlay, retry):

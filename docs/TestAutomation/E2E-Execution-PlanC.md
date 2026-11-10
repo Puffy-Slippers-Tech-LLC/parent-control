@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **190b — [Check station report retry and recovery](E2E-Tasks/190b-kiosk-sending-stay.md)**.
+Next task: **190k — [Stop a station report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

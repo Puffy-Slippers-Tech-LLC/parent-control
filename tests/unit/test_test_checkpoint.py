@@ -18,8 +18,124 @@ import regression
 import regression_events
 import regression_selection
 import test_commands
-from test_checkpoint import Checkpoint, EXCLUDE, ONLY
+from test_checkpoint import Checkpoint, PassCheckpoint, EXCLUDE, ONLY
 from tests.support.paths import ROOT
+
+
+def pass_work(*cases):
+    return dict(category='system', options=['--area', 'authorization'],
+                cases=list(cases), case=cases[-1], area=True)
+
+
+def pass_evidence(assignment, passed, **values):
+    return dict(assignment, passed=passed, cleanup=True, diagnostic=False, **values)
+
+
+def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path):
+    work = pass_work('authorization::first', 'authorization::last')
+    pool = {'one': 'deb', 'two': 'deb', 'three': 'rpm'}
+    families = {family: [work] for family in ('deb', 'rpm')}
+    selection = [('system', work['options'])]
+    with PassCheckpoint(tmp_path, selection, pool, families) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', work, {'digest': 'a' * 64, 'generation': 0})
+        assert checkpoint.pending('deb') == []
+        assert checkpoint.claim('deb', 'two', work, 'a' * 64) is None
+        evidence = pass_evidence(assignment, work['cases'])
+        original = json.dumps(checkpoint.state, sort_keys=True)
+        for field, value in [('attempt', '0' * 32), ('vm', 'two'), ('source', 'b' * 64),
+                             ('selection', []), ('diagnostic', True)]:
+            with pytest.raises(ValueError, match='evidence'):
+                checkpoint.accept(assignment, dict(evidence, **{field: value}), 0)
+            assert json.dumps(checkpoint.state, sort_keys=True) == original
+        assert not checkpoint.accept(assignment, dict(evidence, cleanup=False), 0)
+        assert checkpoint.passed('deb', 'system') == set()
+        assert checkpoint.accept(assignment, evidence, 0)
+        assert checkpoint.passed('deb', 'system') == set(work['cases'])
+        assert checkpoint.passed('rpm', 'system') == set()
+        assert checkpoint.pending('rpm') == [work]
+        checkpoint.state['host_complete'] = True
+        checkpoint.save()
+        identity = checkpoint.state['run'], checkpoint.state['pass']
+    with PassCheckpoint(tmp_path, selection, pool, families, resume=True) as checkpoint:
+        assert (checkpoint.state['run'], checkpoint.state['pass']) == identity
+        assert checkpoint.state['host_complete']
+        assert checkpoint.pending('deb') == []
+        assert checkpoint.pending('rpm') == [work]
+        with pytest.raises(ValueError, match='stale'):
+            checkpoint.accept(assignment, evidence, 0)
+    with pytest.raises(ValueError, match='selection differs'):
+        with PassCheckpoint(tmp_path, selection, {'three': 'rpm'}, {'rpm': [work]}, resume=True):
+            pass
+
+
+def test_pass_failed_target_stays_on_original_vm_until_owned_recovery(tmp_path, monkeypatch):
+    import test_activity
+    from contextlib import nullcontext
+    from test_checkpoint import family_claims_pending, recover_family_claims
+    work = pass_work('authorization::first', 'authorization::last')
+    overlapping = dict(work, options=['--area', 'authorization', '--test', 'last'])
+    selection = [('system', [])]
+    pool, families = {'one': 'deb', 'two': 'deb'}, {'deb': [work, overlapping]}
+    with PassCheckpoint(tmp_path, selection, pool, families) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', work, 'a' * 64)
+        assert checkpoint.claim('deb', 'two', overlapping, 'a' * 64) is None
+        assert not checkpoint.accept(assignment, pass_evidence(assignment, work['cases']), 1)
+        assert checkpoint.passed('deb', 'system') == {work['cases'][0]}
+        assert checkpoint.claims() == [assignment]
+        assert family_claims_pending(tmp_path, 'one') == 1
+        monkeypatch.setattr(test_activity, 'exclusive_vm_progress', nullcontext)
+        with pytest.raises(ValueError, match='another owner'):
+            recover_family_claims(tmp_path, 'one')
+    with pytest.raises(ValueError, match='uncertain claims'):
+        with PassCheckpoint(tmp_path, selection, pool, families):
+            pass
+    assert recover_family_claims(tmp_path, 'two') == 0
+    assert family_claims_pending(tmp_path, 'one') == 1
+    assert recover_family_claims(tmp_path, 'one') == 1
+    with PassCheckpoint(tmp_path, selection, pool, families, resume=True) as checkpoint:
+        assert checkpoint.passed('deb', 'system') == {work['cases'][0]}
+        retried = checkpoint.claim('deb', 'two', work, 'a' * 64)
+        assert retried['attempt'] != assignment['attempt']
+        assert retried['assignment'] != assignment['assignment']
+        assert retried['run'] == assignment['run']
+        checkpoint.recover(retried, cleanup=True)
+
+
+def test_pass_resume_adds_standalone_work_and_deduplicates_qualified_cases(tmp_path):
+    original = dict(category='system', options=[], cases=['check_first'], case='check_first', area=False)
+    repeated = dict(original, options=['check_first'])
+    added = dict(original, cases=['check_added'], case='check_added')
+    pool = {'one': 'deb'}
+    selection = [('_guest', ['system'])]
+    with PassCheckpoint(tmp_path, selection, pool, {'deb': [original, original, repeated]}) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', original, 'a' * 64)
+        checkpoint.accept(assignment, pass_evidence(assignment, ['check_first']), 0)
+        assert checkpoint.pending('deb') == []
+    with PassCheckpoint(tmp_path, selection, pool, {'deb': [original, repeated, added]}, resume=True) as checkpoint:
+        assert checkpoint.pending('deb') == [added]
+        assert checkpoint.passed('deb', 'system') == {'check_first'}
+    with pytest.raises(ValueError, match='inventory differs'):
+        with PassCheckpoint(tmp_path, selection, pool, {'deb': [added]}, resume=True):
+            pass
+
+
+def test_pass_refuses_legacy_resume_without_relabeling_accepted_progress(tmp_path):
+    legacy = Checkpoint(tmp_path, [('system', ['check_first'])],
+                        namespace='run-tests-family', binding='legacy-family')
+    legacy.event('system', dict(kind='finished', nodeid='check_first'), set())
+    legacy.save()
+    path = legacy.store.path / legacy.name
+    original = path.read_bytes()
+    work = dict(category='system', options=['check_first'], cases=['check_first'],
+                case='check_first', area=False)
+    with pytest.raises(ValueError, match='original supported implementation'):
+        with PassCheckpoint(tmp_path, [('system', ['check_first'])], {'one': 'deb'},
+                            {'deb': [work]}, resume=True):
+            pass
+    assert path.read_bytes() == original
+    with PassCheckpoint(tmp_path, [('system', ['check_first'])], {'one': 'deb'}, {'deb': [work]}):
+        pass
+    assert path.read_bytes() == original
 
 
 

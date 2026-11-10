@@ -1636,6 +1636,8 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
     import test_retention
     import test_activity
     root = root or Path(__file__).resolve().parents[1]
+    if checkpoint is not None:
+        checkpoint.queue_finalized = False
     # Keep repeated interrupts cooperative through storage rotation/finalization,
     # including after the inner command controller has restored its handlers.
     with Control().installed() as storage_control:
@@ -1660,6 +1662,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
     status = 1
     failed = False
     reloading = False
+    qualified = False
     from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS
     with Control().installed() as control:
         try:
@@ -1674,6 +1677,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             run.checkpoint = checkpoint
             run.run()
             status = run.result_status()
+            qualified = True
         except ReloadRequested:
             reloading, status = True, RELOAD_STATUS
         except (Exception, KeyboardInterrupt) as error:
@@ -1718,6 +1722,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                 elif report is None:
                     print('\033[31m[✗] Report initialization - 0% (0/1)\033[0m')
             except (Exception, KeyboardInterrupt):
+                qualified = False
                 status = 1
                 if run is not None:
                     run.dashboard.restore_terminal()
@@ -1727,6 +1732,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                     try:
                         run.dashboard.finish(**({'reloading': True} if reloading and status == RELOAD_STATUS else {}))
                     except (Exception, KeyboardInterrupt):
+                        qualified = False
                         status = 1
                         run.dashboard.restore_terminal()
                         print('Regression final display could not be saved; result is failed.', file=sys.stderr)
@@ -1734,6 +1740,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                     try:
                         report.close(release=False)
                     except (Exception, KeyboardInterrupt):
+                        qualified = False
                         status = 1
                         print('Regression final evidence could not be synced; result is failed.', file=sys.stderr)
     if run is not None and run.includes_vm:
@@ -1741,6 +1748,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             from vm_recording import report_finished
             report_finished()
         except (Exception, KeyboardInterrupt) as error:
+            qualified = False
             status = 1
             print(f'Regression recording finalization failed: {error}', file=sys.stderr, flush=True)
     if report is not None and (status == 1 or (run is not None and any(
@@ -1777,11 +1785,17 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
             print(f'Failure handoff: {handoff.resolve()}', flush=True)
             print("For failure investigation, read and follow the handoff's prompt field.", flush=True)
         except OSError:
+            qualified = False
             status = 1
             print('Regression failure handoff could not be saved; original report preserved.',
                   file=sys.stderr, flush=True)
     if report is not None:
         report.release_session()
+    if checkpoint is not None:
+        # This bounded attempt result is published only after all report and
+        # command finalizers. The outer retention session must also exit before
+        # the worker can submit it to the pass coordinator.
+        checkpoint.queue_finalized = qualified
     if reloading and status == RELOAD_STATUS and not control.stopped.is_set():
         raise ReloadRequested()
     return status

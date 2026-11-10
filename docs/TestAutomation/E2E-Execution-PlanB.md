@@ -26,7 +26,7 @@ integration work and must not become a queue prerequisite.
 
 ## Next task
 
-Next task: **215 — [Request time again after signing out during approval](E2E-Tasks/215-case-173.md)**.
+Next task: **183d — [Close the overlay during pending approval](E2E-Tasks/183d-close-the-overlay-during-pending-approval.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

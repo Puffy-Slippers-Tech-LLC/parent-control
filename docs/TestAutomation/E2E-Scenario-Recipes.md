@@ -2230,35 +2230,6 @@ entry and fake sender. They require no installed request-error prefix. Installed
 request-error review/decline remains uncovered until a genuine public trigger is
 qualified; do not manufacture an error by repeating a successful request.
 
-### E2E-046
-
-Case **208** remains an installed collection-failure/recovery journey. Former
-case **213** is a pending host UI obligation for explicit Send without logs,
-under the [mock-sending allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
-
-**Recover collection, or explicitly send a report without unavailable logs.**
-
-Parent without logs, both desktop request-report choices and station retry are
-removed from scheduling; case IDs 209–212 must not be reused. This keeps both
-recovery choices at their declared layers.
-
-For 208, open Parent feedback and independently observe a genuine terminal
-collection failure. Editing/Close remain usable. Enter and capture a synthetic
-draft, restore the declared public prerequisite, select Retry once, require
-ready diagnostics with the unchanged draft, and close normally without Send.
-The public failure/recovery trigger remains required; Internet loss alone does
-not fail local collection.
-
-For 213, reuse the existing request component collector's declared failure and
-fake HTTP sender. Observe collection failure, usable editing/Close, in-app
-Privacy and absent kiosk attachment/download/external-link actions. Enter a
-synthetic draft, select Send without logs once, verify the encoded submission
-has no diagnostic attachment, observe app success and thanks, then manually
-dismiss and require real dialog closure plus the recorded logout callback.
-This component callback is not an installed GDM observation. No genuine
-request-error trigger, installed collection outage, recipient or send authorization
-gates the local check; those installed results keep their own owners.
-
 ### E2E-047
 
 Allocation: former cases **216, 218–221** are pending host UI obligations under
@@ -2674,7 +2645,7 @@ restriction before new approval, and require a new system prompt.
 
 After any completed request and its cleanup, a later request may begin immediately
 and must obtain a new selected-parent prompt and real authentication. Request-error
-review/decline and collection failure require genuine public prerequisites; no
+review/decline requires a genuine public prerequisite; no
 repeat-request refusal is available. Reallocated component sending checks use
 their existing request preview independently of those installed gaps.
 
@@ -2785,7 +2756,7 @@ and local dialog lifetime checks remain with the shared feedback UI owner.
 Review the exact current body, reply address and attachments before Send.
 Reuse Privacy evidence for the unchanged reviewed profile and qualified surface;
 do not reopen the disclosure in every send, retry or exit qualification. Case
-156 retains the ordinary-feedback disclosure visit; without-logs case 213 retains
+156 retains the ordinary-feedback disclosure visit; the station without-logs UI check retains
 its component request-surface disclosure result. Genuine installed request-error
 Privacy bindings remain unqualified after retirement of cases 176/178. A changed
 disclosure or surface binding still needs its affected qualification. Reusing
@@ -2811,22 +2782,6 @@ installed customer journey.
 | 216 app-exit | Fake retryable response → actual retry → close feedback → exit Parent. Relaunch the preview normally and require reset draft with no resumed outbox or retry from the exited process. No live-service delivery claim. |
 | 218 overlay-stop / 219 kiosk-stop | Fake retryable response → actual retry and explicit Stop action → activate Stop once → require dialog closure, stopped pending retries and the recorded close-overlay/logout callback. No warning/stay dialog, installed request-error trigger, Internet isolation or installed destination credit. |
 | 220 overlay-success / 221 kiosk-success | Fake success → actual owned thanks while original report-exit callback remains pending → manual dismissal → report closed and callback recorded once. Case 220 uses the synthetic reply address and observes the follow-up note. No real desktop/GDM or service-acceptance credit. |
-
-Installed collection-recovery case 208 still requires a real publicly observed
-failure and recovery; no deterministic public trigger is established. Task
-188k retains the distinct genuine kiosk collection-failure result. Former case
-213's component without-logs check instead uses the existing test-local
-collector failure and fake sender, and must observe the failed state before
-explicit Send without logs. It supplies no installed collection-failure result.
-Internet loss does not itself fail local diagnostic collection.
-
-The current `AccessibleUI.feedback_snapshot` and `wait_feedback_collection`
-only accept ready diagnostics; the former rejects visible Retry/Send without
-logs and the latter requires available Download. Supporting qualification needs
-a terminal failure projection; Parent recovery must compose
-failure → one Retry → ready
-with the unchanged draft. Keep the public-trigger gate; no trace qualification
-or internal fault substitutes for the failed result.
 
 The [documented Stop action](../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export)
 matches `FeedbackDialog._hide_draft`: closing a busy error report directly stops

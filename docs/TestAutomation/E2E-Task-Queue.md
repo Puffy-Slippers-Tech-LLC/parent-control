@@ -87,11 +87,7 @@ The [system allocation](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 removes duplicate engineering cases, prerequisite steps and acceptance matrices
 while preserving complete customer journeys.
 
-Task **188p** is absorbed into **188r**: one pending qualification observes
-genuine Parent diagnostic-collection failure, usable editing/Close, restoration,
-Retry and the retained draft. Do not reproduce the same failure in a separate
-failure-only qualification. The public trigger remains unresolved, and case
-**208** retains its complete independent customer acceptance. Fixture tasks
+Fixture tasks
 **109p/116p/126p** reuse shared baseline safety coverage, adding direct checks
 only for a genuinely changed boundary; their installed profile qualification
 and later app/game journeys remain pending.

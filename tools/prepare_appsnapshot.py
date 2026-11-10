@@ -62,7 +62,7 @@ def build_artifacts(root, package_format, control, environment, *, label='prepar
     return directory, status
 
 
-def main(argv=None):
+def main(argv=None, *, _worker=False):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
@@ -70,14 +70,14 @@ def main(argv=None):
         args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
-        if not confirm_preparation(args):
+        if not _worker and not confirm_preparation(args):
             print('prepare-appsnapshot: cancelled; no app snapshot was prepared.')
             return 0
         root = Path(__file__).resolve().parents[1]
         helper = '/usr/local/libexec/onpc-test-runner'
         test_source.finish_admission()
         recipe_args = ['--release-notes-upgrade'] if args.release_notes_upgrade else []
-        if len(vms) > 1:
+        if not _worker:
             check(helper)
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
             return status

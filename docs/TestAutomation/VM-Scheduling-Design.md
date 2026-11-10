@@ -7,7 +7,7 @@ for a very long time. Use non-VM validation only; do not attempt or wait for VM
 validation. Required live qualification remains pending until VMs are available.
 
 Task queue: [Ordered task queue](VM-Scheduling-Task-Queue.md).
-Next task: **002 — [Share VM workers with preparation](VM-Scheduling-Tasks/002.md)**.
+Next task: **003 — [Give test work one coordinator](VM-Scheduling-Tasks/003.md)**.
 
 ## Goal and launcher
 

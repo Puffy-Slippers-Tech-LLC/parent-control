@@ -67,6 +67,19 @@ one attempt at a time, retaining its own lease and journals.
 Preparation remains per VM: each free slot takes the next registered VM, and
 the preparation queue drains even after an individual VM fails.
 Baseline helper refresh runs once after preparation workers finish.
+Ordinary tests and both preparation tools use the shared `vm_queue.py` executor,
+including explicit single-VM selections. Each worker reserves only its canonical
+target from the selected pool. Reservation waiters consume no execution capacity;
+workers recheck source protection after reservation and acquire capacity only
+after source admission. Spare grants are released when capacity fills, rather
+than parking free VMs behind active workers. A live source wait likewise releases
+the idle reservation before waiting and rechecks after checkout. Normal test
+claims follow that admission. Waiters whose
+family work has drained are cancelled without waiting for the occupied VM.
+Failed test workers retain their reservations while the remaining workers finish,
+with their execution slots released. Reservation release follows joined owned
+cleanup, never a progress event or timeout. Legacy repair scheduling remains
+separate until its planned cutover.
 Cancellation stops queued work and waits for active cleanup; an active baseline
 replacement finishes before returning cancellation because it has no cooperative
 stop protocol. Multiple preparation selections are confirmed together before

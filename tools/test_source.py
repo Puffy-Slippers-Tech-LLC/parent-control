@@ -28,6 +28,10 @@ class RestartExecution(Exception):
     """Control-only imports must unwind their owners before fresh execution."""
 
 
+class SourceBusy(ValueError):
+    """A live source owner prevents immediate reader admission."""
+
+
 def restart_execution():
     raise RestartExecution()
 
@@ -305,7 +309,7 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True):
                     protection.check_generation(fresh=fresh)
                     break
             if not wait:
-                raise ValueError('checkout source is busy; retry after its current owner finishes')
+                raise SourceBusy('checkout source is busy; retry after its current owner finishes')
             time.sleep(.1)
         retain(fd)
         try:

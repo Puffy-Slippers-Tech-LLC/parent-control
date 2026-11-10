@@ -9,12 +9,252 @@ from pathlib import Path
 import select
 import subprocess
 import sys
+import threading
+from contextlib import contextmanager
+from dataclasses import replace
 
 import pytest
 import vm_pool
 
 A = 'f95890e1-88e7-4779-8ae3-53fdcc34330a'
 B = 'f95890e1-88e7-4779-8ae3-53fdcc34330b'
+
+
+@pytest.fixture
+def executor_pool(tmp_path, monkeypatch):
+    """Private admission doubles; exercise the real executor and its slots."""
+    import test_source
+    from types import SimpleNamespace
+    from vm_selection import vm_config
+
+    vms = [vm_config.VMConfig(name, tmp_path / name, enabled=True, id=str(index))
+           for index, name in enumerate(('first', 'second'), 1)]
+    configured = {vm.name: vm for vm in vms}
+    monkeypatch.setattr(vm_config, 'load', lambda name: configured[name])
+    held, released = set(), []
+    local = threading.local()
+
+    @contextmanager
+    def reservation(name, *, stopped, bind):
+        assert bind is False
+        assert name in configured
+        local.name = name
+        held.add(name)
+        try:
+            yield (A if name == 'first' else B) + ':' + 'a' * 32
+        finally:
+            held.remove(name)
+            released.append(name)
+
+    @contextmanager
+    def reader(root, **kwargs):
+        assert root == tmp_path
+        yield
+
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
+    monkeypatch.setattr(test_source, 'reader', reader)
+    return SimpleNamespace(root=tmp_path, vms=vms, held=held, released=released,
+                           local=local, reservation=reservation)
+
+
+def test_executor_refuses_noncanonical_pool_before_checkout(executor_pool, monkeypatch):
+    import vm_queue
+    from vm_selection import vm_config
+
+    state = executor_pool
+    canonical = state.vms[0]
+    monkeypatch.setattr(vm_config, 'load', lambda name: canonical)
+    for invalid in (replace(canonical, name=canonical.id),
+                    replace(canonical, disk_anchor=state.root / 'foreign')):
+        with pytest.raises(ValueError):
+            with vm_queue.Executor(state.root, [invalid], 1, threading.Event()):
+                pytest.fail('noncanonical VM entered the executor')
+    assert not state.held and not state.released
+
+
+def test_executor_busy_waiter_uses_no_slot_and_cancels_when_work_drains(executor_pool, monkeypatch):
+    import test_source
+    import vm_queue
+
+    state = executor_pool
+    waiting = threading.Event()
+    cancelled = threading.Event()
+    drained = threading.Event()
+    readers = []
+    callbacks = []
+
+    @contextmanager
+    def reservation(name, *, stopped, bind):
+        if name == 'first':
+            assert bind is False
+            waiting.set()
+            for _ in range(500):
+                if stopped():
+                    cancelled.set()
+                    raise KeyboardInterrupt
+                cancelled.wait(.01)
+            pytest.fail('obsolete occupied-VM waiter did not cancel')
+        with state.reservation(name, stopped=stopped, bind=bind) as receipt:
+            yield receipt
+
+    @contextmanager
+    def reader(root, **kwargs):
+        readers.append(state.local.name)
+        yield
+
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
+    monkeypatch.setattr(test_source, 'reader', reader)
+
+    def execute(worker):
+        assert waiting.wait(5)
+        callbacks.append(worker.vm.name)
+        with worker.operation():
+            assert worker.receipt == B + ':' + 'a' * 32
+            drained.set()
+        return 0
+
+    with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+        results = executor.run_each(execute, needed=lambda vm: not drained.is_set())
+        assert results['second'] == 0
+        assert cancelled.is_set()
+    assert callbacks == ['second'] and readers == ['second']
+    assert not state.held
+
+
+def test_executor_foreign_source_fence_releases_idle_checkout(executor_pool, monkeypatch):
+    import test_source
+    import vm_queue
+
+    state = executor_pool
+
+    @contextmanager
+    def reader(root, **kwargs):
+        assert state.held == {'first'}
+        raise ValueError('foreign retained source writer')
+        yield
+
+    monkeypatch.setattr(test_source, 'reader', reader)
+
+    def execute(worker):
+        with worker.operation():
+            pytest.fail('foreign source writer permitted VM activity')
+
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        results = executor.run_each(execute)
+        assert results['first']['status'] != 0
+        assert 'foreign retained source writer' in results['first']['error']
+        assert not state.held, 'source refusal retained an unused checkout'
+    assert state.released == ['first']
+
+
+def test_executor_releases_excess_free_vms_while_capacity_is_full(executor_pool, monkeypatch):
+    import vm_queue
+
+    state = executor_pool
+    ready = threading.Barrier(2)
+    first_requests = set()
+    idle_released = threading.Event()
+    executed = []
+
+    @contextmanager
+    def reservation(name, *, stopped, bind):
+        try:
+            with state.reservation(name, stopped=stopped, bind=bind) as receipt:
+                if name not in first_requests:
+                    first_requests.add(name)
+                    ready.wait(timeout=5)  # Both free VMs become ready together.
+                yield receipt
+        finally:
+            idle_released.set()
+
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
+
+    def execute(worker):
+        with worker.operation():
+            executed.append(worker.vm.name)
+            if len(executed) == 1:
+                assert idle_released.wait(5), 'spare free VM stayed reserved behind capacity'
+                assert state.held == {worker.vm.name}
+        return 0
+
+    with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+        results = executor.run_each(execute)
+    assert results == {'first': 0, 'second': 0}
+    assert sorted(executed) == ['first', 'second'] and not state.held
+
+
+def test_executor_source_wait_uses_no_slot_and_failure_retains_checkout(executor_pool, monkeypatch):
+    import test_source
+    import vm_queue
+
+    state = executor_pool
+    source_waiting = threading.Event()
+    source_ready = threading.Event()
+    release_source = threading.Event()
+    first_running = threading.Event()
+    second_failed = threading.Event()
+    cleanup_finished = threading.Event()
+    readers = set()
+
+    @contextmanager
+    def reader(root, **kwargs):
+        name = state.local.name
+        if name == 'first':
+            if kwargs.get('wait') is False and not release_source.is_set():
+                source_waiting.set()
+                raise test_source.SourceBusy('controlled live source writer')
+            if kwargs.get('wait') is not False:
+                assert name not in state.held, 'source wait retained an idle VM'
+                assert release_source.wait(5), 'other VM could not progress during source wait'
+                source_ready.set()
+        else:
+            assert source_waiting.wait(5)
+        if kwargs.get('wait') is False:
+            assert name in state.held
+        readers.add(name)
+        try:
+            yield
+        finally:
+            if name == 'second':
+                assert first_running.wait(5), 'source reader closed before releasing the execution slot'
+            readers.remove(name)
+
+    monkeypatch.setattr(test_source, 'reader', reader)
+
+    def execute(worker):
+        name = worker.vm.name
+        with worker.operation():
+            assert name in readers
+            if name == 'second':
+                try:
+                    release_source.set()
+                    assert source_ready.wait(5)
+                    assert not first_running.wait(.05), 'source waiter bypassed the capacity limit'
+                finally:
+                    # Owned cleanup remains inside the finite operation's slot.
+                    cleanup_finished.set()
+            else:
+                first_running.set()
+                assert cleanup_finished.is_set()
+                assert second_failed.wait(5)
+                assert 'second' in state.held, 'failed worker checked in before its peers finished'
+        if name == 'second':
+            second_failed.set()
+            raise RuntimeError('controlled operation failure')
+        return 0
+
+    with vm_queue.Executor(state.root, state.vms, 4, threading.Event()) as executor:
+        results = executor.run_each(execute)
+        assert results['first'] == 0
+        assert results['second']['status'] != 0
+        assert 'controlled operation failure' in results['second']['error']
+        assert 'second' in state.held
+    assert not state.held and not readers
+    assert set(state.released) == {'first', 'second'}
+    assert state.released.count('second') == 1
+    # Source waiting checks in the idle VM, then reacquires it for execution.
+    # An admission race may likewise check it in again before capacity opens.
+    assert state.released.count('first') >= 2
 
 
 @pytest.fixture

@@ -48,7 +48,7 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
-def main(argv=None, *, refresh=True):
+def main(argv=None, *, refresh=True, _worker=False):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
@@ -60,7 +60,7 @@ def main(argv=None, *, refresh=True):
         read_password()
         check(HELPER)
         test_source.finish_admission()
-        if len(vms) > 1:
+        if not _worker:
             from vm_selection import confirm_queue
             if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
                 print('prepare-vm: cancelled; no baseline snapshot was prepared.')

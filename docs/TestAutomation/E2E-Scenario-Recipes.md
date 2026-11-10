@@ -2377,7 +2377,7 @@ with **two complete cycles**, retaining every row and intermediate result.
 Budget: 5400 seconds including setup and cleanup. Start with
 enough time before local midnight to finish. Never move the clock.
 
-Child-owned work uses [196a's planned FILE08/09 binding](E2E-Tasks/196a-child-saved-work.md),
+Child-owned work uses the [qualified FILE08/09 binding](E2E-Building-Blocks.md#child-owned-saved-work),
 including Save/reopen and independent public activity. Checked 196 supplies
 attachment-source mutation only. Recovery composes TIME04, retained FLOW20 and
 the case's earlier work/game observations; it does not require another FLOW11

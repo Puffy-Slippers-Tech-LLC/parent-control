@@ -204,6 +204,11 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
     'grid-blocked', 'grid-denied'))
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
+WORK_OPERATIONS = frozenset('work-' + who + '-' + action
+    for who in ('jordan', 'riley')
+    for action in ('open', 'opened', 'edit', 'save', 'saved', 'activity', 'submit', 'submitted', 'close', 'closed'))
+OPERATIONS |= WORK_OPERATIONS
+STANDARD_OPERATIONS |= frozenset(op for op in WORK_OPERATIONS if op.startswith('work-jordan-'))
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
     'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity',
@@ -392,6 +397,7 @@ OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 NATIVE_APP_OPERATIONS |= frozenset(NATIVE_FILES_BINDINGS)
 OVERLAY_NATIVE_OPERATIONS |= frozenset(BASELINE_NATIVE_BINDINGS)
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_NATIVE_OPERATIONS
+CHILD_DESKTOP_OPERATIONS |= frozenset(op for op in WORK_OPERATIONS if op.startswith('work-riley-'))
 OVERLAY_ABOUT_OPERATIONS = frozenset({'overlay-about-open', 'overlay-license-read',
     'overlay-website-read', 'overlay-privacy-read', 'overlay-support-read',
     'overlay-legal-notices-read', 'overlay-help-read', 'overlay-information-about',
@@ -3182,8 +3188,15 @@ class AccessibleUI:
         else:
             node = self.wait(lambda: self.text_recipient(identity, child=child),
                              'text-recipient')
+        editable = None
+        if identity == 'onpc-fixture-native-primary-draft':
+            editable = node.get_editable_text_iface()
+            require(editable is not None, 'ui:text-editor')
         self.input_uncertain = True
-        node.setText(value)
+        if editable is not None:
+            require(self.api.EditableText.set_text_contents(editable, value), 'ui:text-refused')
+        else:
+            node.setText(value)
         self.input_uncertain = False
         if activate:
             self.activate_id(identity)
@@ -5314,7 +5327,8 @@ class AccessibleUI:
                 and self.has_state(node, self.api.StateType.SENSITIVE)
                 and not self.has_state(node, self.api.StateType.DEFUNCT),
                 'ui:text-disabled')
-        require(identity in {item[0] for item in TEXT_VALUES.values()} | {'preset-value'},
+        require(identity in {item[0] for item in TEXT_VALUES.values()} | {
+                    'preset-value', 'onpc-fixture-native-primary-draft'},
                 'ui:text-binding')
         require(node.get_role_name() != 'password text'
                 and self.has_state(node, self.api.StateType.EDITABLE), 'ui:text-editor')
@@ -13846,13 +13860,18 @@ class AccessibleUI:
             'native-files-' + action, prompt_in_predicate=True)
 
     def native_launch_command(self, instance='primary', *, child=EXISTING_CHILD, blocked=False,
-                              fixture='policy', role=None, locked=False, kind='native', fullscreen=False):
+                              fixture='policy', role=None, locked=False, kind='native', fullscreen=False,
+                              work_receipt=None):
         """APP01: one fixed native command in Jordan's active desktop session.
 
         FIX06 verifies the baseline inputs before this operation. Submission is
         never window acceptance; APP02 independently reads the public result.
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
+        require(work_receipt is None or kind == 'native' and instance == 'primary'
+                and role == 'A' and not blocked and not locked and fixture == 'policy'
+                and child in (CHILD, EXISTING_CHILD) and type(work_receipt) is dict
+                and work_receipt.get('user') == CHILD_ACCOUNTS[child], 'ui:work-binding')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
         require(type(fullscreen) is bool and (not fullscreen or kind == 'game'), 'ui:game-mode')
         require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
@@ -13951,6 +13970,8 @@ class AccessibleUI:
                 'S': 'com.puffyslippers.ONPCTestApplication.Soft'}[role]] if flatpak else []),
             *(['--instance', instance] if role is not None else []),
             *(['--fullscreen'] if fullscreen else []),
+            *(['--work-document', json.dumps(work_receipt, sort_keys=True)]
+              if work_receipt is not None else []),
         ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
             # The next read runs in a separate observer process. Retain this
@@ -14017,9 +14038,16 @@ class AccessibleUI:
                                        else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
-                            instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native', moves=0):
+                            instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native', moves=0,
+                            work_text=None):
         """APP02/03: public owned window and finite independent activity projection."""
-        require(submitted in ('No submitted draft', 'ONPC fixture draft'), 'ui:native-projection')
+        work_values = {CHILD: 'Riley saved synthetic work', EXISTING_CHILD: 'Jordan saved synthetic work'}
+        require(work_text is None or kind == 'native' and instance == 'primary' and role == 'A'
+                and child in work_values and work_text in (
+                    work_values[child], work_values[child].replace('saved', 'original')),
+                'ui:work-binding')
+        require(submitted in ('No submitted draft', 'ONPC fixture draft')
+                or work_text is not None and submitted == work_text, 'ui:native-projection')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
         require(type(moves) is int and moves in (0, 1, 2)
                 and (kind == 'game' or moves == 0), 'ui:fixture-progress')
@@ -14090,7 +14118,9 @@ class AccessibleUI:
         elif flatpak:
             self.flatpak_app_owner(root, role, instance)
         elif role is not None:
-            self.native_app_owner(root, role, instance, implicit_instance=implicit_instance)
+            self.native_app_owner(root, role, instance, implicit_instance=implicit_instance,
+                                  work_receipt=globals().get('WORK_DOCUMENT_RECEIPT')
+                                      if work_text is not None else None)
         try:
             from fixture_ui import FixtureUI
         except ModuleNotFoundError as error:
@@ -14101,7 +14131,7 @@ class AccessibleUI:
                    else FixtureUI(self, 'native', require=require))
         require(fixture.text('status') == 'Ready', 'ui:native-status')
         value = fixture.snapshot()
-        expected = {'draft': 'ONPC fixture draft', 'submitted': submitted,
+        expected = {'draft': work_text or 'ONPC fixture draft', 'submitted': submitted,
                     'score': f'Moves: {moves}; token: {moves % 4}'}
         if diagnostic is not None:
             diagnostic['activity_matches'] = {key: value[key] == expected[key] for key in expected}
@@ -14115,7 +14145,8 @@ class AccessibleUI:
             require(type(pid) is int and pid > 0 and type(bus) is str
                     and bus.startswith(':') and type(path) is str and path.startswith('/'),
                     'ui:native-endpoint')
-            return {'binding': kind + '-' + instance, 'pid': pid,
+            return {'binding': ('work-' + ('riley' if child == CHILD else 'jordan'))
+                    if work_text is not None else kind + '-' + instance, 'pid': pid,
                     'endpoint': [bus, path], 'state': value}
         return value
 
@@ -14302,7 +14333,7 @@ class AccessibleUI:
             self.native_app_snapshot('ONPC fixture draft', **arguments)
             self.activate_id('onpc-fixture-' + kind + '-' + instance + '-close')
 
-    def native_app_owner(self, root, role, instance, *, implicit_instance=False):
+    def native_app_owner(self, root, role, instance, *, implicit_instance=False, work_receipt=None):
         """Bind the GUI child to its live native policy executable and account."""
         require(role in ('A', 'S', 'N', 'Game', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') and (instance == ('secondary' if role in ('S', 'SpaceCopy', 'CommaCopy', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
                 or role == 'S' and instance in ('primary', 'soft')
@@ -14324,9 +14355,21 @@ class AccessibleUI:
         command = (owner / 'cmdline').read_bytes().split(b'\0')
         ordinary_command = [expected.encode(), *([] if implicit_instance else
                             [b'--instance', instance.encode()]), b'']
+        work_command = False
+        if work_receipt is not None:
+            require(role == 'A' and instance == 'primary' and not implicit_instance,
+                    'ui:work-binding')
+            if (command[:3] == ordinary_command[:3] and len(command) == 6
+                    and command[3] == b'--work-document' and command[-1] == b''
+                    and len(command[4]) <= 4096):
+                declared = json.loads(command[4])
+                work_command = (type(declared) is dict and set(declared) == set(work_receipt)
+                    and declared['user'] == work_receipt['user']
+                    and declared['directory'] == work_receipt['directory']
+                    and declared['file'][:5] == work_receipt['file'][:5])
         require(process.stat().st_uid == owner.stat().st_uid == os.getuid()
                 and str((owner / 'exe').readlink()) == expected
-                and (command == ordinary_command or role == 'Game'
+                and (work_command if work_receipt is not None else command == ordinary_command or role == 'Game'
                      and command == [*ordinary_command[:-1], b'--fullscreen', b'']), 'ui:native-owner')
         fresh = (process / 'stat').read_text().rsplit(')', 1)[1].split()
         owner_fields = owner_stat.rsplit(')', 1)[1].split()
@@ -14432,6 +14475,49 @@ class AccessibleUI:
         require(not self.input_uncertain, 'ui:uncertain-input')
         self.native_app_snapshot('ONPC fixture draft', **arguments)
         self.activate_id('onpc-fixture-native-' + instance + '-close')
+
+    def work_document_operation(self, operation):
+        """FILE08/09: fixed child document, public edit/Save and usable reopen."""
+        _work, who, action = operation.split('-')
+        child = CHILD if who == 'riley' else EXISTING_CHILD
+        require(os.getuid() == os.geteuid() == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid,
+                'ui:work-account')
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        receipt = globals().get('WORK_DOCUMENT_RECEIPT')
+        require(type(receipt) is dict and receipt.get('user') == CHILD_ACCOUNTS[child],
+                'ui:work-receipt')
+        original = who.title() + ' original synthetic work'
+        saved = who.title() + ' saved synthetic work'
+        scope = 'onpc-fixture-native-primary'
+        def snapshot(text, submitted='No submitted draft'):
+            return self.native_app_snapshot(submitted, role='A', child=child,
+                                            work_text=text, with_window=action == 'activity', pending=True)
+        if action == 'open':
+            self.native_launch_command(role='A', child=child, work_receipt=receipt)
+        elif action == 'closed':
+            self.wait(lambda: self.native_app_closed(complete_absence=True), 'work-closed')
+        elif action == 'opened':
+            import hashlib
+            text = saved if receipt['sha256'] == hashlib.sha256(saved.encode()).hexdigest() else original
+            return self.wait(lambda: snapshot(text), 'work-opened')
+        elif action == 'edit':
+            self.wait(lambda: snapshot(original), 'work-edit-ready')
+            self.set_text(scope + '-draft', saved, child=child)
+        elif action == 'save':
+            self.wait(lambda: snapshot(saved), 'work-save-ready')
+            self.activate_id(scope + '-save')
+        elif action == 'saved':
+            from fixture_ui import FixtureUI
+            self.wait(lambda: FixtureUI(self, 'native', require=require).text('saved') == 'Document saved',
+                      'work-saved')
+            return self.wait(lambda: snapshot(saved), 'work-saved-activity')
+        elif action in ('activity', 'submit', 'submitted', 'close'):
+            submitted = saved if action in ('activity', 'submitted', 'close') else 'No submitted draft'
+            value = self.wait(lambda: snapshot(saved, submitted), 'work-activity')
+            if action in ('submit', 'close'):
+                self.activate_id(scope + ('-submit' if action == 'submit' else '-close'))
+            else:
+                return value
 
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
@@ -15151,7 +15237,11 @@ class AccessibleUI:
                                or operation == 'station-default-entry' else
                                None if operation in GREETER_OPERATIONS else 'desktop')
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation in APPROVER_CHANGE_OPERATIONS:
+        if operation in WORK_OPERATIONS:
+            value = self.work_document_operation(operation)
+            if value is not None:
+                result['activity'] = value
+        elif operation in APPROVER_CHANGE_OPERATIONS:
             result['approver_change'] = self.approver_change_operation(operation)
         elif operation in SPARE_OPERATIONS:
             value = self.spare_account_operation(operation)

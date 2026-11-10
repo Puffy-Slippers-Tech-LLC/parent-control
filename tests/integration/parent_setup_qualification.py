@@ -2150,6 +2150,13 @@ class NativeActivityQualification(KioskEntryQualification):
         return NativeActivityJourney(context, progress)
 
 
+class ChildSavedWorkQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from child_saved_work import ChildSavedWorkJourney
+        return ChildSavedWorkJourney(context, progress)
+
+
 class RetainedAppVisitsQualification(KioskEntryQualification):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
     fixture_caller = 'check_e2e_retained_app_visits'

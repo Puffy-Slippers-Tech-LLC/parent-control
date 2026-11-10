@@ -14,6 +14,7 @@ import sysconfig
 
 SCHEMA = 1
 FIXTURE_SOURCES = (
+    'tests/fixtures/work_document.py', 'tests/e2e/guest_files.py',
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py', 'tests/fixtures/gui_runtime.py',
     'tests/fixtures/native_assets.py', 'tests/fixtures/snap_assets.py', 'tests/fixtures/flatpak_assets.py',
@@ -26,6 +27,7 @@ FIXTURE_IMPORTS = ('tests/__init__.py', 'tests/fixtures/__init__.py',
 # The movable native runtime has no product, Flatpak, Snap or copied Python
 # dependency. Keep this finite closure separate from the legacy full builder.
 NATIVE_RUNTIME_SOURCES = (
+    'tests/fixtures/work_document.py', 'tests/e2e/guest_files.py',
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/build_test_applications.py',
     'tests/fixtures/baseline_assets.py', 'tests/fixtures/native_assets.py',

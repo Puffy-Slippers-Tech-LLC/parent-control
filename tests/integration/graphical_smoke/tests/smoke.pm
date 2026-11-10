@@ -1112,6 +1112,12 @@ sub run {
         onpc_app_rows::native_files_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{child_saved_work}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::child_saved_work(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{app_activity}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

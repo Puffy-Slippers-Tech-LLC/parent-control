@@ -12,6 +12,7 @@ DESKTOP_PROFILES = {'native-desktop': 'onpc-child-jordan',
                     'native-desktop-hard': 'onpc-child-jordan',
                     'native-desktop-soft': 'onpc-child-jordan',
                     'native-desktop-riley': 'onpc-child-riley'}
+WORK_PROFILES = {'work-jordan': 'onpc-child-jordan', 'work-riley': 'onpc-child-riley'}
 
 
 class SyntheticFiles:
@@ -19,7 +20,7 @@ class SyntheticFiles:
         require(type(administrative) is bool and (not administrative or profile in (
             'native-version-next', 'native-version-nonmatch')), 'files:administrative-profile')
         require(profile in ('standard', 'single', 'count', 'sixth', 'maximum', 'oversized', 'total', 'overflow',
-                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', *DESKTOP_PROFILES, *NATIVE_PROFILES),
+                            'name180', 'name181', 'hidden', 'mixed', 'zip', 'save', *DESKTOP_PROFILES, *NATIVE_PROFILES, *WORK_PROFILES),
                 'files:profile')
         require((profile in NATIVE_PROFILES and type(expected) is dict
                  and set(expected) == {'source', 'nonmatching'}
@@ -43,6 +44,7 @@ class SyntheticFiles:
     def call(self, name):
         require(not self.failed and name not in self.attempted, 'files:replay')
         require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source')
+                or (name == 'saved' and self.profile in WORK_PROFILES)
                 or (name in ('saved', 'read-cancel', 'read-denied') and self.profile == 'save'), 'files:operation')
         self.attempted.add(name)
         self.failed = True  # Includes interrupted or uncertain transport results.
@@ -89,10 +91,17 @@ class SyntheticFiles:
                    'sys.modules["guest_files"] = guest_files\n'
                    f'exec({files_source!r}, guest_files.__dict__)\n')
         program = modules.encode() + program
+        if self.profile in WORK_PROFILES:
+            work = Path(__file__).resolve().parents[1] / 'fixtures/work_document.py'
+            module = ('work_document = types.ModuleType("work_document")\n'
+                      'sys.modules["work_document"] = work_document\n'
+                      f'exec({work.read_text()!r}, work_document.__dict__)\n')
+            program = modules.encode() + module.encode() + Path(__file__).with_name('synthetic_files_guest.py').read_bytes()
         if self.profile in (*NATIVE_PROFILES, *DESKTOP_PROFILES):
             previous = {'expected': self.expected, 'previous': previous}
         raw = self.transport.call([
             *([] if self.administrative else ['/usr/sbin/runuser', '--user',
+                WORK_PROFILES[self.profile] if self.profile in WORK_PROFILES else
                 DESKTOP_PROFILES[self.profile] if self.profile in DESKTOP_PROFILES else
                 'onpc-child-jordan' if self.profile in NATIVE_PROFILES else 'onpc-parent-jamie', '--']),
             '/usr/bin/python3', '-I', '-', name,

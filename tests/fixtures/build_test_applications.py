@@ -111,7 +111,10 @@ def _copy_gui_runtime(destination: Path, *, source_root: Path | None = None) -> 
                   source_root / 'common/oh_no_parent_control_ui/gtk_automation.py')
     shutil.copyfile(gui, destination / "onpc-test-gui.py")
     shutil.copyfile(automation, destination / "gtk_automation.py")
-    for filename in ("onpc-test-gui.py", "gtk_automation.py"):
+    root = ROOT if source_root is None else source_root
+    shutil.copyfile(root / 'tests/fixtures/work_document.py', destination / 'work_document.py')
+    shutil.copyfile(root / 'tests/e2e/guest_files.py', destination / 'guest_files.py')
+    for filename in ("onpc-test-gui.py", "gtk_automation.py", "work_document.py", "guest_files.py"):
         (destination / filename).chmod(0o644)
 
 

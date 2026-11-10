@@ -30,6 +30,7 @@ from ui_observations import (
 # Declaration validation and runtime capture must recognize the same endpoints.
 # Cases retain their capture order and expected same/separate/closed result.
 ACTIVITY_BINDINGS = {
+    **{'work-' + who + '-activity': ('work-' + who, False) for who in ('jordan', 'riley')},
     'game-activity': ('game-primary', False),
     'game-fullscreen-activity': ('game-primary', False),
     'game-resumed-activity': ('game-primary', False),
@@ -924,6 +925,11 @@ class InstalledJourney:
                 self.ui.boot_guard = self.boot or ''
                 self.ui.overlay_request = plan.overlay_requests.get(stage, plan.overlay_request)
                 self.ui.kiosk_request = plan.kiosk_requests.get(stage, plan.kiosk_request)
+                if tag[3:] in accessible_ui.WORK_OPERATIONS:
+                    who = tag.split('-')[1]
+                    files = self.work_files[who]
+                    require(not files.failed, 'work:uncertain-files')
+                    self.ui.work_document_receipt = files.previous
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):

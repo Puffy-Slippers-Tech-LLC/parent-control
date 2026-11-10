@@ -12,6 +12,8 @@ local account/root doubles. It has no subprocess, shared cache, bus or VM;
 its cleanup guards can overlap the other private checks.
 Desktop-entry ownership checks share those private files with a local metadata
 double; no real session bus, desktop or additional cleanup owner is opened.
+Work-document save/cleanup guards likewise use only private pytest directories
+and process-local account doubles; the native-copy bucket remains compatible.
 
 Suspend safety checks use process-local domain/SSH/clock doubles only. They
 open no VM, socket, subprocess or shared path; existing compatible buckets apply.

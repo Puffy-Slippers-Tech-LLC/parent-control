@@ -390,7 +390,9 @@ def _check_payloads(payloads, declared, inputs):
     if sources['onpc-test-gui.py'] == sources['gtk_automation.py']:
         _fail('runtime-collision')
     for key, path in (('onpc-test-gui.py', 'tests/fixtures/gui_application.py'),
-                      ('gtk_automation.py', 'common/oh_no_parent_control_ui/gtk_automation.py')):
+                      ('gtk_automation.py', 'common/oh_no_parent_control_ui/gtk_automation.py'),
+                      ('work_document.py', 'tests/fixtures/work_document.py'),
+                      ('guest_files.py', 'tests/e2e/guest_files.py')):
         record = inputs['source'][path]
         if record['sha256'] != _digest(sources[key]) or record['length'] != len(sources[key]):
             _fail('source-payload-binding')

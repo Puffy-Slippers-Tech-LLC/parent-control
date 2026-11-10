@@ -331,8 +331,9 @@ See [feedback](Logging-and-Feedback.md#feedback-and-diagnostic-export).
 
 Pages and About scroll on small/scaled displays. Allowance/filter popovers fit
 available space; allowance chooses the roomier side and keeps Custom fixed.
-The App Limits legend wraps, closes explicitly or on outside click, and retains
-its existing boolean API.
+The App Limits legend wraps and scrolls its explanations when space is limited,
+keeps its heading and close action available, closes explicitly or on outside
+click, and retains its existing boolean API.
 
 ## Child panel preference
 

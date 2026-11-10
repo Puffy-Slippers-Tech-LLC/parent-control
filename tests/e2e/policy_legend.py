@@ -1,12 +1,15 @@
 """226b public legend qualification; complete case 184 remains separate."""
 from installed_journey import JourneyPlan
-from fresh_thirty_allowance import JORDAN_PLAN
+from journey_blocks import fresh_desktop, parent_management
 from native_fixtures import CataloguePolicyJourney, fixture_actions
+from ui_observations import SettingsObservation
 
 
 SCREENS = {
-    **{stage: operation for stage, operation in JORDAN_PLAN.screen_tags.items()
-       if stage not in ('wrong-child', 'wrong-state', 'wrong-window', 'final-settings')},
+    **fresh_desktop('parent'), **parent_management(child='existing'),
+    'parent-selected': 'ui:existing-returned',
+    'allowance-configured': 'ui:time-explanation-setup-thirty-read',
+    'balance-reread': 'ui:time-explanation-read',
     'apps-page': 'ui:existing-apps',
     'initial-rows': 'ui:existing-parent-app-rows',
     'wrong-child': 'ui:policy-legend-wrong-child',
@@ -23,7 +26,8 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SCREENS if stage != 'installed-greeter'},
             **{stage: 'step-2' for stage in tuple(SCREENS)[tuple(SCREENS).index('wrong-child'):]}},
     advance_after={'initial-rows': 'step-2'},
-    settings_checks={'parent-selected': JORDAN_PLAN.settings_checks['parent-selected']},
+    settings_checks={
+        'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',))},
     child_bindings={stage: 'existing' for stage in ('allowance-configured', 'balance-reread')},
     stage_actions={'installed-greeter': 'native-refuse', 'desktop': 'native-verify'},
     balance_checks={'allowance-configured': 1800, 'balance-reread': 1800},

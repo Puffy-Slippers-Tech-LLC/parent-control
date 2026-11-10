@@ -52,6 +52,16 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Guest observations against a calendar deadline | [guest_observations.py](../e2e/guest_observations.py) `calendar_epoch_bounds` | Project the original same-boot countdown, estimate-calculation or lock-read bracket through TIME05's guest clock bracket. Callers retain clock continuity, calendar windows, precision and product deadline assertions; see [timing resilience](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). |
 | Package changes during a journey | [package_command.py](../e2e/package_command.py) `PackageCommand` | Product and catalogue-fixture commands share single-use submission, disk admission, guarded transport, input rechecks and bounded output. Keep package identity/phase checks and independent completion/version results in their respective readers. Cases own the package-change order and public policy/draft assertions; see the [catalogue update/removal bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-launch-denial-qualification). Installed engineering histories retain `system_guest`'s checkout installation through `make install`. |
 
+Request component checks reuse [request_form.py](request_form.py)'s
+`submit_request` for readiness and one public submission. Tests retain their
+result/report choice, finite inputs and callback assertions. Error-report checks
+in [test_error_feedback.py](../ui/test_error_feedback.py) observe the fake sender's
+actual encoded multipart fields: an omitted reply address is represented by
+`Reply email: not provided`, not by an absent line. Read an editable field with
+`Automation.content` / `getText`; `Automation.text` reads its accessible label.
+Keep the report's disappearance, owned thanks modal and deferred exit callback
+as separate results: sending must not exit before manual thanks dismissal.
+
 ## Development-only extension isolation
 
 `tools/disable-extension --vm NAME` accepts a registered VM name or ID in an

@@ -2787,6 +2787,11 @@ Both kiosk and child-overlay parameter values remain required for shared-form
 changes. Use meaningful accessible names and visible state; do not replace
 behavioral tests with checks of widget internals or source strings.
 
+For translated preview text, prepare compiled catalogues with `make translations`
+before the focused run. Missing catalogues can leave the chosen language saved
+while the displayed text falls back to English; check that prerequisite before
+changing the product or its expected translation.
+
 The isolated Dogtail environment is declared in
 [ui/requirements.txt](ui/requirements.txt); host tooling comes from
 [test-tools-ubuntu-26.04.txt](test-tools-ubuntu-26.04.txt) and `setup.sh`.

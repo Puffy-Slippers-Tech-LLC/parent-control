@@ -656,6 +656,19 @@ def reproduce_update_no_action(lease):
                             'balance-reread', 'update-no-action')
 
 
+def reproduce_policy_legend(lease, fixture_selection):
+    """Retain Jordan's App Limits immediately before opening the legend."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from policy_legend import PolicyLegendJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, PolicyLegendJourney, PLAN,
+        'legend-expanded', 'policy-legend', assets=assets,
+        fixture_selection=selection, timeout=1800)
+
+
 def reproduce_revoke_cancel(lease):
     """Retain the real second Cancel before its controller balance comparison."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1901,6 +1914,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from grant_access_case import GrantAccessJourney, PLAN as GRANT_ACCESS_PLAN
         from match_editor_case import PLAN as MATCH_EDITOR_PLAN
         from policy_edits import AppPolicyJourney
+        from policy_legend import PolicyLegendJourney, PLAN as POLICY_LEGEND_PLAN
         from fullscreen_request import PLAN as FULLSCREEN_REQUEST_PLAN
         from app_rule_changes_case import AppRuleChangesJourney, DISABLED_PATTERN_PLAN
         from revocation_case import RevocationCaseJourney, PLAN as REVOCATION_PLAN
@@ -1984,6 +1998,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         match_editor = (surface == 'match-editor'
             and journey_type is AppPolicyJourney and plan is MATCH_EDITOR_PLAN
             and boundary == 'rejected-open' and boundary_operation == 'match-open')
+        policy_legend = (surface == 'policy-legend'
+            and journey_type is PolicyLegendJourney and plan is POLICY_LEGEND_PLAN
+            and boundary == 'legend-expanded' and boundary_operation is None)
         app_rule_return = (surface == 'app-rule-return'
             and journey_type is AppRuleChangesJourney and plan is DISABLED_PATTERN_PLAN
             and boundary == 'soft-opening-disabled-parent-source-greeter'
@@ -2026,7 +2043,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2069,7 +2086,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access', 'native-desktop-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'policy-legend', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access', 'native-desktop-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
                                        'native-desktop': 'E2E-019/native-desktop-allowed-enabled',
@@ -2082,6 +2099,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'revocation-return': 'E2E-007/zero-single',
                                        'overlay-lock-case': 'E2E-039/overlay-lock',
                                        'match-editor': None,
+                                       'policy-legend': None,
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
                                        'natural-expiry': 'check_e2e_natural_expiry',

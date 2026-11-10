@@ -5,6 +5,10 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+Pass coordination checks use pytest-private checkpoint/source locks and
+process-local VM/controller doubles. Ready-executor checks use joined threads,
+private Events and reservation doubles; no live VM or shared checkout is used.
+
 Build-matrix checks use private source/output trees and joined backend threads;
 all native/container commands are doubled there. Publishing matrix checks use
 process-local API responses and private SCM contexts. They add no shared cache,

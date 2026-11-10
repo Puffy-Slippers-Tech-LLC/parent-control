@@ -24,6 +24,232 @@ import test_commands
 from system_progress import Progress
 
 
+@pytest.fixture
+def private_dispatch_source(monkeypatch):
+    import test_source
+    # Synthetic checkouts own private leases, never the outer runner's lease.
+    for name in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS,
+                 test_source.STARTUP_READER, test_source.STARTUP_WRITER):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(test_source, '_local', threading.local())
+    monkeypatch.setattr(test_source, '_generations', {})
+
+
+@pytest.mark.parametrize(('concurrency', 'expected'), [(6, [2, 2, 2]), (5, [2, 2, 1]),
+                                                     (2, [1, 1, 0])])
+def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency, expected):
+    from vm_test_queue import FamilyAdmission
+    vms = [SimpleNamespace(name=f'{family}-{index}', family=family)
+           for family in ('a', 'b', 'c') for index in range(3)]
+    admission = FamilyAdmission(vms)
+    ready = [vm.name for vm in vms]
+    active = []
+    for _ in range(concurrency):
+        name = admission.choose(ready, active)
+        ready.remove(name)
+        active.append(name)
+    assert [sum(name.startswith(family) for name in active) for family in ('a', 'b', 'c')] == expected
+    # Lower concurrency still eventually admits every family. A busy/drained
+    # family supplies no ready VM and cannot strand another family's capacity.
+    observed = set(active)
+    for _ in range(9):
+        ready.append(active.pop(0))
+        name = admission.choose(ready, active)
+        ready.remove(name)
+        active.append(name)
+        observed.add(name)
+    assert {name[0] for name in observed} == {'a', 'b', 'c'}
+    assert admission.choose(['a-0', 'a-1'], ['b-0']) == 'a-0'
+
+
+def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_path, monkeypatch):
+    import vm_test_queue
+    from test_checkpoint import PassCheckpoint
+    from vm_case_queue import work_key
+    vms = [SimpleNamespace(name=f'{family}-{index}', family=family)
+           for family in ('a', 'b') for index in range(2)]
+    work = [dict(category=category, options=[], cases=[case], case=case, area=False)
+            for category, case in [('system', 'check_first'), ('e2e', 'E2E-001')]]
+    plan = ({'concurrency': 2}, vms, ['unit'], ['system', 'e2e'],
+            [('system', []), ('e2e', [])], {'a': work, 'b': work})
+    retired, observed, recoveries, hosts = set(), [], [], []
+    late_cleanup, clean_failure, attempt_root = [False], [False], [tmp_path]
+    class Ready:
+        def __init__(self, root, pool, limit, stopped):
+            assert pool == vms
+            self.limit = limit
+        def __enter__(self):
+            return self
+        def __exit__(self, *_):
+            if late_cleanup[0]:
+                raise ValueError('late executor check-in failure')
+        def run_ready(self, execute, *, choose, needed, completed):
+            results = {vm.name: dict(status=0, handoffs=[]) for vm in vms}
+            while available := [vm for vm in vms if vm.name not in retired and needed(vm)]:
+                names, selected = [vm.name for vm in available], []
+                while names and len(selected) < self.limit:
+                    name = choose(names, selected)
+                    if name is None:
+                        break
+                    names.remove(name)
+                    selected.append(name)
+                if not selected:
+                    break
+                for name in selected:
+                    vm = next(vm for vm in vms if vm.name == name)
+                    results[name] = completed(vm, execute(SimpleNamespace(vm=vm, receipt='owned')))
+                    if results[name]['status']:
+                        retired.add(name)
+            return results
+    monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: {'digest': 'a' * 64, 'generation': 0})
+    monkeypatch.setattr(vm_test_queue.test_source, 'reader', lambda *args, **kwargs: nullcontext())
+    fail = [True]
+    def execute(worker, assignment, inherited, recovering):
+        assert assignment['vm'] == worker.vm.name
+        state_path = PassCheckpoint(attempt_root[0], [], {}, {}).store.path / 'current.json'
+        saved = PassCheckpoint.validate(json.loads(state_path.read_text()))
+        partition = saved['families'][worker.vm.family]
+        assert partition['claims'][work_key(assignment['work'])] == assignment
+        if recovering:
+            recoveries.append(worker.vm.name)
+            return dict(status=0, handoffs=[], evidence=dict(assignment=assignment, cleanup=True))
+        execution = assignment.get('execution', assignment['work'])
+        observed.append((worker.vm.family, execution['case']))
+        if fail[0] and worker.vm.family == 'b':
+            fail[0] = False
+            # Late cleanup fails after assertions; no pass may cross the join.
+            return dict(status=1, handoffs=[], evidence=dict(assignment,
+                passed=execution['cases'], cleanup=clean_failure[0], diagnostic=False))
+        return dict(status=0, handoffs=[], evidence=dict(assignment,
+            passed=execution['cases'], cleanup=True, diagnostic=False))
+    first = vm_test_queue.execute_pass(tmp_path, plan, Control(), execute,
+                                      host=lambda: hosts.append('host') or 0)
+    assert first['status'] == 1
+    assert [case for family, case in observed if family == 'a'] == ['check_first', 'E2E-001']
+    # The failed owner is not replaced by an equivalent VM until its cleanup.
+    assert [case for family, case in observed if family == 'b'] == ['check_first', 'E2E-001']
+    retired.clear()
+    resumed = list(plan)
+    resumed[3] = ['--resume', *plan[3]]
+    second = vm_test_queue.execute_pass(tmp_path, tuple(resumed), Control(), execute,
+                                       host=lambda: hosts.append('host') or 0)
+    assert second['status'] == 0
+    assert recoveries == ['b-0'] and hosts == ['host']
+    assert [(family, case) for family, case in observed if family == 'a'] == [
+        ('a', 'check_first'), ('a', 'E2E-001')]
+    assert len(second['accepted']) == 1
+
+    history = dict(category='system', options=[], cases=['authorization::first', 'authorization::last'],
+                   case='authorization::last', area=True)
+    history_plan = (plan[0], vms, ['unit'], ['system'], [('system', [])],
+                    {'a': [history], 'b': [history]})
+    attempt_root[0] = tmp_path / 'focused'
+    full = vm_test_queue.execute_pass(attempt_root[0], history_plan, Control(), execute, host=lambda: 0)
+    focused = list(history_plan)
+    focused[3] = ['--resume', '--resume-case=authorization::first', '--resume-case-only', 'system']
+    retry = vm_test_queue.execute_pass(attempt_root[0], tuple(focused), Control(), execute, host=lambda: 0)
+    assert full['status'] == retry['status'] == 0 and full['pass'] == retry['pass']
+    assert len(retry['accepted']) == 2
+    normal = list(history_plan)
+    normal[3] = ['--resume', 'system']
+    after = vm_test_queue.execute_pass(attempt_root[0], tuple(normal), Control(), execute, host=lambda: 0)
+    assert after['status'] == 0 and not after['accepted'] and after['pass'] == full['pass']
+    focused[3] = ['--resume', '--resume-case=authorization::first', '--resume-area-only', 'system']
+    assert vm_test_queue.execute_pass(attempt_root[0], tuple(focused), Control(), execute)['status'] == 0
+    state_path = PassCheckpoint(attempt_root[0], [], {}, {}).store.path / 'current.json'
+    before = state_path.read_bytes()
+    for category, case in [('e2e', 'E2E-001'), ('system', 'upgrade::first')]:
+        invalid = list(history_plan)
+        invalid[3] = ['--resume', '--resume-case=' + case, '--resume-area-only', category]
+        invalid[4] = [(category, [])]
+        with pytest.raises(ValueError, match='independent system area'):
+            vm_test_queue.execute_pass(attempt_root[0], tuple(invalid), Control(), execute)
+        assert state_path.read_bytes() == before
+
+    clean_failure[0] = True
+    for late in (False, True):
+        retired.clear()
+        fail[0], late_cleanup[0] = True, late
+        attempt_root[0] = tmp_path / ('late' if late else 'partial')
+        if late:
+            with pytest.raises(ValueError, match='late executor'):
+                vm_test_queue.execute_pass(attempt_root[0], history_plan, Control(), execute, host=lambda: 0)
+        else:
+            result = vm_test_queue.execute_pass(attempt_root[0], history_plan, Control(), execute, host=lambda: 0)
+            assert result['status'] == 1
+        with PassCheckpoint.saved(attempt_root[0]) as checkpoint:
+            assert checkpoint.passed('b', 'system') == (set() if late else {'authorization::first'})
+            assert len(checkpoint.claims('b')) == 1
+
+    late_cleanup[0], fail[0] = False, False
+    retired.clear()
+    attempt_root[0] = tmp_path / 'unrelated'
+    unrelated = dict(category='system', options=[], cases=['check_other'], case='check_other', area=False)
+    mixed = list(history_plan)
+    mixed[5] = {'a': [history, unrelated], 'b': [history, unrelated]}
+    selection = [['_host', ['unit']], ['_guest', ['system']]]
+    pool = {vm.name: vm.family for vm in vms}
+    with PassCheckpoint(attempt_root[0], selection, pool, mixed[5]) as checkpoint:
+        target = checkpoint.claim('b', 'b-0', history, {'digest': 'a' * 64})
+        other = checkpoint.claim('b', 'b-1', unrelated, {'digest': 'a' * 64})
+    mixed[3] = ['--resume', '--resume-case=authorization::first', '--resume-case-only', 'system']
+    previous_recoveries = list(recoveries)
+    selected = vm_test_queue.execute_pass(attempt_root[0], tuple(mixed), Control(), execute, host=lambda: 0)
+    assert selected['status'] == 0 and recoveries == [*previous_recoveries, target['vm']]
+    with PassCheckpoint.saved(attempt_root[0]) as checkpoint:
+        assert checkpoint.claims('b') == [other]
+
+    retired.clear()
+    attempt_root[0] = tmp_path / 'reload'
+    reloading = [False]
+    monkeypatch.setattr(vm_test_queue.launcher_reload, 'pending', lambda: reloading[0])
+    def reload_once(worker, assignment, inherited, recovering):
+        if worker.vm.family == 'b':
+            reloading[0] = True
+            return dict(status=vm_test_queue.launcher_reload.STATUS, handoffs=[])
+        return execute(worker, assignment, inherited, recovering)
+    reload_plan = list(history_plan)
+    reload_plan[3] = ['--stop-on-error', 'system']
+    control = Control()
+    reload_result = vm_test_queue.execute_pass(attempt_root[0], tuple(reload_plan), control,
+                                              reload_once, host=lambda: 0)
+    assert reload_result['status'] == vm_test_queue.launcher_reload.STATUS
+    assert not control.stopped.is_set()
+    reloading[0] = False
+    reload_plan[3] = ['--resume', *reload_plan[3]]
+    retired.clear()
+    resumed_reload = vm_test_queue.execute_pass(attempt_root[0], tuple(reload_plan), Control(), execute)
+    assert resumed_reload['status'] == 0 and resumed_reload['pass'] == reload_result['pass']
+
+
+@pytest.mark.parametrize(('selector', 'names'), [(None, ['one', 'two', 'three']),
+                                               ('two,three', ['two', 'three'])])
+def test_pass_plan_uses_only_the_requested_or_configured_pool(tmp_path, monkeypatch, selector, names):
+    import vm_pool
+    import vm_selection
+    import vm_test_queue
+    config = vm_selection.vm_config
+    host = config.HostConfig(concurrency=6)
+    configured = {name: config.VMConfig(name, tmp_path / name, enabled=name != 'offline',
+        package_format='deb', family=family, fixture_path='fixtures', host=host)
+        for name, family in [('one', 'a'), ('two', 'a'), ('three', 'b'), ('offline', 'b')]}
+    monkeypatch.setattr(config, 'configuration', lambda path=None: (6, configured))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
+    monkeypatch.delenv(vm_selection.WORKER, raising=False)
+    monkeypatch.delenv(vm_selection.VARIABLE, raising=False)
+    monkeypatch.setenv(vm_selection.BATCH, '')
+    monkeypatch.delenv(vm_selection.BATCH, raising=False)
+    monkeypatch.setattr(vm_test_queue.test_source, 'reader', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(vm_test_queue, 'case_inventory', lambda *args, **kwargs: ['E2E-001', 'E2E-002'])
+    args, _ = test_commands.vm_request(['e2e', *(['--vm', selector] if selector else [])])
+    plan = vm_test_queue._plan(tmp_path, args)
+    assert [vm.name for vm in plan[1]] == names
+    assert list(plan[-1]) == ['a', 'b']
+    assert all([work['case'] for work in items] == ['E2E-001', 'E2E-002']
+               for items in plan[-1].values())
+
+
 def test_ui_timings_preserve_nested_calls_failures_and_private_arguments():
     from tests.support.ui_timing import Timings
     now = [10.0]
@@ -566,7 +792,8 @@ def test_inventory_revisions_preserve_saved_status_through_failed_publication(re
 
 
 @pytest.mark.parametrize('collect_only', [False, True])
-def test_unit_workers_emit_inventory_without_running_cleanup(tmp_path, monkeypatch, collect_only):
+def test_unit_workers_emit_inventory_without_running_cleanup(tmp_path, monkeypatch, collect_only,
+                                                              private_dispatch_source):
     import test_launcher
     calls = []
     command = ['pytest', *(['--collect-only'] if collect_only else []),
@@ -583,7 +810,8 @@ def test_unit_workers_emit_inventory_without_running_cleanup(tmp_path, monkeypat
 
 @pytest.mark.parametrize('verified', [False, True])
 @pytest.mark.parametrize('category', ['ui', 'component'])
-def test_host_workers_never_launch_cleanup_tests(tmp_path, monkeypatch, verified, category):
+def test_host_workers_never_launch_cleanup_tests(tmp_path, monkeypatch, verified, category,
+                                               private_dispatch_source):
     import test_activity
     import test_launcher
     calls = []
@@ -597,7 +825,8 @@ def test_host_workers_never_launch_cleanup_tests(tmp_path, monkeypatch, verified
 
 
 @pytest.mark.parametrize('category', ['fixture-runtime', 'publish', 'artifacts', 'system', 'e2e'])
-def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, monkeypatch, category):
+def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, monkeypatch, category,
+                                                                     private_dispatch_source):
     import test_activity
     import test_retention
     calls = []
@@ -637,7 +866,7 @@ def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, 
     assert plans == expected_plans
 
 
-def test_host_worker_failure_propagates_without_extra_tests(tmp_path, monkeypatch):
+def test_host_worker_failure_propagates_without_extra_tests(tmp_path, monkeypatch, private_dispatch_source):
     import test_activity
     import test_launcher
     calls = []

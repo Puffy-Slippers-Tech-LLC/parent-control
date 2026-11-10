@@ -12,7 +12,7 @@ const MAX_REQUEST = 512 * 1024;
 const SSH_REFUSAL = /Permission denied|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED|Too many authentication failures/i;
 const key = (source, value) => JSON.stringify([source, value]);
 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-const RUN_BODIES = ['rows', 'error_rows', 'launcher_output', 'launcher_rows', 'session_preview'];
+const RUN_BODIES = ['rows', 'error_rows', 'launcher_output', 'launcher_rows'];
 
 function configuration(values, root) {
     if (!Array.isArray(values) || values.length > 16) throw new Error('Watch sources must be an array of at most 16 sources.');
@@ -114,7 +114,6 @@ function validate(snapshot) {
             typeof run.active !== 'boolean' || typeof run.status !== 'string' ||
             (run.run !== null && typeof run.run !== 'string') || typeof run.launcher_output !== 'string' ||
             (Object.hasOwn(run, 'launcher_rows') && !rows(run.launcher_rows)) ||
-            (Object.hasOwn(run, 'session_preview') && !rows(run.session_preview)) ||
             (Object.hasOwn(run, 'launcher_command') && typeof run.launcher_command !== 'string') ||
             (run.session !== null && !identifier(run.session)) ||
             ['session_active', 'session_inactive', 'session_waiting'].some(field => typeof run[field] !== 'boolean') ||
@@ -525,7 +524,6 @@ class Bridge {
                     session_view: sessionView && { ...sessionView,
                         input_enabled: connected && sessionView.input_enabled,
                         rows: rows(sessionView.rows) },
-                    session_preview: run.session_preview && rows(run.session_preview),
                     launcher_rows: run.launcher_rows && rows(run.launcher_rows),
                     rows: rows(run.rows), error_rows: rows(run.error_rows) });
             }

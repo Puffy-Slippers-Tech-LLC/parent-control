@@ -69,11 +69,8 @@ def begin():
     value = {'run': marker['run'], 'boot': BOOT.read_text(),
              'invocation': original['InvocationID'], 'mask': None, 'state': 'prepared'}
     write_record(value, create=True)
-    guest.run(['systemctl', 'mask', '--runtime', guest.BROKER], timeout=30)
-    info = MASK.lstat()
-    guest.require(stat.S_ISLNK(info.st_mode) and info.st_uid == info.st_gid == 0 and
-                  os.readlink(MASK) == '/dev/null', 'kiosk-feedback:mask-owner')
-    value.update(mask=[info.st_dev, info.st_ino], state='masked')
+    identity = guest.runtime_service_mask(guest.BROKER, category='kiosk-feedback')
+    value.update(mask=list(identity), state='masked')
     write_record(value)
     # Do not stop an independently restarted replacement invocation.
     guest.require(service()['InvocationID'] == value['invocation'],
@@ -106,16 +103,14 @@ def restore():
         write_record(value)
         return {'broker_restored': True}
     if value['state'] != 'unmasked':
-        info = MASK.lstat()
-        guest.require(stat.S_ISLNK(info.st_mode) and info.st_uid == info.st_gid == 0 and
-                      [info.st_dev, info.st_ino] == value['mask'] and
-                      os.readlink(MASK) == '/dev/null', 'kiosk-feedback:mask-replaced')
+        identity = tuple(value['mask'])
+        guest.runtime_service_mask(guest.BROKER, category='kiosk-feedback', identity=identity)
         current = service()
         guest.require(current['LoadState'] == 'masked' and
                       (current['ActiveState'] == 'inactive' or
                        current['ActiveState'] == 'active' and current['InvocationID'] == value['invocation']),
                       'kiosk-feedback:broker-replaced')
-        guest.run(['systemctl', 'unmask', '--runtime', guest.BROKER], timeout=30)
+        guest.remove_runtime_service_mask(guest.BROKER, identity, category='kiosk-feedback')
         value['state'] = 'unmasked'
         write_record(value)
     guest.require(not MASK.exists() and not MASK.is_symlink(), 'kiosk-feedback:mask-replaced')
@@ -143,10 +138,9 @@ def no_grant():
     from system_assertions import session_limits
     marker = guest.guard()
     value = read_record(marker)
-    info = MASK.lstat()
-    guest.require(value['state'] == 'stopped' and stat.S_ISLNK(info.st_mode) and
-                  [info.st_dev, info.st_ino] == value['mask'] and
-                  info.st_uid == info.st_gid == 0 and os.readlink(MASK) == '/dev/null' and
+    guest.runtime_service_mask(guest.BROKER, category='kiosk-feedback',
+                               identity=tuple(value['mask']))
+    guest.require(value['state'] == 'stopped' and
                   service()['ActiveState'] == 'inactive', 'kiosk-feedback:fault-not-owned')
     account = pwd.getpwnam('onpc-child-riley')
     baseline = json.loads(guest.BASELINE.read_bytes())

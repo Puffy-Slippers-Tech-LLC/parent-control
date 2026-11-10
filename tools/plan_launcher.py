@@ -688,7 +688,7 @@ def _closeout(plan, spec, run, state, *, selection=None):
         # staging, even when Git reports an already-up-to-date branch.
         validate_session_result(result, lambda result: validate_result(plan, state, result))
         if state.get('commit_intent') is None:
-            paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue), stage=False)
+            paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue))
         commit_push_propagate(plan.root, run, state, paths,
                               f"{spec.commit_prefix}: Completed task {state['task_id']}", git=git_output,
                               selection=selection)

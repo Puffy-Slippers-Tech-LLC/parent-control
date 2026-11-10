@@ -195,25 +195,7 @@ def pull_at_boundary(root, run, state, *, git=git_output, checkpoint='checkpoint
     _sync_current(root, run, state, git=git, checkpoint=checkpoint, selection=selection)
 
 
-def push_source(root, run, state, commit, *, git=git_output, selection=None):
-    """Retry a rejected source push without changing its immutable task commit."""
-    if (state.get('commit_intent', {}).get('commit') != commit
-            or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
-        raise ValueError('source push recovery needs the recorded completion commit')
-    if not state.get('upstream_pull'):
-        result = git(root, 'push', '--porcelain', check=False)
-        if not result.returncode:
-            return _head(git, root)
-        if not _push_advanced(result):
-            raise ValueError('completion push failed: ' + (result.stderr or result.stdout).strip())
-    # The completion commit is already written and verified. A retained self
-    # transaction can now merge/push its descendant, preserving the original
-    # commit intent and any active edits outside that commit.
-    _sync_current(root, run, state, git=git, push=True, selection=selection)
-    return _head(git, root)
-
-
-def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=False, selection=None):
+def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', selection=None):
     pending = state.setdefault('upstream_pull', {})
     def save():
         launcher.atomic(run / checkpoint, state)
@@ -224,11 +206,6 @@ def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', push=F
         before = _head(git, root)
         commit = pending.get('worktree_propagation', {}).get('commit') or _head(git, root)
         targets = None if pending.get('worktree_propagation') else pull_targets(root, git=git)
-        if push and targets is not None:
-            if not targets:
-                raise ValueError('source push recovery needs a configured current branch')
-            for target in targets:
-                target['push_after_pull'] = True
         propagate(root, run, pending, commit, git=git, targets=targets,
                   checkpoint=checkpoint, save_state=save, pull=True, selection=selection)
         state.pop('upstream_pull', None)

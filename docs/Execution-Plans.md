@@ -515,8 +515,7 @@ For new close-outs, the commit skill reviews ownership against the retained
 session context and commits only this task's changes. Candidate paths and staged
 files alone do not establish hunk ownership. Preserve unrelated staged, unstaged
 and untracked work, including within shared files; ambiguous ownership blocks
-close-out. Existing mechanical commit intents retain their original pinned
-index and recovery policy until that transaction finishes.
+close-out.
 A retained dirty-file baseline no longer
 protects a path when its exact captured contents are now committed in HEAD;
 new task edits on that path can close out normally, including after restart.
@@ -557,8 +556,9 @@ still stops retry backoff, including boundary pulls and verification fetches.
 Explicit permission/authentication denials, missing
 configuration, ownership problems and merge conflicts do not trigger outage
 retries. Push races retain their existing bounded reconciliation policy.
-Commit recovery checks the retained branch and upstream before pushing. A legacy
-pending commit without that identity requires explicit Git reconciliation.
+Commit recovery checks the retained branch and upstream before pushing.
+Non-skill commit checkpoints are unsupported and require explicit Git
+reconciliation, preserving the checkpoint and saved work before resuming.
 The skill keeps a durable per-close-out Git journal under the retained run,
 recording its source commit before pushing and the exact pushed HEAD before
 destination writes. Restart resumes that journal with the same pinned commit.
@@ -568,8 +568,7 @@ already returned complete, recovery retries only that independent verification,
 using its retained result and journal without starting another commit session.
 Verification reports fetch errors separately from missing remote ancestry and
 preserves Git diagnostics. Later task edits
-stay untouched and earn no acceptance credit. Existing mechanical commit intents
-continue their original identity, parent, subject, path and index-entry checks.
+stay untouched and earn no acceptance credit.
 E2E retains its own Git and optimization workflow.
 Already-running backends keep their original policy; attaching does not reload
 code or defaults. Stop at a session boundary and start a fresh run to load a
@@ -602,10 +601,9 @@ task panel, replacing an earlier passing-test status with the close-out error.
 Panel reporting is best effort and must preserve the original Git failure if
 the task metadata cannot be read or written.
 
-The following placement rules apply to both skill and retained mechanical
-transactions. The detailed controller stash/merge/resolver recovery below
-describes existing mechanical transactions and safe-boundary pulls; new skill
-close-outs follow the skill's ownership and recovery instructions instead.
+The following placement rules apply to skill close-outs. Controller
+stash/merge/resolver recovery remains in use for safe-boundary pulls;
+close-outs follow the skill's ownership and recovery instructions.
 
 After a launcher pushes a task, optimization or verified repair commit, shared
 Git infrastructure propagates its pinned pushed HEAD to every other branch listed in
@@ -663,8 +661,7 @@ private to the shared Git module; launchers must not import or call them or
 implement separate commit/push sequences. A repository regression check enforces
 that private-helper boundary. There is no commit-only or push-disabled close-out
 option. Callers retain acceptance and candidate path validation, while the
-shared operation owns the repository-wide lock and supervised skill invocation
-(or recovery of an existing mechanical transaction).
+shared operation owns the repository-wide lock and supervised skill invocation.
 Task completion and
 selection of further work wait until every destination has been pushed.
 

@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **314 — [Saved request presets and units persist](E2E-Tasks/314-request-presets.md)**.
+Next task: **315 — [Read kiosk What's New and return to the request](E2E-Tasks/315-kiosk-whats-new.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

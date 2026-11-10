@@ -8,6 +8,44 @@
   },
   "scenarios": [
     {
+      "id": "E2E-063",
+      "title": "A child's saved request presets and units survive editing and return",
+      "category": "customer-journey",
+      "owners": ["request-choices"],
+      "requirements": ["ONPC-CORE-REQUEST-004", "ONPC-CORE-REQUEST-014", "ONPC-CORE-REQUEST-016"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Frontends.md#child-reminder-preferences", "docs/TestAutomation/E2E-Scenario-Recipes.md#saved-request-presets-and-units"],
+      "components": ["parent", "kiosk", "broker"],
+      "environment": ["ubuntu26.04", "fedora44"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the verified installed snapshot and bind fixture credentials under the owned attempt."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin at the installed greeter with Riley's untouched shipped presets and no time granted."}],
+        "steps": [
+          {"id": "step-1", "operation": "ui", "description": "Jamie enables Riley with zero daily time. Record saved policy, zero grants and the shipped station request presets before editing."},
+          {"id": "step-2", "operation": "ui", "description": "Save a ten-minute preset through both Save actions and reopen to read 600 seconds. Select then delete it; retain an equivalent Custom request. Choose 0.1 Hours and read 360 seconds, then restore shipped presets and 1.25 Minutes with soft apps included. Cancel normally to sign-in."},
+          {"id": "step-3", "operation": "ui", "description": "Reenter the station without editing choices and independently compare saved minutes, soft inclusion and shipped presets. Cancel, then read Parent to confirm unchanged time and app policy, zero grant and usable sign-in after normal logout."}
+        ],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile independent public results, collection and worker shutdown."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Finish owned cleanup and restore the powered-off baseline, preserving unrelated inputs."}]
+      },
+      "interventions": [],
+      "assertions": {
+        "visible": [
+          {"id": "saved-preset", "step_id": "step-2", "description": "Reopened Preferences and offered request choices contain the saved 600-second preset."},
+          {"id": "selected-deletion", "step_id": "step-2", "description": "Deleting the selected preset retains its 600 seconds as Custom rather than choosing another duration."},
+          {"id": "custom-hours", "step_id": "step-2", "description": "Custom 0.1 Hours independently reads as 360 seconds with soft apps included."},
+          {"id": "restored-after-reentry", "step_id": "step-3", "description": "Normal Cancel and fresh station entry preserve shipped presets, Custom 1.25 Minutes, 75 seconds, the selected accounts and soft inclusion."},
+          {"id": "unchanged-policy", "step_id": "step-3", "description": "Riley's saved time and app rules are identical, daily and granted time stay zero, and normal logout returns to usable sign-in."}
+        ],
+        "backend": [], "other_user": []
+      },
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 1800,
+      "matrix": {"dimensions": {"history": ["saved-presets"]}, "full_combinations": [], "rationale": "One ordered saved-preset, selected-deletion, unit-conversion and Cancel/reentry history; local validation matrices remain in UI coverage."},
+      "variants": [{"coverage_id": 264, "id": "saved-presets", "owner": "request-choices", "parameters": {"history": "saved-presets"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/request_presets.py", "test_id": "saved-presets"}}]
+    },
+    {
       "id": "E2E-062",
       "title": "Each child's saved reminders survive a restart",
       "category": "customer-journey",

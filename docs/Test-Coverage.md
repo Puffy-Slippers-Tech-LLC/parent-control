@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">146</span>/<span style="color: gray">51</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6586</span>/<span style="color: gray">51</span>/6637** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">147</span>/<span style="color: gray">51</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6587</span>/<span style="color: gray">51</span>/6638** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">145</span>/<span style="color: gray">51</span>/196 |
+| customer-journey | <span style="color: green">146</span>/<span style="color: gray">51</span>/197 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -181,6 +181,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [261](#scenario-261) | Keep the child's request language when the approving parent changes | `E2E-060/kiosk-hebrew` | ready |
 | [262](#scenario-262) | Language changes preserve countdown and natural expiry | `E2E-061/panel-expiry` | ready |
 | [263](#scenario-263) | Each child's saved reminders survive a restart | `E2E-062/saved-empty-reboot` | ready |
+| [264](#scenario-264) | A child's saved request presets and units survive editing and return | `E2E-063/saved-presets` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
@@ -2309,6 +2310,20 @@ Variant: history: saved empty reboot
 - In Riley's overlay add a 75-second reminder with literal Save \<work\>!, edit the same ID to 90 seconds and Save \<work\> & games!, then save main Preferences.
 - At the station independently read Riley's saved ID, exact text and trigger. Delete that row in a draft, Cancel, and reopen to prove preservation. Delete every row, Save and independently reopen the saved empty list.
 - Reboot normally and independently observe a changed boot. Read both children at the station and each own overlay before edits: Riley remains empty and Jordan retains the original reminders and language. Compare both saved policies, request choices and zero grants.
+
+### Scenario 264
+
+**A child's saved request presets and units survive editing and return**
+
+Case: `E2E-063/saved-presets` · Category: customer-journey · Status: **ready**
+
+Variant: history: saved presets
+
+**Steps:**
+
+- Jamie enables Riley with zero daily time. Record saved policy, zero grants and the shipped station request presets before editing.
+- Save a ten-minute preset through both Save actions and reopen to read 600 seconds. Select then delete it; retain an equivalent Custom request. Choose 0.1 Hours and read 360 seconds, then restore shipped presets and 1.25 Minutes with soft apps included. Cancel normally to sign-in.
+- Reenter the station without editing choices and independently compare saved minutes, soft inclusion and shipped presets. Cancel, then read Parent to confirm unchanged time and app policy, zero grant and usable sign-in after normal logout.
 
 <div style="color: gray">
 

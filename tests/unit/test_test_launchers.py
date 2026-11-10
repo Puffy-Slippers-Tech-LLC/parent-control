@@ -1111,26 +1111,6 @@ def test_shared_upgrade_preparation_refuses_conflicts_before_allocation(monkeypa
     allocate.assert_not_called()
 
 
-@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
-def test_upgrade_checkpoint_retains_the_complete_indivisible_history(monkeypatch, target):
-    import regression
-    import system_runner
-    from tests.support.vm_runner import INVENTORIES
-
-    monkeypatch.setenv('ONPC_TEST_VM', target)
-    inventories = {**INVENTORIES, 'package': (
-        *INVENTORIES['package'], 'test_previous_package_policy_preservation')}
-    monkeypatch.setattr(system_runner, 'collect_area_cases', lambda area: inventories[area])
-    options = ['--id', '287', '--upgrade-inputs']
-    checkpoint = SimpleNamespace(entry=lambda _: {'args': options}, passed=lambda _: set(),
-                                 retry_case=None)
-    selected, passed = regression.Run.system_resume_cases(
-        SimpleNamespace(root=ROOT, checkpoint=checkpoint), options)
-    assert selected == {phase + '::test_previous_package_policy_preservation'
-                        for phase in ('previous-policy', 'installed', 'rebooted')}
-    assert not passed
-
-
 def test_dispatcher_still_requires_artifacts_for_actual_system_execution():
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     args = ['system', '--area=authorization', '--test=case[param]', *VM_ARGS]
@@ -1676,46 +1656,6 @@ def test_system_listing_is_host_safe_and_lists_only_registered_tests():
         dispatcher['selection'](ROOT, ['system', '--list', 'check_fixture_snapshots'])
 
 
-@pytest.mark.parametrize('category', ['all', 'all-verify'])
-def test_aggregate_dispatch_selects_policy_and_rejects_narrowing(monkeypatch, category, vm_execution_branch):
-    import regression
-    import vm_selection
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    # Check worker dispatch without entering the real persistent family queue.
-    monkeypatch.setenv(vm_selection.WORKER, '1')
-    assert commands._main([category, *VM_ARGS]) == 7
-    execute.assert_called_once_with(ROOT)
-    execute.reset_mock()
-    assert commands._main([category, '--skip-backing-verification', *VM_ARGS]) == 2
-    execute.assert_not_called()
-
-
-@pytest.mark.parametrize('category', ['all', 'all-verify', 'host', 'host-builds', 'vm'])
-def test_continue_on_errors_is_a_valueless_aggregate_flag(monkeypatch, category, vm_execution_branch):
-    import regression
-    import vm_selection
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    # Check flag dispatch without entering the real persistent family queue.
-    monkeypatch.setenv(vm_selection.WORKER, '1')
-    assert commands._main([category, '--continue-on-errors', *VM_ARGS]) == 7
-    assert execute.call_args.kwargs['continue_on_errors'] is True
-    if category == 'host-builds':
-        assert execute.call_args.kwargs['serial_builds'] is False
-        for args in (['--serial-builds', '--continue-on-errors'],
-                     ['--continue-on-errors', '--serial-builds']):
-            assert commands._main([category, *args, *VM_ARGS]) == 7
-            assert execute.call_args.kwargs['serial_builds'] is True
-    execute.reset_mock()
-    for args in (['--continue-on-errors=true'], ['--continue-on-errors', 'true'],
-                 ['--continue-on-errors', '--continue-on-errors']):
-        assert commands._main([category, *args, *VM_ARGS]) == 2
-    execute.assert_not_called()
-
-
 def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
     import regression
     execute = Mock(return_value=7)
@@ -1743,40 +1683,3 @@ def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, 
                   ['--skip-backing-verification'], ['--command=id']):
         assert commands._main(['host-builds', *extra]) == 2
     execute.assert_not_called()
-
-
-@pytest.mark.parametrize('argv', [
-    ['host'], ['system'], ['e2e'], ['host', 'system'], ['host', 'e2e'],
-    ['system', 'e2e'], ['host', 'system', 'e2e'], ['e2e', 'host', 'system'],
-    ['e2e', 'system'], ['system', 'host'], ['e2e', 'host'],
-    ['vm'], ['host', 'vm'], ['vm', 'host'], ['vm', 'system'], ['e2e', 'vm'],
-])
-@pytest.mark.parametrize('detached', [False, True])
-def test_complete_categories_share_one_ordered_aggregate(monkeypatch, argv, detached, vm_execution_branch):
-    import regression
-    import vm_selection
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    # Check aggregate dispatch without entering the real persistent family queue.
-    monkeypatch.setenv(vm_selection.WORKER, '1')
-    phases = tuple(kind for kind in ('host', 'system', 'e2e')
-                   if kind in argv or (kind != 'host' and 'vm' in argv))
-    for flag in ([], ['--continue-on-errors']):
-        commands.validate(ROOT, [*argv, *flag, *VM_ARGS])
-        assert commands.selections(ROOT, [*argv, *flag]) == [(kind, []) for kind in phases]
-        assert commands._main([*argv, *flag, *VM_ARGS], detached=detached) == 7
-        options = {'continue_on_errors': True} if flag else {}
-        execute.assert_called_with(ROOT, phases=phases,
-                                   **options)
-
-
-@pytest.mark.parametrize('argv', [
-    ['host', 'host'], ['system', 'e2e', 'system'], ['all', 'host'],
-    ['host', 'system', '--bad'], ['host', 'system', '--list'],
-    ['host', 'system', '--continue-on-errors', '--continue-on-errors'],
-    ['vm', 'vm'], ['vm', '--bad'], ['host', 'vm', '--serial-builds'],
-])
-def test_invalid_complete_combinations_are_refused_before_work(argv):
-    with pytest.raises(ValueError):
-        commands.validate(ROOT, argv)

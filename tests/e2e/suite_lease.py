@@ -293,6 +293,7 @@ class Suite:
         self.verified = None
         self.backend_checked = self.credentials_checked = False
         self.prepared = False
+        self.prepared_release_notes_upgrade = False
         self.next_case = None
         self._input_bundle = None
         self.snapshot_mode = 'online'
@@ -326,15 +327,29 @@ class Suite:
         return transport
 
     def prepare_installed(self, directory, assets, selection, *, root, overwrite=True,
-                          mode='offline'):
+                          mode='offline', release_notes_upgrade=False):
         from app_snapshot import prepare
-        return prepare(self, directory, assets, selection, root=root,
-                       overwrite=overwrite, mode=mode)
+        created = prepare(self, directory, assets, selection, root=root,
+                          overwrite=overwrite, mode=mode,
+                          release_notes_upgrade=release_notes_upgrade)
+        self.prepared_release_notes_upgrade = release_notes_upgrade
+        return created
 
     def prepare_case(self, case, directory, assets, selection, *, root):
+        upgrade = 'installed-release-notes-upgrade' in case['preconditions']
+        if self.prepared and upgrade != self.prepared_release_notes_upgrade:
+            # Online attempts already return to the powered-off baseline. Never
+            # reuse the preceding case's installed recipe merely because its
+            # package version has the same canonical snapshot name.
+            self.lease.restore_installed = False
+            if self.lease._restored_name != self.lease.capture.state['proof']['name']:
+                self.lease._restored = self.lease._reset_attempted = False
+            self.lease.stop()
+            self.prepared = False
         if not self.prepared:
             created = self.prepare_installed(directory, assets, selection, root=root,
-                                            overwrite=False, mode=self.snapshot_mode)
+                                            overwrite=False, mode=self.snapshot_mode,
+                                            release_notes_upgrade=upgrade)
             if not created:
                 from app_snapshot import snapshot_name
                 package = assets / ('package.' + system.package_format(self.lease.capture.state['guest']))
@@ -346,6 +361,7 @@ class Suite:
                 self.prepared = True
                 if system.watch_progress is not None:
                     system.watch_progress.suite_prepared()
+            self.prepared_release_notes_upgrade = upgrade
             self.lease.restore_installed = needs_installed(case)
             self.lease.stop()
         online = needs_installed(case) and self.lease.installed_online

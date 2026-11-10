@@ -159,6 +159,34 @@ def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch, op
     ui._invoke_target.assert_not_called()
 
 
+@pytest.mark.parametrize('boundary', ['entry', 'child'])
+def test_preset_input_refuses_wrong_entry_or_selected_child(boundary):
+    module = ui_observations.accessible_ui
+    ui = module.AccessibleUI(SimpleNamespace())
+    ui.read_snapshot = Mock(return_value=([], {}, {}, {}))
+    ui.request_surface = Mock(side_effect=module.UiError('ui:kiosk-valid-entry')
+                              if boundary == 'entry' else None)
+    ui.initial_kiosk_child = Mock(side_effect=module.UiError('ui:initial-child'))
+    ui.open_language_preferences = Mock(side_effect=AssertionError('input after wrong entry'))
+    with pytest.raises(module.UiError, match='ui:' + (
+            'kiosk-valid-entry' if boundary == 'entry' else 'initial-child')):
+        ui.kiosk_presets_open()
+    ui.open_language_preferences.assert_not_called()
+    assert ui.input_uncertain is True
+
+
+def test_preset_replaced_dialog_cannot_release_input():
+    module = ui_observations.accessible_ui
+    ui = module.AccessibleUI(SimpleNamespace())
+    ui._kiosk_preferences_state = Mock(side_effect=module.UiError('ui:preferences-replaced'))
+    ui.activate_id = Mock(side_effect=AssertionError('input after replaced draft'))
+    with pytest.raises(module.UiError, match='ui:preferences-replaced'):
+        ui.kiosk_preset_change(instance='a' * 32, seconds=600)
+    with pytest.raises(module.UiError, match='ui:uncertain-input'):
+        ui.kiosk_presets_close(instance='a' * 32, save=True)
+    ui.activate_id.assert_not_called()
+
+
 def test_reminder_uncertain_deletion_cannot_release_another_input():
     module = ui_observations.accessible_ui
     ui = module.AccessibleUI(SimpleNamespace())

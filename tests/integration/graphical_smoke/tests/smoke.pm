@@ -30,6 +30,7 @@ use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
 use onpc_kiosk_whats_new ();
 use onpc_kiosk_preferences_confinement ();
+use onpc_request_preset_controls ();
 use onpc_request_presets ();
 use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
@@ -1519,6 +1520,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_presets::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{request_preset_controls}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_preset_controls::run(\&exchange);
         return;
     }
     if ($ready->{kiosk_preferences_confinement}) {

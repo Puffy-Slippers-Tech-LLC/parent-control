@@ -1507,6 +1507,11 @@ KIOSK_ABOUT_OPERATIONS = frozenset({'kiosk-about-open', 'kiosk-about-read',
                                    'kiosk-about-close-ready', 'kiosk-about-closed'})
 OPERATIONS |= KIOSK_ABOUT_OPERATIONS | {'parent-kiosk-about-refused'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_ABOUT_OPERATIONS
+KIOSK_WHATS_NEW_OPERATIONS = frozenset({
+    'kiosk-whats-new-open', 'kiosk-whats-new-read', 'kiosk-whats-new-close',
+})
+OPERATIONS |= KIOSK_WHATS_NEW_OPERATIONS | {'parent-kiosk-whats-new-refused'}
+KIOSK_SESSION_OPERATIONS |= KIOSK_WHATS_NEW_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= {'kiosk-preferences-confinement'}
 KIOSK_SESSION_OPERATIONS |= KIOSK_PRESET_OPERATIONS
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (surface, _child, _action)
@@ -5958,6 +5963,60 @@ class AccessibleUI:
         self.activate_id('kiosk-menu-button', action_name='menu.popup')
         self.activate_id('kiosk-menu-item-about')
         self.window_ready_to_close('about')
+
+    def kiosk_whats_new_scope(self, *, opened):
+        """Bind notes to the station's request, with a fresh complete API read."""
+        observation = self.read_snapshot()
+        nodes, edges, identities, _facts = observation
+        application = self.snapshot_matches(KIOSK_APPLICATION, nodes, identities=identities)
+        require(application is not None, 'ui:kiosk-whats-new-entry')
+        window = self.snapshot_owned_target('kiosk-request-window', root=application,
+                                            observation=observation, check_prompt=True)
+        require(window is not None and self.snapshot_owned_target('kiosk-request-form',
+                root=window, observation=observation) is not None, 'ui:kiosk-whats-new-entry')
+        dialog = self.snapshot_owned_target('whats-new-dialog', root=application,
+                                            observation=observation, check_prompt=True)
+        if opened:
+            require(dialog is not None and self.surface_available(dialog)
+                    and dialog.surface_metadata.get('parent_id') == 'kiosk-request-window'
+                    and self.has_state(dialog, self.api.StateType.MODAL),
+                    'ui:kiosk-whats-new-entry')
+            return dialog, observation
+        require(dialog is None and self.surface_available(window), 'ui:kiosk-whats-new-entry')
+        return window, observation
+
+    def open_kiosk_whats_new(self):
+        self.kiosk_whats_new_scope(opened=False)
+        require('whats-new' in self.id_target('kiosk-menu-button').getChoices(),
+                'ui:kiosk-whats-new-unavailable')
+        self.set_value('kiosk-menu-button', 'whats-new')
+        self.wait(lambda: self.snapshot_owned_target('whats-new-dialog'), 'kiosk-whats-new-open')
+        self.kiosk_whats_new_scope(opened=True)
+
+    def read_kiosk_whats_new(self):
+        root, observation = self.kiosk_whats_new_scope(opened=True)
+        nodes, edges, identities, _facts = observation
+        scope = self.snapshot_scope(nodes, edges, root)
+        blocks = [node for node in scope if re.fullmatch(
+            r'whats-new-block-[0-9]+', identities[node] or '')]
+        blocks.sort(key=lambda node: int(identities[node].rsplit('-', 1)[1]))
+        require(0 < len(blocks) <= 256 and [identities[node] for node in blocks]
+                == [f'whats-new-block-{index}' for index in range(len(blocks))],
+                'ui:kiosk-whats-new-document')
+        title = self.id_target('whats-new-title', root=root).getText()
+        content = [node.getText() for node in blocks]
+        require(type(title) is str and 0 < len(title) <= 128
+                and all(type(text) is str and len(text) <= 65536 for text in content)
+                and 0 < sum(map(len, content)) <= 65536,
+                'ui:kiosk-whats-new-document')
+        return {'title': title, 'blocks': content}
+
+    def close_kiosk_whats_new(self):
+        self.kiosk_whats_new_scope(opened=True)
+        self.close_id('whats-new-dialog')
+        self.wait(lambda: self.absent_id('whats-new-dialog', within='kiosk-request-window'),
+                  'kiosk-whats-new-closed')
+        self.kiosk_whats_new_scope(opened=False)
 
     def kiosk_about_snapshot(self):
         """Fresh active About surface owned by the station, including close input."""
@@ -15765,6 +15824,20 @@ class AccessibleUI:
                 result['settings'] = self.parent_page(child, 'Screen Limits')
             else:
                 result['settings'] = self.selected_child(child)
+        elif operation == 'parent-kiosk-whats-new-refused':
+            self.parent()
+            try:
+                self.open_kiosk_whats_new()
+            except UiError as error:
+                require(str(error) == 'ui:kiosk-whats-new-entry', 'ui:kiosk-whats-new-refusal')
+            else:
+                raise UiError('ui:kiosk-whats-new-wrong-owner-accepted')
+        elif operation == 'kiosk-whats-new-open':
+            self.open_kiosk_whats_new()
+        elif operation == 'kiosk-whats-new-read':
+            result['whats_new'] = self.read_kiosk_whats_new()
+        elif operation == 'kiosk-whats-new-close':
+            self.close_kiosk_whats_new()
         elif operation == 'parent-kiosk-about-refused':
             require(self.snapshot_owned_target('parent-window', check_prompt=True) is not None,
                     'ui:kiosk-about-parent-entry')

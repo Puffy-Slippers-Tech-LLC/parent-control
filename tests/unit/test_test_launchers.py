@@ -1523,7 +1523,7 @@ def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
     monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
     verify = Mock(return_value={'packages': {'current': {
         'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format],
-        'version': '1.0-1' + (target.dist if package_format == 'rpm' else '')}}})
+        'version': '1.4-0.1.dev.fc44' if package_format == 'rpm' else '1.4'}}})
     monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify)
     control = Mock()
     control.run.side_effect = [status, 0]

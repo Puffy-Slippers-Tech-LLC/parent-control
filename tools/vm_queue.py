@@ -42,6 +42,8 @@ def preparation(root, tool, args, concurrency, vms):
             options = ['--vm', vm.name, '--y']
             if tool == 'prepare-appsnapshot':
                 options += ['--overwrite', args.overwrite]
+                if args.release_notes_upgrade:
+                    options.append('--release-notes-upgrade')
             else:
                 options += ['--mode', args.mode]
             command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), tool, *options]

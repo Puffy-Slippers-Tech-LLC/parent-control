@@ -53,7 +53,7 @@ def preparation_format(source, commands):
     return system.package_target(capture.state['guest']).package_format
 
 
-def probe(expected_uuid, *, overwrite=True):
+def probe(expected_uuid, *, overwrite=True, release_notes_upgrade=False):
     """Read only, under the shared VM lock; no journal writes or cleanup."""
     commands = Commands()
     name = current_name(commands)
@@ -103,6 +103,8 @@ def probe(expected_uuid, *, overwrite=True):
                     previous = json.loads(ET.fromstring(xml).findtext('description'))
                     if previous.get('recipe_sha256') != recipe:
                         reason = 'installation recipe changed'
+                    if previous.get('preparation') != ('release-notes-upgrade' if release_notes_upgrade else None):
+                        reason = 'snapshot preparation changed'
                 except (ET.ParseError, ValueError, TypeError, AttributeError):
                     reason = 'missing or invalid snapshot metadata'
             if reason is not None:
@@ -127,7 +129,7 @@ def probe(expected_uuid, *, overwrite=True):
                 os.close(compatibility)
 
 
-def prepare(artifacts, expected_uuid, *, overwrite=True):
+def prepare(artifacts, expected_uuid, *, overwrite=True, release_notes_upgrade=False):
     from provenance import preflight_source
     from tools.test_retention import allocate
     directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-graphical-smoke-', dir='/tmp'))
@@ -137,8 +139,14 @@ def prepare(artifacts, expected_uuid, *, overwrite=True):
     suite.commands.directory = private
     try:
         assets = directory / 'assets'
-        system.stage_assets(system.artifact_source(artifacts), assets, suite.commands)
-        source_inputs = preflight_source(assets)
+        if release_notes_upgrade:
+            system.stage_upgrade_assets(artifacts, assets, suite.commands)
+        else:
+            system.stage_assets(system.artifact_source(artifacts), assets, suite.commands)
+        # copytree retains the source bundle's directory mode. This new,
+        # controller-owned copy must be private before provenance capture.
+        assets.chmod(0o700)
+        source_inputs = preflight_source(assets, upgrade=release_notes_upgrade)
         expected_version = current_version(suite.commands)
         name = snapshot_name(expected_version)
         package = assets / ('package.rpm' if (assets / 'package.rpm').is_file() else 'package.deb')
@@ -152,7 +160,8 @@ def prepare(artifacts, expected_uuid, *, overwrite=True):
             suite.prepare_installed(directory, assets,
                 {'schema_version': 1, 'scope': 'standalone-appsnapshot',
                  'source_sha256': source_inputs['source_sha256']},
-                root=ROOT, overwrite=overwrite, mode='online')
+                root=ROOT, overwrite=overwrite, mode='online',
+                release_notes_upgrade=release_notes_upgrade)
     except Exception:
         # Keep the underlying host/guestfs failure in this existing private
         # allocation; the public output contains fixed categories only.
@@ -166,7 +175,7 @@ def prepare(artifacts, expected_uuid, *, overwrite=True):
     return 0
 
 
-def resume(expected_uuid):
+def resume(expected_uuid, *, release_notes_upgrade=False):
     """Fast, identity-checked online restore, handed to shared VM maintenance."""
     from online_snapshot import load, restore, saved_transport
     import vm_control
@@ -191,6 +200,11 @@ def resume(expected_uuid):
         xml = source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
         system.require(mode_mismatch(xml, 'online') is None,
                        'online-snapshot:expired-or-invalid')
+        import xml.etree.ElementTree as ET
+        identity = json.loads(ET.fromstring(xml).findtext('description'))
+        system.require(identity.get('preparation') == (
+            'release-notes-upgrade' if release_notes_upgrade else None),
+            'online-snapshot:preparation-mismatch')
         record = load(source, name, xml)
         system.require(record is not None, 'online-snapshot:credentials-missing')
         lease.installed_name, lease.installed_xml = name, xml
@@ -240,6 +254,7 @@ def main(argv=None):
     parser.add_argument('--probe', action='store_true')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--artifacts', type=Path)
+    parser.add_argument('--release-notes-upgrade', action='store_true')
     parser.add_argument('--overwrite', choices=('true', 'false'), default='true',
                         nargs='?', const='true')
     args = parser.parse_args(argv)
@@ -249,14 +264,16 @@ def main(argv=None):
         system.require(not (args.probe and args.resume), 'appsnapshot:invalid-arguments')
         if args.resume:
             system.require(args.artifacts is None, 'appsnapshot:invalid-arguments')
-            return resume(args.expected_uuid)
+            return resume(args.expected_uuid, release_notes_upgrade=args.release_notes_upgrade)
         if args.probe:
             system.require(args.artifacts is None, 'appsnapshot:invalid-arguments')
-            return probe(args.expected_uuid, overwrite=args.overwrite == 'true')
+            return probe(args.expected_uuid, overwrite=args.overwrite == 'true',
+                         release_notes_upgrade=args.release_notes_upgrade)
         from runner import validate_artifact_path
         validate_artifact_path(args.artifacts)
         return prepare(args.artifacts, args.expected_uuid,
-                       overwrite=args.overwrite == 'true')
+                       overwrite=args.overwrite == 'true',
+                       release_notes_upgrade=args.release_notes_upgrade)
     except (ValueError, RuntimeError, OSError) as error:
         if str(error) == 'suite:package-version-changed':
             # No guest lease has been acquired. The public launcher may safely

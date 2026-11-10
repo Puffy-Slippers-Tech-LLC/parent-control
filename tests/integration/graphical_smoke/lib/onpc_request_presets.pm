@@ -31,11 +31,8 @@ sub run {
     $journey->seen($_) for qw(reentered-minutes reentered-presets final-cancel final-returned);
     my $desktop = onpc_gdm::sign_in_challenge($journey, 'return-parent',
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
-    onpc_parent::launch($journey, $desktop, 'management', 'return-desktop');
-    my $return = $journey->scope('return');
-    $return->consume_observation('parent-selected', onpc_parent::select_child($return,
-        'child', $return->seen('child-picker-opened'), 'child-picker-opened',
-        'child-choice-highlighted', 'parent-selected'));
+    $journey->consume_observation('return-desktop', $desktop);
+    onpc_parent::named_management($journey, 'return', 'child');
     $journey->seen($_) for qw(policy-after final-parent-logout final-greeter);
     $journey->finish();
 }

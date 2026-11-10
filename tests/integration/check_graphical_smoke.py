@@ -766,7 +766,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          shell_search=False, parent_terminal_provider=False,
          license_viewer_provider=False, information_link='license',
          kiosk_eligible_choices=False, kiosk_feedback_confinement=False,
-         kiosk_preferences_confinement=False,
+         kiosk_preferences_confinement=False, request_preset_controls=False, kiosk_whats_new=False,
          kiosk_notification_wellbeing=False, request_choices=False,
          kiosk_no_child=False, kiosk_no_approver=False, repeated_operations=False,
          challenges=False, challenge_profile='parent', product_free_entry=False, package_authority=False,
@@ -858,6 +858,20 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and time_profiles_daily is None and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials', 'baseline_app_effects')
             and isinstance(value, bool)))), 'smoke:baseline-app-effects-prerequisites')
+    require(type(kiosk_whats_new) is bool and (not kiosk_whats_new or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and active_grant_disable is None and time_profiles_daily is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'kiosk_whats_new')
+            and isinstance(value, bool)))), 'smoke:kiosk-whats-new-prerequisites')
+    require(type(request_preset_controls) is bool and (not request_preset_controls or (
+        assets is not None and provision_credentials and fresh_desktop is None
+        and lock_surface is None and parent_entry is None and approval_flow is None
+        and active_grant_disable is None and time_profiles_daily is None
+        and not any(value for name, value in locals().items()
+            if name not in ('assets', 'provision_credentials', 'request_preset_controls')
+            and isinstance(value, bool)))), 'smoke:request-preset-controls-prerequisites')
     require(type(kiosk_preferences_confinement) is bool and (not kiosk_preferences_confinement or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and parent_entry is None and approval_flow is None
@@ -1499,10 +1513,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         product_free_entry, package_authority, package_install, customer_reboot,
         chinese_language_assets, desktop_language, upgrade_assets))), 'smoke:package-upgrade-prerequisites')
     dual_packages = (upgrade_assets or package_upgrade or update_no_action or activation_process or activation_session or activation_reboot or chinese_kiosk_lifecycle
-                     or kiosk_entry == 'update-reentry')
+                     or kiosk_entry == 'update-reentry' or kiosk_whats_new)
     product_free_entry = (product_free_entry or package_authority or package_install
                           or customer_reboot or chinese_language_assets or desktop_language
-                          or (dual_packages and kiosk_entry != 'update-reentry')
+                          or (dual_packages and kiosk_entry != 'update-reentry' and not kiosk_whats_new)
                           or chinese_current_install or restart_notice or unrelated_reboot_request)
     require(type(product_free_entry) is bool and (not product_free_entry or (
             assets is not None and provision_credentials and fresh_desktop is None
@@ -1881,6 +1895,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'engineering-installed-kiosk-feedback-confinement'
         if kiosk_preferences_confinement:
             result['scope'] = 'engineering-installed-kiosk-preferences-confinement'
+        if request_preset_controls:
+            result['scope'] = 'installed-request-preset-controls-qualification'
+        if kiosk_whats_new:
+            result['scope'] = 'installed-kiosk-whats-new-qualification'
         if kiosk_notification_wellbeing:
             result['scope'] = 'engineering-installed-kiosk-notification-wellbeing'
         if request_choices:
@@ -2219,18 +2237,18 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     result['source_preflight'] = stage_qualification_assets(
                         assets, staged, commands, dual_packages=dual_packages,
                         package_only=parent_setup or fixture_selection is not None
-                                     or kiosk_entry == 'update-reentry')
+                                     or kiosk_entry == 'update-reentry' or kiosk_whats_new)
                 if (product_free_entry or parent_entry is not None or lock_surface is not None or parent_setup or parent_about or parent_access or desktop_session_logout
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
-                        or kiosk_preferences_confinement or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
+                        or kiosk_preferences_confinement or request_preset_controls or kiosk_whats_new or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_child_station_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_desktop_route or native_desktop_new_window or native_desktop_usable or native_files_usable or native_files_routes or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
                         or child_saved_work or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'],
                         **({'package_only': True} if parent_setup or fixture_selection is not None
-                            or kiosk_entry == 'update-reentry' else {}),
-                        **({'upgrade': True} if kiosk_entry == 'update-reentry' else {}))
+                            or kiosk_entry == 'update-reentry' or kiosk_whats_new else {}),
+                        **({'upgrade': True} if kiosk_entry == 'update-reentry' or kiosk_whats_new else {}))
                     staged = directory / 'input'
                 else:
                     (directory / 'input').mkdir(mode=0o700)
@@ -2474,6 +2492,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if kiosk_preferences_confinement:
                     from parent_setup_qualification import KioskPreferencesConfinementQualification
                     qualification_class = KioskPreferencesConfinementQualification
+                if request_preset_controls:
+                    from parent_setup_qualification import RequestPresetControlsQualification
+                    qualification_class = RequestPresetControlsQualification
+                if kiosk_whats_new:
+                    from kiosk_update_reentry_qualification import KioskWhatsNewQualification
+                    qualification_class = KioskWhatsNewQualification
                 if kiosk_notification_wellbeing:
                     from parent_setup_qualification import KioskNotificationWellbeingQualification
                     qualification_class = KioskNotificationWellbeingQualification

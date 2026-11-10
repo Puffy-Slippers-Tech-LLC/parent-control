@@ -22,6 +22,8 @@ def arguments(argv=None):
     parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--y', action='store_true',
                         help='proceed without confirmation for authorized automation and agent sessions')
+    parser.add_argument('--release-notes-upgrade', action='store_true',
+                        help='prepare the genuine prior/current upgrade for child release notes')
     parser.add_argument('--overwrite', nargs='?', const='true', default='true',
                         choices=('true', 'false'),
                         help='rebuild the current source before installing and replacing '
@@ -38,11 +40,18 @@ def confirm_preparation(args):
     return confirm_queue(args, 'prepare-appsnapshot', warning, prompt=input)
 
 
-def build_artifacts(root, package_format, control, environment, *, label='prepare-appsnapshot'):
+def build_artifacts(root, package_format, control, environment, *, label='prepare-appsnapshot',
+                    release_notes_upgrade=False):
     """Build once in the caller's active retained session, using owned transport."""
     target = vm_config.selected().require_build_target()
     if target.package_format != package_format:
         raise ValueError('configured build target does not match baseline package format')
+    if release_notes_upgrade:
+        from test_commands import prepare_qualification_artifacts
+        from test_storage import named_input
+        status = prepare_qualification_artifacts(root, 'system', ['check_e2e_kiosk_whats_new'],
+            run=lambda command: control.run(command, cwd=root, env=environment))
+        return str(named_input(upgrade_source=True)), status
     directory = test_retention.allocate(tempfile.mkdtemp,
         prefix='onpc-test-artifacts-')
     print(label + ': artifacts=' + directory, flush=True)
@@ -67,6 +76,7 @@ def main(argv=None):
         root = Path(__file__).resolve().parents[1]
         helper = '/usr/local/libexec/onpc-test-runner'
         test_source.finish_admission()
+        recipe_args = ['--release-notes-upgrade'] if args.release_notes_upgrade else []
         if len(vms) > 1:
             check(helper)
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
@@ -86,17 +96,17 @@ def main(argv=None):
                     return 130
             status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                 helper, 'appsnapshot', '--probe',
-                '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
+                '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
             if status == 6:
                 cleanup(root)
                 if control.stopped.is_set():
                     return 130
                 status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                     helper, 'appsnapshot', '--probe',
-                    '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
+                    '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
             if status == 4:
                 return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--resume', '--overwrite', args.overwrite, *vm_arguments()],
+                    helper, 'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()],
                     cwd=root, env=environment)
             # Missing, expired, differently-mode or explicitly overwritten
             # snapshots select their package backend from baseline provenance.
@@ -110,12 +120,13 @@ def main(argv=None):
             args.overwrite = 'true'
             for attempt in range(3):
                 with test_retention.Store(test_activity.retention_path(root)).session() as run:
-                    directory, status = build_artifacts(root, package_format, control, environment)
+                    directory, status = build_artifacts(root, package_format, control, environment,
+                        release_notes_upgrade=args.release_notes_upgrade)
                     if status:
                         return status
                     status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                         '--retention-run=' + run, '--unattended', 'appsnapshot',
-                        '--overwrite', args.overwrite, '--artifacts', directory, *vm_arguments()],
+                        '--overwrite', args.overwrite, '--artifacts', directory, *recipe_args, *vm_arguments()],
                         cwd=root, env=environment, cooperative=True)
                 if status != 7:
                     break
@@ -127,7 +138,7 @@ def main(argv=None):
             if status:
                 return status
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-                'appsnapshot', '--resume', '--overwrite', args.overwrite, *vm_arguments()], cwd=root, env=environment)
+                'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
     except (ValueError, OSError) as error:
         print('\033[31mprepare-appsnapshot: ' + str(error) + '\033[0m', file=sys.stderr)
         return 2

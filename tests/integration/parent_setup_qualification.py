@@ -222,7 +222,8 @@ class KioskEntryQualification(ParentJourneyQualification):
         # shared suite does. A release name alone cannot identify installed
         # bytes, and refreshing the test payload does not update the product.
         bundle = Bundle.from_staged(smoke.ROOT, self.directory / 'input')
-        expected = input_identity(lease, self.assets, bundle, self.commands)
+        expected = input_identity(lease, self.assets, bundle, self.commands,
+                                  release_notes_upgrade=getattr(self, 'release_notes_upgrade', False))
         snapshots = lease.source.domain.snapshotListNames(0)
         if name not in snapshots:
             scope = 'product' if any(item.startswith('onpc-v') for item in snapshots) else 'local'
@@ -351,6 +352,13 @@ class KioskRoutingVariationQualification(KioskEntryQualification):
         # evaluating the shared operation's full qualification verdict.
         smoke.require(self.result['routing_variation'].get('qualified') is True,
                       'gdm-routing:' + self.result['routing_variation']['result'])
+
+
+class RequestPresetControlsQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from request_preset_controls import RequestPresetControlsJourney
+        return RequestPresetControlsJourney(context, progress)
 
 
 class KioskPreferencesConfinementQualification(KioskEntryQualification):

@@ -12,7 +12,7 @@ use onpc_text ();
 use onpc_feedback_privacy ();
 
 my %policy_apps = map { $_ => 'parent-app-' . substr(sha256_hex(
-    'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S Alias);
+    'com.puffyslippers.ONPCTest.' . $_ . '.desktop'), 0, 16) } qw(A H S Alias Game);
 my $policy_app = $policy_apps{A};
 
 # Keep fixture identity mechanics here; callers own their rules and edit order.
@@ -338,6 +338,7 @@ sub edit_policy {
         && (($app eq $policy_app && $draft =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
             || ($app eq $policy_apps{H} && $draft eq 'match-hard-precise')
             || ($app eq $policy_apps{Alias} && $draft eq 'match-alias-precise')
+            || ($app eq $policy_apps{Game} && $draft eq 'match-game-precise')
             || ($app eq $policy_apps{S} && $draft =~ /\Amatch-soft-(?:wildcard|precise)\z/))
         && $access =~ /\A(?:allowed|permanent|conditional)\z/
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/ && ref($filters) eq 'ARRAY' && @$filters <= 2;
@@ -350,7 +351,8 @@ sub edit_policy {
     }
     my $query = $app eq $policy_apps{H} ? 'catalogue-hard'
               : $app eq $policy_apps{S} ? 'catalogue-soft'
-              : $app eq $policy_apps{Alias} ? 'catalogue-alias' : 'catalogue-identifier';
+              : $app eq $policy_apps{Alias} ? 'catalogue-alias'
+              : $app eq $policy_apps{Game} ? 'catalogue-game' : 'catalogue-identifier';
     onpc_text::replace_text($journey, $query, "$prefix-search");
     filter($journey, $_->[0], $_->[1], "$prefix-$_->[0]") for @$filters;
     if ($setup) {
@@ -410,7 +412,8 @@ sub named_app_set {
             && (($app->[0] eq 'A' && $app->[1] =~ /\Amatch-(?:(?:precise|wildcard)(?:-basename)?|wildcard-appimages)\z/)
                 || ($app->[0] eq 'H' && $app->[1] eq 'match-hard-precise')
                 || ($app->[0] eq 'S' && $app->[1] =~ /\Amatch-soft-(?:wildcard|precise)\z/)
-                || ($app->[0] eq 'Alias' && $app->[1] eq 'match-alias-precise'))
+                || ($app->[0] eq 'Alias' && $app->[1] eq 'match-alias-precise')
+                || ($app->[0] eq 'Game' && $app->[1] eq 'match-game-precise'))
             && $app->[2] =~ /\A(?:allowed|permanent|conditional)\z/;
     }
     my $section = $journey->scope($prefix);
@@ -1299,6 +1302,69 @@ sub game_usable_app {
         && ref($journey) eq 'onpc_journey';
     return game_use_app($journey, native_open_command($journey, undef),
                         defined($mode) ? ($mode) : ());
+}
+
+sub game_permission {
+    onpc_progress::operation('Checking that parent choices allow and stop the game while preserving homework');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'game-permission:arguments' unless @_ == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-permission', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['Game', 'match-game-precise', 'conditional']];
+    for my $index (0 .. $#$apps) {
+        my ($role, $draft, $access) = @{$apps->[$index]};
+        edit_policy($journey, fixture_app($role), $draft, $access, 'policy-' . $index, [], 1);
+    }
+    onpc_text::replace_text($journey, 'catalogue-clear', 'clear');
+    saved_rows($journey, $apps, 'saved');
+    $journey->seen('parent-logout');
+    for my $mode ('windowed', 'fullscreen') {
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', "$mode-entry");
+        my $slice = $journey->scope($mode);
+        my $work = $slice->scope('work');
+        $work->seen($_) for ('open', 'opened', ($mode eq 'windowed' ? ('edit', 'save', 'saved') : ()),
+                             'submit', 'submitted', 'activity');
+        $slice->seen('denied');
+        for my $name ('first', 'included', 'excluded') {
+            my $request = $slice->scope($name);
+            my $soft = $name eq 'excluded' ? 0 : 1;
+            if ($name eq 'included') {
+                $request->{kiosk_request} = ['other-child', 'parent', 900, 1];
+                $request->seen($_) for qw(leave-desktop switch-user gdm-switched);
+                onpc_request_flow::prepare($request, 'new', 'new', 'observed',
+                    'existing-fixture-child', 'fixture-parent', 900, 1, 'kiosk');
+                onpc_request_flow::approve($request, 'existing-fixture-child', 'fixture-parent', 900, 1, 'automatic');
+                onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+                                                   'success', "$mode-included-retained");
+            } else {
+                $request->{overlay_request} = ['other-child', 'parent', 900, $soft];
+                onpc_request_flow::overlay_entry($request, 'request', 'panel');
+                onpc_request_flow::prepare($request, 'new', 'open', 'observed',
+                    'existing-fixture-child', 'fixture-parent', 900, $soft, 'overlay');
+                onpc_request_flow::overlay_approve($request, 'automatic');
+            }
+            if ($name eq 'first') {
+                my $play = $slice->scope('play');
+                game_usable_app($play, $mode);
+                native_read_activity($play, 'capture');
+            } else {
+                $request->seen('game') if $name eq 'included';
+                if ($name eq 'excluded') {
+                    $request->seen($_) for qw(closed denied);
+                }
+                $request->seen($_) for qw(work submit submitted original hard);
+            }
+        }
+        $slice->seen($_) for qw(work-close work-closed logout);
+    }
+    $journey->seen('cleanup');
+    $journey->finish();
 }
 
 sub game_time_extension {

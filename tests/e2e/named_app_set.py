@@ -15,7 +15,7 @@ def saved_rows(apps, prefix):
     screens = {}
     for app, _draft, _access in apps:
         role = next(role for role, identity in MATCH_APPS.items() if identity == app)
-        name = {'A': '', 'H': 'hard-', 'S': 'soft-', 'Alias': 'alias-'}[role]
+        name = {'A': '', 'H': 'hard-', 'S': 'soft-', 'Alias': 'alias-', 'Game': 'game-'}[role]
         screens[prefix + '-' + role.lower() + '-match'] = 'ui:match-' + name + 'row'
         screens[prefix + '-' + role.lower() + '-access'] = 'ui:access-' + name + 'row'
     return screens

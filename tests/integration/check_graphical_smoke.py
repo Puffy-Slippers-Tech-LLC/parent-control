@@ -809,7 +809,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          chinese_current_install=False, parent_language_isolation=False,
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
-         fixture_selection=None, transfer_qualification=False, local_calendar=False, child_saved_work=False):
+         fixture_selection=None, transfer_qualification=False, local_calendar=False, child_saved_work=False,
+         game_permission=False):
     require(type(child_saved_work) is bool and (not child_saved_work or (
         assets is not None and provision_credentials and fixture_profile == 'native'
         and fresh_desktop is None and approval_flow is None
@@ -1126,10 +1127,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
-            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request')
+            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request', 'game_permission')
             and isinstance(value, bool)))), 'smoke:native-app-prerequisites')
     require(type(game_expiry) is bool and (not game_expiry or native_app
             and fixture_profile == 'game'), 'smoke:game-expiry-prerequisites')
+    require(type(game_permission) is bool and (not game_permission or native_app
+            and fixture_profile == 'game' and not game_expiry and not fullscreen_request),
+            'smoke:game-permission-prerequisites')
     require(type(fullscreen_request) is bool and (not fullscreen_request or native_app
             and fixture_profile == 'game' and not game_expiry), 'smoke:fullscreen-request-prerequisites')
     require(game_mode in ('windowed', 'fullscreen') and (game_mode == 'windowed' or game_expiry),
@@ -1934,7 +1938,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
-            result['scope'] = ('installed-fullscreen-request-qualification' if fullscreen_request else
+            result['scope'] = ('installed-game-permission-qualification' if game_permission else
+                              'installed-fullscreen-request-qualification' if fullscreen_request else
                               'installed-game-fullscreen-qualification' if game_expiry and game_mode == 'fullscreen' else
                               'installed-game-expiry-qualification' if game_expiry else
                               'installed-game-activity-qualification' if fixture_profile == 'game'
@@ -2568,6 +2573,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     elif fixture_profile == 'game':
                         from parent_setup_qualification import GameActivityQualification
                         qualification_class = GameActivityQualification
+                        if game_permission:
+                            from parent_setup_qualification import GamePermissionQualification
+                            qualification_class = GamePermissionQualification
                         if fullscreen_request:
                             from parent_setup_qualification import FullscreenRequestQualification
                             qualification_class = FullscreenRequestQualification

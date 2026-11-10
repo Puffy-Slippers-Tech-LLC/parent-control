@@ -866,6 +866,11 @@ sub shell_approve {
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,0'
                 && $exit eq 'automatic'
+            || ($journey->{prefix} // '') =~ /\Agame-permission-(?:windowed|fullscreen)-(?:first|excluded)\z/
+                && ref($journey->{overlay_request}) eq 'ARRAY'
+                && join(',', @{$journey->{overlay_request}}) eq
+                    ('other-child,parent,900,' . (($journey->{local_scope} // '') eq 'first' ? '1' : '0'))
+                && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\A(?:flatpak-grid|native-(?:grid|desktop))-temporary-access-(?:first|included|replacement)\z/

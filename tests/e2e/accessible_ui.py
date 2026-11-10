@@ -206,13 +206,14 @@ OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 WORK_OPERATIONS = frozenset('work-' + who + '-' + action
     for who in ('jordan', 'riley')
-    for action in ('open', 'opened', 'edit', 'save', 'saved', 'activity', 'submit', 'submitted', 'close', 'closed'))
+    for action in ('open', 'opened', 'edit', 'save', 'saved', 'activity', 'submit', 'resubmit', 'submitted', 'close', 'closed'))
 OPERATIONS |= WORK_OPERATIONS
 STANDARD_OPERATIONS |= frozenset(op for op in WORK_OPERATIONS if op.startswith('work-jordan-'))
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
     'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity',
-    'fullscreen-activity', 'resumed-close'))
+    'fullscreen-activity', 'resumed-close', 'command-blocked', 'fullscreen-command-blocked',
+    'policy-activity', 'policy-closed'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -522,6 +523,8 @@ TEXT_VALUES = {
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
     'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
+    'catalogue-game': ('parent-app-search', 'com.puffyslippers.ONPCTest.Game.desktop'),
+    'match-game-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/onpc-test-game'),
     'catalogue-alias': ('parent-app-search', 'com.puffyslippers.ONPCTest.Alias.desktop'),
     'match-alias-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'),
     'match-hard-precise': ('parent-match-rule-entry', '/opt/onpc-test-fixtures/Applications/Whitespace/Path With Spaces.AppImage'),
@@ -792,6 +795,7 @@ CATALOGUE_ROW_OPERATIONS = {
     'catalogue-identifier-rows': 'catalogue-identifier',
     'catalogue-hard-rows': 'catalogue-hard', 'catalogue-soft-rows': 'catalogue-soft',
     'catalogue-alias-rows': 'catalogue-alias',
+    'catalogue-game-rows': 'catalogue-game',
 }
 APP_ROW_OPERATIONS |= frozenset(CATALOGUE_ROW_OPERATIONS)
 FILTER_OPTIONS = {'match-rule': ('pattern', 'precise'),
@@ -806,7 +810,7 @@ OPERATIONS |= APP_ROW_OPERATIONS
 MATCH_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.A.desktop').hexdigest()[:16]
 MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
-    for role in ('A', 'H', 'S', 'Alias', 'Update', 'C')}
+    for role in ('A', 'H', 'S', 'Alias', 'Update', 'C', 'Game')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
 SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
@@ -823,15 +827,17 @@ MATCH_RULES = ('/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage',
                '/opt/onpc-test-fixtures/Applications/Versioned/Lunar Client-3.7.17.AppImage',
                '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-old.AppImage',
                '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage',
-               '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage')
+               '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage',
+               '/opt/onpc-test-fixtures/Applications/onpc-test-game')
 BASELINE_POLICY_DRAFTS = {'match-hard-precise': MATCH_APPS['H'],
+                          'match-game-precise': MATCH_APPS['Game'],
                           'match-alias-precise': MATCH_APPS['Alias'],
                           'match-soft-wildcard': MATCH_APPS['S'],
                           'match-soft-precise': MATCH_APPS['S'],
                           'match-soft-rejected-directory': MATCH_APPS['S'],
                           'match-update-wildcard': MATCH_APPS['Update']}
 BASELINE_MATCH_OPERATIONS = {f'match-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'), ('game', 'Game'))
     for action in ('open', 'read', 'row', 'save', 'cancel', 'reset')}
 BASELINE_MATCH_OPERATIONS['match-update-absent'] = (MATCH_APPS['Update'], 'absent')
 BASELINE_MATCH_OPERATIONS['match-soft-rejected'] = (MATCH_APPS['S'], 'rejected')
@@ -853,7 +859,7 @@ ACCESS_CHOICES = ('allowed', 'permanent', 'conditional')
 ACCESS_OPERATIONS = frozenset('access-' + action for action in
     (*ACCESS_CHOICES, 'row', 'screen', 'wrong-row', 'disabled'))
 BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], action)
-    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'), ('comma', 'C'))
+    for name, role in (('hard', 'H'), ('soft', 'S'), ('alias', 'Alias'), ('update', 'Update'), ('comma', 'C'), ('game', 'Game'))
     for action in (*ACCESS_CHOICES, 'row')}
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
@@ -8111,7 +8117,7 @@ class AccessibleUI:
             self.read_synthetic_text(binding, child=child)
             expected = (() if binding == 'catalogue-absent' else
                         (MATCH_APPS[{'catalogue-hard': 'H', 'catalogue-soft': 'S',
-                                     'catalogue-alias': 'Alias'}.get(binding, 'A')],))
+                                     'catalogue-alias': 'Alias', 'catalogue-game': 'Game'}.get(binding, 'A')],))
             def ready():
                 try:
                     if binding == 'catalogue-clear':
@@ -11539,7 +11545,8 @@ class AccessibleUI:
             # old response, and leave the complete requested choices intact.
             before = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', APPROVER_IDENTITIES[approver]),
-                duration_seconds=seconds, custom_text=custom, overlay=overlay)
+                duration_seconds=seconds, custom_text=custom, overlay=overlay,
+                overlay_child=child)
             require(before['child'] == CHILD_IDENTITIES[child]
                     and before['approver'] == APPROVER_IDENTITIES[approver]
                     and before['allow_soft'] is soft,
@@ -11549,7 +11556,8 @@ class AccessibleUI:
             self.set_text('kiosk-custom-duration', equivalent, child=child)
             intermediate = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', APPROVER_IDENTITIES[approver]),
-                duration_seconds=seconds, custom_text=equivalent, overlay=overlay)
+                duration_seconds=seconds, custom_text=equivalent, overlay=overlay,
+                overlay_child=child)
             require(intermediate == {**before, 'custom_text': equivalent},
                     'ui:overlay-refresh-intermediate')
             self.set_text('kiosk-custom-duration', custom, child=child)
@@ -13875,7 +13883,7 @@ class AccessibleUI:
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
         require(type(fullscreen) is bool and (not fullscreen or kind == 'game'), 'ui:game-mode')
         require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
-                and instance == 'primary' and not blocked and not locked
+                and instance == 'primary' and not locked
                 and fixture == 'policy', 'ui:game-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
@@ -14021,9 +14029,13 @@ class AccessibleUI:
                 if locked:
                     require(ready(), 'ui:native-blocked-restriction')
                 else:
-                    require(self.native_app_closed(instance, kind=kind, complete_absence=True) if flatpak
-                            else self.native_app_closed(instance) if role is not None
-                            else self.native_app_closed(), 'ui:native-blocked-window')
+                    # A retained fullscreen game hides Shell's Activities
+                    # control. Denial needs the active unlocked session and
+                    # owned app absence, not visibility of that control.
+                    require_active_launch_session(unlocked=True)
+                    require(self.native_app_closed(instance, desktop=False, kind=kind,
+                            complete_absence=flatpak or kind == 'game'),
+                            'ui:native-blocked-window')
                 return time.monotonic() - stable >= 2
             if locked:
                 self.wait(absent, 'native-blocked-restriction', prompt_in_predicate=True)
@@ -14386,6 +14398,11 @@ class AccessibleUI:
         require(os.getuid() == os.geteuid() == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid,
                 'ui:game-account')
         arguments = {'role': 'Game', 'child': child, 'kind': 'game'}
+        if operation in ('game-command-blocked', 'game-fullscreen-command-blocked'):
+            return self.native_launch_command(blocked=True,
+                fullscreen=operation == 'game-fullscreen-command-blocked', **arguments)
+        if operation in ('game-policy-activity', 'game-policy-closed'):
+            return self.native_policy_activity(closed=operation == 'game-policy-closed', **arguments)
         def snapshot(moves=0, **options):
             return self.native_app_snapshot('No submitted draft', moves=moves,
                                             **arguments, **options)
@@ -14511,11 +14528,11 @@ class AccessibleUI:
             self.wait(lambda: FixtureUI(self, 'native', require=require).text('saved') == 'Document saved',
                       'work-saved')
             return self.wait(lambda: snapshot(saved), 'work-saved-activity')
-        elif action in ('activity', 'submit', 'submitted', 'close'):
-            submitted = saved if action in ('activity', 'submitted', 'close') else 'No submitted draft'
+        elif action in ('activity', 'submit', 'resubmit', 'submitted', 'close'):
+            submitted = saved if action in ('activity', 'resubmit', 'submitted', 'close') else 'No submitted draft'
             value = self.wait(lambda: snapshot(saved, submitted), 'work-activity')
-            if action in ('submit', 'close'):
-                self.activate_id(scope + ('-submit' if action == 'submit' else '-close'))
+            if action in ('submit', 'resubmit', 'close'):
+                self.activate_id(scope + ('-close' if action == 'close' else '-submit'))
             else:
                 return value
 
@@ -14537,6 +14554,7 @@ class AccessibleUI:
         """APP02: bind public presence/complete absence to the same child session."""
         require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
                 and (child == EXISTING_CHILD or child == CHILD and role == 'S')
+                or kind == 'game' and role == 'Game' and child == EXISTING_CHILD
                 or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD
                 and (not closed or role != 'A')),
                 'ui:native-binding')
@@ -14553,7 +14571,8 @@ class AccessibleUI:
             value = {'binding': kind + '-' + instance, 'pid': None, 'endpoint': None, 'state': None}
         else:
             value = self.wait(lambda: self.native_app_snapshot(
-                'ONPC fixture draft', with_window=True, role=role, instance=instance,
+                'No submitted draft' if kind == 'game' else 'ONPC fixture draft',
+                moves=1 if kind == 'game' else 0, with_window=True, role=role, instance=instance,
                 child=child, implicit_instance=kind == 'native' and (role == 'A' or files), kind=kind),
                 'native-policy-activity', prompt_in_predicate=True)
         require(session_control.entry_identity(session_control.sessions(), uid, 'same') == owner,
@@ -16344,8 +16363,9 @@ def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixt
     step before returning a closed errno label. Missing evidence proves nothing.
     """
     diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
-    if executable not in tuple(NATIVE_EXECUTABLES[role]
-            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update', 'VersionNext')):
+    if executable not in (*tuple(NATIVE_EXECUTABLES[role]
+            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update', 'VersionNext')),
+            '/opt/onpc-test-fixtures/Applications/onpc-test-game'):
         return diagnostic
     if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
         return diagnostic

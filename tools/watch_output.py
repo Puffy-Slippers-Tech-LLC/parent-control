@@ -270,7 +270,7 @@ class Output:
         return steps, details
 
     def closing_task(self, steps, *, session_inactive):
-        """Keep close-out visible until its accepted green recap is published."""
+        """Include final synchronization before the next task is selected."""
         if not self.execution_plan:
             return False
         from launcher_progress import progress_keys
@@ -279,10 +279,12 @@ class Output:
             accepted = state.get('git_reconciliation', {}).get('accepted_result', {})
             accepted_completion = (accepted.get('status') == 'task_complete'
                                    and accepted.get('task_id') == state.get('task_id'))
-            # A retained completion distinguishes close-out synchronization from
-            # the boundary pull before new work, even without a current row.
+            # A completed task can publish its recap and clear its commit intent
+            # before the final boundary pull. Include that wait even though its
+            # active row has already been replaced by the green recap.
             if 'upstream_pull' in state and (state.get('pending_completion')
-                    or state.get('commit_intent') or accepted_completion):
+                    or state.get('commit_intent') or accepted_completion
+                    or state.get('phase') == 'complete'):
                 return True
             keys = progress_keys(state)
             if not any(not step.get('replaces') and step['key'] in keys for step in steps):

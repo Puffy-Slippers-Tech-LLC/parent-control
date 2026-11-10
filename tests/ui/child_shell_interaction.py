@@ -359,9 +359,9 @@ def main():
 
         _open_overlay(1)
         print("interaction stage=overlay-visible", flush=True)
-        # The fullscreen overlay hides the panel. A complete inventory from
-        # its still-owned endpoint proves absence without an observer fallback.
-        _assert_panel_availability(False, False)
+        # Shell's fullscreen presentation does not hide the logical control.
+        # The active request independently disables every panel input.
+        _assert_panel_availability(True, False)
         # A pending request cannot launch another overlay or change the
         # animation preference while the panel is unavailable.
         for operation in (lambda: _panel().activate(REQUEST_BUTTON_ID),
@@ -380,7 +380,7 @@ def main():
         _wait(lambda: _overlay_closed(1), "the first overlay to close")
         _wait(_find_request_button, "panel input to become available after Cancel")
         _assert_panel_availability(True, True)
-        print("Child countdown hidden by fullscreen request; active-request input refused; desktop availability restored",
+        print("Child panel remains logically available; active-request input refused; desktop availability restored",
               flush=True)
         print("interaction stage=first-overlay-closed", flush=True)
         _open_overlay(2)

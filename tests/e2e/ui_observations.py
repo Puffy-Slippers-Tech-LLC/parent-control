@@ -752,9 +752,10 @@ class RequestObservation:
             return observation
         if operation in ('overlay-request-form', 'overlay-grant-form'):
             issued = operation == 'overlay-grant-form'
+            child = accessible_ui.CHILD if binding is None else accessible_ui.overlay_request_values(binding)[0]
             require(observation.approver in accessible_ui.APPROVER_IDENTITIES.values(), 'ui:request')
             require(observation == cls(
-                surface='child-overlay', form_count=1, child='fixture-child',
+                surface='child-overlay', form_count=1, child=accessible_ui.CHILD_IDENTITIES[child],
                 approver=observation.approver if issued else 'other-fixture-parent',
                 duration_seconds=600 if issued else 1800, custom_text='10' if issued else None,
                 allow_soft=issued, child_selector_enabled=False,
@@ -1106,7 +1107,9 @@ class UiObservations:
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in accessible_ui.APPROVER_CHANGE_OPERATIONS
-                            or operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-panel-reveal-ready'))
+                            or operation in ('overlay-request-form', 'overlay-grant-form',
+                                             'overlay-panel-ready', 'overlay-panel-launch',
+                                             'overlay-panel-reveal-ready', 'overlay-panel-overview'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
@@ -2189,7 +2192,7 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft', 'submitted': 'No submitted draft',
                 'score': {'game-opened': 'Moves: 0; token: 0', 'game-moved': 'Moves: 1; token: 1',
                           'game-resumed': 'Moves: 2; token: 2'}[operation]}
-        if operation in ('game-activity', 'game-resumed-activity'):
+        if operation in ('game-activity', 'game-resumed-activity', 'game-fullscreen-activity'):
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary',
                 resumed=operation == 'game-resumed-activity')
             expected['activity'] = result['activity']
@@ -3133,7 +3136,8 @@ class UiObservations:
                 or operation in accessible_ui.TRANSFER_REQUESTS
                 or operation in ('overlay-request-form', 'overlay-grant-form')):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
-            RequestObservation.from_request(result['request'], operation=operation)
+            RequestObservation.from_request(result['request'], operation=operation,
+                                            binding=self.overlay_request)
             expected['request'] = result['request']
         if operation in ('request-overlay-jordan-ready', 'request-kiosk-jordan-ready'):
             require(result.get('request_readiness') == {

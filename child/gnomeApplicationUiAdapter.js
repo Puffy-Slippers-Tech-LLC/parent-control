@@ -21,11 +21,17 @@ export class GnomeApplicationUiAdapter {
         const indicator = this._indicator;
         if (!indicator || indicator._destroyed)
             return {available: false, visible: false, enabled: false};
-        // Focus, allocation, clipping, hover and popup opening are not guards.
+        // Only the product's own actor subtree defines logical visibility.
+        // Shell hides the surrounding panel during fullscreen play, but that
+        // presentation change does not make the request operation unavailable.
         let visible = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter &&
             indicator.container.visible;
-        for (let actor = indicator._requestButton; visible && actor; actor = actor.get_parent())
+        let actor = indicator._requestButton;
+        while (visible && actor && actor !== indicator.container) {
             visible = actor.visible;
+            actor = actor.get_parent();
+        }
+        visible = visible && actor === indicator.container;
         return {available: true, visible,
             enabled: visible && indicator._requestButton.reactive &&
                 !indicator._requestButton.checked};

@@ -980,14 +980,13 @@ sub overlay_entry {
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/
         && ($route eq 'command' || $route eq 'panel' || $route eq 'panel-reopen');
     if ($route eq 'panel-reopen') {
-        # The fullscreen overlay hides the panel. Reveal it once through
-        # Overview after proving the fixed-child form and closed Overview.
+        # Revalidate the already open fixed-child form before singleton entry.
         $journey->invoke("$prefix-reveal");
     }
     $journey->invoke("$prefix-panel") if $route ne 'command';
     $journey->invoke("$prefix-launch");
-    # The panel checkpoint proves focus on child-request-button by public ID.
-    # StButtonAccessible has no Action interface; activate with one ordinary key.
+    # The shared child-panel API activates child-request-button once; Shell
+    # focus and panel presentation do not gate the product operation.
     if ($route eq 'panel-reopen') {
         $journey->invoke("$prefix-overview");
     }

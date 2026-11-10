@@ -21,7 +21,7 @@ def baseline_restoration(args, configured):
                'reproduce-match-editor', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
                'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
-               'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return')
+               'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request')
     if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()
@@ -42,7 +42,7 @@ def baseline_restoration(args, configured):
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
                            'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
-                           'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return'):
+                           'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request'):
                 from test_storage import named_input
                 assets = named_input(vm_source=True, package_source=True, fixture_source=True)
                 if not assets.is_dir():

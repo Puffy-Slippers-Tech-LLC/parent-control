@@ -1827,6 +1827,15 @@ probes. `probe-panel-request` repeats only the read-only panel preflight in that
 retained session. The same VM-bound fixtures, recipient guards and maintenance ownership
 apply; it supplies no acceptance credit. Finish with `tools/test-vm --vm NAME stop`.
 
+`tools/test-vm --vm NAME reproduce-fullscreen-request` reuses task 129a's
+`fullscreen_request.PLAN` through Jordan's daily allowance, fresh child entry
+and one real fullscreen game move. It stops before `first-request-panel`,
+records the shared `overlay-panel-ready` read in `boundary-observation.json`
+and retains that game for guarded `exec` probes. Start from a freshly prepared
+online app-snapshot maintenance instance; this route rotates its connection
+and cannot be repeated in that same instance. Finish with `tools/test-vm --vm NAME stop`
+before a new preparation or clean acceptance. It supplies diagnostic evidence only.
+
 `tools/test-vm --vm NAME reproduce-natural-access` retains case 22's prepared
 Parent history at `switch-user`, immediately after the independently observed
 usable Parent desktop and before switching to sign-in.

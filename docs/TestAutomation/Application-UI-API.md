@@ -313,8 +313,10 @@ DOM selectors, supply HTML or bypass attachment/submission validation. It uses
 | `child-countdown-menu` | Open the ordinary context menu |
 | `child-countdown-animation-toggle` | Boolean get/set or toggle; same preference handler updates the actual menu control even without opening its popup |
 
-Panel input refuses while locked, on the greeter, hidden, or while a request
-is active. Setting the animation option changes no policy or time grant.
+Panel input refuses while locked, on the greeter, logically hidden within the
+product's own indicator, detached, or while a request is active. Shell hiding
+the surrounding panel during fullscreen play does not change logical availability.
+Setting the animation option changes no policy or time grant.
 
 The `child-time-notification` surface exists while the extension owns
 a current system notification. IDs are stable across language and reminder

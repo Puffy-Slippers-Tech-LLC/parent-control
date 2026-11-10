@@ -31,6 +31,15 @@ def events(path, event):
     return [item for item in read_events(path) if item["event"] == event]
 
 
+def submit_request(ui, wait):
+    """Submit once after the component's request control becomes ready."""
+    wait(lambda: ui.find('kiosk-request-submit') is not None,
+         'request controls publish IDs')
+    wait(lambda: ui.state('kiosk-request-submit', ui.api.StateType.SENSITIVE),
+         'request is ready')
+    ui.activate('kiosk-request-submit')
+
+
 def open_preset_preferences(ui, wait):
     """Use the title-bar action and await its asynchronous language read."""
     ui.activate('kiosk-preferences-button')

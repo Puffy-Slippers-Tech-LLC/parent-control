@@ -3,7 +3,7 @@
 import pytest
 
 from tests.support.feedback import dismiss_feedback_dialog, feedback_editor
-from tests.support.request_form import launch_request, events
+from tests.support.request_form import launch_request, events, submit_request
 
 
 pytestmark = pytest.mark.ui
@@ -124,13 +124,7 @@ def test_request_error_review_restrictions_and_submission(
         launch_ui, tmp_path, overlay=overlay, scenario="service-failure",
         wait_for_application=False,
     )
-    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
-                              "request controls publish IDs")
-    wait_for_accessible_state(
-        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
-        "request is ready",
-    )
-    ui.activate("kiosk-request-submit")
+    submit_request(ui, wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
                               "error result publishes reporting choice")
     ui.activate("kiosk-result-action")
@@ -238,13 +232,7 @@ def test_removing_logs_after_preparation_failure_preserves_edited_report(
         launch_ui, tmp_path, overlay=overlay,
         scenario="service-failure-logs-unavailable", wait_for_application=False,
     )
-    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
-                              "request controls publish IDs")
-    wait_for_accessible_state(
-        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
-        "request is ready",
-    )
-    ui.activate("kiosk-request-submit")
+    submit_request(ui, wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-result-action") is not None,
                               "error result is public")
     ui.activate("kiosk-result-action")
@@ -317,13 +305,7 @@ def test_result_toggle_and_exit_through_public_ids(
         launch_ui, tmp_path, overlay=overlay,
         scenario="service-failure", wait_for_application=False,
     )
-    wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
-                              "request surface publishes its controls")
-    wait_for_accessible_state(
-        lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
-        "request ready",
-    )
-    ui.activate("kiosk-request-submit")
+    submit_request(ui, wait_for_accessible_state)
     wait_for_accessible_state(lambda: ui.find("kiosk-report-toggle") is not None,
                               "error reporting control appears")
     ui.activate("kiosk-report-row")

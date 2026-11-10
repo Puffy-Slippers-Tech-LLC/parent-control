@@ -1738,7 +1738,7 @@
       },
       "variants": [
         {"coverage_id": 128, "id": "daily-dominant-windowed", "owner": "continuous-journeys", "parameters": {"time": "daily-dominant", "gameplay": "windowed"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/game_time_extension.py", "test_id": "daily-dominant-windowed"}},
-        {"coverage_id": 131, "id": "grant-dominant-fullscreen", "owner": "continuous-journeys", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 131, "id": "grant-dominant-fullscreen", "owner": "continuous-journeys", "parameters": {"time": "grant-dominant", "gameplay": "fullscreen"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/game_time_extension.py", "test_id": "grant-dominant-fullscreen"}}
       ]
     },
     {

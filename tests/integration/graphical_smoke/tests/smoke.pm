@@ -1220,10 +1220,11 @@ sub run {
         onpc_app_rows::flatpak_command_usable(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{game_time_extension}) {
+    if ($ready->{game_time_extension} || $ready->{game_time_extension_fullscreen}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_app_rows::game_time_extension(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, $ready->{overlay_request});
+        onpc_app_rows::game_time_extension(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{overlay_request}, $ready->{game_time_extension_fullscreen} ? 'fullscreen' : 'windowed');
         return;
     }
     if ($ready->{game_access} || $ready->{game_access_fullscreen}) {

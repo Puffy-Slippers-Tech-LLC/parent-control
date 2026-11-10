@@ -1302,23 +1302,35 @@ sub game_usable_app {
 }
 
 sub game_time_extension {
-    onpc_progress::operation('Extending the child’s time while preserving the original windowed game');
-    my ($exchange, $declared, $challenges, $request) = @_;
-    die 'game-time-extension:binding' unless @_ == 4 && ref($request) eq 'ARRAY'
+    onpc_progress::operation('Extending the child’s time while preserving the original game');
+    my ($exchange, $declared, $challenges, $request, $mode) = @_;
+    $mode //= 'windowed';
+    die 'game-time-extension:binding' unless (@_ == 4 || @_ == 5) && ref($request) eq 'ARRAY'
+        && $mode =~ /\A(?:windowed|fullscreen)\z/
         && join(',', @$request) eq 'child,parent,75,0';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-time-extension', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     $journey->{overlay_request} = $request;
     onpc_gdm::reattach_functional();
-    onpc_parent::daily_dominant_time_profile($journey, 600, 20, 'parent');
-    $journey->seen($_) for qw(game-apps game-policy dominant-switch dominant-gdm);
+    if ($mode eq 'fullscreen') {
+        onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0, 10);
+        onpc_gdm::sign_in_challenge($journey, 'profile-return',
+            'profile-return-installed-greeter', 'profile-return-parent-focused', 'profile-return-desktop');
+        $journey->consume_observation('profile-result-parent-retained',
+            onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'profile-result', 0));
+        $journey->seen($_) for qw(profile-balance game-apps game-policy profile-final-switch profile-final-gdm);
+    } else {
+        onpc_parent::daily_dominant_time_profile($journey, 600, 20, 'parent');
+        $journey->seen($_) for qw(game-apps game-policy dominant-switch dominant-gdm);
+    }
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');
     $journey->seen('before-countdown');
     my $play = $journey->scope('play');
-    game_usable_app($play, 'windowed');
+    game_usable_app($play, $mode);
     native_read_activity($play, 'capture');
-    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
+    onpc_request_flow::overlay_entry($journey, 'new', 'panel') if $mode eq 'fullscreen';
+    onpc_request_flow::prepare($journey, 'new', $mode eq 'fullscreen' ? 'open' : 'new', 'observed',
         'fixture-child', 'fixture-parent', 75, 0, 'overlay');
     onpc_request_flow::overlay_approve($journey, 'automatic');
     $journey->seen('countdown');

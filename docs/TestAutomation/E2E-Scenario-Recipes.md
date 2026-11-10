@@ -842,7 +842,7 @@ with child UI coverage; ordinary later entries use `command`.
 
 1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 once (explicit panel entry) → REQUEST03(fixed child).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).
-3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). After TIME03(cooldown): REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel).
+3. AUTH02(correct) → REQUEST11(success) → REQUEST12(automatic) → TIME01 → APP02(soft effect) → FLOW08(hard/soft). Immediately reopen: REQUEST02 → REQUEST09 → AUTH02(cancel) → REQUEST11(cancel) → REQUEST12(cancel). Require a fresh parent prompt.
 
 ### E2E-013
 
@@ -1934,21 +1934,25 @@ actual added time and usable GDM. Legitimate retained Riley entry must show a
 running countdown, Hard denial and usable Soft work. Final Parent readback checks
 Riley's actual grant and Jordan's unchanged settings, app rules and zero grant.
 
-**Leave a pending approval or request again too soon.** Cases 171, 172, 173, 174, 175, 176, 178.
+**Leave a pending approval and request again.** Cases 171, 172, 173, 174, 175.
 
-Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close / kiosk-close / overlay-cooldown / kiosk-cooldown-other.
+Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close / kiosk-close.
 
-1. FLOW16(surface appropriate daily) → FLOW04 → REQUEST03(capture). Interruption: REQUEST09 → AUTH01. Cooldown: FLOW05 once.
-2. Interruption: FLOW17(declared route). Cooldown: reopen with REQUEST01/02 and, at the station, REQUEST04(other child); REQUEST09(expected public too-soon error, no new prompt) → FEED15(review) → FEED03 → UI16(synthetic body) → FEED05 → UI02/11(surface actions) → UI18(report) → UI01(desktop/GDM).
-3. Before new approval, compare Parent balances via PARENT09, saved request choices via REQUEST03/UI12 and child app results via APP02/FLOW08. Allow ordinary elapsed time, but no extra grant or relaxed app access from the refused request. At the station compare both children. Interruption ends with FLOW05(new authentication); cooldown continues below.
-4. TIME03 only for any remaining cooldown → FLOW05(new authentication, soft=false). Reopen within this new approval's cooldown; at the station target the other child again. REQUEST09(too-soon, no new prompt) → FEED15(decline) → UI11(no report) → UI01(desktop/GDM). Repeat the step 3 comparisons before another approval.
-5. Wait only any remaining cooldown, then FLOW05(new authentication) for the overlay child or the station's previously refused other child. Check successful time and hard/soft app results independently.
+1. FLOW16(surface appropriate daily) → FLOW04 → REQUEST03(capture) → REQUEST09 → AUTH01.
+2. FLOW17(declared route). Return normally and require the old prompt to be absent.
+3. Before new approval, compare Parent balances via PARENT09, saved request choices via REQUEST03/UI12 and child app results via APP02/FLOW08. Allow ordinary elapsed time, but no extra grant or relaxed app access from the cancelled request. At the station compare both children.
+4. FLOW05(new authentication). Check successful time and hard/soft app results independently.
 
-Cases 176 and 178 each own one continuous cooldown/report journey. Former report
-cases 206/207 are absorbed; same-child station case 177 is removed. Those IDs
-must not be reused. Separate genuine too-soon attempts cover review and decline;
-report review need not finish during the first cooldown. The finite branch below
-owns the two approval epochs, child identities and unchanged-access comparisons.
+Historical cooldown cases 176/178 remain pending and excluded from scheduling
+with no executables because successful requests no longer impose a waiting
+period. Their unfinished tasks 218/220 and capability tasks 187a/187o/187b/187k
+are retired without acceptance credit. Former report cases 206/207 and same-child
+station case 177 remain removed; none of these IDs may be reused. Genuine
+request-error review/decline still needs a public error route under FEED15.
+Immediate repeat requests with fresh authentication reuse E2E-012's panel-request
+history and broker tests rather than a replacement task. The existing
+delayed-approval modules retain their supporting history; E2E-048 remains
+excluded under its separate save-failure decision and gains no acceptance here.
 
 ### E2E-040
 
@@ -2184,13 +2188,14 @@ on the two transition dates is no longer scheduled.
 
 Implementation context: case 205 is registered through
 `parent_error_report.PLAN` / `onpc_fresh_thirty_allowance::parent_error_report`.
-Child-overlay and kiosk report acceptance remains pending in E2E-039 cases
-176 and 178, respectively; former cases 206/207 are absorbed there.
+Child-overlay and kiosk report acceptance remains uncovered under FEED15 after
+the cooldown cases 176/178 were excluded; former cases 206/207 stay removed.
 
 **Review or decline an error report.** Case 205.
 
-Bindings: surface = parent. Request-surface review and decline use the combined
-[cooldown journeys](#e2e-039); case IDs 206/207 must not be reused.
+Bindings: surface = parent. Request-surface review and decline require a genuine
+public request error; no qualifying route is established. Case IDs 206/207 must
+not be reused.
 
 The Parent editor entry reuses the guarded PARENT13 operations and public input
 route in [the Save/Cancel slice](E2E-Building-Blocks.md#match-editor-save-and-cancel).
@@ -2220,10 +2225,10 @@ limitation; this fixture/custom-wildcard comparison makes no claim about that br
 2. FEED03 → UI16(synthetic body) → FEED05 → UI02/11(Parent actions) → UI18(report) → UI01(original destination).
 3. Repeat the same rejected Save and close the automatic report directly. Parent offers no report-choice toggle.
 
-E2E-047 reuses this Parent public-error prefix or E2E-039's request-surface
-prefix: FLOW16(on,30) → request-entry → FLOW04(custom=0.5,soft=false) → FLOW05
-→ reopen before cooldown → REQUEST09(error). Its setup does not manufacture a
-report; retaining that prefix creates no separate report-review journey.
+E2E-047's reallocated local sending checks use the existing component error-report
+entry and fake sender. They require no installed request-error prefix. Installed
+request-error review/decline remains uncovered until a genuine public trigger is
+qualified; do not manufacture an error by repeating a successful request.
 
 ### E2E-046
 
@@ -2251,7 +2256,7 @@ synthetic draft, select Send without logs once, verify the encoded submission
 has no diagnostic attachment, observe app success and thanks, then manually
 dismiss and require real dialog closure plus the recorded logout callback.
 This component callback is not an installed GDM observation. No genuine
-cooldown trigger, installed collection outage, recipient or send authorization
+request-error trigger, installed collection outage, recipient or send authorization
 gates the local check; those installed results keep their own owners.
 
 ### E2E-047
@@ -2667,44 +2672,11 @@ Close/Cancel, natural expiry or normal logout with a signal, forced termination
 or private callback. On return, inspect the original balance and
 restriction before new approval, and require a new system prompt.
 
-Cooldown cases 176 and 178 measure each interval from successful approval to
-the next Request action. Reopening and, at the station, selecting the other child
-must complete within five seconds; if no supported route can do so, record that
-prerequisite gap. Do not extend the product cooldown or delay a response. The
-installed error-report entry/decline cases retain this public-error prerequisite.
-The reallocated component sending cases use their existing request preview and
-must not repeat that public cooldown trigger.
-
-Ready the shared return/reopen helper and its read-only observer before the
-successful approval. After success, perform only the necessary exit, entry,
-child selection and Request operations with fresh runtime guards; defer
-unrelated balance reads, app launches and report inspection until after the
-too-soon result. Record the success-to-Request elapsed interval independently.
-A missed five-second window supplies no cooldown result and does not authorize
-another approval or Request loop. The route remains gated until it can meet
-that real bound; keep report review outside the short trigger interval.
-
-Prepare enabled 30-minute daily allowances and hard/soft fixture blocks once for
-Riley (176), or Jordan and Riley (178). Every successful request uses custom
-0.5 minutes with soft apps excluded; record the original balances and choices
-before approval. In 176, Riley approves, requests too soon and reviews the
-report; after the wait Riley approves again, requests too soon and declines;
-after the next wait Riley obtains fresh approval. In 178, Jordan approves and
-Riley requests too soon/reviews; after the wait Jordan approves again and Riley
-requests too soon/declines; after the next wait Riley obtains fresh approval.
-Thus both station failures target a different child from the preceding success.
-Each later success requires a new selected-parent prompt and real authentication.
-
-Review uses a synthetic draft and reply, Privacy and available actions without
-sending; station restrictions include hidden file choosers and disabled external
-links. Normal review closure and declining the separate error return to the
-child desktop (176) or GDM (178), with no report on decline. After each refusal
-compare the last confirmed balances, choices and hard/soft launch denials before
-any new approval, allowing natural usage/expiry only. Station comparisons cover
-both children; only the intended child's successful approvals may add time.
-Read saved choices before editing; a refused request may remember those choices,
-but cannot grant time or app access. Check every successful approval's actual
-time result and continued hard/soft denial, including the final recovery.
+After any completed request and its cleanup, a later request may begin immediately
+and must obtain a new selected-parent prompt and real authentication. Request-error
+review/decline and collection failure require genuine public prerequisites; no
+repeat-request refusal is available. Reallocated component sending checks use
+their existing request preview independently of those installed gaps.
 
 Accounts in cases 180–182 are disposable spare accounts, prepared independently
 for each journey; case 180 shares its preparation across both screens.
@@ -2813,8 +2785,9 @@ and local dialog lifetime checks remain with the shared feedback UI owner.
 Review the exact current body, reply address and attachments before Send.
 Reuse Privacy evidence for the unchanged reviewed profile and qualified surface;
 do not reopen the disclosure in every send, retry or exit qualification. Case
-156 retains the ordinary-feedback disclosure visit; cooldown cases 176/178 and
-without-logs case 213 retain their request-surface disclosure results. A changed
+156 retains the ordinary-feedback disclosure visit; without-logs case 213 retains
+its component request-surface disclosure result. Genuine installed request-error
+Privacy bindings remain unqualified after retirement of cases 176/178. A changed
 disclosure or surface binding still needs its affected qualification. Reusing
 Privacy evidence never substitutes for the current draft or another case's
 send result. Fake-sender checks need no external submission permission.
@@ -2836,7 +2809,7 @@ installed customer journey.
 | 156 ordinary success | Leave the optional reply address empty and explicitly confirm Send Anonymously. FEED09(success and owned confirmation without reply follow-up) → FEED14(manual dismissal) → FEED01 → FEED03(cleared). |
 | 157 retry/background | Fake retryable response → actual retry → close ordinary feedback while Parent stays alive → release fake success for the same frozen submission. Require no unsolicited window, reopen and verify cleared draft; if still sending, await result, dismiss thanks and reopen. No second Send or elapsed-time inference. |
 | 216 app-exit | Fake retryable response → actual retry → close feedback → exit Parent. Relaunch the preview normally and require reset draft with no resumed outbox or retry from the exited process. No live-service delivery claim. |
-| 218 overlay-stop / 219 kiosk-stop | Fake retryable response → actual retry and explicit Stop action → activate Stop once → require dialog closure, stopped pending retries and the recorded close-overlay/logout callback. No warning/stay dialog, public cooldown trigger, Internet isolation or installed destination credit. |
+| 218 overlay-stop / 219 kiosk-stop | Fake retryable response → actual retry and explicit Stop action → activate Stop once → require dialog closure, stopped pending retries and the recorded close-overlay/logout callback. No warning/stay dialog, installed request-error trigger, Internet isolation or installed destination credit. |
 | 220 overlay-success / 221 kiosk-success | Fake success → actual owned thanks while original report-exit callback remains pending → manual dismissal → report closed and callback recorded once. Case 220 uses the synthetic reply address and observes the follow-up note. No real desktop/GDM or service-acceptance credit. |
 
 Installed collection-recovery case 208 still requires a real publicly observed

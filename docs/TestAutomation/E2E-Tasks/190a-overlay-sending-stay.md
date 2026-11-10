@@ -18,7 +18,7 @@ Required tasks (queue IDs):
 
 Use the existing request preview report in child-overlay mode and extend its fake
 HTTP Session only with finite retry-then-success response/release controls.
-No public cooldown trigger, VM Internet isolation or real network is needed.
+No installed request-error trigger, VM Internet isolation or real network is needed.
 Keep the actual encoder, retry controller and result/dialog handlers.
 
 Send one synthetic report, independently observe public retry and the enabled

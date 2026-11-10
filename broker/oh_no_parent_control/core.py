@@ -64,10 +64,6 @@ class Busy(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.Busy"
 
 
-class RateLimited(BrokerError):
-    dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RateLimited"
-
-
 class BackendFailure(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.BackendFailure"
 
@@ -226,8 +222,6 @@ class Broker:
         self._request_lock = threading.Lock()
         self._request_lock_diagnostic = None
         self._transaction_revision = 0
-        self._rate_lock = threading.Lock()
-        self._last_request = {}
         self._grant_diagnostics = GrantDiagnostics()
 
     def _acquire_request_lock(self, diagnostic_kind="other"):
@@ -1654,10 +1648,6 @@ class Broker:
             )
             if request_kind == "child" and not preferences["parent_control_enabled"]:
                 raise AccessDenied("parent control is not enabled for this account")
-            # Check before prompting so a recent grant is rejected without a
-            # new authorization dialog. Denied and cancelled attempts do not
-            # consume the interval; only a completed grant records it below.
-            self._apply_rate_limit(caller_uid, config.minimum_request_interval_seconds)
             LOG.info(
                 "core.026",
                 request=correlation_id,
@@ -1797,7 +1787,6 @@ class Broker:
             if not applied:
                 LOG.info("core.027", request=correlation_id, outcome="cancelled")
                 return correlation_id, "cancelled", 0
-            self._record_rate_limit(caller_uid)
             LOG.info("core.032", request=correlation_id)
             return correlation_id, "approved", duration
         finally:
@@ -1812,17 +1801,6 @@ class Broker:
         except ConfigurationError as error:
             LOG.error("core.033", error_type=error_code(error))
             raise BackendFailure("broker configuration is unavailable") from error
-
-    def _apply_rate_limit(self, caller_uid: int, interval: int) -> None:
-        current = self._monotonic()
-        with self._rate_lock:
-            previous = self._last_request.get(caller_uid)
-            if previous is not None and current - previous < interval:
-                raise RateLimited("requests are being made too quickly")
-
-    def _record_rate_limit(self, caller_uid: int) -> None:
-        with self._rate_lock:
-            self._last_request[caller_uid] = self._monotonic()
 
     def _load_request_preferences(self, target_uid: int) -> dict:
         if self._preferences is None:

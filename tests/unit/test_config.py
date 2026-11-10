@@ -16,11 +16,11 @@ class ConfigTests(unittest.TestCase):
     def test_valid(self):
         config = validate(valid_config())
         self.assertEqual(config.kiosk_uid, 991)
-        self.assertEqual(config.minimum_request_interval_seconds, 5)
 
     def test_unknown_keys_rejected_at_each_level(self):
         for mutate in (
             lambda c: c.update(extra=True),
+            lambda c: c.update(minimum_request_interval_seconds=5),
         ):
             value = valid_config()
             mutate(value)
@@ -36,7 +36,10 @@ class ConfigTests(unittest.TestCase):
 
     def test_malformed_choices(self):
         mutations = (
-            lambda c: c.update(minimum_request_interval_seconds=0),
+            lambda c: c.update(version=2),
+            lambda c: c.update(version=5),
+            lambda c: c.update(version=True),
+            lambda c: c.update(version=3),
         )
         for mutate in mutations:
             value = valid_config()
@@ -78,6 +81,30 @@ class ConfigTests(unittest.TestCase):
                     load(path)
         finally:
             os.unlink(path)
+
+
+def test_upgrade_replaces_machine_configuration_before_broker_reads_it(tmp_path, monkeypatch):
+    from tests.support.paths import ROOT
+    from tools import provision
+
+    installed = tmp_path / "usr/share/oh-no-parent-control"
+    installed.mkdir(parents=True)
+    (installed / "config.example.json").write_bytes((ROOT / "config/config.example.json").read_bytes())
+    (installed / "com.puffyslippers.OhNoParentControl1.conf.in").write_text("@KIOSK_USER@\n")
+    config = tmp_path / "etc/oh-no-parent-control/config.json"
+    config.parent.mkdir(parents=True)
+    config.write_text(json.dumps({
+        "version": 3, "kiosk_uid": 1006, "minimum_request_interval_seconds": 5,
+    }))
+    monkeypatch.setattr(provision.os, "chown", lambda *_args: None)
+    monkeypatch.setattr(provision.os, "fchown", lambda *_args: None)
+
+    user = SimpleNamespace(pw_uid=1006, pw_name="oh-no-parent-control")
+    for _ in range(2):  # Upgrade and subsequent package reconfiguration.
+        provision.provision_configuration(tmp_path, user)
+        assert json.loads(config.read_text()) == {"version": 4, "kiosk_uid": 1006}
+        assert load(config, require_secure_file=False).kiosk_uid == 1006
+        assert stat.S_IMODE(config.stat().st_mode) == 0o600
 
 
 if __name__ == "__main__":

@@ -3269,7 +3269,11 @@ route supplies no natural reminder or fullscreen-delivery qualification and
 does not claim native compositor visibility from process state.
 
 The installed request-report entry branches of FEED15 need shared API projections
-for their actual surface and terminal result. Sending/Stop branches of FEED17/18
+for their actual surface and terminal result. Successful requests may be repeated
+immediately with fresh authentication and no longer provide an error trigger.
+Retired cooldown tasks supplied no request-error review/decline qualification;
+these bindings still require a genuine public error route. Task 188k additionally
+needs a genuine collection-failure trigger. Sending/Stop branches of FEED17/18
 now belong to the [component allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 `parent_reports.report_review`
 and `onpc_feedback_privacy::review_privacy` are Parent-bound; reuse their
@@ -3403,8 +3407,8 @@ Other FLOW17 routes remain pending. Extend the declared request prompt, session
 command/API and request-surface operations for each selected interruption.
 Lock/switch reuse successful retained-child entry;
 sign-out uses fresh entry; app-close uses its own normal modal/busy-gated route,
-not Parent LIFE01. A cancelled/denied request consumes no successful-request
-cooldown, so interruption qualification needs no artificial TIME03 delay.
+not Parent LIFE01. A new request may begin once the operation and cleanup finish,
+so interruption qualification needs no artificial TIME03 delay.
 Qualify only the missing pending-prompt interruption, cancellation and safe
 request-surface return. Compare balances with ordinary elapsed usage allowed;
 cancellation must add neither time nor relaxed app access. Cases 171–175 keep

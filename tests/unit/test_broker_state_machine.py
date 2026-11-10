@@ -23,17 +23,6 @@ KIOSK = 991
 UNRELATED = 1005
 
 
-class MutableClock:
-    def __init__(self):
-        self.value = 100
-
-    def tick(self):
-        self.value += 10
-
-    def __call__(self):
-        return self.value
-
-
 class ModelAuthorizer:
     def __init__(self):
         self.outcome = "approved"
@@ -187,7 +176,6 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
 
     def __init__(self):
         super().__init__()
-        self.clock = MutableClock()
         self.now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
         self.authorizer = ModelAuthorizer()
         self.accounts = ModelAccounts()
@@ -198,7 +186,7 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
         self.broker = Broker(
             lambda: validate(valid_config()), self.authorizer, self.accounts,
             self.preferences, self.extensions, ModelTimerUsage(),
-            running_apps=ModelRunningApps(), monotonic=self.clock,
+            running_apps=ModelRunningApps(), monotonic=lambda: 100,
             now=lambda: self.now, caller_alive=lambda _sender: self.caller_alive,
         )
 
@@ -263,7 +251,6 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
         existing = max(0, before[0] + before[1] - int(self.now.timestamp()))
         self.authorizer.outcome = "approved"
         self.caller_alive = True
-        self.clock.tick()
         _id, outcome = self.broker.request_access(
             KIOSK, ":1.kiosk", child, approver, 300, allow_soft,
         )
@@ -279,7 +266,6 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
             return
         before = self.snapshot()
         self.authorizer.outcome = outcome
-        self.clock.tick()
         _id, actual = self.broker.request_access(KIOSK, ":1.kiosk", child, 1003, 300, False)
         assert actual == outcome
         assert self.snapshot() == before
@@ -291,7 +277,6 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
         before = self.snapshot()
         self.authorizer.outcome = "approved"
         self.caller_alive = False
-        self.clock.tick()
         _id, outcome = self.broker.request_access(KIOSK, ":1.kiosk", child, 1003, 300, False)
         self.caller_alive = True
         assert outcome == "cancelled"
@@ -356,7 +341,6 @@ class BrokerTransactionMachine(RuleBasedStateMachine):
         if transaction == "approval":
             self.authorizer.outcome = "approved"
             self.caller_alive = True
-            self.clock.tick()
             with pytest.raises(BrokerError):
                 self.broker.request_access(KIOSK, ":1.kiosk", child, 1003, 300, False)
         else:

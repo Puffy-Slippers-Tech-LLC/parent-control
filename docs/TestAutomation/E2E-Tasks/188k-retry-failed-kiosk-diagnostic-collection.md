@@ -13,15 +13,16 @@ Former case 213's sending behavior is now a
 and does not consume or qualify this installed result. Read the named
 [block contracts](../E2E-Building-Blocks.md#additional-public-surfaces).
 
-**Gate:** No deterministic public collection-failure trigger is established. Leave pending until an exact normal customer trigger is qualified; no internal fault injection. No successful collection recovery or Send is required by this installed failure-state slice. Its missing trigger does not gate the component without-logs check.
+**Gate:** Neither a genuine public kiosk request-error entry nor a deterministic public collection-failure trigger is established. Leave pending until both normal customer routes are qualified; no internal fault injection or manufactured cooldown error. No successful collection recovery or Send is required by this installed failure-state slice. These gaps do not gate the component without-logs check.
 
 Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 
-- **187k** — REQUEST09 cooldown and FEED15 kiosk; gate in brief.
+- **021a** — delivered kiosk request entry and approval operations.
+- **030** — delivered Privacy mechanics; kiosk binding still needs qualification.
 
 ## Implementation
 
-Bind FEED09's unavailable/partial collection explanation and editing/Close controls on kiosk. Reach the error report through the qualified public cooldown prefix and FEED15, then independently capture the terminal failed-collection state before editing. Record the exact genuine public prerequisite failure; a lost Internet connection alone does not fail local collection.
+Bind FEED09's unavailable/partial collection explanation and editing/Close controls on kiosk. First qualify a genuine public request-error entry through FEED15 and its kiosk report destination; successful requests may be repeated immediately and no longer provide an error trigger. Then independently capture the terminal failed-collection state before editing. Record the exact genuine public prerequisites for error entry and collection failure; a lost Internet connection alone does not fail local collection. Retiring task 187k supplied neither binding nor acceptance.
 
 Extend `AccessibleUI.feedback_snapshot` and `FeedbackStateObservation` for
 the station's failed-collection projection. Parent's ready/Download waiter is

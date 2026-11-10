@@ -94,8 +94,7 @@ def approval_plan(*, grant_dominant):
                           for request in ('first', 'second')},
         activity_checks={request + '-' + stage: ('activity-capture', 'same')
                          for request in ('first', 'second') for stage in ('resume-opened', 'activity')},
-        stage_actions={'desktop': 'native-verify', 'first-approval-open': 'real-interval',
-                       'first-balances': 'cooldown'},
+        stage_actions={'desktop': 'native-verify', 'first-approval-open': 'real-interval'},
         assertions_after={'first-balances': 'delayed-current-balance-increment',
                           'second-balances': 'visible-result'},
     )
@@ -112,19 +111,13 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
             **fixture_actions(include_refusal=False, profile='activity'),
-            'real-interval': interval_action(WAIT_SECONDS), 'cooldown': self.cooldown})
+            'real-interval': interval_action(WAIT_SECONDS)})
         self.before = {}
         self.estimates = {}
         self.issuance = {}
         self.entries = {}
-        self.success_at = None
         self.setup_before = None
         self.setup_issuance = None
-
-    def cooldown(self, journey, guard):
-        require(self.success_at is not None, 'kiosk-delayed:missing-success')
-        remaining = 5 - (time.monotonic() - self.success_at)
-        return interval_action(remaining)(journey, guard) if remaining > 0 else 0
 
     def elapsed(self, before, after):
         low, high = (after[0] - before[1]) / 1e9, (after[1] - before[0]) / 1e9
@@ -236,9 +229,6 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
                         'kiosk-delayed:setup-grant-increment')
         if stage in ('first-new-choices', 'second-new-choices'):
             self.choice_bounds = bounds
-            if request == 'second':
-                require(self.success_at is not None and time.monotonic() - self.success_at >= 5,
-                        'kiosk-delayed:cooldown')
         if stage in ('first-approval-open', 'second-approval-open'):
             if request == 'first':
                 self.prompt_bounds = bounds
@@ -258,8 +248,6 @@ class KioskDelayedApprovalJourney(KioskRequestJourney):
             self.issuance[request] = bounds
         if stage in ('first-approval-success', 'second-approval-success'):
             self.issuance[request] = (self.issuance[request][0], bounds[1])
-            if request == 'first':
-                self.success_at = time.monotonic()
         if stage in ('first-countdown', 'second-countdown'):
             current = CountdownObservation.from_value(value['countdown'], present=True)
             read = tuple(value['countdown_read_bounds'])

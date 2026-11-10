@@ -508,7 +508,7 @@ actual denial and another account's allowed launch. Remove only the recorded
 fault before retrying the identical transaction; a failed rollback reply alone
 proves neither policy loss nor preservation. Eligibility recovery similarly
 restores the actual account role and requires a fresh password challenge on the
-same caller, preserving the real request cooldown. Reuse these existing
+same caller, without a minimum wait between requests. Reuse these existing
 histories rather than adding a second failure/recovery journey for the same
 boundary.
 

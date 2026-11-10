@@ -24,7 +24,7 @@ from oh_no_parent_control.adapters import (
 from oh_no_parent_control.authorization import (
     PolkitAuthorizer, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
 )
-from oh_no_parent_control.core import BackendFailure, Busy, RateLimited
+from oh_no_parent_control.core import BackendFailure, Busy
 from tests.support.broker import Accounts, Preferences, make_broker
 from tests.support.dbus import open_bus, close_connection, spin_until
 
@@ -347,6 +347,28 @@ def test_unobservable_session_fails_closed_without_prompt(lifecycle, fault):
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
+def test_immediate_consecutive_approvals_each_open_fresh_authorization(lifecycle, surface):
+    authority = lifecycle.authorities
+    request_ids = []
+    for attempt, duration in ((1, 300), (2, 600)):
+        writes = [event for event in lifecycle.accounts.events if event[0].startswith("set_")]
+        pending = lifecycle.start(surface)
+        spin_until(lambda: len(authority.checks) == attempt)
+        assert not pending["done"]
+        assert [event for event in lifecycle.accounts.events if event[0].startswith("set_")] == writes
+        authority.reply(authorized=True)
+        spin_until(lambda: pending["done"])
+        assert pending["result"][1] == "approved"
+        request_ids.append(pending["result"][0])
+        assert lifecycle.accounts.extension[1] == duration
+        if surface == "child":
+            assert pending["result"][2] == duration
+    assert len(set(request_ids)) == 2
+    assert len({check["parameters"][4] for check in authority.checks}) == 2
+    assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 2
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("outcome", ("approved", "denied", "cancelled", "agent-lost"))
 def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, surface, outcome):
     baseline = (lifecycle.accounts.limit_type, lifecycle.accounts.daily_limit,
@@ -375,8 +397,8 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
         assert lifecycle.accounts.events == []
         assert (lifecycle.accounts.limit_type, lifecycle.accounts.daily_limit,
                 lifecycle.accounts.filter, lifecycle.accounts.extension) == baseline
-        # A refusal must leave both the transaction slot and success cooldown
-        # available for a genuinely new check on the same requesting surface.
+        # A refusal must release the transaction slot for a genuinely new check
+        # on the same requesting surface.
         fresh = lifecycle.start(surface)
         spin_until(lambda: len(lifecycle.authorities.checks) == 2)
         assert (lifecycle.authorities.checks[0]["parameters"][4] !=
@@ -627,17 +649,17 @@ def test_admitted_request_completes_once_or_rolls_back_after_departure(
     if fail_extension:
         assert isinstance(pending["error"], BackendFailure)
         assert lifecycle.accounts.extension == old_extension
-        assert lifecycle.broker._last_request == {}
     else:
         assert pending["result"][1] == "approved"
         assert sum(event[0] == "set_extension" for event in lifecycle.accounts.events) == 1
-        with pytest.raises(RateLimited):
-            if surface == "child":
-                lifecycle.broker.request_own_access(1001, lifecycle.caller.get_unique_name(),
-                                                  1003, 300, True)
-            else:
-                lifecycle.broker.request_access(991, lifecycle.kiosk.get_unique_name(),
-                                               1001, 1003, 300, True)
+        # A later request still respects the locked session, independently of
+        # the completed approval. It cannot reuse that approval or write again.
+        writes = [event for event in lifecycle.accounts.events if event[0].startswith("set_")]
+        fresh = lifecycle.start(surface)
+        spin_until(lambda: fresh["done"])
+        assert fresh["result"][1] == "cancelled"
+        assert len(authority.checks) == 1
+        assert [event for event in lifecycle.accounts.events if event[0].startswith("set_")] == writes
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))

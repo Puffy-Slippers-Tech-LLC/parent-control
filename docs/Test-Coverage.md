@@ -6,8 +6,8 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5878</span>/<span style="color: gray">0</span>/5878 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
-| Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
+| Unit, property and contract | <span style="color: green">5885</span>/<span style="color: gray">0</span>/5885 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">301</span>/<span style="color: gray">0</span>/301 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
 | Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
@@ -16,7 +16,7 @@
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
 | E2E | <span style="color: green">149</span>/<span style="color: gray">50</span>/199 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6635</span>/<span style="color: gray">50</span>/6685** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6643</span>/<span style="color: gray">50</span>/6693** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -141,11 +141,11 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [168](#scenario-168) | Keep daily access after a grant ends and restore soft-app blocks (restore: toggle) | `E2E-038/toggle` | ready |
 | [169](#scenario-169) | Keep daily access after a grant ends and restore soft-app blocks (restore: app save) | `E2E-038/app-save` | ready |
 | [170](#scenario-170) | Keep daily access after a grant ends and restore soft-app blocks (restore: revoke) | `E2E-038/revoke` | ready |
-| [171](#scenario-171) | Leave a pending approval or request again too soon (flow: overlay lock) | `E2E-039/overlay-lock` | ready |
-| [172](#scenario-172) | Leave a pending approval or request again too soon (flow: overlay switch) | `E2E-039/overlay-switch` | ready |
-| [173](#scenario-173) | Leave a pending approval or request again too soon (flow: overlay signout) | `E2E-039/overlay-signout` | ready |
-| [174](#scenario-174) | Leave a pending approval or request again too soon (flow: overlay close) | `E2E-039/overlay-close` | ready |
-| [175](#scenario-175) | Leave a pending approval or request again too soon (flow: kiosk close) | `E2E-039/kiosk-close` | ready |
+| [171](#scenario-171) | Leave a pending approval and request again (flow: overlay lock) | `E2E-039/overlay-lock` | ready |
+| [172](#scenario-172) | Leave a pending approval and request again (flow: overlay switch) | `E2E-039/overlay-switch` | ready |
+| [173](#scenario-173) | Leave a pending approval and request again (flow: overlay signout) | `E2E-039/overlay-signout` | ready |
+| [174](#scenario-174) | Leave a pending approval and request again (flow: overlay close) | `E2E-039/overlay-close` | ready |
+| [175](#scenario-175) | Leave a pending approval and request again (flow: kiosk close) | `E2E-039/kiosk-close` | ready |
 | [180](#scenario-180) | Refresh accounts and remembered selections after account changes (change: remove selected) | `E2E-040/remove-selected` | ready |
 | [181](#scenario-181) | Refresh accounts and remembered selections after account changes (change: remove last child) | `E2E-040/remove-last-child` | ready |
 | [182](#scenario-182) | Refresh accounts and remembered selections after account changes (change: ineligible approver) | `E2E-040/ineligible-approver` | ready |
@@ -212,8 +212,8 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[161](#scenario-161)</span> | <span style="color: gray">Revoke when there is no active grant (balance: zero total)</span> | <span style="color: gray">`E2E-036/zero-total`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[176](#scenario-176)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay cooldown)</span> | <span style="color: gray">`E2E-039/overlay-cooldown`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[178](#scenario-178)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk cooldown other)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-other`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[176](#scenario-176)</span> | <span style="color: gray">Leave a pending approval and request again (flow: overlay cooldown)</span> | <span style="color: gray">`E2E-039/overlay-cooldown`</span> | <span style="color: gray">pending</span> |
+| <span style="color: gray">[178](#scenario-178)</span> | <span style="color: gray">Leave a pending approval and request again (flow: kiosk cooldown other)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-other`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[208](#scenario-208)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: retry; surface: parent)</span> | <span style="color: gray">`E2E-046/parent-retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[213](#scenario-213)</span> | <span style="color: gray">Recover unavailable diagnostic collection (choice: without logs; surface: kiosk)</span> | <span style="color: gray">`E2E-046/kiosk-without-logs`</span> | <span style="color: gray">pending</span> |
@@ -606,7 +606,7 @@ Variant: approver: first; soft apps: excluded
 
 - Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. Immediately reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 ### Scenario 33
 
@@ -620,7 +620,7 @@ Variant: approver: second; soft apps: included
 
 - Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry.
 - Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice.
-- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
+- Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. Immediately reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel.
 
 ### Scenario 34
 
@@ -1746,7 +1746,7 @@ Variant: restore: revoke
 
 ### Scenario 171
 
-**Leave a pending approval or request again too soon (flow: overlay lock)**
+**Leave a pending approval and request again (flow: overlay lock)**
 
 Case: `E2E-039/overlay-lock` · Category: customer-journey · Status: **ready**
 
@@ -1754,13 +1754,13 @@ Variant: flow: overlay lock
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
 ### Scenario 172
 
-**Leave a pending approval or request again too soon (flow: overlay switch)**
+**Leave a pending approval and request again (flow: overlay switch)**
 
 Case: `E2E-039/overlay-switch` · Category: customer-journey · Status: **ready**
 
@@ -1768,13 +1768,13 @@ Variant: flow: overlay switch
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
 ### Scenario 173
 
-**Leave a pending approval or request again too soon (flow: overlay signout)**
+**Leave a pending approval and request again (flow: overlay signout)**
 
 Case: `E2E-039/overlay-signout` · Category: customer-journey · Status: **ready**
 
@@ -1782,13 +1782,13 @@ Variant: flow: overlay signout
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
 ### Scenario 174
 
-**Leave a pending approval or request again too soon (flow: overlay close)**
+**Leave a pending approval and request again (flow: overlay close)**
 
 Case: `E2E-039/overlay-close` · Category: customer-journey · Status: **ready**
 
@@ -1796,13 +1796,13 @@ Variant: flow: overlay close
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
 ### Scenario 175
 
-**Leave a pending approval or request again too soon (flow: kiosk close)**
+**Leave a pending approval and request again (flow: kiosk close)**
 
 Case: `E2E-039/kiosk-close` · Category: customer-journey · Status: **ready**
 
@@ -1810,9 +1810,9 @@ Variant: flow: kiosk close
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
 ### Scenario 180
 
@@ -2922,7 +2922,7 @@ Pending: Excluded from E2E scheduling: local zero-balance Revoke availability is
 
 ### Scenario 176
 
-**Leave a pending approval or request again too soon (flow: overlay cooldown)**
+**Leave a pending approval and request again (flow: overlay cooldown)**
 
 Case: `E2E-039/overlay-cooldown` · Category: customer-journey · Status: **pending**
 
@@ -2930,11 +2930,11 @@ Variant: flow: overlay cooldown
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: successful-request cooldown behavior was removed. Historical case and task 218 are retired without acceptance credit; preserve this ID and do not create a replacement task. Immediate repeat authentication uses existing E2E-012 and broker coverage; genuine request-error review/decline remains unqualified under FEED15.
 
 </div>
 
@@ -2942,7 +2942,7 @@ Pending: Customer recipe is documented; required public blocks and full installe
 
 ### Scenario 178
 
-**Leave a pending approval or request again too soon (flow: kiosk cooldown other)**
+**Leave a pending approval and request again (flow: kiosk cooldown other)**
 
 Case: `E2E-039/kiosk-cooldown-other` · Category: customer-journey · Status: **pending**
 
@@ -2950,11 +2950,11 @@ Variant: flow: kiosk cooldown other
 
 **Steps:**
 
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+- Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent.
+- Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination.
 
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
+Pending: Excluded from E2E scheduling: successful-request cooldown behavior was removed. Historical case and task 220 are retired without acceptance credit; preserve this ID and do not create a replacement task. Immediate repeat authentication uses existing E2E-012 and broker coverage; genuine request-error review/decline remains unqualified under FEED15.
 
 </div>
 
@@ -3132,7 +3132,7 @@ Variant: balance: daily only; surface: child overlay
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
@@ -3152,7 +3152,7 @@ Variant: balance: daily only; surface: kiosk
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
@@ -3172,7 +3172,7 @@ Variant: balance: grant only; surface: child overlay
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
@@ -3192,7 +3192,7 @@ Variant: balance: daily dominant; surface: child overlay
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
@@ -3212,7 +3212,7 @@ Variant: balance: daily dominant; surface: kiosk
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 
@@ -3232,7 +3232,7 @@ Variant: balance: grant dominant; surface: kiosk
 
 - Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt.
 - Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait.
-- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
+- Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation.
 
 Pending: Excluded from E2E scheduling and regression selection by developer decision on 2026-11-09. Open issue and preserved scenarios: docs/Failed\_Save.md. No automatic investigation, task recreation or acceptance credit.
 

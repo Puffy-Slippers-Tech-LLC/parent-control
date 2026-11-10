@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **261 — [Check station report Stop callback](E2E-Tasks/261-case-219.md)**.
+Next task: **311b — [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

@@ -10,8 +10,9 @@ import tomllib
 from agent_adapter import ModelProfile, PreparedSession, ProfileRole, SessionEvent, SessionRequest
 
 
-SESSION_GOAL = ('Simple, lean, robust, do not overengineer. If a problem can be solved '
-                'by simplier approaches, do not use more complex ones')
+SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions that simplify '
+                'the resulting codebase as a whole, not merely minimize the patch. '
+                'Keep refactoring within the task’s scope.')
 
 GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
 Codex goal state. If absent, call create_goal with objective:

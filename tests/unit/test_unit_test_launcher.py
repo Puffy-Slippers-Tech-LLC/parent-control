@@ -16,7 +16,10 @@ runner = runpy.run_path(str(LAUNCHER.with_name('test_launcher.py')))
 
 
 @pytest.fixture
-def checkout(tmp_path):
+def checkout(tmp_path, monkeypatch):
+    import test_source
+    for key in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS):
+        monkeypatch.delenv(key, raising=False)
     root = tmp_path / 'checkout'
     unit = root / 'tests/unit'
     unit.mkdir(parents=True)
@@ -48,6 +51,129 @@ def test_globs_expand_sorted_with_explicit_files_and_duplicates(checkout):
         'tests/unit/test_a_cleanup_safety.py', 'tests/unit/test_z_cleanup_safety.py',
         'tests/unit/test_graphical_lease.py',
     ]
+
+
+def test_controller_startup_guards_lazy_imports_and_refuses_stale_admission(checkout):
+    # Exercise the real public wrapper and selection. The import hook schedules
+    # one independent repair precisely at the reset-gate handoff; it replaces
+    # neither the controller nor the source service.
+    probe = '''import builtins, runpy, sys
+from contextlib import contextmanager
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / 'tools'))
+import test_source
+source = test_source.SourceProtection(test_source.source_directory(root))
+original = builtins.__import__
+seen = set()
+def observed(name, *args, **kwargs):
+    if name in ('vm_selection', 'regression_session') and name not in seen:
+        seen.add(name)
+        with test_source._lock(source.directory / 'repair-owner') as writer, source.state():
+            assert not source.admit(writer, owner=str(root / 'repair')), name
+    module = original(name, *args, **kwargs)
+    if name == 'test_reset' and name not in seen:
+        seen.add(name)
+        startup = module.startup
+        @contextmanager
+        def interleaved(root):
+            assert not test_source.descriptors()
+            with test_source._lock(source.directory / 'repair-owner') as writer, source.state():
+                owner = str(root / 'repair')
+                assert source.admit(writer, owner=owner)
+                source.finish(owner, changed=True)
+            with startup(root):
+                yield
+        module.startup = interleaved
+    return module
+builtins.__import__ = observed
+sys.argv = [str(root / 'tools/run-unit-tests'), 'tests/unit/test_a_cleanup_safety.py']
+try:
+    runpy.run_path(sys.argv[0], run_name='__main__')
+except SystemExit as error:
+    assert error.code == 2, error.code
+else:
+    raise AssertionError('stale controller admitted work')
+assert seen == {'vm_selection', 'regression_session', 'test_reset'}, seen
+assert not list((root / 'output/test-runs').rglob('current.json'))
+'''
+    result = subprocess.run(['/usr/bin/python3', '-B', '-c', probe, str(checkout)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert 'source changed after startup' in result.stderr
+
+
+@pytest.mark.parametrize('control', ['--reload', '--reset'])
+def test_control_startup_reimports_before_new_execution(checkout, control):
+    # Replace already-imported controller bytes during control startup. Only a
+    # fresh interpreter can execute the new entry, under its inherited lease.
+    replacement = checkout / 'fresh-controller.py'
+    replacement.write_text('''
+def main(argv=None):
+    import fcntl
+    import test_source
+    root = Path(__file__).resolve().parents[1]
+    assert '--reload' not in sys.argv and '--reset' not in sys.argv
+    source = test_source.SourceProtection(test_source.source_directory(root))
+    descriptor = int(test_source.environment()[test_source.VARIABLE])
+    source.validate(descriptor, held=True)
+    assert source.generation() >= 1
+    assert not list((root / 'output/test-runs').rglob('current.json'))
+    for directory in ('state', 'sessions-host'):
+        path = root / 'output/test-runs/host' / directory
+        gate = path / ('test-startup-gate' if directory == 'state' else 'gate')
+        if gate.exists():
+            with test_source._lock(gate) as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    test_source.finish_admission()
+    assert not test_source.descriptors() and test_source.IMPORTS not in os.environ
+    with test_source._lock(source.directory / 'repair-owner') as writer, source.state():
+        assert source.admit(writer, owner=str(root / 'fresh-check'))
+        source.finish(str(root / 'fresh-check'))
+    (root / 'fresh-execution').write_text(str(os.getpid()))
+    return 0
+''')
+    probe = '''import builtins, os, runpy, subprocess, sys
+from pathlib import Path
+root, control, replacement = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+sys.path.insert(0, str(root / 'tools'))
+import test_source
+source = test_source.SourceProtection(test_source.source_directory(root))
+original = builtins.__import__
+changed = False
+def observed(name, *args, **kwargs):
+    global changed
+    if name == 'regression_session' and not changed:
+        changed = True
+        with test_source._lock(source.directory / 'repair-owner') as writer, source.state():
+            owner = str(root / 'repair')
+            assert source.admit(writer, owner=owner)
+            target = root / 'tools/test_commands.py'
+            target.write_text(target.read_text() + replacement.read_text())
+            source.finish(owner, changed=True)
+    return original(name, *args, **kwargs)
+builtins.__import__ = observed
+if control == '--reset':
+    # Real reset owns only this synthetic checkout. Its external recovery
+    # boundary is a successful host-only fixture, never a real cleanup command.
+    run = subprocess.run
+    def recovered(command, *args, **kwargs):
+        if command[0] == str(root / 'tools/cleanup-e2e'):
+            assert command[1:] == ['--host-only']
+            (root / 'recovered').touch()
+            return subprocess.CompletedProcess(command, 0)
+        return run(command, *args, **kwargs)
+    subprocess.run = recovered
+(root / 'initial-pid').write_text(str(os.getpid()))
+sys.argv = [str(root / 'tools/run-tests'), control, 'unit', 'tests/unit/test_a_cleanup_safety.py']
+runpy.run_path(sys.argv[0], run_name='__main__')
+'''
+    result = subprocess.run(['/usr/bin/python3', '-B', '-c', probe,
+                             str(checkout), control, str(replacement)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert (checkout / 'fresh-execution').read_text() == (checkout / 'initial-pid').read_text()
+    assert (checkout / 'recovered').exists() == (control == '--reset')
 
 
 @pytest.mark.parametrize('pattern', ['test_?_*safety.py', 'test_[az]_cleanup_safety.py'])

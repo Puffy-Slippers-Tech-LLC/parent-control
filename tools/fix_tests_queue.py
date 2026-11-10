@@ -15,14 +15,14 @@ from contextlib import contextmanager, ExitStack
 import detached_launcher as launcher
 import launcher_reload
 from launcher_runtime import TaskBudget
+import test_source
+from test_source import source_directory
 
 
-_repair_descriptors = set()
-_source_descriptors = set()
 _workflow_descriptors = set()
 WORKER = Path(__file__).with_name('fix_tests.py')
-STARTUP_SOURCE = 'ONPC_REPAIR_STARTUP_FD'
-STARTUP_REPAIR = 'ONPC_REPAIR_WRITER_FD'
+STARTUP_SOURCE = test_source.STARTUP_READER
+STARTUP_REPAIR = test_source.STARTUP_WRITER
 RECOVERY_ONLY = 'ONPC_REPAIR_RECOVERY_ONLY'
 SNAPSHOT_REFRESH = 'appsnapshot-refresh.json'
 SNAPSHOT_REFRESH_STATUS = 76
@@ -48,7 +48,7 @@ def request_snapshot_refresh(run, output):
 
 
 def repair_descriptors():
-    return tuple(_repair_descriptors | _source_descriptors | _workflow_descriptors)
+    return tuple(set(test_source.descriptors()) | _workflow_descriptors)
 
 
 def retain_owner(owner):
@@ -58,11 +58,6 @@ def retain_owner(owner):
 def parent_run(run):
     path = run / 'pipeline.json'
     return Path(json.loads(path.read_text())['parent']) if path.exists() else None
-
-
-def source_directory(root):
-    from test_storage import directory
-    return launcher.private_directory(directory('state', root=root) / 'fix-tests-source')
 
 
 def resumed_source_owner(root, previous, ticket, saved):
@@ -101,19 +96,10 @@ def resumed_source_owner(root, previous, ticket, saved):
         return None
 
 
-def finish_startup(run, *, root=None):
+def finish_startup(run, *, root=None, writer=None):
     """The spawning reader protects imports until the worker can enter the gate."""
-    inherited = os.environ.pop(STARTUP_SOURCE, None)
-    if inherited is not None:
-        fd = int(inherited)
-        actual = os.fstat(fd)
-        paths = [(parent_run(run) or run) / 'repair-owner']
-        if root is not None:
-            paths.insert(0, source_directory(root) / 'repair-owner')
-        if not any(path.exists() and (actual.st_dev, actual.st_ino) ==
-                   (path.stat().st_dev, path.stat().st_ino) for path in paths):
-            raise ValueError('inherited source lease identity changed')
-        os.close(fd)
+    test_source.finish_imports(root, keep=() if writer is None else (writer,),
+                               directories=(parent_run(run) or run,))
 
 
 class RepairCoordinator:
@@ -127,6 +113,7 @@ class RepairCoordinator:
     def __init__(self, run, *, source=None):
         self.run = run
         self.source = source if source is not None else run
+        self.protection = test_source.SourceProtection(self.source)
 
     @staticmethod
     def recovery_state(saved):
@@ -142,8 +129,7 @@ class RepairCoordinator:
             gate = locks.enter_context(launcher.lock(self.run / 'repair-queue-gate'))
             fcntl.flock(gate, fcntl.LOCK_EX)
             if self.source != self.run:
-                shared = locks.enter_context(launcher.lock(self.source / 'repair-queue-gate'))
-                fcntl.flock(shared, fcntl.LOCK_EX)
+                locks.enter_context(self.protection.state())
             path = self.run / 'repair-queue.json'
             waiting = json.loads(path.read_text()) if path.exists() else []
             pending = self.run / 'repair-pending.json'
@@ -151,8 +137,7 @@ class RepairCoordinator:
             yield waiting, owner
 
     def generation(self):
-        path = self.source / 'repair-generation.json'
-        return json.loads(path.read_text()) if path.exists() else 0
+        return self.protection.generation()
 
     def enqueue(self, ticket):
         with self.state() as (waiting, _):
@@ -172,46 +157,21 @@ class RepairCoordinator:
             if owner is not None and not writer:
                 raise ValueError('an unfinished case repair retains unverified edits; resume that repair first '
                                  'or use --reset to abandon saved progress and verify from scratch')
-            try:
-                fcntl.flock(descriptor, (fcntl.LOCK_EX if writer else fcntl.LOCK_SH) | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return False  # Active cases or their supervisors still own cleanup.
-            # Independent host and VM queues still read and edit one checkout.
-            # Retain the source fence even if its writer stopped before cleanup.
-            pending = self.source / 'repair-source-pending.json'
-            source_owner = json.loads(pending.read_text())['run'] if pending.exists() else None
             ticket_path = str((self.run / ticket).resolve())
-            if source_owner is not None and (source_owner != ticket_path or not writer):
-                inherited = self.run / ticket / 'repair-source-resume.json'
-                try:
-                    resumed = json.loads(inherited.read_text()) if writer and inherited.exists() else None
-                    if resumed != {'run': source_owner}:
-                        raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first '
-                                         'or use --reset to abandon saved progress and verify from scratch')
-                except BaseException:
-                    fcntl.flock(descriptor, fcntl.LOCK_UN)
-                    raise
-            if writer:
-                # Publish local recovery ownership first: a crash must never
-                # leave a shared fence with no retained ticket to resume.
-                launcher.atomic(self.run / 'repair-pending.json', {'run': ticket})
-                launcher.atomic(pending, {'run': ticket_path})
-            return True
+            inherited = self.run / ticket / 'repair-source-resume.json'
+            resumed = json.loads(inherited.read_text()) if writer and inherited.exists() else None
+            return self.protection.admit(descriptor, owner=ticket_path if writer else None,
+                resumed=resumed, prepare=(lambda: launcher.atomic(
+                    self.run / 'repair-pending.json', {'run': ticket})) if writer else None)
 
     def finish(self, ticket, *, changed=False, unfinished=False):
         with self.state() as (waiting, owner):
             if owner is not None and owner != ticket:
                 raise ValueError('case repair ownership changed before release')
-            pending = self.source / 'repair-source-pending.json'
-            source_owner = json.loads(pending.read_text())['run'] if pending.exists() else None
-            if source_owner is not None and source_owner != str((self.run / ticket).resolve()):
-                raise ValueError('checkout repair ownership changed before release')
-            if changed:
-                launcher.atomic(self.source / 'repair-generation.json', self.generation() + 1)
+            self.protection.finish(str((self.run / ticket).resolve()), changed=changed, unfinished=unfinished)
             if not unfinished:
                 # Clear the fence before removing its ticket. An interruption
                 # between writes still blocks admission until restart drains it.
-                pending.unlink(missing_ok=True)
                 (self.run / 'repair-pending.json').unlink(missing_ok=True)
                 if ticket in waiting:
                     launcher.atomic(self.run / 'repair-queue.json', [name for name in waiting if name != ticket])
@@ -229,6 +189,9 @@ class RepairCoordinator:
         A recovery worker drains its entire ticket with one session budget.
         The coordinator never respawns it to retry an incomplete transaction.
         """
+        from test_checkpoint import guard_scheduling_run
+        guard_scheduling_run(self.run)
+
         def saved(child):
             path = child / 'checkpoint.json'
             return json.loads(path.read_text()) if path.exists() else {}
@@ -326,19 +289,19 @@ class RepairGate:
                         self.fd = os.dup(replacement)
                     launcher.atomic(lease, dict(pid=os.getpid(), fds=[self.fd]))
                 os.set_inheritable(self.fd, False)
-                _repair_descriptors.add(self.fd)
+                test_source.retain(self.fd, str(run.resolve()))
 
     def detach(self):
         """Close the spawning parent's copy; the child now owns this lease."""
         if self.fd is not None:
-            _repair_descriptors.discard(self.fd)
+            test_source.forget(self.fd)
             os.close(self.fd)
             self.fd = None
 
     def generation(self):
         return self.coordinator.generation()
 
-    def acquire(self):
+    def acquire(self, *, reloading=False):
         if self.fd is not None:
             return False
         self.enqueue()
@@ -347,11 +310,14 @@ class RepairGate:
         try:
             self._admit(fd, writer=True)
             self.fd = fd
-            _repair_descriptors.add(fd)
+            test_source.retain(fd, str(self.run.resolve()))
+            self._check_source(reloading=reloading)
             return True
         except BaseException:
-            os.close(fd)
+            if self.fd is None:
+                os.close(fd)
             # A stopped waiter still owns its FIFO ticket for the next run.
+            # An admitted writer stays with this gate through controller reload.
             raise
 
     def enqueue(self):
@@ -367,6 +333,15 @@ class RepairGate:
             raise launcher.Stopped()
         if launcher_reload.pending():
             getattr(self, 'on_reload', launcher_reload.check)()
+
+    def _check_source(self, *, reloading=False):
+        try:
+            self.coordinator.protection.check_generation(fresh=reloading)
+        except launcher_reload.ReloadRequested:
+            # The repair continuation saves its admitted task/session accounting
+            # before replacing imported code, just as for a manual reload.
+            self._check_stop()
+            raise
 
     def _admit(self, fd, *, writer):
         from launcher_progress import read_progress, publish_progress
@@ -404,34 +379,36 @@ class RepairGate:
                 raise ValueError('retained reload ticket is not a pipeline of this run')
             writer = RepairGate(child, root=root, stopped=self.stopped)
             try:
-                writer.acquire()
+                writer.acquire(reloading=True)
                 yield writer.fd
             finally:
                 # Exec failure closes only our kernel lease, retaining the
                 # journals and source fence for the same recovery transaction.
                 writer.detach()
         else:
-            with self.source() as source:
+            with self.source(reloading=True) as source:
                 yield source
 
     @contextmanager
-    def source(self):
+    def source(self, *, reloading=False):
         """A waiting writer stops new cases; active readers finish normally."""
         if self.fd is not None:
+            self._check_source(reloading=reloading)
             yield None
             return
         with launcher.lock(self.coordinator.source / 'repair-owner') as source:
             self._admit(source, writer=False)
-            _source_descriptors.add(source)
+            test_source.retain(source)
             try:
+                self._check_source(reloading=reloading)
                 yield source
             finally:
-                _source_descriptors.discard(source)
+                test_source.forget(source)
 
     def release(self, *, changed=False, unfinished=False):
         if self.fd is not None:
             self.coordinator.finish(self.ticket, changed=changed, unfinished=unfinished)
-            _repair_descriptors.discard(self.fd)
+            test_source.forget(self.fd)
             (self.run / 'repair-lease.json').unlink(missing_ok=True)
             os.close(self.fd)
             self.fd = None
@@ -509,6 +486,7 @@ class FamilyCases:
     @contextmanager
     def state(self, *, write=True):
         from test_retention import private
+        from test_checkpoint import admit_scheduling_state
         lock = os.open(self.path.with_suffix('.lock'),
                        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
@@ -516,6 +494,7 @@ class FamilyCases:
             fcntl.flock(lock, fcntl.LOCK_EX)
             state = json.loads(self.path.read_text()) if self.path.exists() else dict(
                 version=1, completed=[], claims={}, items={}, family=self.family)
+            state = admit_scheduling_state(state)
             if hasattr(self, 'family'):
                 state.setdefault('family', self.family)
             if (state.get('version') != 1 or not isinstance(state.get('completed'), list)
@@ -902,6 +881,9 @@ def run(root, run, owner, model, effort, app_model, requested, rounds, resume):
 
 def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds, resume, control):
     """Run host work once alongside the independently capped VM pipelines."""
+    from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+    guard_scheduling_run(run)
+    guard_scheduling_checkpoints(root)
     from fix_tests import category_inventory, requested_inventory
     from vm_queue import dispatch
     from vm_selection import BATCH, VARIABLE, WORKER as VM_WORKER, vm_config
@@ -1084,10 +1066,10 @@ def _run_pipelines(root, run, owner, model, effort, app_model, requested, rounds
                     source = startup.enter_context(gate.source())
                     environment[STARTUP_SOURCE] = str(source)
                 else:
+                    startup.callback(gate.detach)
                     gate.acquire()
                     source = gate.fd
                     environment[STARTUP_REPAIR] = str(source)
-                    startup.callback(gate.detach)
                 status = runner.run(command, cwd=root, env=environment, output=output, tick=tick,
                     cooperative=True, started=startup.close,
                     pass_fds=(owner, *launcher.scratch_descriptors(),

@@ -196,6 +196,60 @@ def test_checkpoint_refuses_unsafe_or_malformed_state(tmp_path, replacement):
                    binding='guest-one', recover_missing=True)
 
 
+@pytest.mark.parametrize('resume', [False, True])
+def test_incompatible_scheduler_cannot_reset_progress_or_ownership(tmp_path, resume):
+    checkpoint = Checkpoint(tmp_path, [('unit', [])])
+    checkpoint.entry('unit').update(passed=['accepted-case'], complete=True)
+    checkpoint.state.update(round=3, pending='unit', queue_claims={'claim': 'original-vm'},
+                            source_owner='original-repair', transaction='original-git', charged=7)
+    checkpoint.state['scheduling']['version'] += 1
+    checkpoint.save()
+    original = {path: path.read_bytes() for path in checkpoint.store.path.iterdir() if path.is_file()}
+    with pytest.raises(ValueError, match='original supported implementation.*--reset'):
+        Checkpoint(tmp_path, [('unit', [])], resume=resume)
+    assert {path: path.read_bytes() for path in original} == original
+
+
+def test_run_cutover_preserves_legacy_claims_transactions_and_charged_admissions(tmp_path, monkeypatch):
+    import test_checkpoint
+    from detached_launcher import atomic
+
+    child = tmp_path / 'pipeline-owned'
+    family = tmp_path / 'family-cases'
+    child.mkdir()
+    family.mkdir()
+    records = {
+        tmp_path / 'vm.json': {'vm': {'vms': ['original-vm'], 'concurrency': 1}},
+        child / 'checkpoint.json': {'repairs': {'repair': {'source_owner': 'original-source'}},
+                                    'pending': 'repair', 'commit_intent': {'commit': 'original-commit'}},
+        tmp_path / 'limits.json': {'tasks': 9, 'started': 7, 'completed': 5},
+        family / 'retained.json': {'version': 1, 'family': 'original-family', 'completed': ['accepted'],
+                                   'claims': {'pending': 'original-vm'}, 'items': {'pending': {}}},
+    }
+    for path, value in records.items():
+        atomic(path, value)
+    original = {path: path.read_bytes() for path in records}
+    assert test_checkpoint.guard_scheduling_run(tmp_path) == test_checkpoint.scheduling_marker()
+    assert {path: path.read_bytes() for path in records} == original
+    admitted = test_checkpoint.admit_scheduling_state(records[child / 'checkpoint.json'])
+    assert {key: value for key, value in admitted.items() if key != 'scheduling'} == records[child / 'checkpoint.json']
+
+    # A replacement cannot relabel unversioned pipeline rounds and budgets.
+    monkeypatch.setattr(test_checkpoint, 'SCHEDULING_IMPLEMENTATION', 'replacement')
+    with pytest.raises(ValueError, match='original supported implementation.*--reset'):
+        test_checkpoint.guard_scheduling_run(tmp_path)
+    assert {path: path.read_bytes() for path in records} == original
+
+    # A future family record must refuse before any other saved run is copied.
+    monkeypatch.setattr(test_checkpoint, 'SCHEDULING_IMPLEMENTATION', 'pipeline-v1')
+    records[family / 'retained.json']['scheduling'] = dict(version=2, implementation='replacement')
+    (family / 'retained.json').write_text(json.dumps(records[family / 'retained.json']))
+    original = {path: path.read_bytes() for path in records}
+    with pytest.raises(ValueError, match='incompatible scheduling state'):
+        test_checkpoint.guard_scheduling_run(tmp_path)
+    assert {path: path.read_bytes() for path in records} == original
+
+
 def test_large_case_inventory_uses_private_snapshot_instead_of_large_environment(tmp_path, monkeypatch):
     # This private checkpoint must not inherit the outer repair run's exclusions.
     monkeypatch.delenv('ONPC_REPAIR_FAILED_CASES', raising=False)

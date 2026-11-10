@@ -48,15 +48,18 @@ def build_worker(package_format, result_fd):
 
 @contextmanager
 def built_artifacts(package_format, caller):
+    import test_source
+    from test_storage import scratch_descriptors
     reader, writer = os.pipe()
     process = None
     try:
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                        'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
                        vm_config.VARIABLE: vm_config.selected().name}
+        environment.update(test_source.environment())
         process = subprocess.Popen(['/usr/bin/python3', '-IB', str(Path(__file__).resolve()),
             '--build-package-format', package_format, '--result-fd', str(writer)],
-            cwd=ROOT, env=environment, stdin=subprocess.PIPE, pass_fds=(writer,),
+            cwd=ROOT, env=environment, stdin=subprocess.PIPE, pass_fds=(writer, *scratch_descriptors()),
             user=caller.pw_uid, group=caller.pw_gid,
             extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid))
         os.close(writer)

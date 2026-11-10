@@ -32,8 +32,10 @@ def preparation(root, tool, args, concurrency, vms):
     replacements to finish while cancellation prevents queued work. App workers
     use their existing signal handler and wait for owned cleanup.
     """
-    from regression_process import Control
-    from vm_selection import BATCH, VARIABLE
+    import test_source
+    with test_source.reader(root):
+        from regression_process import Control
+        from vm_selection import BATCH, VARIABLE
     output_lock = threading.Lock()
     with Control().installed() as control:
         def execute(vm):
@@ -80,13 +82,14 @@ def preparation(root, tool, args, concurrency, vms):
 
 def worker(argv):
     import runpy
+    import test_source
     tool, *options = argv
     if tool not in ('prepare-vm', 'prepare-appsnapshot'):
         raise ValueError('private VM preparation entry only')
-    launcher = runpy.run_path(str(Path(__file__).resolve().parent / tool))
-    # Shared helper installation must happen once in the parent, after all
-    # baseline workers release their VM leases.
-    return launcher['main'](options, **({'refresh': False} if tool == 'prepare-vm' else {}))
+    with test_source.admission(Path(__file__).resolve().parents[1], options):
+        launcher = runpy.run_path(str(Path(__file__).resolve().parent / tool))
+        # Shared helper installation happens once after baseline workers exit.
+        return launcher['main'](options, **({'refresh': False} if tool == 'prepare-vm' else {}))
 
 
 if __name__ == '__main__':

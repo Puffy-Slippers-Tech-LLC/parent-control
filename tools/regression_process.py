@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import math
+import test_source
 
 
 # Only the detached test owner installs this event. Its nested storage and
@@ -163,6 +164,11 @@ class Control:
                 sys.stdout.buffer.flush()
         from test_storage import scratch_descriptors
         kwargs.setdefault('pass_fds', (*test_activity.descriptors(), *scratch_descriptors()))
+        kwargs['pass_fds'] = tuple(dict.fromkeys((*kwargs['pass_fds'], *test_source.descriptors())))
+        env = dict(env)
+        for name in (test_source.VARIABLE, test_source.WRITER):
+            env.pop(name, None)
+        env.update(test_source.environment())
         child = subprocess.Popen(command, cwd=cwd, env=env,
                                  stdin=subprocess.PIPE if cooperative else subprocess.DEVNULL,
                                  stdout=subprocess.PIPE,
@@ -375,6 +381,7 @@ def cleanup_main(root=None, *, activity_fd=None):
         os.environ.update(previous)
 
 
+@test_source.protected
 def host_run(root, category, argv, *, pipe=True):
     import test_launcher as host
     with Control().installed(pipe=pipe) as control:
@@ -395,6 +402,7 @@ def host_run(root, category, argv, *, pipe=True):
                            kill_after=host.UI_KILL_AFTER, owned_group=True)
 
 
+@test_source.protected
 def category_run(root, category, argv, *, pipe=True):
     import tempfile
     import test_retention

@@ -3,6 +3,7 @@ from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
 from dataclasses import replace
 from contextlib import nullcontext
+import fcntl
 import json
 import os
 import runpy
@@ -19,6 +20,568 @@ import test_launcher as host
 import test_commands as commands
 
 VM_ARGS = ['--vm', vm_name()]
+
+
+@pytest.fixture
+def shared_closeout(tmp_path, monkeypatch):
+    import detached_launcher as launcher
+    import launcher_git
+    import plan_launcher
+    import test_storage
+
+    root = tmp_path / 'checkout'
+    root.mkdir()
+    env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
+               GIT_AUTHOR_NAME='Test', GIT_AUTHOR_EMAIL='test@example.invalid',
+               GIT_COMMITTER_NAME='Test', GIT_COMMITTER_EMAIL='test@example.invalid')
+
+    def git(*args):
+        return subprocess.run(['git', *args], cwd=root, env=env, check=True,
+                              capture_output=True, text=True, timeout=10).stdout.strip()
+
+    git('init', '--initial-branch=main')
+    shared = root / 'shared.py'
+    shared.write_text('committed\n')
+    skill = root / '.agents/skills/commit/SKILL.md'
+    skill.parent.mkdir(parents=True)
+    skill.write_text('Controlled test: no commit helper may execute.\n')
+    git('add', 'shared.py')
+    git('add', '.agents/skills/commit/SKILL.md')
+    git('commit', '-m', 'Private fixture')
+    git('config', 'branch.main.remote', '.')
+    git('config', 'branch.main.merge', 'refs/heads/main')
+    shared.write_text('unrelated original work\n')
+    baseline = launcher_git.worktree_snapshot(root)
+    shared.write_text('unrelated original work\ntask change\n')
+    spec = plan_launcher.PlanWorkflow('execute-plan', plan='master.md')
+    directory = launcher.private_directory(tmp_path / 'plans' / plan_launcher.plan_namespace(spec.plan))
+    run = launcher.private_directory(directory / ('a' * 32))
+    launcher.atomic(directory / 'current.json', {'run': run.name})
+    result = dict(status='task_complete', task_id='001', summary='Accepted', handoff='Close out',
+                  cleanup_complete=True, stage_paths=['shared.py'], blocker=None,
+                  checks=[dict(kind='host', target='', result='passed')])
+    state = dict(task_id='001', task=dict(task_id='001', acceptance='host', targets=[],
+                                         brief=str(root / 'removed-brief.md')),
+                 plan_queue='queue.md', stage_baseline=baseline, protected_staged=[],
+                 git_reconciliation=dict(ownership_paths=['shared.py'], accepted_result=result))
+    launcher.atomic(run / 'checkpoint.json', state)
+    monkeypatch.setattr(test_storage, 'directory', lambda *args, **kwargs: tmp_path / 'plans')
+    with launcher.lock(directory / 'owner') as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX)
+        yield root, run, spec, state, git, owner
+
+
+def test_shared_closeout_review_preserves_original_work(shared_closeout, monkeypatch):
+    import launcher_git
+    import plan_launcher
+
+    root, run, spec, state, git, _owner = shared_closeout
+    checkpoint = (run / 'checkpoint.json').read_bytes()
+    working = (root / 'shared.py').read_bytes()
+    index = git('ls-files', '--stage')
+    head = git('rev-parse', 'HEAD')
+    original = json.loads(json.dumps(state))
+    with pytest.raises(launcher_git.OwnershipReconciliationRequired):
+        launcher_git.validate_closeout_ownership(root, ['shared.py'], state, run=run)
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    assert not (run / 'ownership-review.json').exists()
+    with pytest.raises(ValueError, match='inputs changed'):
+        plan_launcher.review_ownership(root, spec, run.name, approval='wrong')
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    launcher_git.validate_closeout_ownership(root, ['shared.py'], state, run=run)
+    assert state == original  # Approval never retires the protected fingerprints.
+    assert (run / 'reload.json').exists()
+    assert (run / 'checkpoint.json').read_bytes() == checkpoint
+    assert (root / 'shared.py').read_bytes() == working
+    assert git('ls-files', '--stage') == index and git('rev-parse', 'HEAD') == head
+
+    # Exercise the actual close-out path through the former refusal. Stop at
+    # the controller's supervised commit boundary; this test never commits work.
+    state.update(in_flight=False, repair_sessions=3, task_sessions=4)
+    plan = SimpleNamespace(root=root, path='master.md', queue='queue.md',
+                           state=lambda **kwargs: {'001': False})
+    plan_launcher.recover_reviewed_completion(plan, run, state)
+    assert 'pending_completion' not in state  # An unfinished row stays unfinished.
+    plan.state = lambda **kwargs: {'001': True}
+    plan_launcher.recover_reviewed_completion(plan, run, state)
+    assert state['pending_completion'] == state['git_reconciliation']['accepted_result']
+    assert (state['repair_sessions'], state['task_sessions']) == (3, 4)
+    monkeypatch.setattr(plan_launcher.launcher, 'finish_nested', lambda *args: None)
+    pull = Mock()
+    commit = Mock()
+    monkeypatch.setattr(plan_launcher, 'pull_before_commit', pull)
+    monkeypatch.setattr(plan_launcher, 'commit_push_propagate', commit)
+    assert plan_launcher._closeout(plan, spec, run, state)
+    pull.assert_called_once()
+    commit.assert_called_once()
+    assert state['stage_baseline'] == original['stage_baseline']
+    assert (root / 'shared.py').read_bytes() == working
+    assert git('ls-files', '--stage') == index and git('rev-parse', 'HEAD') == head
+
+
+@pytest.mark.parametrize('change', ['working', 'index', 'task'])
+def test_shared_closeout_review_refuses_changed_inputs(shared_closeout, change):
+    import launcher_git
+    import launcher_worktrees
+    import plan_launcher
+
+    root, run, spec, state, git, _owner = shared_closeout
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    identity, head = launcher_git.validate_pull_identity(root, state)
+    state['commit_intent'] = dict(engine='skill', session='b' * 32, parent=head,
+        paths=['shared.py'], message='Fixture closeout', targets=[], **identity,
+        ownership_review=json.loads((run / 'ownership-review.json').read_text()))
+    if change == 'working':
+        (root / 'shared.py').write_text('new work from another owner\n')
+    elif change == 'index':
+        git('add', 'shared.py')
+    else:
+        state['task']['task_id'] = state['task_id'] = '002'
+    before = json.loads(json.dumps(state))
+    with pytest.raises(launcher_git.OwnershipReconciliationRequired):
+        launcher_git.validate_closeout_ownership(root, ['shared.py'], state, run=run)
+    assert state == before
+    # A crash after intent persistence must not bypass the same freshness guard.
+    from unittest.mock import patch
+    with patch.object(launcher_worktrees, 'commit_skill_targets', return_value=[]), \
+            pytest.raises(launcher_git.OwnershipReconciliationRequired):
+        launcher_git._commit_with_skill(root, run, state, ['shared.py'], 'Fixture closeout',
+                                       git=launcher_git.git_output)
+    assert state == before
+
+
+def test_shared_closeout_review_retires_only_resolved_overlaps(shared_closeout):
+    import detached_launcher as launcher
+    import launcher_git
+    import plan_launcher
+
+    root, run, spec, state, git, _owner = shared_closeout
+    second = root / 'second.py'
+    second.write_text('committed second\n')
+    git('add', 'second.py')
+    git('commit', '-m', 'Second private fixture')
+    second.write_text('unrelated second\n')
+    original = launcher_git.worktree_fingerprint(second)
+    state['stage_baseline']['second.py'] = original
+    state['git_reconciliation']['ownership_paths'].append('second.py')
+    second.write_text('unrelated second\ntask change\n')
+    launcher.atomic(run / 'checkpoint.json', state)
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    (root / 'shared.py').write_text('committed\n')
+    launcher_git.validate_closeout_ownership(root, ['shared.py', 'second.py'], state, run=run)
+    assert state['stage_baseline'] == {'second.py': original}
+    second.write_text('committed second\n')
+    launcher_git.validate_closeout_ownership(root, ['shared.py', 'second.py'], state, run=run)
+    assert not state['stage_baseline']
+    assert launcher_git.approved_ownership_review(root, run, state) is None
+
+
+def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout, monkeypatch):
+    import detached_launcher as launcher
+    import launcher_git
+    import launcher_worktrees
+    import plan_launcher
+
+    root, run, spec, state, git, _owner = shared_closeout
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    identity, parent = launcher_git.validate_pull_identity(root, state)
+    state['commit_intent'] = dict(engine='skill', session='b' * 32, parent=parent,
+        paths=['shared.py'], message='Fixture closeout', targets=[], **identity,
+        ownership_review=json.loads((run / 'ownership-review.json').read_text()))
+    git('add', 'shared.py')
+    git('commit', '-m', 'Journaled private commit')
+    commit = git('rev-parse', 'HEAD')
+    sessions = launcher.private_directory(run / 'commit-skill')
+    session = launcher.private_directory(sessions / ('b' * 32))
+    launcher.atomic(session / 'progress.json', dict(source_commit=commit, pushed_head=commit))
+    launcher.atomic(session / 'agent-result.json', dict(status='complete'))
+    monkeypatch.setattr(launcher_worktrees, 'commit_skill_targets', lambda *args, **kwargs: [])
+    assert launcher_git._commit_with_skill(root, run, state, ['shared.py'], 'Fixture closeout',
+                                          git=launcher_git.git_output) == commit
+
+
+def test_shared_closeout_reapproval_recovers_rejected_uncommitted_intent(shared_closeout, monkeypatch):
+    import launcher_git
+    import launcher_worktrees
+    import plan_launcher
+
+    root, run, spec, state, git, _owner = shared_closeout
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    identity, parent = launcher_git.validate_pull_identity(root, state)
+    state['commit_intent'] = dict(engine='skill', session='b' * 32, parent=parent,
+        paths=['shared.py'], message='Fixture closeout', targets=[], **identity,
+        ownership_review=json.loads((run / 'ownership-review.json').read_text()))
+    state.update(pending_completion=state['git_reconciliation']['accepted_result'],
+                 in_flight=False, repair_sessions=3, task_sessions=4)
+    (root / 'shared.py').write_text('unrelated original work\nrevalidated task revision\n')
+    plan = SimpleNamespace(root=root, path='master.md', queue='queue.md',
+                           state=lambda **kwargs: {'001': True})
+    monkeypatch.setattr(plan_launcher.launcher, 'finish_nested', lambda *args: None)
+    monkeypatch.setattr(plan_launcher, 'pull_before_commit', Mock())
+    monkeypatch.setattr(launcher_worktrees, 'commit_skill_targets', lambda *args, **kwargs: [])
+    monkeypatch.setattr(plan_launcher, 'commit_push_propagate', lambda *args, **kwargs:
+        launcher_git._commit_with_skill(root, run, state, ['shared.py'], 'Fixture closeout',
+                                        git=launcher_git.git_output))
+    assert not plan_launcher.closeout(plan, spec, run, state)
+    assert 'pending_completion' not in state and state['commit_intent']['parent'] == parent
+    preview = plan_launcher.review_ownership(root, spec, run.name, check=True)
+    plan_launcher.review_ownership(root, spec, run.name, approval=preview['approval'])
+    plan_launcher.recover_reviewed_completion(plan, run, state)
+    assert state['pending_completion']['task_id'] == '001'
+    assert (state['repair_sessions'], state['task_sessions']) == (3, 4)
+    commit = Mock()
+    monkeypatch.setattr(plan_launcher, 'commit_push_propagate', commit)
+    assert plan_launcher.closeout(plan, spec, run, state)
+    commit.assert_called_once()
+    assert state['stage_baseline']['shared.py']
+    assert git('rev-parse', 'HEAD') == parent
+    assert not git('diff', '--cached', '--name-only')
+
+
+def test_shared_closeout_review_refuses_inactive_controller(shared_closeout):
+    import plan_launcher
+
+    root, run, spec, state, git, owner = shared_closeout
+    checkpoint = (run / 'checkpoint.json').read_bytes()
+    fcntl.flock(owner, fcntl.LOCK_UN)
+    with pytest.raises(ValueError, match='active controller; start the same plan'):
+        plan_launcher.review_ownership(root, spec, run.name, check=True)
+    assert not (run / 'ownership-review.json').exists()
+    assert not (run / 'reload.json').exists()
+    assert (run / 'checkpoint.json').read_bytes() == checkpoint
+
+
+def test_checkout_source_writer_drains_readers_and_shares_generation(tmp_path):
+    import detached_launcher as launcher
+    from test_source import SourceProtection
+
+    first = SourceProtection(tmp_path)
+    independent = SourceProtection(tmp_path)
+    owner = str(tmp_path / 'repair')
+    with launcher.lock(tmp_path / 'repair-owner') as writer:
+        with launcher.lock(tmp_path / 'repair-owner') as reader:
+            with first.state():
+                assert first.admit(reader)
+            with independent.state():
+                assert not independent.admit(writer, owner=owner)
+            assert first.owner() is None
+        with independent.state():
+            assert independent.admit(writer, owner=owner)
+            independent.finish(owner, changed=True)
+    assert first.generation() == independent.generation() == 1
+    with launcher.lock(tmp_path / 'repair-owner') as reader, first.state():
+        assert first.admit(reader)
+
+
+def test_checkout_source_retains_crashed_and_cancelled_writer(tmp_path):
+    import detached_launcher as launcher
+    from test_source import SourceProtection
+
+    owner = str(tmp_path / 'repair')
+    crash = '''import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from detached_launcher import lock
+from test_source import SourceProtection
+directory = Path(sys.argv[2])
+source = SourceProtection(directory)
+with lock(directory / 'repair-owner') as descriptor, source.state():
+    assert source.admit(descriptor, owner=sys.argv[3])
+    os._exit(0)
+'''
+    subprocess.run([sys.executable, '-B', '-c', crash, str(ROOT / 'tools'),
+                    str(tmp_path), owner], check=True, timeout=10)
+    source = SourceProtection(tmp_path)
+    pending = tmp_path / 'repair-source-pending.json'
+    before = pending.read_bytes()
+    assert source.owner() == owner
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor, source.state():
+        with pytest.raises(ValueError, match='unfinished repair'):
+            source.admit(descriptor)
+        with pytest.raises(ValueError, match='unfinished repair'):
+            source.admit(descriptor, owner=str(tmp_path / 'foreign'))
+        with pytest.raises(ValueError, match='ownership changed'):
+            source.finish(str(tmp_path / 'foreign'), changed=True)
+        assert pending.read_bytes() == before
+        assert source.generation() == 0
+        assert source.admit(descriptor, owner=owner)
+        source.finish(owner, unfinished=True)
+    assert pending.read_bytes() == before
+    restarted = SourceProtection(tmp_path)
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor, restarted.state():
+        assert restarted.admit(descriptor, owner=owner)
+        restarted.finish(owner, changed=True)
+    assert not pending.exists()
+    assert source.generation() == 1
+
+
+def test_checkout_source_fences_startup_and_borrows_writer_through_reload(tmp_path):
+    import detached_launcher as launcher
+    import test_source
+
+    source = test_source.SourceProtection(tmp_path)
+    owner = str(tmp_path / 'repair')
+    probe = tmp_path / 'startup.py'
+    witness = tmp_path / 'imports'
+    probe.write_text('''import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import test_source
+import launcher_reload
+directory = Path(sys.argv[2])
+test_source.source_directory = lambda root: directory
+with test_source.reader(directory) as descriptor:
+    with Path(sys.argv[3]).open('a') as stream:
+        stream.write(sys.argv[4] + '\\n')
+    assert descriptor in test_source.descriptors()
+    if sys.argv[4] == 'startup':
+        launcher_reload.replace([sys.executable, '-B', __file__, *sys.argv[1:4], 'reload'],
+                                test_source.descriptors())
+''')
+    command = [sys.executable, '-B', str(probe), str(ROOT / 'tools'),
+               str(tmp_path), str(witness), 'startup']
+    environment = dict(os.environ)
+    for key in (test_source.VARIABLE, test_source.WRITER,
+                'ONPC_LAUNCHER_RELOAD_BASELINE', 'ONPC_VM_RELOAD_KEEPER'):
+        environment.pop(key, None)
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor:
+        with source.state():
+            assert source.admit(descriptor, owner=owner)
+        # After a crash the kernel lease is gone, but startup still must refuse
+        # before entering the guarded body from the unfinished checkout.
+    refused = subprocess.run(command, env=environment, capture_output=True,
+                             text=True, timeout=10)
+    assert refused.returncode != 0 and 'unfinished repair' in refused.stderr
+    assert not witness.exists()
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor:
+        with source.state():
+            assert source.admit(descriptor, owner=owner)
+        environment.update({test_source.VARIABLE: str(descriptor), test_source.WRITER: owner})
+        subprocess.run(command, env=environment, pass_fds=(descriptor,),
+                       check=True, timeout=10)
+        assert witness.read_text().splitlines() == ['startup', 'reload']
+        assert source.owner() == owner
+        with source.state():
+            source.finish(owner)
+
+
+@pytest.fixture
+def isolated_source(tmp_path, monkeypatch):
+    import threading
+    import test_source
+
+    # This checkout owns only its private leases, never the outer test runner's.
+    for name in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS,
+                 test_source.STARTUP_READER, test_source.STARTUP_WRITER):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(test_source, '_local', threading.local())
+    monkeypatch.setattr(test_source, '_generations', {})
+    monkeypatch.setattr(test_source, 'source_directory', lambda root, **options: tmp_path)
+    return test_source.SourceProtection(tmp_path)
+
+
+def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isolated_source):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    import test_source
+
+    overlap = threading.Barrier(2, timeout=5)
+    def admitted():
+        with test_source.reader(tmp_path) as descriptor:
+            overlap.wait()
+            assert test_source.descriptors() == (descriptor,)
+            assert test_source.environment() == {test_source.VARIABLE: str(descriptor)}
+            overlap.wait()
+            return descriptor
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        futures = [workers.submit(admitted) for _ in range(2)]
+        descriptors = [future.result(timeout=10) for future in futures]
+    assert len(set(descriptors)) == 2
+    assert test_source.descriptors() == ()
+
+
+def test_checkout_source_startup_release_clears_aliases_but_keeps_adopted_writer(
+        tmp_path, monkeypatch, isolated_source):
+    import detached_launcher as launcher
+    import test_source
+
+    source = isolated_source
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor:
+        with source.state():
+            assert source.admit(descriptor)
+        startup = os.dup(descriptor)
+        monkeypatch.setenv(test_source.VARIABLE, str(startup))
+        monkeypatch.setenv(test_source.STARTUP_READER, str(startup))
+        monkeypatch.setenv(test_source.IMPORTS, str(startup))
+        test_source.finish_imports(tmp_path)
+        assert test_source.environment() == {} and test_source.descriptors() == ()
+        assert test_source.STARTUP_READER not in os.environ and test_source.IMPORTS not in os.environ
+        with pytest.raises(OSError):
+            os.fstat(startup)
+
+        owner = str(tmp_path / 'repair')
+        with source.state():
+            assert source.admit(descriptor, owner=owner)
+        monkeypatch.setenv(test_source.VARIABLE, str(descriptor))
+        monkeypatch.setenv(test_source.WRITER, owner)
+        monkeypatch.setenv(test_source.STARTUP_READER, str(descriptor))
+        try:
+            with test_source.reader(tmp_path):
+                # RepairGate may adopt a startup writer before the borrowed
+                # import context leaves. That new registration must survive.
+                test_source.retain(descriptor, owner)
+            test_source.finish_imports(tmp_path, keep=(descriptor,))
+            assert test_source.descriptors() == (descriptor,)
+            assert test_source.environment()[test_source.WRITER] == source.owner() == owner
+            source.validate(descriptor, held=True, writer=True)
+        finally:
+            test_source.forget(descriptor)
+            with source.state():
+                source.finish(owner)
+
+    # A reexec bootstrap may borrow EX for resume, but its owner label alone
+    # does not adopt that descriptor as the new controller's retained writer.
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor:
+        with source.state():
+            assert source.admit(descriptor, owner=owner)
+        bootstrap = os.dup(descriptor)
+    monkeypatch.setenv(test_source.VARIABLE, str(bootstrap))
+    monkeypatch.setenv(test_source.WRITER, owner)
+    monkeypatch.setenv(test_source.IMPORTS, str(bootstrap))
+    with test_source.admission(tmp_path, ['--resume'], repair=True):
+        test_source.finish_admission()
+        assert test_source.descriptors() == () and test_source.environment() == {}
+        with pytest.raises(OSError):
+            os.fstat(bootstrap)
+    assert source.owner() == owner
+    with launcher.lock(tmp_path / 'repair-owner') as descriptor, source.state():
+        assert source.admit(descriptor, owner=owner)
+        source.finish(owner)
+
+
+def test_checkout_source_generation_reloads_through_repair_continuation(tmp_path, isolated_source):
+    import detached_launcher as launcher
+    import launcher_reload
+    from fix_tests_queue import RepairGate
+
+    gate = RepairGate(tmp_path)
+    with gate.source():
+        pass
+    owner = str(tmp_path / 'independent-repair')
+    with launcher.lock(tmp_path / 'repair-owner') as writer, isolated_source.state():
+        assert isolated_source.admit(writer, owner=owner)
+        isolated_source.finish(owner, changed=True)
+    retained = []
+    class Continuation(launcher_reload.ReloadRequested):
+        pass
+    def keep_continuation():
+        retained.append('original admission')
+        raise Continuation()
+    gate.on_reload = keep_continuation
+    with launcher_reload.watching(tmp_path), pytest.raises(Continuation):
+        with gate.source():
+            pytest.fail('stale repair code must not execute another case')
+    assert retained == ['original admission']
+    with launcher.lock(tmp_path / 'repair-owner') as reader, isolated_source.state():
+        assert isolated_source.admit(reader)  # Reload left no hidden reader/writer.
+
+
+def test_checkout_source_resume_cannot_recreate_a_finished_writers_fence(
+        tmp_path, monkeypatch, isolated_source):
+    import fcntl
+    import detached_launcher as launcher
+    import test_source
+
+    source = isolated_source
+    owner = str(tmp_path / 'repair')
+    with launcher.lock(tmp_path / 'repair-owner') as writer:
+        with source.state():
+            assert source.admit(writer, owner=owner)
+        waited = []
+        def finish_while_waiting(_):
+            waited.append(True)
+            with source.state():
+                source.finish(owner)
+                fcntl.flock(writer, fcntl.LOCK_UN)
+        monkeypatch.setattr(test_source, 'time', SimpleNamespace(sleep=finish_while_waiting))
+        with test_source.startup(tmp_path, ['--resume'], repair=True):
+            assert waited == [True]
+            assert source.owner() is None
+            assert test_source.WRITER not in test_source.environment()
+        assert not (tmp_path / 'repair-source-pending.json').exists()
+
+
+def test_checkout_source_privileged_borrow_keeps_the_actual_lease_in_descendants(
+        tmp_path, isolated_source):
+    import detached_launcher as launcher
+    import test_source
+    from test_storage import scratch_descriptors
+
+    holder = '''import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from test_source import SourceProtection, _lock
+source = SourceProtection(Path(sys.argv[2]))
+with _lock(source.directory / 'repair-owner') as descriptor:
+    with source.state():
+        assert source.admit(descriptor, owner=sys.argv[3] or None)
+    print('ready', flush=True)
+    sys.stdin.read()
+'''
+    descendant = '''import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from test_source import SourceProtection, VARIABLE, WRITER
+source = SourceProtection(Path(sys.argv[2]))
+source.validate(int(os.environ[VARIABLE]), held=True, writer=WRITER in os.environ)
+print('ready', flush=True)
+sys.stdin.read()
+'''
+    for owner in (None, str(tmp_path / 'repair')):
+        with subprocess.Popen([sys.executable, '-B', '-c', holder, str(ROOT / 'tools'),
+                               str(tmp_path), owner or ''], stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, text=True) as caller:
+            child = None
+            try:
+                from selectors import DefaultSelector, EVENT_READ
+                with DefaultSelector() as ready:
+                    ready.register(caller.stdout, EVENT_READ)
+                    assert ready.select(5), 'source holder did not start'
+                    assert caller.stdout.readline().strip() == 'ready'
+                with pytest.raises(ValueError, match='authenticated caller'):
+                    with test_source._borrow_process(tmp_path, os.geteuid() + 1, caller.pid):
+                        pytest.fail('a different UID cannot lend source authority')
+                with test_source._borrow_process(tmp_path, os.geteuid(), caller.pid):
+                    descriptor, = test_source.descriptors()
+                    isolated_source.validate(descriptor, held=True, writer=owner is not None)
+                    caller.communicate(timeout=5)  # Original owner has exited.
+                    assert caller.returncode == 0
+                    child = subprocess.Popen(
+                        [sys.executable, '-B', '-c', descendant, str(ROOT / 'tools'), str(tmp_path)],
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                        env={**os.environ, **test_source.environment()}, pass_fds=scratch_descriptors())
+                    with DefaultSelector() as ready:
+                        ready.register(child.stdout, EVENT_READ)
+                        assert ready.select(5), 'source descendant did not start'
+                        assert child.stdout.readline().strip() == 'ready'
+                # Both original owner and borrower released their descriptors.
+                # Only the descendant now excludes the independent writer.
+                with launcher.lock(tmp_path / 'repair-owner') as writer, isolated_source.state():
+                    assert not isolated_source.admit(writer, owner=owner or str(tmp_path / 'other'))
+                child.communicate(timeout=5)
+                assert child.returncode == 0
+                with launcher.lock(tmp_path / 'repair-owner') as writer, isolated_source.state():
+                    assert isolated_source.admit(writer, owner=owner)
+                    if owner is not None:
+                        isolated_source.finish(owner)
+            finally:
+                caller.communicate(timeout=5)
+                if child is not None:
+                    child.communicate(timeout=5)
 
 
 @pytest.mark.parametrize('scope,host_only', [
@@ -892,11 +1455,15 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         tmp_path, monkeypatch, capsys, status, package_format, candidate_format):
     import vm_artifacts
     import build_test_artifacts
-    configured = vm_artifacts.selected()
-    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format=package_format or 'deb'))
+    family = 'fedora44-x86_64' if package_format == 'rpm' else 'ubuntu26.04-x86_64'
+    configured = replace(vm_artifacts.selected(), family=family, package_format=package_format or 'deb')
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
+    target = configured.require_build_target()
     output = tmp_path / 'output'
     candidate = tmp_path / 'candidate' if candidate_format else None
-    verify = Mock(return_value={'artifacts': {'package': {'path': 'app.' + str(candidate_format)}}})
+    verify = Mock(return_value={'artifacts': {'package': {'path': 'app.' + str(candidate_format)}},
+                              'build_inputs': {'build_target': target.name,
+                                               'target_architecture': target.architecture}})
     monkeypatch.setattr(build_test_artifacts, 'verify', verify)
     authorize = Mock()
     monkeypatch.setattr(vm_artifacts, 'check', authorize)
@@ -925,7 +1492,8 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         assert control.run.call_args.args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
             *(['--reuse'] if package_format == 'deb' else []),
-            '--package-format', package_format, '--output', str(output)]
+            '--package-format', package_format, '--build-target', target.name,
+            '--architecture', target.architecture, '--output', str(output)]
         allocate.assert_called_once()
 
 
@@ -945,14 +1513,17 @@ def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
         tmp_path, monkeypatch, status, package_format, candidate):
     import vm_artifacts
     import build_test_artifacts
-    configured = replace(vm_artifacts.selected(), package_format=package_format)
+    family = 'fedora44-x86_64' if package_format == 'rpm' else 'ubuntu26.04-x86_64'
+    configured = replace(vm_artifacts.selected(), family=family, package_format=package_format)
     monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
+    target = configured.require_build_target()
     monkeypatch.setattr(vm_artifacts, 'check', Mock())
     output = tmp_path / 'output'
     allocate = Mock(return_value=str(output))
     monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
     verify = Mock(return_value={'packages': {'current': {
-        'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]}}})
+        'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format],
+        'version': '1.0-1' + (target.dist if package_format == 'rpm' else '')}}})
     monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify)
     control = Mock()
     control.run.side_effect = [status, 0]
@@ -967,14 +1538,16 @@ def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
         verify.assert_not_called()
         assert control.run.call_args.args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
-            '--upgrade-inputs', '--package-format', package_format, '--output', str(output)]
+            '--upgrade-inputs', '--package-format', package_format, '--build-target', target.name,
+            '--architecture', target.architecture, '--output', str(output)]
 
 
 @pytest.mark.parametrize('declared,baseline', [('deb', 5), ('rpm', 3), (None, 5)])
 def test_vm_preparation_never_defaults_or_builds_for_mismatched_configuration(
         tmp_path, monkeypatch, declared, baseline):
     import vm_artifacts
-    configured = replace(vm_artifacts.selected(), package_format=declared)
+    family = 'fedora44-x86_64' if declared == 'rpm' else 'ubuntu26.04-x86_64'
+    configured = replace(vm_artifacts.selected(), family=family, package_format=declared)
     monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
     authorize = Mock()
     monkeypatch.setattr(vm_artifacts, 'check', authorize)
@@ -1202,7 +1775,8 @@ def test_fedora_refuses_wrong_cached_format_before_build(
     import vm_artifacts
     import build_test_artifacts
     configured = vm_artifacts.selected()
-    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured, package_format='rpm'))
+    monkeypatch.setattr(vm_artifacts, 'selected', lambda: replace(configured,
+        family='fedora44-x86_64', package_format='rpm'))
     candidate = tmp_path / 'existing'
     candidate.mkdir()
     preserved = candidate / 'preserved'
@@ -1265,7 +1839,7 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
         ROOT, 'artifacts', ['build', '--output', output], pipe=False) == 0
     allocate.assert_called_once_with(output)
     assert execute.call_args.args[0] == commands.python_file(
-        ROOT, 'tools/build_test_artifacts.py', '--package-format', 'deb', '--output', output)
+        ROOT, 'tools/build_test_artifacts.py', '--matrix', '--output', output)
 
 
 
@@ -1352,7 +1926,12 @@ def test_detached_e2e_failed_build_never_starts_privileged_runner(tmp_path, monk
 
 
 @pytest.fixture
-def checkout(tmp_path):
+def checkout(tmp_path, monkeypatch):
+    import test_source
+    # These inputs are a separate checkout, so they cannot borrow the outer
+    # runner's source ownership. The outer descriptor remains with its owner.
+    for key in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS):
+        monkeypatch.delenv(key, raising=False)
     for category in ('unit', 'component', 'ui', 'child'):
         directory = tmp_path / 'tests' / category
         directory.mkdir(parents=True)

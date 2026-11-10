@@ -7,7 +7,7 @@ scoped checks and cleanup; live resource waits may add time.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | 001 | [Protect unfinished runs during replacement](VM-Scheduling-Tasks/001.md) | Baseline | Extract the source guard and establish a non-destructive retained-state version boundary before cutover. | 2–4 h |
+| [x] | 001 | Protect unfinished runs during replacement | Baseline | Extract the source guard and establish a non-destructive retained-state version boundary before cutover. | Source protection and saved-state checks passed; queued builds retained. Shared-file approval and affected host checks passed; review findings resolved. |
 | [ ] | 002 | [Share VM workers with preparation](VM-Scheduling-Tasks/002.md) | 001 | Centralize allowed-pool reservation, availability, capacity and worker cleanup; move ordinary tests and preparation onto that executor. | 3–6 h |
 | [ ] | 003 | [Give test work one coordinator](VM-Scheduling-Tasks/003.md) | 001, 002 | Balance available workers across families; centralize per-family FIFO claims, independent coverage, accepted results and recovery. | 4–6 h |
 | [ ] | 004 | [Move repairs and rounds onto shared scheduling](VM-Scheduling-Tasks/004.md) | 001, 002, 003 | Cut repairs over with adapter-based impact triage and conditional admission; remove duplicate scheduling and deliver run-wide rounds, task budgets and progress. | 1–2 days |

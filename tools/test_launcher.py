@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 import test_activity
+import test_source
 
 UI_KILL_AFTER = 30.0
 
@@ -153,6 +154,7 @@ def environment(root, *, scratch=True):
                   PYTHONNOUSERSITE='1',
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
+    result.update(test_source.environment())
     from vm_pool import VARIABLE as CHECKOUT
     if CHECKOUT in os.environ:
         result[CHECKOUT] = os.environ[CHECKOUT]
@@ -279,6 +281,7 @@ def pytest_command(root, argv, category):
     return [python, '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]
 
 
+@test_source.protected
 def run_host(root, category, argv):
     command = pytest_command(root, argv, category)
     os.chdir(root)
@@ -327,7 +330,9 @@ def main(argv=None, *, category='unit'):
             options = argv[1:] if argv[:1] == ['--unattended'] else argv
             return session_main(root, [category, '--unattended', *options],
                                 **({'reload': True} if reload else {}))
-        with test_activity.activity(root, host_only=None if inherited else True):
+        import test_source
+        test_source.finish_admission()
+        with test_activity.activity(root, host_only=None if inherited else True), test_source.reader(root):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run
                 return host_run(root, category, argv[1:])

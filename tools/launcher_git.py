@@ -65,6 +65,10 @@ The original unstaged stage_baseline fingerprints still apply. Preserve unrelate
 staged work; the commit skill reviews task ownership before committing.
 Inspect the reported paths against the retained baseline, current HEAD and index.
 Remove an unrelated path from stage_paths only if this task needs no change to it.
+If the developer explicitly authorizes shared-hunk review, use the documented
+--review-ownership control route with --check, then --approve and its exact token.
+This permits only commit-skill review; preserve the original baseline and exclude
+all unrelated hunks. Changed review inputs require a fresh explicit approval.
 Do not drop a required task edit to avoid the guard. Never clear or rewrite the
 ownership checkpoint, adopt unrelated unstaged work, stage or commit that
 work, or discard changes. A later commit touching a path alone does not prove
@@ -270,8 +274,62 @@ def committed_fingerprints(root, paths):
     return result
 
 
-def validate_closeout_ownership(root, paths, state):
-    """Protect unstaged baseline work before the skill reviews commit ownership."""
+def ownership_review_snapshot(root, run, state):
+    """Pin permission to review shared hunks, without releasing their baseline."""
+    paths, _, _ = _ownership_status(root,
+        state.get('git_reconciliation', {}).get('ownership_paths', []), state)
+    if not paths or not state.get('task_id'):
+        raise ValueError('ownership review needs an unfinished ownership reconciliation')
+    stage_task(root, paths)
+    identity, head = validate_pull_identity(root, state)
+    working = {}
+    for path in paths:
+        entry = root / path
+        try:
+            mode = entry.lstat().st_mode
+        except FileNotFoundError:
+            mode = None
+        working[path] = dict(fingerprint=worktree_fingerprint(entry), mode=mode)
+    index = subprocess.run(['git', 'ls-files', '--stage', '-z'], cwd=root,
+                           env=launcher.environment(), capture_output=True, check=True).stdout
+    return dict(root=str(root.resolve()), run=str(run.resolve()), task_id=state['task_id'], task=state['task'],
+                plan_queue=state['plan_queue'], **identity, head=head,
+                baseline={path: state['stage_baseline'][path] for path in paths},
+                protected_staged=state['protected_staged'], working=working,
+                index_sha256=hashlib.sha256(index).hexdigest())
+
+
+def ownership_review_token(snapshot):
+    return hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+
+
+def approved_ownership_review(root, run, state):
+    paths, _, _ = _ownership_status(root,
+        state.get('git_reconciliation', {}).get('ownership_paths', []), state)
+    if not paths:
+        return None
+    path = run / 'ownership-review.json'
+    if not path.exists():
+        return None
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+            or info.st_nlink != 1 or info.st_size > 65536):
+        raise ValueError('unsafe ownership review receipt; preserve the retained run')
+    review = json.loads(path.read_text())
+    current = ownership_review_snapshot(root, run, state)
+    saved = review.get('snapshot', {})
+    # Clean paths need no exception. Retiring one cannot invalidate approval
+    # for unchanged remaining overlaps, or release their original fingerprints.
+    reduced = dict(saved, baseline={name: value for name, value in saved.get('baseline', {}).items()
+                                   if name in paths},
+                   working={name: value for name, value in saved.get('working', {}).items()
+                            if name in paths})
+    if (review.get('approval') != ownership_review_token(saved) or reduced != current):
+        raise OwnershipReconciliationRequired(current['baseline'])
+    return review
+
+
+def _ownership_status(root, paths, state):
     baseline = state['stage_baseline']
     protected = set(state['protected_staged'])
     overlap = set()
@@ -293,8 +351,18 @@ def validate_closeout_ownership(root, paths, state):
                 released[path] = baseline[path]
             elif path in paths:
                 overlap.add(path)
+    return overlap, released, clean_paths
+
+
+def validate_closeout_ownership(root, paths, state, *, run=None):
+    """Protect unstaged baseline work before the skill reviews commit ownership."""
+    overlap, released, clean_paths = _ownership_status(root, paths, state)
     if overlap:
-        raise OwnershipReconciliationRequired(overlap)
+        review = approved_ownership_review(root, run, state) if run is not None else None
+        if review is None or not overlap.issubset(review['snapshot']['baseline']):
+            raise OwnershipReconciliationRequired(overlap)
+        # Approval permits only a supervised hunk-ownership review. Keep every
+        # original fingerprint, including suspended copies, for the commit skill.
 
     def retire(saved):
         # Release clean paths before the next task edits them, including inherited
@@ -308,6 +376,28 @@ def validate_closeout_ownership(root, paths, state):
             retire(consumer)
 
     retire(state)  # The caller checkpoints this before any Git write.
+
+
+def uncommitted_skill_intent(root, run, state, *, git=None):
+    """Only journaled, verified Git progress may outlive a review snapshot."""
+    intent = state.get('commit_intent')
+    if intent is None:
+        return True
+    if intent.get('engine') != 'skill':
+        raise ValueError('ownership review requires a supported commit intent')
+    git = git or git_output
+    progress = run / 'commit-skill' / intent['session'] / 'progress.json'
+    previous = json.loads(progress.read_text()) if progress.exists() else {}
+    commit = previous.get('source_commit')
+    if commit:
+        if (not re.fullmatch('[0-9a-f]{40}', commit) or commit == intent['parent']
+                or git(root, 'merge-base', '--is-ancestor', intent['parent'], commit, check=False).returncode
+                or git(root, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode):
+            raise GitReconciliationRequired('commit journal does not identify preserved source progress')
+        return False
+    if git(root, 'rev-parse', '--verify', 'HEAD').stdout.strip() != intent['parent']:
+        raise GitReconciliationRequired('unjournaled source HEAD changed; reconcile before reviewing ownership')
+    return True
 
 
 GIT_RETRY_WINDOW = 3 * 60 * 60
@@ -471,10 +561,19 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
     identity, head = validate_pull_identity(root, state, git=git)
     targets = commit_skill_targets(root, git=git)
     intent = state.get('commit_intent')
+    review = None
+    if ((state.get('git_reconciliation', {}).get('ownership_paths')
+         or intent is not None and intent.get('ownership_review'))
+            and uncommitted_skill_intent(root, run, state, git=git)):
+        validate_closeout_ownership(root, paths, state, run=run)
+        review = approved_ownership_review(root, run, state)
+        if intent is not None:
+            intent['ownership_review'] = review
+            launcher.atomic(run / 'checkpoint.json', state)
     if intent is None:
         intent = state['commit_intent'] = dict(
             engine='skill', session=uuid.uuid4().hex, parent=head, paths=list(paths), message=message,
-            **identity, targets=targets)
+            **identity, targets=targets, ownership_review=review)
         launcher.atomic(run / 'checkpoint.json', state)
     if (intent['paths'] != list(paths) or intent['message'] != message
             or any(intent[key] != identity[key] for key in identity)
@@ -508,6 +607,13 @@ Accepted task scope and original branch identity:
 Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
 Only the listed task paths are candidates, not proof of hunk ownership. Preserve
 all unrelated staged, unstaged and untracked work, including within those files.
+An ownership_review in the intent authorizes reviewing only its exact shared
+file snapshots. It does not authorize adopting or committing pre-existing work.
+The original stage_baseline remains authoritative. Identify the task's hunks
+from its finite deliverable and source changes; omit unrelated candidate files
+and unrelated hunks in shared files. If those boundaries cannot be established,
+return blocked without staging or committing ambiguous work. Do not remove or
+rewrite the ownership baseline or treat this review approval as ownership.
 For hunk-only staging, use direct git apply --cached [OPTIONS] PATCH commands
 with --cached immediately after apply, from the intended checkout working
 directory. This approved index-only route also supports --check and --reverse;

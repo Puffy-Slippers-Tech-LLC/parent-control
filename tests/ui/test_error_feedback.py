@@ -217,6 +217,68 @@ def test_request_error_review_restrictions_and_submission(
     assert len(events(path, "feedback")) == (2 if retry else 1)
 
 
+@pytest.mark.parametrize("late_status", (503, 202), ids=("late-retry", "late-success"))
+def test_child_stops_sending_report_before_late_response(
+        launch_ui, automation, wait_for_accessible_state, collect_application_logs,
+        tmp_path, late_status):
+    ui, wait = automation, wait_for_accessible_state
+    release = tmp_path / "feedback-retry-release"
+    launches = []
+
+    def record_launch(*args, **kwargs):
+        launched = launch_ui(*args, **kwargs)
+        launches.append(launched)
+        return launched
+
+    _process, path = launch_request(
+        record_launch, tmp_path, overlay=True, scenario="service-failure",
+        feedback_status=503, feedback_retry_release=release,
+        feedback_retry_status=late_status,
+    )
+    submit_request(ui, wait)
+    wait(lambda: ui.showing("kiosk-report-toggle"), "child can review the failed request")
+    ui.activate("kiosk-result-action")
+    wait(lambda: ui.showing("feedback-dialog"), "child's error report opens")
+    wait_for_error_draft(ui, wait)
+    wait(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
+         "child's report is ready to send")
+    try:
+        ui.activate("feedback-send")
+        wait(lambda: ui.text("feedback-status").startswith(
+            "Could not confirm submission. Retrying in "),
+            "child sees the automatic retry")
+        assert ui.text("feedback-close") == "Stop sending and close"
+        assert ui.state("feedback-close", ui.api.StateType.SENSITIVE)
+        assert not ui.state("feedback-send", ui.api.StateType.SENSITIVE)
+        assert not events(path, "close_overlay") and not events(path, "logout")
+        wait(lambda: len(events(path, "feedback")) == 2,
+             "the automatic retry is pending in the fake HTTP session")
+        ui.activate("feedback-close")
+        wait(lambda: ui.absent("feedback-dialog", within="kiosk-request-window"),
+             "Stop directly closes the report without confirmation")
+        wait(lambda: bool(events(path, "close_overlay")),
+             "closing the report calls the overlay exit before the response is released")
+        assert len(events(path, "close_overlay")) == 1
+        assert not events(path, "logout")
+        assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
+    finally:
+        release.touch()
+
+    # ErrorHandler destroys the closed report. Synchronize with its real
+    # completion handler's existing diagnostic before checking the public UI;
+    # a released HTTP response alone would not prove that handler ran.
+    outcome = "success" if late_status == 202 else "cancelled"
+    log_path = launches[0][1]
+    wait(lambda: f"feedback submission finished outcome={outcome}" in
+         collect_application_logs(log_path),
+         "the closed report handles the late response")
+    assert ui.absent("feedback-dialog", within="kiosk-request-window")
+    assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
+    assert len(events(path, "feedback")) == 2
+    assert len(events(path, "close_overlay")) == 1
+    assert not events(path, "logout")
+
+
 def test_parent_discovery_error_opens_prefilled_feedback(
         launch_ui, automation, wait_for_accessible_state):
     # Fatal discovery replaces language setup with the error report.

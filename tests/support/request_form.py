@@ -6,7 +6,7 @@ from tests.support.events import read_events
 def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selections_path=None,
                    wait_for_application=False, complete_language_setup=True,
                    loading_release=None, request_release=None, feedback_status=202,
-                   feedback_retry_release=None):
+                   feedback_retry_release=None, feedback_retry_status=202):
     path = tmp_path / f"request-{overlay}-{scenario}.jsonl"
     application, _log = launch_ui(
         "request_component_preview", wait_for_application=wait_for_application,
@@ -20,6 +20,7 @@ def launch_request(launch_ui, tmp_path, *, overlay, scenario="normal", selection
             "ONPC_REQUEST_COMPONENT_REQUEST_RELEASE": str(request_release or ""),
             "ONPC_FEEDBACK_STATUS": str(feedback_status),
             "ONPC_FEEDBACK_RETRY_RELEASE": str(feedback_retry_release or ""),
+            "ONPC_FEEDBACK_RETRY_STATUS": str(feedback_retry_status),
         },
     )
     return application, path

@@ -3,6 +3,10 @@
 Status: planning only. No implementation, task execution or VM operation has
 been authorized by this conversion. All queue rows remain unfinished.
 
+Current validation constraint: all VMs are occupied and expected to remain so
+for a very long time. Use non-VM validation only; do not attempt or wait for VM
+validation. Required live qualification remains pending until VMs are available.
+
 Task queue: [Ordered task queue](VM-Scheduling-Task-Queue.md).
 Next task: **001 — [Protect unfinished runs during replacement](VM-Scheduling-Tasks/001.md)**.
 

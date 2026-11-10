@@ -324,23 +324,23 @@ nav button { flex-shrink: 0; }
 }
 .pane-toolbar {
     display: flex; flex-shrink: 0; min-width: 0;
-    border-bottom: 1px solid var(--watch-rule); background: var(--watch-header);
+    color: #fff; border-bottom: 1px solid #254c80;
+    background: linear-gradient(#4b78b8, #214a80);
 }
 .pane-toolbar > strong { flex: 1; align-self: center; padding: 8px; }
 .pane-toolbar { min-height: 45px; }
 #viewers { flex: 1; min-width: 0; align-items: center; gap: 4px; padding: 8px; }
 .tile-layout {
     display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 0 4px;
-    border-left: 1px solid var(--watch-title-divider); background: var(--vscode-editor-background);
+    border-left: 1px solid rgb(255 255 255 / 25%);
 }
 .tile-layout button {
     display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
     padding: 4px; border: 1px solid transparent; border-radius: 3px; background: transparent;
 }
-.tile-layout button:hover { background: var(--vscode-toolbar-hoverBackground); }
+.tile-layout button:hover { background: rgb(255 255 255 / 18%); }
 .tile-layout button[aria-pressed="true"] {
-    background: var(--vscode-inputOption-activeBackground); border-color: var(--vscode-inputOption-activeBorder);
-    color: var(--vscode-inputOption-activeForeground);
+    background: #68cef3; border-color: #a1e5ff; color: #123f60;
 }
 .tile-layout svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .minimized-tiles {

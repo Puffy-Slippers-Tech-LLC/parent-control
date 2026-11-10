@@ -20,7 +20,6 @@ from oh_no_parent_control.core import (
     BrokerError,
     Busy,
     InvalidRequest,
-    RateLimited,
     RollbackFailure,
     UserAccount,
 )
@@ -415,7 +414,6 @@ def test_malformed_json_unknown_methods_and_worker_failures_are_public_errors(
         (InvalidRequest, "request is invalid"),
         (AccessDenied, "request is denied"),
         (Busy, "broker is busy"),
-        (RateLimited, "request is rate limited"),
         (BackendFailure, "backend operation failed"),
         (RollbackFailure, "rollback verification failed"),
     ),

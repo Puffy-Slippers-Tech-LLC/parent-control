@@ -127,7 +127,8 @@ termination residuals; expiry work must not copy their existing fault matrices.
 
 Tasks **150o/150k** are absorbed into **262/263** (cases **220/221**).
 Task **150** retains the shared fake-sender submission and app-success
-boundary; **187o/187k** retain each installed error-report entry and Privacy binding.
+boundary. Genuine installed request-error entry and Privacy bindings remain
+uncovered after retirement of the cooldown tasks in [Plan B](E2E-Task-QueueB.md).
 Former cases 220/221 now follow the
 [mock-sending UI allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation):
 actual dialog success, confirmation, dismissal and recorded close/logout
@@ -188,8 +189,9 @@ fully executable in system **255**,
 surfaces, cancellation without writes, transaction release, authenticated retry
 and peer isolation. Do not recreate a separate implementation/qualification task
 or the proposed `test_e2e_disconnect_recovery` wrapper. This is suite allocation,
-not a new pass or completion claim. Customer case **176** (overlay cooldown) and
-task **218** remain unchanged; task IDs and case IDs are separate namespaces.
+not a new pass or completion claim. Historical customer case **176** is separately
+excluded after cooldown removal and its task **218** is retired; task IDs and
+case IDs are separate namespaces.
 
 Task **177** is removed from scheduling. Engineering obligation **148** reuses
 the executable threaded broker conflict/retry tests in `tests/unit/test_core.py`,

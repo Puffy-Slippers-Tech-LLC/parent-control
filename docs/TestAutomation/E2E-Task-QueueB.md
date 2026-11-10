@@ -6,7 +6,7 @@ Use the [shared execution instructions](E2E-Execution-Instructions.md) and
 briefs, scope, estimates and acceptance are preserved from the original queue.
 Pending prerequisites and their consumers stay together here; there are no
 unfinished dependencies on Plan A or [Plan C](E2E-Task-QueueC.md).
-Installed pending-approval exits, cooldown reports and diagnostic-collection
+Installed pending-approval exits and diagnostic-collection
 groups stay here. Host-only feedback success, without-logs and Stop groups
 belong exclusively to C, alongside its system, calendar, preset and What's New
 groups. Component sending and installed report triggers are independent under
@@ -19,6 +19,15 @@ Checked rows below are the already-delivered baseline needed by this plan,
 recorded at the split. Their prior prerequisites are satisfied (`Baseline`);
 they do not request any execution or future close-out in Plan A. Reuse current
 source/catalogue qualifications and preserve historical completion.
+
+The successful-request cooldown was removed. Unfinished tasks 187a/187o/187b/187k
+and 218/220 are retired without completion credit. Historical cases 176/178 stay
+pending, excluded from scheduling and without executables; their IDs are reserved.
+Genuine request-error review/decline remains an uncovered FEED15 binding rather
+than a manufactured cooldown error. Task 188k also requires a genuine public
+kiosk request-error entry before its collection-failure observation.
+
+Excluded cases: **176, 178** (retired successful-request cooldown behavior).
 
 ## Ordered task queue
 
@@ -130,15 +139,9 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 216 | Close a child's pending request and approve a fresh one | 183d, 180, 079b, 079d | Cases 174; complete Close/cancel/recovery passed on selected Fedora 44 in `20261110T035905Z-4f83198f`: same child session, preserved choices, no cancelled grant, unchanged balances/rules and hard/soft denials before fresh parent authentication; actual added time, usable child/Soft and continued Hard denial after approval. Fixed the missing composed approval binding while retaining account, request and single-use guards. Host safety/source checks, listing, coverage refresh and links passed. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. | 20–30 |
 | [x] | 183e | Close the station during pending approval | 021a, 180 | FLOW17 kiosk app-close; passed on selected Fedora 44: real pending Riley/Jamie approval, same-challenge guarded normal surface close, usable GDM, fresh station entry with absent old prompt, unchanged usable choices and public Parent balances with zero new grant. Kiosk approval and overlay-close regressions passed. All 115 focused input-safety checks, source/traceability, coverage refresh and links passed; collection, worker/callback shutdown, owned cleanup and baseline restoration passed; VM off. No complete case 175 credit. | 20–30 |
 | [x] | 217 | Close a station request and approve fresh time | 183e, 079b, 079d, 021a | Cases 175; complete station Close/cancel/recovery passed on selected Fedora 44 in `scenario-e1d1573cf3f246d5917b7edb4752f8f7`: real pending prompt, normal Close/GDM return, absent old prompt, both children's preserved choices/balances/rules and Riley's H/S denials before fresh authentication; actual added time, usable child/Soft and continued Hard denial, with Jordan unchanged. All 118 focused safety checks, source/traceability, listing, links and coverage refresh passed. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. | 20–30 |
-| [ ] | 187a | [Observe and decline an overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048d | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
-| [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 187a, 030 | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
-| [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079d, 052c | Cases 176; includes report review/decline (former 206); gate in brief | 20–30 |
-| [ ] | 187b | [Observe and decline a kiosk cooldown error](E2E-Tasks/187b-kiosk-cooldown-error.md) | 021a | REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief | 20–30 |
-| [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 187b, 030 | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
-| [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079d, 052c | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
 | [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
 | [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
-| [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k | FEED09 kiosk collection failure and usable controls; gate in brief | 20–30 |
+| [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 021a, 030 | FEED09 kiosk collection failure and usable controls; genuine public request-error entry and collection-failure trigger remain gated | 20–30 |
 
 ## Deferred future work
 

@@ -57,9 +57,14 @@ This is a storage guarantee. The current Parent restoration path has a
 for apps with a suggested wildcard.
 
 Machine configuration is separate at
-`/etc/oh-no-parent-control/config.json`. It contains only its schema version,
-the kiosk UID, and the minimum successful-request interval; it does not
-duplicate child preferences.
+`/etc/oh-no-parent-control/config.json`. Canonical schema version 4 contains only
+`version` and `kiosk_uid`; it does not duplicate child preferences. Package
+provisioning replaces machine configuration with version 4 on installation,
+upgrade and reconfiguration before broker activation. The broker accepts only
+that schema, with no retired cooldown field or legacy reader. Machine
+configuration is separate from the per-user preference migration chain.
+The example kiosk UID is not a fixed runtime identity; installation generates
+the actual value.
 
 Language shares the preference store and migration chain. Version 4 adds
 `personal.language`; migration adds an empty selection while retaining policy
@@ -326,10 +331,6 @@ state; it does not replay all preference values into AccountsService. In
 particular, ordinary package removal clears derived restrictions while retaining
 preferences. Reinstallation preserves those choices without automatically
 reconstructing every cleared runtime limit/filter or one-time grant.
-
-The machine configuration also currently uses version 3, independently of the
-preference schema. Its example kiosk UID is not a fixed runtime identity;
-installation generates the actual value.
 
 ## Related design
 

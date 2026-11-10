@@ -2225,9 +2225,6 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             if surface == 'app-restart-choices':
                 from real_interval import interval_action
                 actions['real-interval'] = interval_action(2)
-            if surface == 'panel-request':
-                from real_interval import interval_action
-                actions['cooldown'] = interval_action(5)
         if surface in ('remove-selected', 'remove-last-child'):
             from account_fixture import SpareChildrenFixture
             fixture = SpareChildrenFixture(context, count=1 if surface == 'remove-last-child' else 2)

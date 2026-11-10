@@ -1041,7 +1041,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give the child positive time and set hard and soft app blocks. Obtain a real soft-app exception and open recognizable soft activity, then open the fixed-child request once through the panel entry."},
           {"id": "step-2", "operation": "ui", "description": "Choose the declared eligible parent, short duration and soft-app option. Read the estimate, select Request and check that the system prompt identifies the same parent, child, duration and app choice."},
-          {"id": "step-3", "operation": "ui", "description": "Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. After the cooldown, reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel."}
+          {"id": "step-3", "operation": "ui", "description": "Approve in the system prompt. Observe confirmation, automatic closure, refreshed time and soft-app closure or retention; new hard-blocked launches stay denied. Immediately reopen the overlay through the direct child app command, verify a new parent prompt is required and cancel."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2310,10 +2310,10 @@
     },
     {
       "id": "E2E-039",
-      "title": "Leave a pending approval or request again too soon",
+      "title": "Leave a pending approval and request again",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
-      "requirements": ["ONPC-CORE-REQUEST-013", "ONPC-CORE-RECOVERY-007", "ONPC-CORE-RECOVERY-008", "ONPC-CORE-FEEDBACK-001", "ONPC-CORE-FEEDBACK-007", "ONPC-CORE-FEEDBACK-012", "ONPC-CORE-FEEDBACK-013"],
+      "requirements": ["ONPC-CORE-REQUEST-013", "ONPC-CORE-RECOVERY-007", "ONPC-CORE-RECOVERY-008"],
       "requirement_gap": null,
       "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md", "docs/Specification.md"],
       "components": ["parent", "child", "kiosk", "broker"],
@@ -2327,9 +2327,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown."},
-          {"id": "step-2", "operation": "ui", "description": "Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child."},
-          {"id": "step-3", "operation": "ui", "description": "Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child."}
+          {"id": "step-1", "operation": "ui", "description": "Enable limits and enter the declared form. Record time and app access, then open the parent prompt for an interruption."},
+          {"id": "step-2", "operation": "ui", "description": "Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending. Return normally and require the old prompt to be absent."},
+          {"id": "step-3", "operation": "ui", "description": "Read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Make a new request with fresh parent authentication and check the actual added time, intended app access and usable destination."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -2341,7 +2341,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Leaving the requesting session cannot revive approval; too-soon requests open no new prompt or give extra time/app access. Separate errors support report review and decline with correct desktop/GDM return, unchanged balances/restrictions before later approval and no report on decline. A later valid request works with fresh authentication; station cooldown is shared across children."}
+          {"id": "visible-result", "step_id": "step-3", "description": "Leaving the requesting session cannot revive approval or grant extra time/app access. Choices, balances and restrictions remain intact before a fresh authenticated request grants the intended child's access and returns to a usable destination."}
         ],
         "backend": [],
         "other_user": []
@@ -2353,7 +2353,7 @@
           "flow": ["overlay-lock", "overlay-switch", "overlay-signout", "overlay-close", "kiosk-close", "overlay-cooldown", "kiosk-cooldown-other"]
         },
         "full_combinations": [],
-        "rationale": "Public interruption routes need qualification. One cooldown journey per surface includes separate genuine errors for report review and decline, no unintended access and fresh approval after waiting. Station targets the other child to retain shared cooldown coverage. Same-child station case 177 is removed; report cases 206/207 are absorbed into 176/178. Those IDs must not be reused. No process kill, extended cooldown or artificially delayed authentication."
+        "rationale": "Public interruption routes need qualification. Historical cooldown cases 176/178 are retired and excluded from scheduling after removal of the waiting period; they remain pending with no executables or acceptance credit. Immediate repeat requests with fresh authentication reuse E2E-012 and broker tests, without a replacement E2E task. Delayed-approval supporting histories do not reopen excluded E2E-048 or supply its acceptance. Genuine request-error review/decline remains unqualified under FEED15. Same-child station case 177 and report cases 206/207 stay removed; no IDs may be reused. No process kill or artificially delayed authentication."
       },
       "variants": [
         {"coverage_id": 171, "id": "overlay-lock", "owner": "continuous-journeys", "parameters": {"flow": "overlay-lock"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_lock_case.py", "test_id": "overlay-lock"}},
@@ -2361,8 +2361,8 @@
         {"coverage_id": 173, "id": "overlay-signout", "owner": "continuous-journeys", "parameters": {"flow": "overlay-signout"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_lock_case.py", "test_id": "overlay-signout"}},
         {"coverage_id": 174, "id": "overlay-close", "owner": "continuous-journeys", "parameters": {"flow": "overlay-close"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_lock_case.py", "test_id": "overlay-close"}},
         {"coverage_id": 175, "id": "kiosk-close", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-close"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/station_close_case.py", "test_id": "kiosk-close"}},
-        {"coverage_id": 176, "id": "overlay-cooldown", "owner": "continuous-journeys", "parameters": {"flow": "overlay-cooldown"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 178, "id": "kiosk-cooldown-other", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-cooldown-other"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 176, "id": "overlay-cooldown", "owner": "continuous-journeys", "parameters": {"flow": "overlay-cooldown"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: successful-request cooldown behavior was removed. Historical case and task 218 are retired without acceptance credit; preserve this ID and do not create a replacement task. Immediate repeat authentication uses existing E2E-012 and broker coverage; genuine request-error review/decline remains unqualified under FEED15.", "executable": null},
+        {"coverage_id": 178, "id": "kiosk-cooldown-other", "owner": "continuous-journeys", "parameters": {"flow": "kiosk-cooldown-other"}, "status": "pending", "pending_reason": "Excluded from E2E scheduling: successful-request cooldown behavior was removed. Historical case and task 220 are retired without acceptance credit; preserve this ID and do not create a replacement task. Immediate repeat authentication uses existing E2E-012 and broker coverage; genuine request-error review/decline remains unqualified under FEED15.", "executable": null}
       ]
     },
     {
@@ -2683,7 +2683,7 @@
           "surface": ["parent"]
         },
         "full_combinations": [],
-        "rationale": "Parent retains its real user-error report journey. Child-overlay and kiosk review/decline are absorbed into E2E-039 cooldown cases 176/178; former case IDs 206/207 must not be reused. No private fault switch or sending."
+        "rationale": "Parent retains its real user-error report journey. Child-overlay and kiosk review/decline remain unqualified under FEED15 after retirement of cooldown cases 176/178; a genuine public request-error route is required. Former case IDs 206/207 must not be reused. No private fault switch or sending."
       },
       "variants": [
         {"coverage_id": 205, "id": "parent", "owner": "continuous-journeys", "parameters": {"surface": "parent"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/parent_error_report.py", "test_id": "parent-error-report"}}
@@ -2818,7 +2818,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Through Parent and real approvals, prepare this case's daily-only, grant-only, daily-dominant or grant-dominant balance. Read both balances, then open the selected request form, choose 0.5 additional minutes with soft apps excluded, read its estimate and open the matching parent's authentication prompt."},
           {"id": "step-2", "operation": "ui", "description": "Spend 45 seconds deciding at the open prompt without leaving that session, then authenticate once. Read the success and automatic exit. No settings or other requests are changed during this wait."},
-          {"id": "step-3", "operation": "ui", "description": "Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. After the cooldown, request another 0.5 minutes immediately on the same surface and check that increment too. Approval must use current balances; time continues during the prompt and confirmation."}
+          {"id": "step-3", "operation": "ui", "description": "Read the child's countdown and Parent's balances against the earlier public values and elapsed active or away time. Request another 0.5 minutes immediately on the same surface with fresh parent authentication and check that increment too. Approval must use current balances; time continues during the prompt and confirmation."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}

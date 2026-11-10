@@ -16,7 +16,7 @@ const OPERATIONS = new Set([
 ]);
 const BROKER_ERRORS = new Map([
     ['AccessDenied', 'access-denied'], ['InvalidRequest', 'invalid-request'],
-    ['Busy', 'busy'], ['RateLimited', 'rate-limited'], ['BackendFailure', 'backend-failure'],
+    ['Busy', 'busy'], ['BackendFailure', 'backend-failure'],
     ['RollbackFailure', 'rollback-failure'], ['RebootRequired', 'reboot-required'], ['Failed', 'failed'],
 ].map(([name, category]) => [`com.puffyslippers.OhNoParentControl1.Error.${name}`, category]));
 

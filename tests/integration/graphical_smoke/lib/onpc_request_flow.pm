@@ -557,7 +557,7 @@ sub panel_request_case {
     } else {
         $journey->seen($_) for qw(soft-closed hard-denied soft-denied);
     }
-    $journey->seen('cooldown');
+    $journey->seen('repeat-ready');
     my $later = $journey->scope('later');
     $later->{overlay_request} = $binding;
     prepare($later, 'new', 'new', 'observed', 'fixture-child', $approver, 30, $included, 'overlay');
@@ -784,7 +784,7 @@ sub delayed_approval {
         if ($request eq 'first') {
             onpc_desktop_session::enter_desktop($journey, 'desktop', 'child', 'retained',
                 'success', 'return-child', 'parent');
-            $journey->seen('cooldown');
+            $journey->seen('repeat-ready');
         }
     }
     $journey->finish();

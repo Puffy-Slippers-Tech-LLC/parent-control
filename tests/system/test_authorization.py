@@ -874,7 +874,6 @@ def _requester_disconnect_during_approval(accounts, callers, passwords,
 
     for surface in ('child', 'kiosk'):
         accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
-        granted_at = None
         try:
             before = snapshot_accounts(accounts)
             caller_uid = target if surface == 'child' else accounts['kiosk']
@@ -955,7 +954,7 @@ def _requester_disconnect_during_approval(accounts, callers, passwords,
 
             # Use the same UID, selected parent, password, and displayed request
             # on a new bus connection. A real grant proves cancellation did not
-            # consume the repeat interval or leave the broker blocked.
+            # leave the broker blocked or authorize the fresh request.
             with PersistentCaller(caller_uid) as fresh, TextAgent(
                     fresh, record_diagnostic=authentication_diagnostics) as agent:
                 fresh.send(operation)
@@ -963,7 +962,6 @@ def _requester_disconnect_during_approval(accounts, callers, passwords,
                 agent.authenticate(passwords['parent1'])
                 result = accepted(fresh.receive())
                 guest.require(result[1] == 'approved', 'authorization:disconnect-retry-not-approved')
-                granted_at = time.monotonic()
                 extension = account_property(target,
                     'com.endlessm.ParentalControls.SessionLimits', 'ActiveExtension')
                 guest.require(extension[0] > 0 and extension[1] >= 300,
@@ -978,13 +976,6 @@ def _requester_disconnect_during_approval(accounts, callers, passwords,
         finally:
             accepted(manager.call('RevokeOneTimeGrant', '(u)', (target,)))
             accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
-            if granted_at is not None:
-                # The successful control must not rate-limit a later validation
-                # using the same child/kiosk UID. Let the real interval
-                # elapse; never reset broker state or alter product configuration.
-                interval = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())[
-                    'minimum_request_interval_seconds']
-                time.sleep(max(0, granted_at + interval - time.monotonic()))
 
 
 def _authenticated_request_rejects_deleted_target(accounts, callers, passwords,
@@ -1067,7 +1058,6 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
     interface = 'org.freedesktop.Accounts.User'
     path = f'/org/freedesktop/Accounts/User{changed_uid}'
     role_changed = False
-    granted_at = None
     try:
         with PersistentCaller(accounts[surface]) as caller, TextAgent(
                 caller, record_diagnostic=authentication_diagnostics) as agent:
@@ -1120,7 +1110,6 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
                 result = accepted(caller.receive())
                 guest.require(result[1] == 'approved' and result[2] > 0,
                               boundary + ':recovery-not-approved')
-                granted_at = time.monotonic()
                 grant = account_property(target,
                     'com.endlessm.ParentalControls.SessionLimits', 'ActiveExtension')
                 guest.require(grant[0] > 0 and grant[1] == 300,
@@ -1136,12 +1125,6 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
                        path, interface, 'SetAccountType', 'i', str(original_role)])
         accepted(manager.call('SetPreferences', '(us)', (target, original_preferences)))
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
-        if granted_at is not None:
-            # Preserve the next transaction's real cooldown boundary, as in
-            # requester-disconnect recovery; never reset broker state.
-            interval = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())[
-                'minimum_request_interval_seconds']
-            time.sleep(max(0, granted_at + interval - time.monotonic()))
 
 
 def _request_rejects_locked_approver_during_authentication(

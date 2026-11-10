@@ -201,7 +201,7 @@ inside its declared allowance pass. Keep deliberately injected fault histories
 in their existing engineering owners, following the test scope mandate.
 
 Recipes retain real elapsed-time inputs: delayed approval, natural expiry,
-cooldown, refresh intervals and calendar transitions. Their start/end public
+refresh intervals and calendar transitions. Their start/end public
 observations and finite bounds remain distinct from the functional budgets in
 the VM timing owner. During suspend, use the
 controller's elapsed clock; guest uptime and lost SSH alone prove neither

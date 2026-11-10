@@ -114,8 +114,8 @@ direct Stop and explicit Send without logs under declared responses. Recorded
 request close/logout callbacks establish callback ordering, not an installed
 desktop or GDM destination. Genuine installed error entry, collection failure
 and recovery, confinement and public request-exit results remain with their
-existing owners. Do not gate these local sending checks on a real cooldown,
-Internet isolation or a missing public collection-failure trigger.
+existing owners. Do not gate these local sending checks on an installed
+request-error entry, Internet isolation or a missing public collection-failure trigger.
 
 Real sending is a separate optional integration check under the
 [live-delivery contract](../../tests/README.md#coverage-maintenance-workflow),
@@ -182,8 +182,15 @@ is established, so the combined capability and complete case 208 remain pending.
 Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers remain absorbed into
 former cases 220/221, now allocated to the
 [mock-sending UI owner](#feedback-sending-allocation). Task 150 owns shared
-component response/confirmation checks; 187o/187k retain real installed
-error-report entry and Privacy. Mock close/logout callbacks do not qualify
+component response/confirmation checks. The cooldown behavior and unfinished
+tasks 187a/187o/187b/187k and 218/220 are retired; stable historical cases
+176/178 remain pending and excluded with no executable or acceptance credit.
+Immediate sequential requests with fresh authentication reuse the existing
+panel-request history and broker tests, without another E2E task. Delayed-approval
+modules retain their supporting history; E2E-048 stays excluded under its separate
+save-failure decision and gains no acceptance here. Genuine installed request-error review/decline, Privacy and exit
+bindings remain uncovered under FEED15 until a real public error route is
+qualified; collection task 188k retains that entry gate. Mock close/logout callbacks do not qualify
 their installed destinations. Pending-prompt transition
 qualifiers 183a–e retain cancellation and safe return; cases 171–175 own the
 fresh successful approval, balance and access recovery. No lower-layer pass

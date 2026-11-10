@@ -2,7 +2,6 @@
 
 def valid_config():
     return {
-        "version": 3,
+        "version": 4,
         "kiosk_uid": 991,
-        "minimum_request_interval_seconds": 5,
     }

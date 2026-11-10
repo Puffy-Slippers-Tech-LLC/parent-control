@@ -10,8 +10,8 @@ current branch. Explicit `--branch NAME` selects another checkout. Apply the sam
 [execution contracts](E2E-Execution-Contracts.md) as Plan A.
 This plan owns only its queue, task briefs and next-task pointer. It can run to
 completion without executing or completing any unfinished Plan A or
-[Plan C](E2E-Execution-PlanC.md) task. Installed pending-approval exits, cooldown
-reports and diagnostic-collection work stay here. Host-only feedback sending,
+[Plan C](E2E-Execution-PlanC.md) task. Installed pending-approval exits and
+diagnostic-collection work stay here. Host-only feedback sending,
 without-logs and Stop obligations belong exclusively to Plan C, alongside its
 system, calendar, preset and What's New groups.
 
@@ -20,11 +20,11 @@ Task queue: [Plan B ordered checklist](E2E-Task-QueueB.md).
 The installed report journeys retain their own acceptance under the
 [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 They do not wait for Plan C's component sending checks, and those checks do not
-wait for this plan's installed cooldown or collection-failure triggers.
+wait for this plan's installed request-error or collection-failure triggers.
 
 ## Next task
 
-Next task: **187a — [Observe and decline an overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md)**.
+Next task: **188r — [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md)**.
 
 Snap denial/closure work is deferred by developer decision, not passed. Apply the
 [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);

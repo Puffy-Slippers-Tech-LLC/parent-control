@@ -43,7 +43,7 @@ ERROR_CODES = frozenset((
     "InvalidRequest", "Busy", "ConfigurationError", "ExecutionPolicyError",
     "RequestException", "ConnectionError", "ConnectTimeout", "ReadTimeout",
     "SSLError", "JSONDecodeError", "CancelledError", "MigrationError",
-    "RateLimited", "RollbackFailure", "TimerUsageError", "UninstallCleanupError",
+    "RollbackFailure", "TimerUsageError", "UninstallCleanupError",
 ))
 
 
@@ -376,7 +376,7 @@ def _gio_error_category(error):
     broker = "com.puffyslippers.OhNoParentControl1.Error."
     known_remote = {
         broker + "AccessDenied": "access-denied", broker + "InvalidRequest": "invalid-request",
-        broker + "Busy": "busy", broker + "RateLimited": "rate-limited",
+        broker + "Busy": "busy",
         broker + "BackendFailure": "backend-failure", broker + "RollbackFailure": "rollback-failure",
         broker + "RebootRequired": "reboot-required", broker + "Failed": "failed",
         "org.freedesktop.MalcontentTimer1.Child.Error.Busy": "busy",

@@ -356,6 +356,10 @@ fixture check. Both files and their staging paths must be absent. This permits
 owned cleanup and refresh; new attempts still require current preparation.
 The guest dependency inventory declares the distribution's `fapolicyd` package
 on both platforms, so its native trust tools are available on clean baselines.
+For a VM whose configured family parses to build target `fedora45`, both
+preparation modes require `fapolicyd >= 2.0.2-1.fc45` and upgrade it to the latest
+available repository version before preparing fixtures. This also updates an
+older daemon when the remaining dependency inventory is already complete.
 After Fedora updates, preparation reconciles the exact incompatible pair
 `fapolicyd-2.0.1-1.fc44` / `file-libs-5.48-2.fc44`: the former ships a version-20
 magic database, while the latter accepts only version 21. Only for that pair,

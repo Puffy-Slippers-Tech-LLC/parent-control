@@ -329,12 +329,16 @@ def feedback_logs():
 
 feedback.collect_logs = feedback_logs
 
+feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
+feedback_accepted = {202: True, 400: False}[feedback_status]
+
 def feedback_post(_url, **kwargs):
     parts = dict(kwargs["files"])
     BROKER.record("feedback", subject=parts["title"][1], message=parts["body"][1],
                   attachments=[part[0] for name, part in kwargs["files"]
                                if name == "attachments"])
-    response = Mock(status_code=202, json=Mock(return_value={"ok": True}))
+    response = Mock(status_code=feedback_status,
+                    json=Mock(return_value={"ok": feedback_accepted}))
     response.__enter__ = Mock(return_value=response)
     response.__exit__ = Mock()
     return response

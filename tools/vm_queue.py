@@ -483,21 +483,6 @@ class Executor:
         return results
 
 
-def dispatch(vms, concurrency, execute, stopped):
-    """Refill slots as soon as any worker finishes, also after failures."""
-    def attempt(vm):
-        if stopped.is_set():
-            return 130
-        try:
-            return execute(vm)
-        except (ValueError, OSError) as error:
-            return {'status': 2, 'handoffs': [], 'error': str(error)}
-
-    with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        pending = {pool.submit(attempt, vm): vm.name for vm in vms}
-        return {pending[future]: future.result() for future in as_completed(pending)}
-
-
 def preparation(root, tool, args, concurrency, vms):
     """Run already-confirmed preparation in processes with independent VM state.
 

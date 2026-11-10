@@ -1208,6 +1208,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 # while an agent repairs a failure. Its passes cannot be reused;
                 # replay our unchanged selectors once without saved progress.
                 # VM/mixed requests span stores not all validated on refusal.
+                if repair_gate.fd is None:
+                    # case_result queued this refusal as a repair. No writer
+                    # owns it; withdraw our ticket before retrying as a reader.
+                    repair_gate.coordinator.discard(repair_gate.ticket)
                 print('fix-tests: runner checkpoint selection changed; replaying the requested '
                       'category from the start with its original selectors.', flush=True)
                 resume = False

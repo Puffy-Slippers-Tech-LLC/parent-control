@@ -1,4 +1,4 @@
-"""Cases 171–173: interrupted approval adds no access; fresh approval works."""
+"""Cases 171–174: interrupted approval adds no access; fresh approval works."""
 from copy import deepcopy
 from dataclasses import replace
 
@@ -146,12 +146,41 @@ SIGNOUT_PLAN = replace(PLAN, prefix='overlay-signout-case', worker_mode='overlay
                     for stage in ('reopen-form', 'recovery-form')})
 
 
+CLOSE_SCREENS = {}
+for stage, operation in SCREENS.items():
+    if stage == 'interruption-pending-approval':
+        CLOSE_SCREENS.update(overlay_authentication(result='close', prefix='interruption'))
+    if stage.startswith('interruption-'):
+        continue
+    if stage == 'form-returned':
+        CLOSE_SCREENS['child-session-after'] = 'system:child-desktop-identity'
+        CLOSE_SCREENS.update(overlay_entry('reopen', 'command',
+            form_operation='overlay-valid-fraction-soft-read'))
+        continue
+    CLOSE_SCREENS[stage] = operation
+CLOSE_STEP2 = tuple(CLOSE_SCREENS).index('interruption-pending-approval')
+CLOSE_STEP3 = tuple(CLOSE_SCREENS).index('child-session-after')
+CLOSE_PLAN = replace(PLAN, prefix='overlay-close-case', worker_mode='overlay_close_case',
+    screen_tags=CLOSE_SCREENS,
+    phases={'ready': 'setup', 'setup-detached': 'setup',
+            **{stage: 'step-1' if index < CLOSE_STEP2 else 'step-2' if index < CLOSE_STEP3 else 'step-3'
+               for index, stage in enumerate(CLOSE_SCREENS)}, 'installed-greeter': 'start'},
+    advance_after={'open-estimate': 'step-2', 'interruption-closed': 'step-3'},
+    invocations=tuple(stage for stage in CLOSE_SCREENS
+                      if stage in PLAN.invocations
+                      or stage in overlay_entry('reopen', 'command')),
+    child_bindings={stage: 'child' for stage, tag in CLOSE_SCREENS.items()
+                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
+    request_checks={stage: ('open-estimate', 'overlay-close:choices-changed', 'preserved_cancelled_choices')
+                    for stage in ('reopen-form', 'recovery-form')})
+
+
 class OverlayLockCaseJourney(CancelledRequestJourney, AccessChoiceJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         signed_out = plan.worker_mode == 'overlay_signout_case'
         super().__init__(context, progress, plan, actions=actions,
             session_checks={stage: 'child-session-before' for stage in (
-                ('child-session-after' if signed_out else
+                ('child-session-after' if 'child-session-after' in plan.screen_tags else
                  'interruption-desktop' if 'interruption-desktop' in plan.screen_tags
                  else 'interruption-unlock-session'),
                 'child-session-returned')},
@@ -207,5 +236,13 @@ def execute_signout(recorder, context):
         actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
 
 
+def execute_close(recorder, context):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS
+    context.fixture_subsets = ACTIVITY_SUBSETS
+    context.fixture_caller = 'E2E-039/overlay-close'
+    record_installed_journey(recorder, context, CLOSE_PLAN, timeout=2400,
+        actions=fixture_actions(include_refusal=False), journey_type=OverlayLockCaseJourney)
+
+
 E2E_CASES = {'overlay-lock': execute, 'overlay-switch': execute_switch,
-             'overlay-signout': execute_signout}
+             'overlay-signout': execute_signout, 'overlay-close': execute_close}

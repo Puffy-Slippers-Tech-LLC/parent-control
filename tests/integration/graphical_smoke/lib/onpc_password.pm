@@ -310,7 +310,7 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) =~ /\Achild,(?:parent,30,0|other-parent,30,1)\z/;
-        my $lock_recovery = ($journey->{prefix} // '') =~ /\Aoverlay-(?:lock|switch|signout)-case\z/
+        my $lock_recovery = ($journey->{prefix} // '') =~ /\Aoverlay-(?:lock|switch|signout|close)-case\z/
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,1';

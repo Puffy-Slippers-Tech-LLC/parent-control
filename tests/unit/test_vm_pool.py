@@ -35,7 +35,7 @@ def executor_pool(tmp_path, monkeypatch):
     local = threading.local()
 
     @contextmanager
-    def reservation(name, *, stopped, bind):
+    def reservation(name, *, stopped, bind, wait=True):
         assert bind is False
         assert name in configured
         local.name = name
@@ -70,6 +70,126 @@ def test_executor_refuses_noncanonical_pool_before_checkout(executor_pool, monke
             with vm_queue.Executor(state.root, [invalid], 1, threading.Event()):
                 pytest.fail('noncanonical VM entered the executor')
     assert not state.held and not state.released
+
+
+def test_executor_ready_attempts_choose_only_available_and_retain_failed_owner(executor_pool, monkeypatch):
+    import test_source
+    import vm_queue
+
+    state = executor_pool
+    completed = []
+    readers = set()
+    choices = []
+
+    @contextmanager
+    def reader(root, **kwargs):
+        name = state.local.name
+        readers.add(name)
+        try:
+            yield
+        finally:
+            readers.discard(name)
+
+    monkeypatch.setattr(test_source, 'reader', reader)
+
+    def choose(ready, active):
+        choices.append((ready, active))
+        assert not active
+        return 'second' if 'second' in ready else ready[0]
+
+    def execute(worker):
+        name = worker.vm.name
+        assert name in readers and name in state.held
+        assert worker.executor._active == 1
+        if name == 'first':
+            assert 'second' in state.held, 'failed owner released before executor close'
+            assert 'second' not in readers, 'failed owner retained source admission'
+        completed.append(name)
+        return dict(status=2 if name == 'second' else 0, handoffs=[name])
+
+    with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+        results = executor.run_ready(execute, choose=choose,
+                                     needed=lambda vm: vm.name not in completed)
+        assert state.held == {'second'}
+    assert completed == ['second', 'first']
+    assert set(choices[0][0]) == {'first', 'second'}
+    assert results['second']['status'] == 2 and results['first']['status'] == 0
+    assert not state.held and not readers
+
+
+def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_pool):
+    import vm_queue
+
+    state = executor_pool
+    attempts = []
+
+    def execute(worker):
+        attempts.append(worker.vm.name)
+        return dict(status=0, handoffs=[str(len(attempts))])
+
+    def completed(vm, result):
+        assert not state.held, 'success notified before reservation teardown'
+        if len(attempts) == 2:
+            return dict(result, status=2, error='acceptance refused')
+
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        result = executor.run_ready(execute, choose=lambda ready, active: ready[0],
+                                    needed=lambda vm: True, completed=completed)
+    assert attempts == ['first', 'first']
+    assert result['first']['handoffs'] == ['1', '2']
+    assert result['first']['status'] == 2
+    with pytest.raises(ValueError, match='not ready'):
+        with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+            executor.run_ready(execute, choose=lambda ready, active: 'foreign', needed=lambda vm: True)
+    assert not state.held
+
+
+def test_executor_ready_busy_vm_has_no_source_and_late_checkin_cannot_pass(executor_pool, monkeypatch):
+    import test_source
+    import vm_queue
+
+    state = executor_pool
+    attempted = []
+    notifications = []
+    coordinator = threading.get_ident()
+
+    @contextmanager
+    def reservation(name, *, stopped, bind, wait):
+        assert wait is False
+        if name == 'first':
+            raise vm_pool.Busy('controlled occupied VM')
+        with state.reservation(name, stopped=stopped, bind=bind) as receipt:
+            yield receipt
+        raise ValueError('controlled late checkin failure')
+
+    @contextmanager
+    def reader(root, **kwargs):
+        assert state.local.name == 'second', 'busy VM acquired source admission'
+        yield
+
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
+    monkeypatch.setattr(test_source, 'reader', reader)
+
+    def execute(worker):
+        attempted.append(worker.vm.name)
+        return dict(status=0, handoffs=[], evidence='attempt evidence', cleanup=True)
+
+    def completed(vm, result):
+        assert threading.get_ident() == coordinator
+        assert vm.name == 'second'
+        assert not state.held
+        notifications.append(result)
+
+    with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+        result = executor.run_ready(execute, choose=lambda ready, active: ready[0],
+                                    needed=lambda vm: not attempted, completed=completed)
+    assert attempted == ['second']
+    assert result['second']['status'] == 2
+    assert 'controlled late checkin failure' in result['second']['error']
+    assert len(notifications) == 1
+    assert notifications[0]['status'] == 2 and notifications[0]['cleanup'] is False
+    assert 'evidence' not in notifications[0]
+    assert not state.held
 
 
 def test_executor_busy_waiter_uses_no_slot_and_cancels_when_work_drains(executor_pool, monkeypatch):

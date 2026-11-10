@@ -13,6 +13,8 @@ import time
 import re
 import shlex
 import stat
+import uuid
+from contextlib import ExitStack, contextmanager
 
 if __package__:
     from .regression_events import completed_cases
@@ -30,6 +32,387 @@ SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
 SCHEDULING_VERSION = 1
 SCHEDULING_IMPLEMENTATION = 'pipeline-v1'
+PASS_NAMESPACE = 'run-tests-pass'
+PASS_MARKER = dict(version=1, implementation='ordinary-pass-v1')
+
+
+def _copy(value):
+    return json.loads(json.dumps(value, allow_nan=False))
+
+
+def _pass_work(work):
+    if (not isinstance(work, dict)
+            or not {'category', 'options', 'cases', 'case', 'area'} <= work.keys()
+            or not isinstance(work['category'], str) or not work['category']
+            or not isinstance(work['options'], list)
+            or any(not isinstance(value, str) for value in work['options'])
+            or not isinstance(work['cases'], list)
+            or type(work['area']) is not bool
+            or work['case'] is not None and work['case'] not in work['cases']):
+        raise ValueError('invalid pass work')
+    completed_cases(json.dumps(work['cases']))
+
+
+def _pass_execution(assignment):
+    work = assignment['work']
+    execution = assignment.get('execution', work)
+    _pass_work(execution)
+    if (execution['category'] != work['category'] or execution['options'] != work['options']
+            or not set(execution['cases']) <= set(work['cases'])):
+        raise ValueError('focused execution is outside its original assignment')
+    if execution != work and execution['area'] and (
+            work['category'] != 'system' or execution['case'].partition('::')[0] not in INDEPENDENT_SYSTEM_AREAS):
+        raise ValueError('area retry requires an independent system area')
+    return execution
+
+
+class PassCheckpoint:
+    """The coordinator's one ordinary pass record, held exclusively until exit.
+
+    Reports and VM checkpoints are bounded attempt evidence. Only accept()
+    grants family credit, and recovery only relinquishes an original claim.
+    Legacy pipeline/repair progress keeps its original format and authority.
+    """
+
+    def __init__(self, root, selection, pool, families, *, resume=False):
+        self.root = root
+        self.selection = _copy(selection)
+        self.pool = _copy(pool)
+        self.families = _copy(families)
+        self.resume = resume
+        self.store = Store(directory('state', root=root) / PASS_NAMESPACE)
+        self._lifetime = None
+        self.fd = None
+
+    @staticmethod
+    def validate(state):
+        from vm_case_queue import work_key
+        def token(value):
+            return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{32}', value)
+        if (not isinstance(state, dict) or type(state.get('version')) is not int or state['version'] != 1
+                or state.get('scheduling') != PASS_MARKER
+                or type(state['scheduling'].get('version')) is not int):
+            raise ValueError('incompatible ordinary pass state; finish with its original supported '
+                             'implementation or use the existing explicitly authorized --reset contract')
+        if (not token(state.get('run')) or not token(state.get('pass'))
+                or state['run'] == state['pass']
+                or not isinstance(state.get('selection'), list)
+                or any(not isinstance(group, list) or len(group) != 2
+                       or not isinstance(group[0], str) or not isinstance(group[1], list)
+                       or any(not isinstance(arg, str) for arg in group[1]) for group in state['selection'])
+                or not isinstance(state.get('pool'), dict)
+                or any(not isinstance(vm, str) or not vm or not isinstance(family, str) or not family
+                       for vm, family in state['pool'].items())
+                or type(state.get('host_complete')) is not bool
+                or not isinstance(state.get('families'), dict)
+                or set(state['families']) != set(state['pool'].values())):
+            raise ValueError('invalid ordinary pass identity or selection')
+        issued, workers = {state['run'], state['pass']}, set()
+        for family, partition in state['families'].items():
+            if (not isinstance(partition, dict) or not isinstance(partition.get('items'), dict)
+                    or not isinstance(partition.get('order'), list)
+                    or any(not isinstance(key, str) for key in partition['order'])
+                    or len(set(partition['order'])) != len(partition['order'])
+                    or set(partition['order']) != set(partition['items'])
+                    or not isinstance(partition.get('claims'), dict)
+                    or not isinstance(partition.get('completed'), dict)
+                    or any(not isinstance(key, str) for key in partition['completed'])
+                    or not set(partition['completed']) <= set(partition['items'])
+                    or not isinstance(partition.get('passed'), dict)):
+                raise ValueError('invalid ordinary pass family partition')
+            inventory = {}
+            for key, work in partition['items'].items():
+                _pass_work(work)
+                if work_key(work) != key:
+                    raise ValueError('invalid ordinary pass work identity')
+                inventory.setdefault(work['category'], set()).update(work['cases'])
+            for category, passed in partition['passed'].items():
+                if category not in inventory or not completed_cases(json.dumps(passed)) <= inventory[category]:
+                    raise ValueError('ordinary pass credit is outside its inventory')
+            for key, receipt in partition['completed'].items():
+                work = partition['items'][key]
+                if (not isinstance(receipt, dict) or receipt.get('run') != state['run']
+                        or receipt.get('pass') != state['pass'] or receipt.get('selection') != state['selection']
+                        or receipt.get('family') != family or state['pool'].get(receipt.get('vm')) != family
+                        or receipt.get('work') != work or not token(receipt.get('assignment'))
+                        or not token(receipt.get('attempt')) or not receipt.get('source')
+                        or not isinstance(receipt['source'], (str, dict))
+                        or receipt.get('cleanup') is not True or receipt.get('diagnostic') is not False
+                        or type(receipt.get('status')) is not int or receipt['status'] != 0
+                        or completed_cases(json.dumps(receipt.get('passed'))) != set(_pass_execution(receipt)['cases'])
+                        or not set(receipt['passed']) <= set(partition['passed'].get(work['category'], []))):
+                    raise ValueError('ordinary pass completion lacks case evidence')
+                if (receipt['assignment'] in issued or receipt['attempt'] in issued
+                        or receipt['assignment'] == receipt['attempt']):
+                    raise ValueError('duplicate ordinary pass completion identity')
+                issued.update((receipt['assignment'], receipt['attempt']))
+            active = set()
+            for key, assignment in partition['claims'].items():
+                if (key not in partition['items']
+                        or not isinstance(assignment, dict)
+                        or assignment.get('run') != state['run'] or assignment.get('pass') != state['pass']
+                        or assignment.get('selection') != state['selection']
+                        or assignment.get('family') != family
+                        or state['pool'].get(assignment.get('vm')) != family
+                        or assignment.get('work') != partition['items'][key]
+                        or not token(assignment.get('assignment')) or not token(assignment.get('attempt'))
+                        or assignment['assignment'] in issued or assignment['attempt'] in issued
+                        or assignment['assignment'] == assignment['attempt']
+                        or assignment['vm'] in workers
+                        or not assignment.get('source')
+                        or not isinstance(assignment['source'], (str, dict))):
+                    raise ValueError('invalid ordinary pass claim identity')
+                _pass_execution(assignment)
+                identities = {(assignment['work']['category'], case) for case in assignment['work']['cases']}
+                if active & identities:
+                    raise ValueError('overlapping ordinary pass claims')
+                active.update(identities)
+                issued.update((assignment['assignment'], assignment['attempt']))
+                workers.add(assignment['vm'])
+        return state
+
+    def _open(self):
+        if self._lifetime is not None:
+            raise ValueError('ordinary pass coordinator is already open')
+        ensure_directory(self.store.path)
+        lifetime = ExitStack()
+        try:
+            self.fd = lifetime.enter_context(self.store.opened())
+            lifetime.enter_context(self.store.locked(self.fd, 'gate', blocking=False))
+            state = _read_scheduling_record('current.json', strict=True, dir_fd=self.fd)
+            if state is not None:
+                self.validate(state)
+            self._lifetime = lifetime
+            return state
+        except BaseException:
+            lifetime.close()
+            self.fd = None
+            raise
+
+    def __enter__(self):
+        from vm_case_queue import work_key
+        state = self._open()
+        try:
+            # Do not silently adopt another scheduler's accepted progress. Fresh
+            # ordinary passes may leave settled historical family records alone.
+            guard_scheduling_checkpoints(self.root)
+            for path in directory('state', root=self.root).glob('run-tests-family-vm-*'):
+                previous = _read_scheduling_record(path / 'current.json')
+                if previous and (previous.get('queue_claims') or self.resume and state is None
+                        and (previous.get('queue_completed') or any(
+                            entry.get('passed') or entry.get('complete')
+                            for entry in previous.get('categories', {}).values()))):
+                    raise ValueError('retained pipeline family progress requires the original supported '
+                                     'implementation; finish its VM owners or use the existing '
+                                     'explicitly authorized --reset recovery contract')
+            partitions = {family: dict(order=list(dict.fromkeys(work_key(work) for work in items)),
+                                      items={work_key(work): work for work in items},
+                                      claims={}, completed={}, passed={})
+                          for family, items in self.families.items()}
+            fresh = dict(version=1, scheduling=dict(PASS_MARKER), run=uuid.uuid4().hex,
+                         **{'pass': uuid.uuid4().hex}, selection=self.selection, pool=self.pool,
+                         host_complete=False, families=partitions)
+            self.validate(fresh)
+            if state is not None and self.resume:
+                if state['selection'] != self.selection or state['pool'] != self.pool:
+                    raise ValueError(RESUME_SELECTION_MISMATCH)
+                for family, partition in partitions.items():
+                    previous = state['families'][family]
+                    if previous['order'] != partition['order'] or previous['items'] != partition['items']:
+                        self._resume_inventory(previous, partition)
+                self.state = state
+                self.save()
+            else:
+                if state is not None and any(partition['claims'] for partition in state['families'].values()):
+                    raise ValueError('ordinary pass has uncertain claims; use --resume or recover their original VM owners')
+                self.state = fresh
+                self.save()
+            return self
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
+
+    def __exit__(self, *_):
+        if self._lifetime is not None:
+            self._lifetime.close()
+            self._lifetime = None
+            self.fd = None
+
+    def _resume_inventory(self, previous, current):
+        """Retain qualified cases across the existing narrow inventory changes."""
+        from vm_case_queue import work_key
+        from test_commands import selections
+        groups = [group for kind, args in self.selection
+                  for group in (selections(self.root, args) if kind == '_guest' else [(kind, args)])]
+        whole_system = [args for kind, args in groups if kind == 'system'] == [[]]
+        # The persistent registry alone can retire a system identity. Unknown
+        # missing cases and changed selectors must still refuse resume.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests/integration'))
+        try:
+            from system_case_ids import UNBOUND_CASES, identity_for_event
+        finally:
+            sys.path.pop(0)
+        retired = {case for work in previous['items'].values() if work['category'] == 'system'
+                   for case in work['cases']
+                   if (identity := identity_for_event(case)) is not None
+                   and UNBOUND_CASES.get(identity.numeric_id, (None,))[0] == 'retired'}
+        keys, translated = [], {}
+        for key in previous['order']:
+            work = previous['items'][key]
+            cases = [case for case in work['cases'] if case not in retired]
+            changed = cases != work['cases']
+            if changed and key in previous['claims']:
+                raise ValueError('resume inventory changed an uncertain original VM claim; recover it first')
+            if changed and not cases:
+                continue
+            item = dict(work, cases=cases, case=(cases[-1] if work['case'] in retired else work['case']))
+            mapped = work_key(item)
+            if current['items'].get(mapped) != item:
+                raise ValueError('resume pass inventory differs from checkpoint; original selection required')
+            if mapped not in keys:
+                keys.append(mapped)
+            translated[key] = mapped
+        additions = [work for key, work in current['items'].items() if key not in keys]
+        if ([key for key in current['order'] if key in keys] != keys
+                or additions and (not whole_system or any(work['category'] != 'system'
+                    or len(work['cases']) != 1
+                    or not re.fullmatch(r'check_[a-z][a-z0-9_]*', work['cases'][0]) for work in additions))):
+            raise ValueError('resume pass inventory differs from checkpoint; original selection required')
+        current['claims'] = previous['claims']
+        current['passed'] = {category: sorted(set(passed) - retired)
+                             for category, passed in previous['passed'].items()}
+        current['completed'] = {}
+        for key, receipt in previous['completed'].items():
+            if key in translated:
+                # Retired cases lose credit; the original assignment receipt
+                # must not be rewritten to claim a different execution.
+                if translated[key] == key:
+                    current['completed'][key] = receipt
+        previous.update(current)
+
+    @classmethod
+    @contextmanager
+    def saved(cls, root):
+        """Open retained claims for maintained recovery, under the same gate."""
+        checkpoint = cls(root, [], {}, {})
+        try:
+            checkpoint.state = checkpoint._open()
+            yield checkpoint if checkpoint.state is not None else None
+        finally:
+            checkpoint.__exit__(None, None, None)
+
+    def save(self):
+        if self.fd is None:
+            raise ValueError('ordinary pass requires exclusive coordinator ownership')
+        self.validate(self.state)
+        self.store.save(self.fd, self.state)
+
+    def claims(self, family=None):
+        return [_copy(assignment) for name, partition in self.state['families'].items()
+                if family is None or family == name for assignment in partition['claims'].values()]
+
+    def passed(self, family, category):
+        return set(self.state['families'][family]['passed'].get(category, []))
+
+    def pending(self, family):
+        partition = self.state['families'][family]
+        active = {(assignment['work']['category'], case) for assignment in partition['claims'].values()
+                  for case in assignment['work']['cases']}
+        return [_copy(partition['items'][key]) for key in partition['order']
+                if key not in partition['claims']
+                and (partition['items'][key]['cases'] or key not in partition['completed'])
+                and not (partition['items'][key]['cases']
+                         and set(partition['items'][key]['cases']) <= self.passed(
+                             family, partition['items'][key]['category']))
+                and not active & {(partition['items'][key]['category'], case)
+                                  for case in partition['items'][key]['cases']}]
+
+    def retry(self, family, case, *, area=False):
+        partition = self.state['families'][family]
+        matches = [work for work in partition['items'].values() if case in work['cases']]
+        if not matches:
+            raise ValueError('case retry is outside the selected family inventory')
+        if area and (case.partition('::')[0] not in INDEPENDENT_SYSTEM_AREAS
+                     or any(work['category'] != 'system' for work in matches)):
+            raise ValueError('area retry requires an independent system area')
+        for work in matches:
+            category = work['category']
+            partition['passed'][category] = sorted(self.passed(family, category) - {case})
+        partition['completed'] = {key: receipt for key, receipt in partition['completed'].items()
+                                  if case not in receipt['passed']}
+        self.save()
+
+    def claim(self, family, vm, work, source, *, execution=None):
+        from vm_case_queue import work_key
+        if self.state['pool'].get(vm) != family:
+            raise ValueError('VM is outside the ordinary pass family pool')
+        if any(assignment['vm'] == vm for assignment in self.claims()):
+            return None
+        if not source or not isinstance(source, (str, dict)):
+            raise ValueError('invalid ordinary pass source/input identity')
+        if work not in self.pending(family):
+            return None
+        assignment = dict(run=self.state['run'], **{'pass': self.state['pass']},
+                          assignment=uuid.uuid4().hex, attempt=uuid.uuid4().hex, vm=vm,
+                          family=family, selection=_copy(self.state['selection']),
+                          work=_copy(work), source=_copy(source))
+        if execution is not None:
+            assignment['execution'] = _copy(execution)
+            _pass_execution(assignment)
+        self.state['families'][family]['claims'][work_key(work)] = assignment
+        self.save()
+        return _copy(assignment)
+
+    def _claimed(self, assignment):
+        from vm_case_queue import work_key
+        if not isinstance(assignment, dict):
+            raise ValueError('invalid ordinary pass assignment')
+        partition = self.state['families'].get(assignment.get('family'), {})
+        work = assignment.get('work')
+        key = work_key(work)
+        if partition.get('claims', {}).get(key) != assignment:
+            raise ValueError('stale or mismatched ordinary pass assignment')
+        return partition, key
+
+    def accept(self, assignment, evidence, status):
+        partition, key = self._claimed(assignment)
+        if (type(status) is not int or not isinstance(evidence, dict)
+                or any(evidence.get(field) != value for field, value in assignment.items())
+                or evidence.get('diagnostic') is not False
+                or type(evidence.get('cleanup')) is not bool
+                or not isinstance(evidence.get('passed'), list)):
+            raise ValueError('missing, stale, mismatched or diagnostic ordinary pass evidence')
+        passed = completed_cases(json.dumps(evidence['passed']))
+        work = assignment['work']
+        execution = _pass_execution(assignment)
+        if not passed <= set(execution['cases']):
+            raise ValueError('ordinary pass evidence is outside its assigned work')
+        # A late audit/teardown failure accepts no new credit and leaves the
+        # original claim intact for maintained original-VM recovery.
+        if not evidence['cleanup']:
+            return False
+        retained = self.passed(assignment['family'], work['category'])
+        if status:
+            passed.discard(execution['case'])
+            retained.discard(execution['case'])
+            partition['completed'] = {candidate: receipt for candidate, receipt in partition['completed'].items()
+                                      if receipt['work']['category'] != work['category']
+                                      or execution['case'] not in receipt['passed']}
+        elif not set(execution['cases']) <= passed | retained:
+            raise ValueError('successful ordinary pass attempt lacks teardown-complete case evidence')
+        partition['passed'][work['category']] = sorted(retained | passed)
+        if not status:
+            partition['completed'][key] = dict(evidence, status=status, passed=sorted(set(execution['cases'])))
+            del partition['claims'][key]
+        self.save()
+        return status == 0
+
+    def recover(self, assignment, *, cleanup):
+        partition, key = self._claimed(assignment)
+        if cleanup is not True:
+            raise ValueError('ordinary pass recovery requires successful original VM cleanup')
+        del partition['claims'][key]
+        self.save()
 
 
 def scheduling_marker():
@@ -65,14 +448,16 @@ def admit_scheduling_state(state):
     return dict(state, scheduling=dict(marker))
 
 
-def _read_scheduling_record(path):
+def _read_scheduling_record(path, *, strict=False, dir_fd=None):
     """Read existing private metadata without creating or rewriting anything."""
     try:
-        source = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        source = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dir_fd)
     except FileNotFoundError:
         return None
     with os.fdopen(source) as stream:
         info = os.fstat(stream.fileno())
+        if strict:
+            private(info, regular=True)
         # Launcher JSON uses the caller's umask inside its private run directory;
         # progress Store files separately enforce their stricter 0600 contract.
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
@@ -156,6 +541,12 @@ def guard_scheduling_checkpoints(root):
         path = directory('state', root=root, create=False)
     except FileNotFoundError:
         return
+    ordinary_path = path / PASS_NAMESPACE
+    if ordinary_path.exists() or ordinary_path.is_symlink():
+        private(ordinary_path.lstat())
+    ordinary = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
+    if ordinary is not None:
+        PassCheckpoint.validate(ordinary)
     for candidate in sorted(path.iterdir()):
         if not re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}', candidate.name):
             continue
@@ -221,6 +612,26 @@ def _family_claims(root, vm_name, *, recover):
         return state
 
     guard_scheduling_checkpoints(root)
+    ordinary = 0
+    ordinary_path = directory('state', root=root) / PASS_NAMESPACE
+    if ordinary_path.exists():
+        if recover:
+            # Take the coordinator's gate before touching any queue. An active
+            # coordinator's in-memory claims cannot race standalone recovery.
+            with PassCheckpoint.saved(root) as checkpoint:
+                if checkpoint is not None:
+                    owned = [assignment for assignment in checkpoint.claims() if assignment['vm'] == vm_name]
+                    if owned:
+                        with test_activity.exclusive_vm_progress():
+                            for assignment in owned:
+                                checkpoint.recover(assignment, cleanup=True)
+                        ordinary = len(owned)
+        else:
+            state = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
+            if state is not None:
+                PassCheckpoint.validate(state)
+                ordinary = sum(assignment['vm'] == vm_name for partition in state['families'].values()
+                               for assignment in partition['claims'].values())
     paths = [path for path in directory('state', root=root).glob('run-tests-family-vm-*')
              if re.fullmatch(r'run-tests-family-vm-[0-9a-f]{24}', path.name)]
     candidates = []
@@ -231,7 +642,7 @@ def _family_claims(root, vm_name, *, recover):
             if state is not None and vm_name in state.get('queue_claims', {}).values():
                 candidates.append(path)
     if not recover or not candidates:
-        return len(candidates)
+        return len(candidates) + ordinary
     recovered = 0
     with test_activity.exclusive_vm_progress():
         for path in candidates:
@@ -252,7 +663,7 @@ def _family_claims(root, vm_name, *, recover):
                     recovered += 1
                 if owned:
                     store.save(fd, state, name='current.json')
-    return recovered
+    return recovered + ordinary
 
 
 def request_record(root, namespace, value=None):

@@ -2,16 +2,25 @@
 
 This independent checklist belongs to [Plan C](E2E-Execution-PlanC.md#next-task).
 Apply the [shared execution instructions](E2E-Execution-Instructions.md) and
-[execution contracts](E2E-Execution-Contracts.md). Plan C owns the Flatpak, package update/removal, suspend and usage/expiry
-engineering groups from Plan A and the remaining system, calendar,
-preset and What's New groups from Plan B. Original IDs, briefs, dependencies,
-relative order within each source queue, scopes and acceptance stay unchanged.
+[execution contracts](E2E-Execution-Contracts.md). Plan C owns the Flatpak,
+package update/removal, suspend and usage/expiry engineering groups, system and
+calendar work, presets and What's New. It also owns the remaining feedback UI
+obligations from Plan B and reminder tasks 311b, 311c and 311 from Plan A.
+Original IDs, briefs, dependencies, relative order within each source queue,
+scopes and acceptance stay unchanged.
 No unfinished task in Plan A or Plan B is a prerequisite.
 
 Checked rows are fixed, already-delivered prerequisites at the split.
 Their earlier prerequisites are satisfied (`Baseline`); they require no future
 execution or close-out in another plan. Reuse current source/catalogue
 qualifications and preserve historical completion.
+
+All remaining feedback UI obligations stay together in the existing component-test owner;
+reuse its fake sender and shared assertions under the
+[feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
+Installed cooldown/report and collection-failure bindings remain in Plan B and
+are not prerequisites for these UI rows. Reminder work consumes the completed
+task-129 fullscreen binding rather than waiting for Plan A's future task 129a.
 
 The developer removed former tasks **143–149** from execution. Their six
 same-child/two-desktop scenarios (cases **18, 20, 112–115**) now belong only to
@@ -38,6 +47,12 @@ External gates and calendar windows remain gates, never completion credit.
 
 | Done | ID | Task | Requires tasks | Delivered scope | Minutes |
 | --- | --- | --- | --- | --- | --- |
+| [x] | 311a | Qualify the saved fullscreen reminder preference | Baseline | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`: Save false and independently reopen, Cancel a true draft and read saved false, exact reminder/language/request preservation, unchanged public policy/time and zero grants, with owned cleanup. Reports `20261013T201225Z-b7411901` and `20261013T201225Z-058fe498`; no notification-delivery or complete-case credit. | 20–30 |
+| [x] | 300i | Qualify installed child-overlay language selection | Baseline | LANG01 fixed Riley overlay first presentation/native names, English/German/Simplified Chinese/Hebrew Save/Cancel, independent chooser/form readback, request preservation, German command-relaunch and final unchanged saved Parent policy passed on Ubuntu 26.04 in `20261004T115946Z-5cd0363a`. Required shell-panel and kiosk-language regressions passed in `20261004T114913Z-24503104` and `20261004T115236Z-05dd2d98`. All passed collection, worker shutdown, owned cleanup, restoration, finalization and preservation. Shell-panel launcher/preparation now use current-source inputs; 277 affected unit/safety checks plus source passed. Fixed surface only; no complete-case credit | 20–30 |
+| [x] | 129 | Check that fullscreen play locks when time runs out | Baseline | APP05/FLOW10 fullscreen level 1 passed on Ubuntu 26.04 through `check_e2e_game_fullscreen` in `20261109T201507Z-aea38f72`: zero daily allowance/no grant, real 600-second parent approval, two independent fullscreen entries with real moves and immutable activity, original-deadline natural lock and same-lock protected input. Corrected a disappearing-provider read before game input with the shared bounded preflight wait; input is never replayed. Scoped host safety/source checks, fixture construction, recording, worker/callback closure and baseline restoration passed; VM off. A nonfatal display-collector timeout remains recorded; the final recording completed without errors. [Qualified scope](E2E-Building-Blocks.md#fullscreen-game-expiry); complete case 127 remains separate. | 20–30 |
+| [x] | 007 | Observe a deliberate customer reboot | Baseline | LIFE02 fresh install/reboot/administrator return qualified through `check_e2e_customer_reboot` in run `20260924T223309Z-4d98a4b2`: one guarded planned reboot, changed boot, fresh usable GDM and administrator desktop passed with wrong-entry refusal, private collection, capture reconciliation, owned cleanup and baseline restoration. Unexpected boot changes still refuse; complete case 2 belongs to task 008. | 40–60 (exception) |
+| [x] | 312b | Qualify kiosk reminder ownership and persistence | Baseline | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_kiosk_reminder_binding`: exact saved-ID persistence from the 90-second overlay row through the 75-second kiosk edit and overlay readback, independent station reopen, Jordan list/language isolation, Riley preservation through Jamie → Casey and child switches, unchanged request/time/policy and owned cleanup. No natural-delivery or complete-case credit. | 20–30 |
+| [x] | 150 | Check feedback success with the fake sender | Baseline | UI obligation; FEED11, anonymous confirmation, app success and manual thanks dismissal with existing fake sender passed. Opening confirmation and Add Email Address send nothing; direct anonymous success sends once and omits the reply note. All 22 focused Parent feedback UI checks and source checks passed; owned cleanup completed. No VM, E2E acceptance or delivery credit | 20–30 |
 | [x] | 006 | Perform a customer package operation | Baseline | LIFE04 install qualified through `check_e2e_package_command` in run `20260924T221715Z-9ebb5329`: fresh product-free entry, greeter refusal, administrator authority, one verified package submission and independent completion/final reboot notice passed with private collection, capture reconciliation, owned cleanup and baseline restoration. Other package operations and complete case 2 remain pending. | 20–30 |
 | [x] | 077a | Read app rows and initial access choices | Baseline | PARENT12; UI13 complete bounded public app-row observations qualified through `check_e2e_app_row_observations` in run `20260924T232402Z-75f99b74`: 46 initial Allowed rows, identical independent App Limits reread, wrong-child/page refusals, private collection, owned cleanup and baseline restoration passed. Complete case 2 belongs to task 008. | 20–30 |
 | [x] | 047 | Record app activity and compose launch/use | Baseline | APP04; FLOW08 native usable-app scope qualified by `native_activity.PLAN` / `onpc_app_rows::app_activity` and `check_e2e_app_activity` in `20261001T175200Z-a1d92898` on every enabled VM: command/grid launch, normal draft submission/effect, immutable public activity capture, independent same-window reread, wrong-entry refusal, unique invocations and rejection of a replacement window with identical text. Host worker/decoder/recorder/composition, ownership/credential and native GTK preview checks passed. Affected native-command regression passed in `20261001T175724Z-8d97badf`; collection, worker shutdown, owned cleanup, baseline restoration and host/source preservation passed in both runs. Policy denial, cross-user retention and complete cases remain separate. | 20–30 |
@@ -111,3 +126,16 @@ External gates and calendar windows remain gates, never completion credit.
 | [ ] | 245 | [E2E-044: fall-back-paired-grants](E2E-Tasks/245-case-203.md) | 191, 065a, 062, 242 | Cases 203; two children, both grant types; reuse 242's production-clock repair; pre-test clock preparation authorized under the calendar contract; extend the fixture to the real fall transition when implementing. | ≤60 (exception) |
 | [ ] | 314 | [Saved request presets and units persist](E2E-Tasks/314-request-presets.md) | 012c, 014 | Planned scenario; saved preset addition/deletion, Custom Hours and restored choices; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
 | [ ] | 315 | [Read kiosk What's New and return to the request](E2E-Tasks/315-kiosk-whats-new.md) | 185k, 014 | Planned scenario; installed latest-release content and unchanged request return; case and executable unassigned; not a kiosk baseline prerequisite | 20–30 |
+| [ ] | 262 | [Check overlay report success and close callback](E2E-Tasks/262-case-220.md) | 150 | UI obligation; former case 220, fake success, reply note, manual dismissal and recorded close-overlay callback; no installed destination credit | 20–30 |
+| [ ] | 263 | [Check station report success and logout callback](E2E-Tasks/263-case-221.md) | 150 | UI obligation; former case 221, fake success, manual dismissal and recorded logout callback; no installed destination credit | 20–30 |
+| [ ] | 189k | [Check Send without logs with the fake sender](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 150 | UI obligation; actual without-logs action, encoded omission, app success and callback with component collector failure | 20–30 |
+| [ ] | 255 | [Check the station report without-logs flow](E2E-Tasks/255-case-213.md) | 189k | UI obligation; former case 213, failed component collection, explicit without-logs sending and logout callback; no installed collection credit | 20–30 |
+| [ ] | 190a | [Check overlay report retry and recovery](E2E-Tasks/190a-overlay-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
+| [ ] | 190o | [Stop an overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | UI obligation; direct Stop, actual dialog closure and recorded close-overlay callback | 20–30 |
+| [ ] | 260 | [Check overlay report Stop callback](E2E-Tasks/260-case-218.md) | 190o | UI obligation; former case 218, retry cancellation and exactly one close-overlay callback; no installed destination credit | 20–30 |
+| [ ] | 190b | [Check station report retry and recovery](E2E-Tasks/190b-kiosk-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
+| [ ] | 190k | [Stop a station report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | UI obligation; direct Stop, actual dialog closure and recorded logout callback | 20–30 |
+| [ ] | 261 | [Check station report Stop callback](E2E-Tasks/261-case-219.md) | 190k | UI obligation; former case 219, retry cancellation and exactly one logout callback; no installed destination credit | 20–30 |
+| [ ] | 311b | [Qualify natural reminder content and urgency](E2E-Tasks/311b-natural-reminder-observation.md) | 311a, 062, 300i | Natural ChildUI notification body, independently bound saved threshold/live remaining balance and urgency; maintained natural observer and installed qualification pending | 20–30 |
+| [ ] | 311c | [Qualify owned reminder banners during fullscreen play](E2E-Tasks/311c-fullscreen-reminder-visibility.md) | 311b, 129 | Public owned-banner visibility/suppression during genuine fullscreen play; qualification pending | 20–30 |
+| [ ] | 311 | [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md) | 007, 052, 062, 300i, 312b, 311c | Planned scenario; read all four saved defaults; naturally deliver 1m/15s warnings, with no 10m/5m or blank-text delivery cycle; retain per-child reminders, translated defaults, literal custom text, fullscreen on/off, renewed-time warnings, natural locking and latest-version reboot persistence; targeted schema/migration regressions cover upgrade handling; installed reminder-control, natural notification and owned fullscreen-banner qualifications are gates; no executable or acceptance | 40–60 (exception) |

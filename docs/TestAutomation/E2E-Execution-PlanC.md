@@ -11,6 +11,19 @@ current branch. Explicit `--branch NAME` selects another checkout. Apply the
 
 Task queue: [Plan C ordered checklist](E2E-Task-QueueC.md).
 
+This queue also owns the remaining feedback UI obligations and remaining-time
+reminder qualification/scenario. Each moved group retains its original briefs,
+prerequisite order, scope and acceptance. Checked baseline rows reuse already
+delivered capabilities; no unfinished work in another plan is required.
+
+Routine feedback sending rows are explicit **UI obligation** tasks using the
+existing network-free component previews. Apply the
+[feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation): no
+inbox, recipient configuration, real-send permission or VM qualification gates
+those rows. Explicit UI markers select host-only launcher handling, and allocation
+metadata names the existing UI owners. Real sending is separate optional
+integration work and must not become a queue prerequisite.
+
 The same-child/two-desktop scenarios, former tasks **143–149**, have been
 removed from this plan. [Two desktops](../Two_Desktops.md) records the open
 question and scenario descriptions only; it is not a task queue or prerequisite.

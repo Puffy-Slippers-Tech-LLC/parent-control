@@ -6,8 +6,11 @@ Use the [shared execution instructions](E2E-Execution-Instructions.md) and
 briefs, scope, estimates and acceptance are preserved from the original queue.
 Pending prerequisites and their consumers stay together here; there are no
 unfinished dependencies on Plan A or [Plan C](E2E-Task-QueueC.md).
-Later system, calendar, preset and What's New groups moved to C;
-the current lifecycle group and all feedback prerequisite groups stay here.
+Installed pending-approval exits, cooldown reports and diagnostic-collection
+groups stay here. Host-only feedback success, without-logs and Stop groups
+belong exclusively to C, alongside its system, calendar, preset and What's New
+groups. Component sending and installed report triggers are independent under
+the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation).
 Follow this table in order, never another
 plan’s pointer. Exclusions and shared delivered context remain in the
 [shared instructions](E2E-Execution-Instructions.md#current-scope).
@@ -127,25 +130,15 @@ They do not qualify a route, waive acceptance or close a row.
 | [ ] | 216 | [E2E-039: overlay-close](E2E-Tasks/216-case-174.md) | 183d, 180, 079b, 079d | Cases 174; gate in brief | 20–30 |
 | [ ] | 183e | [Close the station during pending approval](E2E-Tasks/183e-close-the-station-during-pending-approval.md) | 021a, 180 | FLOW17 kiosk app-close; gate in brief | 20–30 |
 | [ ] | 217 | [E2E-039: kiosk-close](E2E-Tasks/217-case-175.md) | 183e, 079b, 079d, 021a | Cases 175; gate in brief | 20–30 |
-| [ ] | 187a | [Observe and decline a overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048d | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
+| [ ] | 187a | [Observe and decline an overlay cooldown error](E2E-Tasks/187a-overlay-cooldown-error.md) | 048d | REQUEST09 overlay cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187o | [Review an overlay cooldown report](E2E-Tasks/187o-read-overlay-cooldown-errors-and-report-choices.md) | 187a, 030 | REQUEST09 cooldown and FEED15 overlay; gate in brief | 20–30 |
 | [ ] | 218 | [E2E-039: overlay-cooldown](E2E-Tasks/218-case-176.md) | 187o, 180, 079b, 079d, 052c | Cases 176; includes report review/decline (former 206); gate in brief | 20–30 |
-| [ ] | 262 | [Check overlay report success and close callback](E2E-Tasks/262-case-220.md) | 150 | UI obligation; former case 220, fake success, reply note, manual dismissal and recorded close-overlay callback; no installed destination credit | 20–30 |
 | [ ] | 187b | [Observe and decline a kiosk cooldown error](E2E-Tasks/187b-kiosk-cooldown-error.md) | 021a | REQUEST09 kiosk cooldown and FEED15 decline branch; gate in brief | 20–30 |
 | [ ] | 187k | [Review a kiosk cooldown report](E2E-Tasks/187k-read-station-cooldown-errors-and-report-choices.md) | 187b, 030 | REQUEST09 cooldown and FEED15 kiosk; gate in brief | 20–30 |
 | [ ] | 220 | [E2E-039: kiosk-cooldown-other](E2E-Tasks/220-case-178.md) | 187k, 180, 079b, 079d, 052c | Cases 178; includes report review/decline (former 207); same-child 177 removed; gate in brief | 20–30 |
-| [ ] | 263 | [Check station report success and logout callback](E2E-Tasks/263-case-221.md) | 150 | UI obligation; former case 221, fake success, manual dismissal and recorded logout callback; no installed destination credit | 20–30 |
 | [ ] | 188r | [Observe and retry failed Parent diagnostic collection](E2E-Tasks/188r-parent-collection-retry.md) | 009, 031a | FEED09 Parent collection failure and usable controls; FEED16 Parent collection recovery; gate in brief | 30–45 (exception) |
 | [ ] | 250 | [E2E-046: parent-retry](E2E-Tasks/250-case-208.md) | 188r | Cases 208; gate in brief | 20–30 |
 | [ ] | 188k | [Observe failed kiosk diagnostic collection](E2E-Tasks/188k-retry-failed-kiosk-diagnostic-collection.md) | 187k | FEED09 kiosk collection failure and usable controls; gate in brief | 20–30 |
-| [ ] | 189k | [Check Send without logs with the fake sender](E2E-Tasks/189k-send-a-kiosk-report-without-unavailable-logs.md) | 150 | UI obligation; actual without-logs action, encoded omission, app success and callback with component collector failure | 20–30 |
-| [ ] | 255 | [Check the station report without-logs flow](E2E-Tasks/255-case-213.md) | 189k | UI obligation; former case 213, failed component collection, explicit without-logs sending and logout callback; no installed collection credit | 20–30 |
-| [ ] | 190a | [Check overlay report retry and recovery](E2E-Tasks/190a-overlay-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
-| [ ] | 190o | [Stop an overlay report](E2E-Tasks/190o-confirm-stopping-a-sending-overlay-report.md) | 190a | UI obligation; direct Stop, actual dialog closure and recorded close-overlay callback | 20–30 |
-| [ ] | 260 | [Check overlay report Stop callback](E2E-Tasks/260-case-218.md) | 190o | UI obligation; former case 218, retry cancellation and exactly one close-overlay callback; no installed destination credit | 20–30 |
-| [ ] | 190b | [Check station report retry and recovery](E2E-Tasks/190b-kiosk-sending-stay.md) | 150 | UI obligation; retry/recovery while report stays open and explicit Stop availability with fake sender | 20–30 |
-| [ ] | 190k | [Stop a station report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md) | 190b | UI obligation; direct Stop, actual dialog closure and recorded logout callback | 20–30 |
-| [ ] | 261 | [Check station report Stop callback](E2E-Tasks/261-case-219.md) | 190k | UI obligation; former case 219, retry cancellation and exactly one logout callback; no installed destination credit | 20–30 |
 
 ## Deferred future work
 

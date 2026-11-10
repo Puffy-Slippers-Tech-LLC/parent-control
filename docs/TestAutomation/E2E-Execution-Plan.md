@@ -11,6 +11,11 @@ This plan owns only its queue, task briefs and next-task pointer.
 [Plan B](E2E-Execution-PlanB.md) and [Plan C](E2E-Execution-PlanC.md)
 run independently through the same launcher.
 
+Remaining game, retained-work and second-parent journeys and the Lunar/Minecraft
+group stay here. Remaining-time reminder qualification and its complete scenario
+belong to [Plan C](E2E-Execution-PlanC.md); its fullscreen prerequisite is already
+delivered and does not wait for this plan's later gameplay work.
+
 Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task

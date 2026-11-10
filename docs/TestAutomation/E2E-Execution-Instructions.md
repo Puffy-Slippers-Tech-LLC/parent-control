@@ -201,19 +201,29 @@ Fix proven mechanical test defects without weakening checks.
 
 ## Resume after a reviewed queue revision
 
-Apply a split to a running checkout only after its current response, accepted
-completion and Git close-out have finished. Do not replace the queue underneath
-an in-flight response or pending recovery transaction. Plan A keeps its existing
-checkpoint store; a fresh task session adopts its remaining queue. Plan B keeps
-its existing namespace and current task. Plan C starts with no copied checkpoint
-or suspended work from either plan. The three-way split preserves Plan A's task
-160 and Plan B's task 135a, their pointers and their pending prerequisite groups.
-Only later groups move: Flatpak fixtures/command/grid cases, package update/removal
-124/125, suspend 166a/167/166/168 and usage/expiry 172, 172a–172h and 172j–172l from A;
-169/170/173/174/175/178/179,
-191/238/239/240/242/245 and 314/315 from B. Former tasks 143–149 also moved at
-the split, but the developer subsequently removed their two-desktop scenarios
-from execution. [Two desktops](../Two_Desktops.md) retains that open question
+Apply a queue revision to a running checkout only after its current response,
+accepted completion and Git close-out have finished. Do not replace the queue underneath
+an in-flight response or pending recovery transaction, including an optimization
+session. Each plan keeps its existing namespace, checkpoint, current task and
+suspended work; never copy a checkpoint or handoff between plans. A fresh task
+session reads its revised queue. Move future prerequisite groups with their
+unfinished consumers, preserving brief paths, scopes and acceptance. Receiving
+queues may mirror already-completed prerequisites as checked `Baseline` rows;
+they do not execute those tasks again or acquire a pending cross-plan gate.
+
+Edits in one checkout do not revise another checkout's running queue. Keep a
+rebalance uncommitted while affected launchers in other checkouts remain active.
+After their response handling, owned cleanup and Git close-out have settled,
+carry the complete revision to those checkouts through the
+[shared worktree workflow](../Execution-Plans.md#shared-worktree-propagation)
+before resuming them. Do not publish only a source removal or destination addition:
+each receiving checkout must have the complete allocation without duplicate or
+missing unfinished rows. Preserve each checkout's unrelated active edits and
+retained results. Planning edits alone do not restart a launcher or grant acceptance.
+
+Former tasks 143–149 moved at the original split, but the developer subsequently
+removed their two-desktop scenarios from execution.
+[Two desktops](../Two_Desktops.md) retains that open question
 without an execution plan. Do not recreate those rows or their prerequisites
 during reconciliation. IDs are labels, not ranges to execute implicitly.
 The later failed-save scope decision also removes tasks 269/270 and the entire

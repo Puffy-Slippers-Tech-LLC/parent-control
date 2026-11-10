@@ -283,8 +283,8 @@ the Status body adds ten minutes to the current question's deadline, including
 the launcher's actual wait. Questions without a deadline have no extension link.
 **Session** is a blue, underlined link with a hand cursor. It replaces that
 worktree's status with the shared launcher session transcript, chatbox and
-agent/model/effort footer, including the Simplified toggle. The footer uses the
-recorded session identity; older records show **Unknown agent**. Watch actions
+model/effort footer, including the Simplified toggle. The footer uses the
+recorded session model and effort. Watch actions
 use the destination launcher's shared agent environment preparation, so observing
 or stopping a run does not require a coding CLI. The transcript includes
 sent prompts and agent messages. Agent prose streams while it is being written;

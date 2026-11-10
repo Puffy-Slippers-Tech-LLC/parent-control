@@ -59,24 +59,16 @@ function html(webview, context) {
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
         <link rel="stylesheet" href="${style}"><title>ONPC Watch</title></head>
         <body><div id="watch">
-        <aside id="runs" aria-label="Run status across worktrees"><p class="empty" role="status">Waiting for tests…</p></aside>
+        <aside id="launchers" aria-label="Run status across worktrees">
+        <div class="pane-toolbar"><strong>Launchers</strong><div id="launcher-layout"></div></div>
+        <div id="runs" class="tile-grid"><p class="empty" role="status">Waiting for tests…</p></div></aside>
         <div id="divider" role="separator" aria-label="Resize run status and viewers"
             aria-orientation="vertical" aria-valuemin="0" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
-        <section id="viewer" aria-label="UI and VM viewers"><div id="viewer-header">
+        <section id="viewer" aria-label="UI and VM viewers"><div id="viewer-header" class="pane-toolbar">
         <nav id="viewers" aria-label="Viewers"></nav>
-        <div id="tile-layout" role="group" aria-label="Tile layout">
-        <button type="button" data-layout="auto" title="Auto" aria-label="Auto tile layout" aria-pressed="true">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="5"/><rect x="12" y="3" width="5" height="5"/><rect x="3" y="12" width="5" height="5"/><rect x="12" y="12" width="5" height="5"/></svg></button>
-        <button type="button" data-layout="vertical" title="Vertical" aria-label="Vertical tile layout" aria-pressed="false">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="5"/><rect x="3" y="12" width="14" height="5"/></svg></button>
-        <button type="button" data-layout="horizontal" title="Horizontal" aria-label="Horizontal tile layout" aria-pressed="false">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="14"/><rect x="12" y="3" width="5" height="14"/></svg></button>
-        </div></div>
-        <main id="grid"><p class="empty" role="status">Connecting to watch…</p></main>
-        <div id="minimized-tiles" aria-label="Minimized tiles" hidden>
-        <div id="minimized-titles"></div>
-        <details id="tile-overflow"><summary title="Show all tiles" aria-label="Show all tiles">&gt;&gt;</summary>
-        <div id="tile-list" aria-label="All tiles"></div></details></div></section></div>
+        <div id="tile-layout"></div></div>
+        <main id="grid" class="tile-grid"><p class="empty" role="status">Connecting to watch…</p></main>
+        </section></div>
         <footer><button id="watch-error-indicator" type="button" hidden title="Show Watch error details" aria-label="Show Watch error details">
         <svg viewBox="0 0 20 20" aria-hidden="true">
         <defs><linearGradient id="watch-alert-red" x2="0" y2="1"><stop stop-color="#ff3025"/><stop offset="1" stop-color="#df0905"/></linearGradient></defs>

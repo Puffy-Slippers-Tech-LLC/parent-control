@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **315 — [Read kiosk What's New and return to the request](E2E-Tasks/315-kiosk-whats-new.md)**.
+Next task: **262 — [Check overlay report success and close callback](E2E-Tasks/262-case-220.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

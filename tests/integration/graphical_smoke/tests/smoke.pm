@@ -28,6 +28,7 @@ use onpc_kiosk_multiple ();
 use onpc_account_changes ();
 use onpc_restricted_station_about ();
 use onpc_kiosk_about ();
+use onpc_kiosk_whats_new ();
 use onpc_kiosk_preferences_confinement ();
 use onpc_request_presets ();
 use onpc_kiosk_valid_duration ();
@@ -1488,6 +1489,18 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_multiple::run(\&exchange, 1);
+        return;
+    }
+    if ($ready->{kiosk_release_notes}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_whats_new::run_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{kiosk_whats_new}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_whats_new::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{kiosk_about}) {

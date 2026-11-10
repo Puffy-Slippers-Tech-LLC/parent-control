@@ -2220,9 +2220,10 @@ class UiObservations:
             expected['activity'] = {'draft': 'ONPC fixture draft', 'submitted': 'No submitted draft',
                 'score': {'game-opened': 'Moves: 0; token: 0', 'game-moved': 'Moves: 1; token: 1',
                           'game-resumed': 'Moves: 2; token: 2'}[operation]}
-        if operation in ('game-activity', 'game-resumed-activity', 'game-fullscreen-activity'):
+        if operation in ('game-activity', 'game-resumed-activity', 'game-fullscreen-activity',
+                         'game-policy-activity', 'game-policy-closed'):
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary',
-                resumed=operation == 'game-resumed-activity')
+                resumed=operation == 'game-resumed-activity', closed=operation == 'game-policy-closed')
             expected['activity'] = result['activity']
         if operation in ('game-windowed-level', 'game-fullscreen-level'):
             expected['game_mode'] = {'mode': 'fullscreen' if operation == 'game-fullscreen-level'

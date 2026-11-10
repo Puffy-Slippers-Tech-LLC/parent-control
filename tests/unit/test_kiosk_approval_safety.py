@@ -104,6 +104,36 @@ def test_game_input_refuses_another_account_before_window_discovery(monkeypatch,
     ui.native_app_snapshot.assert_not_called()
 
 
+@pytest.mark.parametrize(('surface', 'fault'), [
+    ('kiosk', 'none'), ('overlay', 'none'), ('overlay', 'scope'),
+    ('kiosk', 'request'), ('overlay', 'replay')])
+def test_game_permission_secret_requires_exact_scope_and_single_use(surface, fault):
+    result = run_password_guard(r'''
+my ($surface, $fault) = @ARGV;
+my $row = $surface eq 'kiosk' ? 'included' : 'excluded';
+my $scope = "fullscreen-$row-";
+my $journey = bless {prefix => "game-permission-fullscreen-$row", stage_prefix => $scope,
+    review => 0}, 'onpc_journey';
+$journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
+    ['other-child', 'parent', 900, $surface eq 'kiosk' ? 1 : 0];
+$journey->{stage_prefix} = "windowed-$row-" if $fault eq 'scope';
+$journey->{kiosk_request}[0] = 'child' if $fault eq 'request';
+my $enter = sub {
+    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
+                       : onpc_password::enter_overlay_shell_password($journey);
+};
+my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', surface, fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    scope = 'fullscreen-' + ('included-' if surface == 'kiosk' else 'excluded-')
+    assert value['events'] == ([] if fault in ('scope', 'request') else [
+        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
+        ['delivery', 'parent', scope + ('kiosk-mate-approval' if surface == 'kiosk'
+                                       else 'overlay-shell-approval')]])
+
+
 @pytest.mark.parametrize('operation', ['reminder', 'panel-target', 'panel-launch', 'panel-form'])
 def test_reminder_overlay_wrong_account_refuses_before_discovery(monkeypatch, operation):
     module = ui_observations.accessible_ui

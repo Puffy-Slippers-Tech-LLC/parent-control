@@ -34,6 +34,8 @@ ACTIVITY_BINDINGS = {
     'game-activity': ('game-primary', False),
     'game-fullscreen-activity': ('game-primary', False),
     'game-resumed-activity': ('game-primary', False),
+    'game-policy-activity': ('game-primary', False),
+    'game-policy-closed': ('game-primary', True),
     **{operation: ('native-' + instance, False)
        for operation, (instance, action) in accessible_ui.NATIVE_WINDOW_BINDINGS.items()
        if action == 'activity'},
@@ -193,6 +195,7 @@ class JourneyPlan:
         activity_tags = {'ui:' + operation for operation, (_binding, closed)
                          in ACTIVITY_BINDINGS.items() if not closed}
         activity_closures = {
+            'ui:game-policy-closed': 'ui:game-policy-activity',
             'ui:native-policy-closed': 'ui:native-policy-activity',
             'ui:native-policy-soft-closed': 'ui:native-policy-soft-activity',
             'ui:native-files-soft-policy-closed': 'ui:native-files-soft-policy-activity',
@@ -223,6 +226,7 @@ class JourneyPlan:
                                                        'ui:flatpak-allowed-policy-activity',
                                                        'ui:flatpak-hard-policy-activity',
                                                        'ui:flatpak-soft-policy-activity', 'ui:game-activity',
+                                                       'ui:game-policy-activity',
                                                        'ui:game-resumed-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0

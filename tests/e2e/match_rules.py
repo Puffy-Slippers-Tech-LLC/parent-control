@@ -26,6 +26,7 @@ def match_edit(draft, prefix, *, editor, row):
               *((row,) if row is not None else ()))
     require(len(stages) == len(set(stages)), 'match:edit-stages')
     operation = 'ui:match-' + {'match-hard-precise': 'hard-',
+                              'match-game-precise': 'game-',
                               'match-alias-precise': 'alias-',
                               'match-soft-wildcard': 'soft-',
                               'match-soft-rejected-directory': 'soft-',

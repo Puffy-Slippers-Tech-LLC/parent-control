@@ -2052,6 +2052,16 @@ class GameExpiryQualification(GameActivityQualification):
             FULLSCREEN_PLAN if cls.game_mode == 'fullscreen' else PLAN)
 
 
+class GamePermissionQualification(GameActivityQualification):
+    fixture_caller = 'check_e2e_game_permission'
+    worker_timeout = 3600
+
+    @staticmethod
+    def journey(context, progress):
+        from game_permission import GamePermissionJourney
+        return GamePermissionJourney(context, progress)
+
+
 class GameFullscreenQualification(GameExpiryQualification):
     fixture_caller = 'check_e2e_game_fullscreen'
     game_mode = 'fullscreen'

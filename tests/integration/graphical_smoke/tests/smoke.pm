@@ -1254,6 +1254,12 @@ sub run {
         onpc_app_rows::fullscreen_request(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{game_permission}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::game_permission(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{game_activity}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

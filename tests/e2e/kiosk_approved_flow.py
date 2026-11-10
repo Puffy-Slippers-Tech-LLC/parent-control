@@ -21,7 +21,7 @@ def approved_request(*, child, approver, duration_seconds, allow_soft, exit, exp
             and duration_seconds in (75, 120, 180, 240, 600, 1200)
             and type(duration_seconds) is int and allow_soft is True,
             'approved-flow:choices')
-    require(exit in ('automatic', 'immediate'), 'approved-flow:exit')
+    require(exit in ('automatic', 'immediate', 'close'), 'approved-flow:exit')
     if duration_seconds != 75:
         require(exit == 'automatic', 'approved-flow:long-exit')
         binding = 'kiosk-long-mate' if duration_seconds == 600 else f'kiosk-request-{duration_seconds}-mate'
@@ -29,6 +29,14 @@ def approved_request(*, child, approver, duration_seconds, allow_soft, exit, exp
             **{'approval-' + suffix: f'ui:{binding}-' + operation
                for suffix, operation in (('open', 'open'), ('qualified', 'qualified'),
                                          ('rechecked', 'rechecked'), ('success', 'submit-success'))},
+            'new-returned': 'ui:gdm-station-returned',
+        }
+    if exit == 'close':
+        return {
+            'approval-open': 'ui:kiosk-mate-open',
+            'approval-qualified': 'ui:kiosk-mate-qualified',
+            'approval-rechecked': 'ui:kiosk-mate-rechecked',
+            'approval-close': 'ui:kiosk-pending-close',
             'new-returned': 'ui:gdm-station-returned',
         }
     return {

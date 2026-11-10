@@ -229,6 +229,47 @@ sub pending_overlay_close {
     return pending_overlay_interruption('close', @_);
 }
 
+sub pending_station_close {
+    onpc_progress::operation('Closing a pending station request and returning without added time');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'pending-station-close:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'pending-station-close', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    onpc_parent::set_allowance($journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 30, 1);
+    $journey->seen($_) for qw(switch-user gdm-switched);
+    onpc_gdm::enter_station($journey, '');
+    prepare($journey, 'open', 'open', 'default', 'fixture-child', 'fixture-parent', 75, 1, 'compact');
+    station_close($journey);
+    onpc_gdm::enter_station($journey, 'cancel-');
+    $journey->seen($_) for qw(reopened-form cancel cancel-returned);
+    onpc_gdm::sign_in_challenge($journey, 'return',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'return', 0);
+    $journey->seen('balance-returned');
+    $journey->finish();
+}
+
+# The fixed kiosk request's existing AUTH01 proofs authorize only one normal
+# surface close here. No password or agent Cancel is delivered.
+sub station_close {
+    my ($journey) = @_;
+    die 'pending-station-close:binding' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    die 'pending-station-close:replay' if $journey->{station_close_started} || $journey->{invocation_failed};
+    $journey->{station_close_started} = 1;
+    my $ok = eval {
+        $journey->consume_observation($_, $journey->seen($_))
+            for qw(approval-open approval-qualified approval-rechecked approval-close new-returned);
+        1;
+    };
+    unless ($ok) {
+        $journey->{invocation_failed} = 1;
+        die $@;
+    }
+}
+
 sub pending_overlay_interruption {
     my $action = shift;
     onpc_progress::operation('Leaving and returning to the child during a pending parent approval');

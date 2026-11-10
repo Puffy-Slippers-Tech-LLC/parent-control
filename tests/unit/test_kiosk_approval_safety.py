@@ -413,7 +413,8 @@ print encode_json({first => $first ? 1 : 0, second => $second ? 1 : 0,
 
 
 @pytest.mark.parametrize('identity', ['a' * 64, 'b' * 64])
-def test_pending_close_rechecks_the_same_prompt_before_the_owned_surface(identity):
+@pytest.mark.parametrize('provider', ['shell', 'mate'])
+def test_pending_close_rechecks_the_same_prompt_before_the_owned_surface(monkeypatch, identity, provider):
     module = ui_observations.accessible_ui
     ui = module.AccessibleUI.__new__(module.AccessibleUI)
     ui.input_uncertain = False
@@ -423,33 +424,51 @@ def test_pending_close_rechecks_the_same_prompt_before_the_owned_surface(identit
     ui.read_snapshot = Mock(return_value=object())
     ui.shell_prompt_owner = Mock(return_value=SimpleNamespace(get_process_id=lambda: 123))
     ui.shell_prompt = Mock(return_value=object())
+    ui.mate_agent_pid = Mock(return_value=123)
+    ui.mate_prompt = Mock(return_value=object())
+    monkeypatch.setattr(module.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1234))
+    monkeypatch.setattr(module.os, 'getuid', lambda: 1234)
+    session = Mock()
+    monkeypatch.setattr(module, 'require_active_launch_session', session)
     ui.mate_challenge_identity = Mock(return_value=identity)
     target = Mock()
     ui.snapshot_owned_target = Mock(return_value=target)
     ui.surface_available = Mock(return_value=True)
+    binding = {f'pending_{provider}_challenge': 'a' * 64}
     if identity == 'a' * 64:
-        ui.close_id('kiosk-request-window', pending_shell_challenge='a' * 64)
+        ui.close_id('kiosk-request-window', **binding)
         target.close.assert_called_once_with()
-        ui.require_child_overlay_session.assert_called_once_with(module.CHILD)
+        if provider == 'shell':
+            ui.require_child_overlay_session.assert_called_once_with(module.CHILD)
+        else:
+            session.assert_called_once_with()
     else:
         with pytest.raises(module.UiError, match='pending-close-challenge'):
-            ui.close_id('kiosk-request-window', pending_shell_challenge='a' * 64)
+            ui.close_id('kiosk-request-window', **binding)
         ui.snapshot_owned_target.assert_not_called()
         target.close.assert_not_called()
 
 
-def test_pending_close_proof_is_consumed_before_an_uncertain_dispatch():
+@pytest.mark.parametrize('surface', ['overlay', 'kiosk'])
+def test_pending_close_proof_is_consumed_before_an_uncertain_dispatch(surface):
     ui = ui_observations.UiObservations(None)
-    ui.last_operation = 'overlay-shell-close-ready'
-    ui.pending_close_challenge = 'a' * 64
+    if surface == 'overlay':
+        ui.last_operation = 'overlay-shell-close-ready'
+        ui.pending_close_challenge = 'a' * 64
+    else:
+        ui.last_operation = 'kiosk-mate-rechecked'
+        ui.mate_approval_index = 3
+        ui.mate_request_binding = ui.kiosk_request
+        ui.mate_approval_identity = 'a' * 64
+        ui.mate_approval_checked = ui_observations.time.monotonic()
     ui.boot_guard = 'b' * 64
     ui.call = Mock(side_effect=RuntimeError('fixture:lost-reply'))
     with pytest.raises(RuntimeError, match='lost-reply'):
-        ui.observe('overlay-pending-close')
+        ui.observe(surface + '-pending-close')
     argv = ui.call.call_args.args[0]
     assert argv[-2:] == ['b' * 64, 'a' * 64]
-    with pytest.raises(EvidenceError, match='pending-close-order'):
-        ui.observe('overlay-pending-close')
+    with pytest.raises(EvidenceError, match='pending-(?:station-)?close-order'):
+        ui.observe(surface + '-pending-close')
     assert ui.call.call_count == 1
 
 

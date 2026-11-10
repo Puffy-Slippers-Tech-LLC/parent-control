@@ -331,6 +331,7 @@ feedback.collect_logs = feedback_logs
 
 feedback_status = int(os.environ.get("ONPC_FEEDBACK_STATUS", "202"))
 feedback_retry_release = os.environ.get("ONPC_FEEDBACK_RETRY_RELEASE")
+feedback_retry_status = int(os.environ.get("ONPC_FEEDBACK_RETRY_STATUS", "202"))
 feedback_attempts = 0
 
 def feedback_post(_url, **kwargs):
@@ -349,7 +350,7 @@ def feedback_post(_url, **kwargs):
             if time.monotonic() >= deadline:
                 raise TimeoutError("feedback retry fixture was not released")
             time.sleep(0.02)
-        status = 202
+        status = feedback_retry_status
     response = Mock(status_code=status,
                     json=Mock(return_value={"ok": status == 202}))
     response.__enter__ = Mock(return_value=response)

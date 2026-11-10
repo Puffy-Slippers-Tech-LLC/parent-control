@@ -216,8 +216,7 @@ class SessionPanel:
     def model_label(self):
         # Retained records are provenance, never a reason to read live config
         # or infer a provider from a native model name.
-        return ' '.join(filter(None, (self.chat_state.get('agent') or 'Unknown agent',
-                                     self.chat_state.get('model'), self.chat_state.get('effort'))))
+        return ' '.join(filter(None, (self.chat_state.get('model'), self.chat_state.get('effort'))))
 
     def webview(self, *, simplified=None):
         """Expose the shared transcript/composer to a native webview host."""

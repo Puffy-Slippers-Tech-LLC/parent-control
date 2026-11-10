@@ -163,9 +163,13 @@ def test_request_error_review_restrictions_and_submission(
             else ui.absent("feedback-download-logs", within="feedback-dialog"))
     if overlay:
         ui.setText("feedback-reply-email", "first@example.invalid")
+    else:
+        assert ui.content("feedback-reply-email") == ""
     wait_for_accessible_state(lambda: ui.state("feedback-send", ui.api.StateType.SENSITIVE),
                               "error report is ready")
     ui.activate("feedback-send")
+    if not overlay:
+        assert ui.absent("feedback-anonymous-dialog", within="kiosk-request-window")
     wait_for_accessible_state(lambda: ui.showing("feedback-success-dialog"),
                               "feedback confirmation opens")
     component = "Child App" if overlay else "Kiosk App"
@@ -179,6 +183,8 @@ def test_request_error_review_restrictions_and_submission(
         assert "Reply email: first@example.invalid\n" in submissions[0]["message"]
         body += ("\n\nWe may contact you at the email address you provided if we have "
                  "any follow-up questions.")
+    else:
+        assert "Reply email: not provided\n" in submissions[0]["message"]
     assert ui.text("feedback-success-text") == body
     assert ui.state("feedback-success-dialog", ui.api.StateType.MODAL)
     assert not events(path, "close_overlay" if overlay else "logout")

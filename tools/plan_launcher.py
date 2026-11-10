@@ -822,7 +822,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',
     # Shared storage retirement still protects owned resources and any older
     # required captures. These guards do not collect task archives.
-    'test_retention.py', 'test_storage.py', 'test_io.py', 'test_input_transfer.py',
+    'test_retention.py', 'test_storage.py', 'test_source.py', 'test_io.py', 'test_input_transfer.py',
     'evidence_capture.py', 'evidence_identity.py', 'capture_publication.py',
     'evidence_bundle.py', 'recording_storage.py', 'artifact_export.py',
     'launcher_git.py', 'launcher_worktrees.py', 'launcher_question.py',
@@ -854,6 +854,14 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     from launcher_chat import task_info_instructions
     from launcher_runtime import SessionAllowance
     allowance = SessionAllowance(run)
+    controller_sources = response_validator_sources()
+
+    def check_controller_sources():
+        # A task may replace a lazily imported dependency. Retain its accepted
+        # result before reloading, so close-out uses fresh code without another
+        # agent turn or repeating the task's checks.
+        if response_validator_sources() != controller_sources:
+            raise ReloadRequested()
 
     def session_allowance():
         repair = coordinator_repair(state)
@@ -907,6 +915,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             recover_reviewed_completion(plan, run, state)
         if state.get('pending_completion') and not (reloading and launcher.accept_stop(run)):
             publish_progress(run, state['task_id'], [heading(), 'Recovering accepted task close-out…'])
+            check_controller_sources()
             if closeout(plan, spec, run, state, selection=selection):
                 completed_task()
                 print(f"{spec.name}: recovered task {state['task_id']} close-out.", flush=True)
@@ -916,6 +925,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if launcher.accept_stop(run):
                 reason = 'stopped at a session boundary'
                 break
+            check_controller_sources()
             from launcher_worktrees import pull_at_boundary
             pull_at_boundary(root, run, state, selection=selection if capacity_retry(state) else None)
             # A valid continuation can need new startup recovery just as a
@@ -1107,6 +1117,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             if result['status'] == 'task_complete':
                 state['pending_completion'] = result
                 launcher.atomic(run / 'checkpoint.json', state)
+                check_controller_sources()
                 if closeout(plan, spec, run, state, selection=selection):
                     completed_task()
             elif result['status'] == 'blocked':

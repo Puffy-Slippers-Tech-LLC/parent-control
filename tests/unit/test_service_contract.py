@@ -570,7 +570,9 @@ def test_production_policy_uses_only_validated_original_permissive_mode(permissi
           mock.patch.object(runtime, 'ExtensionManager'),
           mock.patch.object(runtime, 'TimerUsage'),
           mock.patch.object(runtime, 'RunningAppTerminator')):
-        runtime.production_dependencies(mock.Mock())
+        dependencies = runtime.production_dependencies(mock.Mock())
+    from oh_no_parent_control.core import local_now
+    assert dependencies.now is local_now
     mode.assert_called_once_with()
     policy.assert_called_once_with(tolerate_rule_errors=True, early_pattern_guards=permissive)
 

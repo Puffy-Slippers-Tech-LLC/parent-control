@@ -1307,15 +1307,15 @@ SHELL_PROMPT_REFUSALS = ('wrong-agent', 'session', *MATE_REFUSALS[1:])
 SHELL_REQUEST_LANGUAGES = frozenset({'en', 'he'})
 # FLOW20 callers own these finite choices. The same binding follows the form,
 # native Shell recipient, original activity and public countdown.
-OVERLAY_REQUEST_MINUTES = {30: '0.5', 60: '1', 75: '1.25', 120: '2',
-                           150: '2.5', 180: '3', 300: '5', 900: '15'}
+OVERLAY_REQUEST_MINUTES = {0: None, 30: '0.5', 60: '1', 75: '1.25', 120: '2',
+                           150: '2.5', 180: '3', 300: '5', 600: '10', 900: '15'}
 OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15 seconds',
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
                             180: '3 minutes', 300: '5 minutes', 900: '15 minutes'}
 OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS,
     *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
-    'overlay-desktop', 'child-countdown-present'})
+    'overlay-desktop', 'overlay-request-cancel', 'child-countdown-present'})
 OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
 CHILD_DESKTOP_OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
 OVERLAY_VALID_OPERATIONS |= {'overlay-request-estimate'}
@@ -10368,9 +10368,10 @@ class AccessibleUI:
         self.set_value('kiosk-approver-selector', str(pwd.getpwnam(APPROVER_ACCOUNTS[approver]).pw_uid))
         self.wait(lambda: self.kiosk_valid_target('kiosk-duration-custom', child=child,
             approver=approver, overlay=True), 'overlay-request-ready')
-        self.set_value('kiosk-duration-choices', 'custom')
-        self.set_value('kiosk-custom-duration-units', 'minutes')
-        self.set_text('kiosk-custom-duration', OVERLAY_REQUEST_MINUTES[seconds], child=child)
+        self.set_value('kiosk-duration-choices', '0' if seconds == 0 else 'custom')
+        if seconds != 0:
+            self.set_value('kiosk-custom-duration-units', 'minutes')
+            self.set_text('kiosk-custom-duration', OVERLAY_REQUEST_MINUTES[seconds], child=child)
         self.set_value('kiosk-soft-apps-toggle', soft)
 
     def overlay_panel_form_present(self):
@@ -11295,7 +11296,7 @@ class AccessibleUI:
         return {'source': source, 'privacy_read': True, 'actions_confined': True,
                 'draft_preserved': True, 'sent': False}
 
-    def _kiosk_valid_choice(self, operation):
+    def _kiosk_valid_choice(self, operation, *, refresh=True):
         require(not self.input_uncertain, 'ui:uncertain-input')
         overlay = operation in OVERLAY_VALID_OPERATIONS
         chinese = operation in CHINESE_VALID_BINDINGS
@@ -11358,26 +11359,30 @@ class AccessibleUI:
             value = self._kiosk_valid_choice('kiosk-valid-fraction-soft-read')
             require(value['request'] == before, 'ui:kiosk-retry-final')
             return value
-        if operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh'):
+        if refresh and (operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
+                        or bound and overlay and seconds > 0):
             # Reading a cached label does not date its calculation. Equivalent
             # decimal edits invoke the public changed handler, invalidate any
             # old response, and leave the complete requested choices intact.
             before = self.kiosk_request_form(enabled=True,
-                expected_selection=('approver', 'fixture-parent'),
+                expected_selection=('approver', APPROVER_IDENTITIES[approver]),
                 duration_seconds=seconds, custom_text=custom, overlay=overlay)
             require(before['child'] == CHILD_IDENTITIES[child]
-                    and before['approver'] == 'fixture-parent' and before['allow_soft'] is True,
+                    and before['approver'] == APPROVER_IDENTITIES[approver]
+                    and before['allow_soft'] is soft,
                     'ui:overlay-refresh-choice')
             start = time.monotonic_ns()
-            self.set_text('kiosk-custom-duration', '1.250', child=child)
+            equivalent = custom + ('0' if '.' in custom else '.0')
+            self.set_text('kiosk-custom-duration', equivalent, child=child)
             intermediate = self.kiosk_request_form(enabled=True,
-                expected_selection=('approver', 'fixture-parent'),
-                duration_seconds=seconds, custom_text='1.250', overlay=overlay)
-            require(intermediate == {**before, 'custom_text': '1.250'},
+                expected_selection=('approver', APPROVER_IDENTITIES[approver]),
+                duration_seconds=seconds, custom_text=equivalent, overlay=overlay)
+            require(intermediate == {**before, 'custom_text': equivalent},
                     'ui:overlay-refresh-intermediate')
             self.set_text('kiosk-custom-duration', custom, child=child)
-            value = self._kiosk_valid_choice('overlay-valid-fraction-soft-read' if overlay
-                                            else 'jordan-fraction-soft-read')
+            value = self._kiosk_valid_choice(operation if bound else
+                'overlay-valid-fraction-soft-read' if overlay else 'jordan-fraction-soft-read',
+                refresh=False)
             require(value['request'] == before, 'ui:overlay-refresh-final')
             end = time.monotonic_ns()
             require(0 < start <= end and end - start <= 45_000_000_000,
@@ -14967,7 +14972,8 @@ class AccessibleUI:
         bound_child = (self.kiosk_bound_values()[0] if getattr(self, 'kiosk_request', None) is not None
                        else self.overlay_bound_values()[0])
         self.text_overlay = (operation.startswith('text-overlay-')
-                             or operation in ('overlay-fraction-estimate-refresh', 'overlay-request-select'))
+                             or operation in ('overlay-fraction-estimate-refresh',
+                                              'overlay-request-select', 'overlay-request-estimate'))
         if self.text_overlay:
             self.require_child_overlay_session(bound_child)
         self.prompt_enabled = operation not in GREETER_OPERATIONS and operation not in STATION_BRANCH_OPERATIONS
@@ -15792,8 +15798,8 @@ class AccessibleUI:
                 else:
                     raise UiError('ui:overlay-valid-refusal-missing')
         elif operation == 'overlay-request-cancel':
-            self.require_child_overlay_session()
-            self.cancel_kiosk_request(overlay=True)
+            self.require_child_overlay_session(bound_child)
+            self.cancel_kiosk_request(overlay=True, child=bound_child)
         elif operation == 'overlay-request-escape-ready':
             self.focus_kiosk_escape_recipient(overlay=True)
         elif operation in KIOSK_RESTRICTION_OPERATIONS:

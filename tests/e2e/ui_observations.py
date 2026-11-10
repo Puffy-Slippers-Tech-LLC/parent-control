@@ -3058,7 +3058,10 @@ class UiObservations:
         if operation in valid_requests:
             require(type(result) is dict and set(result) == {*expected, 'valid_choice'}, 'ui:response')
             value = result['valid_choice']
-            fresh = operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
+            fractional_refresh = operation in (
+                'overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
+            fresh = fractional_refresh or (operation == 'overlay-request-estimate'
+                                            and valid_requests[operation][0] > 0)
             overlay = operation in accessible_ui.OVERLAY_VALID_OPERATIONS
             require(type(value) is dict and set(value) == {
                     'request', 'estimate', 'observed_monotonic_ns',
@@ -3090,7 +3093,7 @@ class UiObservations:
                     language=('he' if operation == 'overlay-hebrew-fraction-soft-read' else
                               'zh-Hans' if operation in accessible_ui.CHINESE_VALID_REQUESTS else 'en'))},
                         'ui:kiosk-valid-response')
-                if fresh:
+                if fractional_refresh:
                     require(estimate['precision_seconds'] == 1, 'ui:overlay-refresh-precision')
             expected['valid_choice'] = value
         if (operation in accessible_ui.KIOSK_OPERATIONS

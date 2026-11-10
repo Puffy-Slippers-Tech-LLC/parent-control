@@ -23,6 +23,7 @@ from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Protocol
+from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .whats_new import WhatsNewCatalog, WhatsNewError
@@ -176,6 +177,20 @@ def calculate_active_extension_seconds(
     return calculated
 
 
+def local_now() -> datetime:
+    """Read the system timezone's transition rules, including tomorrow's offset.
+
+    Reopen the OS timezone file so a timezone change takes effect without a
+    broker restart. astimezone() without a zone would retain only today's offset.
+    """
+    try:
+        with open("/etc/localtime", "rb") as source:
+            zone = ZoneInfo.from_file(source)
+        return datetime.now(zone)
+    except (OSError, ValueError) as error:
+        raise BackendFailure("local timezone is unavailable") from error
+
+
 def seconds_until_local_midnight(now: datetime) -> int:
     if now.tzinfo is None:
         raise ValueError("approval time must be timezone-aware")
@@ -194,7 +209,7 @@ class Broker:
                  application_catalog: Callable[[UserAccount], tuple[dict, ...]] | None = None,
                  running_apps: RunningApps | None = None,
                  *, monotonic=time.monotonic,
-                 now=lambda: datetime.now().astimezone(), caller_alive=lambda _sender: True,
+                 now=local_now, caller_alive=lambda _sender: True,
                  whats_new_loader=WhatsNewCatalog.load):
         self._config_loader = config_loader
         self._authorizer = authorizer

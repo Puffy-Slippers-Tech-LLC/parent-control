@@ -14,7 +14,6 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import gi
@@ -30,7 +29,7 @@ from .adapters import (
 from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
-from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure
+from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure, local_now
 from .extension_manager import ExtensionManager
 from .extension_monitor import ExtensionMonitor
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
@@ -269,7 +268,7 @@ class ServiceDependencies:
     application_catalog: Any
     running_apps: Any
     monotonic: Any = time.monotonic
-    now: Any = lambda: datetime.now().astimezone()
+    now: Any = local_now
     broker_factory: Any = Broker
     policy_rescan_interval_seconds: float | None = 30
     extension_monitor_factory: Any = None

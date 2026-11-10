@@ -2095,7 +2095,8 @@ needed just to run the shared system operation.
 
 Implementation status: Cases 196/197/198 use `ordinary_daily_reset.PLAN`,
 `ordinary_rest_of_day.PLAN` and `ordinary_fixed_grant.PLAN`, respectively, and
-passed their complete Ubuntu 26.04 journeys. Seasonal bindings remain pending.
+passed their complete Ubuntu 26.04 journeys. Case 200 uses
+`spring_forward_paired_grants.PLAN`; the fall-back binding remains pending.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 200, 203.
 
@@ -2815,9 +2816,10 @@ restored guest's normal setup and before any parent/child input, the shared
 [`calendar_fixture.preset_ordinary_midnight`](../../tests/e2e/calendar_fixture.py)
 disables network time synchronization through `timedatectl` and sets the clock
 to 23:35 on the next future ordinary day in the unchanged timezone for implemented
-cases 196/197/198. Seasonal cases 200/203 must extend the same fixture narrowly to their declared real
-timezone transition, with enough setup margin and independent transition
-readback. Their preparation is authorized, not implemented or qualified here.
+cases 196/197/198. Case 200 uses the same module's `preset_spring_forward` to
+prepare thirty elapsed minutes before the next real one-hour spring transition
+in the unchanged timezone, with independent transition/day-length readback.
+Case 203 still owns its fall transition extension and qualification.
 Declare and independently read back that date/window. Make no further clock adjustments:
 each case must cross its real calendar boundary at normal speed and retain
 its own elapsed-use, deadline, access and denial assertions. Case 196 must
@@ -2852,14 +2854,17 @@ public precision is a gate, not permission to sample another day and call it
 the same case. Detailed timezone arithmetic and malformed timestamps retain
 their fast technical coverage.
 
-Cases 200/203 retain a known production mismatch: the
-[rest-of-day clock binding](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities)
-uses the approval's fixed UTC offset for tomorrow's midnight. Before the
-one-hour spring/fall transitions this yields a deadline one hour late/early.
-Keep the actual-local-midnight expectation and independent fixed-grant
-comparison. Correct the production timezone calculation before claiming these
-cases pass; do not redefine midnight, inject a test clock or substitute a unit
-test's transition-aware timezone for the installed result.
+The [production clock binding](../SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities)
+now resolves the system timezone's transition rules. Both cases retain the
+actual-local-midnight expectation and independent fixed-grant comparison;
+an injected test timezone supplies no installed acceptance. Case 200 samples
+Jordan first before the transition, then Riley, crosses with Riley active,
+reads Riley then Jordan afterward, and returns to Riley for natural expiry.
+One-second numeric countdown values are bracketed by guest monotonic clock
+reads with a two-second tick margin; request estimates allow their declared
+precision of at most sixty seconds. Both pre-transition approvals retain their
+original UTC deadline comparisons. Jordan's final usable work follows Riley's
+zero-grant readback and correct-password time refusal.
 
 ### E2E-053
 

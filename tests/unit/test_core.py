@@ -25,6 +25,37 @@ from tests.support.broker import (
 )
 
 
+@pytest.mark.parametrize('approval_utc, midnight_utc', (
+    ((2027, 3, 14, 9, 30), (2027, 3, 15, 7, 0)),
+    ((2027, 11, 7, 8, 30), (2027, 11, 8, 8, 0)),
+))
+def test_default_clock_resolves_midnight_after_a_seasonal_change(approval_utc, midnight_utc):
+    from datetime import timezone
+    from oh_no_parent_control import core
+    from builtins import open as real_open
+
+    instant = datetime(*approval_utc, tzinfo=timezone.utc)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(instant.timestamp(), tz)
+
+    def localtime(path, mode):
+        assert (path, mode) == ('/etc/localtime', 'rb')
+        return real_open('/usr/share/zoneinfo/America/Los_Angeles', 'rb')
+
+    # Exercise the actual Broker default shared by production_dependencies,
+    # with real OS TZif rules. Freeze only the instant and OS timezone file.
+    broker = Broker(lambda: None, Authorizer(), Accounts())
+    with mock.patch.object(core, 'datetime', Clock), mock.patch.object(core, 'open', localtime, create=True):
+        now = broker._now()
+        duration = seconds_until_local_midnight(now)
+    expected = datetime(*midnight_utc, tzinfo=timezone.utc).timestamp()
+    assert int(now.timestamp()) + duration == expected
+    assert now.utcoffset() != datetime.fromtimestamp(expected, now.tzinfo).utcoffset()
+
+
 @pytest.mark.parametrize("caller", [1001, 991])
 def test_extension_recovery_requires_administrator(caller):
     extensions = Extensions()

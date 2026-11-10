@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **190k — [Stop a station report](E2E-Tasks/190k-confirm-stopping-a-sending-kiosk-report.md)**.
+Next task: **261 — [Check station report Stop callback](E2E-Tasks/261-case-219.md)**.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

@@ -219,10 +219,13 @@ def test_request_error_review_restrictions_and_submission(
 
 
 @pytest.mark.parametrize("late_status", (503, 202), ids=("late-retry", "late-success"))
+@pytest.mark.parametrize("overlay", (True, False), ids=("child-overlay", "kiosk"))
 def test_child_stops_sending_report_before_late_response(
         launch_ui, automation, wait_for_accessible_state, collect_application_logs,
-        tmp_path, late_status):
+        tmp_path, late_status, overlay):
     ui, wait = automation, wait_for_accessible_state
+    exit_event = "close_overlay" if overlay else "logout"
+    other_exit = "logout" if overlay else "close_overlay"
     release = tmp_path / "feedback-retry-release"
     launches = []
 
@@ -232,7 +235,7 @@ def test_child_stops_sending_report_before_late_response(
         return launched
 
     _process, path = launch_request(
-        record_launch, tmp_path, overlay=True, scenario="service-failure",
+        record_launch, tmp_path, overlay=overlay, scenario="service-failure",
         feedback_status=503, feedback_retry_release=release,
         feedback_retry_status=late_status,
     )
@@ -257,10 +260,10 @@ def test_child_stops_sending_report_before_late_response(
         ui.activate("feedback-close")
         wait(lambda: ui.absent("feedback-dialog", within="kiosk-request-window"),
              "Stop directly closes the report without confirmation")
-        wait(lambda: bool(events(path, "close_overlay")),
-             "closing the report calls the overlay exit before the response is released")
-        assert len(events(path, "close_overlay")) == 1
-        assert not events(path, "logout")
+        wait(lambda: bool(events(path, exit_event)),
+             "closing the report calls its exit before the response is released")
+        assert len(events(path, exit_event)) == 1
+        assert not events(path, other_exit)
         assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
     finally:
         release.touch()
@@ -276,8 +279,8 @@ def test_child_stops_sending_report_before_late_response(
     assert ui.absent("feedback-dialog", within="kiosk-request-window")
     assert ui.absent("feedback-success-dialog", within="kiosk-request-window")
     assert len(events(path, "feedback")) == 2
-    assert len(events(path, "close_overlay")) == 1
-    assert not events(path, "logout")
+    assert len(events(path, exit_event)) == 1
+    assert not events(path, other_exit)
 
 
 def test_parent_discovery_error_opens_prefilled_feedback(

@@ -163,6 +163,9 @@ sub enter_kiosk_mate_password {
             my $offline = ($journey->{prefix} // '') eq 'offline-approvals-station'
                 && ($journey->{stage_prefix} // '') eq 'station-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,180,1';
+            my $station_close = ($journey->{prefix} // '') eq 'station-close-case'
+                && ($journey->{stage_prefix} // '') eq ''
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,75,1';
             my $calendar = ($journey->{prefix} // '') eq 'ordinary-rest-of-day-request'
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'child,parent,0,0';
@@ -180,7 +183,7 @@ sub enter_kiosk_mate_password {
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $calendar || $game ||
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

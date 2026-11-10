@@ -521,6 +521,12 @@ sub run {
         onpc_request_flow::pending_station_close(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{station_close_case}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::station_close_case(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{overlay_prompt}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

@@ -566,6 +566,24 @@ print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events =>
         ['delivery', role, 'overlay-shell-approval']]}
 
 
+@pytest.mark.parametrize('fault', ['none', 'scope', 'child'])
+def test_station_close_recovery_secret_stays_on_its_fresh_request(fault):
+    result = run_password_guard(r'''
+my $fault = shift @ARGV;
+my $journey = bless {prefix => 'station-close-case', stage_prefix => '',
+    kiosk_request => ['child', 'parent', 75, 1], review => 0}, 'onpc_journey';
+$journey->{stage_prefix} = 'interruption-' if $fault eq 'scope';
+$journey->{kiosk_request}[0] = 'other-child' if $fault eq 'child';
+my $first = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1; };
+my $replay = eval { onpc_password::enter_kiosk_mate_password($journey, 'bound-request'); 1; };
+print encode_json({first => $first ? 1 : 0, replay => $replay ? 1 : 0, events => \@events});
+''', fault)
+    assert json.loads(result.stdout) == {
+        'first': int(fault == 'none'), 'replay': 0,
+        'events': [['proof', 'approval-qualified'], ['proof', 'approval-rechecked'],
+                   ['delivery', 'parent', 'kiosk-mate-approval']] if fault == 'none' else []}
+
+
 @pytest.mark.parametrize('scope,binding,accepted', [
     ('profile-request-', 'long-request', True),
     ('first-', 'long-request', False),

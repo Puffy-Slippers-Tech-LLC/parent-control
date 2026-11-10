@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5832</span>/<span style="color: gray">0</span>/5832 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5835</span>/<span style="color: gray">0</span>/5835 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">225</span>/<span style="color: gray">0</span>/225 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">300</span>/<span style="color: gray">0</span>/300 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">66</span>/<span style="color: gray">0</span>/66 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">145</span>/<span style="color: gray">52</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6583</span>/<span style="color: gray">52</span>/6635** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">146</span>/<span style="color: gray">51</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6586</span>/<span style="color: gray">51</span>/6637** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">144</span>/<span style="color: gray">52</span>/196 |
+| customer-journey | <span style="color: green">145</span>/<span style="color: gray">51</span>/196 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -144,6 +144,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [172](#scenario-172) | Leave a pending approval or request again too soon (flow: overlay switch) | `E2E-039/overlay-switch` | ready |
 | [173](#scenario-173) | Leave a pending approval or request again too soon (flow: overlay signout) | `E2E-039/overlay-signout` | ready |
 | [174](#scenario-174) | Leave a pending approval or request again too soon (flow: overlay close) | `E2E-039/overlay-close` | ready |
+| [175](#scenario-175) | Leave a pending approval or request again too soon (flow: kiosk close) | `E2E-039/kiosk-close` | ready |
 | [180](#scenario-180) | Refresh accounts and remembered selections after account changes (change: remove selected) | `E2E-040/remove-selected` | ready |
 | [181](#scenario-181) | Refresh accounts and remembered selections after account changes (change: remove last child) | `E2E-040/remove-last-child` | ready |
 | [182](#scenario-182) | Refresh accounts and remembered selections after account changes (change: ineligible approver) | `E2E-040/ineligible-approver` | ready |
@@ -209,7 +210,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[161](#scenario-161)</span> | <span style="color: gray">Revoke when there is no active grant (balance: zero total)</span> | <span style="color: gray">`E2E-036/zero-total`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[175](#scenario-175)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk close)</span> | <span style="color: gray">`E2E-039/kiosk-close`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[176](#scenario-176)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: overlay cooldown)</span> | <span style="color: gray">`E2E-039/overlay-cooldown`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[178](#scenario-178)</span> | <span style="color: gray">Leave a pending approval or request again too soon (flow: kiosk cooldown other)</span> | <span style="color: gray">`E2E-039/kiosk-cooldown-other`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[190](#scenario-190)</span> | <span style="color: gray">Read Help, About and command usage on each surface (surface: parent links)</span> | <span style="color: gray">`E2E-042/parent-links`</span> | <span style="color: gray">pending</span> |
@@ -1784,6 +1784,20 @@ Variant: flow: overlay close
 - Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
 - Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
 
+### Scenario 175
+
+**Leave a pending approval or request again too soon (flow: kiosk close)**
+
+Case: `E2E-039/kiosk-close` · Category: customer-journey · Status: **ready**
+
+Variant: flow: kiosk close
+
+**Steps:**
+
+- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
+- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
+- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
+
 ### Scenario 180
 
 **Refresh accounts and remembered selections after account changes (change: remove selected)**
@@ -2877,26 +2891,6 @@ Variant: balance: zero total
 - With daily time left, revisit the child: the earlier soft app closes, blocked launches fail and allowed work remains usable. Daily time stays unchanged.
 
 Pending: Excluded from E2E scheduling: local zero-balance Revoke availability is owned by tests/ui/test\_preview\_smoke.py::test\_parent\_zero\_balance\_keeps\_revoke\_unavailable\_with\_limits\_on\_and\_off, with executable UI coverage. No standalone customer journey or new E2E task is claimed; retain this stable ID and historical completion.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 175
-
-**Leave a pending approval or request again too soon (flow: kiosk close)**
-
-Case: `E2E-039/kiosk-close` · Category: customer-journey · Status: **pending**
-
-Variant: flow: kiosk close
-
-**Steps:**
-
-- Enable limits and enter the declared form. Record time and app access. Open the parent prompt for an interruption, or complete an actual short approval for cooldown.
-- Use the declared normal lock, Switch User, sign-out or app-close action while approval is pending, or submit within the five-second cooldown. Read cancellation or the too-soon explanation with no new prompt. Cooldown cases review the synthetic error report, Privacy and surface actions without sending, then close to the desktop or GDM; station refusal targets the other child.
-- Return normally and read choices, balances and unchanged hard/soft app restrictions before retrying, allowing ordinary elapsed time only; station checks both children. Interruption requires a new request and authentication. For cooldown, wait any remaining interval and approve afresh, then make a separate too-soon attempt and decline reporting, returning directly to desktop/GDM with no report. Compare unchanged access again, wait the remaining interval and obtain another fresh real approval; station's final approval targets the previously refused other child.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
 
 </div>
 

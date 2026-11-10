@@ -27,6 +27,11 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
    when ownership cannot be determined safely. Review the commit's exact scope
    before creating a descriptive commit, or use the existing HEAD when there
    are no current-session changes to commit.
+   Use the Git contract's [isolated staging procedure](../../../docs/Approval-Tools.md#isolated-staging-with-existing-grants)
+   when unrelated work is already staged. Keep Git commands direct; do not use
+   `GIT_INDEX_FILE=... git ...`, `env`, shell/interpreter wrappers or alternate
+   index commands that miss the tracked grants. Random temporary patch/output
+   filenames are operands covered by those grants, not new approval categories.
 4. Fetch and reconcile remote state without discarding work or rewriting
    published history. Push the source and record its exact successfully pushed
    HEAD. Merge that pinned commit into every other configured destination and

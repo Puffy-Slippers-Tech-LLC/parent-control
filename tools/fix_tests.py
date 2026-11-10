@@ -20,6 +20,10 @@ import uuid
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_source import startup as source_startup
+_source_imports = source_startup(Path(__file__).resolve().parents[1], sys.argv[1:], repair=True)
+if __name__ == '__main__':
+    _source_imports.__enter__()
 from regression_session import FRAME_DIRECTORY, busy, lock
 from test_commands import host_only_selection, repair_inventory as requested_inventory
 from test_checkpoint import RESUME_SELECTION_MISMATCH
@@ -37,7 +41,6 @@ from launcher_runtime import (SessionResultRejected, TaskBudget, TaskLimitReache
                               read_session_result, retain_result_rejection, result_recovery_instructions,
                               validate_session_result, warn_remaining)
 
-
 DEFAULT_MODEL, DEFAULT_EFFORT = resolve_profile('repair')
 APP_MODEL, APP_EFFORT = resolve_profile('repair', effort='high')
 REPAIR_TIERS = ((DEFAULT_MODEL, DEFAULT_EFFORT), (APP_MODEL, APP_EFFORT),
@@ -47,6 +50,9 @@ MAX_REPAIR_SESSIONS = 5
 COMPLETED_WITH_FAILURES = 3
 CASE_RETRY_CATEGORIES = {'system', 'e2e', 'unit', 'component', 'ui', 'fixture-runtime'}
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
+
+if __name__ == '__main__':
+    _source_imports.__exit__(None, None, None)
 
 
 class ControllerReload(ReloadRequested):
@@ -625,13 +631,17 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
 
 def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1', resume='false', *, reloading=False):
     from contextlib import ExitStack
-    from vm_pool import selected_reservation
-    from test_commands import host_only_request
     selected = json.loads(requested)
-    from fix_tests_queue import parent_run, RepairCoordinator, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
-    parent = parent_run(run)
-    repair_gate = RepairGate(run, root=root)
-    finish_startup(run, root=root)
+    with source_startup(root, (), repair=True):
+        from vm_pool import selected_reservation
+        from test_commands import host_only_request
+        from fix_tests_queue import parent_run, RepairCoordinator, RepairGate, finish_startup, RECOVERY_ONLY, retain_owner
+        parent = parent_run(run)
+        from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+        guard_scheduling_run(parent or run)
+        guard_scheduling_checkpoints(root)
+        repair_gate = RepairGate(run, root=root)
+    finish_startup(run, root=root, writer=repair_gate.fd)
     retain_owner(owner)
     if parent is not None:
         import threading
@@ -1859,7 +1869,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             repair_context, test_replay = None, None
             retain_runtime()
         if not reload:
-            unfinished = commits is not None and RepairCoordinator.recovery_state(commits.state) != 'complete'
+            unfinished = (status not in (0, COMPLETED_WITH_FAILURES) or commits is None
+                          or RepairCoordinator.recovery_state(commits.state) != 'complete')
             repair_gate.release(unfinished=unfinished)
         previous = repair_progress(run, read_progress(run))
         if previous and not reload:
@@ -1910,8 +1921,13 @@ def resume_failure_context(previous, run, values):
 
 def select(root, **options):
     from test_reset import startup
+    import test_source
+    test_source.finish_admission()
     with startup(root):
-        return _select(root, **options)
+        controls = ['--stop'] if options.get('stop') else ['--reload'] if options.get('reload') else []
+        with test_source.admission(root, controls or (['--resume'] if options.get('resume') else []),
+                                   repair=True, wait=False):
+            return _select(root, **options)
 
 
 def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=1, resume=False, tasks=None,
@@ -1944,9 +1960,14 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                 return run, False
     def command(run, owner):
         nonlocal retained_git, retained_pipelines, retained_queue, retained_pending, retained_waiting, retained_evidence
+        from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+        guard_scheduling_checkpoints(root)
+        original = current_run(run.parent)
+        if original is not None:
+            guard_scheduling_run(original)
         # Only explicit resume carries workflow state into a new allocation.
         # Read before shared retention can retire the previous run allocation.
-        previous = current_run(run.parent) if resume else None
+        previous = original if resume else None
         if previous is not None:
             from launcher_progress import case_progress
             from watch_output import snapshot
@@ -2038,6 +2059,8 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
 
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
+        from test_checkpoint import scheduling_marker
+        atomic(run / 'scheduling.json', scheduling_marker())
         from fix_tests_queue import initialize_error_log
         initialize_error_log(run, resume=resume)
         for relative, value in retained_progress.items():
@@ -2074,6 +2097,10 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                                              model=model, effort=effort, tasks=tasks))
     def attached(run):
         check_binding(run, name, stopping=stop)
+        if not stop:
+            from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+            guard_scheduling_run(run)
+            guard_scheduling_checkpoints(root)
         if tasks is not None:
             budget = TaskBudget(run)
             limit = budget.set_limit(tasks)
@@ -2099,6 +2126,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         from vm_selection import execution_arguments
         public_argv.extend(execution_arguments())
     return detached_launcher.select(root, kind, command, stop=stop, public_argv=public_argv, stop_argv=stop_argv,
+        source_resume=resume,
         add_session=add_session,
         on_attach=attached, launcher_name='fix-tests',
         on_start=started, **({'reload': True} if reload else {}))
@@ -2266,7 +2294,8 @@ def main(argv=None):
                               **({'reload': True} if args.reload else {}))
         if args.reset:
             from test_reset import reset as reset_state
-            run, started = reset_state(root, start, host_only=host_only, selector=args.vm)
+            from test_source import restart_execution
+            run, started = reset_state(root, restart_execution, host_only=host_only, selector=args.vm)
         else:
             run, started = start()
         if run is None:

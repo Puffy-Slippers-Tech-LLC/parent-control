@@ -14,6 +14,10 @@ import uuid
 from contextlib import ExitStack, nullcontext
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_source
+if __name__ == '__main__':
+    _source_imports = test_source.startup(Path(__file__).resolve().parents[1], sys.argv[1:])
+    _source_imports.__enter__()
 
 import test_activity
 import test_launcher
@@ -21,6 +25,10 @@ import test_launcher
 _startup = threading.RLock()
 
 from detached_launcher import FRAME_DIRECTORY, lock, busy
+
+if __name__ == '__main__':
+    _source_imports.__exit__(None, None, None)
+    test_source.finish_imports(Path(__file__).resolve().parents[1])
 
 
 class SessionOutput:
@@ -79,8 +87,10 @@ def select(root, argv, *, reload=False):
     if is_inspection(argv):
         return None, False
     from test_reset import startup
+    test_source.finish_admission()
     with startup(root), _startup:
-        return _select(root, argv, reload=reload)
+        with test_source.admission(root, ['--reload'] if reload else argv, wait=False):
+            return _select(root, argv, reload=reload)
 
 
 def _select(root, argv, *, reload=False):
@@ -103,9 +113,18 @@ def _select(root, argv, *, reload=False):
             session_vm = previous.get('session_vm', session_vm)
     directory = prepare(root, host_only=host_only,
                         vm_name=session_vm)
-    with lock(directory / 'gate') as gate:
+    test_source.finish_admission()
+    with lock(directory / 'gate') as gate, ExitStack() as source:
         fcntl.flock(gate, fcntl.LOCK_EX)
+        source.enter_context(test_source.startup(root, ['--reload'] if reload else argv, wait=False))
         run, active = current_session(directory)
+        if reload and not active:
+            test_source.restart_execution()
+        if '--stop' not in argv:
+            from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+            guard_scheduling_checkpoints(root)
+            if run is not None:
+                guard_scheduling_run(run)
         if active:
             from vm_selection import extract_execution as extract
             _, requested_vm = extract(requested, required=False)
@@ -165,6 +184,9 @@ def _select(root, argv, *, reload=False):
                 test_retention.retain(run)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
+                from test_checkpoint import scheduling_marker
+                from detached_launcher import atomic
+                atomic(run / 'scheduling.json', scheduling_marker())
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
                            str(root), str(run), str(owner), *requested]
                 # Publish before spawning: terminal loss immediately after
@@ -180,6 +202,8 @@ def _select(root, argv, *, reload=False):
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
+                if test_source.VARIABLE in environment and test_source.WRITER not in environment:
+                    environment[test_source.IMPORTS] = environment[test_source.VARIABLE]
                 from launcher_reload import ReloadRequest
                 ReloadRequest(run).inherit(environment)
                 # Registration belongs to this public invocation. Test fixtures
@@ -272,7 +296,8 @@ def main(root, argv, *, reload=False, reset=False):
             from vm_selection import vm_config
             validate(root, argv or ['all'])
             _, selector = vm_config.extract_selector(argv)
-            run, started = reset_state(root, start, host_only=host_only_request(argv or ['all']), selector=selector)
+            run, started = reset_state(root, test_source.restart_execution,
+                                       host_only=host_only_request(argv or ['all']), selector=selector)
         else:
             run, started = start()
         if run is None:
@@ -308,10 +333,11 @@ def worker(root, argv, run, owner, *, reloading=False):
         (run / 'result').write_text('130')
         os.close(owner)
         return 130
-    import regression_process
-    import test_io
-    import launcher_reload
-    from test_storage import scratch_descriptors
+    with test_source.reader(root):
+        import regression_process
+        import test_io
+        import launcher_reload
+        from test_storage import scratch_descriptors
     regression_process.session_stop = threading.Event()
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
@@ -326,9 +352,17 @@ def worker(root, argv, run, owner, *, reloading=False):
                     options = argv if '--resume' in argv else ['--resume', *argv]
                     print('run-tests: reloading controller; completed work retained.', flush=True)
                     os.environ.update(test_activity.environment(reloading=True))
-                    launcher_reload.replace(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                        str(root), str(run), str(owner), '--reload-worker', *options],
-                        (owner, *test_activity.descriptors(reloading=True), *scratch_descriptors()))
+                    with test_source.reader(root, fresh=True) as source:
+                        temporary = test_source.WRITER not in test_source.environment()
+                        if temporary:
+                            os.environ[test_source.IMPORTS] = str(source)
+                        try:
+                            launcher_reload.replace(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                                str(root), str(run), str(owner), '--reload-worker', *options],
+                                (owner, *test_activity.descriptors(reloading=True), *scratch_descriptors()))
+                        finally:
+                            if temporary:
+                                os.environ.pop(test_source.IMPORTS, None)
             except (OSError, ValueError) as error:
                 status = 1
                 print(f'run-tests: controller reload failed: {error}; resume the retained run.', flush=True)
@@ -368,22 +402,34 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
     try:
-        from test_commands import _main, selections, host_only_selection
-        from test_recovery import before_queue
+        with test_source.reader(root, stopped=regression_process.session_stop.is_set):
+            from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
+            guard_scheduling_run(run)
+            guard_scheduling_checkpoints(root)
+            from test_commands import _main, selections, host_only_selection, host_only_request, includes_host_request
+            from test_recovery import before_queue, before_run
+            from vm_pool import selected_reservation
+            from vm_selection import BATCH
+            from vm_recording import recording
+            # The batch enters its own finite source admissions. Import its
+            # controller here before releasing this initialization lease.
+            if BATCH in os.environ and not host_only_request(argv):
+                import vm_test_queue
         # Fresh family progress cannot reset retained claims until the original
         # VMs have passed owned cleanup. Do this before holding the batch gate,
         # which would otherwise exclude that same standalone recovery.
         status = before_queue(root, argv)
         if status:
             return status
-        from vm_pool import selected_reservation
-        from test_commands import host_only_request, includes_host_request
         resources.enter_context(selected_reservation(enabled=not host_only_request(argv),
                                 stopped=regression_process.session_stop))
         resources.enter_context(test_activity.activity(root, host_only=host_only_request(argv),
                                 includes_host=includes_host_request(root, argv)))
+        # A batch delegates source admission to each finite VM attempt; a
+        # standalone owner keeps its admitted selection through owned cleanup.
+        if BATCH not in os.environ or host_only_request(argv):
+            resources.enter_context(test_source.reader(root, stopped=regression_process.session_stop.is_set))
         # Lifetime resources stay open until replacement or final owned cleanup.
-        from test_recovery import before_run
         categories = [kind for kind, _ in selections(root, argv)] if argv else []
         sys.stdout.controller('preparing', [
             f'Category: {categories[0] if categories else "all"} (1/{len(categories) or 1}) | Preparing tests'])
@@ -405,7 +451,6 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
                 else:
                     checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
             before_run(root, argv, categories=categories)
-        from vm_recording import recording
         with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
                            **({'reloading': True} if continuing else {}))

@@ -9,11 +9,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_account_password import read_password
-from dev_privileges import check
-from baseline_messages import help_message, mode_message
-from vm_selection import select, vm_config, SELECTOR_HELP
-from vm_queue import preparation
+import test_source
+with test_source.startup(ROOT, sys.argv[1:]):
+    from test_account_password import read_password
+    from dev_privileges import check
+    from baseline_messages import help_message, mode_message
+    from vm_selection import select, vm_config, SELECTOR_HELP
+    from vm_pool import reservation, arguments as checkout_arguments
+    from vm_queue import preparation
+    import test_activity
 
 HELPER = '/usr/local/libexec/onpc-setup'
 
@@ -55,6 +59,7 @@ def main(argv=None, *, refresh=True):
             raise ValueError('invoke as an unprivileged administrator')
         read_password()
         check(HELPER)
+        test_source.finish_admission()
         if len(vms) > 1:
             from vm_selection import confirm_queue
             if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
@@ -62,21 +67,23 @@ def main(argv=None, *, refresh=True):
                 return 0
             results, queue_status = preparation(ROOT, 'prepare-vm', args, concurrency, vms)
             # Even after a partial failure, accept successfully prepared VMs.
-            status = (subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
-                      if refresh and 0 in results.values() else 0)
+            status = 0
+            if refresh and 0 in results.values():
+                with test_source.reader(ROOT):
+                    status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT,
+                                            pass_fds=test_source.descriptors()).returncode
             status = status or queue_status
             return outcome(status, 'preparation failed; inspect the reported errors.' if status else
                            f'onpc_baseline prepared and accepted for {args.vm}.')
         select(args.vm)
-        from vm_pool import reservation, arguments as checkout_arguments
-        import test_activity
-        with reservation(args.vm), test_activity.activity(ROOT, named_vm=True):
+        with reservation(args.vm), test_activity.activity(ROOT, named_vm=True), test_source.reader(ROOT):
             status = subprocess.run(
                 ['/usr/bin/pkexec', '--keep-cwd', HELPER, *checkout_arguments(),
                  'prepare-vm', '--mode', args.mode,
                  *(['--y'] if args.y else []), '--vm', args.vm],
                 cwd=ROOT,
                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
+                pass_fds=test_source.descriptors(),
             ).returncode
         if status == 3:  # Operator declined; no baseline was prepared.
             print('prepare-vm: cancelled; no baseline snapshot was prepared.')
@@ -86,7 +93,9 @@ def main(argv=None, *, refresh=True):
         if not refresh:
             return 0
         # Pin the accepted UUID only after successful baseline reconciliation.
-        status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT).returncode
+        with test_source.reader(ROOT):
+            status = subprocess.run([str(ROOT / 'setup.sh'), '--test-tools-only'], cwd=ROOT,
+                                    pass_fds=test_source.descriptors()).returncode
         return outcome(status, 'helper refresh failed; baseline acceptance is incomplete.' if status else
                        f'onpc_baseline prepared and accepted for {args.vm}.')
     except (ValueError, OSError) as error:
@@ -94,4 +103,5 @@ def main(argv=None, *, refresh=True):
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    with test_source.admission(ROOT, sys.argv[1:]):
+        sys.exit(main())

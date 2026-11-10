@@ -90,6 +90,11 @@ def check():
 def replace(command, descriptors):
     """Exec without releasing the owner's lock or its inherited leases."""
     import vm_pool
+    import test_source
+    descriptors = (*descriptors, *test_source.descriptors())
+    source_environment = test_source.environment()
+    previous_source = {name: os.environ.get(name) for name in (test_source.VARIABLE, test_source.WRITER)}
+    os.environ.update(source_environment)
     keeper = vm_pool.reload_keeper()
     if keeper is not None:
         descriptors = (*descriptors, keeper['input'], keeper['output'])
@@ -114,6 +119,11 @@ def replace(command, descriptors):
         # Only exec failure returns here; normal failure handling still owns FDs.
         for fd, value in inherited.items():
             os.set_inheritable(fd, value)
+        for name, value in previous_source.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
         if baseline is not None:
             os.environ[BASELINE] = baseline
         if previous_keeper is None:

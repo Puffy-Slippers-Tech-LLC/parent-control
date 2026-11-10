@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -IB
 """Root-owned dispatcher for fixed setup operations in the trusted checkout."""
 import os
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -80,20 +81,29 @@ def main():
             raise ValueError('setup-helper: use the installed helper through setup.sh')
         root = Path(CHECKOUT)
         sys.path.insert(0, str(root / 'tools'))
-        import vm_pool
-        argv = vm_pool.consume(sys.argv[1:])
-        selected = command(root, argv)
-        report_status = argv[0] != 'prepare-vm'
-        if report_status:
-            print(f'setup-helper: starting {argv[0]}', flush=True)
-        result = subprocess.run(selected, cwd=root, check=False,
-                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
-                                     'LANG': 'C.UTF-8', 'HOME': '/root',
-                                     'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),
-                                     'DEBIAN_FRONTEND': 'noninteractive',
-                                     **({vm_pool.VARIABLE: os.environ[vm_pool.VARIABLE]}
-                                        if vm_pool.VARIABLE in os.environ else {}),
-                                     'PYTHONDONTWRITEBYTECODE': '1'})
+        import test_source
+        options = sys.argv[1:]
+        operation = options[1:] if options and options[0].startswith('--vm-checkout=') else options
+        preparing = operation[:1] == ['prepare-vm']
+        with (test_source.privileged(root, int(os.environ['PKEXEC_UID'])) if preparing else nullcontext()):
+            import vm_pool
+            argv = vm_pool.consume(options)
+            if preparing and vm_pool.binding() is None:
+                raise ValueError('setup-helper: preparation requires its public launcher VM reservation')
+            selected = command(root, argv)
+            report_status = argv[0] != 'prepare-vm'
+            if report_status:
+                print(f'setup-helper: starting {argv[0]}', flush=True)
+            result = subprocess.run(selected, cwd=root, check=False,
+                                    pass_fds=test_source.descriptors(),
+                                    env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+                                         'LANG': 'C.UTF-8', 'HOME': '/root',
+                                         'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),
+                                         'DEBIAN_FRONTEND': 'noninteractive',
+                                         **({vm_pool.VARIABLE: os.environ[vm_pool.VARIABLE]}
+                                            if vm_pool.VARIABLE in os.environ else {}),
+                                         **test_source.environment(),
+                                         'PYTHONDONTWRITEBYTECODE': '1'})
         if report_status:
             print(f'setup-helper: finished (status={result.returncode})', flush=True)
         return result.returncode

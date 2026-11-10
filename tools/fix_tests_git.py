@@ -3,6 +3,7 @@
 import json
 
 import detached_launcher as launcher
+from test_checkpoint import admit_scheduling_state
 from launcher_git import (closeout_lock, commit_push_propagate, git_output, stage_task, validate_closeout_ownership,
                           validate_pull_identity, worktree_fingerprint, worktree_snapshot,
                           session_changes)
@@ -22,9 +23,11 @@ class RepairCommits:
         self.selections = {}
         self.guard = lambda: None
         path = run / 'checkpoint.json'
-        self.state = json.loads(path.read_text()) if path.exists() else {'repairs': {}}
+        self.state = admit_scheduling_state(
+            json.loads(path.read_text()) if path.exists() else {'repairs': {}})
 
     def save(self):
+        self.state = admit_scheduling_state(self.state)
         launcher.atomic(self.run / 'checkpoint.json', self.state)
 
     @staticmethod

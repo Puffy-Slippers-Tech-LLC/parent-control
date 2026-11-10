@@ -8,11 +8,13 @@ import tempfile
 import test_activity
 import test_launcher
 import test_retention
+import test_source
 from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
 from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue, BATCH
 from vm_queue import preparation
+from vm_pool import check_queue, reservation
 
 
 def arguments(argv=None):
@@ -55,7 +57,6 @@ def main(argv=None):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
-        from vm_pool import check_queue
         check_queue(vms)
         args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
@@ -65,15 +66,16 @@ def main(argv=None):
             return 0
         root = Path(__file__).resolve().parents[1]
         helper = '/usr/local/libexec/onpc-test-runner'
+        test_source.finish_admission()
         if len(vms) > 1:
             check(helper)
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
             return status
         os.environ.pop(BATCH, None)
         select(args.vm)
-        from vm_pool import reservation
         with Control().installed() as control, reservation(args.vm, stopped=control.stopped), \
-                test_activity.activity(root, named_vm=True):
+                test_activity.activity(root, named_vm=True), \
+                test_source.reader(root, stopped=control.stopped.is_set):
             check(helper)
             environment = test_launcher.environment(root)
             if 'ONPC_WORKFLOW_DIRECTORY' in os.environ:

@@ -26,9 +26,12 @@ import detached_launcher as launcher
 from agent_adapter import AgentSelection, capacity_fallback, resolve_profile, resolve_selection
 from execution_plan import Plan, Task, local_file, local_path, plan_namespace, queue_state
 from launcher_git import (GitReconciliationRequired, OwnershipReconciliationRequired,
+                          approved_ownership_review,
                           closeout_lock, commit_push_propagate, git_output,
+                          ownership_review_snapshot, ownership_review_token,
                           pull_before_commit, reconciliation_instructions, stage_task,
-                          session_changes, validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
+                          session_changes, uncommitted_skill_intent,
+                          validate_closeout_ownership, validate_pull_identity, worktree_snapshot)
 from launcher_progress import publish_completion, publish_progress, session_lines, task_heading
 from launcher_reload import ReloadRequest, ReloadRequested, replace as replace_interpreter
 from launcher_question import BLOCKER_INSTRUCTIONS, validate_blocker, wait_for_answer
@@ -406,6 +409,75 @@ def finished_cancellation(run, state):
             and json.loads((run / 'nested.json').read_text()) == [])
 
 
+def review_ownership(root, spec, identity, *, check=False, approval=None):
+    """Publish a snapshot-bound review request; never edit the live checkpoint."""
+    from test_storage import directory as storage_directory
+    if (not isinstance(identity, str) or len(identity) != 32
+            or any(char not in '0123456789abcdef' for char in identity)):
+        raise ValueError('ownership review needs the exact retained run ID')
+    if check == (approval is not None):
+        raise ValueError('use --check first, then --approve with its exact review token')
+    directory = launcher.private_directory(storage_directory('plans', root=root)
+                                           / plan_namespace(spec.plan))
+    with ExitStack() as locks, launcher.lock(directory / 'gate') as gate, \
+            launcher.lock(directory / 'owner') as owner:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            raise ValueError('ownership review requires an active controller; start the same plan '
+                             'normally, then review its current run ID')
+        run = launcher.current_run(directory)
+        if run is None or run.name != identity:
+            raise ValueError('retained run changed; inspect the current checkpoint')
+        locks.enter_context(closeout_lock(root, run, {}))
+        checkpoint = run / 'checkpoint.json'
+        raw = checkpoint.read_bytes()
+        state = json.loads(raw)
+        accepted = state.get('git_reconciliation', {}).get('accepted_result')
+        if accepted is None or accepted.get('status') != 'task_complete':
+            raise ValueError('ownership review requires retained task acceptance')
+        validate_result_payload(state, accepted)
+        if not uncommitted_skill_intent(root, run, state):
+            raise ValueError('recorded source commit must resume its existing Git recovery')
+        snapshot = ownership_review_snapshot(root, run, state)
+        token = ownership_review_token(snapshot)
+        if not check:
+            if approval != token:
+                raise ValueError('ownership review inputs changed; repeat --check and review them')
+            if (checkpoint.read_bytes() != raw
+                    or ownership_review_snapshot(root, run, state) != snapshot):
+                raise ValueError('ownership review changed while approving; repeat --check')
+            launcher.atomic(run / 'ownership-review.json', dict(snapshot=snapshot, approval=token))
+            validate_closeout_ownership(root, list(snapshot['baseline']), state, run=run)
+            # Existing controllers must consume the request under fresh imports.
+            # Their current child and cleanup finish before this boundary.
+            from launcher_reload import request
+            request(run)
+        return dict(task_id=state['task_id'], paths=sorted(snapshot['baseline']),
+                    approval=token, checked=check, approved=not check)
+
+
+def recover_reviewed_completion(plan, run, state):
+    """An older guard may have refused just before loading the approved repair."""
+    reconciliation = state.get('git_reconciliation', {})
+    if (state.get('in_flight') or state.get('pending_completion')
+            or not reconciliation.get('ownership_paths')
+            or not (run / 'ownership-review.json').exists()
+            or plan.state(selected=state.get('selected_tasks')).get(state['task_id']) is not True):
+        return
+    if state.get('commit_intent') and not uncommitted_skill_intent(plan.root, run, state):
+        return  # A journaled source commit keeps its existing Git recovery.
+    result = reconciliation['accepted_result']
+    validate_session_result(result, lambda result: validate_result(plan, state, result))
+    approved_ownership_review(plan.root, run, state)
+    validate_closeout_ownership(plan.root, result['stage_paths'], state, run=run)
+    state.update(pending_completion=result, phase='recover', in_flight=False)
+    launcher.atomic(run / 'checkpoint.json', state)
+
+
 def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=None,
                    split=None, revisions=(), propagation_head=None):
     """Explicitly adopt a committed replan, preserving the inactive checkpoint.
@@ -682,12 +754,13 @@ def _closeout(plan, spec, run, state, *, selection=None):
             changed = [path for path in state.get('stage_candidates', [])
                        if path in current and current[path] != state['stage_baseline'].get(path)]
             paths = list(dict.fromkeys([*result['stage_paths'], *changed, plan.path, plan.queue]))
-            validate_closeout_ownership(plan.root, paths, state)
+            validate_closeout_ownership(plan.root, paths, state, run=run)
         pull_before_commit(plan.root, run, state, git=git_output)
         # A pull may have changed plan metadata. Reapply every guard before
         # staging, even when Git reports an already-up-to-date branch.
         validate_session_result(result, lambda result: validate_result(plan, state, result))
         if state.get('commit_intent') is None:
+            validate_closeout_ownership(plan.root, paths, state, run=run)
             paths = stage_task(plan.root, paths, required_paths=(plan.path, plan.queue))
         commit_push_propagate(plan.root, run, state, paths,
                               f"{spec.commit_prefix}: Completed task {state['task_id']}", git=git_output,
@@ -830,6 +903,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         refresh_live_plan(plan, state)
         if reloading and (run / 'cancel').exists():
             raise launcher.Stopped()
+        if reloading:
+            recover_reviewed_completion(plan, run, state)
         if state.get('pending_completion') and not (reloading and launcher.accept_stop(run)):
             publish_progress(run, state['task_id'], [heading(), 'Recovering accepted task close-out…'])
             if closeout(plan, spec, run, state, selection=selection):
@@ -1097,6 +1172,10 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     parser.add_argument('--check', action='store_true', help='validate plan, queue and unfinished briefs without execution')
     parser.add_argument('--reconcile', metavar='RUN',
                         help='adopt a reviewed committed replan for an inactive retained run; no task execution')
+    parser.add_argument('--review-ownership', metavar='RUN',
+                        help='permit hunk review for this retained task; no execution or Git writes')
+    parser.add_argument('--approve', metavar='TOKEN',
+                        help='with --review-ownership: approve the exact snapshot returned by --check')
     parser.add_argument('--propagation-head', metavar='COMMIT',
                         help='with --reconcile: acknowledge reviewed destination restoration at this full HEAD; retain stash')
     parser.add_argument('--merge-task', action='append', default=[], metavar='OLD=KEEP',
@@ -1129,6 +1208,17 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         master = local_path(root, args.plan)
         path = str(master.relative_to(root.resolve()))
         spec = PlanWorkflow(**dict(asdict(spec), plan=path))
+        if args.review_ownership:
+            if (args.reconcile or args.stop or args.cancel_stop or args.reload or args.resume
+                    or args.tasks is not None or args.vm is not None or args.add_session is not None
+                    or args.merge_task or args.reconcile_base or args.split_plan or args.revise_task
+                    or args.propagation_head):
+                raise ValueError('ownership review cannot be combined with other launcher operations')
+            print(json.dumps(review_ownership(root, spec, args.review_ownership,
+                                             check=args.check, approval=args.approve)))
+            return 0
+        if args.approve is not None:
+            raise ValueError('--approve requires --review-ownership')
         if args.reconcile:
             if args.stop or args.cancel_stop or args.tasks is not None or args.vm is not None:
                 raise ValueError('--reconcile cannot be combined with execution, stop or VM options')

@@ -4,7 +4,9 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_launcher import main
+from test_source import admission
+with admission(Path(__file__).resolve().parents[1], sys.argv[1:]):
+    from test_launcher import main
 
-if __name__ == '__main__':
-    sys.exit(main(category='ui'))
+    if __name__ == '__main__':
+        sys.exit(main(category='ui'))

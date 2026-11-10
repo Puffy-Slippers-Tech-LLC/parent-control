@@ -65,6 +65,25 @@ VM provenance retirement checks use only pytest-private state and checkout
 locks, plus process-local registry doubles. They never open libvirt or host
 provenance; vm_pool remains compatible with ordinary unit overlap. It is not
 a cleanup or UI inventory module.
+
+Checkout source-fence checks in test_launchers use private pytest lock files
+and bounded, waited Python children, including one interpreter replacement.
+Forwarding checks use two joined threads and a bounded barrier on those same
+private locks; startup/reload races use private descriptors and local callbacks.
+Privileged source borrowing duplicates an owned child's real open description
+through pidfd_getfd, then forwards it to one bounded descendant; all children
+are reaped. It changes no credentials or ptrace policy. A private-checkout
+controller race uses one waited child and an import hook around real admission.
+Checkpoint admission checks use private JSON records and local implementation
+bindings. Private checkout fixtures in test_launchers, unit_test_launcher and
+privileged_test_runner exclude the outer runner's source lease without closing
+its descriptor; the latter copies the new source module with its existing helpers.
+These modules acquire no live VMs, services, displays or shared caches; they
+retain their compatible unit classification and add no cleanup/UI entry.
+Shared close-out review checks in test_launchers add tiny private Git repositories
+and bounded, waited Git children. They change no real checkout, credentials or
+remote refs; commit execution is doubled at the controller boundary. Existing
+unit overlap remains safe, with no cleanup or UI inventory membership.
 """
 
 from pathlib import PurePosixPath

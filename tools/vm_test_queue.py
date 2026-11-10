@@ -11,6 +11,10 @@ import uuid
 # Workers use isolated Python; restore only this checkout's sibling modules.
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_source
+if __name__ == '__main__':
+    _source_imports = test_source.startup(Path(__file__).resolve().parents[1], sys.argv[1:])
+    _source_imports.__enter__()
 
 import test_activity
 import test_launcher
@@ -18,9 +22,13 @@ import test_retention
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import dispatch
+from vm_pool import reservation
 import launcher_reload
 from vm_case_queue import (case_inventory, work_items, work_key, claim, arguments,
                            family_binding, available_worker)
+
+if __name__ == '__main__':
+    _source_imports.__exit__(None, None, None)
 
 FAMILY_WORK = 'ONPC_TEST_FAMILY_WORK'
 CHECKPOINT_READY = 'Family checkpoint ready: '
@@ -81,9 +89,12 @@ def split(root, argv):
     return flatten(host) if host else [], flatten(guests)
 
 
-def run(root, argv, *, reloading=False):
+@test_source.protected
+def _plan(root, argv):
+    """Load one coherent inventory before waiting for any VM reservation."""
     from test_commands import _main, selections
-    from test_checkpoint import Checkpoint
+    from test_checkpoint import Checkpoint, guard_scheduling_checkpoints
+    guard_scheduling_checkpoints(root)
     snapshot = json.loads(os.environ[BATCH])
     configured = vm_config.registry()
     vms = tuple(configured[name] for name in snapshot['vms'])
@@ -101,7 +112,8 @@ def run(root, argv, *, reloading=False):
                                     binding=family_binding(vm.family, names), namespace='run-tests-family')
             items = [work for category, options in guest_selection
                      for work in work_items(category, options, case_inventory(
-                         root, category, options, vm=vm.name))]
+                         root, category, options, vm=vm.name,
+                         pass_fds=test_source.descriptors()))]
             all_items = items
             replay = [arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')]
             if replay:
@@ -141,8 +153,15 @@ def run(root, argv, *, reloading=False):
             os.environ.pop(VARIABLE, None)
         else:
             vm_config.select(original_vm)
+    return snapshot, vms, host_args, guest_args, guest_selection, families
+
+
+def run(root, argv, *, reloading=False):
+    snapshot, vms, host_args, guest_args, guest_selection, families = _plan(root, argv)
+    from test_commands import _main, selections
+    from test_checkpoint import Checkpoint
     if host_args:
-        with test_activity.activity(root, host_only=True):
+        with test_activity.activity(root, host_only=True), test_source.reader(root):
             status = _main(host_args, detached=True, checkpoint=Checkpoint(
                 root, selections(root, host_args), resume='--resume' in host_args))
         if status:
@@ -232,7 +251,8 @@ def run(root, argv, *, reloading=False):
                     frames[vm.name] = ['Starting worker']
                     publish_frames()
                 try:
-                    result = execute_worker(vm, work, inherited, receipt)
+                    with test_source.reader(root, stopped=control.stopped.is_set):
+                        result = execute_worker(vm, work, inherited, receipt)
                 except (ValueError, OSError):
                     with output_lock:
                         frames[vm.name] = ['Failed (worker error)']
@@ -423,10 +443,9 @@ def worker(argv):
     sys.stdout = PipeFrameOutput(sys.stdout)
     # The batch's checkout-local gate is not a VM reservation or cleanup proof.
     os.environ.pop(test_activity.VARIABLE, None)
-    from vm_pool import reservation
     sys.stdout.frame(['Queued (waiting for VM checkout)'])
     with launcher_reload.watching(), Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
-            test_activity.activity(root, named_vm=True):
+            test_activity.activity(root, named_vm=True), test_source.reader(root, stopped=control.stopped.is_set):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process
         regression_process.session_stop = control.stopped

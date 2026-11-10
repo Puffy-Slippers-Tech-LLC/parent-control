@@ -4,7 +4,7 @@ Specializations supply the worker command and workflow; locks, fresh agent
 processes, transcript retention and cancellation use one implementation.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext, ExitStack
 from dataclasses import replace
 import fcntl
 import hashlib
@@ -150,6 +150,10 @@ def environment():
     # Internal runner calls, including inventory discovery before a repair
     # invocation exists, belong to this controller's checkout.
     result['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(Path(__file__).resolve().parents[1])
+    from test_source import environment as source_environment, VARIABLE, WRITER
+    result.pop(VARIABLE, None)
+    result.pop(WRITER, None)
+    result.update(source_environment())
     return result
 
 
@@ -379,6 +383,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = dict(command.environment) if kind == 'agent' else environment()
+    from test_source import environment as source_environment
+    child_env.update(source_environment())
     if nested:
         child_env[WORKFLOW_DIRECTORY] = str(run)
     if kind != 'agent':
@@ -695,7 +701,7 @@ def _audit_start(store, directory, pending):
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None,
-           add_session=None):
+           add_session=None, source_resume=False):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -703,8 +709,15 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
         if name != 'plans' or len(namespace) != 64 or any(c not in '0123456789abcdef' for c in namespace):
             raise ValueError('invalid plan workflow namespace')
         directory = private_directory(directory / namespace)
-    with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner:
+    import test_source
+    source_participant = name in ('fix-tests', 'fix-tests-host')
+    if source_participant:
+        test_source.finish_admission()
+    with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner, ExitStack() as source:
         fcntl.flock(gate, fcntl.LOCK_EX)
+        if source_participant:
+            controls = ['--stop'] if stop else ['--reload'] if reload else ['--resume'] if source_resume else []
+            source.enter_context(test_source.startup(root, controls, repair=True, wait=False))
         if busy(owner):
             run = current_run(directory)
             if run is None:
@@ -751,6 +764,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             raise ValueError('--add-session requires a running launcher')
         if stop or cancel_stop or existing_only:
             return None, False
+        if source_participant and reload:
+            test_source.restart_execution()
         pending_path = directory / 'pending-start.json'
         pending = None
         if not resumable_start and os.path.lexists(pending_path):
@@ -827,11 +842,21 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             output_context = (run / 'output').open('xb')
         with output_context as output:
             from launcher_reload import ReloadRequest
-            child_environment = environment()
-            ReloadRequest(run).inherit(child_environment)
-            subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
-                             stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                             pass_fds=(owner, *scratch_descriptors()))
+            import test_source
+            # Fresh repair workers must import under the exact retained writer
+            # before their normal FIFO recovery transfers ownership to this run.
+            with (test_source.startup(root, ['--resume'], repair=True)
+                  if name in ('fix-tests', 'fix-tests-host') else nullcontext()):
+                child_environment = environment()
+                if name in ('fix-tests', 'fix-tests-host'):
+                    descriptor = child_environment.pop(test_source.VARIABLE, None)
+                    child_environment.pop(test_source.WRITER, None)
+                    if descriptor is not None:
+                        child_environment['ONPC_REPAIR_STARTUP_FD'] = descriptor
+                ReloadRequest(run).inherit(child_environment)
+                subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
+                                 stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                                 pass_fds=(owner, *scratch_descriptors()))
         return run, True
 
 

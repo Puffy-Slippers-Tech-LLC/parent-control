@@ -551,8 +551,25 @@ def vm_snapshot_command(root, argv, command):
 
 
 def run(root, argv, caller):
+    # The fixed appsnapshot operation borrows the caller's actual kernel lease
+    # before importing its controller or accepting any preparation work.
+    sys.path.insert(0, str(root / 'tools'))
+    import test_source
+    operation = list(argv)
+    for prefix in ('--vm-checkout=', '--retention-run='):
+        if operation and operation[0].startswith(prefix):
+            operation.pop(0)
+    if operation[:1] == ['--unattended']:
+        operation.pop(0)
+    with (test_source.privileged(root, caller.pw_uid)
+          if operation[:1] == ['appsnapshot'] else nullcontext()):
+        return _run(root, argv, caller)
+
+
+def _run(root, argv, caller):
     sys.path.insert(0, str(root / 'tools'))
     import vm_pool
+    import test_source
     argv = vm_pool.consume(argv)
     host_args = argv[1:] if argv[:1] == ['--unattended'] else argv
     if host_args[:1] in (['graphical-worker'], ['package-notice']):
@@ -589,6 +606,8 @@ def run(root, argv, caller):
         # This fixed mode accepts the same validated selections. Stdin is a
         # cancellation channel, never a command or privileged path source.
         argv = argv[1:]
+        if argv[:1] == ['appsnapshot'] and vm_pool.binding() is None:
+            raise ValueError('source lease: preparation requires its public launcher VM reservation')
         command = selection(root, argv)
         import vm_config
         argv, configured = vm_config.extract(argv, path=root / 'config/environment.json')
@@ -625,6 +644,8 @@ def run(root, argv, caller):
                 if not child_owner:
                     environment.update(test_retention.environment())
                 return control.run(command, cwd=root, env=environment)
+    if argv[:1] == ['appsnapshot'] and vm_pool.binding() is None:
+        raise ValueError('source lease: preparation requires its public launcher VM reservation')
     command = selection(root, argv)
     import vm_config
     controls = argv[:argv.index('--')] if '--' in argv else argv
@@ -650,7 +671,9 @@ def run(root, argv, caller):
         environment['PKEXEC_UID'] = str(caller.pw_uid)
         return subprocess.run(command, cwd=root, env=environment, check=False).returncode
     if argv[0] == 'appsnapshot' and '--probe' in argv:
-        return subprocess.run(command, cwd=root, env=environment, check=False).returncode
+        environment.update(PKEXEC_UID=str(caller.pw_uid), **test_source.environment())
+        return subprocess.run(command, cwd=root, env=environment,
+                              pass_fds=test_source.descriptors(), check=False).returncode
     command = vm_snapshot_command(root, argv, command)
     # Run only the selected operation. Live lease/ownership and retention
     # checks stay in the target; regression tests are never cleanup preflight.
@@ -658,6 +681,7 @@ def run(root, argv, caller):
     # Preserve pkexec's authenticated graphical-caller identity for the VM runner.
     environment['PKEXEC_UID'] = str(caller.pw_uid)
     environment['HOME'] = '/root'
+    environment.update(test_source.environment())
     from test_storage import scratch_directory, scratch_descriptors, privileged_state
     import test_retention
     environment['TMPDIR'] = str(scratch_directory())
@@ -692,7 +716,7 @@ def main():
         return run(Path(CHECKOUT), sys.argv[1:], pwd.getpwuid(uid))
     except (ValueError, KeyError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) and str(error).startswith(
-            ('retention:', 'test-runner:', 'vm-config:', 'vm-probe:')) else type(error).__name__
+            ('retention:', 'test-runner:', 'vm-config:', 'vm-probe:', 'source lease:')) else type(error).__name__
         print('test-runner: ' + detail, file=sys.stderr)
         return 2
 

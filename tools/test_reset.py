@@ -65,7 +65,7 @@ def reset(root, start, *, host_only, selector=None):
     no pointer or fence is removed until maintained recovery has succeeded.
     """
     import test_activity
-    from fix_tests_queue import source_directory
+    from test_source import source_directory
     from vm_selection import vm_config
 
     if test_activity.descriptors() or any(key in os.environ for key in (
@@ -201,6 +201,6 @@ def _clean(root, scopes, names, stack, source):
     for scope in scopes:
         remove(scope / 'current.json')
         remove(scope / 'current.tmp')
-    launcher.atomic(source / 'repair-generation.json', 0)
-    remove(source / 'repair-source-pending.json')
+    from test_source import SourceProtection
+    SourceProtection(source).reset(remove)
     print('Reset: recovery complete; saved test and repair progress cleared; starting fresh.', flush=True)

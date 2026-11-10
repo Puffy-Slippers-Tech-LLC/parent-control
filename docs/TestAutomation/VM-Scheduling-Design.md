@@ -1,14 +1,13 @@
 # Unified VM scheduling execution plan
 
-Status: planning only. No implementation, task execution or VM operation has
-been authorized by this conversion. All queue rows remain unfinished.
+Status: in progress. Completion is recorded in the ordered task queue.
 
 Current validation constraint: all VMs are occupied and expected to remain so
 for a very long time. Use non-VM validation only; do not attempt or wait for VM
 validation. Required live qualification remains pending until VMs are available.
 
 Task queue: [Ordered task queue](VM-Scheduling-Task-Queue.md).
-Next task: **001 — [Protect unfinished runs during replacement](VM-Scheduling-Tasks/001.md)**.
+Next task: **002 — [Share VM workers with preparation](VM-Scheduling-Tasks/002.md)**.
 
 ## Goal and launcher
 
@@ -52,7 +51,7 @@ acceptance requirements.
 | `vm_test_queue.py` under `run-tests` | One test coordinator per run: family work, claims, failure FIFO, impact-based admission and attempt acceptance |
 | `vm_queue.py` | One VM executor: availability, reservations, capacity, supervised workers and owned cleanup; also serves preparation |
 | `test_checkpoint.py` | Validated persistence, never another scheduler |
-| Planned `test_source.py` | Shared checkout admission gate, reader/writer leases, durable writer fence and source generation |
+| `test_source.py` | Shared checkout admission gate, reader/writer leases, durable writer fence and source generation |
 | `fix_tests.py` and selected agent adapter | Impact-triage/repair actions and native high-effort profile, requested rounds, allowances and Git outcomes |
 | Existing pool, disk queue and host scheduler | Cross-run resource ownership and existing host scheduling |
 | Existing presentation | Render authoritative state without a second completion ledger |
@@ -128,4 +127,4 @@ into [test maintenance](../../tests/README.md), the
 [installed runner guide](../../tests/integration/README.md#aggregate-scheduling)
 and applicable mandates as implementation lands, before removing completed briefs.
 Trust checked prerequisites under the [completion contract](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery);
-record short results, not proof archives. This planning change adds or runs no tests.
+record short results, not proof archives.

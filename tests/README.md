@@ -448,6 +448,27 @@ only after its command and owned cleanup succeed, and failed/interrupted checks
 run again. Other commands without case events resume at their category boundary. Small private checkpoints
 use the shared storage/state route; retained reports keep their normal lifetime.
 
+### Scheduling state compatibility
+
+The shared checkpoint admission boundary records scheduling version `1` and
+implementation `pipeline-v1`. The immediately preceding markerless pipeline
+records have that same identity. Adding the marker preserves their allowed VM
+selection, per-family passes, claims, source ownership, transaction references
+and charged task admissions; it does not recalculate rounds or budgets.
+Native checkpoint and ownership validation still applies. Unknown versions and
+different implementations refuse before retained progress is copied, reset or
+executed, including on a fresh invocation.
+
+A replacement scheduler must use this boundary and either provide a reviewed,
+lossless mapping of all those fields or refuse. Incompatible pipeline rounds or
+budgets cannot be adopted by renaming their format. Impact-based admission must
+also use the boundary; absent or stale impact decisions keep admission on hold.
+There is no compatibility path that starts a second historical scheduler.
+Finish unfinished repair and Git transactions using their original supported
+implementation before switching. The existing explicit `--reset` contract is
+the alternative only when abandonment is authorized; refusal itself grants no
+reset permission and preserves original records and counters.
+
 ### Scripted repair loop
 
 When baseline preparation is needed, follow the
@@ -544,9 +565,13 @@ owned cleanup. Other VMs cannot load its unverified edits. A queued failure is
 rechecked after preceding repairs land, before spending another agent session,
 so a shared fix can resolve multiple VM failures without duplicate edits. A stopped
 repair with unresolved edits keeps the source fenced for its retained recovery.
-`RepairCoordinator` owns admission, FIFO ownership and release under the existing
-shared gate; workers retain their execution and descriptor leases. Admission
-checks the queue, unfinished source owner and kernel lease in one transition.
+`RepairCoordinator` owns FIFO policy and repair recovery. The shared
+[`test_source.py`](../tools/test_source.py) owns checkout reader leases, durable
+writer fences and source generations; it owns no cases or scheduling policy.
+The existing `fix-tests-source` state directory and its lock/fence identities
+remain stable across extraction. Workers retain their execution and descriptor
+leases. Admission checks the queue, unfinished source owner and kernel lease in
+one transition.
 Explicit `--resume` derives `closeout`, `repair` or `complete` from the existing checkpoints:
 accepted Git work runs first, then each FIFO ticket drains in one recovery worker
 before normal work starts. The parent does not restart an incomplete recovery
@@ -766,6 +791,29 @@ the source fence; readers and unrelated runs still refuse admission. Repeated
 resumes preserve this handoff even if the prior worker never acquired its lease.
 Older stranded copies require the original restart identity and identical repair
 ownership records; a dirty file or a passed diagnostic alone cannot release the fence.
+
+The source fence survives cancellation, process death and interpreter replacement.
+Normal participating test tools protect startup imports, input preparation and
+execution with reader leases; nested verification borrows its recorded writer's
+lease. Reload carries the lease through fresh imports. Only the owning repair's
+validated outcome or authorized checkout reset can clear a retained fence.
+Source generations advance for admitted changes across independent runs and
+reset, rather than reusing an old generation. Unrelated dirty or staged files
+never establish repair ownership and are preserved by recovery.
+
+Public controllers retain admission through imports and finite startup work,
+release it before observation or resource waits, and recheck the generation
+before changing saved execution state. A fresh repair cannot borrow a retained
+writer merely because that writer appeared while startup was waiting.
+Active control requests attach without starting execution. Idle reload and
+completed reset replace the public controller under a temporary source lease
+before starting fresh work, preserving the selected checkout and arguments.
+Privileged preparation authenticates its caller and duplicates the caller's
+actual held source lease, preserving exclusive writer borrowing. Dispatchers and
+builders forward that lease through their existing descendant lifetimes, so the
+initiating command's exit cannot release it early. Missing native descriptor
+support, denied duplication or unproven ownership refuses before preparation;
+none authorizes clearing the original fence or saved progress.
 
 Use `tools/fix-tests --resume` without repeating the original arguments to
 restore the saved selection, VM queue, rounds, model, effort and task limit.

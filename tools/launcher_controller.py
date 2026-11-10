@@ -69,6 +69,7 @@ def dispatch(entry):
     root = Path(__file__).resolve().parents[1]
     name = Path(sys.argv[0]).name
     arguments, selected = [], None
+    pinned_branch = None
     tokens = iter(sys.argv[1:])
     for token in tokens:
         if token == '--':
@@ -89,7 +90,9 @@ def dispatch(entry):
     if forwarded is not None and forwarded['pid'] == os.getpid():
         if forwarded['root'] != str(root) or forwarded['launcher'] != name or selected is not None:
             raise ValueError('forwarded launcher destination changed')
-        _local_checkout(root, forwarded['branch'])
+        pinned_branch = forwarded['branch']
+        if pinned_branch is not None:
+            _local_checkout(root, pinned_branch)
     elif (name == 'run-tests' and selected is None
           and (os.environ.get('ONPC_LAUNCHER_CONTROLLER_ROOT') == str(root)
                or os.environ.get('ONPC_RUNNER_INVOCATION')
@@ -115,6 +118,7 @@ def dispatch(entry):
             selected = selected or default_branch
             configured = selected is not None
             selected = selected or _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
+            pinned_branch = selected
             branch = vm_config.branch_registry(document).get(selected)
             if branch is None:
                 if explicit or configured:
@@ -123,6 +127,8 @@ def dispatch(entry):
             else:
                 host = vm_config.host_registry(document)[branch['host']]
                 if host.transport != 'local':
+                    from test_source import leave_checkout
+                    leave_checkout()
                     return _remote(host, branch, arguments)
                 destination = Path(branch['repo_root']).resolve()
                 _local_checkout(destination, selected)
@@ -132,6 +138,8 @@ def dispatch(entry):
                         raise ValueError(f'launcher is missing from configured checkout: {command}')
                     sys.stdout.flush()
                     sys.stderr.flush()
+                    from test_source import leave_checkout
+                    leave_checkout()
                     env = dict(os.environ)
                     env[DESTINATION] = json.dumps(dict(root=str(destination), branch=selected,
                                                        launcher=name, pid=os.getpid()))
@@ -144,7 +152,28 @@ def dispatch(entry):
         print(BRANCH_HELP, flush=True)
         if name == 'write-e2e' and any(flag in arguments for flag in ('--planb', '--planc')):
             print('--planb/--planc default to the current checkout branch; --branch overrides it.', flush=True)
-    return entry()
+    import test_source
+    try:
+        return entry()
+    except test_source.RestartExecution:
+        # Every controller/reset/resource context has unwound. Preserve the
+        # resolved destination even if a source change altered branch defaults.
+        test_source.finish_admission()
+        arguments = [arg for arg in arguments if arg not in ('--reload', '--reset')]
+        temporary = test_source.VARIABLE not in test_source.environment()
+        with test_source.startup(root, arguments, repair=name == 'fix-tests', fresh=True):
+            from launcher_reload import replace
+            inherited = test_source.environment()
+            if temporary:
+                os.environ[test_source.IMPORTS] = inherited[test_source.VARIABLE]
+            os.environ[DESTINATION] = json.dumps(dict(root=str(root), branch=pinned_branch,
+                                                       launcher=name, pid=os.getpid()))
+            try:
+                replace(['/usr/bin/python3', '-IBu', str(root / 'tools' / name), *arguments], ())
+            finally:
+                if temporary:
+                    os.environ.pop(test_source.IMPORTS, None)
+                os.environ.pop(DESTINATION, None)
 
 
 def run(entry):

@@ -736,4 +736,13 @@ def scratch_descriptors():
     else:
         import test_retention
     descriptors.update(test_retention.descriptors())
+    # Source has thread-local ownership: never scan another worker's leases.
+    # Prefer the active service when storage is imported under both spellings.
+    test_source = sys.modules.get('test_source') or sys.modules.get('tools.test_source')
+    if test_source is None:
+        if __package__:
+            from . import test_source
+        else:
+            import test_source
+    descriptors.update(test_source.descriptors())
     return tuple(sorted(descriptors))

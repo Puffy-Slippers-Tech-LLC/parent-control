@@ -98,7 +98,7 @@ At the start of every agentic session, including coordinators, workers, monitors
 advisers and reviewers, activate this goal using Codex's `/goal` command:
 
 ```text
-/goal Simple, lean, robust, do not overengineer. If a problem can be solved by simplier approaches, do not use more complex ones
+/goal Simple, lean, robust; do not overengineer. Prefer solutions that simplify the resulting codebase as a whole, not merely minimize the patch. Keep refactoring within the task’s scope.
 ```
 
 The launcher must set the session's actual Codex goal state, using the supported
@@ -537,6 +537,23 @@ an overbroad close-out path list without dropping required edits. If ownership
 still cannot be established, preserve the baseline and return blocked with the
 required developer decision or original-owner action; never adopt that work
 merely because a later commit touched the same file.
+When the developer explicitly authorizes review of shared work, the ordinary-plan
+control route `--review-ownership RUN --check` returns a token for the current
+task, checkout, branch/upstream, HEAD, index, protected baselines and shared file
+contents/modes. Review those inputs, then use `--review-ownership RUN --approve TOKEN`
+to permit the commit skill to review their hunks. This control operation starts
+no workflow, writes no Git data and never rewrites the ownership checkpoint.
+It requests a controller reload after the current session and cleanup finish.
+The controller must be active; otherwise start the same plan normally and review
+its new current run. Approval never transfers between runs.
+Changed inputs invalidate the approval before close-out. Original fingerprints
+remain protected; approval grants neither acceptance nor ownership. The skill
+must omit unrelated candidates/hunks and refuse ambiguous work. It may not
+commit pre-existing work merely because its path was approved for review.
+Fresh controller imports recover the exact retained accepted result before
+charging another repair turn, only when its current row, checks, cleanup and
+ownership guards pass. Clean paths need no review exception. Uncommitted skill
+retries recheck approval; journaled source commits retain normal Git recovery.
 Content-only file fingerprints omit executable mode, so release also requires a regular
 working file with HEAD's executable mode; ambiguous deletion/type/mode changes
 remain protected for explicit reconciliation.

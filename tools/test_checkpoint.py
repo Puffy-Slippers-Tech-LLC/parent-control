@@ -12,6 +12,7 @@ import sys
 import time
 import re
 import shlex
+import stat
 
 if __package__:
     from .regression_events import completed_cases
@@ -27,6 +28,142 @@ ONLY = 'ONPC_TEST_RETRY_CASE'
 INDEPENDENT_SYSTEM_AREAS = ('authorization', 'enforcement', 'session')
 SAVE_INTERVAL = 5
 RESUME_SELECTION_MISMATCH = 'resume selection differs from checkpoint; start without --resume to reset it'
+SCHEDULING_VERSION = 1
+SCHEDULING_IMPLEMENTATION = 'pipeline-v1'
+
+
+def scheduling_marker():
+    return dict(version=SCHEDULING_VERSION, implementation=SCHEDULING_IMPLEMENTATION)
+
+
+def admit_scheduling_state(state):
+    """Admit only this implementation, without translating ownership or credit.
+
+    Markerless records belong to the one immediately preceding pipeline format.
+    Adding its explicit marker is lossless: selection, family passes, claims,
+    source owners, transaction references and charged admissions stay verbatim.
+    A replacement must supply a separately reviewed lossless translation or
+    refuse; changing this constant must never silently adopt markerless records.
+    Impact-based admission changes the implementation contract too: a missing or
+    stale impact decision must remain a hold, never an implicit isolated failure.
+    """
+    if not isinstance(state, dict):
+        raise ValueError('invalid scheduling state')
+    # The legacy identity is intentionally literal, independent of the current
+    # implementation constants. A future cutover cannot relabel old records.
+    marker = state.get('scheduling', dict(version=1, implementation='pipeline-v1'))
+    if (not isinstance(marker, dict) or set(marker) != {'version', 'implementation'}
+            or type(marker.get('version')) is not int
+            or marker != scheduling_marker()
+            or 'version' in state and (type(state['version']) is not int or state['version'] != 1)):
+        original = marker.get('implementation') if isinstance(marker, dict) else None
+        raise ValueError('incompatible scheduling state'
+                         + (f' ({original})' if isinstance(original, str) else '')
+                         + '; finish retained repair/Git transactions with the original supported '
+                         'implementation before switching, or use the existing --reset recovery '
+                         'contract only when abandonment is explicitly authorized')
+    return dict(state, scheduling=dict(marker))
+
+
+def _read_scheduling_record(path):
+    """Read existing private metadata without creating or rewriting anything."""
+    try:
+        source = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(source) as stream:
+        info = os.fstat(stream.fileno())
+        # Launcher JSON uses the caller's umask inside its private run directory;
+        # progress Store files separately enforce their stricter 0600 contract.
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_nlink != 1 or info.st_mode & 0o7113):
+            raise ValueError('unsafe scheduling metadata ownership or mode')
+        if info.st_size > 16 * 1024 * 1024:
+            raise ValueError('scheduling record is oversized')
+        value = json.load(stream)
+        if value is None:
+            raise ValueError('invalid scheduling record')
+        return value
+
+
+def guard_scheduling_run(run):
+    """Preflight a repair allocation before retention, copying or execution.
+
+    Callers hold its existing workflow ownership. This reader neither adopts a
+    source fence nor grants recovery authority; their native ownership guards
+    still apply. It accepts only current pipeline records and never starts a
+    historical scheduler. The returned marker may be published as scheduling.json
+    after all preflight succeeds. Other records remain in their native formats.
+    """
+    run = Path(run)
+    marker = _read_scheduling_record(run / 'scheduling.json')
+    admit_scheduling_state({} if marker is None else {'scheduling': marker})
+    allocations = [run, *sorted(run.glob('pipeline-*'))]
+    for allocation in allocations:
+        if allocation.is_symlink():
+            raise ValueError('retained scheduling allocation contains a symlink')
+        if not allocation.is_dir():
+            continue
+        nested = _read_scheduling_record(allocation / 'scheduling.json')
+        if nested is not None:
+            admit_scheduling_state({'scheduling': nested})
+        state = _read_scheduling_record(allocation / 'checkpoint.json')
+        if state is not None:
+            admit_scheduling_state(state)
+            if not isinstance(state.get('repairs'), dict):
+                raise ValueError('invalid retained repair checkpoint')
+        limits = _read_scheduling_record(allocation / 'limits.json')
+        if limits is not None:
+            admit_scheduling_state(limits)
+            if (any(type(limits.get(key)) is not int or limits[key] < 0
+                    for key in ('started', 'completed'))
+                    or limits.get('tasks') is not None
+                    and (type(limits['tasks']) is not int or limits['tasks'] < 1)):
+                raise ValueError('invalid retained task admissions')
+        for name in ('vm.json', 'pipeline.json', 'repair-source-resume.json', 'repair-pending.json'):
+            value = _read_scheduling_record(allocation / name)
+            if value is not None:
+                admit_scheduling_state(value)
+        waiting = _read_scheduling_record(allocation / 'repair-queue.json')
+        if waiting is not None and (not isinstance(waiting, list)
+                                   or any(not isinstance(ticket, str) for ticket in waiting)):
+            raise ValueError('invalid retained repair queue')
+    pipelines = _read_scheduling_record(run / 'pipelines.json')
+    if pipelines is not None:
+        admit_scheduling_state(pipelines)
+        if any(not isinstance(value, dict) for key, value in pipelines.items() if key != 'scheduling'):
+            raise ValueError('invalid retained pipeline state')
+    families = run / 'family-cases'
+    if families.is_symlink():
+        raise ValueError('retained family queues contain a symlink')
+    for path in sorted(families.glob('*.json')):
+        state = _read_scheduling_record(path)
+        admit_scheduling_state(state)
+        if (state.get('version') != 1 or not isinstance(state.get('completed'), list)
+                or not isinstance(state.get('claims'), dict) or not isinstance(state.get('items'), dict)):
+            raise ValueError('invalid retained family case queue')
+    return scheduling_marker()
+
+
+def guard_scheduling_checkpoints(root):
+    """Check all participating progress formats before any scope is reset.
+
+    Mixed host/VM selections and family queues create several checkpoints. A
+    later incompatible scope must refuse before an earlier scope is rewritten.
+    Request records and unrelated workflow state are deliberately not progress.
+    """
+    try:
+        path = directory('state', root=root, create=False)
+    except FileNotFoundError:
+        return
+    for candidate in sorted(path.iterdir()):
+        if not re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}', candidate.name):
+            continue
+        state = _read_scheduling_record(candidate / 'current.json')
+        if state is not None:
+            admit_scheduling_state(state)
+            if state.get('version') != 1 or not isinstance(state.get('categories'), dict):
+                raise ValueError('invalid resume checkpoint')
 
 
 def family_claims_pending(root, vm_name):
@@ -56,6 +193,7 @@ def _family_claims(root, vm_name, *, recover):
             if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
                 raise ValueError('family queue recovery checkpoint is oversized')
             state = json.load(stream)
+        state = admit_scheduling_state(state)
         if (not isinstance(state, dict) or state.get('version') != 1
                 or not isinstance(state.get('categories'), dict)
                 or not isinstance(state.get('queue_completed', []), list)
@@ -82,6 +220,7 @@ def _family_claims(root, vm_name, *, recover):
                 raise ValueError('invalid retained family case claims')
         return state
 
+    guard_scheduling_checkpoints(root)
     paths = [path for path in directory('state', root=root).glob('run-tests-family-vm-*')
              if re.fullmatch(r'run-tests-family-vm-[0-9a-f]{24}', path.name)]
     candidates = []
@@ -272,12 +411,13 @@ class Checkpoint:
                                 or len(logical) != 1 or not binding):
             raise ValueError('missing-category recovery requires one bound VM category on resume')
         if namespace == 'run-tests' and host and vm:
+            guard_scheduling_checkpoints(root)
             self.children = [Checkpoint(root, [(kind, args) for kind, args in unexpanded
                                                if scope(kind) == target],
                                         resume=resume, namespace=namespace, binding=binding)
                              for target in ('host', 'vm')]
-            self.state = dict(version=1, categories={kind: entry for child in self.children
-                                                     for kind, entry in child.state['categories'].items()})
+            self.state = admit_scheduling_state(dict(version=1, categories={
+                kind: entry for child in self.children for kind, entry in child.state['categories'].items()}))
             self.selected = set(logical)
             return
         host_only = not vm
@@ -300,7 +440,11 @@ class Checkpoint:
                     private(os.fstat(stream.fileno()), regular=True)
                     if os.fstat(stream.fileno()).st_size > 16 * 1024 * 1024:
                         raise ValueError('resume checkpoint is oversized')
-                    state = json.load(stream) if resume or namespace in ('run-tests', 'run-tests-family') else None
+                    # Even a fresh selection must inspect the retained format
+                    # before replacing its records.
+                    retained = json.load(stream)
+                    state = admit_scheduling_state(retained)
+                    self.dirty = 'scheduling' not in retained
             if state is not None:
                 if (not isinstance(state, dict) or state.get('version') != 1
                         or not isinstance(state.get('categories'), dict)
@@ -376,7 +520,7 @@ class Checkpoint:
                     if not resume:
                         # Attempt/round metadata belongs to the execution being
                         # reset, unlike other categories' retained case passes.
-                        state = dict(version=1, categories=state['categories'])
+                        state = admit_scheduling_state(dict(version=1, categories=state['categories']))
                     for kind, args in logical.items():
                         if not resume or kind not in state['categories']:
                             # Reset only requested categories. A diagnostic in
@@ -397,16 +541,20 @@ class Checkpoint:
                         if claims:
                             raise ValueError('family cases remain claimed; use --resume with the original '
                                              'selection to finish or recover their VM owners before a fresh run')
-                        state = dict(version=1, categories={kind: new_entry(kind, args)
-                                                            for kind, args in logical.items()})
+                        state = admit_scheduling_state(dict(version=1, categories={
+                            kind: new_entry(kind, args) for kind, args in logical.items()}))
                         self.dirty = True
+                if not resume and namespace not in ('run-tests', 'run-tests-family'):
+                    state = admit_scheduling_state(dict(version=1, categories={
+                        kind: new_entry(kind, args) for kind, args in logical.items()}))
+                    self.dirty = True
                 self.state = state
                 if self.dirty:
                     self.store.save(fd, self.state, name=self.name)
                     self.dirty = False
             else:
-                self.state = dict(version=1, categories={kind: new_entry(kind, args)
-                                                        for kind, args in logical.items()})
+                self.state = admit_scheduling_state(dict(version=1, categories={
+                    kind: new_entry(kind, args) for kind, args in logical.items()}))
                 self.store.save(fd, self.state, name=self.name)
         self.selected = set(logical)
         self.excluded = {kind: self.passed(kind) for kind in self.selected}

@@ -666,8 +666,8 @@ After an installed snapshot boots, SSH readiness does not imply greeter readines
 GDM waits for enforcement startup. Public greeter discovery waits up to 300 seconds
 for exactly one active local graphical greeter, then retains the owned session-bus
 and accessibility checks. Ambiguous identities and failed reads stop immediately.
-The controller allows 390 seconds for that observation, within the worker's
-420-second checkpoint deadline; no input is replayed or product probe substituted.
+The controller allows 390 seconds for that observation, within the shared attempt
+deadline; no input is replayed or product probe substituted.
 The current ready set comes from `tools/run-tests e2e --vm NAME --list` and
 `scenarios.json`, with totals in [generated coverage](../../docs/Test-Coverage.md);
 do not maintain a second list here. Retained bindings do not
@@ -1607,9 +1607,18 @@ that request. Disabling the console ends observation; it does not change VM stat
 1200 for the ten full rechecks plus the existing 600-second smoke allowance,
 including synchronous `Lease.stop` and backend exit. Other selections retain
 600/960 seconds. Case 139 selects 3600 seconds for its complete five-reboot
-install/remove/reinstall/purge history. `run_distribution` accepts only finite
-positive numeric budgets at most its named `MAX_TIMEOUT_SECONDS` (3600); other
+install/remove/reinstall/purge history. Case 266 selects 7200 seconds for four
+natural reminder countdowns, settings, account transitions and reboot.
+`run_distribution` accepts only finite
+positive numeric budgets at most its named `MAX_TIMEOUT_SECONDS` (7200); other
 callers retain their explicit budgets, and no callback renews the deadline.
+The controller stages its absolute `CLOCK_MONOTONIC` deadline in the private
+worker variables. The host worker retains the same clock across its network,
+PID and mount namespaces and uses that deadline before requesting a stage,
+while awaiting its guarded reply and before consuming the reply. There is no
+shorter independent checkpoint timer to race a slow controller. Individual
+operations and product observations retain their own finite bounds; controller
+exit or cancellation closes the pinned worker and its descendants.
 After `serve_once` returns, it
 checks expiration before another observer dispatch. Owned off-state restoration completes
 even if it crosses the deadline; expiration still fails and closes both resources.

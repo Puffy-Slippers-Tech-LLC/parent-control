@@ -33,10 +33,10 @@ DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
 # missing/failed/softfailed module results. Upstream's module-derived exit
 # option can overwrite an earlier backend error with passing module results.
 COMMAND = ('/usr/bin/isotovideo',)
-# Complete package removal/reinstall histories retain five observed reboots in
-# one attempt. Their trusted caller may select an hour without renewing it at
-# callbacks; shorter scenarios keep their existing explicit budgets.
-MAX_TIMEOUT_SECONDS = 3600
+# The complete reminder history retains four natural countdowns and a reboot
+# in one attempt. Allow its declared two-hour budget without callback renewal;
+# shorter scenarios keep their existing explicit budgets.
+MAX_TIMEOUT_SECONDS = 7200
 # Shared journey growth reached the original 128-file inventory. Admit a
 # bounded larger inventory while preserving its previous 128 MiB byte ceiling
 # and the existing 1 MiB individual-file limit.
@@ -304,9 +304,15 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
             server = CallbackServer(adapter, directory)
             if serial:
                 adapter.serial = SerialConsole(adapter, directory)
-            secrets.stage(directory, variables(directory, server, lease.state['run'], serial=serial))
-            worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
             deadline = time.monotonic() + timeout
+            # Worker isolates network/PID/mount namespaces, retaining this
+            # host's monotonic clock. Both sides consume one fixed deadline;
+            # a slow controller must not race a shorter worker checkpoint timer.
+            secrets.stage(directory, {
+                **variables(directory, server, lease.state['run'], serial=serial),
+                'ONPC_CONTROLLER_DEADLINE': f'{deadline:.9f}',
+            })
+            worker = Worker(directory, server.path, lease.state['run'], list(COMMAND))
             def guard_current_worker(*, service=False):
                 require(time.monotonic() < deadline, 'e2e:deadline')
                 adapter.revalidate()

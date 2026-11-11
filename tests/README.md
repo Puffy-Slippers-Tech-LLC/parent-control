@@ -359,6 +359,11 @@ requires matching run, pass, assignment, attempt, VM, original selection and
 source identity, plus teardown and owned cleanup. Missing, diagnostic, stale or
 mismatched evidence cannot complete work. A late report or cleanup failure
 leaves the original claim unfinished.
+VM workers compare the full source identity before execution and retain that
+identity in their result. After the controller captures its inputs, ordinary
+checkout edits do not invalidate completed work. Finalization still rejects a
+changed admitted source generation; staged input integrity, exact assignment,
+case execution and cleanup checks remain required.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).

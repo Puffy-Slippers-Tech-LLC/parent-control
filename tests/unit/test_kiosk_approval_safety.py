@@ -67,13 +67,64 @@ def test_expiry_lock_binding_refuses_another_account_before_session_read(monkeyp
     sessions.assert_not_called()
 
 
-@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'wrong-child', 'wrong-scope', 'replay'])
+@pytest.mark.parametrize('fault', ['none', 'recipient', 'request'])
+def test_german_native_prompt_still_binds_parent_and_request(fault):
+    module = ui_observations.accessible_ui
+
+    class Node:
+        def get_process_id(self):
+            return 123
+
+        def get_text_iface(self):
+            return self
+
+    owner, dialog, field, recipient, message, cancel = [Node() for _ in range(6)]
+    nodes = [owner, dialog, field, recipient, message, cancel]
+    edges = {node: [] for node in nodes}
+    edges[owner], edges[dialog] = [dialog], nodes[2:]
+    # Independent native v1.26.1 German catalogue and product message inputs.
+    facts = {node: {'role': role, 'name': name, 'showing': True}
+             for node, role, name in (
+                 (owner, 'application', 'mate-polkit'), (dialog, 'dialog', ''),
+                 (field, 'password text', ''),
+                 (recipient, 'label', 'Passwort für onpc-parent-jamie:'),
+                 (message, 'label', 'Zugriff für Riley (Child) gewähren\nfür 4 Minuten\n\n'
+                                   '✓ Vorübergehend freigebbare Apps erlaubt'),
+                 (cancel, 'push button', 'Abbrechen'))}
+    if fault == 'recipient':
+        facts[recipient]['name'] = 'Passwort für onpc-parent-casey:'
+    elif fault == 'request':
+        facts[message]['name'] = facts[message]['name'].replace('4 Minuten', '10 Minuten')
+    states = SimpleNamespace(DEFUNCT='defunct', SENSITIVE='sensitive', FOCUSED='focused')
+    api = SimpleNamespace(StateType=states,
+                          Text=SimpleNamespace(get_character_count=lambda node: 0))
+    ui = module.AccessibleUI(api)
+    ui.kiosk_request = ('child', 'parent', 240, True)
+    ui.system_prompt_kind = Mock(return_value='mate-polkit')
+    ui.mate_provider_metadata = Mock(return_value={'version': '1.26.1-4'})
+    ui.has_state = lambda node, state: state in ('sensitive', 'focused')
+    request = module.kiosk_request_facts(ui.kiosk_request)
+    options = dict(observation=(nodes, edges, {}, facts), language='de', request=request)
+    if fault == 'none':
+        assert ui.mate_prompt(123, **options) == (owner, dialog, field, cancel)
+    else:
+        with pytest.raises(module.UiError, match='ui:mate-' + fault + '-context-missing'):
+            ui.mate_prompt(123, **options)
+
+
+@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'wrong-child', 'wrong-scope', 'replay',
+                                 'reminder', 'reminder-wrong-child'])
 def test_game_approval_secret_stays_bound_to_its_request(fault):
     result = run_password_guard(r'''
 my $fault = shift @ARGV;
 my $journey = bless {prefix => 'game-expiry-request', stage_prefix => 'request-',
     kiosk_request => ['other-child', 'parent', 600, 1], review => 0}, 'onpc_journey';
 $journey->{prefix} = 'game-fullscreen-request' if $fault eq 'fullscreen';
+if ($fault =~ /\Areminder/) {
+    $journey->{prefix} = 'reminder-notifications-first';
+    $journey->{stage_prefix} = 'first-';
+    $journey->{kiosk_request} = [$fault eq 'reminder' ? 'child' : 'other-child', 'parent', 240, 1];
+}
 $journey->{kiosk_request}[0] = 'child' if $fault eq 'wrong-child';
 $journey->{stage_prefix} = 'other-' if $fault eq 'wrong-scope';
 my $ok = eval {
@@ -84,10 +135,11 @@ my $ok = eval {
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', fault)
     value = json.loads(result.stdout)
-    assert value['ok'] == (fault in ('none', 'fullscreen'))
-    expected = [] if fault in ('wrong-child', 'wrong-scope') else [
-        ['proof', 'request-approval-qualified'], ['proof', 'request-approval-rechecked'],
-        ['delivery', 'parent', 'request-kiosk-mate-approval']]
+    assert value['ok'] == (fault in ('none', 'fullscreen', 'reminder'))
+    prefix = 'first-' if fault == 'reminder' else 'request-'
+    expected = [] if fault in ('wrong-child', 'wrong-scope', 'reminder-wrong-child') else [
+        ['proof', prefix + 'approval-qualified'], ['proof', prefix + 'approval-rechecked'],
+        ['delivery', 'parent', prefix + 'kiosk-mate-approval']]
     assert value['events'] == expected
 
 

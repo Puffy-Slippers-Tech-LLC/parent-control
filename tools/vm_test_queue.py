@@ -1029,7 +1029,12 @@ def _worker(argv, finished):
             observed = checkpoint.passed(category) & set(executed['cases'])
             evidence = dict(assignment, passed=sorted(observed),
                 cleanup=bool(getattr(checkpoint, 'queue_finalized', False)),
-                diagnostic=assignment['source'] != source_identity(root))
+                # The controller captures its inputs before execution. Later
+                # checkout edits are informational, not a different attempt.
+                # Retain the admitted source generation and exact assignment;
+                # a managed source replacement still makes this diagnostic.
+                diagnostic=assignment['source']['generation'] != test_source.SourceProtection(
+                    test_source.source_directory(root)).generation())
             finished.append((checkpoint, evidence))
         return status
 

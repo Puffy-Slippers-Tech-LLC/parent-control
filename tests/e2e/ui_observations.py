@@ -375,6 +375,7 @@ OPERATION_LABELS = {
 OPERATION_LABELS.update({op: 'Saving, reopening or reading the child\'s synthetic work document'
                         for op in accessible_ui.WORK_OPERATIONS})
 OPERATION_LABELS.update({
+    'child-reminder-history-wait': 'Following the child’s saved warnings through natural locking',
     'help-desktop-clear': 'Checking the desktop after command documentation',
 })
 OPERATION_LABELS.update({
@@ -1784,18 +1785,22 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
-        if operation == 'child-natural-reminder-wait':
+        if operation in ('child-natural-reminder-wait', 'child-reminder-history-wait'):
             value = result.get('natural_reminder')
             require(type(value) is dict and set(value) == {
                 'record', 'initial', 'emission', 'session_sha256', 'endpoint', 'lock',
-                'lock_read_bounds', 'samples', 'maximum_gap_ns', 'activity_actions', 'removed'}
+                'lock_read_bounds', 'samples', 'maximum_gap_ns', 'activity_actions', 'removed'} | (
+                    {'emissions', 'visibility'} if operation == 'child-reminder-history-wait' else set())
                 and value['record'] == self.natural_reminder_record
                 and value['removed'] is True and type(value['samples']) is int and value['samples'] > 1
-                and type(value['activity_actions']) is int and value['activity_actions'] > 0
+                and type(value['activity_actions']) is int
+                and (value['activity_actions'] > 0 or operation == 'child-reminder-history-wait'
+                     and value['record']['fullscreen'] is not None)
                 and type(value['maximum_gap_ns']) is int and 0 < value['maximum_gap_ns'] <= 15_000_000_000,
                 'ui:natural-reminder-response')
             expected['natural_reminder'] = value
-        if operation in accessible_ui.NATURAL_REMINDER_OPERATIONS - {'child-natural-reminder-wait'}:
+        if operation in accessible_ui.NATURAL_REMINDER_OPERATIONS - {
+                'child-natural-reminder-wait', 'child-reminder-history-wait'}:
             value = result.get('natural_reminder')
             enabled = operation == 'child-fullscreen-reminder-visible'
             require(type(value) is dict and set(value) == {
@@ -3187,6 +3192,7 @@ class UiObservations:
             overlay = operation in accessible_ui.OVERLAY_VALID_OPERATIONS
             require(type(value) is dict and set(value) == {
                     'request', 'estimate', 'observed_monotonic_ns',
+                    *({'language'} if operation in ('overlay-request-estimate', 'kiosk-request-estimate') else set()),
                     *({'seconds_until_midnight'} if overlay else set()),
                     *({'estimate_read_bounds'} if fresh else set())}
                     and type(value['observed_monotonic_ns']) is int
@@ -3211,8 +3217,11 @@ class UiObservations:
                 require(type(estimate) is dict and set(estimate) == {
                     'kind', 'text', 'seconds', 'precision_seconds'} and estimate['kind'] == 'fixed',
                     'ui:kiosk-valid-response')
+                bound_language = value.get('language', 'en')
+                require(bound_language in ('en', 'de'), 'ui:bound-request-language')
                 require(estimate == {'kind': 'fixed', **accessible_ui.duration_projection(estimate['text'],
-                    language=('he' if operation == 'overlay-hebrew-fraction-soft-read' else
+                    language=(bound_language if operation in ('overlay-request-estimate', 'kiosk-request-estimate') else
+                              'he' if operation == 'overlay-hebrew-fraction-soft-read' else
                               'zh-Hans' if operation in accessible_ui.CHINESE_VALID_REQUESTS else 'en'))},
                         'ui:kiosk-valid-response')
                 if fractional_refresh:

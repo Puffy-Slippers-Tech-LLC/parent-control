@@ -9,8 +9,8 @@ usage() {
     cat <<'USAGE'
 Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44/45 development machine (no VMs needed)
-  --server              Set up an Ubuntu 26.04+ SSH automation server; disable sleep
-                       No VM hosting or Codex CLI installation
+  --server              Set up an Ubuntu 26.04+ SSH automation and VM host; disable sleep
+                       Includes libvirt/QEMU; no Codex CLI installation
   --connect-server      Verify SSH access to all configured servers and install Watch for local checkouts
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
@@ -117,7 +117,9 @@ install_test_tools() {
     echo 'setup: [stage:graphical-host-policies]'
     run_root graphical-policy /usr/bin/python3 -IB "$script_dir/tools/install_graphical_test_policy.py"
     install_agent_rules
-    install_watch_extension --if-available
+    if [[ $mode != --server ]]; then
+        install_watch_extension --if-available
+    fi
 }
 
 install_watch_extension() {
@@ -143,12 +145,13 @@ case "$mode" in
         fi
         echo 'setup: [stage:dependencies]'
         run_root headless-dependencies /bin/bash "$script_dir/tools/setup_dependencies.sh" --headless
+        echo 'setup: [stage:vm-host]'
+        run_root vm-host /bin/bash "$script_dir/tools/setup_dependencies.sh" --vm-host-only
         prepare_package_builders
         echo 'setup: [stage:checkout]'
         /bin/bash "$script_dir/tools/setup_checkout.sh" --headless
-        # Do not run the VM-host AppArmor policy installer or desktop extension.
-        install_agent_rules
-        echo 'setup: headless SSH environment installed; client keys, Git credentials, coding CLI and VM hosting are managed separately'
+        install_test_tools
+        echo 'setup: headless SSH and VM host environment installed; client keys, Git credentials and coding CLI are managed separately'
         ;;
     --watch) install_watch_extension ;;
     --ui-tests-only)

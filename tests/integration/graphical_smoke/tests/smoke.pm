@@ -104,7 +104,7 @@ sub exchange {
         # Natural expiry can consume the complete real 25-minute balance, plus
         # observation/transport time. Its controller keeps the product deadline.
         : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
-            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' ? 1800
+            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' || $stage eq 'natural-reminder' ? 1800
         : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
         : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
             || $stage eq 'reboot-greeter' ? 780 : 420);
@@ -726,6 +726,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_challenges::natural_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{natural_reminder}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::natural_reminder(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{natural_expiry}) {

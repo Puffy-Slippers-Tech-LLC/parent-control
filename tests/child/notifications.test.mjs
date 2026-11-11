@@ -793,7 +793,8 @@ test('editing a delivered threshold rearms its new time without replaying text-o
 
 test('notification UI adapter exposes actual current text and canonical urgency with lifecycle guards', () => {
     const Main = {sessionMode: {isLocked: false, isGreeter: false}};
-    const context = vm.createContext({Main});
+    let deliverySerial = 0;
+    const context = vm.createContext({Main, GLib: {uuid_string_random: () => `delivery-${++deliverySerial}`}});
     const source = readFileSync(new URL('../../child/gnomeApplicationUiAdapter.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')
         .replace('export class GnomeApplicationUiAdapter', 'globalThis.Adapter = class');
@@ -809,6 +810,9 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     const adapter = new context.Adapter(indicator, preview);
     assert.equal(adapter.listSurfaces().at(-1).id, 'child-time-notification');
     const elements = adapter.elements('child-time-notification');
+    const delivery = elements.find(element => element.id === 'child-time-notification');
+    const deliveryId = delivery.getValue();
+    assert.equal(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getText(),
         h.notifier.current.notification.body);
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getValue(), 15);
@@ -816,6 +820,7 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     assert(elements.find(element => element.id === 'child-time-notification-close').activate);
     assert(elements.find(element => element.id === 'child-time-notification-preferences').activate);
     h.notifier.update(14, true);
+    assert.equal(delivery.getValue(), deliveryId);
     assert.equal(adapter.elements('child-time-notification').find(
         element => element.id === 'child-time-notification-message').getValue(), 14);
     indicator.container.visible = false;
@@ -838,6 +843,11 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     adapter.elements('child-time-notification').find(
         element => element.id === 'child-time-notification-close').activate();
     assert.equal(adapter.elements('child-time-notification'), null);
+    assert.throws(() => delivery.getValue(), /no longer current/);
+    h.notifier.update(19, true);
+    h.notifier.update(15, true);
+    h.policyReply(false);
+    assert.notEqual(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
     preview.current = null;
     assert.equal(adapter.elements('child-reminder-preview'), null);
     h.notifier.clear();

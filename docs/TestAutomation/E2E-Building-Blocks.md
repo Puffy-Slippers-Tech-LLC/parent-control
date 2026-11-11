@@ -834,7 +834,7 @@ and [ChildUI notification surface](Application-UI-API.md#child-panel).
 | `check_e2e_kiosk_reminder_binding` | Qualified selected-child kiosk saved-ID/overlay continuity, account/approver isolation and public restoration on both targets. |
 | `check_e2e_reminder_child_station_binding` | Qualified on Fedora 44: Jordan's own overlay defaults/language and Cancel; Riley's saved 90-second ID through kiosk deletion/Cancel/reopen and deletion/Save/reopened defaults, with Jordan/request/policy preservation and zero grant. |
 | `check_e2e_reminder_fullscreen_preference` | Qualified saved false, Cancel of true draft and reopened false on both targets; no delivery credit. |
-| Natural reminder | Pending maintained observer and installed qualification for owned body/live remaining seconds/urgency, independent saved-threshold binding and natural-lock removal. |
+| Natural reminder | Qualified on Ubuntu 26.04 through `check_e2e_natural_reminder_observation`: independently saved 30-second literal row, real ten-minute grant and native activity, natural delivery, current body/live balance/critical urgency, same-delivery UUID and removal at the natural lock. Shared `NaturalReminderJourney` and `AccessibleUI.natural_reminder_wait` scope notification samples to the pinned ChildUI owner's complete inventory; natural lock retains its separate qualified provider observation. Fullscreen and complete reminder histories remain separate. |
 | Fullscreen banner | Pending enabled delivery/disabled suppression with genuine fullscreen game, independently of urgency. |
 
 `AccessibleUI.overlay_reminder_open/read/editor/delete/fullscreen/commit`

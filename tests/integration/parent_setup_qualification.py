@@ -1119,6 +1119,17 @@ class NaturalExpiryQualification(ChallengesQualification):
         return NaturalExpiryJourney(context, progress)
 
 
+class NaturalReminderQualification(ChallengesQualification):
+    from e2e_fixture_preparation import ACTIVITY_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_natural_reminder_observation'
+    worker_timeout = 2400
+
+    @staticmethod
+    def journey(context, progress):
+        from natural_reminder import NaturalReminderJourney
+        return NaturalReminderJourney(context, progress)
+
+
 class ShellPanelQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

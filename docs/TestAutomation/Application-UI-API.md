@@ -324,7 +324,7 @@ configuration changes:
 
 | ID | Values and operations |
 | --- | --- |
-| `child-time-notification` | `getText`: actual notification title |
+| `child-time-notification` | `getText`: actual notification title; `getValue`: opaque current-delivery UUID, stable while that owned notification lives; retired delivery reads refuse |
 | `child-time-notification-message` | `getText`: actual plain notification body; `getValue`: current verified remaining seconds, refreshed with the countdown |
 | `child-time-notification-urgency` | `getValue`: `critical` or `high` |
 | `child-time-notification-close` | `activate`: dismiss the current banner |
@@ -338,7 +338,9 @@ no alternate product input route is provided.
 The shared UI facade binds every `child-time-notification-*` control to this
 surface at the `child-panel` endpoint, independently of panel visibility. Both
 live reminders and previews refuse input during lock and greeter transitions.
-Installed banner/provider qualification remains pending. The reminder
+Natural delivery, content, live balance, urgency, current-delivery identity and
+lock-removal observation are qualified on Ubuntu 26.04 through
+`check_e2e_natural_reminder_observation`; fullscreen visibility remains pending. The reminder
 preferences dialog publishes its own guarded public IDs and normal handlers;
 these read-only observations provide no settings input or backend-edit bypass.
 

@@ -761,6 +761,18 @@ def reproduce_natural_expiry(lease, fixture_selection):
                             fixture_selection=selection, timeout=1800)
 
 
+def reproduce_natural_reminder(lease, fixture_selection):
+    """Retain Riley's real warning-to-lock boundary for live diagnosis."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from natural_reminder import NaturalReminderJourney
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    return reproduce_denial(lease, NaturalReminderJourney, None,
+                            'natural-reminder', 'natural-reminder', assets=assets,
+                            fixture_selection=selection, timeout=1800)
+
+
 def reproduce_fullscreen_return(lease, fixture_selection):
     """Retain case 127 after child recovery, before the countdown read."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1899,6 +1911,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         from natural_access import NaturalAccessJourney, PLAN as NATURAL_ACCESS_PLAN
         from countdown_grant import CountdownGrantJourney, PLAN as COUNTDOWN_GRANT_PLAN
         from natural_expiry import NaturalExpiryJourney, PLAN as NATURAL_EXPIRY_PLAN
+        from natural_reminder import NaturalReminderJourney
         from game_access_case import GameAccessJourney, FULLSCREEN_PLAN
         from ordinary_rest_of_day import RestOfDayJourney, PLAN as REST_OF_DAY_PLAN
         from suspend_active_grant import (SuspendActiveGrantJourney, PLAN as SUSPEND_ACTIVE_GRANT_PLAN,
@@ -1956,6 +1969,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         natural_expiry = (surface == 'natural-expiry'
             and journey_type is NaturalExpiryJourney and plan is NATURAL_EXPIRY_PLAN
             and boundary == 'natural-expiry' and boundary_operation is None)
+        natural_reminder = (surface == 'natural-reminder'
+            and journey_type is NaturalReminderJourney and plan is None
+            and boundary == 'natural-reminder'
+            and boundary_operation is None)
         fullscreen_return = (surface == 'fullscreen-return'
             and journey_type is GameAccessJourney and plan is FULLSCREEN_PLAN
             and boundary == 'recovery-countdown' and boundary_operation is None)
@@ -2043,7 +2060,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or natural_reminder or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2103,6 +2120,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                                        'grant-logout': 'E2E-005/grant-only-new',
                                        'natural-access': 'E2E-008/fresh-login',
                                        'natural-expiry': 'check_e2e_natural_expiry',
+                                       'natural-reminder': 'check_e2e_natural_reminder_observation',
                                        'rest-of-day': 'E2E-044/ordinary-rest-of-day',
                                        'countdown-grant': 'E2E-011/grant-only',
                                        'suspend-active-grant': 'check_e2e_suspend_active_grant',
@@ -2264,10 +2282,12 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                 validate()
                 if capture is not None:
                     capture.require_active()
-                if boundary_operation is not None:
+                if boundary_operation is not None or surface == 'natural-reminder':
                     from ui_observations import UiObservations
                     try:
-                        if system_boundary:
+                        if surface == 'natural-reminder':
+                            observed = journey.actions['observe-reminder'](journey, guard)
+                        elif system_boundary:
                             from session_control import observe as observe_session
                             observed = observe_session(transport, boundary_operation.removeprefix('system:'),
                                 **({'diagnostic': True} if surface == 'grant-logout' else {}))

@@ -224,7 +224,8 @@ sub enter_kiosk_mate_password {
                     || ($journey->{prefix} // '') eq 'kiosk-delayed-approval-profile-request')
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200'
-                || ($journey->{prefix} // '') eq 'countdown-grant-profile-request'
+                || (($journey->{prefix} // '') eq 'countdown-grant-profile-request'
+                    || ($journey->{prefix} // '') eq 'natural-reminder-profile-request')
                 && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
                 || (($journey->{prefix} // '') eq 'grant-work-recovery-profile-request'
                     || ($journey->{prefix} // '') eq 'expired-daily-replacement-profile-request'

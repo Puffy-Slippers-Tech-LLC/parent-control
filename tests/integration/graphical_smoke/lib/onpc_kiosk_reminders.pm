@@ -7,6 +7,8 @@ use onpc_gdm ();
 use onpc_parent ();
 use onpc_allowance_boundaries ();
 use onpc_request_flow ();
+use onpc_desktop_session ();
+use onpc_app_rows ();
 
 sub run {
     onpc_progress::operation('Qualifying child-bound reminder saves across request surfaces');
@@ -173,6 +175,61 @@ sub persistence {
     $journey->seen('riley-policy-after');
     onpc_allowance_boundaries::select_child($journey, 'jordan-final');
     $journey->seen('jordan-policy-after');
+    $journey->finish();
+}
+
+sub notifications {
+    onpc_progress::operation('Following both children’s saved warnings through play and restart');
+    my ($exchange, $invocations, $challenges) = @_;
+    die 'reminder-notifications:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($invocations) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'reminder-notifications', review => 0);
+    $journey->declare_invocations($invocations);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'parent-login',
+        'installed-greeter', 'parent-focused', 'desktop');
+    onpc_parent::launch($journey, $desktop, 'management');
+    $journey->consume_observation('parent-selected', onpc_parent::select_child($journey, 'child',
+        $journey->seen('child-picker-opened'), 'child-picker-opened',
+        'child-choice-highlighted', 'parent-selected'));
+    $journey->seen($_) for ('riley-zero', 'riley-policy-before');
+    onpc_allowance_boundaries::select_child($journey, 'jordan');
+    $journey->seen($_) for ('jordan-zero', 'jordan-policy-before', 'parent-logout', 'parent-greeter');
+    for my $name ('first', 'enabled', 'disabled') {
+        my $request = $journey->scope($name);
+        my $seconds = $name eq 'first' ? 240 : 600;
+        $request->{kiosk_request} = ['child', 'parent', $seconds, 1];
+        onpc_request_flow::obtain_time($request, 'observed',
+            'fixture-child', 'fixture-parent', $seconds, 1, 'automatic');
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'child',
+            $name eq 'first' ? 'fresh' : 'retained', 'success', "$name-child");
+        onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child') if $name eq 'first';
+        $journey->seen($_) for ("$name-warning", "$name-leave-lock", "$name-greeter");
+    }
+    my $persistence = $journey->scope('persistence');
+    $persistence->{kiosk_request} = ['child', 'parent', 600, 1];
+    onpc_request_flow::prepare($persistence, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 600, 1, 'kiosk');
+    $journey->seen($_) for ('persistence-cancel', 'persistence-returned');
+    onpc_gdm::sign_in_challenge($journey, 'reboot-parent',
+        'reboot-parent-installed-greeter', 'reboot-parent-parent-focused', 'reboot-parent-desktop');
+    $journey->seen($_) for ('reboot-requested', 'reboot-greeter');
+    my $after = $journey->scope('after');
+    $after->{kiosk_request} = ['child', 'parent', 600, 1];
+    onpc_request_flow::obtain_time($after, 'observed',
+        'fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'after-child');
+    $journey->seen($_) for ('after-warning', 'after-leave-lock', 'after-greeter');
+    $desktop = onpc_gdm::sign_in_challenge($journey, 'return',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    onpc_parent::launch($journey, $desktop, 'management', 'return-desktop');
+    $journey->consume_observation('return-parent-selected', onpc_parent::select_child($journey, 'child',
+        $journey->seen('return-child-picker-opened'), 'return-child-picker-opened',
+        'return-child-choice-highlighted', 'return-parent-selected'));
+    $journey->seen('riley-policy-after');
+    onpc_allowance_boundaries::select_child($journey, 'jordan-final');
+    $journey->seen($_) for ('jordan-policy-after', 'final-logout', 'final-greeter');
     $journey->finish();
 }
 

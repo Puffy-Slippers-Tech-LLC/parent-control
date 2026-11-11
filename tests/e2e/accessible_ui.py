@@ -312,7 +312,7 @@ ENGINEERING_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-engineering-' + 
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
     'observe', 'activity', 'wait-lock', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
-NATURAL_REMINDER_OPERATIONS = frozenset({'child-natural-reminder-wait',
+NATURAL_REMINDER_OPERATIONS = frozenset({'child-reminder-history-wait', 'child-natural-reminder-wait',
     'child-fullscreen-reminder-visible', 'child-fullscreen-reminder-suppressed'})
 OPERATIONS |= NATURAL_REMINDER_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
@@ -708,9 +708,10 @@ OPERATIONS |= frozenset({'parent-restart-ready', 'parent-restart-closed-refused'
 def duration_projection(text, *, language='en'):
     """Registered compact public duration, at the formatter's second precision."""
     require(type(text) is str and len(text) <= 32, 'ui:time-duration')
-    require(language in ('en', 'zh-Hans', 'he'), 'ui:time-language')
+    require(language in ('en', 'de', 'zh-Hans', 'he'), 'ui:time-language')
     pattern = {
         'en': r'(?:(\d{1,6})h(?: ([1-5]?\d)m)?|([0-5]?\d)m)(?: ([1-5]?\d)s)?',
+        'de': r'(?:(\d{1,6})h(?: ([1-5]?\d)min)?|([0-5]?\d)min)(?: ([1-5]?\d)s)?',
         'zh-Hans': r'(?:(\d{1,6})小时(?: ([1-5]?\d)分钟)?|([0-5]?\d)分钟)(?: ([1-5]?\d)秒)?',
         'he': r'(?:(\d{1,6})ש׳(?: ([1-5]?\d)דק׳)?|([0-5]?\d)דק׳)(?: ([1-5]?\d)שנ׳)?',
     }[language]
@@ -1070,8 +1071,9 @@ BINDING_REMINDER_OPERATIONS = {
         ('overlay', 'overlay', CHILD, ('open', 'create', 'delete', 'save', 'cancel')),
         ('jordan-overlay', 'overlay', EXISTING_CHILD, ('open', 'cancel')),
         ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'create-warning',
-                                    'fullscreen-false', 'save', 'cancel')),
-        ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'cancel')))
+                                    'create-final-warning', 'language-de', 'language-en',
+                                    'fullscreen-true', 'fullscreen-false', 'save', 'cancel')),
+        ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'delete-all', 'save', 'cancel')))
     for action in actions
 }
 BINDING_REMINDER_MUTATIONS = {operation for operation, (_surface, _child, action)
@@ -1315,6 +1317,22 @@ def chinese_mate_texts(provider_version=None):
             'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
                             if version == '1.28.1' else
                             '一个程序正试图执行一个需要特权的动作。要求授权为超级用户来执行该动作。')}
+
+
+def german_mate_texts(provider_version):
+    # Native provider catalogues, with GTK mnemonic underscores removed:
+    # https://github.com/mate-desktop/mate-polkit/blob/v1.26.1/po/de.po
+    # https://github.com/mate-desktop/mate-polkit/blob/v1.28.1/po/de.po
+    require(type(provider_version) is str and
+            re.fullmatch(r'[A-Za-z0-9_.+:@()/-]{1,128}', provider_version),
+            'ui:mate-native-version')
+    version = provider_version.rsplit(':', 1)[-1].split('-', 1)[0]
+    require(version in ('1.26.1', '1.28.1'), 'ui:mate-native-version')
+    return {'recipient': 'Passwort für {account}:',
+            'cancel': 'Abbrechen' if version == '1.26.1' else 'Abbruch',
+            'authenticate': 'Legitimieren'}
+
+
 SHELL_PROMPT_OPERATIONS = frozenset({'overlay-shell-cancel-ready', 'overlay-shell-lock-ready',
                                     'overlay-shell-switch-user-ready', 'overlay-shell-sign-out-ready',
                                     'overlay-shell-close-ready'})
@@ -8955,16 +8973,35 @@ class AccessibleUI:
             self.invalidate_observation()
         return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
-    def natural_reminder_wait(self, record, *, fullscreen=None):
+    def natural_reminder_wait(self, record, *, fullscreen=None, history=False):
         """Continuously bind public delivery, live balance and removal at Lock.
 
         A lost endpoint, replacement or missed sample fails this observation;
         neither reacquisition nor another warning can supply absence evidence.
         """
-        require(type(record) is dict and set(record) == {'id', 'value', 'unit', 'text'}
+        if history:
+            require(type(record) is dict and set(record) == {'records', 'language', 'fullscreen'}
+                    and record['language'] in ('en', 'de')
+                    and (record['fullscreen'] is None or type(record['fullscreen']) is bool)
+                    and type(record['records']) is list and len(record['records']) in (1, 2),
+                    'ui:reminder-history-binding')
+            fullscreen = record['fullscreen']
+            language = record['language']
+            records = record['records']
+            require([(row['value'], row['unit'], row['text']) for row in records] in (
+                [(1, 'minute', ''), (15, 'second', '')],
+                [(15, 'second', 'Save your game now')]), 'ui:reminder-history-records')
+            binding = record
+            record = records[0]
+        else:
+            records, language, binding = [record], 'en', record
+        require(all(type(row) is dict and set(row) == {'id', 'value', 'unit', 'text'}
+                    and type(row['id']) is str and re.fullmatch(r'[a-z][a-z0-9-]*', row['id'])
+                    for row in records), 'ui:natural-reminder-binding')
+        require(history or (type(record) is dict and set(record) == {'id', 'value', 'unit', 'text'}
                 and type(record['id']) is str and re.fullmatch(r'[a-z][a-z0-9-]*', record['id'])
                 and record['value'] == 30 and record['unit'] == 'second'
-                and record['text'] == 'Save your game now', 'ui:natural-reminder-binding')
+                and record['text'] == 'Save your game now'), 'ui:natural-reminder-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(fullscreen is None or type(fullscreen) is bool, 'ui:natural-reminder-mode')
         game_application = game_before = None
@@ -8995,7 +9032,8 @@ class AccessibleUI:
             application_ids=(CHILD_PANEL_APPLICATION,))
         require(len(applications) == 1, 'ui:natural-reminder-observer-lost')
         application = applications[0]
-        initial = emission = delivery_id = endpoint = None
+        initial = emission = delivery_id = endpoint = closed_delivery_id = None
+        emissions, visibility = [], None
         previous_end = time.monotonic_ns()
         maximum_gap = samples = actions = 0
         next_activity = previous_end
@@ -9023,28 +9061,36 @@ class AccessibleUI:
             warning = self.snapshot_owned_target('child-time-notification', showing=False,
                                                  observation=observation)
             if initial is None:
-                require(not locked and seconds >= 300 and warning is None,
+                require(not locked and seconds >= (120 if history and len(records) == 2 else 300) and warning is None
+                        and (not history or len(records) != 2 or seconds < 300),
                         'ui:natural-reminder-arm-margin')
                 initial = {'seconds': seconds, 'read_bounds': [started, time.monotonic_ns()]}
                 deadline = started + (seconds + 15) * 1_000_000_000
                 print('natural-reminder:armed seconds=' + str(seconds), file=sys.stderr, flush=True)
             require(time.monotonic_ns() < deadline, 'ui:natural-reminder-deadline')
             if locked:
-                require(emission is not None and warning is None, 'ui:natural-reminder-lock-removal')
+                require(len(emissions) == len(records) and warning is None,
+                        'ui:natural-reminder-lock-removal')
                 lock = self.natural_expiry('child-natural-expiry-lock-ready')
                 require(lock['session_sha256'] == session and lock['state'] == 'locked',
                         'ui:natural-reminder-session-changed')
                 completed = time.monotonic_ns()
                 require(completed < deadline and completed - previous_end <= 15_000_000_000,
                         'ui:natural-reminder-observation-gap')
-                return {'record': record, 'initial': initial, 'emission': emission,
+                return {'record': binding, 'initial': initial, 'emission': emission,
                         'session_sha256': session, 'endpoint': endpoint, 'lock': lock['lock'],
                         'lock_read_bounds': [started, completed], 'samples': samples + 1,
                         'maximum_gap_ns': max(maximum_gap, completed - previous_end),
-                        'activity_actions': actions, 'removed': True}
+                        'activity_actions': actions, 'removed': True,
+                        **({'emissions': emissions, 'visibility': visibility} if history else {})}
             if warning is None:
-                require(emission is None or seconds == 0, 'ui:natural-reminder-disappeared')
-                require(emission is not None or seconds > record['value'] - 15,
+                # Banners delivered with at least one minute left close after
+                # five seconds. Short warnings must remain until natural Lock.
+                require(emission is None or seconds == 0 or emission['seconds'] >= 60,
+                        'ui:natural-reminder-disappeared')
+                closed_delivery_id = delivery_id
+                threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
+                require(emission is not None or seconds > threshold - 15,
                         'ui:natural-reminder-delivery-deadline')
             else:
                 require(self.showing(warning), 'ui:natural-reminder-hidden')
@@ -9052,8 +9098,13 @@ class AccessibleUI:
                 require(type(current_id) is str and re.fullmatch(
                     r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', current_id),
                     'ui:natural-reminder-delivery-identity')
-                require(delivery_id is None or current_id == delivery_id,
-                        'ui:natural-reminder-replaced')
+                require(current_id != closed_delivery_id, 'ui:natural-reminder-reappeared')
+                new_delivery = delivery_id != current_id
+                if new_delivery:
+                    require(len(emissions) < len(records)
+                            and current_id not in {item['delivery_id'] for item in emissions},
+                            'ui:natural-reminder-replaced')
+                    record = records[len(emissions)]
                 message = self.snapshot_owned_target('child-time-notification-message',
                                                      observation=observation)
                 urgency = self.snapshot_owned_target('child-time-notification-urgency',
@@ -9062,21 +9113,42 @@ class AccessibleUI:
                 body, live, priority = message.getText(), message.getValue(), urgency.getValue()
                 require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
                 after = remaining.getValue()
-                require(body == record['text'] and priority == ('high' if fullscreen is False else 'critical')
-                        and type(live) is int and 0 < live <= record['value']
+                threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
+                require(type(live) is int and 0 < live <= threshold,
+                        'ui:natural-reminder-trigger')
+                if record['text']:
+                    expected_body = record['text']
+                else:
+                    count = math.ceil(live / 60) if live >= 60 else live
+                    unit = ('Minute' if count == 1 else 'Minuten') if live >= 60 else (
+                        'Sekunde' if count == 1 else 'Sekunden')
+                    if language == 'en':
+                        unit = ('minute' if count == 1 else 'minutes') if live >= 60 else (
+                            'second' if count == 1 else 'seconds')
+                    expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
+                    if live < 60:
+                        expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
+                require(body == expected_body and priority == ('high' if fullscreen is False else 'critical')
                         and after - 2 <= live <= seconds + 2,
                         'ui:natural-reminder-content-or-balance')
                 delivery_id = current_id
-                if emission is None:
+                if new_delivery:
                     emission = {'delivery_id': current_id, 'body': body, 'urgency': priority,
                                 'seconds': live, 'panel_seconds': [after, seconds],
                                 'read_bounds': [started, time.monotonic_ns()]}
+                    emissions.append(emission)
                     print('natural-reminder:delivered seconds=' + str(live), file=sys.stderr, flush=True)
                     if fullscreen is not None:
                         result = self._fullscreen_reminder_result(application, session, emission,
                             game_application, game_before, fullscreen)
-                        return {'record': record, 'initial': initial, 'emission': emission,
-                                'session_sha256': session, 'endpoint': endpoint, **result}
+                        if not history:
+                            return {'record': record, 'initial': initial, 'emission': emission,
+                                    'session_sha256': session, 'endpoint': endpoint, **result}
+                        visibility = result
+            if emission is not None and len(emissions) < len(records):
+                next_row = records[len(emissions)]
+                next_threshold = next_row['value'] * (60 if next_row['unit'] == 'minute' else 1)
+                require(seconds > next_threshold - 3, 'ui:reminder-history-missing-next-warning')
             # Real normal Submit/result work continues well before the short
             # warning interval; no last-second input races the natural lock.
             if fullscreen is None and seconds > 90 and started >= next_activity:
@@ -11428,11 +11500,20 @@ class AccessibleUI:
                                      text='Save <work> & games!')
             return {'reminders': self.overlay_reminder_delete(row['id'], expected_source=source,
                                                              **binding)}
-        if action == 'create-warning':
-            return {'reminders': self.overlay_reminder_editor(seconds=30, text='Save your game now',
+        if action in ('create-warning', 'create-final-warning'):
+            return {'reminders': self.overlay_reminder_editor(
+                seconds=15 if action == 'create-final-warning' else 30, text='Save your game now',
                 expected_source=source, **binding)}
-        if action == 'fullscreen-false':
-            return {'reminders': self.overlay_reminder_fullscreen(False,
+        if action.startswith('language-'):
+            with self.language_scope(surface, child=child), self._reminder_input_scope():
+                self.overlay_reminder_read(expected_source=source, **binding)
+                # Inactive preference pages are readable, but refuse input.
+                self.set_value('preferences-tabs', 'language')
+                self.choose_language(surface, action.removeprefix('language-'))
+                self.set_value('preferences-tabs', 'reminders')
+                return {'reminders': self.overlay_reminder_read(**binding)}
+        if action in ('fullscreen-false', 'fullscreen-true'):
+            return {'reminders': self.overlay_reminder_fullscreen(action == 'fullscreen-true',
                 expected_source=source, **binding)}
         record_id = (self._reminder_row(records, seconds=90, text='Save <work> & games!')['id']
                      if action == 'edit' else None)
@@ -11769,6 +11850,21 @@ class AccessibleUI:
         return {'source': source, 'privacy_read': True, 'actions_confined': True,
                 'draft_preserved': True, 'sent': False}
 
+    def bound_request_language(self, *, approval=False):
+        # Read the meaning of the scoped public caption; account identity and
+        # input still use canonical UIDs and stable IDs.
+        # Approval owns its strict native-prompt checks, including while that
+        # prompt is open. Protect secret text during this read-only lookup.
+        node = (self.snapshot_owned_target('kiosk-child-account-caption',
+                    observation=self.read_snapshot(protect_text=True)) if approval else
+                self.id_target('kiosk-child-account-caption'))
+        require(node is not None, 'ui:bound-request-language')
+        caption = node.get_name()
+        languages = [code for code, text in (('en', 'Child'), ('de', 'Kind'))
+                     if caption == text]
+        require(len(languages) == 1, 'ui:bound-request-language')
+        return languages[0]
+
     def _kiosk_valid_choice(self, operation, *, refresh=True):
         require(not self.input_uncertain, 'ui:uncertain-input')
         overlay = operation in OVERLAY_VALID_OPERATIONS
@@ -11784,6 +11880,8 @@ class AccessibleUI:
                            (EXISTING_CHILD if chinese or jordan else CHILD, PARENT))
         language = ('he' if operation == 'overlay-hebrew-fraction-soft-read' else
                     'zh-Hans' if chinese else 'en')
+        if bound:
+            language = self.bound_request_language()
         action = (JORDAN_VALID_BINDINGS[operation] if jordan else
                   CHINESE_VALID_BINDINGS[operation] if chinese else
                   operation.replace('overlay-', 'kiosk-', 1) if overlay else operation)
@@ -11929,9 +12027,11 @@ class AccessibleUI:
             require(node is not None, 'ui:kiosk-estimate-missing')
             message = ' '.join(node.get_name().split())
             if message == ('חישוב הערכת הזמן…' if language == 'he' else
+                           'Verfügbare Zeit wird berechnet…' if language == 'de' else
                            '正在估算可用时间…' if chinese else 'Calculating time estimate…'):
                 return None
             if message == ('הערכת הזמן אינה זמינה' if language == 'he' else
+                           'Zeitschätzung nicht verfügbar' if language == 'de' else
                            '无法估算时间' if chinese else 'Time estimate unavailable'):
                 # Locking can temporarily make native time unavailable. The
                 # form remains usable and refreshes itself every 30 seconds.
@@ -11939,6 +12039,7 @@ class AccessibleUI:
                 # caller still needs a parsed estimate before it can proceed.
                 return None
             prefix = ('יתרת הזמן המשוערת: ' if language == 'he' else
+                      'Geschätzte verbleibende Zeit: ' if language == 'de' else
                       '预计剩余时间：' if chinese else 'Estimated remaining time: ')
             # Every duration, including rest of day, first clears the old
             # estimate while the shared 250 ms debounce is pending.
@@ -11955,7 +12056,8 @@ class AccessibleUI:
                     if message == 'Request denied' else 'ui:kiosk-estimate')
             return {'kind': 'fixed', **duration_projection(message.removeprefix(prefix), language=language)}
         value = self.wait(estimate, 'kiosk-estimate')
-        result = {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns()}
+        result = {'request': request, 'estimate': value, 'observed_monotonic_ns': time.monotonic_ns(),
+                  **({'language': language} if bound else {})}
         if overlay:
             # Native daily time cannot extend beyond this local day. Parent's
             # recorded-use balance can still show the full unused allowance.
@@ -12080,16 +12182,18 @@ class AccessibleUI:
         require(type(pending_filled) is bool and not (pending_filled and filled),
                 'ui:mate-field-mode')
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS, 'ui:mate-binding')
-        require(language in ('en', 'zh-Hans') and (language == 'en' or binding is None),
+        require(language in ('en', 'de', 'zh-Hans') and (language == 'en' or binding is None),
                 'ui:mate-language-binding')
         bound_request = (kiosk_request_facts(self.kiosk_request)
                          if getattr(self, 'kiosk_request', None) is not None else None)
-        require(request is None or (binding is None and language == 'en'
+        require(request is None or (binding is None and language in ('en', 'de')
                 and type(request) is dict and (request == bound_request or request in (
                     LONG_MATE_REQUEST, JORDAN_MATE_REQUEST, *PROFILE_MATE_REQUESTS.values())
                 and request.get('allow_soft') is True)
                 and type(request.get('duration_seconds')) is int
                 and type(request.get('allow_soft')) is bool), 'ui:mate-request-binding')
+        require(language != 'de' or (request is not None and request == bound_request
+                and request['duration_seconds'] in (240, 600)), 'ui:mate-request-language')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
         if request is not None and request == bound_request:
             child, approver = self.kiosk_bound_values()[:2]
@@ -12131,7 +12235,10 @@ class AccessibleUI:
                   if facts[node]['role'] == 'label' and facts[node]['showing']]
         texts = (chinese_mate_texts(self.mate_provider_metadata(pid)['version'])
                  if language == 'zh-Hans' else None)
-        recipient = texts['recipient'] if texts else 'Password for ' + APPROVER_ACCOUNTS[approver] + ':'
+        native = (german_mate_texts(self.mate_provider_metadata(pid)['version'])
+                  if language == 'de' else texts)
+        recipient = (native['recipient'].format(account=APPROVER_ACCOUNTS[approver]) if native else
+                     'Password for ' + APPROVER_ACCOUNTS[approver] + ':')
         require(labels.count(recipient) == 1,
                 'ui:mate-recipient-context-missing')
         # The native catalogues keep the complete request in one multiline
@@ -12147,6 +12254,10 @@ class AccessibleUI:
             message = (f'Grant access to {child}\nfor {KIOSK_REQUEST_DURATIONS[request["duration_seconds"]]}\n\n'
                        + ('✓ Soft-blocked apps allowed' if request['allow_soft'] else
                           '✗ Soft-blocked not allowed'))
+            if language == 'de':
+                message = (f'Zugriff für {child} gewähren\nfür {request["duration_seconds"] // 60} Minuten\n\n'
+                           + ('✓ Vorübergehend freigebbare Apps erlaubt' if request['allow_soft'] else
+                              '✗ Vorübergehend freigebbare Apps nicht erlaubt'))
         require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
         if texts:
             require(labels.count(texts['explanation']) == 1, 'ui:mate-native-explanation')
@@ -12155,7 +12266,7 @@ class AccessibleUI:
             require(len(authenticators) == 1 and self.has_state(authenticators[0], self.api.StateType.SENSITIVE),
                     'ui:mate-submit')
         buttons = [node for node in controls if facts[node]['role'] in ('push button', 'button')
-                   and facts[node]['showing'] and facts[node]['name'] == (texts['cancel'] if texts else 'Cancel')]
+                   and facts[node]['showing'] and facts[node]['name'] == (native['cancel'] if native else 'Cancel')]
         require(len(buttons) == 1 and self.has_state(buttons[0], self.api.StateType.SENSITIVE),
                 'ui:mate-cancel')
         current = (owner, dialog, field, buttons[0])
@@ -12246,7 +12357,8 @@ class AccessibleUI:
         """REQUEST11: explicit owned success, never prompt disappearance alone."""
         if overlay:
             self.require_child_overlay_session(self.overlay_bound_values()[0])
-        require(language in ('en', 'zh-Hans', 'he') and (language == 'en'
+        require(language in ('en', 'de', 'zh-Hans', 'he') and (language == 'en'
+                or language == 'de' and not overlay and not immediate
                 or language == 'he' and overlay and not immediate
                 or language == 'zh-Hans' and not overlay and not immediate),
                 'ui:approval-language')
@@ -12285,6 +12397,7 @@ class AccessibleUI:
             if title is None or page is None or not self.showing(title) or not self.showing(page):
                 return False
             require(title.get_name() == ('זמן הוענק' if language == 'he' else
+                                        'Anfrage genehmigt' if language == 'de' else
                                         '请求已获批准' if language == 'zh-Hans' else
                                         'Time granted' if overlay else 'Request approved'),
                     'ui:kiosk-approval-result')
@@ -12329,13 +12442,14 @@ class AccessibleUI:
         paused = operation in PAUSE_MATE_ORDER
         bound = operation in BOUND_MATE_ORDER
         bound_request = kiosk_request_facts(self.kiosk_request) if bound else None
-        language = 'zh-Hans' if chinese else 'en'
+        language = ('zh-Hans' if chinese else
+                    self.bound_request_language(approval=True) if bound else 'en')
         action = ('kiosk-mate-' + operation.split('-mate-', 1)[1] if profile_request or bound else
                   operation.replace('jordan-mate-', 'kiosk-mate-', 1) if jordan else
                   operation.replace('chinese-mate-', 'kiosk-mate-', 1) if chinese else
                   operation.replace('kiosk-long-mate-', 'kiosk-mate-', 1) if long_request else
                   operation.replace('kiosk-pause-mate-', 'kiosk-mate-', 1) if paused else operation)
-        options = ({'request': bound_request} if bound else
+        options = ({'request': bound_request, 'language': language} if bound else
                    {'request': dict(profile_request)} if profile_request else
                    {'request': dict(JORDAN_MATE_REQUEST)} if jordan else
                    {'language': language} if chinese else
@@ -12370,7 +12484,9 @@ class AccessibleUI:
                 current = self.mate_prompt(pid, observation=(nodes, snapshot, _, facts),
                                            challenge=challenge, filled=True, **options)
                 authenticate = (chinese_mate_texts(self.mate_provider_metadata(pid)['version'])['authenticate']
-                                if chinese else 'Authenticate')
+                                if chinese else
+                                german_mate_texts(self.mate_provider_metadata(pid)['version'])['authenticate']
+                                if language == 'de' else 'Authenticate')
                 buttons = [node for node in self.snapshot_scope(nodes, snapshot, current[1])
                            if facts[node]['role'] in ('button', 'push button')
                            and facts[node]['name'] == authenticate and facts[node]['showing']]
@@ -12389,7 +12505,7 @@ class AccessibleUI:
                     self.input_uncertain = True
                     return {'refused': True, 'error_shown': True, 'exit_initiated': True}
                 result = self.kiosk_approval_success(immediate=operation == 'kiosk-mate-submit-immediate',
-                    **({'language': language} if chinese else {}))
+                    **({'language': language} if chinese or bound else {}))
                 self.input_uncertain = True  # This one submission is consumed even on success.
                 return result
             if chinese:
@@ -15627,6 +15743,7 @@ class AccessibleUI:
             result.update(self.overlay_reminder_operation(operation))
         elif operation in NATURAL_REMINDER_OPERATIONS:
             result['natural_reminder'] = self.natural_reminder_wait(self.natural_reminder_record,
+                history=operation == 'child-reminder-history-wait',
                 fullscreen=None if operation == 'child-natural-reminder-wait' else
                            operation == 'child-fullscreen-reminder-visible')
         elif operation in KIOSK_REMINDER_OPERATIONS:

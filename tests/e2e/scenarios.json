@@ -8,6 +8,31 @@
   },
   "scenarios": [
     {
+      "id": "E2E-065",
+      "title": "Each child receives their saved warnings before time runs out",
+      "category": "customer-journey",
+      "owners": ["child-preferences"],
+      "requirements": ["ONPC-COMP-CHILD-008"],
+      "requirement_gap": null,
+      "contract_refs": ["docs/Specification.md", "docs/SystemDesign/Screen-Time.md#remaining-time-notifications", "docs/TestAutomation/E2E-Scenario-Recipes.md#saved-warnings-during-play-and-after-reboot"],
+      "components": ["parent", "child", "kiosk", "broker"],
+      "environment": ["ubuntu26.04", "fedora44"],
+      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
+      "phases": {
+        "setup": [{"id": "setup", "operation": "provision", "description": "Restore the installed snapshot, bind fixture credentials and verify native work and offline game inputs."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin with untouched child reminders and no grants."}],
+        "steps": [{"id": "step-1", "operation": "ui", "description": "Read both children's defaults and save German for Riley and English for Jordan. With zero daily time approve four minutes, use Riley's app and observe the natural one-minute and fifteen-second default warnings and lock. Save a literal fifteen-second warning and compare it across language changes. Renew ten minutes for visible Critical fullscreen delivery, then renew for suppressed High delivery of the same saved row. Keep each warning's identity through natural locking. Save Jordan's empty list, reboot normally, read both retained choices and renew Riley's time for custom delivery. Compare both independent policies and finish at sign-in."}],
+        "end": [{"id": "end", "operation": "collect", "description": "Reconcile all public results, changed-boot continuity and owned worker shutdown."}],
+        "cleanup": [{"id": "cleanup", "operation": "outer-reset", "description": "Collect retained diagnostics and restore the powered-off baseline under the attempt's ownership."}]
+      },
+      "interventions": [],
+      "assertions": {"visible": [{"id": "visible-result", "step_id": "step-1", "description": "Natural warnings have the saved trigger, localized or literal body and correct urgency; fullscreen visibility is independent, renewals rearm without duplicates, lock removes warnings and reboot preserves the customized and empty child lists without changing policy."}], "backend": [], "other_user": []},
+      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
+      "duration_seconds": 7200,
+      "matrix": {"dimensions": {"history": ["warnings-play-renewal-reboot"]}, "full_combinations": [], "rationale": "One continuous two-child saved-warning history, four natural intervals and one current-version reboot; local editing and migration matrices retain their existing owners."},
+      "variants": [{"coverage_id": 266, "id": "warnings-play-renewal-reboot", "owner": "child-preferences", "parameters": {"history": "warnings-play-renewal-reboot"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/reminder_notifications.py", "test_id": "warnings-play-renewal-reboot"}}]
+    },
+    {
       "id": "E2E-064",
       "title": "Riley reads upgrade notes and returns to the same request",
       "category": "customer-journey",

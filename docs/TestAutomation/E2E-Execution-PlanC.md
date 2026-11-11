@@ -34,7 +34,7 @@ Existing ordinary sign-in/unlock and exhaustion coverage remains scheduled.
 
 ## Next task
 
-Next task: **311 — [Remaining-time system notifications](E2E-Tasks/311-remaining-time-notifications.md)**.
+Next task: none.
 
 The developer authorized pre-test guest clock preparation for task **239** and all
 remaining calendar tasks (**240, 242, 245**), under the

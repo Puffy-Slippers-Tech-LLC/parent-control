@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5924</span>/<span style="color: gray">0</span>/5924 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5930</span>/<span style="color: gray">0</span>/5930 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">308</span>/<span style="color: gray">0</span>/308 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">149</span>/<span style="color: gray">48</span>/197 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6689</span>/<span style="color: gray">48</span>/6737** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">150</span>/<span style="color: gray">48</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6695</span>/<span style="color: gray">48</span>/6743** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">148</span>/<span style="color: gray">48</span>/196 |
+| customer-journey | <span style="color: green">149</span>/<span style="color: gray">48</span>/197 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -184,6 +184,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [263](#scenario-263) | Each child's saved reminders survive a restart | `E2E-062/saved-empty-reboot` | ready |
 | [264](#scenario-264) | A child's saved request presets and units survive editing and return | `E2E-063/saved-presets` | ready |
 | [265](#scenario-265) | Riley reads upgrade notes and returns to the same request | `E2E-064/kiosk` | ready |
+| [266](#scenario-266) | Each child receives their saved warnings before time runs out | `E2E-065/warnings-play-renewal-reboot` | ready |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
@@ -2351,6 +2352,18 @@ Variant: surface: kiosk
 - Jamie enables Riley with zero daily time. Record saved policy, enter the station and independently capture Riley's 75-second request for Jamie with soft apps included.
 - Open What's New and independently read the packaged Child 1.4 content offered for the installed 1.2 to 2.0 upgrade.
 - Close normally and require the same usable request. Cancel to sign-in, return to Parent to confirm unchanged policy and zero time, then log out normally.
+
+### Scenario 266
+
+**Each child receives their saved warnings before time runs out**
+
+Case: `E2E-065/warnings-play-renewal-reboot` · Category: customer-journey · Status: **ready**
+
+Variant: history: warnings play renewal reboot
+
+**Steps:**
+
+- Read both children's defaults and save German for Riley and English for Jordan. With zero daily time approve four minutes, use Riley's app and observe the natural one-minute and fifteen-second default warnings and lock. Save a literal fifteen-second warning and compare it across language changes. Renew ten minutes for visible Critical fullscreen delivery, then renew for suppressed High delivery of the same saved row. Keep each warning's identity through natural locking. Save Jordan's empty list, reboot normally, read both retained choices and renew Riley's time for custom delivery. Compare both independent policies and finish at sign-in.
 
 <div style="color: gray">
 

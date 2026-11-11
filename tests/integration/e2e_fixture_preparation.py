@@ -76,6 +76,8 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
 LIFECYCLE_SUBSETS = ('native', 'baseline-child')
 LIFECYCLE_CALLER = 'E2E-027/continuous'
 APP_SET_CALLER = 'check_e2e_compose_a_named_app_rule_set'
+REMINDER_SUBSETS = (*ACTIVITY_SUBSETS, 'game')
+REMINDER_CALLER = 'E2E-065/warnings-play-renewal-reboot'
 
 
 def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
@@ -84,6 +86,7 @@ def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free)
              and not (subsets == GAME_SUBSETS and caller in GAME_CALLERS and not product_free)
+             and not (subsets == REMINDER_SUBSETS and caller == REMINDER_CALLER and not product_free)
              and not (subsets == LIFECYCLE_SUBSETS
                       and ((caller == LIFECYCLE_CALLER and product_free)
                            or (caller == APP_SET_CALLER and not product_free))))):
@@ -146,15 +149,15 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
 def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, product_free=False):
     """Bind legacy public observation keys to the selected runtime bytes."""
     subsets = qualified_subsets(subsets, caller=caller, product_free=product_free)
-    if type(child) is not bool or (child and not (subsets == ACTIVITY_SUBSETS
+    if type(child) is not bool or (child and not (subsets in (ACTIVITY_SUBSETS, REMINDER_SUBSETS)
             or subsets == LIFECYCLE_SUBSETS and caller == APP_SET_CALLER and not product_free)):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))
     from tests.fixtures import native_assets
     destinations = native_assets.source_destinations('@child@' if child else '@other@', alias=not child)
-    if subsets == GAME_SUBSETS:
+    if subsets in (GAME_SUBSETS, REMINDER_SUBSETS):
         destinations.update(native_assets.game_source_destinations('@other@'))
-    if subsets == ACTIVITY_SUBSETS:
+    if subsets in (ACTIVITY_SUBSETS, REMINDER_SUBSETS):
         destinations.update(zip(native_assets.activity_sources(), (
             (native_assets.ACTIVITY_EXECUTABLE, 0o755),
             *((native_assets.ACTIVITY_PREFIX + '/' + name, 0o644)

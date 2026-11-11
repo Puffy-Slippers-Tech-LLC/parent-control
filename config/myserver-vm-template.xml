@@ -4,14 +4,14 @@
   <memory unit="KiB">4718592</memory>
   <currentMemory unit="KiB">4718592</currentMemory>
   <memoryBacking><source type="memfd"/><access mode="shared"/></memoryBacking>
-  <vcpu placement="static">6</vcpu>
+  <vcpu placement="static">4</vcpu>
   <os>
     <type arch="x86_64" machine="pc-q35-resolute">hvm</type>
     <bootmenu enable="yes" timeout="5000"/>
   </os>
   <features><acpi/><apic/><vmport state="off"/></features>
   <cpu mode="host-passthrough" check="none" migratable="on">
-    <topology sockets="1" dies="1" clusters="1" cores="3" threads="2"/>
+    <topology sockets="1" dies="1" clusters="1" cores="4" threads="1"/>
     <cache mode="passthrough"/>
     <feature policy="disable" name="invtsc"/>
   </cpu>
@@ -43,6 +43,11 @@
     <controller type="pci" model="pcie-root"/>
     <controller type="sata" index="0"/>
     <controller type="virtio-serial" index="0"/>
+    <filesystem type="mount" accessmode="passthrough">
+      <driver type="virtiofs"/>
+      <source dir="/Data"/>
+      <target dir="data"/>
+    </filesystem>
     <interface type="network"><source network="default"/><model type="virtio"/></interface>
     <serial type="pty"><target type="isa-serial" port="0"/></serial>
     <console type="pty"><target type="serial" port="0"/></console>

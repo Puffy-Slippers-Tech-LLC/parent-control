@@ -479,20 +479,14 @@ No npm packages or compilation step are needed.
 
 ## Local and SSH sources
 
-For interactive client onboarding, run `./setup.sh --connect-server`. It configures
-key access, verifies noninteractive SSH, installs Watch and prints a command to
-open a private workspace with local and SSH sources. Connection details live in
-your home directory, outside Git. See the [setup contract](../../docs/Approval-Tools.md#one-time-setup)
-for host-key verification and key-agent requirements.
-The command selects from configured SSH hosts, uses `host.name` as the alias,
-and reads `ssh_port` and remote branch paths from `config/environment.json`.
-Only the private address and login username need to be entered. The first
-configured remote checkout is the starting point; Watch discovers related
-registered worktrees automatically. `./setup.sh --server` prints a connection
-summary with the account, addresses, host-key fingerprints and registered worktrees,
-and checks Codex login and Git remote read access. Use that summary during client
-onboarding; no separate server inspection commands are needed. Independent clones
-require separate sources.
+Run `./setup.sh --connect-server` on the client to verify existing noninteractive
+SSH access to all configured SSH hosts and install Watch. Then open your local
+checkout in VS Code and use **ONPC: Watch** to observe and manage local and remote
+launchers together. No separate workspace is needed. Machine-to-machine SSH
+must already be configured; setup uses each `host.name` as an OpenSSH alias
+without changing SSH settings or keys. The command needs no terminal or prompts.
+See the [setup contract](../../docs/Approval-Tools.md#one-time-setup) for
+prerequisites and server readiness checks.
 
 With no configuration, Watch uses this checkout's local adapter and the SSH hosts
 with branches in `config/environment.json`, including hosts disabled for VM

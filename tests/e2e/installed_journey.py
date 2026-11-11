@@ -530,19 +530,23 @@ class InstalledJourney:
         if getattr(context, 'fixture_selection', None) is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                   GAME_CALLERS, GAME_SUBSETS,
+                                                  REMINDER_CALLER, REMINDER_SUBSETS,
                                                   SUBSETS, qualified_subsets)
+            reminders = (getattr(context, 'fixture_subsets', SUBSETS) == REMINDER_SUBSETS
+                and getattr(context, 'fixture_caller', None) == REMINDER_CALLER
+                and not getattr(context, 'product_free', False))
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
                 and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
-                and not getattr(context, 'product_free', False))
+                and not getattr(context, 'product_free', False)) or reminders
             game = (getattr(context, 'fixture_subsets', SUBSETS) == GAME_SUBSETS
                 and getattr(context, 'fixture_caller', None) in GAME_CALLERS
-                and not getattr(context, 'product_free', False))
+                and not getattr(context, 'product_free', False)) or reminders
             qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
                 caller=getattr(context, 'fixture_caller', None),
                 product_free=getattr(context, 'product_free', False))
             require(all(getattr(action, 'fixture_profile', 'native') in
-                        (('native', 'chinese', 'activity') if activity else
-                         ('native', 'chinese', 'game') if game else ('native', 'chinese'))
+                        (('native', 'chinese') + (('activity',) if activity else ())
+                         + (('game',) if game else ()))
                         for action in self.actions.values())
                     and (activity or not any(tag.endswith('native-activity-launch')
                                             for tag in plan.screen_tags.values())),

@@ -3,7 +3,7 @@ use warnings;
 use base 'basetest';
 use testapi;
 use JSON::PP;
-use Time::HiRes qw(time sleep);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC sleep);
 use onpc_password ();
 use onpc_serial ();
 use onpc_gdm ();
@@ -93,23 +93,20 @@ use onpc_clean_install ();
 sub exchange {
     my ($stage, $shot, $input) = @_;
     die 'smoke:input-callback' if defined($input) && ref($input) ne 'CODE';
+    # The controller and this host worker share CLOCK_MONOTONIC. Wait for the
+    # guarded reply within that single attempt deadline, regardless of which
+    # side runs slower. Replies and callbacks never renew the budget.
+    my $deadline = get_var('ONPC_CONTROLLER_DEADLINE');
+    die 'smoke:controller-deadline' unless defined($deadline) && !ref($deadline)
+        && $deadline =~ /\A[0-9]{1,12}\.[0-9]{9}\z/;
+    die 'smoke:controller-timeout' if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
     my $consumed = 0;
     open(my $request, '>', "$stage.request.tmp") or die 'smoke:request';
     print {$request} encode_json({stage => $stage, screenshot => $shot});
     close($request) or die 'smoke:request-close';
     rename("$stage.request.tmp", "$stage.request.json") or die 'smoke:request-publish';
-    my $deadline = time + ($stage =~ /\Apublic-/ ? 120 : $stage eq 'setup-detached' ? 1500
-        : $stage eq 'ready' || $stage =~ /\Amidnight-wait-[1-6]\z/
-            || $stage =~ /\Aapproval-wait-[1-4]\z/ ? 600
-        # Natural expiry can consume the complete real 25-minute balance, plus
-        # observation/transport time. Its controller keeps the product deadline.
-        : $stage eq 'minute-progression' || $stage eq 'natural-expiry' || $stage eq 'peer-expiry'
-            || $stage eq 'expiry-wait' || $stage eq 'replacement-cross' || $stage eq 'natural-reminder' ? 1800
-        : $stage eq 'package-submitted' || $stage eq 'upgrade-submitted' ? 780
-        : $stage eq 'reboot-installed-greeter' || $stage eq 'second-reboot-greeter'
-            || $stage eq 'reboot-greeter' ? 780 : 420);
     while (!-f "$stage.reply.json") {
-        die 'smoke:controller-timeout' if time >= $deadline;
+        die 'smoke:controller-timeout' if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
         if (defined($input) && !$consumed && -f "$stage.input.json") {
             die 'smoke:input-file' if -l "$stage.input.json" || -s "$stage.input.json" > 1024;
             open(my $proof, '<', "$stage.input.json") or die 'smoke:input-file';
@@ -129,6 +126,7 @@ sub exchange {
         }
         sleep 0.1;
     }
+    die 'smoke:controller-timeout' if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
     die 'smoke:input-missing' if defined($input) && !$consumed;
     open(my $reply, '<', "$stage.reply.json") or die 'smoke:reply';
     local $/;
@@ -197,6 +195,12 @@ sub run {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_kiosk_reminders::child_station(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
+    if ($ready->{reminder_notifications}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_kiosk_reminders::notifications(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{reminder_persistence}) {

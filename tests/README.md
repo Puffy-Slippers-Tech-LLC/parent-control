@@ -1899,6 +1899,13 @@ all progress. Category `waiting` records time queued separately from execution.
 Source identity is recorded at startup for reference. Checkout edits during a
 run do not stop scheduling or invalidate results. Tests can load later edits; a passing run does not
 certify one immutable checkout revision.
+VM controllers use their captured inputs. A passing captured run retains its
+original source identity and completion credit even when later checkout changes
+could affect a future run. Keep those later changes untouched. Queue acceptance
+still requires the exact assigned attempt, completed cases and owned cleanup;
+repair settlement retains its writer and ownership guards.
+The repair controller starts another verification pass only for an explicit
+coordinator-reported repair impact, not a later checkout checksum difference.
 
 The aggregate dispatches each complete `system` or ready `e2e` selection in one
 invocation through the shared VM launcher. Prerequisite checks run once at each

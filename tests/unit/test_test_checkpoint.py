@@ -177,6 +177,23 @@ def test_pass_failure_fifo_keeps_exact_attempts_without_accepting_them(tmp_path)
             checkpoint.enqueue_failure(assignment, evidence, 1)
 
 
+def test_vm_repair_pass_keeps_captured_source_after_checkout_changes(tmp_path):
+    work = dict(pass_work('authorization::first'), area=False)
+    original = dict(digest='a' * 64, generation=0)
+    incoming = dict(digest='b' * 64, generation=1)
+    with PassCheckpoint(tmp_path, [('system', [])], {'one': 'deb'}, {'deb': [work]}) as checkpoint:
+        assignment = checkpoint.claim('deb', 'one', work, original)
+        ticket = checkpoint.enqueue_failure(assignment, pass_evidence(assignment, []), 1)
+        reference = checkpoint.begin_attempt(ticket['id'], 'recheck', original, work)
+        attempt = dict(assignment, attempt=reference['attempt'], execution=work)
+        result = checkpoint.finish_attempt(ticket['id'], reference,
+            pass_evidence(attempt, work['cases']), 0, source=incoming)
+        assert result['accepted'] and result['source'] == original
+        checkpoint.settle_repair(ticket['id'], 'resolved', reference=result)
+        assert checkpoint.passed('deb', 'system') == set(work['cases'])
+        PassCheckpoint.validate(checkpoint.state)
+
+
 def test_pass_retained_attempts_keep_exact_case_bounds(tmp_path):
     work = pass_work('authorization::first', 'authorization::last')
     source = dict(digest='a' * 64, generation=0)

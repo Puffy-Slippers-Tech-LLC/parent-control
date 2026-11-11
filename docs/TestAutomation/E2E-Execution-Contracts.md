@@ -18,7 +18,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | Selecting or resuming work | [Plan reading routes](E2E-Execution-Instructions.md#load-only-the-selected-context); the first unchecked active queue row is authoritative. Prerequisite task IDs select delivered scope, not predecessor briefs or saved VM state. |
 | Any implementation | [Shared support guide](../../tests/support/README.md), [bounded supporting work](E2E-Building-Blocks.md#keep-supporting-work-bounded) and [composition preflight](E2E-Building-Blocks.md#composition-preflight). Cases and qualifications call the same shared operations; callers retain their distinct assertions. |
 | Designing or revising a journey | [Product-focused journeys](#product-focused-journeys): retain product outcomes and necessary safety guards; remove incidental provider requirements from completed and unfinished coverage. |
-| VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). Apply it during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
+| VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) and [pre-test clock preparation](E2E-Scenario-Recipes.md#pre-test-clock-preparation). Apply them during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
 | Existing system coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
 | Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
@@ -363,6 +363,10 @@ exception for
 [preset clock preparation](E2E-Scenario-Recipes.md#natural-calendar-windows)
 before customer input. Elapsed usage, natural expiry and calendar crossings
 remain real; each case retains its declared boundary and public assertions.
+Non-calendar journeys with time-of-day dependencies use the developer-authorized
+[daytime preparation](E2E-Scenario-Recipes.md#pre-test-clock-preparation), also
+before customer input. Do not wait for the host's clock to provide an ordinary
+daytime window or adjust clocks during a journey.
 Reuse the existing [consumer path](E2E-Building-Blocks.md#add-a-consumer):
 `InstalledJourney/JourneyPlan`, `UiObservations`, `AccessibleUI` and the shared
 worker/dispatch. Locate only the relevant callables through the catalogue.

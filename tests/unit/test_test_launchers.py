@@ -22,6 +22,71 @@ import test_commands as commands
 VM_ARGS = ['--vm', vm_name()]
 
 
+def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch):
+    import hashlib
+    import threading
+    import launcher_reload
+    import regression_process
+    import test_activity
+    import test_checkpoint
+    import test_recovery
+    import test_source
+    import vm_test_queue
+    from tools import test_storage, vm_source_snapshot
+    from vm_selection import VARIABLE
+
+    monkeypatch.setattr(os, 'environ', os.environ.copy())
+    monkeypatch.setattr(regression_process, 'session_stop', regression_process.session_stop)
+    source = tmp_path / 'tools' / 'captured.py'
+    source.parent.mkdir()
+    source.write_text('original input')
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: scratch)
+    monkeypatch.setattr(vm_test_queue, '__file__', str(source.parent / 'vm_test_queue.py'))
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: dict(
+        digest=hashlib.sha256(source.read_bytes()).hexdigest(), generation=0))
+    monkeypatch.setattr(vm_test_queue.vm_config, 'select', lambda name: monkeypatch.setenv(VARIABLE, name))
+    monkeypatch.setattr(vm_test_queue, 'reservation', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(test_source, 'reader', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(launcher_reload, 'watching', nullcontext)
+    monkeypatch.setattr(test_recovery, 'cleanup', lambda root: 0)
+    control = SimpleNamespace(stopped=threading.Event())
+    control.installed = lambda **kwargs: nullcontext(control)
+    monkeypatch.setattr(vm_test_queue, 'Control', lambda: control)
+    # The real worker publishes frames; this private test needs no viewer.
+    monkeypatch.setattr(regression_process, 'PipeFrameOutput', lambda stream: SimpleNamespace(
+        frame=lambda value: None, write=stream.write, flush=stream.flush))
+    monkeypatch.setattr(sys, 'stdout', sys.stdout)
+    selection = [('system', ['check_snapshot'])]
+    monkeypatch.setattr(commands, 'selections', lambda *args: selection)
+    work = dict(category='system', options=['check_snapshot'],
+                cases=['check_snapshot'], case='check_snapshot', area=False)
+    with test_checkpoint.PassCheckpoint(tmp_path, selection, {'one': 'deb'}, {'deb': [work]}) as shared:
+        assignment = shared.claim('deb', 'one', work, vm_test_queue.source_identity(tmp_path))
+        request = tmp_path / 'work.json'
+        request.write_text(json.dumps(dict(selection=['system', 'check_snapshot'],
+            passed={'system': []}, assignment=assignment, recovering=False)))
+        monkeypatch.setenv(vm_test_queue.FAMILY_WORK, str(request))
+
+        def execute(args, *, detached, checkpoint):
+            with vm_source_snapshot.capture(tmp_path):
+                source.write_text('incoming change')
+                assert vm_source_snapshot.read_bytes(source) == b'original input'
+                checkpoint.event('system', dict(kind='finished', nodeid='check_snapshot'), set())
+                checkpoint.queue_finalized = True
+            return 0
+
+        monkeypatch.setattr(commands, '_main', execute)
+        assert vm_test_queue.worker(['--execute', 'one', 'system', 'check_snapshot']) == 0
+        saved = test_checkpoint.Checkpoint(tmp_path, selection, resume=True, binding='one')
+        evidence = saved.state['queue_evidence']
+        assert evidence['source'] == assignment['source'] != vm_test_queue.source_identity(tmp_path)
+        assert shared.accept(assignment, evidence, 0)
+        assert source.read_text() == 'incoming change'
+
+
 def test_impact_triage_stays_read_only_and_bounded(tmp_path, monkeypatch):
     import agent_adapter
     import agent_claude
@@ -471,6 +536,7 @@ def test_run_wide_rounds_resume_and_repeat_changed_verification(tmp_path, select
             return dict(status=130)  # Resume keeps this pass and its admissions.
         if len(calls) == 3:
             current_source.update(digest='b' * 64, generation=1)
+            return dict(status=0, source_changed=True)
         return dict(status=0)
     def run():
         return fix_tests.run_rounds(['system', 'e2e'], execute, rounds=2, selected=selected,
@@ -485,6 +551,27 @@ def test_run_wide_rounds_resume_and_repeat_changed_verification(tmp_path, select
     assert calls[2][1] != calls[3][1] and calls[2][0] == calls[3][0]
     assert budget.read()['started'] == budget.read()['completed'] == total
     assert run()['status'] == 0 and len(calls) == 4
+
+
+def test_completed_rounds_do_not_repeat_for_later_external_edits(tmp_path):
+    import fix_tests
+    from launcher_runtime import TaskBudget
+
+    budget = TaskBudget(tmp_path)
+    budget.initialize(None)
+    state, calls = {}, []
+    source = dict(digest='a' * 64, generation=0)
+    def execute(categories, **options):
+        calls.append(state['round'])
+        assert options['admit_task']('system')
+        options['settle_task']('system')
+        source.update(digest=str(state['round']) * 64, generation=state['round'])
+        return dict(status=0)
+    result = fix_tests.run_rounds(['system'], execute, rounds=2, selected=False,
+        state=state, save=lambda: None, budget=budget, source=lambda: dict(source))
+    assert result['status'] == 0 and state['done'] and calls == [1, 2]
+    assert state['source'] != source  # Keep the completed pass's provenance.
+    assert budget.read()['started'] == budget.read()['completed'] == 2
 
 
 def test_run_wide_terminal_failure_waits_for_suspended_repair(tmp_path):

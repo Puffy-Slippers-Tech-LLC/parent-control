@@ -1,10 +1,10 @@
-"""Developer-authorized, attempt-owned clock preparation for calendar cases.
+"""Developer-authorized, attempt-owned clock preparation before customer input.
 
 Set a future ordinary day before customer input, then let real seconds elapse.
 The normal owned snapshot restoration removes the clock/synchronization changes.
 """
 
-ORDINARY_MIDNIGHT = '''import datetime,json,os,subprocess,time
+ORDINARY_CLOCK = '''import datetime,json,os,subprocess,time
 from zoneinfo import ZoneInfo
 assert os.geteuid()==0
 def clock_property(name):
@@ -19,7 +19,7 @@ for days in range(1,8):
     start=datetime.datetime.combine(day,datetime.time(),tz)
     end=start+datetime.timedelta(days=1)
     if end.timestamp()-start.timestamp()==86400 and start.utcoffset()==end.utcoffset():
-        target=start.replace(hour=23,minute=35)
+        target=start.replace(hour=PRESET_HOUR,minute=PRESET_MINUTE)
         break
 else:
     raise RuntimeError('calendar-fixture:no-ordinary-day')
@@ -38,22 +38,34 @@ print(json.dumps({'timezone':zone,'before_epoch_ns':before,'target_epoch_ns':tar
     'previous_ntp':previous_ntp,'ntp_enabled':False},sort_keys=True))
 '''
 
+ORDINARY_MIDNIGHT = 'PRESET_HOUR,PRESET_MINUTE=23,35\n' + ORDINARY_CLOCK
+ORDINARY_DAYTIME = 'PRESET_HOUR,PRESET_MINUTE=12,0\n' + ORDINARY_CLOCK
+
 
 def preset_ordinary_midnight(journey, guard):
     """One fixed preparation, after restore/setup and before any parent input."""
+    return _preset_ordinary(journey, guard, ORDINARY_MIDNIGHT,
+        ('ordinary-daily-reset', 'ordinary-rest-of-day', 'ordinary-fixed-grant'))
+
+
+def preset_ordinary_daytime(journey, guard):
+    """Start a declared non-calendar journey at noon, independent of host time."""
+    return _preset_ordinary(journey, guard, ORDINARY_DAYTIME, ('homework-game',))
+
+
+def _preset_ordinary(journey, guard, program, prefixes):
     import json
     from private_artifacts import require
     import watch_activity
 
-    require(journey.plan.prefix in ('ordinary-daily-reset', 'ordinary-rest-of-day',
-                                   'ordinary-fixed-grant')
+    require(journey.plan.prefix in prefixes
             and [step['stage'] for step in journey.steps] == ['ready']
             and journey.transport is not None
             and journey.transport.lease is journey.context.lease,
             'calendar-fixture:entry')
     guard()
     with watch_activity.operation('Preparing the test clock before parent or child actions'):
-        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', ORDINARY_MIDNIGHT],
+        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', program],
                                      timeout=120)
     guard()
     value = json.loads(raw)

@@ -340,6 +340,11 @@ rules.
   or substitute an internal state injection in customer acceptance. If the
   available route cannot establish the required order reliably, report that
   concrete gap rather than accepting a lucky pass.
+  Require an independently observed ready result before releasing the triggering
+  input; starting an observer process alone does not establish readiness. Across
+  login or reboot, coverage must survive the transition or be established before
+  the first possible tested event. Reattachment that merely hopes to beat
+  autostart cannot qualify a continuous interval.
 - **Allow long load pauses.** A heavily loaded VM can stop responding for one
   or two minutes. Finish ordinary app input and recipient preparation with
   enough headroom for that pause; do not make successful input in a countdown's
@@ -353,6 +358,13 @@ rules.
   interval with an elapsed interval counts their shared endpoint's uncertainty
   twice. Keep the original product bound and measured uncertainty; do not widen
   the bound to compensate for that arithmetic.
+- **Date the calculation, not its later read.** An asynchronous estimate may
+  have been calculated before its label is read. Force a fresh calculation
+  through the qualified public operation and use its same-boot calculation
+  bracket when comparing changing balances. Include measured uncertainty and
+  display precision, while keeping the required effect distinguishable from
+  no change. If that cannot be proved, retain the observation gap; do not retry
+  solely to obtain a faster, favorable schedule.
 - **Wait for state and return promptly.** Replace arbitrary settling sleeps,
   repeated full discovery and unrelated checks with the required scoped
   observation. Retain every fresh input-recipient guard and independently

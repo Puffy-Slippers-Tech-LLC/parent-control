@@ -709,7 +709,9 @@ def run_rounds(categories, execute, *, rounds, selected, state, save, budget, so
         if result.get('limited') or result['status']:
             return result  # Preserve the coordinator's verdict at the boundary.
 
-        dirty = bool(result.get('source_changed')) or source() != state['source']
+        # Only the coordinator's explicit repair impact requests another pass.
+        # A later checkout edit cannot invalidate a completed captured run.
+        dirty = bool(result.get('source_changed'))
         if number > 1 and dirty:
             # Exact-case repair verification cannot finish a verification round.
             state.update({'pass': uuid.uuid4().hex, 'source': source(), 'resume': False})

@@ -65,11 +65,20 @@ def test_work_save_and_cleanup_use_the_original_inode_only(work_boundary):
     document = work.Document(user, receipt)
     try:
         document.save(work.SAVED[user])
+        saved = work.operate(user, 'saved', receipt)
+        # A later declared edit retains the inode, but an old receipt can no
+        # longer authorize reads or deletion of the changed document.
+        for text in work.JORDAN_TEXTS[:2]:
+            previous = saved
+            document.save(text)
+            with pytest.raises(ValueError, match='files:refused'):
+                work.operate(user, 'cleanup', previous)
+            saved = work.operate(user, 'saved', {'previous': previous, 'text': text})
+            assert saved['file'][:5] == receipt['file'][:5]
         with pytest.raises(ValueError, match='files:refused'):
             document.save(work.SAVED[user])
     finally:
         document.close()
-    saved = work.operate(user, 'saved', receipt)
     assert saved['file'][:5] == receipt['file'][:5]
     assert work.operate(user, 'read', saved) == saved
     assert work.operate(user, 'cleanup', saved) == {'absent': True}

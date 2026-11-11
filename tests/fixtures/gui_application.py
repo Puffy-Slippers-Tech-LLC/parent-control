@@ -92,6 +92,7 @@ def main(argv=None):
                     saved.set_label('Document save refused')
                 else:
                     saved.set_label('Document saved')
+                    save.set_sensitive(True)
             save.connect('clicked', save_document)
             content.append(save)
             content.append(saved)

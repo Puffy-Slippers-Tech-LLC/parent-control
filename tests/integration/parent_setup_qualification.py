@@ -2102,6 +2102,16 @@ class GameFullscreenQualification(GameExpiryQualification):
     game_mode = 'fullscreen'
 
 
+class RetainedGameDenialQualification(GameActivityQualification):
+    fixture_caller = 'check_e2e_retained_game_denial'
+    worker_timeout = 3600
+
+    @staticmethod
+    def journey(context, progress):
+        from retained_game_denial import RetainedGameDenialJourney
+        return RetainedGameDenialJourney(context, progress)
+
+
 class FullscreenRequestQualification(GameActivityQualification):
     fixture_caller = 'check_e2e_fullscreen_request'
 
@@ -2200,6 +2210,15 @@ class ChildSavedWorkQualification(KioskEntryQualification):
     def journey(context, progress):
         from child_saved_work import ChildSavedWorkJourney
         return ChildSavedWorkJourney(context, progress)
+
+
+class RepeatedSavedWorkQualification(KioskEntryQualification):
+    worker_timeout = 3600
+
+    @staticmethod
+    def journey(context, progress):
+        from repeated_saved_work import RepeatedSavedWorkJourney
+        return RepeatedSavedWorkJourney(context, progress)
 
 
 class RetainedAppVisitsQualification(KioskEntryQualification):

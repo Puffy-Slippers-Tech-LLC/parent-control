@@ -75,6 +75,9 @@ OPERATION_LABELS = {
     **{operation: 'Checking approval for the chosen child and parent'
        for operation in accessible_ui.BOUND_MATE_ORDER},
     'kiosk-request-select': 'Choosing the child, parent and requested time at the station',
+    'kiosk-request-child': 'Choosing the child before reading remembered request choices',
+    'kiosk-request-read': 'Reading the station’s remembered time, apps and parent',
+    'overlay-request-read': 'Reading the child form’s remembered time, apps and parent',
     'kiosk-request-estimate': 'Reading the chosen request and estimated remaining time',
     **{operation: 'Observing the bound desktop shortcut and its public result'
        for operation in accessible_ui.SHORTCUT_OPERATIONS},
@@ -589,14 +592,18 @@ class AppActivityObservation:
     owner: tuple | None = None
 
     @classmethod
-    def from_value(cls, value, *, closed=False, binding='native-primary', resumed=False):
+    def from_value(cls, value, *, closed=False, binding='native-primary', moves=1, work_text=None):
+        require(work_text is None or binding.startswith('work-')
+                and work_text in accessible_ui.work_saved_texts(binding.removeprefix('work-')),
+                'ui:work-text')
         fields = {'binding', 'pid', 'endpoint', 'state'}
         require(type(closed) is bool and type(value) is dict and set(value) in (fields, fields | {'owner'})
                 and binding in ('native-primary', 'native-secondary', 'native-soft', 'snap-primary', 'snap-secondary',
                                 'flatpak-primary', 'flatpak-secondary', 'flatpak-hard', 'flatpak-soft',
                                 'game-primary', 'work-jordan', 'work-riley')
                 and value['binding'] == binding
-                and type(resumed) is bool and (not resumed or binding == 'game-primary'),
+                and type(moves) is int and moves in (1, 2, 3)
+                and (moves == 1 or binding == 'game-primary'),
                 'ui:app-activity')
         owner = value.get('owner')
         require('owner' not in value or type(owner) is list and len(owner) == 2
@@ -612,12 +619,12 @@ class AppActivityObservation:
                 and all(type(part) is str and 0 < len(part) <= 256 for part in value['endpoint'])
                 and value['endpoint'][0].startswith(':') and value['endpoint'][1].startswith('/')
                 and type(value['state']) is dict and value['state'] == {
-                    'draft': (binding.removeprefix('work-').title() + ' saved synthetic work'
+                    'draft': (work_text or binding.removeprefix('work-').title() + ' saved synthetic work'
                               if binding.startswith('work-') else 'ONPC fixture draft'),
-                    'submitted': (binding.removeprefix('work-').title() + ' saved synthetic work'
+                    'submitted': (work_text or binding.removeprefix('work-').title() + ' saved synthetic work'
                                   if binding.startswith('work-') else
                                   'No submitted draft' if binding == 'game-primary' else 'ONPC fixture draft'),
-                    'score': ('Moves: 2; token: 2' if resumed else 'Moves: 1; token: 1')
+                    'score': f'Moves: {moves}; token: {moves}'
                              if binding == 'game-primary' else 'Moves: 0; token: 0'},
                 'ui:app-activity')
         return cls(value['binding'], value['pid'], tuple(value['endpoint']),
@@ -697,8 +704,9 @@ class RequestObservation:
         fields = tuple(cls.__dataclass_fields__)
         require(type(value) is dict and set(value) == set(fields), 'ui:request')
         observation = cls(**value)
-        if operation in ('overlay-request-estimate', 'kiosk-request-estimate'):
-            overlay = operation == 'overlay-request-estimate'
+        if operation in ('overlay-request-estimate', 'kiosk-request-estimate',
+                         'overlay-request-read', 'kiosk-request-read'):
+            overlay = operation.startswith('overlay-')
             child, parent, seconds, soft = (accessible_ui.overlay_request_values(binding) if overlay else
                                             accessible_ui.kiosk_request_values(binding))
             require(observation == cls(surface='child-overlay' if overlay else 'kiosk', form_count=1,
@@ -872,6 +880,16 @@ class UiObservations:
         self._trace_clock = time.monotonic
         self.trace_sink = lambda token, index, sample: None
         self.accessibility_trace = None
+
+    def begin_natural_expiry(self, sample_start_ns, deadline_ns):
+        """Scope proofs to one expiry, without renewing an existing interval."""
+        require(type(sample_start_ns) is int and type(deadline_ns) is int
+                and 0 < sample_start_ns < deadline_ns
+                and sample_start_ns > getattr(self, 'natural_expiry_deadline_ns', 0),
+                'ui:natural-expiry-interval-overlap')
+        for field in ('natural_expiry_lock', 'natural_expiry_source', 'natural_expiry_session'):
+            self.__dict__.pop(field, None)
+        self.natural_expiry_deadline_ns = deadline_ns
 
     def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None, child=None):
         """Prepare the owned input once, then independently observe its result.
@@ -1132,6 +1150,7 @@ class UiObservations:
                             or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in accessible_ui.APPROVER_CHANGE_OPERATIONS
                             or operation in ('overlay-request-form', 'overlay-grant-form',
+                                             'overlay-request-read',
                                              'overlay-panel-ready', 'overlay-panel-launch',
                                              'overlay-panel-reveal-ready', 'overlay-panel-overview'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
@@ -1663,6 +1682,14 @@ class UiObservations:
             receipt = getattr(self, 'work_document_receipt', None)
             require(type(receipt) is dict, 'ui:work-receipt')
             program = 'WORK_DOCUMENT_RECEIPT = ' + repr(receipt) + '\n' + program
+            state = getattr(self, 'work_document_state', None)
+            if state is not None:
+                who = operation.split('-')[1]
+                require(type(state) is tuple and len(state) == 2
+                        and state[0] in accessible_ui.work_saved_texts(who)
+                        and state[1] in ('No submitted draft', *accessible_ui.work_saved_texts(who)),
+                        'ui:work-text')
+                program = 'WORK_DOCUMENT_STATE = ' + repr(state) + '\n' + program
         if operation == 'gdm-returned':
             # Keep privilege/session reacquisition inside the existing guarded
             # guest command, with one deadline and no retry of input operations.
@@ -2246,16 +2273,17 @@ class UiObservations:
         if operation in accessible_ui.WORK_OPERATIONS:
             _work, who, action = operation.split('-')
             if action in ('opened', 'saved', 'submitted'):
-                import hashlib
-                saved = who.title() + ' saved synthetic work'
-                text = (who.title() + ' original synthetic work' if action == 'opened'
-                        and self.work_document_receipt['sha256'] != hashlib.sha256(saved.encode()).hexdigest()
-                        else saved)
+                saved, prior_submitted = getattr(self, 'work_document_state', None) or (
+                    who.title() + ' saved synthetic work', 'No submitted draft')
+                text = (accessible_ui.work_receipt_text(self.work_document_receipt, who)
+                        if action == 'opened' else saved)
                 expected['activity'] = {'draft': text,
-                    'submitted': saved if action == 'submitted' else 'No submitted draft',
+                    'submitted': saved if action == 'submitted' else
+                                 prior_submitted if action == 'saved' else 'No submitted draft',
                     'score': 'Moves: 0; token: 0'}
             elif action == 'activity':
-                AppActivityObservation.from_value(result.get('activity'), binding='work-' + who)
+                AppActivityObservation.from_value(result.get('activity'), binding='work-' + who,
+                    work_text=(getattr(self, 'work_document_state', None) or (None,))[0])
                 expected['activity'] = result['activity']
         if operation in ('native-opened', 'native-submitted', 'overlay-native-opened',
                          'overlay-native-submitted', 'parent-native-opened', 'parent-native-submitted'):
@@ -2267,9 +2295,11 @@ class UiObservations:
                 'score': {'game-opened': 'Moves: 0; token: 0', 'game-moved': 'Moves: 1; token: 1',
                           'game-resumed': 'Moves: 2; token: 2'}[operation]}
         if operation in ('game-activity', 'game-resumed-activity', 'game-fullscreen-activity',
-                         'game-policy-activity', 'game-policy-closed'):
+                         'game-policy-activity', 'game-policy-closed', 'game-continued-activity'):
             AppActivityObservation.from_value(result.get('activity'), binding='game-primary',
-                resumed=operation == 'game-resumed-activity', closed=operation == 'game-policy-closed')
+                moves=3 if operation == 'game-continued-activity' else
+                      2 if operation == 'game-resumed-activity' else 1,
+                closed=operation == 'game-policy-closed')
             expected['activity'] = result['activity']
         if operation in ('game-windowed-level', 'game-fullscreen-level'):
             expected['game_mode'] = {'mode': 'fullscreen' if operation == 'game-fullscreen-level'
@@ -3187,7 +3217,7 @@ class UiObservations:
             value = result['valid_choice']
             fractional_refresh = operation in (
                 'overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
-            fresh = fractional_refresh or (operation == 'overlay-request-estimate'
+            fresh = fractional_refresh or (operation in ('overlay-request-estimate', 'kiosk-request-estimate')
                                             and valid_requests[operation][0] > 0)
             overlay = operation in accessible_ui.OVERLAY_VALID_OPERATIONS
             require(type(value) is dict and set(value) == {
@@ -3232,10 +3262,12 @@ class UiObservations:
                 or operation in accessible_ui.BINDING_REMINDER_SELECTIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
                 or operation in accessible_ui.TRANSFER_REQUESTS
-                or operation in ('overlay-request-form', 'overlay-grant-form')):
+                or operation in ('overlay-request-form', 'overlay-grant-form',
+                                 'overlay-request-read', 'kiosk-request-read')):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation,
-                                            binding=self.overlay_request)
+                                            binding=(self.kiosk_request if operation == 'kiosk-request-read'
+                                                     else self.overlay_request))
             expected['request'] = result['request']
         if operation in ('request-overlay-jordan-ready', 'request-kiosk-jordan-ready'):
             require(result.get('request_readiness') == {

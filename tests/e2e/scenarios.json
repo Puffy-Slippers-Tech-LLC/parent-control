@@ -2961,7 +2961,7 @@
         "rationale": "Two overlay-first journeys with retained or fresh departures, each covering both forms and parents in two complete cycles, windowed/fullscreen play and opposite expiry/recovery app choices. Reversed-start copies 249/250 and the third repetition are removed; those IDs must not be reused. Every distinct row and intermediate result remains required with a real game and synthetic saved work without clock changes."
       },
       "variants": [
-        {"coverage_id": 247, "id": "overlay-first-retained", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "retained"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null},
+        {"coverage_id": 247, "id": "overlay-first-retained", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "retained"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/homework_game_case.py", "test_id": "overlay-first-retained"}},
         {"coverage_id": 248, "id": "overlay-first-fresh", "owner": "household-routines", "parameters": {"surface-order": "overlay-first", "departure": "fresh"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
       ]
     },

@@ -548,19 +548,19 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 if not isinstance(outcome, dict):
                     raise ValueError('repair must return an outcome')
                 kind = outcome.get('outcome')
-                if kind == 'resolved' and (outcome.get('attempt', {}).get('source') != source_identity(root)
-                                           or protection.owner() is not None):
+                if kind == 'resolved' and (protection.owner() is not None
+                        or not ticket['vm'] and outcome.get('attempt', {}).get('source') != source_identity(root)):
                     kind = 'suspended'
                 if kind == 'leave_failed' and (impacts.get(ticket['id']) != 'no' or protection.owner() is not None):
                     kind = 'suspended'
                 # Hold a reader through final validation and release the hold
-                # under the same gate. Another workflow's writer cannot race
-                # the accepted source check after the repair callback returns.
+                # under the same gate. VM qualification belongs to its captured
+                # inputs; host qualification still checks the live source.
                 with test_source.reader(root, stopped=control.stopped.is_set,
                                         impact_ticket=impact_key(ticket), wait=False):
                     if kind == 'resolved' and (protection.owner() is not None
                             or not isinstance(outcome.get('attempt'), dict)
-                            or outcome['attempt']['source'] != source_identity(root)):
+                            or not ticket['vm'] and outcome['attempt']['source'] != source_identity(root)):
                         raise ValueError('resolved repair retains a writer or stale qualification')
                     with protection.state():
                         settled = checkpoint.settle_repair(ticket['id'], kind,

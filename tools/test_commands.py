@@ -75,7 +75,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     access_choices accessibility_input_trace active_grant_disable allowance allowance_boundaries allowance_presets
     app_activity app_restart app_row_observations approval_flow attachment_items attachment_preview
     attachments auth_prompt auth_result basic_locale_auth baseline_app_effects baseline_auth_pause baseline_journey
-    catalogue catalogue_search challenges child_isolation child_saved_work chinese_native_auth choices_overlay_to_kiosk confinement_usability
+    catalogue catalogue_search challenges child_isolation child_saved_work repeated_saved_work chinese_native_auth choices_overlay_to_kiosk confinement_usability
     compose_observation_around_one_caller_input countdown countdown_minutes countdown_ticks countdown_session_availability cross_surface
     compose_approval_and_return_to_the_child
     compose_a_named_app_rule_set
@@ -84,7 +84,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     edit_and_save_an_open_synthetic_document eligible_kiosk_fixtures feedback_block_semantics
     feedback_collection feedback_formats feedback_length feedback_link_semantics feedback_privacy
     feedback_read feedback_rejection feedback_reset feedback_states file_chooser files format
-    fresh_child_allowed fresh_desktop fullscreen_request game_fixture game_activity game game_fullscreen game_permission gdm_navigation gdm_recipient grant_only_profile jordan_daily_access suspend
+    fresh_child_allowed fresh_desktop fullscreen_request game_fixture game_activity game game_fullscreen game_permission retained_game_denial gdm_navigation gdm_recipient grant_only_profile jordan_daily_access suspend
     give_repeated_public_operations_distinct_stages independent_network_management kiosk_approval
     kiosk_admission_contention kiosk_approved_flow kiosk_configuration_recovery kiosk_eligible_choices kiosk_entry kiosk_feedback_confinement kiosk_fixtures
     kiosk_fresh_return kiosk_approval_return kiosk_identity_helper kiosk_language kiosk_language_restoration kiosk_lease_variation kiosk_multiple kiosk_no_child kiosk_notification_wellbeing kiosk_optional_artwork

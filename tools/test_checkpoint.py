@@ -632,7 +632,9 @@ class PassCheckpoint:
         expected.update(attempt=attempt['attempt'], source=attempt['source'], execution=execution)
         qualified = (isinstance(evidence, dict) and evidence.get('cleanup') is True
                      and evidence.get('diagnostic') is False
-                     and source == attempt['source']
+                     # VM controllers execute captured inputs. Their receipt
+                     # stays bound to those inputs, not a later checkout.
+                     and (bool(ticket['vm']) or source == attempt['source'])
                      and all(evidence.get(field) == value for field, value in expected.items())
                      and set(execution['cases']) == completed_cases(json.dumps(evidence.get('passed', []))))
         attempt.update(status=status, accepted=bool(not status and qualified

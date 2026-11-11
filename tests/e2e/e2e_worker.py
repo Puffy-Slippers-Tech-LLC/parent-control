@@ -33,9 +33,9 @@ DISTRIBUTION = ROOT / 'tests/integration/graphical_smoke'
 # missing/failed/softfailed module results. Upstream's module-derived exit
 # option can overwrite an earlier backend error with passing module results.
 COMMAND = ('/usr/bin/isotovideo',)
-# The complete reminder history retains four natural countdowns and a reboot
-# in one attempt. Allow its declared two-hour budget without callback renewal;
-# shorter scenarios keep their existing explicit budgets.
+# Complete reminder and homework/game histories retain multiple natural
+# countdowns in one attempt. Allow the largest declared two-hour budget without
+# callback renewal; shorter scenarios keep their existing explicit budgets.
 MAX_TIMEOUT_SECONDS = 7200
 # Shared journey growth reached the original 128-file inventory. Admit a
 # bounded larger inventory while preserving its previous 128 MiB byte ceiling

@@ -1367,6 +1367,67 @@ sub game_permission {
     $journey->finish();
 }
 
+sub retained_game_denial {
+    onpc_progress::operation('Keeping the original game and homework while blocking another game launch');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'retained-game-denial:arguments' unless @_ == 3;
+    require onpc_allowance_selection;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'retained-game-denial', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
+                ['Game', 'match-game-precise', 'conditional']];
+    for my $index (0 .. $#$apps) {
+        my ($role, $draft, $access) = @{$apps->[$index]};
+        edit_policy($journey, fixture_app($role), $draft, $access, 'policy-' . $index, [], 1);
+    }
+    onpc_text::replace_text($journey, 'catalogue-clear', 'clear');
+    saved_rows($journey, $apps, 'saved');
+    $journey->seen($_) for qw(parent-desktop parent-switch parent-gdm);
+    for my $mode ('windowed', 'fullscreen') {
+        if ($mode eq 'fullscreen') {
+            onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'reset-parent');
+            $journey->seen($_) for qw(reset-retained reset-open reset-warning reset-confirm reset-cleared);
+            onpc_allowance_selection::select($journey, 'reset-daily', [30], 'confirm');
+            $journey->seen($_) for qw(reset-settings reset-balance reset-desktop reset-switch reset-gdm);
+        }
+        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', "$mode-entry");
+        my $slice = $journey->scope($mode);
+        my $work = $slice->scope('work');
+        $work->seen($_) for ('open', 'opened', ($mode eq 'windowed' ? ('edit', 'save', 'saved') : ()),
+                             'submit', 'submitted', 'activity');
+        my $request = $slice->scope('first');
+        $request->{overlay_request} = ['other-child', 'parent', 900, 1];
+        onpc_request_flow::overlay_entry($request, 'request', 'panel');
+        onpc_request_flow::prepare($request, 'new', 'open', 'observed',
+            'existing-fixture-child', 'fixture-parent', 900, 1, 'overlay');
+        onpc_request_flow::overlay_approve($request, 'automatic');
+        my $play = $slice->scope('play');
+        game_usable_app($play, $mode);
+        native_read_activity($play, 'capture');
+        for my $name ('positive', 'zero') {
+            my $edit = $slice->scope($name);
+            $edit->seen($_) for qw(leave switch gdm);
+            onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained',
+                                               'success', "$mode-$name-parent");
+            $edit->seen('retained');
+            $slice->seen('original-grant') if $name eq 'positive';
+            onpc_allowance_selection::select($edit, 'daily', [$name eq 'positive' ? 45 : 0], 'confirm');
+            $edit->seen($_) for qw(settings balance parent-leave parent-switch parent-gdm);
+            onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+                                               'success', "$mode-$name-child");
+            $edit->seen($_) for qw(game-before work-before denied game-after continue played hard submit submitted work-after);
+        }
+        $slice->seen($_) for qw(work-close work-closed logout logged-out);
+    }
+    $journey->seen('cleanup');
+    $journey->finish();
+}
+
 sub game_time_extension {
     onpc_progress::operation('Extending the child’s time while preserving the original game');
     my ($exchange, $declared, $challenges, $request, $mode) = @_;
@@ -1813,6 +1874,51 @@ sub child_saved_work {
         'riley-installed-greeter', 'riley-child-focused', 'riley-desktop');
     saved_work_document($journey->scope('riley'));
     $journey->seen('cleanup');
+    $journey->finish();
+}
+
+sub repeated_saved_work {
+    onpc_progress::operation('Saving Jordan\'s changing homework and recovering it after time runs out');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'work:arguments' unless @_ == 3;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'repeated-saved-work', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('parent-selected',
+        onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'existing'));
+    $journey->seen($_) for qw(profile-before parent-switch parent-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'work-entry');
+    for my $name ('first', 'second') {
+        my $save = $journey->scope($name);
+        $save->seen($_) for ($name eq 'first' ? ('open', 'opened') : (),
+                            qw(edit save saved submit submitted capture));
+    }
+    $journey->scope('second')->seen($_) for qw(close closed);
+    $journey->scope('reopen')->seen($_) for qw(open opened submit submitted capture);
+    $journey->seen($_) for qw(work-switch work-gdm);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'profile-parent');
+    $journey->seen($_) for qw(allowance-configured saved-settings profile-switch profile-gdm);
+    my $approval = $journey->scope('request');
+    $approval->{kiosk_request} = ['other-child', 'parent', 600, 1];
+    onpc_request_flow::obtain_time($approval, 'observed',
+        'existing-fixture-child', 'fixture-parent', 600, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'jordan-entry');
+    $journey->invoke('initial-countdown');
+    $journey->seen('before-expiry-capture');
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    $journey->consume_observation('time-denied',
+        onpc_desktop_session::reveal_lock($journey, 'time-denied'));
+    $journey->seen($_) for qw(return-greeter denied-returned);
+    my $recovery = $journey->scope('recovery');
+    $recovery->{kiosk_request} = ['other-child', 'parent', 1200, 1];
+    onpc_request_flow::obtain_time($recovery, 'observed',
+        'existing-fixture-child', 'fixture-parent', 1200, 1, 'automatic');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success', 'recovery-retained');
+    $recovery->seen('countdown');
+    $journey->seen($_) for qw(recovered-capture recovered-resubmit recovered-submitted
+                             final-capture final-close final-closed cleanup);
     $journey->finish();
 }
 

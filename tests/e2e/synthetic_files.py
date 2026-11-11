@@ -4,6 +4,7 @@ import hashlib
 import sys
 from pathlib import Path
 
+from accessible_ui import work_saved_texts
 from private_artifacts import EvidenceError, require
 from watch_activity import operation
 
@@ -41,16 +42,20 @@ class SyntheticFiles:
         self.failed = False
         self.attempted = set()
 
-    def call(self, name):
-        require(not self.failed and name not in self.attempted, 'files:replay')
+    def call(self, name, *, text=None):
+        require(text is None or name == 'saved' and self.profile in WORK_PROFILES
+                and text in work_saved_texts(self.profile.removeprefix('work-')),
+                'files:work-text')
+        key = name if text is None else (name, text)
+        require(not self.failed and key not in self.attempted, 'files:replay')
         require(name in ('stage', 'read', 'copy', 'rename', 'cleanup', 'change-source')
                 or (name == 'saved' and self.profile in WORK_PROFILES)
                 or (name in ('saved', 'read-cancel', 'read-denied') and self.profile == 'save'), 'files:operation')
-        self.attempted.add(name)
+        self.attempted.add(key)
         self.failed = True  # Includes interrupted or uncertain transport results.
         with operation('Synthetic fixtures: ' + name):
             value = self._command('read' if name in ('read-cancel', 'read-denied') else name,
-                                  self.previous)
+                                  self.previous if text is None else {'previous': self.previous, 'text': text})
             require(value != {'refused': True}, 'files:guest-refusal')
             if name == 'cleanup':
                 require(value == {'absent': True}, 'files:cleanup-result')

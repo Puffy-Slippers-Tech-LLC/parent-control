@@ -34,6 +34,7 @@ ACTIVITY_BINDINGS = {
     'game-activity': ('game-primary', False),
     'game-fullscreen-activity': ('game-primary', False),
     'game-resumed-activity': ('game-primary', False),
+    'game-continued-activity': ('game-primary', False),
     'game-policy-activity': ('game-primary', False),
     'game-policy-closed': ('game-primary', True),
     **{operation: ('native-' + instance, False)
@@ -136,12 +137,20 @@ class JourneyPlan:
     access_checks: dict = field(default_factory=dict)
     activity_checks: dict = field(default_factory=dict)
     activity_entries: dict = field(default_factory=dict)
+    work_texts: dict = field(default_factory=dict)
     overlay_request: tuple | None = None
     overlay_requests: dict = field(default_factory=dict)
     kiosk_request: tuple | None = None
     kiosk_requests: dict = field(default_factory=dict)
 
     def __post_init__(self):
+        require(type(self.work_texts) is dict and all(
+            stage in self.screen_tags and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.WORK_OPERATIONS
+            and type(state) is tuple and len(state) == 2
+            and state[0] in accessible_ui.work_saved_texts(self.screen_tags[stage].split('-')[1])
+            and state[1] in ('No submitted draft',
+                *accessible_ui.work_saved_texts(self.screen_tags[stage].split('-')[1]))
+            for stage, state in self.work_texts.items()), self.prefix + ':work-texts')
         if self.kiosk_request is not None:
             accessible_ui.validate_kiosk_request(self.kiosk_request)
         require(type(self.kiosk_requests) is dict and all(
@@ -227,7 +236,8 @@ class JourneyPlan:
                                                        'ui:flatpak-hard-policy-activity',
                                                        'ui:flatpak-soft-policy-activity', 'ui:game-activity',
                                                        'ui:game-policy-activity',
-                                                       'ui:game-resumed-activity')
+                                                       'ui:game-resumed-activity', 'ui:work-jordan-activity',
+                                                       'ui:work-riley-activity')
                     for stage, capture in self.activity_entries.items()), self.prefix + ':activity-entry-plan')
         require(all(stage in stages and type(seconds) is int and seconds >= 0
                     for stage, seconds in self.balance_checks.items()),
@@ -635,7 +645,9 @@ class InstalledJourney:
         require(stage not in self.request_observations, 'ui:request-replay')
         self.request_observations[stage] = RequestObservation.from_request(
             value, operation=observed.get('ui', {}).get('operation', 'kiosk-request-form'),
-            binding=self.plan.overlay_requests.get(stage, self.plan.overlay_request))
+            binding=(self.plan.kiosk_requests.get(stage, self.plan.kiosk_request)
+                     if self.plan.screen_tags[stage] == 'ui:kiosk-request-read' else
+                     self.plan.overlay_requests.get(stage, self.plan.overlay_request)))
 
     def check_activity(self, stage, observed):
         """Capture/compare before the worker can receive a durable reply."""
@@ -646,7 +658,10 @@ class InstalledJourney:
         endpoint, closed = activity
         require(stage not in self.activity_observations, 'ui:app-activity-replay')
         current = AppActivityObservation.from_value(observed.get('ui', {}).get('activity'),
-            closed=closed, binding=endpoint, resumed=operation == 'game-resumed-activity')
+            closed=closed, binding=endpoint,
+            work_text=self.plan.work_texts.get(stage, (None,))[0],
+            moves=3 if operation == 'game-continued-activity' else
+                  2 if operation == 'game-resumed-activity' else 1)
         binding = self.plan.activity_checks.get(stage)
         if binding is not None:
             earlier, result = binding
@@ -938,6 +953,7 @@ class InstalledJourney:
                     files = self.work_files[who]
                     require(not files.failed, 'work:uncertain-files')
                     self.ui.work_document_receipt = files.previous
+                    self.ui.work_document_state = plan.work_texts.get(stage)
                 challenge = plan.challenge_at(stage)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):

@@ -10,6 +10,7 @@ from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta
 from types import MappingProxyType
 import hashlib
+import errno
 import json
 import math
 import os
@@ -207,13 +208,34 @@ STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 WORK_OPERATIONS = frozenset('work-' + who + '-' + action
     for who in ('jordan', 'riley')
     for action in ('open', 'opened', 'edit', 'save', 'saved', 'activity', 'submit', 'resubmit', 'submitted', 'close', 'closed'))
+
+
+def work_saved_texts(who):
+    require(who in ('jordan', 'riley'), 'ui:work-child')
+    return (who.title() + ' saved synthetic work', *(
+        ('homework cycle 1', 'work again cycle 1', 'homework cycle 2', 'work again cycle 2')
+        if who == 'jordan' else ()))
+
+
+def work_receipt_text(receipt, who):
+    import hashlib
+    require(type(receipt) is dict and receipt.get('user') == 'onpc-child-' + who,
+            'ui:work-receipt')
+    values = (who.title() + ' original synthetic work', *work_saved_texts(who))
+    matches = [text for text in values if receipt.get('sha256') == hashlib.sha256(text.encode()).hexdigest()
+               and receipt.get('size') == len(text.encode())]
+    require(len(matches) == 1, 'ui:work-receipt-text')
+    return matches[0]
+
+
 OPERATIONS |= WORK_OPERATIONS
 STANDARD_OPERATIONS |= frozenset(op for op in WORK_OPERATIONS if op.startswith('work-jordan-'))
 GAME_OPERATIONS = frozenset('game-' + action for action in (
     'command', 'opened', 'move', 'moved', 'resume', 'resumed', 'activity', 'close', 'closed',
     'wrong-window', 'windowed-level', 'fullscreen-command', 'fullscreen-level', 'resumed-activity',
     'fullscreen-activity', 'resumed-close', 'command-blocked', 'fullscreen-command-blocked',
-    'policy-activity', 'policy-closed'))
+    'policy-activity', 'policy-closed', 'secondary-command-blocked',
+    'fullscreen-secondary-command-blocked', 'continue', 'continued-activity'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
 NATIVE_DESKTOP_OPERATIONS = frozenset((
@@ -563,7 +585,7 @@ TEXT_VALUES = {
     'reply-clear': ('feedback-reply-email', ''),
     'reply-malformed': ('feedback-reply-email', 'invalid-reply'),
     **{'daily-' + str(value): ('parent-custom-daily-limit', str(value))
-       for value in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40, 1439)},
+       for value in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40, 61, 121, 1439)},
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
@@ -724,7 +746,7 @@ def duration_projection(text, *, language='en'):
 
 CUSTOM_ALLOWANCE_OPERATIONS = {
     'custom-' + str(value) + '-' + action: (value, action)
-    for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 30, 40, 1439)
+    for value in (0, 1, 2, 3, 4, 5, 6, 7, 15, 30, 40, 61, 121, 1439)
     for action in ('open', 'saved', 'reopen')
 }
 CUSTOM_ALLOWANCE_OPERATIONS.update({
@@ -908,7 +930,7 @@ NAMED_CUSTOM_OPERATIONS = frozenset(
     operation for operation, (_, action) in CUSTOM_ALLOWANCE_OPERATIONS.items()
     if action in ('open', 'saved', 'reopen')) | frozenset(
     operation for operation, (binding, _) in TEXT_OPERATIONS.items()
-    if binding in ('daily-6', 'daily-7', 'daily-30', 'daily-40') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
+    if binding in ('daily-6', 'daily-7', 'daily-30', 'daily-40', 'daily-61', 'daily-121') or binding.startswith(('catalogue-', 'match-'))) | frozenset(FILTER_OPERATIONS) | MATCH_OPERATIONS | ACCESS_OPERATIONS | {
         'parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result',
         'parent-custom-trace-disabled-refused', 'named-custom-setup',
         'named-custom-wrong-child-refused', 'parent-trace-wrong-surface-refused',
@@ -1359,16 +1381,17 @@ SHELL_REQUEST_LANGUAGES = frozenset({'en', 'he'})
 # FLOW20 callers own these finite choices. The same binding follows the form,
 # native Shell recipient, original activity and public countdown.
 OVERLAY_REQUEST_MINUTES = {0: None, 30: '0.5', 60: '1', 75: '1.25', 120: '2',
-                           150: '2.5', 180: '3', 300: '5', 600: '10', 900: '15'}
+                           150: '2.5', 180: '3', 300: '5', 600: '10', 900: '15',
+                           1200: '20', 1800: None}
 OVERLAY_REQUEST_DURATIONS = {30: '30 seconds', 60: '1 minute', 75: '1 minute, 15 seconds',
                             120: '2 minutes', 150: '2 minutes, 30 seconds',
                             180: '3 minutes', 300: '5 minutes', 900: '15 minutes'}
 OVERLAY_BOUND_OPERATIONS = frozenset({*SHELL_APPROVAL_ORDER, *OVERLAY_NATIVE_OPERATIONS, *OVERLAY_OPERATIONS,
     *SHELL_PROMPT_OPERATIONS, 'overlay-shell-dismissed', 'overlay-pending-close',
     'child-command-launch', 'overlay-request-select', 'overlay-request-estimate',
-    'overlay-desktop', 'overlay-request-cancel', 'child-countdown-present'})
-OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
-CHILD_DESKTOP_OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate'}
+    'overlay-desktop', 'overlay-request-cancel', 'child-countdown-present', 'overlay-request-read'})
+OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate', 'overlay-request-read'}
+CHILD_DESKTOP_OPERATIONS |= {'overlay-request-select', 'overlay-request-estimate', 'overlay-request-read'}
 OVERLAY_VALID_OPERATIONS |= {'overlay-request-estimate'}
 
 
@@ -1394,6 +1417,7 @@ KIOSK_REQUEST_DURATIONS = {**OVERLAY_REQUEST_DURATIONS, 0: 'Rest of the day', 6:
 BOUND_MATE_ORDER = tuple('kiosk-bound-mate-' + suffix for suffix in
                         ('open', 'qualified', 'rechecked', 'submit-success'))
 KIOSK_BOUND_OPERATIONS = frozenset({*BOUND_MATE_ORDER, 'kiosk-request-select',
+                                  'kiosk-request-child', 'kiosk-request-read',
                                   'kiosk-request-estimate', 'child-countdown-present'})
 MATE_APPROVAL_OPERATIONS |= frozenset(BOUND_MATE_ORDER)
 KIOSK_VALID_OPERATIONS |= {'kiosk-request-estimate'}
@@ -1494,7 +1518,8 @@ KIOSK_SESSION_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items
 CHILD_DESKTOP_OPERATIONS |= {op for op, (surface, _) in RESTART_OPERATIONS.items()
                             if surface == 'overlay'}
 KIOSK_SESSION_OPERATIONS |= MATE_OPERATIONS | MATE_APPROVAL_OPERATIONS
-KIOSK_SESSION_OPERATIONS |= {'kiosk-request-select', 'kiosk-request-estimate'}
+KIOSK_SESSION_OPERATIONS |= {'kiosk-request-select', 'kiosk-request-estimate',
+                             'kiosk-request-child', 'kiosk-request-read'}
 CHINESE_LANGUAGE_OPERATIONS = frozenset({'chinese-language-save', 'chinese-persisted-form'})
 OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
 KIOSK_SESSION_OPERATIONS |= CHINESE_LANGUAGE_OPERATIONS | CHINESE_VALID_BINDINGS.keys()
@@ -7301,7 +7326,7 @@ class AccessibleUI:
         presets. ``reopen-current`` keeps the existing custom selection, as
         autosave intentionally preserves the ongoing editor and its focus.
         """
-        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40, 1439)
+        require(type(minutes) is int and minutes in (0, 1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 30, 40, 61, 121, 1439)
                 and action in ('open', 'saved', 'reopen', 'reopen-current'),
                 'ui:allowance-binding')
         self.allowance_entry(child)
@@ -10778,6 +10803,18 @@ class AccessibleUI:
             self.set_text('kiosk-custom-duration', KIOSK_REQUEST_MINUTES[seconds], child=child)
         self.set_value('kiosk-soft-apps-toggle', soft)
 
+    def read_bound_request(self, *, overlay):
+        """REQUEST03 before edits, including this surface's remembered parent."""
+        child, approver, seconds, soft = (self.overlay_bound_values() if overlay
+                                           else self.kiosk_bound_values())
+        request = self.kiosk_request_form(enabled=True, overlay=overlay, overlay_child=child,
+            expected_selection=('approver', APPROVER_IDENTITIES[approver]),
+            duration_seconds=seconds,
+            custom_text=(OVERLAY_REQUEST_MINUTES if overlay else KIOSK_REQUEST_MINUTES)[seconds])
+        require(request['child'] == CHILD_IDENTITIES[child]
+                and request['allow_soft'] is soft, 'ui:remembered-request')
+        return request
+
     def overlay_message_matches(self, text, language):
         child, _parent, seconds, soft = self.overlay_bound_values()
         return shell_request_matches(text, child, seconds, soft, language)
@@ -11937,7 +11974,7 @@ class AccessibleUI:
             require(value['request'] == before, 'ui:kiosk-retry-final')
             return value
         if refresh and (operation in ('overlay-fraction-estimate-refresh', 'jordan-fraction-estimate-refresh')
-                        or bound and overlay and seconds > 0):
+                        or bound and seconds > 0):
             # Reading a cached label does not date its calculation. Equivalent
             # decimal edits invoke the public changed handler, invalidate any
             # old response, and leave the complete requested choices intact.
@@ -14299,7 +14336,8 @@ class AccessibleUI:
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
         require(type(fullscreen) is bool and (not fullscreen or kind == 'game'), 'ui:game-mode')
         require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
-                and instance == 'primary' and not locked
+                and (instance == 'primary' or instance == 'secondary'
+                     and child == EXISTING_CHILD and blocked) and not locked
                 and fixture == 'policy', 'ui:game-binding')
         snap = kind == 'snap'
         flatpak = kind == 'flatpak'
@@ -14319,7 +14357,8 @@ class AccessibleUI:
         require(role not in ('VersionNext', 'VersionNonmatch', 'VersionExisting') or
                 kind == 'native' and child == EXISTING_CHILD
                 and (not blocked or role == 'VersionNext'), 'ui:native-binding')
-        require((instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
+        require(instance in ('primary', 'secondary') if kind == 'game' else
+                (instance == {'A': 'primary', 'H': 'hard', 'S': 'soft'}[role]
                  or role == 'S' and instance == 'secondary') if flatpak else
                 (instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'))
                 if snap else instance == ('secondary' if role in ('H', 'S', 'SpaceCopy', 'CommaCopy', 'C', 'VersionNext', 'VersionNonmatch', 'VersionExisting') else 'primary')
@@ -14371,20 +14410,15 @@ class AccessibleUI:
             # incomplete prompt reads never authorize input, and preparation
             # or the eventual single launch is never replayed by this wait.
             self.wait(ready, 'native-launch-ready', prompt_in_predicate=True)
-        # Identify this one service for failure-only journal reads. The
-        # executable, session, service type and single submission stay the same.
+        # Successful Riley launches retain their service identity for diagnostics.
         unit = ('onpc-test-native-' + os.urandom(16).hex() + '.service'
-                if blocked or child == CHILD else None)
+                if blocked and flatpak or not blocked and child == CHILD else None)
         self.input_uncertain = True
         executable = ('/usr/bin/flatpak' if flatpak else '/usr/bin/snap' if snap else
             '/opt/onpc-test-fixtures-activity/native-fixture' if fixture == 'activity' else
             '/opt/onpc-test-fixtures/Applications/onpc-test-game' if kind == 'game' else
             NATIVE_EXECUTABLES[role or 'A'])
-        result = subprocess.run([
-            '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-            *(['--wait', '--pipe'] if blocked else []),
-            *(['--unit=' + unit] if unit is not None else []),
-            '--service-type=exec',
+        command = [
             executable,
             *(['run', {'A': 'onpc-fixture-allowed', 'H': 'onpc-fixture-hard',
                        'S': 'onpc-fixture-soft'}[role]] if snap else []),
@@ -14396,13 +14430,32 @@ class AccessibleUI:
             *(['--fullscreen'] if fullscreen else []),
             *(['--work-document', json.dumps(work_receipt, sort_keys=True)]
               if work_receipt is not None else []),
-        ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
+        ]
+        permission_errno = None
+        if blocked and not flatpak:
+            # Read the kernel's result for this exact exec as the bound child.
+            # A service exit code and asynchronous journal visibility cannot
+            # substitute for a permission error. Submit this command only once.
+            try:
+                result = subprocess.run(command, stdin=subprocess.DEVNULL,
+                    capture_output=True, check=False, timeout=15)
+            except PermissionError as error:
+                require(error.errno in (errno.EACCES, errno.EPERM), 'ui:native-execution-denial')
+                permission_errno = error.errno
+                result = None
+        else:
+            result = subprocess.run([
+                '/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+                *(['--wait', '--pipe'] if blocked else []),
+                *(['--unit=' + unit] if unit is not None else []),
+                '--service-type=exec', *command,
+            ], stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
         if not blocked and unit is not None and self.timing is not None:
             # The next read runs in a separate observer process. Retain this
             # synthetic identity on private stderr to correlate its journal.
             self.timing({'event': 'ui-native-launch', 'unit': unit})
         if blocked:
-            bounded = len(result.stdout) + len(result.stderr) <= 65536
+            bounded = result is None or len(result.stdout) + len(result.stderr) <= 65536
             flatpak_denial = (('Running app/' + {
                 'A': 'com.puffyslippers.ONPCTestApplication',
                 'H': 'com.puffyslippers.ONPCTestApplication.Hard',
@@ -14410,20 +14463,7 @@ class AccessibleUI:
                 '/x86_64/stable is not allowed by the policy set by your administrator').encode()
                 if flatpak else None)
             denied = (result.returncode == 1 and bounded and flatpak_denial in result.stderr
-                      if flatpak else result.returncode in (1, 203) and bounded
-                      and any(message in result.stderr for message in (
-                          b'Permission denied', b'Operation not permitted')))
-            journal = None
-            if not denied and not flatpak:
-                # The executor can fail before the service owns its piped
-                # stderr. Require the same permission error from this launch's
-                # attributed EXEC record; status 203 alone proves no denial.
-                journal = (native_execution_journal_diagnostic(unit, executable=executable)
-                           if role is not None else native_execution_journal_diagnostic(unit))
-                denied = (result.returncode == 203 and bounded
-                          and journal['status'] == 'read'
-                          and journal['exec_errors'] in (
-                              ['permission-denied'], ['operation-not-permitted']))
+                      if flatpak else permission_errno is not None)
             if not denied:
                 error = UiError('ui:native-execution-denial')
                 # Keep the exact refusal. Retain only bounded counts, exit
@@ -14438,7 +14478,6 @@ class AccessibleUI:
                     'stderr_markers': [name for name, marker in NATIVE_EXECUTION_MARKERS
                                        if marker in result.stderr],
                 }
-                error.native_execution_journal = journal
                 raise error
             stable = time.monotonic()
             def absent():
@@ -14459,25 +14498,26 @@ class AccessibleUI:
                 self.wait(absent, 'native-blocked-absence')
             if self.timing is not None:
                 self.timing({'event': 'ui-native-execution-denial',
-                    'source': 'journal' if journal is not None else 'stderr',
+                    'source': 'stderr' if flatpak else 'kernel',
                              'error': ('flatpak-policy-denied' if flatpak else
-                                       journal['exec_errors'][0] if journal is not None else
-                                       'permission-denied' if b'Permission denied' in result.stderr
+                                       'permission-denied' if permission_errno == errno.EACCES
                                        else 'operation-not-permitted')})
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
                             instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native', moves=0,
                             work_text=None):
         """APP02/03: public owned window and finite independent activity projection."""
-        work_values = {CHILD: 'Riley saved synthetic work', EXISTING_CHILD: 'Jordan saved synthetic work'}
+        work_values = {CHILD: 'riley', EXISTING_CHILD: 'jordan'}
         require(work_text is None or kind == 'native' and instance == 'primary' and role == 'A'
                 and child in work_values and work_text in (
-                    work_values[child], work_values[child].replace('saved', 'original')),
+                    work_values[child].title() + ' original synthetic work',
+                    *work_saved_texts(work_values[child])),
                 'ui:work-binding')
         require(submitted in ('No submitted draft', 'ONPC fixture draft')
-                or work_text is not None and submitted == work_text, 'ui:native-projection')
+                or work_text is not None and submitted in work_saved_texts(work_values[child]),
+                'ui:native-projection')
         require(kind in ('native', 'snap', 'flatpak', 'game'), 'ui:fixture-binding')
-        require(type(moves) is int and moves in (0, 1, 2)
+        require(type(moves) is int and moves in (0, 1, 2, 3)
                 and (kind == 'game' or moves == 0), 'ui:fixture-progress')
         require(kind != 'game' or role == 'Game' and child in (CHILD, EXISTING_CHILD)
                 and instance == 'primary' and not implicit_instance
@@ -14814,9 +14854,11 @@ class AccessibleUI:
         require(os.getuid() == os.geteuid() == pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid,
                 'ui:game-account')
         arguments = {'role': 'Game', 'child': child, 'kind': 'game'}
-        if operation in ('game-command-blocked', 'game-fullscreen-command-blocked'):
+        if operation in ('game-command-blocked', 'game-fullscreen-command-blocked',
+                         'game-secondary-command-blocked', 'game-fullscreen-secondary-command-blocked'):
             return self.native_launch_command(blocked=True,
-                fullscreen=operation == 'game-fullscreen-command-blocked', **arguments)
+                instance='secondary' if 'secondary' in operation else 'primary',
+                fullscreen=operation.startswith('game-fullscreen-'), **arguments)
         if operation in ('game-policy-activity', 'game-policy-closed'):
             return self.native_policy_activity(closed=operation == 'game-policy-closed', **arguments)
         def snapshot(moves=0, **options):
@@ -14847,9 +14889,11 @@ class AccessibleUI:
             else:
                 require(False, 'ui:game-wrong-window-accepted')
             return None
-        if operation in ('game-opened', 'game-moved', 'game-resumed', 'game-activity', 'game-resumed-activity'):
+        if operation in ('game-opened', 'game-moved', 'game-resumed', 'game-activity',
+                         'game-resumed-activity', 'game-continued-activity'):
             return self.wait(lambda: snapshot(
-                0 if operation == 'game-opened' else 2 if operation.startswith('game-resumed') else 1, pending=True,
+                0 if operation == 'game-opened' else 3 if operation == 'game-continued-activity'
+                else 2 if operation.startswith('game-resumed') else 1, pending=True,
                 with_window=operation.endswith('activity')), 'game-progress')
         if operation == 'game-closed':
             self.wait(lambda: self.native_app_closed(kind='game'), 'game-closed')
@@ -14858,11 +14902,11 @@ class AccessibleUI:
         # Providers can disappear between enumeration and the read. Reacquire
         # only this preflight, as for native Submit; never replay game input.
         self.wait(lambda: snapshot(0 if operation == 'game-move' else
-                                  2 if operation == 'game-resumed-close' else 1),
+                                  2 if operation in ('game-resumed-close', 'game-continue') else 1),
                   'game-action-ready', prompt_in_predicate=True)
         from fixture_ui import FixtureUI
         fixture = FixtureUI(self, 'game', require=require)
-        if operation in ('game-move', 'game-resume'):
+        if operation in ('game-move', 'game-resume', 'game-continue'):
             fixture.move()
         else:
             self.activate_id(fixture.target_id('close'))
@@ -14919,8 +14963,11 @@ class AccessibleUI:
         receipt = globals().get('WORK_DOCUMENT_RECEIPT')
         require(type(receipt) is dict and receipt.get('user') == CHILD_ACCOUNTS[child],
                 'ui:work-receipt')
-        original = who.title() + ' original synthetic work'
-        saved = who.title() + ' saved synthetic work'
+        original = work_receipt_text(receipt, who)
+        saved, prior_submitted = globals().get('WORK_DOCUMENT_STATE',
+            (who.title() + ' saved synthetic work', 'No submitted draft'))
+        require(saved in work_saved_texts(who)
+                and prior_submitted in ('No submitted draft', *work_saved_texts(who)), 'ui:work-text')
         scope = 'onpc-fixture-native-primary'
         def snapshot(text, submitted='No submitted draft'):
             return self.native_app_snapshot(submitted, role='A', child=child,
@@ -14928,24 +14975,29 @@ class AccessibleUI:
         if action == 'open':
             self.native_launch_command(role='A', child=child, work_receipt=receipt)
         elif action == 'closed':
-            self.wait(lambda: self.native_app_closed(complete_absence=True), 'work-closed')
+            # Other retained work may be fullscreen and hide Shell's Activities
+            # control. Bind closure to the unlocked child session and the exact
+            # document's complete absence, with the normal prompt/owner guards.
+            require_active_launch_session(unlocked=True)
+            self.wait(lambda: self.native_app_closed(desktop=False, complete_absence=True),
+                      'work-closed')
         elif action == 'opened':
-            import hashlib
-            text = saved if receipt['sha256'] == hashlib.sha256(saved.encode()).hexdigest() else original
-            return self.wait(lambda: snapshot(text), 'work-opened')
+            return self.wait(lambda: snapshot(original), 'work-opened')
         elif action == 'edit':
-            self.wait(lambda: snapshot(original), 'work-edit-ready')
+            require(original != saved, 'ui:work-replayed-edit')
+            self.wait(lambda: snapshot(original, prior_submitted), 'work-edit-ready')
             self.set_text(scope + '-draft', saved, child=child)
         elif action == 'save':
-            self.wait(lambda: snapshot(saved), 'work-save-ready')
+            require(original != saved, 'ui:work-replayed-save')
+            self.wait(lambda: snapshot(saved, prior_submitted), 'work-save-ready')
             self.activate_id(scope + '-save')
         elif action == 'saved':
             from fixture_ui import FixtureUI
             self.wait(lambda: FixtureUI(self, 'native', require=require).text('saved') == 'Document saved',
                       'work-saved')
-            return self.wait(lambda: snapshot(saved), 'work-saved-activity')
+            return self.wait(lambda: snapshot(saved, prior_submitted), 'work-saved-activity')
         elif action in ('activity', 'submit', 'resubmit', 'submitted', 'close'):
-            submitted = saved if action in ('activity', 'resubmit', 'submitted', 'close') else 'No submitted draft'
+            submitted = saved if action in ('activity', 'resubmit', 'submitted', 'close') else prior_submitted
             value = self.wait(lambda: snapshot(saved, submitted), 'work-activity')
             if action in ('submit', 'resubmit', 'close'):
                 self.activate_id(scope + ('-close' if action == 'close' else '-submit'))
@@ -14955,7 +15007,6 @@ class AccessibleUI:
     def native_app_closed(self, instance='primary', *, desktop=True, complete_absence=False, kind='native'):
         """Complete owned absence; closure also recognizes the stable desktop."""
         require(kind in ('native', 'snap', 'flatpak', 'game')
-                and (kind != 'game' or instance == 'primary')
                 and (instance in ('primary', 'secondary') or kind in ('native', 'flatpak') and instance in ('hard', 'soft'))
                 and type(desktop) is bool
                 and type(complete_absence) is bool, 'ui:native-binding')
@@ -15940,6 +15991,14 @@ class AccessibleUI:
             self.select_overlay_request()
         elif operation == 'kiosk-request-select':
             self.select_kiosk_request()
+        elif operation == 'kiosk-request-child':
+            child = self.kiosk_bound_values()[0]
+            self.complete_request_language_setup()
+            self.set_value('kiosk-child-selector', str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid))
+            self.wait(lambda: self.kiosk_account_snapshot('child')[0].getValue() ==
+                      str(pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid), 'kiosk-request-child')
+        elif operation in ('kiosk-request-read', 'overlay-request-read'):
+            result['request'] = self.read_bound_request(overlay=operation.startswith('overlay-'))
         elif operation == 'overlay-panel-ready':
             if not self.overlay_panel_form_present(child=bound_child):
                 self.overlay_panel_target(child=bound_child)
@@ -16790,55 +16849,6 @@ def require_active_launch_session(*, unlocked=False):
         require(not session_control.screen_saver_active(uid), 'ui:launch-session')
 
 
-def native_execution_journal_diagnostic(unit, *, executable='/opt/onpc-test-fixtures/Applications/Exact Fixture.AppImage'):
-    """Read this failed launch's OS error without exporting journal contents.
-
-    systemd's executor logs exec failures to the journal, not the service's
-    piped stderr. Bind the error to the unique unit, fixed executable and EXEC
-    step before returning a closed errno label. Missing evidence proves nothing.
-    """
-    diagnostic = {'status': 'unavailable', 'entries': 0, 'exec_errors': []}
-    if executable not in (*tuple(NATIVE_EXECUTABLES[role]
-            for role in ('A', 'H', 'SpaceCopy', 'C', 'CommaCopy', 'S', 'Update', 'VersionNext')),
-            '/opt/onpc-test-fixtures/Applications/onpc-test-game'):
-        return diagnostic
-    if type(unit) is not str or re.fullmatch(r'onpc-test-native-[0-9a-f]{32}\.service', unit) is None:
-        return diagnostic
-    try:
-        result = subprocess.run([
-            '/usr/bin/journalctl', '--user', '--boot', '--unit=' + unit,
-            '--lines=16', '--output=json', '--no-pager', '--quiet',
-        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
-        if len(result.stdout) + len(result.stderr) > 65536:
-            return {**diagnostic, 'status': 'oversized'}
-        lines = result.stdout.splitlines()
-        if len(lines) > 16:
-            return {**diagnostic, 'status': 'oversized'}
-        entries = [json.loads(line) for line in lines]
-        if any(type(entry) is not dict for entry in entries):
-            return {**diagnostic, 'status': 'invalid'}
-        errors = []
-        for entry in entries:
-            if (unit not in (entry.get('USER_UNIT'), entry.get('_SYSTEMD_USER_UNIT'))
-                    or entry.get('EXECUTABLE') != executable):
-                continue
-            message = entry.get('MESSAGE')
-            # LOG_EXEC_MESSAGE prefixes the unit name. Match the exact launch
-            # and step as well as the structured fields; no arbitrary text or
-            # another unit's permission error can stand in for this failure.
-            prefix = unit + ': Failed at step EXEC spawning ' + executable + ': '
-            if type(message) is str and message.startswith(prefix):
-                value = entry.get('ERRNO')
-                errors.append(NATIVE_EXECUTION_ERRNOS.get(value, 'other')
-                              if type(value) is str else 'other')
-        return {'status': 'read', 'entries': len(entries), 'exec_errors': errors}
-    except ValueError:
-        return {**diagnostic, 'status': 'invalid'}
-    except (OSError, subprocess.SubprocessError):
-        # A missing reader or malformed log must not replace the original error.
-        return diagnostic
-
-
 def native_startup_diagnostic():
     """Failure-only evidence for the named child fixture launches in this boot.
 
@@ -17674,17 +17684,6 @@ def adapter_failure_diagnostic(error):
         diagnostic['native_execution_result'] = {
             **native_result, 'stdout_markers': list(native_result['stdout_markers']),
             'stderr_markers': list(native_result['stderr_markers'])}
-    native_journal = getattr(error, 'native_execution_journal', None)
-    if (type(native_journal) is dict and set(native_journal) == {'status', 'entries', 'exec_errors'}
-            and type(native_journal['status']) is str
-            and native_journal['status'] in ('read', 'unavailable', 'oversized', 'invalid')
-            and type(native_journal['entries']) is int and 0 <= native_journal['entries'] <= 16
-            and type(native_journal['exec_errors']) is list
-            and len(native_journal['exec_errors']) <= native_journal['entries']
-            and all(type(value) is str and value in (*NATIVE_EXECUTION_ERRNOS.values(), 'other')
-                    for value in native_journal['exec_errors'])):
-        diagnostic['native_execution_journal'] = {
-            **native_journal, 'exec_errors': list(native_journal['exec_errors'])}
     field_state = getattr(error, 'authentication_field_state', None)
     if (type(field_state) is dict and set(field_state) == {
             'provider', 'showing', 'sensitive', 'focused', 'stale'}

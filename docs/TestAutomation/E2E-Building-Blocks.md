@@ -2389,15 +2389,24 @@ or Riley. `work_document_actions` owns both documents through `SyntheticFiles`
 profiles `work-jordan` / `work-riley`. Each profile binds the child's exact
 `ONPC synthetic work/Work.txt`, initial text and distinct saved text.
 `work_document.Document` pins directory/file identity and rejects wrong accounts,
-links, replacements and undeclared paths before mutation. Save and uncertain
-transport are single-use; independent reads carry the updated receipt to cleanup.
+links, replacements and undeclared paths before mutation. Each declared distinct
+Save is single-use; uncertain input or transport poisons further operations.
+Independent reads carry the updated receipt to the next edit and cleanup.
 
 `AccessibleUI.work_document_operation` directly opens the declared document,
-edits its public fixture text control and activates Save once. The saved-byte
+edits its public fixture text control and activates each declared Save once. The saved-byte
 readback also verifies the peer's file is unchanged. Submit proves usability;
 immutable `AppActivityObservation` captures distinguish an unchanged original
 window from a deliberate normal close and a new usable window recovering saved
 text. Relaunch never supplies retained-window acceptance.
+
+`JourneyPlan.work_texts` binds each work checkpoint's target text and earlier
+submitted text. Jordan additionally admits only `homework cycle 1`,
+`work again cycle 1`, `homework cycle 2` and `work again cycle 2`; Riley keeps
+the original fixed binding. The adapter checks the earlier receipt's exact text
+before editing, and `work_document_actions(saves=...)` independently verifies
+each saved value and the unchanged peer document. TIME04 accepts the resulting
+immutable saved-work activity without reading work behind the lock.
 
 `check_e2e_child_saved_work` passed on `onpc-Ubuntu26.04` in
 `20261110T090347Z-98d6ff38`: independent Jordan/Riley entries, public edit/Save,
@@ -2406,6 +2415,20 @@ recovered text and usable reopened windows. Collection, worker shutdown, owned
 file cleanup and baseline restoration passed. This qualifies the fixed text
 binding only; cross-user retention, logout, enforcement and repeated-cycle
 histories remain in their consumers.
+
+`repeated_saved_work.RepeatedSavedWorkJourney` /
+`onpc_app_rows::repeated_saved_work` is qualified by
+`check_e2e_repeated_saved_work` on `onpc-Ubuntu26.04` in
+`20261110T231851Z-f3272c43`: `homework cycle 1` and `work again cycle 1`
+were independently saved and submitted in the same original window, with exact
+bytes and unchanged peer work. Normal close/reopen recovered the second value.
+After a real ten-minute approval at zero daily time, TIME04 observed the original
+deadline's natural lock and protected input; a real twenty-minute approval
+returned to the original pre-lock window and usable submitted text. Owned file
+cleanup, collection, worker closure and baseline restoration passed. Existing
+fixed Jordan/Riley work and windowed game-expiry regressions also passed in
+`20261110T234107Z-efff9c0c` and `20261110T234639Z-774601c8`. Complete alternating
+game/work cycles remain with case 247; this is a work-only capability slice.
 
 #### Synthetic source change
 
@@ -2741,6 +2764,12 @@ the original lock deadline across delayed controller replies; see the
 [shared observer](../../tests/support/README.md#host-and-guest-boundaries).
 Fresh lock-ready and post-Shift reads must prove the same session/surface with
 desktop input unavailable, without inspecting the app underneath.
+
+Each `await_natural_expiry` call starts its own proof interval through
+`UiObservations.begin_natural_expiry`. Its immutable positive-time sample must
+start after the preceding interval's original deadline. Lock/source/session
+proofs stay pinned within one interval, rather than retaining an earlier lock's
+identity across separate natural expiries in the same journey.
 
 Wrong account, changed boot/session/window, uncertain input, early/late lock and
 worker-order guards remain mandatory. Parent launch preflight may retry fresh
@@ -4428,6 +4457,38 @@ qualifies only the stated Jordan game-permission bindings. Case 247's repeated
 cycles, exhaustion, allowance changes, revocation and Riley history remain
 separate acceptance.
 
+### Retained game launch denial
+
+`retained_game_denial.RetainedGameDenialJourney` /
+`onpc_app_rows::retained_game_denial` qualified `check_e2e_retained_game_denial`
+on Ubuntu 26.04 in `20261110T215959Z-a69463ee`. Each independently entered
+windowed/fullscreen slice starts with saved homework, a precise Soft game rule,
+a real fifteen-minute soft-included approval and a level-1 move. Enabled daily
+allowance saves to 45 and zero minutes preserve the original grant deadline.
+After each retained return, the original game and homework remain unchanged;
+one separately identified secondary game launch receives attributed policy
+denial and its own complete absence check. The original game then accepts a
+further real move, the Hard fixture stays denied and saved homework remains usable.
+
+APP01/02 reuse `AccessibleUI.native_launch_command` and `native_app_closed`
+with the finite denied `secondary` game binding. APP04 reuses original-window
+activity comparisons, `game-resume` and `game-continue`. Ordinary primary-game
+launches retain their own absence requirement. Unlocked session, account,
+prompt, ownership and single-submission guards remain mandatory.
+
+The captured journey, final greeter return, collection, worker/callback shutdown
+and baseline restoration passed. Its already-running wrapper retained the former
+checkout-drift rejection; the developer accepted the captured pass under the
+[runner result rule](../../tests/README.md#aggregate-execution-and-reconnection)
+without replaying it. The shared queue and VM repair acceptance now preserve
+captured results across later edits. Focused snapshot/receipt regressions, existing
+runner/checkpoint checks, 135 approval-safety checks and source/traceability passed.
+The affected `check_e2e_game_permission` regression then passed normally in
+`20261110T222503Z-ba3e1c97`, including queue acceptance after later checkout edits
+and owned cleanup; the VM was independently observed off. This qualifies only
+the stated retained-game denial bindings. Case 247 remains unregistered for its
+complete repeated-cycle journey.
+
 ### Windowed game expiry
 
 `game_expiry.GameExpiryJourney` / `onpc_app_rows::game_expiry` passed
@@ -5041,9 +5102,9 @@ desktop ID. `PackageCommand.submit_fixture` binds each single-use transaction
 to its digest and expected installed version. Parent keeps the nondefault
 `Catalogue-*.AppImage` draft open through the update, saves it, then reopens to
 read the updated target and saved Hard rule. Fresh Jordan entry must deny the
-updated command with complete owned-window absence. The shared journal reader
-admits this exact updated executable while retaining its unique-unit, EXEC-step
-and permission-error checks; exit status alone cannot establish denial.
+updated command with complete owned-window absence. The shared native command
+route now requires the bound child's direct exec to return EACCES or EPERM;
+exit status or journal availability alone cannot establish denial.
 The complete case passed on Ubuntu 26.04 in
 `scenario-f3bcfa5077a242c1a43bdb6955d22e38`, with collection, worker shutdown,
 owned cleanup and baseline restoration passed.
@@ -6958,6 +7019,14 @@ dispatch through observation, recorder and assertion. Confirm the intended
 account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
+
+Check time-of-day dependencies across the complete history. Unfinished
+non-calendar consumers use the shared
+[pre-test daytime clock preparation](E2E-Scenario-Recipes.md#pre-test-clock-preparation)
+before customer input; calendar consumers keep their declared boundary preset.
+Bind the exact journey prefix and setup action in both the plan and action map.
+Retain independent guest-clock readback and the original real-time assertions;
+do not make the task wait for an ordinary host-clock window.
 
 For a named child's policy journey, trace every reused allowance and app-edit
 operation through `JourneyPlan.child_bindings`, not only the final row reads.

@@ -393,6 +393,16 @@ overlap so widely that an incorrect result would pass,
 choose a more precise public display or retain the assertion as unqualified.
 Large durations test selection and displayed arithmetic without waiting to expire.
 
+For asynchronous request estimates, apply the
+[calculation-bracket rule](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
+on both forms. `overlay-request-estimate` and `kiosk-request-estimate` force a
+fresh fixed-duration calculation through the shared public change handler;
+`request_composition._estimate_read_bounds` validates its guest-clock interval.
+Use both endpoints when projecting a running balance, rather than dating the
+calculation at the later form read. Saved daily usage pauses outside the child's
+active session, while the original grant continues to run. Keep those operands
+separate and require the full uncertainty to distinguish the requested addition.
+
 | Data | Complete finite set / expected result |
 | --- | --- |
 | Daily presets (158) | Select/read 15 minutes. UI samples 0, 60, 90 and 1410 through the shared API operation; canonical preset-list completeness remains lower-layer coverage. |
@@ -418,6 +428,33 @@ that arbitrary inputs, elapsed durations and user histories can be enumerated.
 Setup is shared code, not prior execution. Group implementation work, but run
 each numeric variant as an independent attempt. Long calendar
 cases retain their declared acceptance prerequisites and budgets in the same fixed queue.
+
+### Pre-test clock preparation
+
+The developer authorizes an attempt-owned guest clock preset so unfinished
+non-calendar tasks can run at any host time. Before any parent/child input,
+daily-policy setup, approval or timed observation, use
+`calendar_fixture.preset_ordinary_daytime` at `setup-detached` after normal
+restore/setup. It reuses the calendar fixture's guarded preparation: disable
+network time synchronization, set noon on the next future ordinary day in the
+unchanged timezone, and independently read back the result. Read the actual
+guest clock again to verify the recipe's full execution margin before midnight.
+Keep the existing lease, watch, one-use entry and cleanup guards. Snapshot
+restoration removes these attempt-owned changes.
+
+Apply this during implementation of every remaining capability or scenario
+whose daily balances, request estimates, positive access or uninterrupted
+history could otherwise depend on the host's time of day. Bind each implemented
+journey's exact prefix in the shared helper; a planned consumer has no executable
+binding until its own implementation and acceptance. Read-only fixture checks
+and tasks with no time-of-day dependency need no clock mutation. Deferred tasks
+stay deferred. This rule is inherited by all three execution queues.
+
+Calendar-boundary cases keep their declared ordinary-midnight or seasonal
+preparation under [natural calendar windows](#natural-calendar-windows).
+After preparation, let time run normally: no further clock/timezone changes,
+accelerated clocks, saved-usage edits or synthetic grants. Every real elapsed-use,
+natural-expiry, grant-deadline, reboot and public-result assertion remains.
 
 ### Explicit time preparation
 
@@ -2407,7 +2444,9 @@ game-display mode here.
 
 ### E2E-050
 
-Implementation status: All cases pending.
+Implementation status: Case 247's two-cycle retained binding passed on Ubuntu
+26.04 through `homework_game_case.HomeworkGameJourney` / `onpc_homework_game::run`.
+Case 248 remains pending.
 
 **Alternate homework, games and time sources over repeated sessions.** Cases 247–248.
 
@@ -2415,8 +2454,9 @@ Bindings: surface-order = overlay-first; departure = retained / fresh.
 Order is overlay-first-retained, overlay-first-fresh. Removed starting-order
 copies 249/250 must not be reused. Each case is one uninterrupted attempt
 with **two complete cycles**, retaining every row and intermediate result.
-Budget: 5400 seconds including setup and cleanup. Start with
-enough time before local midnight to finish. Never move the clock.
+Budget: 5400 seconds including setup and cleanup. Use the shared
+[pre-test daytime clock preparation](#pre-test-clock-preparation), then verify
+enough time before local midnight to finish. Never adjust the clock after input.
 
 Child-owned work uses the [qualified FILE08/09 binding](E2E-Building-Blocks.md#child-owned-saved-work),
 including Save/reopen and independent public activity. Checked 196 supplies
@@ -2464,6 +2504,13 @@ row 7 starts its timed grant; only the required public entry and work/game
 checks remain afterward. If navigation exhausts a required margin,
 preserve the failure instead of inserting an unplanned grant.
 
+Rows 2–5 use 30/60-second additions. Compare each fresh estimate over its
+recorded calculation bracket, with total uncertainty smaller than that row's
+addition. The station comparison keeps paused daily usage separate from the
+running grant. Neither a final label timestamp nor a favorable retry can supply
+this arithmetic. Row 7's observer readiness precedes issuance; later activity
+checks and replies retain the original expiry deadline.
+
 ### E2E-051
 
 Implementation status: All cases pending.
@@ -2478,6 +2525,8 @@ retain desktops. Parents Jamie and Sam alternate management visits, each using
 their own normally opened Parent window. A later visit reselects the named
 child and reads current settings before changing anything; neither parent
 assumes its earlier displayed values are still current.
+Use the shared [pre-test daytime clock preparation](#pre-test-clock-preparation)
+before that history, retaining the full 5400-second margin before midnight.
 
 Number the management visits 1–4 in actual visit order: Jamie manages odd
 visits, Sam even visits. Approval uses Sam on overlay and Jamie at the station,
@@ -2535,6 +2584,12 @@ peer naturally expires before this check, that is a failed preparation margin,
 not evidence of cross-child interference and not an invitation to grant time
 silently. Work/game names describe activities, not nonexistent product modes.
 
+Apply the same fresh-estimate calculation brackets to both forms. Peer checks
+use their own recorded observation intervals and the actual active-session
+history; navigation time alone does not establish daily usage. Await each
+selected child's saved-state result before changing account or reading the peer,
+and retain the independent owner/window binding on both parents' returns.
+
 ### E2E-052
 
 **Implementation:** pending metadata only; no executable binding or installed
@@ -2584,6 +2639,12 @@ autostart and explicit-soft-approval controls prevent a broken preparation from
 masquerading as enforcement. Each allowed Minecraft launch has a 180-second
 readiness bound; failure retains evidence without input replay or downloading
 assets mid-case. A provider/profile unable to meet the fixed bounds stays pending.
+
+The ready result must establish the actual public observation path, including
+session creation and reattachment. A running observer process or a reconnect
+that happens to precede Lunar is insufficient. If the provider cannot guarantee
+that ordering and complete coverage, its login binding remains unqualified;
+do not repeat login until autostart happens slowly enough to pass.
 
 These are required checkpoints in one case, not optional variants. E2E-019 owns
 generic routes and other-user isolation; case 189 owns new wildcard versions;

@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">5930</span>/<span style="color: gray">0</span>/5930 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">5944</span>/<span style="color: gray">0</span>/5944 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">308</span>/<span style="color: gray">0</span>/308 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">150</span>/<span style="color: gray">48</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6695</span>/<span style="color: gray">48</span>/6743** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">151</span>/<span style="color: gray">47</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6711</span>/<span style="color: gray">47</span>/6758** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">149</span>/<span style="color: gray">48</span>/197 |
+| customer-journey | <span style="color: green">150</span>/<span style="color: gray">47</span>/197 |
 | runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -172,6 +172,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [238](#scenario-238) | Change temporary app permission on every supported launch route (route: native command; surface: kiosk) | `E2E-049/native-command-kiosk` | ready |
 | [243](#scenario-243) | Change temporary app permission on every supported launch route (route: flatpak grid; surface: child overlay) | `E2E-049/flatpak-grid-child-overlay` | ready |
 | [246](#scenario-246) | Change temporary app permission on every supported launch route (route: flatpak command; surface: kiosk) | `E2E-049/flatpak-command-kiosk` | ready |
+| [247](#scenario-247) | Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first) | `E2E-050/overlay-first-retained` | ready |
 | [254](#scenario-254) | Chinese latest-install kiosk lifecycle | `E2E-053/latest-install` | ready |
 | [255](#scenario-255) | Personal languages persist across accounts and offline use | `E2E-054/account-offline` | ready |
 | [256](#scenario-256) | Change Parent language while retaining feedback and child policy | `E2E-055/parent-hebrew` | ready |
@@ -229,7 +230,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[230](#scenario-230)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[247](#scenario-247)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-retained`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[248](#scenario-248)</span> | <span style="color: gray">Alternate homework, games and time sources over repeated sessions (departure: fresh; surface order: overlay first)</span> | <span style="color: gray">`E2E-050/overlay-first-fresh`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[251](#scenario-251)</span> | <span style="color: gray">Alternate two children's work and game routines without mixing their choices</span> | <span style="color: gray">`E2E-051/jordan`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[253](#scenario-253)</span> | <span style="color: gray">Lunar Client login autostart cannot bypass an ungranted soft block</span> | <span style="color: gray">`E2E-052/appimagelauncher-login-autostart`</span> | <span style="color: gray">pending</span> |
@@ -2178,6 +2178,20 @@ Variant: route: flatpak command; surface: kiosk
 - For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
+### Scenario 247
+
+**Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)**
+
+Case: `E2E-050/overlay-first-retained` · Category: customer-journey · Status: **ready**
+
+Variant: departure: retained; surface order: overlay first
+
+**Steps:**
+
+- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
+- Complete all eight recipe rows in each of two cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 1 plays windowed and expires with soft apps included before excluded recovery; cycle 2 plays fullscreen and expires with soft apps excluded before included recovery. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
+- After both complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
+
 ### Scenario 254
 
 **Chinese latest-install kiosk lifecycle**
@@ -3246,26 +3260,6 @@ Variant: route: snap command; surface: kiosk
 - Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
 
 Pending: Deferred from active E2E scheduling by developer decision on 2026-11-05: known Snap admission/closure limitations in docs/Snap\_Limitation.md. Separate remediation and explicit reactivation required; no acceptance credit or executable.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 247
-
-**Alternate homework, games and time sources over repeated sessions (departure: retained; surface order: overlay first)**
-
-Case: `E2E-050/overlay-first-retained` · Category: customer-journey · Status: **pending**
-
-Variant: departure: retained; surface order: overlay first
-
-**Steps:**
-
-- Independently configure Jordan's allowed work editor, soft-blocked real offline game and hard-blocked app through Parent. Start with limits on, zero allowance and no grant. Leave Riley's separate recognizable work open. Use a synthetic notes file for saved work.
-- Complete all eight recipe rows in each of two cycles: daily homework; included game approval; another included addition on the other form; excluded homework approval; included approval followed by allowance increase then zero; limits off then on; a short station-approved visit to natural lock; replacement approval and revocation. Alternate the two parents and both forms. Cycle 1 plays windowed and expires with soft apps included before excluded recovery; cycle 2 plays fullscreen and expires with soft apps excluded before included recovery. After every row verify the stated time, app access and work result before proceeding. Switch User for retained departures or sign out for fresh departures; read saved work after a fresh login and compare old windows only after retained return. Require fresh authentication for every request and inspect remembered choices before editing. Each cycle ends with zero usable time and a visit to Riley's same unaffected work.
-- After both complete cycles reopen Parent and read Jordan's final enabled zero allowance, zero grant and original app rules. Revisit Riley's work, then finish. No reset, hidden grant or restart from a later cycle is allowed.
-
-Pending: Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.
 
 </div>
 

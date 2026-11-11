@@ -112,8 +112,9 @@ def test_german_native_prompt_still_binds_parent_and_request(fault):
             ui.mate_prompt(123, **options)
 
 
-@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'wrong-child', 'wrong-scope', 'replay',
-                                 'reminder', 'reminder-wrong-child'])
+@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'saved-work', 'saved-work-recovery',
+                                  'wrong-child', 'wrong-scope', 'replay',
+                                  'reminder', 'reminder-wrong-child'])
 def test_game_approval_secret_stays_bound_to_its_request(fault):
     result = run_password_guard(r'''
 my $fault = shift @ARGV;
@@ -125,6 +126,12 @@ if ($fault =~ /\Areminder/) {
     $journey->{stage_prefix} = 'first-';
     $journey->{kiosk_request} = [$fault eq 'reminder' ? 'child' : 'other-child', 'parent', 240, 1];
 }
+if ($fault eq 'saved-work' || $fault eq 'saved-work-recovery') {
+    my $scope = $fault eq 'saved-work' ? 'request' : 'recovery';
+    $journey->{prefix} = 'repeated-saved-work-' . $scope;
+    $journey->{stage_prefix} = $scope . '-';
+    $journey->{kiosk_request}[2] = 1200 if $scope eq 'recovery';
+}
 $journey->{kiosk_request}[0] = 'child' if $fault eq 'wrong-child';
 $journey->{stage_prefix} = 'other-' if $fault eq 'wrong-scope';
 my $ok = eval {
@@ -135,11 +142,11 @@ my $ok = eval {
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', fault)
     value = json.loads(result.stdout)
-    assert value['ok'] == (fault in ('none', 'fullscreen', 'reminder'))
-    prefix = 'first-' if fault == 'reminder' else 'request-'
+    assert value['ok'] == (fault in ('none', 'fullscreen', 'reminder', 'saved-work', 'saved-work-recovery'))
+    scope = 'first' if fault == 'reminder' else 'recovery' if fault == 'saved-work-recovery' else 'request'
     expected = [] if fault in ('wrong-child', 'wrong-scope', 'reminder-wrong-child') else [
-        ['proof', prefix + 'approval-qualified'], ['proof', prefix + 'approval-rechecked'],
-        ['delivery', 'parent', prefix + 'kiosk-mate-approval']]
+        ['proof', scope + '-approval-qualified'], ['proof', scope + '-approval-rechecked'],
+        ['delivery', 'parent', scope + '-kiosk-mate-approval']]
     assert value['events'] == expected
 
 
@@ -158,16 +165,17 @@ def test_game_input_refuses_another_account_before_window_discovery(monkeypatch,
 
 @pytest.mark.parametrize(('surface', 'fault'), [
     ('kiosk', 'none'), ('overlay', 'none'), ('overlay', 'scope'),
-    ('kiosk', 'request'), ('overlay', 'replay')])
+    ('kiosk', 'request'), ('overlay', 'replay'), ('overlay', 'retained')])
 def test_game_permission_secret_requires_exact_scope_and_single_use(surface, fault):
     result = run_password_guard(r'''
 my ($surface, $fault) = @ARGV;
-my $row = $surface eq 'kiosk' ? 'included' : 'excluded';
+my $row = $fault eq 'retained' ? 'first' : $surface eq 'kiosk' ? 'included' : 'excluded';
 my $scope = "fullscreen-$row-";
-my $journey = bless {prefix => "game-permission-fullscreen-$row", stage_prefix => $scope,
+my $family = $fault eq 'retained' ? 'retained-game-denial' : 'game-permission';
+my $journey = bless {prefix => "$family-fullscreen-$row", stage_prefix => $scope,
     review => 0}, 'onpc_journey';
 $journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
-    ['other-child', 'parent', 900, $surface eq 'kiosk' ? 1 : 0];
+    ['other-child', 'parent', 900, $surface eq 'kiosk' || $fault eq 'retained' ? 1 : 0];
 $journey->{stage_prefix} = "windowed-$row-" if $fault eq 'scope';
 $journey->{kiosk_request}[0] = 'child' if $fault eq 'request';
 my $enter = sub {
@@ -178,12 +186,45 @@ my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', surface, fault)
     value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
-    scope = 'fullscreen-' + ('included-' if surface == 'kiosk' else 'excluded-')
+    assert value['ok'] == (fault in ('none', 'retained'))
+    scope = 'fullscreen-' + ('first-' if fault == 'retained' else
+                              'included-' if surface == 'kiosk' else 'excluded-')
     assert value['events'] == ([] if fault in ('scope', 'request') else [
         ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
         ['delivery', 'parent', scope + ('kiosk-mate-approval' if surface == 'kiosk'
                                        else 'overlay-shell-approval')]])
+
+
+@pytest.mark.parametrize('surface,fault', [
+    ('overlay', 'none'), ('kiosk', 'none'), ('kiosk', 'child'),
+    ('overlay', 'scope'), ('kiosk', 'parent'), ('overlay', 'replay')])
+def test_homework_approval_keeps_its_declared_recipient_and_scope(surface, fault):
+    result = run_password_guard(r'''
+my ($surface, $fault) = @ARGV;
+my $row = $surface eq 'kiosk' ? 'recovery' : 'home';
+my $scope = "cycle-2-$row-";
+my $journey = bless {prefix => "homework-game-cycle-2-$row", stage_prefix => $scope,
+    review => 0}, 'onpc_journey';
+$journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
+    ['other-child', $surface eq 'kiosk' ? 'parent' : 'other-parent',
+     $surface eq 'kiosk' ? 1200 : 30, $surface eq 'kiosk' ? 1 : 0];
+$journey->{kiosk_request}[0] = 'child' if $fault eq 'child';
+$journey->{kiosk_request}[1] = 'other-parent' if $fault eq 'parent';
+$journey->{stage_prefix} = 'cycle-1-home-' if $fault eq 'scope';
+my $enter = sub {
+    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
+                       : onpc_password::enter_overlay_shell_password($journey);
+};
+my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', surface, fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    scope = 'cycle-2-' + ('recovery-' if surface == 'kiosk' else 'home-')
+    assert value['events'] == ([] if fault in ('child', 'parent', 'scope') else [
+        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
+        ['delivery', 'parent' if surface == 'kiosk' else 'other-parent',
+         scope + ('kiosk-mate-approval' if surface == 'kiosk' else 'overlay-shell-approval')]])
 
 
 @pytest.mark.parametrize('operation', ['reminder', 'panel-target', 'panel-launch', 'panel-form'])

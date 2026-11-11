@@ -107,6 +107,25 @@ sub enter_lock_password {
 # Fixed MATE binding: controller checks opaque same-challenge identity and the
 # exact administrator/child/request at both durable checkpoints. Any failure
 # poisons all subsequent secret routes, including uncertain type_password.
+sub homework_request {
+    my ($journey, $surface) = @_;
+    return 0 unless ($journey->{prefix} // '') =~
+        /\Ahomework-game-cycle-([12])-(earn|more|home|break|visit|recovery)\z/;
+    my ($cycle, $row) = ($1, $2);
+    return 0 unless ($journey->{stage_prefix} // '') eq "cycle-$cycle-$row-";
+    my $first = $cycle == 1 ? 'parent' : 'other-parent';
+    my $second = $cycle == 1 ? 'other-parent' : 'parent';
+    my %rows = (
+        earn => ['overlay', $first, 60, 1], more => ['kiosk', $second, 30, 1],
+        home => ['overlay', $first, 30, 0], break => ['kiosk', $second, 30, 1],
+        visit => ['kiosk', $first, 600, $cycle == 1 ? 1 : 0],
+        recovery => ['kiosk', $second, 1200, $cycle == 2 ? 1 : 0]);
+    my ($expected_surface, @expected) = @{$rows{$row}};
+    my $request = $journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'};
+    return $surface eq $expected_surface && ref($request) eq 'ARRAY'
+        && join(',', @$request) eq join(',', 'other-child', @expected);
+}
+
 sub enter_kiosk_mate_password {
     onpc_progress::operation('Qualifying the kiosk approval password recipient');
     my ($journey, $wrong) = @_;
@@ -187,10 +206,14 @@ sub enter_kiosk_mate_password {
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
+            my $saved_work = ($journey->{prefix} // '') =~ /\Arepeated-saved-work-(request|recovery)\z/
+                && ($journey->{stage_prefix} // '') eq $1 . '-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq
+                    ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
             $game ||= ($journey->{prefix} // '') =~ /\Agame-permission-(windowed|fullscreen)-included\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-included-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,900,1';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders ||
+            die 'secret:challenge' unless (homework_request($journey, 'kiosk') || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
@@ -342,16 +365,17 @@ sub enter_overlay_shell_password {
             && ($journey->{stage_prefix} // '') eq ''
             && ref($journey->{overlay_request}) eq 'ARRAY'
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,0';
-        my $game_permission = ($journey->{prefix} // '') =~ /\Agame-permission-(windowed|fullscreen)-(first|excluded)\z/;
+        my $game_permission = ($journey->{prefix} // '') =~ /\A(?:game-permission-(windowed|fullscreen)-(first|excluded)|retained-game-denial-(windowed|fullscreen)-(first))\z/;
         if ($game_permission) {
-            my ($mode, $row) = ($1, $2);
+            my ($mode, $row) = (defined($1) ? ($1, $2) : ($3, $4));
             die 'secret:challenge' unless ($journey->{stage_prefix} // '') eq "$mode-$row-"
                 && ref($journey->{overlay_request}) eq 'ARRAY'
                 && join(',', @{$journey->{overlay_request}}) eq
                     ('other-child,parent,900,' . ($row eq 'first' ? '1' : '0'));
         }
+        my $homework = homework_request($journey, 'overlay');
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
-            || $delayed || $panel || $lock_recovery || $temporary_access || $offline || $game || $game_permission) && !$reject;
+            || $delayed || $panel || $lock_recovery || $temporary_access || $offline || $game || $game_permission || $homework) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};
@@ -364,7 +388,7 @@ sub enter_overlay_shell_password {
         }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
-        my $id = ($baseline || $delayed || $temporary_access || $offline || $game_permission ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $delayed || $temporary_access || $offline || $game_permission || $homework ? $journey->{stage_prefix} : '')
             . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/

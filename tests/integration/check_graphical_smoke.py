@@ -810,12 +810,13 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
          fixture_selection=None, transfer_qualification=False, local_calendar=False, child_saved_work=False,
-         game_permission=False):
-    require(type(child_saved_work) is bool and (not child_saved_work or (
+         game_permission=False, retained_game_denial=False, repeated_saved_work=False):
+    require(type(child_saved_work) is bool and type(repeated_saved_work) is bool
+        and not (child_saved_work and repeated_saved_work) and (not (child_saved_work or repeated_saved_work) or (
         assets is not None and provision_credentials and fixture_profile == 'native'
         and fresh_desktop is None and approval_flow is None
         and not any(value for name, value in locals().items()
-            if name not in ('assets', 'provision_credentials', 'child_saved_work')
+            if name not in ('assets', 'provision_credentials', 'child_saved_work', 'repeated_saved_work')
             and isinstance(value, bool)))), 'smoke:child-saved-work-prerequisites')
     require(type(local_calendar) is bool and (not local_calendar or (
         assets is None and fixture_selection is None and fresh_desktop is None
@@ -1141,13 +1142,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
-            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request', 'game_permission')
+            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request', 'game_permission', 'retained_game_denial')
             and isinstance(value, bool)))), 'smoke:native-app-prerequisites')
     require(type(game_expiry) is bool and (not game_expiry or native_app
             and fixture_profile == 'game'), 'smoke:game-expiry-prerequisites')
     require(type(game_permission) is bool and (not game_permission or native_app
-            and fixture_profile == 'game' and not game_expiry and not fullscreen_request),
+            and fixture_profile == 'game' and not game_expiry and not fullscreen_request and not retained_game_denial),
             'smoke:game-permission-prerequisites')
+    require(type(retained_game_denial) is bool and (not retained_game_denial or native_app
+            and fixture_profile == 'game' and not game_expiry and not fullscreen_request and not game_permission),
+            'smoke:retained-game-denial-prerequisites')
     require(type(fullscreen_request) is bool and (not fullscreen_request or native_app
             and fixture_profile == 'game' and not game_expiry), 'smoke:fullscreen-request-prerequisites')
     require(game_mode in ('windowed', 'fullscreen') and (game_mode == 'windowed' or game_expiry),
@@ -1957,7 +1961,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if riley_native_grid:
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
-            result['scope'] = ('installed-game-permission-qualification' if game_permission else
+            result['scope'] = ('installed-retained-game-denial-qualification' if retained_game_denial else
+                              'installed-game-permission-qualification' if game_permission else
                               'installed-fullscreen-request-qualification' if fullscreen_request else
                               'installed-game-fullscreen-qualification' if game_expiry and game_mode == 'fullscreen' else
                               'installed-game-expiry-qualification' if game_expiry else
@@ -1983,6 +1988,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-app-activity-qualification'
         if child_saved_work:
             result['scope'] = 'installed-child-saved-work-qualification'
+        if repeated_saved_work:
+            result['scope'] = 'installed-repeated-saved-work-qualification'
         if native_files_usable:
             result['scope'] = 'installed-native-files-usable-qualification'
         if native_desktop_usable:
@@ -2246,7 +2253,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or desktop_session_switch or gdm_navigation or gdm_recipient or kiosk_entry
                         or kiosk_preferences_confinement or request_preset_controls or kiosk_whats_new or baseline_app_effects or baseline_auth_pause or baseline_journey or active_grant_disable or confinement_usability
                         or parent_language or parent_language_isolation or parent_hebrew_policy or parent_rtl or parent_dialog_language or kiosk_language or kiosk_language_restoration or overlay_language or panel_language_refresh or overlay_reminder_editing or kiosk_reminder_binding or reminder_child_station_binding or reminder_fullscreen_preference or chinese_native_auth or fresh_desktop is not None or shell_search_results or parent_search_launch or native_grid_usable or riley_native_grid or native_app or native_desktop_route or native_desktop_new_window or native_desktop_usable or native_files_usable or native_files_routes or native_denial or native_space_path or native_comma_path or versioned_appimage_assets or native_policy_closure or flatpak_retained_work or shared_target_launchers or app_activity or retained_app_visits
-                        or child_saved_work or shell_search or parent_terminal_provider or license_viewer_provider
+                        or child_saved_work or repeated_saved_work or shell_search or parent_terminal_provider or license_viewer_provider
                         or request_exit or parent_toggle or app_row_observations or feedback_read or text_qualification or allowance_presets or allowance or time_explanation or revoke_cancel or revocation or set_allowance or kiosk_eligible_choices or request_choices
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'],
@@ -2608,6 +2615,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         if game_permission:
                             from parent_setup_qualification import GamePermissionQualification
                             qualification_class = GamePermissionQualification
+                        if retained_game_denial:
+                            from parent_setup_qualification import RetainedGameDenialQualification
+                            qualification_class = RetainedGameDenialQualification
                         if fullscreen_request:
                             from parent_setup_qualification import FullscreenRequestQualification
                             qualification_class = FullscreenRequestQualification
@@ -2644,6 +2654,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 if child_saved_work:
                     from parent_setup_qualification import ChildSavedWorkQualification
                     qualification_class = ChildSavedWorkQualification
+                if repeated_saved_work:
+                    from parent_setup_qualification import RepeatedSavedWorkQualification
+                    qualification_class = RepeatedSavedWorkQualification
                 if app_activity:
                     from parent_setup_qualification import NativeActivityQualification
                     qualification_class = NativeActivityQualification

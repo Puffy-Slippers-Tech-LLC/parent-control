@@ -3,7 +3,7 @@ from dataclasses import asdict
 import math
 import time
 
-from accessible_ui import countdown_seconds
+from accessible_ui import countdown_seconds, work_saved_texts
 from countdown import CountdownSample
 from private_artifacts import require
 from ui_observations import AppActivityObservation, compare_app_activity
@@ -117,14 +117,19 @@ def await_natural_expiry(journey, guard, previous, activity, *, maximum_seconds=
             activity.binding == 'native-primary' and activity.state[1] == 'ONPC fixture draft'
             or activity.binding == 'game-primary'
             and activity.state[1] == 'No submitted draft'
-            and activity.state[2] in ('Moves: 1; token: 1', 'Moves: 2; token: 2')),
+            and activity.state[2] in ('Moves: 1; token: 1', 'Moves: 2; token: 2')
+            or activity.binding in ('work-jordan', 'work-riley')
+            and activity.state[0] == activity.state[1]
+            and activity.state[1] in work_saved_texts(
+                activity.binding.removeprefix('work-'))),
             'natural-expiry:submitted-work')
     original_start, original_end = previous.guest_read_bounds
-    journey.ui.natural_expiry_deadline_ns = original_start + (high + 15) * 1_000_000_000
     with watch_activity.operation('Observing natural lock after the child’s submitted work'):
         attempt_deadline = guard()
         require(journey.ui.boot_proof == previous.boot_sha256, 'natural-expiry:wrong-boot')
         require(time.monotonic() < attempt_deadline, 'natural-expiry:deadline')
+        journey.ui.begin_natural_expiry(original_start,
+            original_start + (high + 15) * 1_000_000_000)
         value = journey.ui.observe('child-natural-expiry-wait-lock',
             **({'child': child} if child is not None else {}))['natural_expiry']
         attempt_deadline = guard()

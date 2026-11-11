@@ -90,19 +90,23 @@ identity-checked cleanup. Availability changes do not erase accepted UUID pins.
 
 For SSH entries, `name` is also the alias resolved through private OpenSSH
 configuration. The optional public `ssh_port` is an integer from 1 to 65535,
-defaulting to 22; `./setup.sh --connect-server` applies it to the local SSH profile.
+defaulting to 22, for tools that explicitly select the registry port. Configure
+machine-to-machine SSH separately and keep the alias's port consistent with it.
+`./setup.sh --connect-server` noninteractively verifies all configured SSH aliases
+and installs Watch. Open Watch from the local checkout to observe and manage
+local and remote launchers together, using the registry’s hosts and branches.
+It does not change SSH configuration or keys.
 Keep addresses, usernames, keys, passwords and `~/.onpc-config/.envrc`
-outside Git; the registry contains no SSH credentials. SSH execution is not yet
-implemented: online SSH selections explicitly refuse instead of accessing local
-libvirt. The disabled SSH entry may remain tracked while the host is unavailable.
-Future SSH execution will use the same absolute checkout path on the VM host
-as on the initiating laptop; no separate remote checkout path is configured.
-Current execution supports the local host, with its own concurrency and backup
-root. Legacy registries without `hosts` retain their implicit local host and
-top-level concurrency/backup settings; do not mix the two layouts.
-The controller stays on the laptop. Future SSH hosts will run VM operations;
-scheduling, assertions, builds and coding agents remain local. Implementing that
-remote execution path is separate work when the new host is available.
+outside Git; the registry contains no SSH credentials. Remote launcher dispatch
+uses each branch's `host` and `repo_root`; the controller runs in that host's
+checkout, whose absolute path may differ from the laptop's. See
+[launcher placement](../../docs/Execution-Plans.md#common-launcher-interface).
+Direct VM operations through SSH host entries remain unimplemented: these
+selections explicitly refuse instead of accessing local libvirt. The disabled
+SSH entry may remain tracked while the host is unavailable. Local VM execution
+uses the local host's concurrency and backup root. Legacy registries without
+`hosts` retain their implicit local host and top-level concurrency/backup
+settings; do not mix the two layouts.
 
 Its `families` array groups equivalent VMs. Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` form (for example

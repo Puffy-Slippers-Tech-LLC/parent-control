@@ -11,7 +11,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44/45 development machine (no VMs needed)
   --server              Set up an Ubuntu 26.04+ SSH automation server; disable sleep
                        No VM hosting or Codex CLI installation
-  --connect-server      Interactively configure private client SSH access and a Watch workspace
+  --connect-server      Verify SSH access to all configured servers and install Watch for local checkouts
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies
   --ppa-build-tools     Install clean local PPA build prerequisites

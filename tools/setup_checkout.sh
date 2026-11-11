@@ -64,7 +64,7 @@ if [[ ${1-} == --headless ]]; then
     else
         echo 'setup: action needed: configure Git remote read access for this account, then rerun ./setup.sh --server'
     fi
-    echo 'setup: next: on the client, run ./setup.sh --connect-server using this summary'
-    echo 'setup: the client reads host names, SSH ports and checkout paths from config/environment.json; addresses and usernames stay private'
+    echo 'setup: next: configure machine-to-machine SSH separately, then run ./setup.sh --connect-server on the client'
+    echo 'setup: the client reads SSH aliases and checkout paths from config/environment.json; addresses, users, ports and keys stay in client SSH configuration'
     echo 'setup: use a router DHCP reservation for a stable Wi-Fi address; keep the server on external power'
 fi

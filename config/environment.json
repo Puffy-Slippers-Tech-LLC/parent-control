@@ -13,9 +13,9 @@
       "name": "myserver",
       "enabled": "false",
       "transport": "ssh",
-      "virt-manager": "/SSD5/virt-manager",
+      "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
-      "backup_root": "/SSD5/virt-manager/backups/onpc",
+      "backup_root": "/Data/virt-manager/backups/onpc",
       "concurrency": 6
     }
   ],
@@ -37,7 +37,7 @@
     },
     {
       "name": "others",
-      "host": "local",
+      "host": "myserver",
       "repo_root": "/Data/Code/PST/parent-control-others"
     }
   ],

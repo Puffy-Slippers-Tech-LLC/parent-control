@@ -206,7 +206,9 @@ of this mode so builder images, the UI environment and checkout rules stay
 user-owned. An existing desktop installation can opt in through the same first
 headless bootstrap.
 
-Headless setup shares the development/build/UI-test dependencies and prepares
+Headless setup shares the development/build/UI-test dependencies, installs the
+VM-host libvirt/QEMU inventory (including Python libvirt and guestfs bindings),
+refreshes development helpers and graphical-host AppArmor policies, and prepares
 the caller-owned Fedora RPM builder. It disables APT recommendations to avoid
 pulling in a desktop through optional dependencies; GNOME/Mutter/GTK libraries
 needed by isolated UI tests are still installed. For each missing or empty Git
@@ -305,11 +307,12 @@ on the noninteractive SSH PATH; authentication belongs to that same account.
 Rerunning `./setup.sh --server` applies these additions to an already configured
 host through its existing noninteractive grant; no fresh bootstrap is required.
 
-This mode does not install VM hosting, virt-manager or libvirt/QEMU, change VM
-networking/storage or graphical-host AppArmor policy, or create/prepare VMs and
-baselines. Shared helper refresh preserves the existing finalized VM identity
-checks; it does not operate a VM. Successful headless setup establishes the
-non-VM development environment, not installed VM acceptance. The ordinary
+This mode reuses `--vm-host-only`'s dependency inventory and helper/policy refresh
+without installing the VS Code extension or virt-manager GUI. It does not
+configure VM networking/storage or create/prepare VMs and baselines. Shared helper
+refresh preserves the existing finalized VM identity checks; it does not operate
+a VM. Successful headless setup establishes the development and VM-host
+environment, not installed VM acceptance. The ordinary
 terminal launcher interfaces, detachment and reconnection remain unchanged.
 
 The opt-in grant is root-owned `/etc/polkit-1/rules.d/49-onpc-headless.rules`,
@@ -468,11 +471,11 @@ Failed SSH or clock readiness after a successful restore performs owned cleanup.
 Tooling activation is `none` on the development host. Guest snapshot preparation
 still installs the declared product package and performs the required
 restart; it supplies no customer-acceptance credit.
-Graphical AppArmor policies are refreshed by full `./setup.sh`, `--vm-host-only`
-and `--test-tools-only` when libvirt's AppArmor profiles exist. Hosts without
+Graphical AppArmor policies are refreshed by full `./setup.sh`, `--server`,
+`--vm-host-only` and `--test-tools-only` when libvirt's AppArmor profiles exist. Hosts without
 libvirt skip this stage; Fedora retains SELinux and receives no AppArmor changes.
 Development package dependencies belong to full setup or `--dependencies-only`;
-VM dependencies belong to `--vm-host-only`. Codex setup also installs its maintained machine-wide
+VM dependencies belong to `--server` or `--vm-host-only`. Codex setup also installs its maintained machine-wide
 `pwd`, `git status`, `rg -n`, `rg --files` and `sed -n` rules in `/etc/codex/rules/onpc-read-only.rules`, without
 changing unrelated system/user rules. These reads cover any working directory
 or repository; select a repository with the command tool's working directory.

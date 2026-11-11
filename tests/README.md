@@ -2498,7 +2498,7 @@ Explicit graphical-smoke PNG exports and caller-owned temporary PNG cleanup
 follow the [screenshot export and cleanup contract](../docs/Mandates/Test-Storage-Mandate.md#screenshot-export-and-cleanup).
 Other artifact exports use the reader below.
 
-Full `./setup.sh`, `--vm-host-only` and `--test-tools-only` maintain graphical
+Full `./setup.sh`, `--server`, `--vm-host-only` and `--test-tools-only` maintain graphical
 AppArmor policy where libvirt's profiles exist. Hosts without libvirt skip this
 stage; Fedora keeps SELinux without AppArmor changes. Classic VS Code
 snap attachment needs anonymous graphics-socket peer rules in libvirtd and

@@ -54,8 +54,8 @@
     <channel type="unix"><target type="virtio" name="org.qemu.guest_agent.0"/></channel>
     <channel type="spicevmc"><target type="virtio" name="com.redhat.spice.0"/></channel>
     <input type="tablet" bus="usb"/>
-    <graphics type="spice">
-      <listen type="none"/>
+    <graphics type="spice" autoport="yes">
+      <listen type="address" address="127.0.0.1"/>
       <clipboard copypaste="yes"/>
       <filetransfer enable="no"/>
     </graphics>

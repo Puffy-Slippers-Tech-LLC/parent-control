@@ -18,12 +18,12 @@ class FixtureUI:
         self.scope = f'onpc-fixture-{kind}-{instance}'
 
     def target(self, control):
-        self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'save', 'saved'),
+        self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'fullscreen', 'save', 'saved'),
                 'ui:fixture-control')
         return self.ui.id_target(self.target_id(control))
 
     def target_id(self, control):
-        self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'save', 'saved'),
+        self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'fullscreen', 'save', 'saved'),
                 'ui:fixture-control')
         return self.scope + '-' + control
 

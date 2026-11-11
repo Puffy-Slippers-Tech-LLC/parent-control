@@ -844,6 +844,8 @@ def compare_settings(observed, expected):
 
 OPERATION_LABELS.update({
     'child-natural-reminder-wait': 'Using Riley’s app through the natural warning and lock',
+    'child-fullscreen-reminder-visible': 'Checking Riley’s warning during fullscreen play',
+    'child-fullscreen-reminder-suppressed': 'Checking that Riley’s current warning hides during fullscreen play',
 })
 RESPONSE_BYTE_LIMITS.update({operation: 8192 for operation in accessible_ui.NATURAL_REMINDER_OPERATIONS})
 
@@ -1143,7 +1145,7 @@ class UiObservations:
             # Leave transport margin around the guest's 150-second verification
             # wait; the journey still owns one deadline for the whole challenge.
             timeout = 180 if operation.endswith(('lock-ready', 'lock-result')) else 15
-        if operation == 'child-natural-reminder-wait':
+        if operation in accessible_ui.NATURAL_REMINDER_OPERATIONS:
             timeout = 810
         if operation == 'child-natural-expiry-wait-lock':
             # Up to 25 real minutes, original lock allowance, three minutes
@@ -1672,7 +1674,7 @@ class UiObservations:
             require(type(self.boot_guard) is str and (self.boot_guard == '' or
                     re.fullmatch(r'[0-9a-f]{64}', self.boot_guard)), 'ui:boot-binding')
             binding = [self.boot_guard]
-        if operation == 'child-natural-reminder-wait':
+        if operation in accessible_ui.NATURAL_REMINDER_OPERATIONS:
             require(hasattr(self, 'natural_reminder_record'), 'ui:natural-reminder-saved-record')
             binding = [self.boot_guard or '', json.dumps(self.natural_reminder_record)]
         if operation in accessible_ui.MATE_APPROVAL_OPERATIONS and operation not in (
@@ -1792,6 +1794,18 @@ class UiObservations:
                 and type(value['activity_actions']) is int and value['activity_actions'] > 0
                 and type(value['maximum_gap_ns']) is int and 0 < value['maximum_gap_ns'] <= 15_000_000_000,
                 'ui:natural-reminder-response')
+            expected['natural_reminder'] = value
+        if operation in accessible_ui.NATURAL_REMINDER_OPERATIONS - {'child-natural-reminder-wait'}:
+            value = result.get('natural_reminder')
+            enabled = operation == 'child-fullscreen-reminder-visible'
+            require(type(value) is dict and set(value) == {
+                'record', 'initial', 'emission', 'session_sha256', 'endpoint',
+                'fullscreen_enabled', 'visible', 'visibility_read_bounds', 'delivery_id',
+                'game_before', 'game_usable_moves'}
+                and value['record'] == self.natural_reminder_record
+                and value['fullscreen_enabled'] is enabled and value['visible'] is enabled
+                and value['delivery_id'] == value['emission']['delivery_id']
+                and value['game_usable_moves'] == 2, 'ui:fullscreen-reminder-response')
             expected['natural_reminder'] = value
         if operation in accessible_ui.APPROVER_CHANGE_OPERATIONS:
             overlay, action = accessible_ui.APPROVER_CHANGE_OPERATIONS[operation]

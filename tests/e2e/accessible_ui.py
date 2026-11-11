@@ -312,7 +312,8 @@ ENGINEERING_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-engineering-' + 
 NATURAL_EXPIRY_OPERATIONS = frozenset('child-natural-expiry-' + action for action in (
     'observe', 'activity', 'wait-lock', 'lock-ready', 'lock-result')) | ENGINEERING_EXPIRY_OPERATIONS
 OPERATIONS |= NATURAL_EXPIRY_OPERATIONS
-NATURAL_REMINDER_OPERATIONS = frozenset({'child-natural-reminder-wait'})
+NATURAL_REMINDER_OPERATIONS = frozenset({'child-natural-reminder-wait',
+    'child-fullscreen-reminder-visible', 'child-fullscreen-reminder-suppressed'})
 OPERATIONS |= NATURAL_REMINDER_OPERATIONS
 OPERATIONS |= {'child-natural-expiry-wrong-account-refused'}
 PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
@@ -323,7 +324,7 @@ OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'o
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop'})
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
-CHILD_DESKTOP_OPERATIONS |= {'child-natural-reminder-wait'}
+CHILD_DESKTOP_OPERATIONS |= NATURAL_REMINDER_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_FLATPAK_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
@@ -1068,7 +1069,8 @@ BINDING_REMINDER_OPERATIONS = {
     for binding, surface, child, actions in (
         ('overlay', 'overlay', CHILD, ('open', 'create', 'delete', 'save', 'cancel')),
         ('jordan-overlay', 'overlay', EXISTING_CHILD, ('open', 'cancel')),
-        ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'create-warning', 'save', 'cancel')),
+        ('riley', 'kiosk', CHILD, ('open', 'edit', 'delete', 'delete-all', 'create-warning',
+                                    'fullscreen-false', 'save', 'cancel')),
         ('jordan', 'kiosk', EXISTING_CHILD, ('open', 'cancel')))
     for action in actions
 }
@@ -8953,7 +8955,7 @@ class AccessibleUI:
             self.invalidate_observation()
         return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
-    def natural_reminder_wait(self, record):
+    def natural_reminder_wait(self, record, *, fullscreen=None):
         """Continuously bind public delivery, live balance and removal at Lock.
 
         A lost endpoint, replacement or missed sample fails this observation;
@@ -8964,6 +8966,27 @@ class AccessibleUI:
                 and record['value'] == 30 and record['unit'] == 'second'
                 and record['text'] == 'Save your game now', 'ui:natural-reminder-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
+        require(fullscreen is None or type(fullscreen) is bool, 'ui:natural-reminder-mode')
+        game_application = game_before = None
+        if fullscreen is not None:
+            # Complete the normal game entry and arm its one supported mode
+            # action before approaching the short, unchanged warning interval.
+            for operation in ('game-fullscreen-command' if fullscreen else 'game-command',
+                              'game-opened', 'game-fullscreen-level' if fullscreen else
+                              'game-windowed-level'):
+                self.game_operation(operation, child=CHILD)
+            # Command entry normally ends its observer process with input
+            # consumed. Here the successful launch and independent owned
+            # window/mode result authorize a distinct move in this process.
+            # A failed launch or result never reaches this boundary.
+            self.input_uncertain = False
+            for operation in ('game-move', 'game-moved'):
+                self.game_operation(operation, child=CHILD)
+            game_before = self.game_operation('game-activity', child=CHILD)
+            game_root = self.snapshot_owned_target('onpc-fixture-game-primary', check_prompt=True)
+            require(game_root is not None, 'ui:fullscreen-reminder-game-lost')
+            game_application = game_root.get_application()
+            self._reminder_game_state(game_application, 1, 'Fullscreen' if fullscreen else 'Windowed')
         session, locked = self.natural_expiry_session()
         require(not locked, 'ui:natural-reminder-locked-entry')
         require(self.application_ui is not None, 'ui:natural-reminder-observer-lost')
@@ -9039,7 +9062,7 @@ class AccessibleUI:
                 body, live, priority = message.getText(), message.getValue(), urgency.getValue()
                 require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
                 after = remaining.getValue()
-                require(body == record['text'] and priority == 'critical'
+                require(body == record['text'] and priority == ('high' if fullscreen is False else 'critical')
                         and type(live) is int and 0 < live <= record['value']
                         and after - 2 <= live <= seconds + 2,
                         'ui:natural-reminder-content-or-balance')
@@ -9049,9 +9072,14 @@ class AccessibleUI:
                                 'seconds': live, 'panel_seconds': [after, seconds],
                                 'read_bounds': [started, time.monotonic_ns()]}
                     print('natural-reminder:delivered seconds=' + str(live), file=sys.stderr, flush=True)
+                    if fullscreen is not None:
+                        result = self._fullscreen_reminder_result(application, session, emission,
+                            game_application, game_before, fullscreen)
+                        return {'record': record, 'initial': initial, 'emission': emission,
+                                'session_sha256': session, 'endpoint': endpoint, **result}
             # Real normal Submit/result work continues well before the short
             # warning interval; no last-second input races the natural lock.
-            if seconds > 90 and started >= next_activity:
+            if fullscreen is None and seconds > 90 and started >= next_activity:
                 activity = self.natural_expiry('child-natural-expiry-observe')
                 self.expected_natural_expiry_source = activity['source']
                 activity = self.natural_expiry('child-natural-expiry-activity')
@@ -9064,6 +9092,97 @@ class AccessibleUI:
             previous_end = completed
             samples += 1
             time.sleep(1)
+
+    def _reminder_game_state(self, application, moves, mode):
+        """Read only the pinned game's public subtree, including while a banner is hidden."""
+        require_active_launch_session()
+        self.invalidate_observation()
+        observation = self.read_snapshot(application)
+        root = self.snapshot_owned_target('onpc-fixture-game-primary', observation=observation,
+                                          check_prompt=True)
+        require(root is not None, 'ui:fullscreen-reminder-game-lost')
+        self.native_app_owner(root, 'Game', 'primary')
+        def target(control):
+            node = self.snapshot_owned_target('onpc-fixture-game-primary-' + control,
+                                               observation=observation)
+            require(node is not None, 'ui:fullscreen-reminder-game-control')
+            return node
+        require(target('mode').get_name() == mode + '; level: 1'
+                and target('score').get_name() == f'Moves: {moves}; token: {moves % 4}'
+                and target('submitted').get_name() == 'No submitted draft',
+                'ui:fullscreen-reminder-game-state')
+        draft = target('draft').get_text_iface()
+        require(draft is not None and self.api.Text.get_character_count(draft) == 18
+                and self.api.Text.get_text(draft, 0, 18) == 'ONPC fixture draft',
+                'ui:fullscreen-reminder-game-draft')
+        return root, target
+
+    def _fullscreen_reminder_result(self, application, session, emission,
+                                    game_application, game_before, enabled):
+        """Keep delivery identity and visibility separate from urgency and expiry."""
+        client = application.client
+        deadline = emission['read_bounds'][0] + emission['seconds'] * 1_000_000_000
+        identity = emission['delivery_id']
+        panel = client.getSurfaceById('child-screen-time-indicator')
+        def surface():
+            require(time.monotonic_ns() < deadline
+                    and self.natural_expiry_session() == (session, False),
+                    'ui:fullscreen-reminder-warning-expired')
+            matches = [value for value in client.listSurfaces()
+                       if value['id'] == 'child-time-notification']
+            require(len(matches) == 1 and matches[0].get('delivery_id') == identity,
+                    'ui:fullscreen-reminder-warning-replaced')
+            value = matches[0]
+            require(value['application_id'] == CHILD_PANEL_APPLICATION
+                    and type(value['visible']) is bool and type(value['enabled']) is bool,
+                    'ui:fullscreen-reminder-surface')
+            # The panel remains a public logical surface during fullscreen.
+            # Hidden notification controls are never read or activated here.
+            remaining = panel.getValue('child-remaining-time')
+            require(type(remaining) is int and 0 < remaining <= emission['seconds'] + 2,
+                    'ui:fullscreen-reminder-warning-expired')
+            return value
+        root, target = self._reminder_game_state(game_application, 1,
+                                                'Fullscreen' if enabled else 'Windowed')
+        mode = target('mode')
+        before = surface()
+        require(before['visible'] is True and before['enabled'] is True,
+                'ui:fullscreen-reminder-visible-entry')
+        if not enabled:
+            # One fresh recipient proof and one action, outside every retry.
+            self._invoke_target(target('fullscreen'))
+        while True:
+            started = time.monotonic_ns()
+            value = surface()
+            mode.clear_cache_single()
+            if mode.get_name() == 'Fullscreen; level: 1' and value['visible'] is enabled:
+                require(value['enabled'] is enabled, 'ui:fullscreen-reminder-surface')
+                break
+            time.sleep(.1)
+        bounds = [started, time.monotonic_ns()]
+        require(bounds[1] < deadline, 'ui:fullscreen-reminder-warning-expired')
+        # Independent usable activity in the original fullscreen game. Read
+        # only its scoped public controls while the owned banner is suppressed.
+        root, target = self._reminder_game_state(game_application, 1, 'Fullscreen')
+        require(root.get_process_id() == game_before['pid']
+                and [root.bus, root.path] == game_before['endpoint'],
+                'ui:fullscreen-reminder-game-replaced')
+        self._invoke_target(target('move'))
+        score = target('score')
+        def moved():
+            score.clear_cache_single()
+            return score.get_name() == 'Moves: 2; token: 2'
+        self.wait(moved, 'fullscreen-reminder-game-usable')
+        root, target = self._reminder_game_state(game_application, 2, 'Fullscreen')
+        require(surface()['visible'] is enabled, 'ui:fullscreen-reminder-visibility-changed')
+        self._invoke_target(target('close'))
+        # Let normal window closure reveal the same banner before any broader
+        # desktop reads or subsequent preference/policy comparisons.
+        while not surface()['visible']:
+            time.sleep(.1)
+        return {'fullscreen_enabled': enabled, 'visible': value['visible'],
+                'visibility_read_bounds': bounds, 'delivery_id': identity,
+                'game_before': game_before, 'game_usable_moves': 2}
 
     def child_countdown_animation(self, desired=None, *, child=CHILD):
         """PANEL01/02: owned canonical preference, without popup navigation."""
@@ -11221,19 +11340,20 @@ class AccessibleUI:
             self.input_uncertain = False
             return result
 
-    def overlay_reminder_fullscreen(self, show, *, expected_source=None):
+    def overlay_reminder_fullscreen(self, show, *, expected_source=None,
+                                    surface='overlay', child=CHILD):
         """Set the loaded overlay draft's canonical fullscreen preference once."""
         self._reminder_source_binding(expected_source)
         require(type(show) is bool, 'ui:reminder-fullscreen-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
-        with self.language_scope('overlay'), self._reminder_input_scope():
-            state = self._overlay_reminder_state(source=expected_source)
+        with self.language_scope(surface), self._reminder_input_scope():
+            state = self._overlay_reminder_state(source=expected_source, surface=surface, child=child)
             before = state['payload']
             require(bool(before['records']), 'ui:reminder-fullscreen-disabled')
             control = state['target']('reminder-show-in-fullscreen', sensitive=True)
             self.input_uncertain = True
             control.setValue(show)
-            result = self._overlay_reminder_state()['payload']
+            result = self._overlay_reminder_state(surface=surface, child=child)['payload']
             require(result['show_in_fullscreen'] is show
                     and result['fullscreen_enabled'] is True
                     and result['records'] == before['records']
@@ -11310,6 +11430,9 @@ class AccessibleUI:
                                                              **binding)}
         if action == 'create-warning':
             return {'reminders': self.overlay_reminder_editor(seconds=30, text='Save your game now',
+                expected_source=source, **binding)}
+        if action == 'fullscreen-false':
+            return {'reminders': self.overlay_reminder_fullscreen(False,
                 expected_source=source, **binding)}
         record_id = (self._reminder_row(records, seconds=90, text='Save <work> & games!')['id']
                      if action == 'edit' else None)
@@ -15502,8 +15625,10 @@ class AccessibleUI:
             result.update(self.binding_reminder_operation(operation))
         elif operation in OVERLAY_REMINDER_OPERATIONS:
             result.update(self.overlay_reminder_operation(operation))
-        elif operation == 'child-natural-reminder-wait':
-            result['natural_reminder'] = self.natural_reminder_wait(self.natural_reminder_record)
+        elif operation in NATURAL_REMINDER_OPERATIONS:
+            result['natural_reminder'] = self.natural_reminder_wait(self.natural_reminder_record,
+                fullscreen=None if operation == 'child-natural-reminder-wait' else
+                           operation == 'child-fullscreen-reminder-visible')
         elif operation in KIOSK_REMINDER_OPERATIONS:
             result['reminder'] = (self.kiosk_reminder_preview() if operation ==
                                   'kiosk-reminder-preview' else self.kiosk_reminder_preview_cancel())
@@ -17097,7 +17222,7 @@ def main():
             sys.argv[1] in NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
     overlay_reminder_binding = sys.argv[1] in OVERLAY_REMINDER_MUTATIONS
     natural_reminder_record = (json.loads(sys.argv[4]) if len(sys.argv) == 5
-                              and sys.argv[1] == 'child-natural-reminder-wait' else None)
+                              and sys.argv[1] in NATURAL_REMINDER_OPERATIONS else None)
     overlay_reminder_source = (sys.argv[4] if len(sys.argv) == 5
                               and overlay_reminder_binding else None)
     if overlay_reminder_binding:
@@ -17231,7 +17356,7 @@ def main():
     ui.expected_mate_challenge = (sys.argv[4] if len(sys.argv) == 5 and not trace_argument
         and not diagnostic_binding and not reminder_binding and not overlay_reminder_binding
         and not binding_reminder_binding and not natural_expiry_binding
-        and not countdown_session_binding and sys.argv[1] != 'child-natural-reminder-wait' else None)
+        and not countdown_session_binding and sys.argv[1] not in NATURAL_REMINDER_OPERATIONS else None)
     require(ui.expected_mate_challenge is None or (
         sys.argv[1] in MATE_APPROVAL_OPERATIONS | SHELL_APPROVAL_OPERATIONS | {'overlay-pending-close', 'kiosk-pending-close'} and
         re.fullmatch(r'[0-9a-f]{64}', ui.expected_mate_challenge)), 'ui:mate-binding')

@@ -1130,6 +1130,22 @@ class NaturalReminderQualification(ChallengesQualification):
         return NaturalReminderJourney(context, progress)
 
 
+class FullscreenReminderVisibleQualification(ChallengesQualification):
+    from e2e_fixture_preparation import GAME_SUBSETS as fixture_subsets
+    fixture_caller = 'check_e2e_fullscreen_reminder_visibility'
+    worker_timeout = 2400
+    fullscreen = True
+
+    @classmethod
+    def journey(cls, context, progress):
+        from fullscreen_reminder import FullscreenReminderJourney
+        return FullscreenReminderJourney(context, progress, fullscreen=cls.fullscreen)
+
+
+class FullscreenReminderSuppressedQualification(FullscreenReminderVisibleQualification):
+    fullscreen = False
+
+
 class ShellPanelQualification(ChallengesQualification):
     @staticmethod
     def journey(context, progress):

@@ -734,6 +734,12 @@ sub run {
         onpc_challenges::natural_reminder(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{fullscreen_reminder}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_challenges::fullscreen_reminder(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{natural_expiry}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

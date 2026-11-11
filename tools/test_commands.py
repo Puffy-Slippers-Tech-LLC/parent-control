@@ -111,7 +111,7 @@ INSTALLED_E2E_FIXTURE_SELECTORS = frozenset({'check_fixture_e2e_installed'} | {
     set_jordan_thirty_minute_allowance shell_panel shell_search shell_search_results station_shortcuts terminal_provider
     text time_explanation time_profiles_daily time_profiles_grant time_profiles_dominant toggle trace trace_stable_state unlock
     wait_a_bounded_real_interval_under_the_attempt_guard window_switch
-    natural_reminder_observation
+    natural_reminder_observation fullscreen_reminder_visibility
     '''.split()})
 
 # Asset-bearing product-free smoke boundaries; GDM-only intentionally selects

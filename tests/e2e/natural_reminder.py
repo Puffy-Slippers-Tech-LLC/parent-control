@@ -37,12 +37,14 @@ PLAN = JourneyPlan(
 
 
 class NaturalReminderJourney(GrantOnlyProfileJourney):
-    def __init__(self, context, progress):
-        super().__init__(context, progress, PLAN, grant_seconds=600,
-                         actions={**fixture_actions(include_refusal=False),
+    def __init__(self, context, progress, plan=PLAN, *, fullscreen=True, actions=None):
+        super().__init__(context, progress, plan, grant_seconds=600,
+                         actions=actions if actions is not None else {**fixture_actions(include_refusal=False),
                                   'prepare-reminder': self.prepare_reminder,
                                   'observe-reminder': self.observe_reminder})
         self.saved_reminder = None
+        self.saved_preferences = None
+        self.fullscreen_preference = fullscreen
 
     @staticmethod
     def prepare_reminder(journey, guard):
@@ -61,17 +63,21 @@ class NaturalReminderJourney(GrantOnlyProfileJourney):
         observe('delete-all')
         draft = observe('create-warning')
         require(draft['show_in_fullscreen'] is True, 'natural-reminder:fullscreen')
+        if journey.fullscreen_preference is False:
+            draft = observe('fullscreen-false')
         observe('save')
         value = observe('open')
         require(value['records'] == draft['records'] and value['language'] == draft['language'],
                 'natural-reminder:saved-readback')
-        require(len(value['records']) == 1 and value['show_in_fullscreen'] is True,
+        require(len(value['records']) == 1 and value['show_in_fullscreen'] is journey.fullscreen_preference,
                 'natural-reminder:saved-preferences')
         row = value['records'][0]
         require(row == {'id': row['id'], 'value': 30, 'unit': 'second',
                         'text': 'Save your game now'}, 'natural-reminder:saved-record')
         observe('cancel')
         journey.saved_reminder = deepcopy(row)
+        journey.saved_preferences = {key: deepcopy(value[key])
+                                     for key in ('records', 'language', 'show_in_fullscreen')}
         journey.ui.natural_reminder_record = deepcopy(row)
         guard()
         return value

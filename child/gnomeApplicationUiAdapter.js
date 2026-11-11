@@ -45,6 +45,12 @@ export class GnomeApplicationUiAdapter {
             (current.card?.visible ?? true);
     }
 
+    _deliveryId(current) {
+        if (!this._deliveryIds.has(current.notification))
+            this._deliveryIds.set(current.notification, GLib.uuid_string_random());
+        return this._deliveryIds.get(current.notification);
+    }
+
     listSurfaces() {
         const state = this._state();
         if (!state.available) return [];
@@ -58,6 +64,7 @@ export class GnomeApplicationUiAdapter {
             modal: false, parent_id: null});
         if (this._indicator._notifications?.current) surfaces.push({
             id: 'child-time-notification', application_id: APPLICATION_ID,
+            delivery_id: this._deliveryId(this._indicator._notifications.current),
             type: 'notification', visible: this._notificationVisible(this._indicator._notifications.current),
             enabled: this._notificationVisible(this._indicator._notifications.current), modal: false, parent_id: null});
         return surfaces;
@@ -90,9 +97,7 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
-            if (!this._deliveryIds.has(current.notification))
-                this._deliveryIds.set(current.notification, GLib.uuid_string_random());
-            const deliveryId = this._deliveryIds.get(current.notification);
+            const deliveryId = this._deliveryId(current);
             const visible = this._notificationVisible(current);
             const element = (id, type, operations) =>
                 ({id, type, visible, enabled: visible, ...operations});

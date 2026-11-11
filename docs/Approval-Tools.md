@@ -521,6 +521,39 @@ before the subcommand. It does not authorize product publication.
 Restart Codex with this
 checkout trusted to load the updated rules.
 
+### Destination work snapshots with existing grants
+
+Before saving a dirty destination for propagation, inspect it from that
+checkout's command-tool working directory with direct approved readers:
+
+```sh
+git status --porcelain=v1 --untracked-files=all
+git diff --binary --full-index
+git diff --cached --binary --full-index
+git ls-files --others --exclude-standard
+ls -ld -- 'path/to/active-file' 'path/to/untracked-file'
+sha256sum -- 'path/to/active-file' 'path/to/untracked-file'
+```
+
+Use the actual paths returned by inspection. Git diffs preserve tracked content
+and Git file modes; `ls -ld` records filesystem type and permissions without
+following a final symlink. Hash only regular files, including untracked files;
+inspect symlink targets through the listing and Git diff instead. Record absent
+or deleted paths through Git status. Record the snapshot in the recovery journal
+with native `apply_patch`; Git-generated patches may use `git diff --output`
+as in the isolated staging procedure below. Keep commands direct and operands
+quoted, without shell loops, redirections or interpreter wrappers.
+
+These commands use existing reader and Git grants. Do not replace them with an
+ad hoc `python3 -c` snapshot: general host interpreters require approval even
+when their proposed code only reads files, so unattended sessions refuse them.
+An actual denial still stops the operation; this recipe does not authorize
+retrying a denied command or expanding permissions. Before saving work, confirm
+the recorded branch, HEAD and active changes still match. After restoring with
+the index state, verify the saved work against the snapshot, accounting for the
+incoming committed changes. Retain backups on mismatch or conflict and follow
+the shared conflict-resolution procedure.
+
 ### Isolated staging with existing grants
 
 The commit skill uses direct Git commands for the entire transaction, including

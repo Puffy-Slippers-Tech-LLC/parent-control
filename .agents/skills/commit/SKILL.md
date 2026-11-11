@@ -38,6 +38,10 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
    push each, preserving local and remote work. Do not force-push, invent missing
    branches or alter Git configuration. Reuse an applicable maintained public
    workflow when available; do not invoke private launcher helpers ad hoc.
+   Before saving dirty destination work, follow the Git contract's
+   [destination snapshot procedure](../../../docs/Approval-Tools.md#destination-work-snapshots-with-existing-grants).
+   Use its direct Git, checksum and metadata readers for preservation checks;
+   ad hoc host interpreter commands require approval in unattended sessions.
    For final remote verification, use direct `git fetch --no-tags REMOTE REF`
    commands under the existing Git grant, then check that `FETCH_HEAD` contains
    the pinned commit with `git merge-base --is-ancestor`. Set the command tool's

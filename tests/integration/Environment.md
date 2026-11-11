@@ -23,11 +23,12 @@ the program does not guess a newest image or download one.
 
 `config/HOST-vm-template.xml` supplies the hardware and
 `metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
-80 GiB). Both supplied templates use the shared 4.5 GiB/6-vCPU Q35 BIOS
-configuration, unrestricted host CPU placement, virtio graphics without 3D,
-sound and a guest-agent channel. The local template exports host `/Data` as a
-writable virtiofs share with mount tag `data`; the server template has no host
-folder share. These developer shares are optional and unrelated to test inputs.
+80 GiB). Both supplied templates use 4.5 GiB RAM, Q35 BIOS,
+unrestricted host CPU placement, virtio graphics without 3D,
+sound and a guest-agent channel. The local template uses 6 vCPUs (3 cores,
+2 threads per core); the myserver template uses 4 vCPUs (4 cores, 1 thread per
+core). Both export host `/Data` as a writable virtiofs share with mount tag
+`data`. These developer shares are optional and unrelated to test inputs.
 Under the [shared-folder boundary](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
 baseline preparation and tests leave their guest mount configuration, directories,
 ownership and contents alone. They neither require a working share nor reconcile

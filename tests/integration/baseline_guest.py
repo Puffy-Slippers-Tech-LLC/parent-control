@@ -217,6 +217,63 @@ def recover_source_staging(g):
         g.sync()
 
 
+def configure_developer_share(g, root):
+    """Preserve host paths through the templates' optional data virtiofs share."""
+    shares = [share for share in root.findall('devices/filesystem')
+              if share.find('target') is not None and share.find('target').get('dir') == 'data']
+    if not shares:
+        return
+    require(len(shares) == 1, 'guest:developer-share-duplicate')
+    share = shares[0]
+    require(share.get('type') == 'mount' and share.find('driver') is not None
+            and share.find('driver').get('type') == 'virtiofs'
+            and share.find('source') is not None and share.find('source').get('dir') == '/Data'
+            and share.find('readonly') is None, 'guest:developer-share-mapping')
+    for base in ('/etc/systemd/system', '/usr/lib/systemd/system'):
+        for unit in ('Data.mount', 'Data.automount'):
+            path = base + '/' + unit
+            require(not g.exists(path) and not g.is_symlink(path),
+                    'guest:developer-share-unit-conflict')
+    path = '/etc/fstab'
+    require(g.realpath(path) == path, 'guest:developer-share-fstab-path')
+    info = g.lstatns(path)
+    require(stat.S_ISREG(info['st_mode']) and info['st_uid'] == info['st_gid'] == 0
+            and info['st_nlink'] == 1 and not info['st_mode'] & 0o7022,
+            'guest:developer-share-fstab-file')
+    require(g.filesize(path) <= 65536, 'guest:developer-share-fstab-size')
+    original = g.read_file(path)
+    require(b'\x00' not in original, 'guest:developer-share-fstab-content')
+    expected = b'data /Data virtiofs defaults,nofail 0 0'
+    related = []
+    for line in original.splitlines():
+        fields = line.split(b'#', 1)[0].split()
+        # Decode fstab's escapes before checking for conflicting mount points.
+        decoded = [re.sub(rb'\\([0-7]{3})', lambda match: bytes([int(match[1], 8)]), field)
+                   for field in fields]
+        if decoded and (decoded[0] == b'data' or len(decoded) > 1 and
+                        (decoded[1] == b'/Data' or decoded[1].startswith(b'/Data/'))):
+            related.append(decoded)
+    require(not related or related == [expected.split()],
+            'guest:developer-share-fstab-conflict; expected data /Data virtiofs defaults,nofail 0 0')
+    present = g.exists('/Data') or g.is_symlink('/Data')
+    if present:
+        info = g.lstatns('/Data')
+        require(g.realpath('/Data') == '/Data' and stat.S_ISDIR(info['st_mode'])
+                and info['st_uid'] == info['st_gid'] == 0 and not info['st_mode'] & 0o7022
+                and info['st_mode'] & 0o555 == 0o555, 'guest:developer-share-directory')
+        require(not g.ls('/Data'), 'guest:developer-share-directory-not-empty')
+    else:
+        g.mkdir('/Data')
+        g.chmod(0o755, '/Data')
+    desired = original if related else original + (b'\n' if original and not original.endswith(b'\n')
+                                                  else b'') + expected + b'\n'
+    if desired != original:
+        g.write(path, desired)
+    require(g.read_file(path) == desired, 'guest:developer-share-fstab-readback')
+    # Only these local paths are labelled, never the host share's contents.
+    label_preparation(g, [path, '/Data'])
+
+
 def prepare_source_retirement(g):
     """Prove old copied sources by their original marker-bound digest."""
     from baseline_fixtures import regular, write_record
@@ -527,7 +584,12 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
             verify_clean(g)
             if os_id == 'ubuntu':
                 verify_native_rules(g)
-        return
+    # Publish developer mounts only after all preparation boots have finished.
+    # Test leases continue to detach host shares; nofail permits those boots.
+    with operation('Configuring the permanent developer share'), mounted(guestfs, capture) as g:
+        root = ET.fromstring(capture.source.domain.XMLDesc(
+            capture.source.api.VIR_DOMAIN_XML_INACTIVE))
+        configure_developer_share(g, root)
 
 
 def configure_clipboard(root):

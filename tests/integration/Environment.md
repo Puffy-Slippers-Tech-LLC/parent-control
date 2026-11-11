@@ -28,11 +28,17 @@ unrestricted host CPU placement, virtio graphics without 3D,
 sound and a guest-agent channel. The local template uses 6 vCPUs (3 cores,
 2 threads per core); the myserver template uses 4 vCPUs (4 cores, 1 thread per
 core). Both export host `/Data` as a writable virtiofs share with mount tag
-`data`. These developer shares are optional and unrelated to test inputs.
+`data`. `tools/prepare-vm` creates the guest `/Data` mount point and adds the
+persistent fstab entry `data /Data virtiofs defaults,nofail 0 0` after its
+preparation boots, so normal guest boots expose the same paths as the host,
+including `/Data/Code/PST/parent-control-test`. Matching entries are reused;
+conflicting configuration or nonempty local mount points are refused. VMs
+without the `data` export are left unchanged. These developer shares are optional
+and unrelated to test inputs; `nofail` permits booting when a share is detached.
 Under the [shared-folder boundary](../../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline),
-baseline preparation and tests leave their guest mount configuration, directories,
-ownership and contents alone. They neither require a working share nor reconcile
-old share records. Maintained guest modules and attempt inputs are staged
+tests leave the guest mount configuration alone, and preparation never changes
+host share contents or ownership. Neither migrates old share records.
+Maintained guest modules and attempt inputs are staged
 privately through their existing owners, independently of developer shares.
 
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached

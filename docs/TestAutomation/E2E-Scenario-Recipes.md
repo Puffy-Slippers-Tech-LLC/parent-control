@@ -67,6 +67,43 @@ or in-journey reset is part of this history. The 1800-second functional budget
 includes sign-in, public reads and worker shutdown; no short measured interval
 or local validation matrix is introduced.
 
+## Saved warnings during play and after reboot
+
+Case **266**, `E2E-065/warnings-play-renewal-reboot`, uses
+`reminder_notifications.PLAN` / `ReminderNotificationsJourney` and
+`onpc_kiosk_reminders::notifications`. Read both untouched four-row defaults,
+save zero daily time for both children, and save German for Riley while Jordan
+keeps English. A real four-minute approval starts the default-warning interval;
+arm the shared continuous observer with at least 120 usable seconds and less
+than five minutes remaining. Observe both naturally crossed 1-minute/15-second
+warnings, current localized bodies, Critical urgency, distinct delivery identities,
+no repeated delivery and removal at the original natural lock. The saved 5/10-minute
+defaults are checked without waiting for their delivery.
+
+Before further approvals, save Riley's sole 15-second reminder with literal
+`Save your game now`. Independently read it across English/German saves and
+require Jordan's entire original list unchanged. Renew ten minutes for each of
+two intervals: fullscreen enabled/Critical/visible, then disabled/High/suppressed.
+Reuse the same owned game and its qualified single normal fullscreen transition
+within each interval; require independent banner visibility, the current warning's
+identity and continued original-game use. The shared observer remains pinned
+through natural lock and checks disappearance, with no settings work inside
+either short warning lifetime. Renewed intervals must produce new identities
+for the same saved reminder, with no duplicate during an unchanged countdown.
+
+Save Jordan's empty list and retain Riley's German custom list/fullscreen false.
+Reboot normally from Jamie's desktop and independently observe a changed boot.
+Read both saved choices before edits or approval; require no restored presets.
+Renew Riley's ten-minute access and observe the retained custom warning again.
+Compare both children's original saved zero-daily policies and app rules, with
+zero remaining grants after natural exhaustion; finish at usable sign-in.
+The two-hour functional budget covers all four real intervals, account/approval
+transitions, settings, reboot and worker shutdown. Preparation and observer
+budgets follow [explicit time preparation](#explicit-time-preparation) and the
+[VM timing contract](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience).
+The first live run and affected natural/fullscreen qualifications use only the
+developer-selected Ubuntu family; registration supplies no Fedora acceptance.
+
 ## Saved child reminders after reboot
 
 Case **263**, `E2E-062/saved-empty-reboot`, composes

@@ -1,4 +1,9 @@
 {
+  "E2E-065": {
+    "expected": "Both default warnings arrive naturally, custom text stays literal, fullscreen choices govern the same warning, renewal rearms it and reboot retains each child's independent choices.",
+    "summary": "Follow Riley's warnings during work and fullscreen play, then check both children after restart.",
+    "steps": ["Read both default lists, save Riley's German language and approve four minutes. Observe the one-minute and fifteen-second warnings through natural locking. Save a literal fifteen-second warning and check language and child isolation. Renew access for enabled and disabled fullscreen delivery, retaining identity through each natural lock. Save Jordan's empty list, reboot, read both saved choices and renew Riley's access for custom delivery. Compare both policies and return to sign-in."]
+  },
   "E2E-064": {
     "expected": "Riley reads the child updates, returns to the same usable request and leaves without granting time or changing saved rules.",
     "summary": "Read Riley's release notes and return to her request for Jamie.",

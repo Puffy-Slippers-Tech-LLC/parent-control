@@ -179,6 +179,10 @@ sub enter_kiosk_mate_password {
             my $game = ($journey->{prefix} // '') =~ /\Agame-(?:expiry|fullscreen)-request\z/
                 && ($journey->{stage_prefix} // '') eq 'request-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,600,1';
+            my $reminders = ($journey->{prefix} // '') =~ /\Areminder-notifications-(first|enabled|disabled|after)\z/
+                && ($journey->{stage_prefix} // '') eq $1 . '-'
+                && ref($request) eq 'ARRAY' && join(',', @$request) eq
+                    ($1 eq 'first' ? 'child,parent,240,1' : 'child,parent,600,1');
             $game ||= ($journey->{prefix} // '') =~ /\Agame-access-(request|recovery)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
@@ -186,7 +190,7 @@ sub enter_kiosk_mate_password {
             $game ||= ($journey->{prefix} // '') =~ /\Agame-permission-(windowed|fullscreen)-included\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-included-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,900,1';
-            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game ||
+            die 'secret:challenge' unless ($temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4

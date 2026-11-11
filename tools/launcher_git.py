@@ -659,6 +659,9 @@ unfinished destinations with that same commit and never create another task
 commit. Inspect Git and the journal after an interruption before replaying any
 write. If a write cannot be identified safely, stop blocked and preserve work.
 Restore saved work with its index state; retain recoverable stashes on failure.
+For dirty destination snapshots, follow docs/Approval-Tools.md section
+"Destination work snapshots with existing grants", linked from the commit skill.
+Use its existing direct readers; do not construct ad hoc host interpreter probes.
 Return complete only after every configured destination is pushed and the source
 checkout is back on its original branch. Otherwise return blocked with the exact
 blocker and completed destinations. Do not modify the controller checkpoint.

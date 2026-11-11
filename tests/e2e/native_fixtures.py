@@ -96,19 +96,21 @@ class NativeFixtures:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                  APP_SET_CALLER, LIFECYCLE_SUBSETS,
                                                  SUBSETS, GAME_SUBSETS, GAME_CALLERS,
+                                                 REMINDER_SUBSETS, REMINDER_CALLER,
                                                  asset_hashes, qualified_subsets)
             prepared = getattr(self.verified, 'fixture_prepared', None)
             require(type(prepared) is dict, 'fixtures:readiness-required')
             subsets = qualified_subsets(prepared.get('subsets', SUBSETS),
                 caller=prepared.get('caller'), product_free=prepared.get('product_free', False))
-            selected_activity = (self.profile == 'activity' and subsets == ACTIVITY_SUBSETS
-                                 and prepared.get('caller') in ACTIVITY_CALLERS)
+            reminders = subsets == REMINDER_SUBSETS and prepared.get('caller') == REMINDER_CALLER
+            selected_activity = (self.profile == 'activity' and (reminders or subsets == ACTIVITY_SUBSETS
+                                 and prepared.get('caller') in ACTIVITY_CALLERS))
             selected_child = (self.profile == 'baseline-child' and (
-                subsets == ACTIVITY_SUBSETS and prepared.get('caller') in ACTIVITY_CALLERS
+                reminders or subsets == ACTIVITY_SUBSETS and prepared.get('caller') in ACTIVITY_CALLERS
                 or subsets == LIFECYCLE_SUBSETS and prepared.get('caller') == APP_SET_CALLER
                 and not prepared.get('product_free', False)))
-            selected_game = (self.profile == 'game' and subsets == GAME_SUBSETS
-                             and prepared.get('caller') in GAME_CALLERS)
+            selected_game = (self.profile == 'game' and (reminders or subsets == GAME_SUBSETS
+                             and prepared.get('caller') in GAME_CALLERS))
             require(self.profile in ('native', 'chinese') or selected_game or selected_activity or selected_child,
                     'fixtures:e2e-profile-not-qualified')
             require({'controller', 'receipt'} <= set(prepared)

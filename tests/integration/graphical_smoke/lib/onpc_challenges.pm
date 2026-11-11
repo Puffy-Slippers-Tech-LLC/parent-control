@@ -224,6 +224,34 @@ sub natural_reminder {
     $journey->finish();
 }
 
+sub fullscreen_reminder {
+    onpc_progress::operation('Riley plays through the warning and keeps the saved reminder and parent policy');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'fullscreen-reminder:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'natural-reminder', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    $journey->{kiosk_request} = ['child', 'parent', 600, 1];
+    onpc_gdm::reattach_functional();
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
+    $journey->seen($_) for ('profile-balance', 'policy-before');
+    onpc_gdm::sign_in_challenge($journey, 'child-login',
+        'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
+    $journey->invoke('natural-reminder');
+    $journey->seen($_) for ('child-logout', 'child-logged-out');
+    my $desktop = onpc_gdm::sign_in_challenge($journey, 'return-parent',
+        'return-installed-greeter', 'return-parent-focused', 'return-desktop');
+    onpc_parent::launch($journey, $desktop, 'management', 'return-desktop');
+    my $selected = onpc_parent::select_child($journey, 'child', $journey->seen('return-child-picker-opened'),
+        'return-child-picker-opened', 'return-child-choice-highlighted', 'return-parent-selected');
+    $journey->consume_observation('return-parent-selected', $selected);
+    $journey->seen($_) for ('policy-after', 'parent-switch', 'parent-gdm');
+    onpc_request_flow::prepare($journey, 'new', 'new', 'observed',
+        'fixture-child', 'fixture-parent', 600, 1, 'kiosk');
+    $journey->seen($_) for ('saved-reminder-check', 'cancel', 'returned');
+    $journey->finish();
+}
+
 sub suspend_active_grant {
     my ($exchange, $declared, $challenges, $request) = @_;
     die 'suspend-active-grant:plan' unless (@_ == 3 || @_ == 4) && ref($exchange) eq 'CODE'

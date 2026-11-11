@@ -64,6 +64,9 @@ def main(argv=None):
             window.connect('notify::fullscreened', read_mode)
             read_mode()
             content.append(mode)
+            fullscreen = set_automation_id(Gtk.Button(label='Enter fullscreen'), scope + '-fullscreen')
+            fullscreen.connect('clicked', lambda _button: window.fullscreen())
+            content.append(fullscreen)
         # GtkText is an internal delegate with accessibility role NONE. Publish
         # the GtkEntry itself; Edit draft focuses it through normal GTK input.
         draft = set_automation_id(Gtk.Entry(), scope + '-draft')

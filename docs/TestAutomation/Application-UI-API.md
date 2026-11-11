@@ -72,6 +72,10 @@ processes use `UIClient("child-request", owner=unique_owner,
 object_path=exported_path)` with the actual launch-owned bus identity/path;
 the consuming shared launch adapter must supply those details. Ordinary cases keep the same
 facade and never infer a process from a window title or translated text.
+The owned `child-time-notification` surface also includes `delivery_id`, the
+same opaque UUID as its current-delivery value. This read-only metadata remains
+available during fullscreen suppression, so observers can compare the original
+delivery and logical visibility without reading or operating hidden controls.
 
 `Call(s surface_id, s element_id, s operation, s arguments_json) -> s` accepts
 a JSON object and returns a JSON value. Operation names and keys are case-sensitive.
@@ -340,7 +344,9 @@ surface at the `child-panel` endpoint, independently of panel visibility. Both
 live reminders and previews refuse input during lock and greeter transitions.
 Natural delivery, content, live balance, urgency, current-delivery identity and
 lock-removal observation are qualified on Ubuntu 26.04 through
-`check_e2e_natural_reminder_observation`; fullscreen visibility remains pending. The reminder
+`check_e2e_natural_reminder_observation`; `check_e2e_fullscreen_reminder_visibility`
+qualifies enabled fullscreen delivery and same-warning suppression after entering
+fullscreen with the saved preference disabled on Ubuntu 26.04. The reminder
 preferences dialog publishes its own guarded public IDs and normal handlers;
 these read-only observations provide no settings input or backend-edit bypass.
 

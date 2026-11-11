@@ -812,6 +812,7 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     const elements = adapter.elements('child-time-notification');
     const delivery = elements.find(element => element.id === 'child-time-notification');
     const deliveryId = delivery.getValue();
+    assert.equal(adapter.listSurfaces().at(-1).delivery_id, deliveryId);
     assert.equal(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getText(),
         h.notifier.current.notification.body);
@@ -837,6 +838,8 @@ test('notification UI adapter exposes actual current text and canonical urgency 
         }
         h.notifier.current.card.visible = false;
         assert(!adapter.listSurfaces().find(item => item.id === surface).enabled);
+        assert.equal(adapter.listSurfaces().find(item => item.id === 'child-time-notification').delivery_id,
+            deliveryId, 'surface identity remains independently readable during suppression');
         assert(adapter.elements(surface).every(element => !element.visible && !element.enabled));
         h.notifier.current.card.visible = true;
     }
@@ -848,6 +851,7 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     h.notifier.update(15, true);
     h.policyReply(false);
     assert.notEqual(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
+    assert.notEqual(adapter.listSurfaces().at(-1).delivery_id, deliveryId);
     preview.current = null;
     assert.equal(adapter.elements('child-reminder-preview'), null);
     h.notifier.clear();

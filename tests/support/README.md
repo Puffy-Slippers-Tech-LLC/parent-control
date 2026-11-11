@@ -49,6 +49,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
 | Connection to a restored baseline | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` | Fixture snapshot and provisioning checks share observation-only SSH bootstrap, owned start, host-key binding and guarded readiness. Callers prepare the private directory and finite selection; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
 | Real elapsed time inside an installed journey | [real_interval.py](../e2e/real_interval.py) | `interval_action(duration)` waits one finite interval; `wait_until(journey, guard, target)` reaches a caller-owned controller-monotonic target in bounded intervals under the same attempt deadline, ownership checks and watch output. Keep the original grant deadline, lead time and independent expiry/suspend-crossing assertions in the caller; elapsed time alone proves no product result. |
+| Child warnings during work or fullscreen play | [natural_reminder.py](../e2e/natural_reminder.py), [fullscreen_reminder.py](../e2e/fullscreen_reminder.py), [accessible_ui.py](../e2e/accessible_ui.py) | Reuse `NaturalReminderJourney.prepare_reminder` and `AccessibleUI.natural_reminder_wait`; finish saved-preference readback before issuing time. Callers keep their finite warning, game, policy and natural-lock assertions. Exact qualified bindings remain in the [reminder catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#reminder-controls-and-notification-qualification). |
 | Guest observations against a calendar deadline | [guest_observations.py](../e2e/guest_observations.py) `calendar_epoch_bounds` | Project the original same-boot countdown, estimate-calculation or lock-read bracket through TIME05's guest clock bracket. Callers retain clock continuity, calendar windows, precision and product deadline assertions; see [timing resilience](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). |
 | Package changes during a journey | [package_command.py](../e2e/package_command.py) `PackageCommand` | Product and catalogue-fixture commands share single-use submission, disk admission, guarded transport, input rechecks and bounded output. Keep package identity/phase checks and independent completion/version results in their respective readers. Cases own the package-change order and public policy/draft assertions; see the [catalogue update/removal bindings](../../docs/TestAutomation/E2E-Building-Blocks.md#native-launch-denial-qualification). Installed engineering histories retain `system_guest`'s checkout installation through `make install`. |
 
@@ -1224,6 +1225,11 @@ Keep preparation outside the retry predicate too; an earlier successful desktop
 read is not a current launch proof.
 The launch command runs once outside the wait, with the uncertain-input latch
 set before submission and independent window/activity readback afterward.
+When composing launch and later activity in one observer process, reuse the
+confirmed-action boundary in `AccessibleUI.natural_reminder_wait`: only a
+successful launch plus independent owned-window and mode readback permits its
+distinct next action. A failed or uncertain launch never reaches that boundary.
+Do not clear the latch in a consumer or a retry predicate to continue after failure.
 Native desktop-icon operations use the same bounded complete-read policy for
 their window-absence preflight. A retiring unrelated provider discards that
 observation; a complete existing-window refusal stays terminal. Focus, Ctrl+A
@@ -1366,6 +1372,15 @@ scoped to the pinned application/surface. Host and guest consumers must not
 consult the accessibility tree to fill a missing product value or retry an API
 refusal through a provider. Read waits may reacquire observations; input never
 runs inside those retry predicates.
+
+For a continuous product observation, use `read_snapshot(application)` with the
+original pinned product owner rather than rediscovering the whole desktop on
+every sample. `AccessibleUI.natural_reminder_wait` shares this route across normal
+work and fullscreen play; unrelated desktop providers may retire during locking.
+Observe the lock through its separate qualified provider, and retain endpoint,
+delivery-identity and sampling-gap refusals. For a suppressed warning, compare
+the same delivery's public surface metadata; urgency alone does not establish
+visibility, and hidden controls remain unavailable.
 
 The complete `AccessibleUI.nodes` read boundary includes deferred product-label
 projection after inventory traversal. If an application exits during either

@@ -435,10 +435,16 @@ the existing case or unfinished brief, linked here.
   Reuse matching state without rewriting it, update only proven owned inputs,
   preserve unrelated files/accounts/settings, and safely resume partial work.
   Refuse links, foreign ownership, ambiguous state and unexpected collisions.
-  Developer host/guest shared folders are outside that inventory. Preparation
-  and tests ignore their guest mount configuration, contents and directory ownership,
-  including ancestor directories; do not configure, mount, relabel or take over
-  them. Test inputs use the existing private staging and transfer routes instead.
+  For a VM exporting host `/Data` as writable virtiofs tag `data`, preparation
+  configures the permanent guest mount at `/Data`, preserving identical host/guest
+  paths. It creates an absent local mount point and adds
+  `data /Data virtiofs defaults,nofail 0 0` to `/etc/fstab` after preparation boots.
+  Reuse matching configuration; refuse conflicting mount records, unsafe paths
+  and nonempty local mount points. VMs without tag `data` remain unchanged.
+  Preparation may label the local mount point and fstab offline, never host
+  contents. Shared contents and ownership remain outside the preparation inventory;
+  tests never configure or require these mounts. Test inputs use the existing
+  private staging and transfer routes instead.
   Existing VM isolation and snapshot provenance guards still detach or refuse
   host filesystem devices in disposable test configurations.
   Verify bytes, modes, owners and configuration before capture; bind environment,

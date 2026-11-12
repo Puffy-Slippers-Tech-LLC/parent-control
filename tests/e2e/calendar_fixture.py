@@ -50,7 +50,8 @@ def preset_ordinary_midnight(journey, guard):
 
 def preset_ordinary_daytime(journey, guard):
     """Start a declared non-calendar journey at noon, independent of host time."""
-    return _preset_ordinary(journey, guard, ORDINARY_DAYTIME, ('homework-game',))
+    return _preset_ordinary(journey, guard, ORDINARY_DAYTIME,
+                            ('homework-game', 'game-permission', 'riley-game-permission', 'family-routines'))
 
 
 def _preset_ordinary(journey, guard, program, prefixes):

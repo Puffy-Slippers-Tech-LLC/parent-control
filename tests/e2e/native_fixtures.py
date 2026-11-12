@@ -69,9 +69,11 @@ class PackagedFixtures:
 
 
 class NativeFixtures:
-    def __init__(self, transport, verified, *, profile='native'):
+    def __init__(self, transport, verified, *, profile='native', child='existing'):
         require(profile in ('native', 'game', 'chinese', 'riley-grid', 'activity', 'baseline-child'),
                 'native:profile')
+        require(child == 'existing' or child == 'child' and profile == 'game', 'native:child-binding')
+        self.child = child
         self.profile = profile
         self.transport, self.verified = transport, verified
         self.attempt = dict(transport.config)
@@ -96,6 +98,7 @@ class NativeFixtures:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                  APP_SET_CALLER, LIFECYCLE_SUBSETS,
                                                  SUBSETS, GAME_SUBSETS, GAME_CALLERS,
+                                                 RILEY_GAME_SUBSETS, RILEY_GAME_CALLERS,
                                                  REMINDER_SUBSETS, REMINDER_CALLER,
                                                  asset_hashes, qualified_subsets)
             prepared = getattr(self.verified, 'fixture_prepared', None)
@@ -107,10 +110,14 @@ class NativeFixtures:
                                  and prepared.get('caller') in ACTIVITY_CALLERS))
             selected_child = (self.profile == 'baseline-child' and (
                 reminders or subsets == ACTIVITY_SUBSETS and prepared.get('caller') in ACTIVITY_CALLERS
+                or subsets == RILEY_GAME_SUBSETS and prepared.get('caller') in RILEY_GAME_CALLERS
                 or subsets == LIFECYCLE_SUBSETS and prepared.get('caller') == APP_SET_CALLER
                 and not prepared.get('product_free', False)))
             selected_game = (self.profile == 'game' and (reminders or subsets == GAME_SUBSETS
-                             and prepared.get('caller') in GAME_CALLERS))
+                             and prepared.get('caller') in GAME_CALLERS
+                             or subsets == RILEY_GAME_SUBSETS and prepared.get('caller') in RILEY_GAME_CALLERS))
+            require(self.child != 'child' or subsets == RILEY_GAME_SUBSETS
+                    and prepared.get('caller') in RILEY_GAME_CALLERS, 'fixtures:e2e-profile-not-qualified')
             require(self.profile in ('native', 'chinese') or selected_game or selected_activity or selected_child,
                     'fixtures:e2e-profile-not-qualified')
             require({'controller', 'receipt'} <= set(prepared)
@@ -118,17 +125,19 @@ class NativeFixtures:
                     'fixtures:readiness-required')
             prepared['controller'].require_ready(prepared['receipt'])
             files = asset_hashes(selection, **({'subsets': subsets, 'caller': prepared['caller'],
-                                                'child': selected_child,
+                                                'child': selected_child or self.child == 'child',
                                                 'product_free': prepared.get('product_free', False)}
                                                if subsets != SUBSETS else {}))
         else:
+            require(self.child == 'existing', 'fixtures:readiness-required')
             files = self.verified.asset_files
         expected = ({name: files[name] for name in names}
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity', 'game'):
             require(len({expected[name] for name in executable_sources()}) == len(ASSETS), 'native:identical-roles')
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
-                                   ('baseline-child-selected' if selected_child else
+                                   ('riley-game' if self.child == 'child' else
+                                    'baseline-child-selected' if selected_child else
                                     'activity-selected' if selected_activity else
                                     'native-selected' if selection is not None and self.profile == 'native'
                                     else self.profile),
@@ -190,8 +199,9 @@ class NativeFixtures:
                          [desktop_id(asset[0]) for asset in
                           (ASSETS if self.profile == 'baseline-child' else LAUNCHERS)])
             require(set(value) == {'files', 'launchers'} |
-                        ({'child_role'} if self.profile == 'baseline-child' else set())
+                        ({'child_role'} if self.profile == 'baseline-child' or self.child == 'child' else set())
                     and (self.profile != 'baseline-child' or value['child_role'] == 'child')
+                    and (self.child != 'child' or value['child_role'] == 'child')
                     and set(value['files']) == set(names)
                     and value['launchers'] == launchers,
                     'native:receipt')
@@ -199,16 +209,17 @@ class NativeFixtures:
             self.receipt = value
         self.failed = False
         return {'verified': len(launchers), 'verified_files': len(value['files']),
-                **({'child_role': 'child'} if self.profile == 'baseline-child' else {}),
+                **({'child_role': 'child'} if self.profile == 'baseline-child' or self.child == 'child' else {}),
                 'independent_readback': True}
 
 
-def fixture_actions(*, include_refusal=True, profile='native'):
+def fixture_actions(*, include_refusal=True, profile='native', child='existing'):
     """Fresh lifetime owner for an independent caller's guarded attempt."""
     require(type(include_refusal) is bool, 'native:action-binding')
     def controller(journey):
         if not hasattr(journey, 'native_fixtures'):
-            journey.native_fixtures = NativeFixtures(journey.transport, journey.context.verified, profile=profile)
+            journey.native_fixtures = NativeFixtures(journey.transport, journey.context.verified,
+                                                    profile=profile, child=child)
         return journey.native_fixtures
 
     def refuse(journey, guard):

@@ -810,7 +810,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
          parent_rtl=False, parent_dialog_language=False, parent_hebrew_policy=False, restart_notice=False,
          unrelated_reboot_request=False, lock_surface=None, parent_entry=None,
          fixture_selection=None, transfer_qualification=False, local_calendar=False, child_saved_work=False,
-         game_permission=False, retained_game_denial=False, repeated_saved_work=False):
+         game_permission=False, retained_game_denial=False, repeated_saved_work=False,
+         riley_game_permission=False):
     require(type(child_saved_work) is bool and type(repeated_saved_work) is bool
         and not (child_saved_work and repeated_saved_work) and (not (child_saved_work or repeated_saved_work) or (
         assets is not None and provision_credentials and fixture_profile == 'native'
@@ -1142,13 +1143,16 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
     require(type(native_app) is bool and (not native_app or (
         assets is not None and provision_credentials and fresh_desktop is None
         and approval_flow is None and not any(value for name, value in locals().items()
-            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request', 'game_permission', 'retained_game_denial')
+            if name not in ('assets', 'provision_credentials', 'native_app', 'game_expiry', 'fullscreen_request', 'game_permission', 'retained_game_denial', 'riley_game_permission')
             and isinstance(value, bool)))), 'smoke:native-app-prerequisites')
     require(type(game_expiry) is bool and (not game_expiry or native_app
             and fixture_profile == 'game'), 'smoke:game-expiry-prerequisites')
     require(type(game_permission) is bool and (not game_permission or native_app
             and fixture_profile == 'game' and not game_expiry and not fullscreen_request and not retained_game_denial),
             'smoke:game-permission-prerequisites')
+    require(type(riley_game_permission) is bool and (not riley_game_permission or native_app
+            and fixture_profile == 'game' and not any((game_permission, game_expiry,
+                fullscreen_request, retained_game_denial))), 'smoke:riley-game-permission-prerequisites')
     require(type(retained_game_denial) is bool and (not retained_game_denial or native_app
             and fixture_profile == 'game' and not game_expiry and not fullscreen_request and not game_permission),
             'smoke:retained-game-denial-prerequisites')
@@ -1963,6 +1967,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-riley-native-grid-qualification'
         if native_app:
             result['scope'] = ('installed-retained-game-denial-qualification' if retained_game_denial else
+                              'installed-riley-game-permission-qualification' if riley_game_permission else
                               'installed-game-permission-qualification' if game_permission else
                               'installed-fullscreen-request-qualification' if fullscreen_request else
                               'installed-game-fullscreen-qualification' if game_expiry and game_mode == 'fullscreen' else
@@ -2618,6 +2623,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         if game_permission:
                             from parent_setup_qualification import GamePermissionQualification
                             qualification_class = GamePermissionQualification
+                        if riley_game_permission:
+                            from parent_setup_qualification import RileyGamePermissionQualification
+                            qualification_class = RileyGamePermissionQualification
                         if retained_game_denial:
                             from parent_setup_qualification import RetainedGameDenialQualification
                             qualification_class = RetainedGameDenialQualification

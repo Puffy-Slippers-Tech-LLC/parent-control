@@ -22,7 +22,9 @@ JORDAN_TEXTS = ('homework cycle 1', 'work again cycle 1',
 
 
 def saved_texts(user):
-    return (SAVED[user], *(JORDAN_TEXTS if user == USERS[0] else ()))
+    who = user.rsplit('-', 1)[1].title()
+    return (SAVED[user], *(JORDAN_TEXTS if user == USERS[0] else ()),
+            *(who + suffix for suffix in (' initial', ' round 1', ' round 2')))
 
 
 def account_home(user):

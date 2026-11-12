@@ -2109,6 +2109,16 @@ class GameFullscreenQualification(GameExpiryQualification):
     game_mode = 'fullscreen'
 
 
+class RileyGamePermissionQualification(GamePermissionQualification):
+    from e2e_fixture_preparation import RILEY_GAME_SUBSETS as fixture_subsets, RILEY_GAME_CALLER as fixture_caller
+    worker_timeout = 1800
+
+    @staticmethod
+    def journey(context, progress):
+        from game_permission import GamePermissionJourney, RILEY_PLAN
+        return GamePermissionJourney(context, progress, RILEY_PLAN)
+
+
 class RetainedGameDenialQualification(GameActivityQualification):
     fixture_caller = 'check_e2e_retained_game_denial'
     worker_timeout = 3600

@@ -214,7 +214,8 @@ def work_saved_texts(who):
     require(who in ('jordan', 'riley'), 'ui:work-child')
     return (who.title() + ' saved synthetic work', *(
         ('homework cycle 1', 'work again cycle 1', 'homework cycle 2', 'work again cycle 2')
-        if who == 'jordan' else ()))
+        if who == 'jordan' else ()),
+        *(who.title() + suffix for suffix in (' initial', ' round 1', ' round 2')))
 
 
 def work_receipt_text(receipt, who):
@@ -1055,7 +1056,8 @@ OPERATIONS |= {'time-explanation-enabled-thirty-read'}
 TIME_EXPLANATION_OPERATIONS |= {'time-explanation-enabled-thirty-read'}
 NAMED_TIME_OPERATIONS |= {'time-explanation-enabled-thirty-read', 'time-explanation-setup-positive-read'}
 NAMED_CHILD_OPERATIONS |= NAMED_TIME_OPERATIONS
-MANAGEMENT_OPERATIONS |= NAMED_TIME_OPERATIONS
+MANAGEMENT_OPERATIONS |= NAMED_TIME_OPERATIONS | NAMED_CUSTOM_OPERATIONS | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | {
+    'revoke-open', 'revoke-warning', 'revoke-confirm'}
 
 
 def require_management_owner(parent):
@@ -1649,6 +1651,7 @@ for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
             TRANSFER_REQUESTS[_operation] = _values
 for _surface, _overlay in (('overlay', True), ('kiosk', False)):
     TRANSFER_OPERATIONS[f'request-{_surface}-jordan-ready'] = (_overlay, EXISTING_CHILD, 'ready')
+TRANSFER_OPERATIONS['request-overlay-riley-ready'] = (True, CHILD, 'ready')
 OPERATIONS |= TRANSFER_OPERATIONS.keys()
 KIOSK_SESSION_OPERATIONS |= {operation for operation, (overlay, *_binding) in TRANSFER_OPERATIONS.items()
                             if not overlay}
@@ -15048,7 +15051,7 @@ class AccessibleUI:
         """APP02: bind public presence/complete absence to the same child session."""
         require(type(closed) is bool and (kind == 'native' and role in ('A', 'S')
                 and (child == EXISTING_CHILD or child == CHILD and role == 'S')
-                or kind == 'game' and role == 'Game' and child == EXISTING_CHILD
+                or kind == 'game' and role == 'Game' and child in (CHILD, EXISTING_CHILD)
                 or kind == 'flatpak' and role in ('A', 'H', 'S') and child == EXISTING_CHILD
                 and (not closed or role != 'A')),
                 'ui:native-binding')

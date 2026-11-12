@@ -547,6 +547,7 @@ class InstalledJourney:
         if getattr(context, 'fixture_selection', None) is not None:
             from e2e_fixture_preparation import (ACTIVITY_CALLERS, ACTIVITY_SUBSETS,
                                                   GAME_CALLERS, GAME_SUBSETS,
+                                                  RILEY_GAME_CALLERS, RILEY_GAME_SUBSETS,
                                                   REMINDER_CALLER, REMINDER_SUBSETS,
                                                   SUBSETS, qualified_subsets)
             reminders = (getattr(context, 'fixture_subsets', SUBSETS) == REMINDER_SUBSETS
@@ -555,9 +556,12 @@ class InstalledJourney:
             activity = (getattr(context, 'fixture_subsets', SUBSETS) == ACTIVITY_SUBSETS
                 and getattr(context, 'fixture_caller', None) in ACTIVITY_CALLERS
                 and not getattr(context, 'product_free', False)) or reminders
+            riley_game = (getattr(context, 'fixture_subsets', SUBSETS) == RILEY_GAME_SUBSETS
+                and getattr(context, 'fixture_caller', None) in RILEY_GAME_CALLERS
+                and not getattr(context, 'product_free', False))
             game = (getattr(context, 'fixture_subsets', SUBSETS) == GAME_SUBSETS
                 and getattr(context, 'fixture_caller', None) in GAME_CALLERS
-                and not getattr(context, 'product_free', False)) or reminders
+                and not getattr(context, 'product_free', False)) or reminders or riley_game
             qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
                 caller=getattr(context, 'fixture_caller', None),
                 product_free=getattr(context, 'product_free', False))
@@ -718,7 +722,8 @@ class InstalledJourney:
         require(not os.path.lexists(destination), 'ui:trace-input-replay')
         with pending.open('x') as stream:
             json.dump({'stage': stage, 'token': token, 'source': source,
-                       'child': (self.plan.overlay_request[0] if self.plan.overlay_request is not None
+                       'child': (self.plan.overlay_requests.get(stage, self.plan.overlay_request)[0]
+                                 if self.plan.overlay_request is not None
                                  else self.plan.child_bindings.get(stage, 'child')),
                        'binding': 'overlay-approve', 'values': ['ret']}, stream)
             stream.flush()

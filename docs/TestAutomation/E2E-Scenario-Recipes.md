@@ -2513,7 +2513,10 @@ checks and replies retain the original expiry deadline.
 
 ### E2E-051
 
-Implementation status: All cases pending.
+Implementation: `family_routines.FamilyRoutinesJourney` / `PLAN` in
+`tests/e2e/family_routines.py`, paired with `onpc_family_routines::run` in
+`tests/integration/graphical_smoke/lib/onpc_family_routines.pm`.
+The inventory owns case 251's executable binding.
 
 **Alternate two children's work and game routines without mixing their choices.**
 Case 251; first child = Jordan. Removed reversed-start case 252 must not be reused.

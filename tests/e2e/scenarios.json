@@ -3015,7 +3015,7 @@
         "rationale": "One two-round journey starts with Jordan, reverses child order in round two, and covers both parents own management windows and both forms. Each child gets daily and grant-only time with opposite temporary-app choices; Riley becomes daily-only before revoking only Jordan. Reversed-start copy 252 is removed and its ID must not be reused. Owns alternating household state and isolation."
       },
       "variants": [
-        {"coverage_id": 251, "id": "jordan", "owner": "household-routines", "parameters": {"first-child": "jordan"}, "status": "pending", "pending_reason": "Complete public recipe and finite combinations are documented; block qualification and this entire independent installed journey remain pending.", "executable": null}
+        {"coverage_id": 251, "id": "jordan", "owner": "household-routines", "parameters": {"first-child": "jordan"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/family_routines.py", "test_id": "jordan"}}
       ]
     },
     {

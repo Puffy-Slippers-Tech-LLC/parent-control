@@ -1306,14 +1306,18 @@ sub game_usable_app {
 
 sub game_permission {
     onpc_progress::operation('Checking that parent choices allow and stop the game while preserving homework');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'game-permission:arguments' unless @_ == 3;
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'game-permission', review => 0);
+    my ($exchange, $declared, $challenges, $child) = @_;
+    die 'game-permission:arguments' unless @_ == 4 && $child =~ /\A(?:existing|child)\z/;
+    my $riley = $child eq 'child';
+    my $account = $riley ? 'child' : 'other-child';
+    my $identity = $riley ? 'fixture-child' : 'existing-fixture-child';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => $riley ? 'riley-game-permission' : 'game-permission', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
     $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
-        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+        $journey, 'gdm', 'parent', 'fresh', 'new', $child, 0, 30, 1));
     $journey->seen($_) for qw(saved-settings apps-page);
     my $apps = [['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
                 ['Game', 'match-game-precise', 'conditional']];
@@ -1324,8 +1328,8 @@ sub game_permission {
     onpc_text::replace_text($journey, 'catalogue-clear', 'clear');
     saved_rows($journey, $apps, 'saved');
     $journey->seen('parent-logout');
-    for my $mode ('windowed', 'fullscreen') {
-        onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', "$mode-entry");
+    for my $mode ($riley ? ('windowed') : ('windowed', 'fullscreen')) {
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $account, 'fresh', 'success', "$mode-entry");
         my $slice = $journey->scope($mode);
         my $work = $slice->scope('work');
         $work->seen($_) for ('open', 'opened', ($mode eq 'windowed' ? ('edit', 'save', 'saved') : ()),
@@ -1335,18 +1339,18 @@ sub game_permission {
             my $request = $slice->scope($name);
             my $soft = $name eq 'excluded' ? 0 : 1;
             if ($name eq 'included') {
-                $request->{kiosk_request} = ['other-child', 'parent', 900, 1];
+                $request->{kiosk_request} = [$account, 'parent', 900, 1];
                 $request->seen($_) for qw(leave-desktop switch-user gdm-switched);
                 onpc_request_flow::prepare($request, 'new', 'new', 'observed',
-                    'existing-fixture-child', 'fixture-parent', 900, 1, 'kiosk');
-                onpc_request_flow::approve($request, 'existing-fixture-child', 'fixture-parent', 900, 1, 'automatic');
-                onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained',
+                    $identity, 'fixture-parent', 900, 1, 'kiosk');
+                onpc_request_flow::approve($request, $identity, 'fixture-parent', 900, 1, 'automatic');
+                onpc_desktop_session::enter_desktop($journey, 'gdm', $account, 'retained',
                                                    'success', "$mode-included-retained");
             } else {
-                $request->{overlay_request} = ['other-child', 'parent', 900, $soft];
+                $request->{overlay_request} = [$account, 'parent', 900, $soft];
                 onpc_request_flow::overlay_entry($request, 'request', 'panel');
                 onpc_request_flow::prepare($request, 'new', 'open', 'observed',
-                    'existing-fixture-child', 'fixture-parent', 900, $soft, 'overlay');
+                    $identity, 'fixture-parent', 900, $soft, 'overlay');
                 onpc_request_flow::overlay_approve($request, 'automatic');
             }
             if ($name eq 'first') {

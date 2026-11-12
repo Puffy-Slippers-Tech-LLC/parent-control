@@ -147,22 +147,25 @@ def riley_readback(shared_owner, expected, *, catalogue=False):
             **({'child_role': 'child'} if catalogue else {})}
 
 
-def game_readback(child, expected):
-    targets = game_source_destinations(child.pw_dir)
+def game_readback(child, expected, *, launcher_child=None):
+    launcher_child = child if launcher_child is None else launcher_child
+    targets = game_source_destinations(launcher_child.pw_dir)
     require(type(expected) is dict and set(expected) == set(targets)
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values()))
     result = {}
     for source, (path, mode) in targets.items():
         target = Path(path)
-        with directory(target.parent, child) as (fd, guard):
-            data, info = read_regular(fd, target.name, owner=child.pw_uid, mode=mode, limit=LIMIT)
-            require(info.st_gid == child.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
+        owner = launcher_child if target.name == GAME_DESKTOP_ID else child
+        with directory(target.parent, owner) as (fd, guard):
+            data, info = read_regular(fd, target.name, owner=owner.pw_uid, mode=mode, limit=LIMIT)
+            require(info.st_gid == owner.pw_gid and hashlib.sha256(data).hexdigest() == expected[source])
             if target.name == GAME_DESKTOP_ID:
                 require(data == game_desktop_entry().encode())
             guard()
         result[source] = {'identity': identity(info), 'sha256': expected[source], 'mode': mode}
-    return {'files': result, 'launchers': [GAME_DESKTOP_ID]}
+    return {'files': result, 'launchers': [GAME_DESKTOP_ID],
+            **({'child_role': 'child'} if launcher_child != child else {})}
 
 
 def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
@@ -411,7 +414,7 @@ def product_tree(g, path, parent):
 
 def execute(action, expected, profile='native'):
     require(action in ('read', 'refuse'))
-    require(profile in ('native', 'native-selected', 'game', 'chinese', 'riley-grid',
+    require(profile in ('native', 'native-selected', 'game', 'riley-game', 'chinese', 'riley-grid',
                         'baseline-child-selected', 'activity', 'activity-selected'))
     if profile == 'activity-selected':
         require(action == 'read')
@@ -475,9 +478,11 @@ def execute(action, expected, profile='native'):
         result.update(unchanged_state=True)
     elif profile == 'riley-grid':
         result = riley_readback(child, expected)
-    elif profile == 'game':
+    elif profile in ('game', 'riley-game'):
         try:
-            result = game_readback(child, expected)
+            riley = pwd.getpwnam(session_control.ACCOUNTS['child']) if profile == 'riley-game' else None
+            require(riley is None or riley.pw_uid >= 1000 and riley.pw_uid != child.pw_uid)
+            result = game_readback(child, expected, launcher_child=riley)
         except (OSError, ValueError) as error:
             raise ValueError('game:missing-or-stale-assets; refresh with tools/prepare-vm --mode auto') from error
     else:

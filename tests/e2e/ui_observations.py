@@ -3281,10 +3281,13 @@ class UiObservations:
                                             binding=(self.kiosk_request if operation == 'kiosk-request-read'
                                                      else self.overlay_request))
             expected['request'] = result['request']
-        if operation in ('request-overlay-jordan-ready', 'request-kiosk-jordan-ready'):
+        if (operation in accessible_ui.TRANSFER_OPERATIONS
+                and accessible_ui.TRANSFER_OPERATIONS[operation][2] == 'ready'):
+            overlay, ready_child, _action = accessible_ui.TRANSFER_OPERATIONS[operation]
             require(result.get('request_readiness') == {
-                'surface': 'child-overlay' if operation == 'request-overlay-jordan-ready' else 'kiosk',
-                'child': 'existing-fixture-child', 'ready': True}, 'ui:request-readiness-response')
+                'surface': 'child-overlay' if overlay else 'kiosk',
+                'child': accessible_ui.CHILD_IDENTITIES[ready_child], 'ready': True},
+                'ui:request-readiness-response')
             expected['request_readiness'] = result['request_readiness']
         if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
             require(type(result) is dict and set(result) == {*expected, 'denial'}

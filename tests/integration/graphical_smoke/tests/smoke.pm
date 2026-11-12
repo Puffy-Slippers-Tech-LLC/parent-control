@@ -58,6 +58,7 @@ use onpc_app_restart ();
 use onpc_zero_total ();
 use onpc_app_rows ();
 use onpc_homework_game ();
+use onpc_family_routines ();
 use onpc_app_launch ();
 use onpc_app_rule_changes ();
 use onpc_revocation_case ();
@@ -1144,6 +1145,12 @@ sub run {
         onpc_app_rows::child_saved_work(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{family_routines}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_family_routines::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{homework_game} || $ready->{homework_game_fresh}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -1298,10 +1305,11 @@ sub run {
         onpc_app_rows::retained_game_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{game_permission}) {
+    if ($ready->{game_permission} || $ready->{riley_game_permission}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_app_rows::game_permission(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_app_rows::game_permission(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+                                     $ready->{riley_game_permission} ? 'child' : 'existing');
         return;
     }
     if ($ready->{game_activity}) {

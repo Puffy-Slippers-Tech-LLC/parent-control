@@ -20,6 +20,20 @@ def test_management_parent_refuses_another_administrator(monkeypatch):
     lookup.assert_called_once_with('onpc-parent-casey')
 
 
+def test_overlay_input_uses_the_current_child_binding(tmp_path):
+    from installed_journey import InstalledJourney
+    journey = SimpleNamespace(context=SimpleNamespace(directory=tmp_path), plan=SimpleNamespace(
+        screen_tags={'second-approval': 'ui:overlay-shell-success'},
+        overlay_request=('other-child', 'parent', 75, True),
+        overlay_requests={'second-approval': ('child', 'other-parent', 150, False)},
+        child_bindings={}))
+    # Use an actual admitted success operation; no input is delivered here.
+    journey.plan.screen_tags['second-approval'] = 'ui:' + next(iter(
+        ui_observations.accessible_ui.SHELL_SUCCESS_OPERATIONS))
+    InstalledJourney.publish_trace_input(journey, 'second-approval', 'a' * 32, 'a' * 64)
+    assert json.loads((tmp_path / 'second-approval.input.json').read_text())['child'] == 'child'
+
+
 def test_second_parent_challenge_requires_its_own_two_fresh_checks():
     ui = ui_observations.UiObservations(None)
     ui.observe = Mock(return_value={'recipient': True})
@@ -196,17 +210,22 @@ def test_game_input_refuses_another_account_before_window_discovery(monkeypatch,
 
 @pytest.mark.parametrize(('surface', 'fault'), [
     ('kiosk', 'none'), ('overlay', 'none'), ('overlay', 'scope'),
-    ('kiosk', 'request'), ('overlay', 'replay'), ('overlay', 'retained')])
+    ('kiosk', 'request'), ('overlay', 'replay'), ('overlay', 'retained'),
+    ('kiosk', 'riley'), ('overlay', 'riley'), ('overlay', 'riley-wrong-child')])
 def test_game_permission_secret_requires_exact_scope_and_single_use(surface, fault):
     result = run_password_guard(r'''
 my ($surface, $fault) = @ARGV;
 my $row = $fault eq 'retained' ? 'first' : $surface eq 'kiosk' ? 'included' : 'excluded';
-my $scope = "fullscreen-$row-";
+my $riley = $fault =~ /\Ariley/;
+my $mode = $riley ? 'windowed' : 'fullscreen';
+my $scope = "$mode-$row-";
 my $family = $fault eq 'retained' ? 'retained-game-denial' : 'game-permission';
-my $journey = bless {prefix => "$family-fullscreen-$row", stage_prefix => $scope,
+$family = 'riley-game-permission' if $riley;
+my $journey = bless {prefix => "$family-$mode-$row", stage_prefix => $scope,
     review => 0}, 'onpc_journey';
 $journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
-    ['other-child', 'parent', 900, $surface eq 'kiosk' || $fault eq 'retained' ? 1 : 0];
+    [$riley ? 'child' : 'other-child', 'parent', 900, $surface eq 'kiosk' || $fault eq 'retained' ? 1 : 0];
+$journey->{overlay_request}[0] = 'other-child' if $fault eq 'riley-wrong-child';
 $journey->{stage_prefix} = "windowed-$row-" if $fault eq 'scope';
 $journey->{kiosk_request}[0] = 'child' if $fault eq 'request';
 my $enter = sub {
@@ -217,10 +236,10 @@ my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
 ''', surface, fault)
     value = json.loads(result.stdout)
-    assert value['ok'] == (fault in ('none', 'retained'))
-    scope = 'fullscreen-' + ('first-' if fault == 'retained' else
+    assert value['ok'] == (fault in ('none', 'retained', 'riley'))
+    scope = ('windowed-' if fault.startswith('riley') else 'fullscreen-') + ('first-' if fault == 'retained' else
                               'included-' if surface == 'kiosk' else 'excluded-')
-    assert value['events'] == ([] if fault in ('scope', 'request') else [
+    assert value['events'] == ([] if fault in ('scope', 'request', 'riley-wrong-child') else [
         ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
         ['delivery', 'parent', scope + ('kiosk-mate-approval' if surface == 'kiosk'
                                        else 'overlay-shell-approval')]])
@@ -256,6 +275,36 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
         ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
         ['delivery', 'parent' if surface == 'kiosk' else 'other-parent',
          scope + ('kiosk-mate-approval' if surface == 'kiosk' else 'overlay-shell-approval')]])
+
+
+@pytest.mark.parametrize('visit,fault', [(1, 'none'), (2, 'none'), (3, 'none'), (4, 'none'),
+    (2, 'child'), (3, 'scope'), (1, 'replay')])
+def test_family_approval_keeps_its_finite_recipient_binding(visit, fault):
+    result = run_password_guard(r'''
+my ($visit, $fault) = @ARGV;
+my @rows = (['overlay','other-child','other-parent',75,1], ['kiosk','child','parent',7200,1],
+            ['overlay','child','other-parent',150,0], ['kiosk','other-child','parent',7200,0]);
+my ($surface, @binding) = @{$rows[$visit - 1]};
+my $scope = "visit-$visit-request-";
+my $journey = bless {prefix => "family-routines-visit-$visit-request", stage_prefix => $scope,
+    review => 0, $surface . '_request' => \@binding}, 'onpc_journey';
+$binding[0] = 'other-child' if $fault eq 'child';
+$journey->{stage_prefix} = 'visit-1-request-' if $fault eq 'scope';
+my $enter = sub {
+    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
+                       : onpc_password::enter_overlay_shell_password($journey);
+};
+my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', str(visit), fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    scope = f'visit-{visit}-request-'
+    surface = 'overlay' if visit in (1, 3) else 'kiosk'
+    assert value['events'] == ([] if fault in ('child', 'scope') else [
+        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
+        ['delivery', 'other-parent' if surface == 'overlay' else 'parent',
+         scope + ('overlay-shell-approval' if surface == 'overlay' else 'kiosk-mate-approval')]])
 
 
 @pytest.mark.parametrize('operation', ['reminder', 'panel-target', 'panel-launch', 'panel-form'])

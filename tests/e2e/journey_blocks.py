@@ -775,16 +775,18 @@ def app_policy_entry(*, child, allowance, initial_rows=True):
     None leaves the child's settings untouched for read-only or limits-off entry.
     Histories that read a specific saved rule can omit the initial full catalogue.
     """
-    require(child == 'existing' and allowance in (None, 'time-explanation-setup-thirty-read')
+    require(child in ('child', 'existing') and allowance in (None, 'time-explanation-setup-thirty-read')
             and type(initial_rows) is bool,
             'journey:app-policy-entry-binding')
     return {
         **fresh_desktop('parent'), **parent_management(child=child),
-        'parent-selected': 'ui:existing-returned',
+        'parent-selected': 'ui:existing-returned' if child == 'existing' else 'ui:parent-screen-page',
         **({'allowance-configured': 'ui:' + allowance,
-            'saved-settings': 'ui:existing-returned'} if allowance is not None else {}),
-        'apps-page': 'ui:existing-apps',
-        **({'initial-rows': 'ui:existing-parent-app-rows'} if initial_rows else {}),
+            'saved-settings': 'ui:existing-returned' if child == 'existing' else 'ui:parent-selected'}
+           if allowance is not None else {}),
+        'apps-page': 'ui:existing-apps' if child == 'existing' else 'ui:parent-apps-page',
+        **({'initial-rows': 'ui:existing-parent-app-rows' if child == 'existing' else 'ui:parent-app-rows'}
+           if initial_rows else {}),
     }
 
 
@@ -794,7 +796,7 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
     require(form_operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-valid-excluded-read',
-                               'request-overlay-jordan-ready',
+                               'request-overlay-jordan-ready', 'request-overlay-riley-ready',
                                'overlay-valid-fraction-soft-read', 'overlay-fraction-estimate-refresh',
                                'overlay-language-initial',
                                'overlay-language-form-en', 'overlay-language-form-de',

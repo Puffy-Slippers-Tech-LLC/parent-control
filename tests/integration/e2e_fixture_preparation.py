@@ -5,6 +5,9 @@ import xml.etree.ElementTree as ET
 
 SUBSETS = ('native',)
 GAME_SUBSETS = ('native', 'game')
+RILEY_GAME_SUBSETS = ('native', 'game', 'baseline-child')
+RILEY_GAME_CALLER = 'check_e2e_riley_game_permission'
+RILEY_GAME_CALLERS = (RILEY_GAME_CALLER, 'E2E-051/jordan')
 GAME_CALLER = 'check_e2e_game_fixture'
 GAME_CALLERS = (GAME_CALLER, 'check_e2e_game_activity', 'check_e2e_game', 'check_e2e_game_fullscreen',
                 'check_e2e_fullscreen_reminder_visibility',
@@ -88,6 +91,7 @@ def qualified_subsets(subsets=SUBSETS, *, caller=None, product_free=False):
             (subsets != SUBSETS and not (subsets == ACTIVITY_SUBSETS
              and caller in ACTIVITY_CALLERS and not product_free)
              and not (subsets == GAME_SUBSETS and caller in GAME_CALLERS and not product_free)
+             and not (subsets == RILEY_GAME_SUBSETS and caller in RILEY_GAME_CALLERS and not product_free)
              and not (subsets == REMINDER_SUBSETS and caller == REMINDER_CALLER and not product_free)
              and not (subsets == LIFECYCLE_SUBSETS
                       and ((caller == LIFECYCLE_CALLER and product_free)
@@ -152,13 +156,14 @@ def asset_hashes(selection, *, subsets=SUBSETS, caller=None, child=False, produc
     """Bind legacy public observation keys to the selected runtime bytes."""
     subsets = qualified_subsets(subsets, caller=caller, product_free=product_free)
     if type(child) is not bool or (child and not (subsets in (ACTIVITY_SUBSETS, REMINDER_SUBSETS)
+            or subsets == RILEY_GAME_SUBSETS and caller in RILEY_GAME_CALLERS
             or subsets == LIFECYCLE_SUBSETS and caller == APP_SET_CALLER and not product_free)):
         raise ValueError('fixtures:e2e-profile-not-qualified')
     manifest = fixture_execution.verify(selection_record(selection))
     from tests.fixtures import native_assets
     destinations = native_assets.source_destinations('@child@' if child else '@other@', alias=not child)
-    if subsets in (GAME_SUBSETS, REMINDER_SUBSETS):
-        destinations.update(native_assets.game_source_destinations('@other@'))
+    if subsets in (GAME_SUBSETS, RILEY_GAME_SUBSETS, REMINDER_SUBSETS):
+        destinations.update(native_assets.game_source_destinations('@child@' if child else '@other@'))
     if subsets in (ACTIVITY_SUBSETS, REMINDER_SUBSETS):
         destinations.update(zip(native_assets.activity_sources(), (
             (native_assets.ACTIVITY_EXECUTABLE, 0o755),

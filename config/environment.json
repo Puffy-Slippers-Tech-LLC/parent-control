@@ -11,7 +11,7 @@
     },
     {
       "name": "myserver",
-      "enabled": "false",
+      "enabled": "true",
       "transport": "ssh",
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
@@ -77,6 +77,14 @@
           "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-1.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "100",
+          "name": "onpc-Ubuntu26.04-100",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-100.qcow2",
+          "owning_branch": ""
         }
       ]
     },
@@ -92,6 +100,14 @@
           "enabled": "true",
           "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "200",
+          "name": "onpc-Fedora44-200",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-200.qcow2",
           "owning_branch": ""
         }
       ]

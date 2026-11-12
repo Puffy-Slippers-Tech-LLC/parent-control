@@ -427,18 +427,7 @@ class Viewer:
         for checkout_root in self.roots:
             # Child runners can be dispatched into another worktree. Their
             # progress already appears in the controlling workflow's section.
-            live = list(active_launchers(checkout_root, self.launcher_reader))
-            candidates = live
-            if not live and not any(output.root == checkout_root for output in self.outputs.values()):
-                retained = []
-                for run, name in active_launchers(checkout_root, self.launcher_reader, include_idle=True):
-                    try:
-                        retained.append((run.stat().st_mtime_ns, run, name))
-                    except OSError:
-                        continue
-                if retained:
-                    _modified, run, name = max(retained)
-                    candidates = [(run, name)]
+            candidates = list(active_launchers(checkout_root, self.launcher_reader, include_idle=True))
             for run, _name in candidates:
                 observe(checkout_root, run)
         # Discovery may learn a child's checkout before its parent's checkout.
@@ -458,8 +447,8 @@ class Viewer:
                 self.sessions[root] = SessionOutput(output)
             session = self.sessions[root]
             session.poll()
-            if output.run is not None and not active and not session.active and watch_closed(output.run):
-                continue
+            closed = (output.run is not None and not active and not session.active
+                      and watch_closed(output.run))
             if supervisor(output.run) is not None:
                 continue
             status = '' if active else output.completion_status()
@@ -594,7 +583,7 @@ class Viewer:
                 session_view['input_enabled'] = session.input_enabled
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
-                active=active or session.active, status=status, rows=self.status_cache[root][1],
+                active=active or session.active, closed=closed, status=status, rows=self.status_cache[root][1],
                 run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
                 launcher_rows=self.cached_spans(root, 'launcher', self.launcher_logs[root].split('\n')),
@@ -624,10 +613,31 @@ class Viewer:
                             *launcher_arguments(record, 'add-session', execution_plan=output.execution_plan)])
             except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
-        # Exiting one launcher must not remove its tabs while another checkout
-        # is still active. Retain observed runs for this reader's lifetime.
+        # VM selections have independent publications, but finished results
+        # occupy one tile per launcher and branch. Use start time, not directory
+        # mtime: a late-finishing older run must not replace a newer invocation.
         retained = [section for section in sections if section['run'] or section['session']]
-        return retained
+        latest = {}
+        identities = {}
+        for section in retained:
+            output = self.outputs[Path(section['id'])]
+            try:
+                record = self.launcher_reader.read(output.run.parent / 'current.json', 4096)
+                if record.get('run') != output.run.name:
+                    continue
+                name = record.get('launcher') or output.label
+                started = record.get('started_at')
+                if not isinstance(started, (int, float)):
+                    started = output.run.stat().st_mtime
+                key = self.roots[output.root], name
+                rank = started, section['id']
+                identities[section['id']] = key, rank
+                latest[key] = max(latest.get(key, rank), rank)
+            except (OSError, ValueError, AttributeError, TypeError):
+                continue
+        return [section for section in retained if not section.pop('closed') and (section['active']
+                or section['id'] not in identities
+                or identities[section['id']][1] == latest[identities[section['id']][0]])]
 
     def close(self):
         self.discovery.close()

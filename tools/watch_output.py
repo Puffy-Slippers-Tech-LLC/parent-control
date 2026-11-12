@@ -391,6 +391,12 @@ class Output:
     def poll(self):
         run, label = self.discover()
         active = run is not None
+        if run is None and self.launcher_base is not None:
+            # A scoped publication may be replaced and finish between polls.
+            # Follow its current result instead of pinning the previous run.
+            run, label = next(((candidate, name) for candidate, name in
+                              active_launchers(self.root, self.reader, include_idle=True)
+                              if candidate.parent == self.launcher_base), (None, ''))
         # Drain the final bytes after owner exit and keep the last transcript.
         if run is None:
             run, label = self.run, self.label

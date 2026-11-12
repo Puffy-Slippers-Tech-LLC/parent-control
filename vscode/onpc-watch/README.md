@@ -59,9 +59,11 @@ buttons select their tile without unselecting it, while performing their usual a
 Dividers remain active beside collapsed sections; resizing expands them and
 restores their selected tabs.
 When a launcher exits for any reason, its
-section and all four tabs retain their contents, including while other worktrees
-remain active. Reconnecting restores the latest retained run in each idle
-worktree from its existing run files. Session input is disabled once its owner
+section and all four tabs retain their contents until a newer run of the same
+launcher on the same branch replaces it. Only the latest result per launcher
+and branch is shown, regardless of VM selection; concurrent active runs remain
+visible. Reconnecting applies the same selection to existing run files.
+Session input is disabled once its owner
 exits. Retention uses existing run files and reader memory; explicitly closing a
 finished tile saves only its dismissal marker.
 Launcher and viewer titles use the same bold text and single-line content:

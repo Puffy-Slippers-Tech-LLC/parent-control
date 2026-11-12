@@ -7,8 +7,6 @@ from pathlib import Path
 import re
 import stat
 
-from PIL import Image
-
 # GDM can use either of these already reviewed label renderings after setup.
 # Fixed aliases preserve the semantic tag without weakening pixel thresholds
 # or allowing arbitrary account/password variants.
@@ -49,6 +47,8 @@ CLICK_TAGS = (frozenset(name for name, (_, _, click) in GDM_RENDERINGS.items() i
 
 
 def prepare(root, source, tag, regions, *, click=False, replace=False):
+    from PIL import Image
+
     if (tag not in TAGS or (click and tag not in CLICK_TAGS)
             or not 1 <= len(regions) <= 8):
         raise ValueError('invalid fixed tag or region count')

@@ -150,8 +150,13 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
 
 
 def validate_artifact_path(path):
-    from tools.test_storage import storage_root
-    storage = storage_root(ROOT) / 'output/test-runs'
+    # Direct and runpy entry points need not have the checkout on sys.path.
+    sys.path.insert(0, str(ROOT))
+    try:
+        from tools.test_storage import storage_root
+        storage = storage_root(ROOT) / 'output/test-runs'
+    finally:
+        sys.path.pop(0)
     if path is None:
         raise ValueError('e2e:artifacts-required')
     if (not path.is_absolute() or '..' in path.parts

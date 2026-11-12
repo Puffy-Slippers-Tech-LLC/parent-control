@@ -1465,6 +1465,15 @@ through the private collector. `assertion` requires its declared step and
 corresponding evidence kind; missing assertions fail at step completion.
 Neither a returned worker success nor an omitted action creates passing records.
 
+Use `json_artifact` for reviewed structured observations. It rejects secret
+content before serialization padding and varies only trailing JSON whitespace
+when a generated checksum happens to contain a registered secret. The bounded
+retry changes no observed value and retains the full collector scan; never
+exclude checksum fields or weaken secret detection to resolve that collision.
+Keep spectator clock origins out of checkpoint evidence and use the recorder's
+elapsed timings; qualification checkpoints use millisecond precision. Extra
+clock digits add no result and can also collide with numeric fixture secrets.
+
 Checkpoints are fsynced, uniquely numbered `event-NNNNNN.json` files. They retain
 only the current case snapshot and fixed event names, including action start,
 assertion, failure and `before-cleanup`. An uncatchable termination leaves the

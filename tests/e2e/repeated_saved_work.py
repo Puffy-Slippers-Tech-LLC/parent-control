@@ -1,6 +1,5 @@
 """289c: Jordan saves changing homework and recovers it after natural lock."""
 from accessible_ui import KIOSK_BOUND_OPERATIONS, NAMED_CHILD_OPERATIONS
-from child_saved_work import work_document_actions
 from game_expiry import GameExpiryJourney
 from installed_journey import JourneyPlan
 from journey_blocks import desktop_entry, fresh_desktop, parent_management, prefixed_stages
@@ -8,6 +7,7 @@ from kiosk_approved_flow import obtain_time
 from native_fixtures import fixture_actions
 from private_artifacts import require
 from request_flow import approval_and_return
+from synthetic_files import work_document_actions
 from ui_observations import SettingsObservation
 
 

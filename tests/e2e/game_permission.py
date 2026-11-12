@@ -1,7 +1,6 @@
 """289a: a parent's Soft choice controls the real game, preserving saved work."""
 from accessible_ui import (KIOSK_BOUND_OPERATIONS, MATCH_APPS, MATCH_RULES,
                            NAMED_CHILD_OPERATIONS, OVERLAY_BOUND_OPERATIONS)
-from child_saved_work import work_document_actions
 from feedback_composition import text_fragment
 from installed_journey import JourneyPlan
 from journey_blocks import (app_policy_entry, desktop_entry, game_usable_app,
@@ -10,6 +9,7 @@ from named_app_set import saved_rows
 from native_fixtures import fixture_actions
 from policy_edits import AppPolicyJourney, policy_edit
 from request_flow import approval_and_return
+from synthetic_files import work_document_actions
 from ui_observations import SettingsObservation
 
 

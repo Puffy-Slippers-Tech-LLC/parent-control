@@ -455,6 +455,13 @@ original work on return before submitting again. The daily-midnight journey in
 [ordinary_daily_reset.py](../e2e/ordinary_daily_reset.py) composes this ordering
 with `native_activity_entry`, `native_activity_resume` and plan activity checks.
 
+Saved-document consumers reuse `synthetic_files.work_document_actions(saves=...)`
+for both children's preparation, independent saved-byte and unchanged-peer reads,
+and receipt-owned cleanup. Keep each journey's finite text bindings, Save order,
+public editing and usable-window comparisons in its plan; do not import the
+`child_saved_work` qualification to obtain file mechanics. This helper shares
+the existing `SyntheticFiles` controller and adds no resource owner.
+
 `product_logs.py` owns the guest reader and pytest snapshots;
 `vm_transport.Transport.capture_product_logs` owns host transfer before shutdown.
 Keep host transport imports out of staged guest readers: `guest_inputs.Bundle`
@@ -602,6 +609,12 @@ cases in [app_restart_expired.py](../e2e/app_restart_expired.py) share preparati
 and recovery while retaining this distinction; do not copy retained-window
 assertions into a fresh-session history or replace a retained-work result with
 a new launch.
+Within one history, make this choice at each departure: `homework_game_case`
+ends Jordan's session on ordinary fresh departures but retains it across natural
+lock and recovery. Compare edited work with the most recent capture in that
+session, and independently reopen and use the saved bytes after logout. A
+same-session `replaced` comparison still requires the same session owner; it
+does not describe a new session's game window.
 
 Suspend consumers reuse `InstalledJourney.submit_suspend` and
 `Transport.suspend_wake`, including the host-observed asleep interval and single

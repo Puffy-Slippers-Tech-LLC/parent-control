@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 from accessible_ui import (GDM_DENIAL_OPERATIONS, KIOSK_BOUND_OPERATIONS, MATCH_APPS, MATCH_RULES, PRESET_LABELS,
                            NAMED_CHILD_OPERATIONS, OVERLAY_BOUND_OPERATIONS,
                            countdown_seconds)
-from child_saved_work import work_document_actions
 from calendar_fixture import preset_ordinary_daytime
 from countdown import CountdownSample
 from feedback_composition import text_fragment
@@ -23,6 +22,7 @@ from policy_edits import AppPolicyJourney, policy_edit
 from private_artifacts import require
 from request_composition import _estimate_read_bounds
 from request_flow import RequestFlowJourney, approval_and_return
+from synthetic_files import work_document_actions
 from ui_observations import SettingsObservation
 
 

@@ -3,7 +3,7 @@ from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, prefixed_stages
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from synthetic_files import SyntheticFiles
+from synthetic_files import work_document_actions
 
 
 def work_document_stages(who):
@@ -42,46 +42,6 @@ PLAN = JourneyPlan(
                      for who in ('jordan', 'riley')
                      for stage, result in (('reread', 'same'), ('recovered', 'replaced'))},
 )
-
-
-def work_document_actions(*, saves=None):
-    """Bind separately declared saves to the same owned receipt controller."""
-    from accessible_ui import work_saved_texts
-    saves = saves if saves is not None else {
-        'work-' + who + '-saved': (who, None) for who in ('jordan', 'riley')}
-    require(type(saves) is dict and all(who in ('jordan', 'riley')
-        and (text is None or text in work_saved_texts(who)) for who, text in saves.values()),
-        'work:save-bindings')
-    def prepare(journey, guard):
-        guard()
-        require(not hasattr(journey, 'work_files'), 'work:replay')
-        journey.work_files = {}
-        for who in ('jordan', 'riley'):
-            guard()
-            files = SyntheticFiles(journey.transport, 'work-' + who)
-            journey.work_files[who] = files
-            files.call('stage')
-        return {'both_documents_prepared': True}
-
-    def saved(who, text):
-        def read_saved(journey, guard):
-            guard()
-            files = journey.work_files[who]
-            require(not files.failed, 'work:uncertain-files')
-            files.call('saved', text=text)
-            peer = journey.work_files['riley' if who == 'jordan' else 'jordan']
-            require(peer._command('read', peer.previous) == peer.previous, 'work:peer-changed')
-            return {'saved_bytes_matched': True, 'peer_unchanged': True}
-        return read_saved
-
-    def cleanup(journey, guard):
-        for files in journey.work_files.values():
-            guard()
-            require(files._command('read', files.previous) == files.previous, 'work:final-content')
-            files.call('cleanup')
-        return {'owned_documents_removed': True}
-    return {'work-prepare': prepare, 'work-cleanup': cleanup,
-            **{name: saved(who, text) for name, (who, text) in saves.items()}}
 
 
 class ChildSavedWorkJourney(InstalledJourney):

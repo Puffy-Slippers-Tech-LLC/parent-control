@@ -2385,7 +2385,7 @@ activity; synthetic readers do not qualify it or other export profiles.
 
 `child_saved_work.work_document_stages(who)` /
 `onpc_app_rows::saved_work_document` compose FILE08/09 and APP03/04 for Jordan
-or Riley. `work_document_actions` owns both documents through `SyntheticFiles`
+or Riley. `synthetic_files.work_document_actions` owns both documents through `SyntheticFiles`
 profiles `work-jordan` / `work-riley`. Each profile binds the child's exact
 `ONPC synthetic work/Work.txt`, initial text and distinct saved text.
 `work_document.Document` pins directory/file identity and rejects wrong accounts,

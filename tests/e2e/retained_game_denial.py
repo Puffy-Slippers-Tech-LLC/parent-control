@@ -3,7 +3,6 @@ from copy import deepcopy
 
 from accessible_ui import (MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS,
                            OVERLAY_BOUND_OPERATIONS)
-from child_saved_work import work_document_actions
 from feedback_composition import text_fragment
 from game_permission import APPS
 from installed_journey import JourneyPlan
@@ -14,6 +13,7 @@ from native_fixtures import fixture_actions
 from policy_edits import AppPolicyJourney, policy_edit
 from private_artifacts import require
 from request_flow import approval_and_return
+from synthetic_files import work_document_actions
 from time_profiles_dominant import DailyDominantProfileJourney
 from ui_observations import SettingsObservation
 

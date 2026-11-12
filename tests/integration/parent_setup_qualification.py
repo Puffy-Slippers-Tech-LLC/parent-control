@@ -840,6 +840,13 @@ class RetainedParentQualification(KioskEntryQualification):
         return RetainedParentJourney(context, progress)
 
 
+class SecondParentManagementQualification(KioskEntryQualification):
+    @staticmethod
+    def journey(context, progress):
+        from second_parent_management import SecondParentManagementJourney
+        return SecondParentManagementJourney(context, progress)
+
+
 class RetainedEntryQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

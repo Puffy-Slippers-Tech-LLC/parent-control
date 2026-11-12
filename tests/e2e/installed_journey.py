@@ -128,6 +128,7 @@ class JourneyPlan:
     accessibility_inputs: dict = field(default_factory=dict)
     custom_inputs: dict = field(default_factory=dict)
     child_bindings: dict = field(default_factory=dict)
+    parent_bindings: dict = field(default_factory=dict)
     request_checks: dict = field(default_factory=dict)
     request_transfer_checks: dict = field(default_factory=dict)
     balance_checks: dict = field(default_factory=dict)
@@ -273,6 +274,10 @@ class JourneyPlan:
                     and self.screen_tags[before][3:] in transfer_reads
                     for stage, before in self.request_transfer_checks.items()), self.prefix + ':transfer-plan')
         from accessible_ui import NAMED_CUSTOM_CHILDREN, NAMED_CHILD_OPERATIONS
+        require(all(stage in self.screen_tags and parent in accessible_ui.MANAGEMENT_PARENTS
+                    and self.screen_tags[stage].removeprefix('ui:') in accessible_ui.MANAGEMENT_OPERATIONS
+                    for stage, parent in self.parent_bindings.items()),
+                self.prefix + ':management-parent-plan')
         require(all(stage in self.screen_tags and child in NAMED_CUSTOM_CHILDREN and
                     (self.screen_tags[stage][3:] in NAMED_CHILD_OPERATIONS or
                      self.screen_tags[stage] == 'ui:parent-custom-save-trace')
@@ -349,13 +354,15 @@ class JourneyPlan:
                     and type(binding) is tuple and len(binding) == 3,
                     self.prefix + ':challenge-plan')
             role, first, second = binding
-            require(role in ('parent', 'other-child', 'child') and first in self.invocations
+            require(role in ('parent', 'second-parent', 'other-child', 'child') and first in self.invocations
                     and second in self.invocations and not {first, second} & used
                     and stages.index(second) == stages.index(first) + 1,
                     self.prefix + ':challenge-plan')
             recipient = ('gdm-parent-recipient' if role == 'parent' else
+                         'gdm-second-parent-recipient' if role == 'second-parent' else
                          'gdm-child-recipient' if role == 'child' else 'gdm-standard-recipient')
             focus = (('gdm-focused', 'gdm-product-free-focused') if role == 'parent' else
+                     ('gdm-second-parent-focused',) if role == 'second-parent' else
                      ('gdm-child-focused', 'gdm-product-free-child-focused') if role == 'child' else
                      ('gdm-standard-focused', 'gdm-product-free-standard-focused',
                       'gdm-standard-session-select-full'))
@@ -983,7 +990,9 @@ class InstalledJourney:
                     observed['ui'] = (self.ui.observe_challenge(tag[3:], challenge)
                                       if challenge else self.ui.observe(tag[3:], **(
                                           {'child': plan.child_bindings[stage]}
-                                          if stage in plan.child_bindings else {})))
+                                          if stage in plan.child_bindings else {}), **(
+                                          {'parent': plan.parent_bindings[stage]}
+                                          if stage in plan.parent_bindings else {})))
                 current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge

@@ -1038,6 +1038,32 @@ GDM_NONSECRET_OPERATIONS = frozenset({
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
     'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
+SECOND_PARENT_GREETER_OPERATIONS = frozenset('gdm-second-parent-' + suffix
+    for suffix in ('list', 'focused', 'recipient', 'recipient-rechecked'))
+OPERATIONS |= SECOND_PARENT_GREETER_OPERATIONS | {'second-parent-desktop'}
+GREETER_OPERATIONS |= SECOND_PARENT_GREETER_OPERATIONS
+GREETER_NAVIGATION |= {'gdm-second-parent-list'}
+GDM_NONSECRET_OPERATIONS |= {'gdm-second-parent-list', 'gdm-second-parent-focused'}
+MANAGEMENT_PARENTS = {'parent': PARENT, 'second-parent': OTHER_PARENT}
+MANAGEMENT_OPERATIONS = frozenset({
+    'parent-command-launch', 'parent-window', 'child-picker-opened', 'child-choice-highlighted',
+    'parent-selected', 'parent-screen-page', 'existing-child-picker-opened',
+    'existing-child-choice-highlighted', 'existing-returned', 'discovery-ready',
+    'existing-apps', 'parent-apps-page', 'parent-toggle-enabled', 'parent-toggle-disabled',
+}) | NAMED_TIME_OPERATIONS | RETAINED_PARENT_OPERATIONS
+OPERATIONS |= {'time-explanation-enabled-thirty-read'}
+TIME_EXPLANATION_OPERATIONS |= {'time-explanation-enabled-thirty-read'}
+NAMED_TIME_OPERATIONS |= {'time-explanation-enabled-thirty-read', 'time-explanation-setup-positive-read'}
+NAMED_CHILD_OPERATIONS |= NAMED_TIME_OPERATIONS
+MANAGEMENT_OPERATIONS |= NAMED_TIME_OPERATIONS
+
+
+def require_management_owner(parent):
+    """Refuse a different administrator before discovering or operating controls."""
+    require(parent in MANAGEMENT_PARENTS, 'ui:management-parent-binding')
+    expected = APPROVER_ACCOUNTS[MANAGEMENT_PARENTS[parent]]
+    require(os.getuid() == pwd.getpwnam(expected).pw_uid, 'ui:management-parent-owner')
+
 OPERATIONS |= frozenset({'gdm-station-refused'})
 GREETER_OPERATIONS |= frozenset({'gdm-station-refused'})
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-station-refused'})
@@ -6324,7 +6350,7 @@ class AccessibleUI:
         """FLOW01 existing window only; record the untouched child/page first."""
         require(operation in RETAINED_PARENT_OPERATIONS, 'ui:retained-parent-operation')
         require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
-        self.desktop_result(PARENT, 'success')
+        self.desktop_result(getattr(self, 'management_parent', PARENT), 'success')
         if operation == 'retained-parent-absent-refused':
             self.wait(self.parent_search_closed, 'retained-parent-closed', prompt_in_predicate=True)
             try:
@@ -7161,6 +7187,7 @@ class AccessibleUI:
             'time-explanation-setup-zero-read': (False, 0, True),
             'time-explanation-setup-positive-read': (True, 15, True),
             'time-explanation-setup-thirty-read': (False, 30, True),
+            'time-explanation-enabled-thirty-read': (True, 30, True),
             'time-explanation-off-read': (True, 15, False),
             'time-explanation-positive-read': (False, 15, True),
             'time-explanation-zero-read': (True, 0, True),
@@ -7242,14 +7269,14 @@ class AccessibleUI:
                 and (minutes in (0, 15) or
                      minutes in (1, 2, 4, 6, 10) and final_enabled or
                      minutes in (20, 40) and initial_enabled and final_enabled or
-                     minutes == 30 and not initial_enabled and final_enabled), 'ui:time-binding')
+                     minutes == 30 and final_enabled), 'ui:time-binding')
         self.time_explanation_entry(child)
-        if minutes == 30:
+        if minutes == 30 and not initial_enabled:
             initial = self.settings(child)
             require(initial['limit_enabled'] == initial_enabled, 'ui:time-initial-state')
             require(initial['allowance'] == ['0 minutes'], 'ui:time-initial-allowance')
         self.activate_id('parent-page-screen-limits')
-        if minutes != 30:
+        if minutes != 30 or initial_enabled:
             initial = self.settings(child)
         require(initial['limit_enabled'] == initial_enabled, 'ui:time-initial-state')
         if not initial_enabled:
@@ -8369,7 +8396,7 @@ class AccessibleUI:
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session()
-        self.desktop_result(EXISTING_CHILD if standard else PARENT, 'success')
+        self.desktop_result(EXISTING_CHILD if standard else getattr(self, 'management_parent', PARENT), 'success')
         def prompt_free():
             self.invalidate_observation()
             self.handle_system_prompt()
@@ -8526,7 +8553,7 @@ class AccessibleUI:
 
     def desktop_result(self, account, expected):
         """GDM06 success on the caller's qualified public desktop connection."""
-        require(account in (PARENT, EXISTING_CHILD, CHILD) and expected == 'success',
+        require(account in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD) and expected == 'success',
                 'ui:desktop-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
             return self.standard_shell_desktop()
@@ -15863,6 +15890,8 @@ class AccessibleUI:
                 require(not self.password_recipient(name), 'ui:gdm-wrong-recipient-accepted')
             elif operation in ('gdm-parent-recipient', 'gdm-parent-recipient-rechecked'):
                 self.wait(lambda: self.password_recipient(PARENT), 'gdm-parent-recipient')
+            elif operation in ('gdm-second-parent-recipient', 'gdm-second-parent-recipient-rechecked'):
+                self.wait(lambda: self.password_recipient(OTHER_PARENT), 'gdm-second-parent-recipient')
             elif operation in ('gdm-standard-recipient', 'gdm-standard-recipient-rechecked'):
                 self.wait(lambda: self.password_recipient(EXISTING_CHILD), 'gdm-standard-recipient')
             elif operation in ('gdm-child-recipient', 'gdm-child-recipient-rechecked'):
@@ -15881,10 +15910,12 @@ class AccessibleUI:
                 self.kiosk_gdm_returned()
             elif operation == 'gdm-station-refused':
                 result['fallback'] = self.station_refused()
-            elif operation in ('gdm-focused', 'gdm-other-focused', 'gdm-standard-focused',
+            elif operation in ('gdm-focused', 'gdm-second-parent-focused', 'gdm-other-focused', 'gdm-standard-focused',
                               'gdm-station-focused', 'gdm-product-free-focused', 'gdm-child-focused',
                               'gdm-product-free-standard-focused', 'gdm-product-free-child-focused'):
                 name = OTHER_PARENT if operation == 'gdm-other-focused' else PARENT
+                if operation == 'gdm-second-parent-focused':
+                    name = OTHER_PARENT
                 if operation in ('gdm-standard-focused', 'gdm-product-free-standard-focused'):
                     name = EXISTING_CHILD
                 if operation in ('gdm-child-focused', 'gdm-product-free-child-focused'):
@@ -15901,6 +15932,8 @@ class AccessibleUI:
                           'gdm-account-focus')
             elif operation in GREETER_NAVIGATION:
                 name = OTHER_PARENT if operation == 'gdm-other-list' else PARENT
+                if operation == 'gdm-second-parent-list':
+                    name = OTHER_PARENT
                 if operation in ('gdm-standard-list', 'gdm-product-free-standard-list'):
                     name = EXISTING_CHILD
                 if operation in ('gdm-child-list', 'gdm-product-free-child-list'):
@@ -15976,8 +16009,9 @@ class AccessibleUI:
             result['provider'] = self._shell_provider_metadata(owner)
         elif operation == 'keyring-cancel-standard':
             self.cancel_keyring_prompt()
-        elif operation in ('desktop', 'standard-desktop'):
-            self.desktop_result(PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
+        elif operation in ('desktop', 'standard-desktop', 'second-parent-desktop'):
+            self.desktop_result(OTHER_PARENT if operation == 'second-parent-desktop' else
+                                PARENT if operation == 'desktop' else EXISTING_CHILD, 'success')
         elif operation == 'help-desktop-clear':
             self.help_desktop_clear()
         elif operation == 'standard-system-prompt':
@@ -17325,6 +17359,12 @@ def wait_for_greeter_return(program):
 
 
 def main():
+    management_parent = None
+    if len(sys.argv) >= 5 and sys.argv[-2] == '--management-parent':
+        management_parent = sys.argv[-1]
+        del sys.argv[-2:]
+        require(management_parent in MANAGEMENT_PARENTS and sys.argv[1] in MANAGEMENT_OPERATIONS,
+                'ui:management-parent-binding')
     kiosk_request = None
     if len(sys.argv) >= 5 and sys.argv[-2] == '--kiosk-request':
         kiosk_request = validate_kiosk_request(json.loads(sys.argv[-1]))
@@ -17404,7 +17444,9 @@ def main():
              if sys.argv[1] in CHILD_DESKTOP_OPERATIONS else
              CHILD_ACCOUNTS[NAMED_CUSTOM_CHILDREN[child] if child else EXISTING_CHILD]
              if sys.argv[1] in GAME_OPERATIONS else
-             'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else 'onpc-parent-jamie'))
+             'onpc-child-jordan' if sys.argv[1] in STANDARD_OPERATIONS else
+             APPROVER_ACCOUNTS[MANAGEMENT_PARENTS[management_parent]] if management_parent else
+             APPROVER_ACCOUNTS[OTHER_PARENT] if sys.argv[1] == 'second-parent-desktop' else 'onpc-parent-jamie'))
     require(account.pw_uid > 0 and (greeter or account.pw_uid >= 1000), 'ui:fixture-identity')
     # Station entry is qualified by its public form. Bind the observation
     # client to the account without polling session services or treating their
@@ -17419,6 +17461,12 @@ def main():
     os.environ.update(HOME=account.pw_dir, USER=account.pw_name,
                       **environment,
                       LANG='C.UTF-8', NO_AT_BRIDGE='0')
+    if management_parent is not None or sys.argv[1] == 'second-parent-desktop':
+        require_management_owner(management_parent or 'second-parent')
+        # A fresh login's bus precedes GNOME's ScreenSaver service. The
+        # read-only desktop observer waits for Shell before checking its lock;
+        # management input still requires the unlocked guard before discovery.
+        require_active_launch_session(unlocked=sys.argv[1] != 'second-parent-desktop')
     if sys.argv[1] == 'keyring-cancel-standard' or sys.argv[1] in MATE_APPROVAL_OPERATIONS:
         require_active_launch_session()
     import gi
@@ -17445,6 +17493,7 @@ def main():
         # reacquisition and the deadline; nested UI waits cannot renew it.
         ui.timeout = 0
     ui.branch_owner = branch_owner
+    ui.management_parent = MANAGEMENT_PARENTS[management_parent or 'parent']
     ui.overlay_request = overlay_request
     ui.kiosk_request = kiosk_request
     ui.natural_reminder_record = natural_reminder_record
@@ -17499,6 +17548,10 @@ def main():
     read_started = time.monotonic_ns()
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
+        if sys.argv[1] == 'second-parent-desktop':
+            require_active_launch_session(unlocked=True)
+        if management_parent is not None:
+            result['management_parent'] = management_parent
     except ui.query_errors as error:
         if ui.api.provider_diagnostics:
             error.add_note('public-atspi-cache-parent:' + parent_failure_observation(ui))

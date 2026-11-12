@@ -365,6 +365,32 @@ sub open_for_child {
     onpc_progress::operation('Opening Parent for [Child user]');
     my ($journey, $source, $entry, $window, $child, $invocation, $desktop_observation) = @_;
     $desktop_observation = 1 if @_ < 7;
+    if (@_ == 8) {
+        my $parent = $_[7];
+        die 'parent:management-binding' unless ref($journey) eq 'onpc_journey'
+            && $source eq 'desktop' && $entry eq 'same-user'
+            && ($window eq 'new' || $window eq 'retained')
+            && ($parent eq 'parent' || $parent eq 'second-parent')
+            && ($child eq 'child' || $child eq 'existing')
+            && defined($invocation) && $invocation =~ /\A[a-z][a-z0-9-]*\z/
+            && defined($desktop_observation) && $desktop_observation eq '1';
+        my $section = $journey->scope($invocation);
+        my $desktop = $section->seen('desktop');
+        if ($window eq 'new') {
+            launch($section, $desktop, 'management');
+        } else {
+            $section->consume_observation('desktop', $desktop);
+            my $peer = $section->scope('refresh-peer');
+            my $other = $child eq 'child' ? 'existing' : 'child';
+            $peer->consume_observation('parent-selected', select_child($peer, $other,
+                $peer->seen('child-picker-opened'), 'child-picker-opened',
+                'child-choice-highlighted', 'parent-selected'));
+        }
+        my $selected = select_child($section, $child, $section->seen('child-picker-opened'),
+            'child-picker-opened', 'child-choice-highlighted', 'parent-selected');
+        $section->consume_observation('parent-selected', $selected);
+        return $journey->seen("$invocation-parent-retained");
+    }
     if (defined($window) && $window eq 'retained') {
         die 'parent:retained-binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
             && $source eq 'desktop' && ($entry eq 'retained' || $entry eq 'same-user')
@@ -407,6 +433,17 @@ sub open_for_child {
 sub set_allowance {
     onpc_progress::operation('Setting the daily allowance for [Child user]');
     my ($journey, $source, $parent, $entry, $window, $child, $initial, $minutes, $final) = @_;
+    if (@_ == 10) {
+        my $invocation = $_[9];
+        die 'parent:management-allowance-binding' unless $source eq 'desktop'
+            && $entry eq 'same-user' && ($parent eq 'parent' || $parent eq 'second-parent')
+            && ($child eq 'child' || $child eq 'existing') && $initial =~ /\A[01]\z/
+            && ($minutes eq '30' || $initial eq '1' && $minutes eq '15') && $final eq '1';
+        my $selected = open_for_child($journey, $source, $entry, $window, $child,
+                                     $invocation, 1, $parent);
+        $journey->consume_observation("$invocation-parent-retained", $selected);
+        return $journey->seen("$invocation-allowance-configured");
+    }
     die 'parent:allowance-binding' unless @_ == 9 && $parent eq 'parent'
         && $window eq 'new' && $final eq '1'
         && (($child eq 'existing' && $source eq 'gdm' && $entry eq 'fresh'

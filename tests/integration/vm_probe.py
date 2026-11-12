@@ -648,6 +648,15 @@ def reproduce_retained_entry(lease):
                             'riley-restricted-curtain', 'retained-entry')
 
 
+def reproduce_second_parent(lease):
+    """Keep both parents' actual handoff at the second fresh desktop read."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from second_parent_management import SecondParentManagementJourney
+    return reproduce_denial(lease, SecondParentManagementJourney, None,
+                            'sam-fresh-desktop', 'second-parent',
+                            boundary_operation='second-parent-desktop')
+
+
 def reproduce_update_no_action(lease):
     """Keep the shared thirty-minute Parent setup open for update diagnosis."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))

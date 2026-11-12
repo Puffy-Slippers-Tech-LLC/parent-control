@@ -921,7 +921,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         and not any(value for name, value in locals().items()
             if name not in ('assets', 'provision_credentials') and isinstance(value, bool)))),
         'smoke:time-profiles-daily-prerequisites')
-    require(parent_entry in (None, 'retained', 'retained-children') and (parent_entry is None or (
+    require(parent_entry in (None, 'retained', 'retained-children', 'second-parent') and (parent_entry is None or (
         assets is not None and provision_credentials and fresh_desktop is None
         and lock_surface is None and approval_flow is None
         and not any(value for name, value in locals().items()
@@ -1844,6 +1844,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['scope'] = 'installed-lock-' + lock_surface + '-qualification'
         if parent_entry is not None:
             result['scope'] = ('installed-retained-entry-qualification' if parent_entry == 'retained-children'
+                               else 'installed-second-parent-management-qualification' if parent_entry == 'second-parent'
                                else 'installed-retained-parent-qualification')
         if gdm_navigation:
             result['scope'] = 'installed-gdm-navigation-qualification'
@@ -2284,8 +2285,10 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import GdmCredentialQualification
                     qualification_class = GdmCredentialQualification
                 if parent_entry is not None:
-                    from parent_setup_qualification import RetainedParentQualification, RetainedEntryQualification
-                    qualification_class = (RetainedEntryQualification if parent_entry == 'retained-children'
+                    from parent_setup_qualification import (RetainedParentQualification,
+                        RetainedEntryQualification, SecondParentManagementQualification)
+                    qualification_class = (SecondParentManagementQualification if parent_entry == 'second-parent'
+                                           else RetainedEntryQualification if parent_entry == 'retained-children'
                                            else RetainedParentQualification)
                 if lock_surface is not None:
                     from parent_setup_qualification import (LockSurfaceQualification,

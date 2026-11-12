@@ -20,7 +20,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **198 — [Manage from the second parent's own window](E2E-Tasks/198-manage-from-the-second-parent-s-own-window.md)**.
+Next task: **293 — [E2E-051: jordan](E2E-Tasks/293-case-251.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

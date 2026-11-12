@@ -202,7 +202,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver', 'probe-ineligible-approver',
                                       'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                       'reproduce-lock-denial',
-                                      'reproduce-retained-entry', 'probe-lock-curtain', 'probe-lock-time-denial',
+                                      'reproduce-retained-entry', 'reproduce-second-parent', 'probe-lock-curtain', 'probe-lock-time-denial',
                                       'reproduce-retained-app-visits',
                                       'probe-retained-app-launch',
                                       'reproduce-transfer-refusal', 'probe-transfer-refusal',

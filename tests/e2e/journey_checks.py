@@ -228,12 +228,14 @@ class RetainedDesktopJourney(AllowanceJourney):
                         stages.index(earlier) < stages.index(later), 'retained-desktop:comparison-plan')
         require(all(earlier in parent_expected for earlier in parent_checks.values())
                 and all(earlier in parent_expected and plan.screen_tags[later] in (
-                    'ui:switch-parent-before', 'ui:switch-parent-ready', 'ui:switch-parent')
+                    'ui:switch-parent-before', 'ui:switch-parent-ready', 'ui:switch-parent',
+                    'ui:retained-parent-read')
                     for later, earlier in window_checks.items()), 'retained-parent:comparison-plan')
         session_roles = {'system:parent-desktop-identity': 'parent',
+                         'system:second-parent-desktop-identity': 'second-parent',
                          'system:child-retained-locked': 'child',
                          **{'system:' + role + '-entry-' + mode: role
-                            for role in ('parent', 'child', 'standard')
+                            for role in ('parent', 'second-parent', 'child', 'standard')
                             for mode in ('same', 'retained', 'lock', 'refusals')}}
         require(all(plan.screen_tags[stage] in session_roles for stage in
                     set(session_checks) | set(session_checks.values()))
@@ -265,7 +267,10 @@ class RetainedDesktopJourney(AllowanceJourney):
             observed.setdefault('comparison', {})['same_parent_window_child_page_settings'] = True
         elif stage in self.window_checks:
             earlier = self.window_checks[stage]
-            require(earlier in self.parents and observed['ui']['window'] == self.parents[earlier]['window'],
+            window = (observed['ui']['retained_parent']['window']
+                      if self.plan.screen_tags[stage] == 'ui:retained-parent-read'
+                      else observed['ui']['window'])
+            require(earlier in self.parents and window == self.parents[earlier]['window'],
                     'retained-parent:foreground-window-replaced')
         if stage in self.session_checks or stage in self.session_checks.values():
             import re

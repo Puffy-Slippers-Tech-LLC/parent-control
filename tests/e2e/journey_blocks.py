@@ -540,11 +540,18 @@ def fresh_desktop(account, expected='success', *, product_free=False):
 
     Deliberate wrong-account visits belong to the separate harness qualification.
     """
-    require(account in ('parent', 'other-child', 'child'), 'journey:desktop-binding')
+    require(account in ('parent', 'second-parent', 'other-child', 'child'), 'journey:desktop-binding')
     require(expected in ('success', 'time-denied') and
             (expected == 'success' or account in ('child', 'other-child')), 'journey:desktop-result')
     require(type(product_free) is bool and (not product_free or expected == 'success'),
             'journey:desktop-product-binding')
+    if account == 'second-parent':
+        require(not product_free, 'journey:desktop-product-binding')
+        return {'installed-greeter': 'ui:gdm-second-parent-list',
+                'parent-focused': 'ui:gdm-second-parent-focused',
+                'recipient-qualified': 'ui:gdm-second-parent-recipient',
+                'recipient-rechecked': 'ui:gdm-second-parent-recipient-rechecked',
+                'desktop': 'ui:second-parent-desktop'}
     if account == 'child':
         return {
             'installed-greeter': 'ui:gdm-product-free-child-list' if product_free else 'ui:gdm-child-list',
@@ -591,7 +598,7 @@ def desktop_return(prefix, *, account, action='switch-user'):
 
 def desktop_entry(account, *, source, entry, expected='success', source_account=None):
     """FLOW15 explicit fresh/retained/same/lock entry and independent result."""
-    require(account in ('parent', 'child', 'other-child'), 'journey:entry-account')
+    require(account in ('parent', 'second-parent', 'child', 'other-child'), 'journey:entry-account')
     require(expected in ('success', 'time-denied') and
             (expected == 'success' or account in ('child', 'other-child')), 'journey:entry-result')
     require((entry == 'fresh' and source == 'gdm')
@@ -604,7 +611,7 @@ def desktop_entry(account, *, source, entry, expected='success', source_account=
     role = 'standard' if account == 'other-child' else account
     screens = {}
     if entry == 'retained' and source == 'desktop':
-        require(source_account in ('parent', 'child', 'other-child') and source_account != account,
+        require(source_account in ('parent', 'second-parent', 'child', 'other-child') and source_account != account,
                 'journey:entry-source-account')
         source_role = 'standard' if source_account == 'other-child' else source_account
         screens = {'source-desktop': fresh_desktop(source_account)['desktop'],
@@ -739,8 +746,20 @@ def parent_selection(*, child='child', screen_limits=False):
     }
 
 
-def parent_management(*, child='child'):
+def parent_management(*, child='child', parent=None, window='new'):
     """PARENT01/02: direct command, owned window and explicit child selection."""
+    require(parent is None or parent in ('parent', 'second-parent'), 'journey:management-parent')
+    require(window in ('new', 'retained') and (parent is not None or window == 'new'),
+            'journey:management-window')
+    if parent is not None:
+        return {
+            'desktop': fresh_desktop(parent)['desktop'],
+            **({'parent-command': 'ui:parent-command-launch', 'parent-window': 'ui:parent-window'}
+               if window == 'new' else prefixed_stages('refresh-peer', parent_selection(
+                   child='child' if child == 'existing' else 'existing', screen_limits=True))),
+            **parent_selection(child=child, screen_limits=True),
+            'parent-retained': 'ui:retained-parent-read',
+        }
     return {
         'parent-command': 'ui:parent-command-launch',
         'parent-window': 'ui:parent-window',

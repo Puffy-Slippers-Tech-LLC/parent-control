@@ -857,6 +857,10 @@ OPERATION_LABELS.update({
     'child-fullscreen-reminder-suppressed': 'Checking that Riley’s current warning hides during fullscreen play',
 })
 RESPONSE_BYTE_LIMITS.update({operation: 8192 for operation in accessible_ui.NATURAL_REMINDER_OPERATIONS})
+OPERATION_LABELS.update({operation: 'Entering Sam’s own administrator desktop'
+                        for operation in accessible_ui.SECOND_PARENT_GREETER_OPERATIONS |
+                        {'second-parent-desktop'}})
+OPERATION_LABELS['time-explanation-enabled-thirty-read'] = 'Saving thirty daily minutes for the selected child'
 
 
 class UiObservations:
@@ -1342,7 +1346,9 @@ class UiObservations:
                                         'destination': 'account-list'}
         return result
 
-    def observe(self, operation, *, child=None):
+    def observe(self, operation, *, child=None, parent=None):
+        require(parent is None or (parent in accessible_ui.MANAGEMENT_PARENTS
+                and operation in accessible_ui.MANAGEMENT_OPERATIONS), 'ui:management-parent-binding')
         require(not getattr(self, 'language_failed', False), 'ui:language-previous-failure')
         import time
         trace = self.trace
@@ -1513,7 +1519,8 @@ class UiObservations:
                 if operation in accessible_ui.MATE_OPERATIONS | accessible_ui.SHELL_PROMPT_OPERATIONS:
                     require(not self.challenge_failed, 'ui:challenge-previous-failure')
                 read_started = time.monotonic_ns()
-                result = self._observe(operation, **({'child': child} if child else {}))
+                result = self._observe(operation, **({'child': child} if child else {}),
+                                       **({'parent': parent} if parent else {}))
                 self.read_bounds = (read_started, time.monotonic_ns())
                 if operation == 'kiosk-agent-refused':
                     # A proved denied, usable form ends the lost challenge only
@@ -1602,12 +1609,13 @@ class UiObservations:
         try:
             require(type(challenge) is dict and set(challenge) == {
                 'id', 'role', 'surface', 'check'} and challenge['surface'] == 'gdm'
-                and challenge['role'] in ('parent', 'other-child', 'child')
+                and challenge['role'] in ('parent', 'second-parent', 'other-child', 'child')
                 and challenge['check'] in ('qualified', 'rechecked')
                 and type(challenge['id']) is str and bool(challenge['id']), 'ui:challenge')
             identity = (challenge['id'], challenge['role'], challenge['surface'])
             first = challenge['check'] == 'qualified'
             recipient = ('gdm-parent-recipient' if challenge['role'] == 'parent'
+                         else 'gdm-second-parent-recipient' if challenge['role'] == 'second-parent'
                          else 'gdm-child-recipient' if challenge['role'] == 'child'
                          else 'gdm-standard-recipient')
             require(operation == recipient + ('' if first else '-rechecked'), 'ui:challenge')
@@ -1624,7 +1632,7 @@ class UiObservations:
             self.pending_challenge = None
             raise
 
-    def _observe(self, operation, *, child=None):
+    def _observe(self, operation, *, child=None, parent=None):
         if operation == 'kiosk-pending-close':
             require(not self.challenge_failed
                     and self.last_operation == 'kiosk-mate-rechecked'
@@ -1790,6 +1798,8 @@ class UiObservations:
         if self.kiosk_request is not None and operation in accessible_ui.KIOSK_BOUND_OPERATIONS:
             binding += ['--kiosk-request', json.dumps(
                 accessible_ui.validate_kiosk_request(self.kiosk_request))]
+        if parent is not None:
+            binding += ['--management-parent', parent]
         try:
             raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version, *binding],
                                      operation, input=program.encode())
@@ -1812,6 +1822,8 @@ class UiObservations:
                     and (not self.boot_guard or proof == self.boot_guard), 'ui:boot-changed')
             self.boot_proof = proof
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
+        if parent is not None:
+            expected['management_parent'] = parent
         if operation in ('child-natural-reminder-wait', 'child-reminder-history-wait'):
             value = result.get('natural_reminder')
             require(type(value) is dict and set(value) == {
@@ -3293,6 +3305,10 @@ class UiObservations:
                     'ui:recipient-order')
         elif operation == 'gdm-parent-recipient-rechecked':
             require(self.last_operation == 'gdm-parent-recipient', 'ui:recipient-order')
+        elif operation == 'gdm-second-parent-recipient':
+            require(self.last_operation == 'gdm-second-parent-focused', 'ui:recipient-order')
+        elif operation == 'gdm-second-parent-recipient-rechecked':
+            require(self.last_operation == 'gdm-second-parent-recipient', 'ui:recipient-order')
         elif operation == 'gdm-standard-wrong-recipient-refused':
             require(self.last_operation == 'gdm-other-focused', 'ui:recipient-order')
         elif operation == 'gdm-standard-recipient':

@@ -184,7 +184,7 @@ sub enter_desktop {
     onpc_progress::operation('Entering the explicitly declared fixture desktop');
     my ($journey, $source, $account, $entry, $expected, $prefix, $source_account) = @_;
     die 'desk:entry-binding' unless (@_ == 6 || @_ == 7) && ref($journey) eq 'onpc_journey'
-        && ($account eq 'parent' || $account eq 'child' || $account eq 'other-child')
+        && ($account eq 'parent' || $account eq 'second-parent' || $account eq 'child' || $account eq 'other-child')
         && ($expected eq 'success' || $expected eq 'time-denied'
             && ($account eq 'child' || $account eq 'other-child'))
         && $prefix =~ /\A[a-z][a-z0-9-]*\z/
@@ -197,7 +197,8 @@ sub enter_desktop {
     my $section = $journey->scope($prefix);
     if ($entry eq 'retained' && $source eq 'desktop') {
         die 'desk:entry-source' unless defined($source_account) && $source_account ne $account
-            && ($source_account eq 'parent' || $source_account eq 'child' || $source_account eq 'other-child');
+            && ($source_account eq 'parent' || $source_account eq 'second-parent'
+                || $source_account eq 'child' || $source_account eq 'other-child');
         $section->consume_observation('source-desktop', $section->seen('source-desktop'));
         $section->seen($_) for qw(source-switch source-greeter);
     } elsif ($source eq 'pending-overlay') {
@@ -216,10 +217,45 @@ sub enter_desktop {
         observe_lock($section);
         return unlock_success($section);
     }
-    my $focused = $account eq 'parent' ? 'parent' : $account eq 'child' ? 'child' : 'standard';
+    my $focused = ($account eq 'parent' || $account eq 'second-parent') ? 'parent'
+        : $account eq 'child' ? 'child' : 'standard';
     return onpc_gdm::sign_in_challenge($journey, $prefix,
         "$prefix-installed-greeter", "$prefix-$focused-focused",
         $prefix . ($expected eq 'success' ? '-desktop' : '-denied'));
+}
+
+sub qualify_second_parent_management {
+    onpc_progress::operation('Managing Jordan from each parent’s own window');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'desk:second-parent-plan' unless @_ == 3 && ref($exchange) eq 'CODE';
+    my $journey = onpc_journey->new(exchange => $exchange,
+        prefix => 'second-parent-management', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    enter_desktop($journey, 'gdm', 'parent', 'fresh', 'success', 'jamie-fresh');
+    $journey->consume_observation('jamie-open-allowance-configured',
+        onpc_parent::set_allowance($journey, 'desktop', 'parent', 'same-user', 'new',
+                                  'existing', '0', '30', '1', 'jamie-open'));
+    $journey->seen($_) for qw(jamie-saved jamie-captured jamie-session);
+    my $leave = $journey->scope('jamie-leave');
+    switch_user($leave, $leave->seen('desktop'));
+    enter_desktop($journey, 'gdm', 'second-parent', 'fresh', 'success', 'sam-fresh');
+    $journey->consume_observation('sam-open-allowance-configured',
+        onpc_parent::set_allowance($journey, 'desktop', 'second-parent', 'same-user', 'new',
+                                  'existing', '1', '15', '1', 'sam-open'));
+    $journey->seen($_) for qw(sam-saved sam-captured sam-session);
+    enter_desktop($journey, 'desktop', 'parent', 'retained', 'success', 'jamie-back', 'second-parent');
+    $journey->consume_observation('jamie-return-allowance-configured',
+        onpc_parent::set_allowance($journey, 'desktop', 'parent', 'same-user', 'retained',
+                                  'existing', '1', '30', '1', 'jamie-return'));
+    $journey->seen($_) for qw(jamie-resaved jamie-same-session);
+    enter_desktop($journey, 'desktop', 'second-parent', 'retained', 'success', 'sam-back', 'parent');
+    $journey->consume_observation('sam-return-parent-retained',
+        onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained',
+                                   'existing', 'sam-return', 1, 'second-parent'));
+    $journey->seen('sam-same-session');
+    $journey->finish();
 }
 
 sub qualify_retained_entry {

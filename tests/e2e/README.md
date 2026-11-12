@@ -1786,6 +1786,14 @@ same maintenance envelope and supplies no acceptance credit.
 child curtain observer against that owned scene and retains its command evidence.
 It cannot reveal, unlock, authenticate or supply acceptance credit.
 
+`tools/test-vm --vm NAME reproduce-second-parent` replays
+`SecondParentManagementJourney` through Jamie's saved allowance and retained
+window, then Casey's fresh guarded login (the recipe's Sam binding). It runs
+the shared read-only `second-parent-desktop` observer at `sam-fresh-desktop`
+without acknowledging that boundary, closes the worker and retains both
+desktops for guarded `exec` diagnosis. It supplies no acceptance credit; finish
+with the owned `stop` before clean qualification.
+
 `tools/test-vm --vm NAME reproduce-revoke-cancel` runs the shared real kiosk
 grant and two Cancel entries, retaining `second-balances` before the controller
 comparison. Its boundary observation retains the public balance read and host

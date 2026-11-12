@@ -12,6 +12,7 @@ my %variables = (
     parent => '_SECRET_ONPC_PARENT_PASSWORD',
     child => '_SECRET_ONPC_CHILD_PASSWORD',
     'other-parent' => '_SECRET_ONPC_OTHER_PARENT_PASSWORD',
+    'second-parent' => '_SECRET_ONPC_OTHER_PARENT_PASSWORD',
     'other-child' => '_SECRET_ONPC_OTHER_CHILD_PASSWORD',
 );
 my %prompts = (
@@ -474,7 +475,7 @@ sub type_fixture_secret {
     my $ok = eval {
         die "secret:arguments\n" unless (@_ == 3 || @_ == 4)
             && ($role eq 'parent' || $role eq 'other-child'
-                || (($role eq 'child' || $role eq 'other-parent') && defined($challenge)))
+                || (($role eq 'child' || $role eq 'other-parent' || $role eq 'second-parent') && defined($challenge)))
             && ref($journey) eq 'onpc_journey' && !$journey->{review};
         my $stage;
         my $wrong = 0;

@@ -440,7 +440,7 @@ def main(argv=None):
                                           'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver', 'probe-ineligible-approver',
                                           'probe-kiosk-latency', 'probe-kiosk-prompt-latency',
                                           'reproduce-lock-denial',
-                                          'reproduce-retained-entry', 'probe-lock-curtain', 'probe-lock-time-denial',
+                                          'reproduce-retained-entry', 'reproduce-second-parent', 'probe-lock-curtain', 'probe-lock-time-denial',
                                           'reproduce-revoke-cancel', 'probe-revoke-balances',
                                           'reproduce-delayed-approval',
                                           'reproduce-countdown-minutes',
@@ -635,7 +635,7 @@ def main(argv=None):
                              'reproduce-station-shortcuts',
                              'reproduce-baseline-app-effects',
                              'reproduce-baseline-auth-pause',
-                             'reproduce-lock-denial', 'reproduce-retained-entry',
+                             'reproduce-lock-denial', 'reproduce-retained-entry', 'reproduce-second-parent',
                              'reproduce-revoke-cancel',
                              'reproduce-delayed-approval',
                              'reproduce-countdown-minutes',
@@ -649,7 +649,7 @@ def main(argv=None):
                              'enter-remembered-return', 'reproduce-riley-native-grid', 'reproduce-snap-grid',
                              'reproduce-flatpak-command', 'reproduce-update-no-action'):
             from vm_probe import (reproduce_gdm_denial, reproduce_lock_denial,
-                                  reproduce_retained_entry, reproduce_transfer_refusal,
+                                  reproduce_retained_entry, reproduce_second_parent, reproduce_transfer_refusal,
                                   reproduce_remembered_return, repeat_remembered_return,
                                   enter_remembered_return, reproduce_riley_native_grid)
             from vm_probe import reproduce_snap_grid, reproduce_flatpak_command
@@ -678,6 +678,7 @@ def main(argv=None):
              'reproduce-baseline-auth-pause': reproduce_baseline_auth_pause,
              'reproduce-lock-denial': reproduce_lock_denial,
              'reproduce-retained-entry': reproduce_retained_entry,
+             'reproduce-second-parent': reproduce_second_parent,
              'reproduce-revoke-cancel': reproduce_revoke_cancel,
              'reproduce-delayed-approval': reproduce_delayed_approval,
              'reproduce-countdown-minutes': reproduce_countdown_minutes,

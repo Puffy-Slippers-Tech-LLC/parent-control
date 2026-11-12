@@ -18,10 +18,10 @@ import sys
 import time
 
 
-ACCOUNTS = {'parent': 'onpc-parent-jamie', 'standard': 'onpc-child-jordan',
+ACCOUNTS = {'parent': 'onpc-parent-jamie', 'second-parent': 'onpc-parent-casey', 'standard': 'onpc-child-jordan',
             'child': 'onpc-child-riley'}
 BINDINGS = {role + '-' + action: (role, action)
-            for role in ('parent', 'standard', 'child')
+            for role in ACCOUNTS
             for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 BINDINGS.update({'child-switch-user': ('child', 'switch-user'),
                  'child-logout': ('child', 'logout'),
@@ -41,6 +41,7 @@ LABELS['enter-locked-from-parent'] = 'Returning from Parent to the preserved loc
 BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
+BINDINGS['second-parent-desktop-identity'] = ('second-parent', 'desktop-identity')
 BINDINGS['child-desktop-identity'] = ('child', 'desktop-identity')
 BINDINGS['standard-desktop-identity'] = ('standard', 'desktop-identity')
 LABELS['desktop-identity'] = 'Verifying the preserved desktop identity'

@@ -1038,7 +1038,7 @@ def test_dispatcher_supplies_installed_uuid_and_no_caller_uri(monkeypatch):
                    'reproduce-station-shortcuts',
                    'reproduce-baseline-app-effects',
                    'reproduce-baseline-auth-pause',
-                   'reproduce-lock-denial', 'reproduce-retained-entry',
+                   'reproduce-lock-denial', 'reproduce-retained-entry', 'reproduce-second-parent',
                    'reproduce-retained-app-visits',
                    'reproduce-revoke-cancel', 'probe-revoke-balances',
                    'reproduce-countdown-minutes',

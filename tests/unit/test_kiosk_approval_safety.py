@@ -10,6 +10,37 @@ from private_artifacts import EvidenceError
 from tests.support.perl import run_password_guard, run_perl
 
 
+def test_management_parent_refuses_another_administrator(monkeypatch):
+    module = ui_observations.accessible_ui
+    lookup = Mock(return_value=SimpleNamespace(pw_uid=1234))
+    monkeypatch.setattr(module.pwd, 'getpwnam', lookup)
+    monkeypatch.setattr(module.os, 'getuid', lambda: 5678)
+    with pytest.raises(module.UiError, match='ui:management-parent-owner'):
+        module.require_management_owner('second-parent')
+    lookup.assert_called_once_with('onpc-parent-casey')
+
+
+def test_second_parent_challenge_requires_its_own_two_fresh_checks():
+    ui = ui_observations.UiObservations(None)
+    ui.observe = Mock(return_value={'recipient': True})
+    challenge = {'id': 'sam-fresh', 'role': 'second-parent', 'surface': 'gdm', 'check': 'qualified'}
+    ui.observe_challenge('gdm-second-parent-recipient', challenge)
+    ui.observe_challenge('gdm-second-parent-recipient-rechecked', {**challenge, 'check': 'rechecked'})
+    assert ui.observe.call_count == 2
+    with pytest.raises(EvidenceError, match='ui:challenge-replay'):
+        ui.observe_challenge('gdm-second-parent-recipient', challenge)
+    assert ui.observe.call_count == 2
+
+
+def test_second_parent_challenge_refuses_a_primary_parent_proof():
+    ui = ui_observations.UiObservations(None)
+    ui.observe = Mock(side_effect=AssertionError('wrong recipient reached guest'))
+    with pytest.raises(EvidenceError, match='ui:challenge'):
+        ui.observe_challenge('gdm-parent-recipient',
+            {'id': 'sam-fresh', 'role': 'second-parent', 'surface': 'gdm', 'check': 'qualified'})
+    ui.observe.assert_not_called()
+
+
 @pytest.mark.parametrize('outside', ['product-modal', 'native-modal', 'product-focus'])
 def test_lock_input_ignores_app_local_modality_but_refuses_competing_recipients(outside):
     import os

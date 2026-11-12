@@ -1,8 +1,11 @@
 #!/usr/bin/python3 -IB
 """Prepare baseline and current app snapshots, then restore the powered-off baseline."""
 import argparse
+from dataclasses import asdict
+import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 
@@ -20,6 +23,7 @@ with test_source.startup(ROOT, sys.argv[1:]):
     import test_activity
 
 HELPER = '/usr/local/libexec/onpc-setup'
+DESTINATION = 'ONPC_PREPARE_DESTINATION'
 
 
 def outcome(status, message):
@@ -48,15 +52,136 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
-def main(argv=None, *, refresh=True, _worker=False):
+def remote_command(host, branch, vms, mode):
+    # The public launcher validates expectations under its source admission.
+    # This bootstrap owns only its one child and a fixed cancellation channel.
+    bootstrap = '''import json, os, select, signal, subprocess, sys
+from pathlib import Path
+root, branch, expected, mode = sys.argv[1:]
+root = Path(root).resolve()
+command = root / 'tools/prepare-vm'
+if not command.is_file() or command.is_symlink():
+    sys.exit('prepare-vm: launcher is missing from configured checkout')
+expected = json.loads(expected)
+environment = dict(os.environ)
+environment['ONPC_PREPARE_DESTINATION'] = json.dumps(dict(
+    root=str(root), branch=branch, expected=expected, parent=os.getpid()))
+with subprocess.Popen(['/usr/bin/python3', '-IBu', str(command),
+        '--vm', ','.join(entry['name'] for entry in expected), '--mode', mode, '--y'],
+        cwd=root, env=environment, stdin=subprocess.DEVNULL, start_new_session=True) as child:
+    while child.poll() is None:
+        if select.select([sys.stdin.buffer], [], [], .1)[0]:
+            sys.stdin.buffer.read(1)  # Fixed cancel byte or transport EOF.
+            if child.poll() is None:
+                child.send_signal(signal.SIGINT)
+            break
+    sys.exit(child.wait())
+'''
+    destination = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
+                   branch['repo_root'], branch['name'],
+                   json.dumps([asdict(vm) for vm in vms], default=str), mode]
+    return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+            '-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=30',
+            '-o', 'ServerAliveCountMax=3', host.name, shlex.join(destination)]
+
+
+def prepare_hosts(args, vms, *, refresh):
+    """Keep all VM authority and concurrency on the machine doing the work."""
+    if checkout_arguments():
+        raise ValueError('vm-pool: check in before dispatching preparation to another host')
+    local = vm_config.execution_host()
+    document = vm_config.read_document(validate_agent=False)
+    branches = tuple(vm_config.branch_registry(document).values())
+    groups = {}
+    for vm in vms:
+        groups.setdefault(vm.host, []).append(vm)
+    commands = []
+    # Resolve every destination before confirming or starting any preparation.
+    for host, targets in groups.items():
+        if host.name == local:
+            commands.append((targets, None))
+            continue
+        if host.transport != 'ssh':
+            raise ValueError(f'prepare-vm: no SSH route to host {host.name}')
+        candidates = [branch for branch in branches if branch['host'] == host.name]
+        if not candidates:
+            raise ValueError(f'prepare-vm: no configured checkout on {host.name}')
+        # Branch restrictions were checked against the invoking checkout; retain
+        # them at the destination rather than silently using a different branch.
+        owned = {vm.owning_branch for vm in targets if vm.owning_branch}
+        branch = next((branch for branch in candidates
+                       if branch['name'] == vm_config.current_branch()), candidates[0])
+        if owned and owned != {branch['name']}:
+            raise ValueError(f'prepare-vm: no checkout for owning branch on {host.name}')
+        commands.append((targets, remote_command(host, branch, targets, args.mode)))
+    from vm_selection import confirm_queue
+    if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
+        print('prepare-vm: cancelled; no baseline snapshot was prepared.')
+        return 0
+    test_source.leave_checkout()
+    statuses = []
+    for targets, command in commands:
+        names = ','.join(vm.name for vm in targets)
+        print(f'prepare-vm: preparing {names}', flush=True)
+        if command is None:
+            options = ['--vm', names, '--mode', args.mode, '--y']
+            with test_source.admission(ROOT, options):
+                status = main(options, refresh=refresh, _expected=targets)
+        else:
+            # A baseline replacement has no cooperative stop protocol. Keep
+            # SSH alive until the remote public launcher finishes its cleanup.
+            cancelled = False
+            with subprocess.Popen(command, stdin=subprocess.PIPE, start_new_session=True) as process:
+                while True:
+                    try:
+                        status = process.wait()
+                        break
+                    except KeyboardInterrupt:
+                        if not cancelled:
+                            try:
+                                process.stdin.write(b'C')
+                                process.stdin.flush()
+                            except BrokenPipeError:
+                                pass
+                        cancelled = True
+                        print('prepare-vm: waiting for active remote preparation to finish.',
+                              file=sys.stderr, flush=True)
+            if cancelled:
+                status = 130
+        statuses.append(status)
+        if status == 130:
+            break
+    status = next((value for value in statuses if value), 0)
+    return outcome(status, 'preparation failed; inspect the reported errors.' if status else
+                   f'onpc_baseline prepared and accepted for {args.vm}.')
+
+
+def main(argv=None, *, refresh=True, _worker=False, _expected=None):
     args = arguments(argv)
     try:
-        concurrency, vms = vm_config.execution(args.vm)
-        from vm_pool import check_queue
-        check_queue(vms)
-        args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
+        concurrency, vms = vm_config.execution(args.vm, remote=not _worker)
+        destination = json.loads(os.environ.pop(DESTINATION, 'null'))
+        if destination is not None:
+            if destination['parent'] != os.getppid() or destination['root'] != str(ROOT):
+                raise ValueError('prepare-vm: remote checkout placement changed')
+            from launcher_controller import _local_checkout
+            _local_checkout(ROOT, destination['branch'])
+            actual = json.loads(json.dumps([asdict(vm) for vm in vms], default=str))
+            if actual != destination['expected']:
+                raise ValueError('prepare-vm: remote VM registry differs from controller')
+        if _expected is not None and tuple(_expected) != vms:
+            raise ValueError('prepare-vm: selected VM registry changed before preparation')
+        args.vm = ','.join(vm.name for vm in vms)
+        host = vm_config.execution_host()
+        if destination is not None and any(vm.host.name != host for vm in vms):
+            raise ValueError('prepare-vm: destination VM host assignment differs; '
+                             'verify server setup with ./setup.sh --server')
+        if not _worker and any(vm.host.name != host for vm in vms):
+            return prepare_hosts(args, vms, refresh=refresh)
+        from vm_pool import check_queue
+        check_queue(vms)
         read_password()
         check(HELPER)
         test_source.finish_admission()

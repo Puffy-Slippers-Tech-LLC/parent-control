@@ -108,10 +108,32 @@ outside Git; the registry contains no SSH credentials. Remote launcher dispatch
 uses each branch's `host` and `repo_root`; the controller runs in that host's
 checkout, whose absolute path may differ from the laptop's. See
 [launcher placement](../../docs/Execution-Plans.md#common-launcher-interface).
-Direct VM operations through SSH host entries remain unimplemented: these
-selections explicitly refuse instead of accessing local libvirt. The disabled
-SSH entry may remain tracked while the host is unavailable. Local VM execution
-uses the local host's concurrency and backup root. Legacy registries without
+`tools/prepare-vm` dispatches SSH-host selections through the existing OpenSSH
+alias, without overriding its connection settings. It uses the current branch's
+checkout on that host when configured, otherwise the first registered checkout
+on that host. Owning-branch restrictions still apply at both ends. The destination
+must already contain this implementation and matching VM registry entries;
+preparation never copies source, credentials or leases. It verifies the remote
+Git checkout and target metadata before invoking the same public preparation
+launcher with the confirmed selection. Host groups run in selection order;
+each host uses its own preparation queue, concurrency, Watch, VM reservations,
+disk admission and helper refresh. Missing SSH access or prerequisites fail
+without a local VM fallback or authentication retry.
+Cancellation reaches the remote public launcher over a fixed SSH input channel:
+queued replacements stop, active baseline work finishes and the caller waits for
+owned cleanup. An SSH transport failure remains an uncertain failed operation;
+inspect its retained state before retrying.
+
+The root-owned `/usr/local/libexec/onpc-vm-host` records the executing machine's
+registry host name. Initial `./setup.sh --server` derives that assignment from
+its registered branch and absolute checkout path. Ordinary setup selects the
+local host when no assignment exists. Later refreshes preserve the assignment;
+a conflicting server assignment requires administrator repair. Existing servers
+must run `./setup.sh --server` once after receiving this implementation.
+Runtime branch changes never change host identity. Absent an installed assignment,
+only the registry's single local host is available. Direct VM operations refuse
+targets belonging to another host; only preparation dispatches those targets.
+Helper UUID pins and default backup paths use the executing host. Legacy registries without
 `hosts` retain their implicit local host and top-level concurrency/backup
 settings; do not mix the two layouts.
 

@@ -418,8 +418,8 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     installed.write_text(rendered)
 
     # Use the rendered helper's actual shebang in a fresh process. Only process
-    # execution and signal/pipe setup are replaced; selection and the real
-    # selected controller command still execute unchanged, without a test gate.
+    # execution, host assignment and signal/pipe setup are replaced. Selection
+    # and the selected controller command execute unchanged, without a test gate.
     probe = checkout.parent / 'dispatcher-probe'
     probe.write_text(rendered.splitlines()[0] + '\n' + textwrap.dedent('''\
         from contextlib import nullcontext
@@ -433,6 +433,9 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
         load = runpy.run_path
         dispatcher = load(sys.argv[1])
         sys.path.insert(0, str(Path(dispatcher['CHECKOUT']) / 'tools'))
+        sys.path.insert(0, str(Path(dispatcher['CHECKOUT']) / 'tests/integration'))
+        import vm_config
+        vm_config.installed_host = lambda: None
         import test_storage
         test_storage.privileged_state = lambda uid: Path(dispatcher['CHECKOUT']) / 'retention'
         dispatcher['run'].__globals__['retention_guard'] = lambda root: None
@@ -586,7 +589,7 @@ def test_live_refresh_phases_own_storage_without_idle_vm_retention_guard(phase):
 @pytest.mark.parametrize('mode', ['execution-preflight', 'asset-transfer-qualification'])
 def test_e2e_child_owns_capture_across_real_subprocess_boundary(
         checkout, monkeypatch, unattended, mode):
-    """Use the real entry point, session and mint; double only guest dispatch."""
+    """Use the real entry point, session and mint with a host-safe VM fixture."""
     from tools import test_retention as retention, test_storage as storage
     root = Path(__file__).resolve().parents[2]
     e2e = checkout / 'tests/e2e'
@@ -610,6 +613,8 @@ def test_e2e_child_owns_capture_across_real_subprocess_boundary(
         SOURCE = Path(SOURCE_LITERAL)
         CHECKOUT = Path(__file__).resolve().parents[2]
         sys.path[:0] = [str(SOURCE), str(SOURCE / 'tests/integration')]
+        import vm_config
+        vm_config.installed_host = lambda: None
         from tools import evidence_capture as capture, test_retention as retention, test_storage as storage
         import qualification_storage
         storage.ROOT = CHECKOUT

@@ -11,7 +11,14 @@ import vm_config
 
 # Host-safe VM adapters use an explicit fixture selection; product launchers
 # never infer a default from this fixture or from registry order.
+# Keep collection-time adapter imports isolated as well as individual tests.
+_host_identity = pytest.MonkeyPatch()
+_host_identity.setattr(vm_config, 'installed_host', lambda: None)
 vm_config.select(vm_name())
+
+
+def pytest_unconfigure(config):
+    _host_identity.undo()
 
 
 @pytest.fixture

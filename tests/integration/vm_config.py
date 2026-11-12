@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -19,6 +20,7 @@ URI = 'qemu:///system'
 STATE_ROOT = Path('/Data/virt-manager/oh-no-parent-control-baseline-state')
 VARIABLE = 'ONPC_TEST_VM'
 ROOT = Path(__file__).resolve().parents[2]
+HOST_IDENTITY = Path('/usr/local/libexec/onpc-vm-host')
 
 
 @dataclass(frozen=True)
@@ -213,11 +215,39 @@ def require_online(vm):
     return require_local(require_available(vm))
 
 
-def require_local(vm):
-    if vm.host.transport != 'local':
-        raise ValueError(f'vm-config:SSH host execution is not implemented: {vm.host.name}; '
+def require_local(vm, path=None):
+    if vm.host.name != execution_host(path):
+        raise ValueError(f'vm-config:VM belongs to another host: {vm.host.name}; '
                          'refusing local VM access')
     return vm
+
+
+def installed_host():
+    """Only setup's root-owned assignment may identify a nonlocal VM host."""
+    try:
+        info = HOST_IDENTITY.lstat()
+    except FileNotFoundError:
+        return None
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0
+            or info.st_mode & 0o022 or info.st_size > 64):
+        raise ValueError('vm-config:unsafe installed VM host identity; repair through ./setup.sh')
+    value = HOST_IDENTITY.read_text(encoding='ascii')
+    name = validate_name(value.removesuffix('\n'))
+    if value != name + '\n':
+        raise ValueError('vm-config:invalid installed VM host identity')
+    return name
+
+
+def execution_host(path=None):
+    """Resolve host-local setup identity independently of checkout placement."""
+    hosts = host_registry(read_document(path, validate_agent=False))
+    name = installed_host()
+    if name is not None:
+        if name not in hosts:
+            raise ValueError('vm-config:installed VM host is absent from config/environment.json')
+        return name
+    return next((host.name for host in hosts.values()
+                 if host.transport == 'local'), None)
 
 
 def fixture_targets(path=None):
@@ -283,8 +313,7 @@ def absolute_path(value, field):
 
 def backup_root(path=None, *, vm=None):
     hosts = host_registry(read_document(path, validate_agent=False))
-    host = hosts[vm.host.name] if vm is not None else next(
-        (host for host in hosts.values() if host.transport == 'local'), None)
+    host = hosts[vm.host.name] if vm is not None else hosts.get(execution_host(path))
     if host is None or host.backup_root is None:
         raise ValueError('vm-config:backup_root is required for VM backup/restore')
     return host.backup_root
@@ -335,7 +364,7 @@ def resolve(name, configured):
     raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
 
-def execution(name=None, path=None):
+def execution(name=None, path=None, *, remote=False):
     """Only VMs whose own flag and host flag are true may be acquired."""
     _, configured = configuration(path)
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
@@ -352,10 +381,10 @@ def execution(name=None, path=None):
     if not vms:
         raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/environment.json')
     for vm in vms:
-        require_online(vm)
-    # Only the single local host can execute today. Offline/unselected host
-    # capacity must not increase its worker limit.
-    return min(vms[0].host.concurrency, len(vms)), vms
+        require_available(vm)
+        if not remote:
+            require_local(vm, path)
+    return min(sum(host.concurrency for host in {vm.host for vm in vms}), len(vms)), vms
 
 
 def current_branch():
@@ -412,7 +441,7 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
 
 def load(name=None, path=None):
     # Availability gates new work, never metadata needed for owned cleanup.
-    return require_local(resolve(name, registry(path)))
+    return require_local(resolve(name, registry(path)), path)
 
 
 def selected(*, required=True):

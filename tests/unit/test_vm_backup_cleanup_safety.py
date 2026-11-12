@@ -1520,7 +1520,7 @@ def test_combined_preparation_holds_vm_lock_until_final_restore(backup_rig, monk
 
 
 @pytest.mark.parametrize('action', ['backupvm', 'restorevm'])
-def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_rig, tmp_path):
+def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_rig, tmp_path, monkeypatch):
     helper = runpy.run_path(str(ROOT / 'tools/onpc-setup'))
     checkout = tmp_path / 'checkout'
     (checkout / 'config').mkdir(parents=True)
@@ -1543,11 +1543,15 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
         vm_config.require_online(vm_config.registry()['Remote-guest'])
     document = json.loads(vm_config.CONFIG.read_text())
     document['hosts'][1]['enabled'] = 'true'
+    # Checkout placement must never turn a foreign target into a local one.
+    document['branches'] = [dict(name='remote-review', host=document['hosts'][1]['name'],
+                                 repo_root=str(vm_config.ROOT))]
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: 'remote-review')
     vm_config.CONFIG.write_text(json.dumps(document))
     # Never let a remote selector reach this machine's libvirt or disks.
-    with pytest.raises(ValueError, match='SSH host execution is not implemented'):
+    with pytest.raises(ValueError, match='refusing local VM access'):
         vm_config.execution('13')
-    with pytest.raises(ValueError, match='SSH host execution is not implemented'):
+    with pytest.raises(ValueError, match='refusing local VM access'):
         vm_config.load('13')
     assert vm_config.execution('9,12')[0] == 2
     document['families'][0]['vms'][1]['enabled'] = 'false'

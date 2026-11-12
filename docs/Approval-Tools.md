@@ -206,6 +206,12 @@ of this mode so builder images, the UI environment and checkout rules stay
 user-owned. An existing desktop installation can opt in through the same first
 headless bootstrap.
 
+Server setup also establishes the executing machine's
+[VM host assignment](../tests/integration/Environment.md#shared-vm-configuration).
+Run it from that server's registered branch and checkout. Existing servers need
+one `./setup.sh --server` run after receiving SSH preparation support; ordinary
+helper refreshes preserve the installed host assignment.
+
 Headless setup shares the development/build/UI-test dependencies, installs the
 VM-host libvirt/QEMU inventory (including Python libvirt and guestfs bindings),
 refreshes development helpers and graphical-host AppArmor policies, and prepares

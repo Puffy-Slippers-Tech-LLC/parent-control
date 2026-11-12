@@ -613,7 +613,7 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
                 for name in ('one', 'two', 'three'))
     configured = {vm.name: vm for vm in vms}
     monkeypatch.setattr(vm_config, 'load', configured.__getitem__)
-    monkeypatch.setattr(vm_config, 'execution', lambda _: (3, vms))
+    monkeypatch.setattr(vm_config, 'execution', lambda _, **kwargs: (3, vms))
     monkeypatch.setattr(test_source, 'startup', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'reader', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'finish_admission', lambda: None)

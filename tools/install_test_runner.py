@@ -208,7 +208,7 @@ def render_helper(root, name, identity):
     return source
 
 
-def install_file(destination, data, mode):
+def install_file(destination, data, mode, *, exclusive=False):
     destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
     # Never publish a privileged helper through a symlinked installation path.
     if any(part.is_symlink() for part in (destination, *destination.parents)):
@@ -221,7 +221,13 @@ def install_file(destination, data, mode):
             os.fchmod(stream.fileno(), mode)
             os.fchown(stream.fileno(), 0, 0)
             os.fsync(stream.fileno())
-        os.replace(temporary, destination)
+        if exclusive:
+            try:
+                os.link(temporary, destination, follow_symlinks=False)
+            except FileExistsError:
+                pass  # Preserve a concurrently published assignment for comparison.
+        else:
+            os.replace(temporary, destination)
     finally:
         Path(temporary).unlink(missing_ok=True)
 
@@ -253,6 +259,25 @@ def repair_checkout_bytecode(root):
             print('test-runner-install: restored checkout bytecode directory ownership')
 
 
+def setup_host(root, *, headless):
+    """Explicit server setup establishes identity; refreshes preserve it."""
+    current = vm_config.installed_host()
+    if not headless:
+        return vm_config.execution_host()
+    document = vm_config.read_document(validate_agent=False)
+    branches = vm_config.branch_registry(document)
+    branch = branches.get(vm_config.current_branch())
+    if branch is not None and Path(branch['repo_root']).resolve() == root.resolve():
+        selected = branch['host']
+    elif branches:
+        raise ValueError('server setup requires its registered branch and checkout path')
+    else:
+        selected = vm_config.execution_host()
+    if current is not None and current != selected:
+        raise ValueError('installed VM host identity differs; administrator repair required')
+    return selected
+
+
 def main():
     if sys.argv[1:] not in ([], ['--headless']) or os.geteuid() != 0:
         raise SystemExit('test-runner-install: invoke through ./setup.sh')
@@ -260,8 +285,11 @@ def main():
     headless = sys.argv[1:] == ['--headless']
     headless_data = headless_rule(root) if headless else None
     # Offline flags do not erase accepted local identities used by owned cleanup.
+    host = setup_host(root, headless=headless)
+    if host is None:
+        raise ValueError('VM host identity is missing; run ./setup.sh --server from its registered checkout')
     identity = {name: pinned_vm_uuid(vm.baseline_directory)
-                for name, vm in vm_config.registry().items() if vm.host.transport == 'local'}
+                for name, vm in vm_config.registry().items() if vm.host.name == host}
     pins = [value for value in identity.values() if value is not None]
     if len(pins) != len(set(pins)):
         raise ValueError('test-runner-install:duplicate-baseline-uuid')
@@ -278,6 +306,11 @@ def main():
         install_missing_dependencies(headless=True)
     else:
         install_missing_dependencies()
+    # Publish the complete assignment once, before helpers using its UUID pins.
+    # Concurrent setup may establish the same host, but may never replace it.
+    install_file(vm_config.HOST_IDENTITY, (host + '\n').encode('ascii'), 0o644, exclusive=True)
+    if vm_config.installed_host() != host:
+        raise ValueError('installed VM host identity differs; administrator repair required')
     for name, data in rendered.items():
         install_file(Path('/usr/local/libexec') / name, data, 0o755)
     policy = 'com.puffyslippers.onpc.development.policy'

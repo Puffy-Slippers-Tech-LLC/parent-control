@@ -1107,8 +1107,7 @@ def record_installed_journey(recorder, context, plan, *, timeout=1800, actions=N
             and set(plan.advance_after) <= set(plan.screen_tags), plan.prefix + ':phase-plan')
 
     def artifact(name, kind, value):
-        return recorder.artifact(plan.prefix + '-' + name, kind,
-                                 (json.dumps(value, sort_keys=True)+'\n').encode(), reviewed=True)
+        return recorder.json_artifact(plan.prefix + '-' + name, kind, value, reviewed=True)
 
     active = None
     phase = None

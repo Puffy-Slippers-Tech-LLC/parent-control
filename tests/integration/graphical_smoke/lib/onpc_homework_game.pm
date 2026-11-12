@@ -60,7 +60,8 @@ sub approval {
         onpc_request_flow::prepare($request, 'new', 'open', 'observed',
             'existing-fixture-child', $approver, $seconds, $soft, 'kiosk');
         onpc_request_flow::approve($request, 'existing-fixture-child', $approver, $seconds, $soft, 'automatic');
-        entry($journey, "$prefix-retained", 'other-child', 1);
+        my $retained = !$journey->{fresh_departure} || $prefix =~ /-recovery\z/;
+        entry($journey, "$prefix-" . ($retained ? 'retained' : 'fresh'), 'other-child', $retained);
     }
     countdown($journey, "$prefix-countdown");
 }
@@ -73,9 +74,10 @@ sub riley_visit {
 
 sub run {
     onpc_progress::operation('Keeping Jordan’s homework while parents alternate game time');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'homework-game:arguments' unless @_ == 3;
+    my ($exchange, $declared, $challenges, $fresh) = @_;
+    die 'homework-game:arguments' unless @_ == 4 && defined($fresh) && ($fresh == 0 || $fresh == 1);
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'homework-game', review => 0);
+    $journey->{fresh_departure} = $fresh;
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
@@ -103,7 +105,8 @@ sub run {
         onpc_allowance_selection::select($journey, "$root-daily", [60 * $cycle], 'confirm');
         $journey->seen("$root-$_") for qw(daily-settings daily-balance);
         leave($journey, "$root-daily-parent");
-        entry($journey, "$root-entry", 'other-child', $cycle == 2);
+        entry($journey, "$root-entry", 'other-child', $cycle == 2 && !$fresh);
+        work($journey, "$root-reopened", qw(open opened submit submitted capture)) if $fresh && $cycle == 2;
         work($journey, "$root-homework", ($cycle == 1 ? qw(open opened) : ()),
              qw(edit save saved submit submitted capture));
         $journey->seen("$root-$_") for qw(daily-game-denied daily-hard-denied);
@@ -118,7 +121,13 @@ sub run {
         $journey->seen("$root-more-balance");
         leave($journey, "$root-more-balance-parent");
         approval($journey, "$root-more", 'kiosk', $second, 30, 1);
-        $journey->seen("$root-$_") for qw(more-game more-move more-played);
+        if ($fresh) {
+            work($journey, "$root-more-reopened", qw(open opened submit submitted capture));
+            onpc_app_rows::game_usable_app($journey->scope("$root-more-new-game"), $mode);
+            $journey->seen("$root-more-new-game-capture");
+        } else {
+            $journey->seen("$root-$_") for qw(more-game more-move more-played);
+        }
         work($journey, "$root-more-work", 'capture');
         $journey->seen("$root-more-hard-denied");
         countdown($journey, "$root-home-before");
@@ -131,6 +140,7 @@ sub run {
         $journey->seen("$root-break-balance");
         leave($journey, "$root-break-balance-parent");
         approval($journey, "$root-break", 'kiosk', $second, 30, 1);
+        work($journey, "$root-break-reopened", qw(open opened submit submitted capture)) if $fresh;
         onpc_app_rows::game_usable_app($journey->scope("$root-break-game"), $mode);
         $journey->seen("$root-break-game-capture");
         for my $name ('positive', 'zero') {
@@ -147,25 +157,35 @@ sub run {
             }
             $journey->seen("$prefix-$_") for qw(settings balance);
             leave($journey, "$prefix-parent");
-            entry($journey, "$prefix-child", 'other-child', 1);
-            $journey->seen("$prefix-$_") for qw(game denied original hard);
+            entry($journey, "$prefix-child", 'other-child', !$fresh);
+            if ($fresh) {
+                work($journey, "$prefix-reopened", qw(open opened submit submitted capture));
+                $journey->seen("$prefix-$_") for qw(denied hard);
+            } else {
+                $journey->seen("$prefix-$_") for qw(game denied original hard);
+            }
             work($journey, "$prefix-work", qw(capture resubmit submitted));
         }
         leave($journey, "$root-off");
         parent_return($journey, "$root-off-parent");
         $journey->seen("$root-$_") for qw(off-toggle off-settings);
         leave($journey, "$root-off-parent");
-        entry($journey, "$root-off-child", 'other-child', 1);
+        entry($journey, "$root-off-child", 'other-child', !$fresh);
+        work($journey, "$root-off-reopened", qw(open opened submit submitted capture)) if $fresh;
         countdown($journey, "$root-off-countdown");
-        $journey->seen("$root-$_") for qw(off-hard off-game-denied off-game-close off-game-closed);
+        $journey->seen("$root-$_") for qw(off-hard off-game-denied);
+        unless ($fresh) {
+            $journey->seen("$root-$_") for qw(off-game-close off-game-closed);
+        }
         leave($journey, "$root-on");
         parent_return($journey, "$root-on-parent");
         $journey->seen("$root-$_") for qw(on-toggle on-settings on-balance);
         leave($journey, "$root-on-parent");
-        entry($journey, "$root-denied", 'other-child', 1, 'time-denied');
+        entry($journey, "$root-denied", 'other-child', !$fresh, 'time-denied');
         onpc_gdm::return_from_time_denial($journey, map { "$root-entry-$_" }
             qw(denied-return-ready denied-return-state denied-returned));
         approval($journey, "$root-visit", 'kiosk', $first, 600, $cycle == 1 ? 1 : 0);
+        work($journey, "$root-visit-reopened", qw(open opened submit submitted capture)) if $fresh;
         work($journey, "$root-visit-work", qw(capture resubmit submitted));
         if ($cycle == 1) {
             onpc_app_rows::game_usable_app($journey->scope("$root-visit-game"), $mode);
@@ -193,7 +213,7 @@ sub run {
         parent_return($journey, "$root-revoke-parent");
         $journey->seen("$root-$_") for qw(revoke-open revoke-warning revoke-confirm revoked-settings revoked-balance);
         leave($journey, "$root-revoke-parent");
-        entry($journey, "$root-revoked", 'other-child', 1, 'time-denied');
+        entry($journey, "$root-revoked", 'other-child', !$fresh, 'time-denied');
         onpc_gdm::return_from_time_denial($journey, map { "$root-revoked-$_" }
             qw(denied-return-ready denied-return-state denied-returned));
         riley_visit($journey, "$root-riley");

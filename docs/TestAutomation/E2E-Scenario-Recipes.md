@@ -2444,9 +2444,9 @@ game-display mode here.
 
 ### E2E-050
 
-Implementation status: Case 247's two-cycle retained binding passed on Ubuntu
-26.04 through `homework_game_case.HomeworkGameJourney` / `onpc_homework_game::run`.
-Case 248 remains pending.
+Both two-cycle bindings use `homework_game_case.HomeworkGameJourney` /
+`onpc_homework_game::run`, with explicit retained or fresh departures.
+Current executable bindings live in the [scenario inventory](../../tests/e2e/scenarios.json).
 
 **Alternate homework, games and time sources over repeated sessions.** Cases 247–248.
 

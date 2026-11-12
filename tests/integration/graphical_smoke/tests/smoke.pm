@@ -1137,10 +1137,11 @@ sub run {
         onpc_app_rows::child_saved_work(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{homework_game}) {
+    if ($ready->{homework_game} || $ready->{homework_game_fresh}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_homework_game::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_homework_game::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{homework_game_fresh} ? 1 : 0);
         return;
     }
     if ($ready->{repeated_saved_work}) {

@@ -8,6 +8,8 @@ is available. Raw identities remain only in the controller's private alias map.
 from contextlib import contextmanager
 import copy
 from datetime import datetime, timezone
+import hashlib
+import json
 import re
 import sys
 import time
@@ -88,9 +90,15 @@ class ScenarioRecorder:
                 'recording:event')
         self._sequence += 1
         try:
+            # Spectator clock origins are display state, not evidence. Their
+            # arbitrary low digits can collide with numeric fixture secrets;
+            # retain the recorder's elapsed step timing and full secret scan.
+            progress = self.progress.snapshot()
             save_checkpoint(self.collector, self._sequence, event, {
                 'active_step': self._active['step_id'] if self._active else None,
-                'progress': self.progress.snapshot(),
+                'progress': {key: progress[key] for key in
+                             ('current', 'total', 'case_id', 'title', 'step', 'operation')
+                             if key in progress},
                 'record': self.records[-1],
             })
         except BaseException:
@@ -240,6 +248,23 @@ class ScenarioRecorder:
         self._record['artifacts'].append(record)
         self._active['artifact_ids'].append(artifact_id)
         return artifact_id
+
+    def json_artifact(self, artifact_id, kind, document, *, reviewed=False):
+        data = (json.dumps(document, sort_keys=True) + '\n').encode()
+        # Reject actual secret content before varying its representation. A
+        # generated digest can coincidentally contain a short fixture secret;
+        # JSON whitespace changes that digest without changing the observation.
+        self.collector.check_secrets(data)
+        for _ in range(128):
+            try:
+                self.collector.check_secrets(hashlib.sha256(data).hexdigest().encode())
+            except EvidenceError as error:
+                if str(error) != 'artifact:secret-detected':
+                    raise
+                data += b'\n'
+            else:
+                return self.artifact(artifact_id, kind, data, reviewed=reviewed)
+        raise EvidenceError('artifact:json-digest-secret-collision')
 
     def assertion(self, assertion_id, *, artifact_ids, outcome='passed'):
         require(self._active is not None, 'recording:no-active-step')

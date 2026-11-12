@@ -199,7 +199,12 @@ class Worker:
                                               stdout=output, stderr=output,
                                               pass_fds=(remote.fileno(),),
                                               env={'PATH': '/usr/bin:/usr/sbin:/bin',
-                                                   'HOME': str(directory), 'LANG': 'C.UTF-8'})
+                                                   'HOME': str(directory), 'LANG': 'C.UTF-8',
+                                                   # Lifecycle callbacks validate the transferred
+                                                   # source receipt against the authenticated
+                                                   # controller caller, not the namespace's root UID.
+                                                   **({'PKEXEC_UID': os.environ['PKEXEC_UID']}
+                                                      if 'PKEXEC_UID' in os.environ else {})})
                 self.pidfd = os.pidfd_open(self.child.pid)
             self.control.sendall(b'start\n')
             self.control.setblocking(False)

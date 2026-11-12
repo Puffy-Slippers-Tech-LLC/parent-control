@@ -132,11 +132,12 @@ def _validate_inventory(document, *, root):
         require(gap is None or nonempty(gap), 'scenario:requirement-gap')
         require(scenario['requirements'] or gap or scenario['category'] == 'runner-smoke',
                 'scenario:missing-requirement')
+        # Contract references are metadata, not execution inputs. Remote source
+        # bundles omit documentation; validate path shape without requiring it.
         for ref in scenario['contract_refs']:
             path = Path(ref.split('#', 1)[0])
             require(not path.is_absolute() and '..' not in path.parts
                     and path.parts[:1] == ('docs',), 'scenario:contract-path')
-            require((root / path).is_file(), 'scenario:missing-contract')
         environments = scenario['environment']
         if isinstance(environments, str):
             environments = [environments]

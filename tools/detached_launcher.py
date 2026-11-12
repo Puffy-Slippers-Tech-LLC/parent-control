@@ -781,6 +781,13 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 _clear_start(pending_path)
                 return run, False  # Never spawn a possibly already published worker twice.
         else:
+            # Attachments, controls and pending-start recovery stay unchanged.
+            # Sync a new run before constructing its job or prerequisites.
+            source.close()
+            from launcher_controller import sync_startup
+            sync_startup(root, current_run(directory))
+            if source_participant:
+                source.enter_context(test_source.startup(root, controls, repair=True, wait=False))
             run = directory / uuid.uuid4().hex
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)

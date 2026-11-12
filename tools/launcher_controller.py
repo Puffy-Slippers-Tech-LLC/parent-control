@@ -12,6 +12,119 @@ from host_dispatch import git as _git, require_checkout as _local_checkout, ssh_
 DESTINATION = 'ONPC_LAUNCHER_DESTINATION'
 BRANCH_HELP = ('--branch NAME selects a config/environment.json branch; default: '
                'this launcher\'s default_branch, then the current checkout branch.')
+_pending_startup = None
+
+
+def sync_startup(root, previous=None):
+    """Run the public controller's sync only after detached start admission."""
+    global _pending_startup
+    pending, _pending_startup = _pending_startup, None
+    if pending is not None:
+        # Recovery owns the original source until its recorded transaction is
+        # settled. Its existing safe pull boundary will synchronize afterward.
+        if previous is not None:
+            for filename in ('checkpoint.json', 'translation-state.json'):
+                path = previous / filename
+                if path.exists():
+                    saved = json.loads(path.read_text())
+                    if any(saved.get(key) for key in (
+                            'commit_intent', 'pull_intent', 'pending_completion', 'pending',
+                            'worktree_propagation', 'upstream_pull', 'git_reconciliation')):
+                        print('Git: deferring startup pull to pending workflow recovery.', flush=True)
+                        return
+        branch, arguments = pending
+        _startup_sync(root, branch, arguments)
+
+
+def _pull(root):
+    result = subprocess.run(['git', 'pull'], cwd=root, text=True,
+        stdin=subprocess.DEVNULL, capture_output=True, timeout=120,
+        env=dict(os.environ, GIT_TERMINAL_PROMPT='0'), check=False)
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or result.stdout.strip())
+
+
+def _recover_pull(root, diagnostic, selection, profile):
+    from tempfile import TemporaryDirectory
+    from agent_adapter import Delegation, SessionRequest, prepare_session
+    from test_storage import scratch_directory
+    model, effort = profile
+    prompt = (f'Resolve only this controller startup git pull failure in {root}. '
+        'Read AGENTS.md. Preserve all local commits, edits, staged and untracked work. '
+        'Resolve conflicts and complete the pull, including its merge commit if necessary. '
+        'Do not reset, clean, discard work, push, change Git configuration, retry denied '
+        'authentication, run jobs/tests/setup, or edit unrelated files. If safe recovery '
+        f'is impossible, report the blocker and stop. Git diagnostic: {diagnostic}')
+    with TemporaryDirectory(prefix='startup-pull-', dir=scratch_directory()) as temporary:
+        run = Path(temporary)
+        schema = run / 'response.schema.json'
+        schema.write_text(json.dumps(dict(type='object', additionalProperties=False,
+            properties=dict(status=dict(type='string', enum=['synced', 'blocked']),
+                            summary=dict(type='string')), required=['status', 'summary'])))
+        session = prepare_session(SessionRequest(root=root, model=model, effort=effort,
+            run=run, schema=schema, selection=selection,
+            delegation=Delegation(enabled=False), standard_speed=True),
+            dict(os.environ))
+        session.preflight()
+        result = subprocess.run(session.argv, cwd=session.cwd, env=session.environment,
+                                input=prompt, text=True, timeout=1200, check=False)
+        response = run / 'agent-result.json'
+        saved = json.loads(response.read_text()) if response.is_file() else {}
+        if result.returncode or saved.get('status') != 'synced':
+            raise ValueError('startup pull recovery failed; job was not started: '
+                             + saved.get('summary', 'No successful recovery result.'))
+    if _git(root, 'diff', '--name-only', '--diff-filter=U'):
+        raise ValueError('startup pull still has conflicts; job was not started')
+    for state in ('MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD'):
+        if (root / _git(root, 'rev-parse', '--git-path', state)).exists():
+            raise ValueError('startup pull left an unfinished Git operation; job was not started')
+    _git(root, 'merge-base', '--is-ancestor', '@{upstream}', 'HEAD')
+    # An agent can exit successfully after reporting a network/auth blocker.
+    # Confirm real remote synchronization before admitting the job.
+    _pull(root)
+
+
+def _startup_sync(root, branch, arguments):
+    """Pull before job startup; controller code keeps its explicit reload path."""
+    controls = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
+                '--cancel-stop', '--add-session', '--reload', '--reset',
+                '--reconcile', '--review-ownership')
+    if any(arg.split('=', 1)[0] in controls for arg in arguments):
+        return
+    import fcntl
+    from test_source import SourceProtection, source_directory, finish_admission, _lock
+    finish_admission()
+    protection = SourceProtection(source_directory(root))
+    common = Path(_git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
+    # Share the propagation lock and source lease, so no pull runs over active
+    # sessions/tests or another Git transaction. No stash or new journal needed.
+    with _lock(common / 'onpc-worktree-propagation.lock') as transaction:
+        try:
+            fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('repository synchronization is busy; retry after it finishes') from error
+        with _lock(protection.directory / 'repair-owner') as source:
+            with protection.state():
+                try:
+                    fcntl.flock(source, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise ValueError('checkout source is busy; retry after its owner finishes') from error
+                if protection.owner() is not None or protection.impact_holds():
+                    print('Git: deferring startup pull to retained repair recovery.', flush=True)
+                    return
+            from agent_adapter import resolve_profile, resolve_selection
+            selection = resolve_selection(root)
+            # Pin recovery code/profile before Git can put their source files
+            # into conflict. This prepares no session on the successful path.
+            selection.adapter()
+            profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
+            print('Git: synchronizing controller checkout with its upstream.', flush=True)
+            try:
+                _pull(root)
+            except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                print('Git pull failed; starting a low-effort recovery session.', flush=True)
+                _recover_pull(root, str(error), selection, profile)
+            _local_checkout(root, branch)
 
 
 def _remote(host, branch, arguments):
@@ -47,6 +160,7 @@ os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
 
 
 def dispatch(entry):
+    global _pending_startup
     root = Path(__file__).resolve().parents[1]
     name = Path(sys.argv[0]).name
     arguments, selected = [], None
@@ -125,6 +239,8 @@ def dispatch(entry):
                     os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
                               *arguments], env)
 
+    if pinned_branch is not None:
+        _pending_startup = (pinned_branch, arguments)
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
@@ -152,13 +268,15 @@ def dispatch(entry):
                 if temporary:
                     os.environ.pop(test_source.IMPORTS, None)
                 os.environ.pop(DESTINATION, None)
+    finally:
+        _pending_startup = None
 
 
 def run(entry):
     def admitted():
         try:
             return dispatch(entry)
-        except (OSError, ValueError) as error:
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f'launcher: {error}', file=sys.stderr)
             return 2
 

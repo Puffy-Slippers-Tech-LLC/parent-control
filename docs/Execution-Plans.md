@@ -222,6 +222,14 @@ connection failures never fall back to local execution. Run `./setup.sh --server
 on the server and `./setup.sh --connect-server` on the client first. No additional
 controller service is needed. Source and credentials remain host-local; dispatch
 does not synchronize checkouts or forward the client's environment.
+After placement, shared detached-controller admission runs `git pull` in the
+selected checkout before constructing a new job. A failed pull starts one
+low-effort recovery agent; startup requires its explicit success and a successful
+pull retry. Local work is preserved. Attachments, controls, retained repair fences
+and pending Git/start recovery keep their existing routes before synchronization.
+The bootstrap remains a placement-only handoff. Already imported controller code
+stays loaded; use `--reload` when needed, or the next controller launch loads the
+updated checkout. Newly launched job processes load the synchronized source.
 The controller's current working source owns VM execution. Workers on another
 host receive isolated source copies, including uncommitted changes, through the
 shared [VM source transfer](../tests/integration/Environment.md#shared-vm-configuration).

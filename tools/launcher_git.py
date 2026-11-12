@@ -614,6 +614,16 @@ from its finite deliverable and source changes; omit unrelated candidate files
 and unrelated hunks in shared files. If those boundaries cannot be established,
 return blocked without staging or committing ambiguous work. Do not remove or
 rewrite the ownership baseline or treat this review approval as ownership.
+Before source ownership calculations, read docs/Approval-Tools.md section
+"Source hunk ownership with existing grants", linked from the commit skill.
+This applies to source fingerprint comparisons as well as destination snapshots.
+Do not use ad hoc host interpreters, including read-only python3 -c calculations
+or interpreter heredocs: they require approval and block unattended close-out.
+When only a baseline hash is retained, reconstruct the text with only identified
+task hunks undone in a unique caller-owned /tmp file using native apply_patch,
+then compare it with direct sha256sum. Preserve the working file, index and
+checkpoint; a mismatch leaves ownership unresolved. Follow the documented route
+before execution, never as a retry around an actual policy denial.
 For hunk-only staging, use direct git apply --cached [OPTIONS] PATCH commands
 with --cached immediately after apply, from the intended checkout working
 directory. This approved index-only route also supports --check and --reverse;

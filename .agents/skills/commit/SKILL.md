@@ -26,7 +26,12 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
    staged, unstaged and untracked changes intact and out of the commit. Ask only
    when ownership cannot be determined safely. Review the commit's exact scope
    before creating a descriptive commit, or use the existing HEAD when there
-   are no current-session changes to commit.
+   are no current-session changes to commit. For source ownership calculations,
+   follow [source hunk ownership](../../../docs/Approval-Tools.md#source-hunk-ownership-with-existing-grants):
+   use direct readers and checksums, with native `apply_patch` for a scratch
+   baseline reconstruction when needed. Do not use ad hoc host interpreters,
+   including read-only `python3 -c` fingerprint calculations; they require
+   approval and block unattended close-out.
    Use the Git contract's [isolated staging procedure](../../../docs/Approval-Tools.md#isolated-staging-with-existing-grants)
    when unrelated work is already staged. Keep Git commands direct; do not use
    `GIT_INDEX_FILE=... git ...`, `env`, shell/interpreter wrappers or alternate

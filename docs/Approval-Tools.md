@@ -530,6 +530,33 @@ before the subcommand. It does not authorize product publication.
 Restart Codex with this
 checkout trusted to load the updated rules.
 
+### Source hunk ownership with existing grants
+
+Ownership calculations use the same direct reader and Git grants as the rest of
+close-out. Do not run ad hoc `python3 -c`, interpreter heredocs or shell wrappers
+to transform content or calculate fingerprints. General host interpreters require
+approval even for read-only code and cannot run in unattended sessions.
+
+For a shared text file whose retained baseline contains only a SHA-256 fingerprint:
+
+1. Read the retained baseline fingerprint, the complete current file and its Git
+   diff. Identify the task's exact hunks from the accepted deliverable and session
+   history. A candidate path or an arithmetic count change alone proves no ownership.
+2. With native `apply_patch`, create a caller-owned unique `/tmp` text file
+   reconstructing the current file with only those identified task hunks undone.
+   Preserve all other content, whitespace and the final newline. Keep the source
+   working file, index and ownership checkpoint untouched.
+3. Run direct `sha256sum -- '/tmp/UNIQUE-baseline-candidate'` and compare its result
+   with the retained baseline fingerprint. Record the reconstructed hunks and
+   comparison in the recovery journal. An exact match supports that reconstruction;
+   it does not assign ownership to any other hunk. A mismatch or an inability to
+   reconstruct the bytes leaves ownership unresolved; do not stage ambiguous work.
+
+`UNIQUE` is a placeholder. This uses existing native workspace edits and checksum
+grants, with no setup refresh or new executable allowance. Do not guess global
+numeric replacements to make a hash match. Actual policy denials remain blockers;
+do not retry a denied interpreter command through another execution route.
+
 ### Destination work snapshots with existing grants
 
 Before saving a dirty destination for propagation, inspect it from that

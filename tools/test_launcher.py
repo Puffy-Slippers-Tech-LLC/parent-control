@@ -214,7 +214,7 @@ def cleanup_environment():
 def confined_file(root, relative):
     path = root / relative
     if not path.is_file() or not path.resolve().is_relative_to(root):
-        raise ValueError('test entry point is missing or external')
+        raise ValueError(f'test entry point is missing or external: {relative}')
     for parent in (path, *path.parents):
         if parent == root:
             break

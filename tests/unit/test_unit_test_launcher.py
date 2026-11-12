@@ -103,8 +103,9 @@ assert not list((root / 'output/test-runs').rglob('current.json'))
     assert 'source changed after startup' in result.stderr
 
 
-@pytest.mark.parametrize('control', ['--reload', '--reset'])
-def test_control_startup_reimports_before_new_execution(checkout, control):
+@pytest.mark.parametrize(('control', 'recovery_status'), [
+    ('--reload', 0), ('--reset', 0), ('--reset', 2), ('--reset', 75)])
+def test_control_startup_reimports_before_new_execution(checkout, control, recovery_status):
     # Replace already-imported controller bytes during control startup. Only a
     # fresh interpreter can execute the new entry, under its inherited lease.
     replacement = checkout / 'fresh-controller.py'
@@ -136,6 +137,7 @@ def main(argv=None):
     probe = '''import builtins, os, runpy, subprocess, sys
 from pathlib import Path
 root, control, replacement = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+recovery_status = int(sys.argv[4])
 sys.path.insert(0, str(root / 'tools'))
 import test_source
 source = test_source.SourceProtection(test_source.source_directory(root))
@@ -150,18 +152,34 @@ def observed(name, *args, **kwargs):
             assert source.admit(writer, owner=owner)
             target = root / 'tools/test_commands.py'
             target.write_text(target.read_text() + replacement.read_text())
-            source.finish(owner, changed=True)
+            source.finish(owner, changed=True, unfinished=control == '--reset')
     return original(name, *args, **kwargs)
 builtins.__import__ = observed
 if control == '--reset':
-    # Real reset owns only this synthetic checkout. Its external recovery
-    # boundary is a successful host-only fixture, never a real cleanup command.
+    # Real reset owns only this private checkout. A real source-protected child
+    # exercises its recovery handoff without invoking host or VM cleanup.
     run = subprocess.run
     def recovered(command, *args, **kwargs):
         if command[0] == str(root / 'tools/cleanup-e2e'):
             assert command[1:] == ['--host-only']
+            pending = source.directory / 'repair-source-pending.json'
+            before = pending.read_bytes()
+            recovery = ''' + repr('''import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+sys.path.insert(0, str(root / 'tools'))
+import test_source
+source = test_source.SourceProtection(test_source.source_directory(root))
+with test_source.reader(root) as descriptor:
+    assert test_source.environment()[test_source.WRITER] == source.owner() == str(root / 'repair')
+    source.validate(descriptor, held=True, writer=True)
+sys.exit(int(sys.argv[2]))
+''') + '''
+            result = run([sys.executable, '-B', '-c', recovery, str(root), str(recovery_status)],
+                         **kwargs, timeout=10)
+            assert pending.read_bytes() == before
             (root / 'recovered').touch()
-            return subprocess.CompletedProcess(command, 0)
+            return result
         return run(command, *args, **kwargs)
     subprocess.run = recovered
 (root / 'initial-pid').write_text(str(os.getpid()))
@@ -169,10 +187,16 @@ sys.argv = [str(root / 'tools/run-tests'), control, 'unit', 'tests/unit/test_a_c
 runpy.run_path(sys.argv[0], run_name='__main__')
 '''
     result = subprocess.run(['/usr/bin/python3', '-B', '-c', probe,
-                             str(checkout), control, str(replacement)],
+                             str(checkout), control, str(replacement), str(recovery_status)],
                             capture_output=True, text=True, timeout=15)
-    assert result.returncode == 0, result.stderr
-    assert (checkout / 'fresh-execution').read_text() == (checkout / 'initial-pid').read_text()
+    assert result.returncode == (2 if recovery_status else 0), result.stderr
+    if recovery_status:
+        assert not (checkout / 'fresh-execution').exists()
+        pending = checkout / 'output/test-runs/host/state/fix-tests-source/repair-source-pending.json'
+        assert pending.exists()
+        assert f'owned recovery failed (status={recovery_status})' in result.stderr
+    else:
+        assert (checkout / 'fresh-execution').read_text() == (checkout / 'initial-pid').read_text()
     assert (checkout / 'recovered').exists() == (control == '--reset')
 
 

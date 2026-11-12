@@ -188,10 +188,15 @@ def _clean(root, scopes, names, stack, source):
             names.update(claims.values())
     # Reuse recovery's VM leases, lifecycle guards, journals and claim recovery.
     command = [str(root / 'tools/cleanup-e2e')]
-    command += ['--vm', ','.join(sorted(names))] if names else ['--host-only']
-    status = subprocess.run(command, cwd=root, env=launcher.environment(),
-                            stdin=subprocess.DEVNULL,
-                            pass_fds=launcher.scratch_descriptors(), check=False).returncode
+    command += ['--vm', ','.join(sorted(names)), '--if-available'] if names else ['--host-only']
+    # Recovery consumes the retained checkout bytes before the fence can be
+    # retired. Borrow its verified source owner without resuming repair work;
+    # activity/state locks must remain available to the cleanup child.
+    from test_source import startup as source_startup
+    with source_startup(root, ['--resume'], repair=True, wait=False):
+        status = subprocess.run(command, cwd=root, env=launcher.environment(),
+                                stdin=subprocess.DEVNULL,
+                                pass_fds=launcher.scratch_descriptors(), check=False).returncode
     if status:
         raise ValueError(f'reset: owned recovery failed (status={status}); state preserved; retry --reset')
     # Recovery borrows/acquires its own activity locks; exclude others again

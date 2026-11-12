@@ -105,6 +105,8 @@ privileged_test_runner exclude the outer runner's source lease without closing
 its descriptor; the latter copies the new source module with its existing helpers.
 These modules acquire no live VMs, services, displays or shared caches; they
 retain their compatible unit classification and add no cleanup/UI entry.
+Reset recovery borrowing uses one bounded, waited source-reader child in that
+same private checkout; failure cases preserve only its private fence metadata.
 Shared close-out review checks in test_launchers add tiny private Git repositories
 and bounded, waited Git children. They change no real checkout, credentials or
 remote refs; commit execution is doubled at the controller boundary. Existing

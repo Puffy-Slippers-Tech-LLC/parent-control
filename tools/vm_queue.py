@@ -55,10 +55,11 @@ class _Worker:
                 raise
             executor._check(self.vm, recovery=recovery)
             with executor._capacity:
-                if executor._active >= executor.limit:
+                if executor._full(self.vm):
                     raise _CapacityWait()
                 executor._active += 1
-            operation.callback(executor._release_slot)
+                executor._host_active[self.vm.host.name] += 1
+            operation.callback(executor._release_slot, self.vm)
             executor._check(self.vm, recovery=recovery)
             self.used = True
             yield
@@ -87,9 +88,11 @@ class Executor:
             names.add(vm.name)
         check_queue(self.vms)
         self.stopped = stopped
-        self.limit = min(concurrency, len(self.vms), *(vm.host.concurrency for vm in self.vms))
+        self.limit = min(concurrency, len(self.vms),
+                         sum(host.concurrency for host in {vm.host for vm in self.vms}))
         self._capacity = threading.Condition()
         self._active = 0
+        self._host_active = {vm.host.name: 0 for vm in self.vms}
         self._closing = threading.Event()
         self._pool = None
         self._futures = []
@@ -114,18 +117,20 @@ class Executor:
     def _cancelled(self):
         return self.stopped() if callable(self.stopped) else self.stopped.is_set()
 
-    def _release_slot(self):
+    def _release_slot(self, vm):
         with self._capacity:
             self._active -= 1
+            self._host_active[vm.host.name] -= 1
             self._capacity.notify_all()
 
-    def _full(self):
+    def _full(self, vm):
         with self._capacity:
-            return self._active >= self.limit
+            return (self._active >= self.limit
+                    or self._host_active[vm.host.name] >= vm.host.concurrency)
 
     def _wait_capacity(self, vm):
         with self._capacity:
-            while self._active >= self.limit:
+            while self._full(vm):
                 self._check(vm)
                 self._capacity.wait(.1)
         self._check(vm)
@@ -156,13 +161,13 @@ class Executor:
                 capacity_cancelled = False
                 def pause_reservation():
                     nonlocal capacity_cancelled
-                    if self._full():
+                    if self._full(vm):
                         capacity_cancelled = True
                     return capacity_cancelled or self._abort(vm)
                 try:
                     with reservation(vm.name, stopped=pause_reservation, bind=False) as receipt:
                         self._check(vm)
-                        if self._full():
+                        if self._full(vm):
                             raise _CapacityWait()
                         worker = _Worker(self, vm, receipt)
                         try:
@@ -451,7 +456,11 @@ class Executor:
                 selected = []
                 try:
                     while ready and len(active) + len(selected) < self.limit:
-                        available = tuple(vm.name for vm in self.vms if vm.name in ready and needed(vm))
+                        admitted = active | set(selected)
+                        available = tuple(vm.name for vm in self.vms
+                            if vm.name in ready and needed(vm)
+                            and sum(targets[name].host.name == vm.host.name for name in admitted)
+                                < vm.host.concurrency)
                         if not available:
                             break
                         name = choose(available, tuple(vm.name for vm in self.vms

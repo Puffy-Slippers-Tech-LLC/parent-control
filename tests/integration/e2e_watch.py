@@ -22,6 +22,16 @@ from e2e_watch_protocol import BASE, require
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def checkout_metadata():
+    from test_storage import watch_root
+    root = watch_root(ROOT)
+    value = dict(checkout=str(root))
+    if root != ROOT:
+        from vm_config import selected
+        value['vm_id'] = selected().id
+    return value
+
+
 def configuration_digest(xml):
     """Bind live configuration without mistaking runtime reports for edits.
 
@@ -151,7 +161,7 @@ class ProgressPublication:
             temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
             try:
                 value = dict(updated_ns=time.monotonic_ns(), vm=self.vm_name,
-                             checkout=str(ROOT),
+                             **checkout_metadata(),
                              progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
                 fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
                 with os.fdopen(fd, 'w') as stream:
@@ -208,6 +218,7 @@ class Publication:
         require(registry in ('current.json', 'activity.json'), 'publication-registry')
         from vm_config import selected
         self.vm_name = selected().name
+        self.metadata = dict(run=self.run, vm=self.vm_name, **checkout_metadata())
         # Each command publisher retains its own registration. Parallel child
         # transports must never steal or remove another controller's feed.
         self.current = self.directory / (f'activity-{run}.json' if registry == 'activity.json' else
@@ -226,7 +237,7 @@ class Publication:
         temporary = self.directory / (self.run + '.json')
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
         with os.fdopen(fd, 'w') as stream:
-            json.dump({'run': self.run, 'vm': self.vm_name, 'checkout': str(ROOT)}, stream)
+            json.dump(self.metadata, stream)
             os.fchmod(stream.fileno(), 0o644)
         temporary.replace(self.current)
 
@@ -238,8 +249,7 @@ class Publication:
         except FileNotFoundError:
             pass
         try:
-            if json.loads(self.current.read_text()) == {'run': self.run, 'vm': self.vm_name,
-                                                       'checkout': str(ROOT)}:
+            if json.loads(self.current.read_text()) == self.metadata:
                 self.current.unlink()
         except FileNotFoundError:
             pass

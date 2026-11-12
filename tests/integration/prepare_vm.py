@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 from typing import Callable, Sequence
@@ -32,7 +33,7 @@ from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
 import guest_test_dependencies as guest_tools
 import vm_config
 
-VM = vm_config.selected(required=False)
+VM = vm_config.selected(required=False, local=False)
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
 HOSTNAME = VM.hostname if VM else None
 UBUNTU_VERSION = "26.04"
@@ -358,6 +359,9 @@ def preparation_source_digest(read, files):
             # Archive location is host-only and may change on a replacement
             # machine without changing any prepared guest input.
             document.pop('backup_root', None)
+            # Snap readiness is verified metadata, not source freshness. This
+            # permits reusing a Snap-ready baseline with the switch disabled.
+            document.pop('snap_tests_enabled', None)
             # Host availability, capacity, SSH aliases and archive locations
             # describe the controller, not prepared guest contents.
             document.pop('hosts', None)
@@ -776,6 +780,15 @@ def reconcile_accounts(
             "Shell": ("s", INTERACTIVE_SHELL),
         }
         values = {name: _get_property(runner, path, name, sig) for name, (sig, _value) in expected.items()}
+        # useradd updates NSS synchronously; AccountsService reloads locality
+        # asynchronously. Re-resolve only until that predicate settles, keeping
+        # the complete identity/role verification below unchanged.
+        deadline = time.monotonic() + 15
+        while values['LocalAccount'] == 'false' and time.monotonic() < deadline:
+            time.sleep(0.1)
+            path = _accounts_path(runner, identity.username)
+            values = {name: _get_property(runner, path, name, sig)
+                      for name, (sig, _value) in expected.items()}
         for name, (_signature, wanted) in expected.items():
             if values[name] != wanted:
                 raise PreparationError("verify:account", f"{identity.label} failed {name} verification")
@@ -810,6 +823,7 @@ def marker_document(
     guest: GuestIdentity,
     accounts: dict[str, dict[str, int | str]],
     digest: str,
+    *, snap_prepared: bool = True,
 ) -> dict[str, object]:
     expected_users = {identity.username for identity in IDENTITIES}
     if set(accounts) != expected_users or not re.fullmatch(r"[0-9a-f]{64}", digest):
@@ -825,15 +839,21 @@ def marker_document(
         },
         "preparation_script_sha256": digest,
         "accounts": accounts,
-        "test_dependencies": dict(guest_tools.versions(guest.os_id)),
+        "snap_prepared": snap_prepared,
+        "test_dependencies": guest_tools.versions(guest.os_id, snap_prepared=snap_prepared),
     }
     validate_marker(document)
     return document
 
 
 def validate_marker(document: dict[str, object], *, os_id=None, current_dependencies=True) -> None:
-    if set(document) != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
+    if set(document) - {'snap_prepared'} != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
+    # Earlier records came from a contract that always required Snap. Preserve
+    # their recovery path; every new record writes the verified capability.
+    snap_prepared = document.get('snap_prepared', True)
+    if type(snap_prepared) is not bool:
+        raise PreparationError('marker:schema', 'invalid Snap preparation capability')
     if type(document['schema_version']) is not int or document["schema_version"] not in (MARKER_VERSION, 3, CLEAN_MARKER_VERSION) or document["purpose"] != MARKER_PURPOSE:
         raise PreparationError("marker:schema", "preparation record identity is invalid")
     guest = document["guest"]
@@ -852,7 +872,8 @@ def validate_marker(document: dict[str, object], *, os_id=None, current_dependen
     if (not isinstance(dependencies, dict)
             or any(not isinstance(key, str) or not isinstance(value, str)
                    for key, value in dependencies.items())
-            or current_dependencies and dependencies != guest_tools.versions(platform)):
+            or current_dependencies and dependencies != guest_tools.versions(
+                platform, snap_prepared=snap_prepared)):
         raise PreparationError('marker:dependencies', 'prepared guest tool inventory is incompatible')
     if not isinstance(guest["machine_id"], str) or not re.fullmatch(r"[0-9a-f]{32}", guest["machine_id"]):
         raise PreparationError("marker:schema", "preparation record machine identity is invalid")
@@ -912,6 +933,8 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
     Keep directory services unconfigured. Their supported package reconfiguration
     and identities belong to the selected runtime fixture, after product install.
     """
+    snap_prepared = vm_config.snap_tests_enabled()
+    dependencies = guest_tools.versions(os_id, snap_prepared=snap_prepared)
     for path in guest_tools.dormant_paths(os_id):
         candidate = _rooted(root, path)
         if candidate.exists() or candidate.is_symlink():
@@ -921,19 +944,19 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
         from chinese_language_assets import LocalFiles, preflight
         preflight(LocalFiles(root), os_id)
         try:
-            guest_tools.verify_installed(os_id, runner=runner, root=root)
+            guest_tools.verify_installed(os_id, runner=runner, root=root, snap_prepared=snap_prepared)
         except ValueError as error:
             if str(error) != 'guest-tools:missing-or-mismatched-package':
                 raise PreparationError('guest-tools:package-status', 'package database is ambiguous or unsupported') from error
-            runner.run(['dnf5', '--refresh', '-y', 'install', *guest_tools.FEDORA_VERSIONS], timeout=1800)
-        if vm_config.selected().require_build_target().name == 'fedora45':
+            runner.run(['dnf5', '--refresh', '-y', 'install', *dependencies], timeout=1800)
+        if vm_config.selected(local=False).require_build_target().name == 'fedora45':
             # Presence alone accepts the older broken daemon. Require the fixed
             # release, then take the latest available update in either prep mode.
             runner.run(['dnf5', '--refresh', '--best', '-y', 'install',
                         'fapolicyd >= 2.0.2-1.fc45'], timeout=1800)
             runner.run(['dnf5', '--best', '-y', 'upgrade', 'fapolicyd'], timeout=1800)
         try:
-            guest_tools.verify_installed(os_id, runner=runner, root=root)
+            guest_tools.verify_installed(os_id, runner=runner, root=root, snap_prepared=snap_prepared)
         except ValueError as error:
             raise PreparationError('guest-tools:verification', 'required Fedora test packages are not configured') from error
         for path in guest_tools.dormant_paths(os_id):
@@ -958,8 +981,9 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
     normalized = guest_tools.ubuntu_archive_sources(original)
     if normalized != original:
         sources.write_text(normalized)
+    requirements = [name + '=' + version for name, version in dependencies.items()]
     try:
-        guest_tools.verify_packages(status.read_text())
+        guest_tools.verify_packages(status.read_text(), requirements)
     except ValueError as error:
         if str(error) == 'guest-tools:ambiguous-package-status':
             raise PreparationError('guest-tools:package-status', 'package database is ambiguous') from error
@@ -969,9 +993,9 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
         runner.run(['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'], timeout=600)
         runner.run(['env', 'DEBIAN_FRONTEND=noninteractive', 'apt-get',
                     '-o', 'DPkg::Lock::Timeout=120', '--no-remove', 'install',
-                    '--no-install-recommends', '-y', *guest_tools.VERSIONS], timeout=1800)
+                    '--no-install-recommends', '-y', *dependencies], timeout=1800)
     try:
-        guest_tools.verify_packages(status.read_text())
+        guest_tools.verify_packages(status.read_text(), requirements)
     except ValueError as error:
         raise PreparationError('guest-tools:verification', 'required test packages are not configured') from error
     verify_chinese(LocalFiles(root))
@@ -1059,7 +1083,7 @@ def preserve_keyrings(identity, *, lookup_user=pwd.getpwnam, homes=Path('/home')
 
 def main(password=None) -> int:
     try:
-        vm_config.selected()
+        vm_config.selected(local=False)
         from test_account_password import validate
         password = validate(password)
         print("prepare-vm: [stage:guard] validating configured source guest", file=sys.stderr)
@@ -1068,12 +1092,16 @@ def main(password=None) -> int:
         existing = preflight_accounts()
         digest = preparation_digest()
         prepare_test_dependencies(runner=runner, os_id=guest.os_id)
-        from baseline_snaps import reconcile as reconcile_snaps
-        snaps = reconcile_snaps(digest, runner=runner)
-        support = sorted({value['system_support'] for value in snaps.values()
-                          if 'system_support' in value})
-        print('prepare-vm: [stage:snap-fixtures] strict installed mode verified; '
-              'system-support:' + ','.join(support), file=sys.stderr)
+        snap_prepared = vm_config.snap_tests_enabled()
+        if snap_prepared:
+            from baseline_snaps import reconcile as reconcile_snaps
+            snaps = reconcile_snaps(digest, runner=runner)
+            support = sorted({value['system_support'] for value in snaps.values()
+                              if 'system_support' in value})
+            print('prepare-vm: [stage:snap-fixtures] strict installed mode verified; '
+                  'system-support:' + ','.join(support), file=sys.stderr)
+        else:
+            print('prepare-vm: Snap preparation disabled by configuration', file=sys.stderr)
         from baseline_flatpaks import reconcile as reconcile_flatpaks
         reconcile_flatpaks(digest, runner=runner)
         print('prepare-vm: [stage:flatpak-fixtures] system runtime and A/H/S apps verified',
@@ -1085,7 +1113,7 @@ def main(password=None) -> int:
         accounts = reconcile_accounts(existing, password, runner=runner, os_id=guest.os_id)
         password = ""
         print("prepare-vm: [stage:record] writing verified preparation record", file=sys.stderr)
-        write_marker(MARKER, marker_document(guest, accounts, digest))
+        write_marker(MARKER, marker_document(guest, accounts, digest, snap_prepared=snap_prepared))
         if guest.os_id == 'fedora':
             runner.run(['restorecon', str(MARKER)])
     except (PreparationError, subprocess.SubprocessError, KeyError, OSError, ValueError) as error:
@@ -1093,6 +1121,12 @@ def main(password=None) -> int:
             detail = str(error)
         elif isinstance(error, subprocess.SubprocessError):
             detail = "[command:failed] a supported system command failed"
+            frames = traceback.extract_tb(error.__traceback__)
+            locations = ','.join(f'{Path(frame.filename).name}:{frame.name}:{frame.lineno}'
+                for frame in frames if Path(frame.filename).name in
+                ('prepare_vm.py', 'baseline_snaps.py', 'baseline_flatpaks.py'))
+            print(f'prepare-vm: command failure at {locations}; '
+                  f'exit:{getattr(error, "returncode", "timeout")}', file=sys.stderr)
             # Fixed operation tokens aid offline recovery without copying
             # command arguments, stderr, account data or password input.
             command = getattr(error, 'cmd', None)
@@ -1101,13 +1135,6 @@ def main(password=None) -> int:
             if isinstance(command, (list, tuple)) and command and command[0] in operations:
                 operation = command[0]
                 if operation == 'runuser':
-                    # Function/line and exit status locate the failed fixed
-                    # setup action without exposing account names or output.
-                    frames = traceback.extract_tb(error.__traceback__)
-                    locations = ','.join(f'{frame.name}:{frame.lineno}' for frame in frames
-                                         if Path(frame.filename).name == 'prepare_vm.py')
-                    print(f'prepare-vm: runuser failure at {locations}; '
-                          f'exit:{getattr(error, "returncode", "timeout")}', file=sys.stderr)
                     if isinstance(error, subprocess.TimeoutExpired):
                         output = error.stdout or b''
                         stderr = error.stderr or b''

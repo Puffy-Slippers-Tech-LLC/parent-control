@@ -2043,7 +2043,13 @@ private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
-One private renderer belongs to the runner, including its concurrent VM queue.
+One private renderer belongs to the runner on its executing host, including its
+local concurrent VM queue. Transferred SSH workers own independent renderers per
+selected VM; their controllers and media stay in the host's managed remote
+operation storage. Published `onpc-recording://HOST/...` links use the controller's
+current reader through an isolated SSH source transfer, preserving the host's
+checkout. The reader serves only a current recording whose publication ownership,
+file identity and digest still match; playback creates no stored media copy.
 It fans the same masked frames to at most one encoder per active VM case.
 Lifecycle phases for the same case in one attempt retain their private scratch
 segments and join them into one video when the final selected phase finishes.

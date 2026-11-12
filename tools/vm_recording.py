@@ -113,7 +113,12 @@ def report_event(root, category, event):
 
 
 def describe(record):
-    text = 'Recording: [Open recording](<' + Path(record['path']).as_uri() + '>)'
+    uri = Path(record['path']).as_uri()
+    from vm_selection import vm_config
+    origin = vm_config.remote_origin()
+    if origin is not None:
+        uri = 'onpc-recording://' + origin['host'] + uri.removeprefix('file://')
+    text = 'Recording: [Open recording](<' + uri + '>)'
     for error in record.get('errors', [])[:4]:
         seconds = int(error['seconds'] + .5)
         hours, rest = divmod(seconds, 3600)

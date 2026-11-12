@@ -13,11 +13,11 @@ def panel(root, *, prefix='', vm_names=None):
     from e2e_watch_viewer import AsyncFeed, Feed, panel as vm_panel
     from ui_watch_transport import Feeds
     from ui_watch_viewer import panel as ui_panel
-    from vm_selection import registry
+    from watch_checkouts import registered_vms
     import gi
     gi.require_version('Gtk', '4.0')
     from gi.repository import Gtk
-    configured = registry(root / 'config/environment.json')
+    configured = registered_vms(root)
     if vm_names is not None:
         configured = {name: vm for name, vm in configured.items() if name in vm_names}
 

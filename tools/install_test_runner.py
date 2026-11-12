@@ -282,6 +282,9 @@ def main():
     if sys.argv[1:] not in ([], ['--headless']) or os.geteuid() != 0:
         raise SystemExit('test-runner-install: invoke through ./setup.sh')
     root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(root / 'tools'))
+    from dev_checkout import pin_remote_scratch
+    pin_remote_scratch(root, int(os.environ.get('PKEXEC_UID', '0')))
     headless = sys.argv[1:] == ['--headless']
     headless_data = headless_rule(root) if headless else None
     # Offline flags do not erase accepted local identities used by owned cleanup.

@@ -117,12 +117,15 @@ def maintenance_probe(lease, commands, directory, host_key, *, detached=True):
     if detached:
         lease.watch.detach()
         lease.watch = None
-    hostname = runner.address(lease.source)
-    (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-    vm = Transport(dict(directory=str(directory), hostname=hostname,
-        run=lease.state['run'], domain_uuid=lease.source.uuid,
-        domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard(), lease=lease)
-    vm.ready()
+    def connect():
+        hostname = runner.address(lease.source)
+        (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
+        vm = Transport(dict(directory=str(directory), hostname=hostname,
+            run=lease.state['run'], domain_uuid=lease.source.uuid,
+            domain_id=lease.view.domain_id), commands, guard=lambda _: lease.guard(), lease=lease)
+        vm.ready()
+        return vm
+    vm = connect()
     vm.call(['printf', 'ONPC-WATCH-SSH-STDOUT\\n'])
     vm.call(['ls', '--', '/onpc-watch-missing-entry'], check=False)
     reader = ['/usr/bin/python3', '-B', str(Path(__file__).with_name('e2e_watch_probe.py'))]
@@ -133,6 +136,7 @@ def maintenance_probe(lease, commands, directory, host_key, *, detached=True):
     if not detached:
         require(stopped['feed_run'] == result['feed_run'], 'watch:lease-feed-replaced')
         lease.start()
+        vm = connect()
         with operation('Qualifying VM maintenance observation'):
             resumed = json.loads(commands.run([*reader, '--experiment'], timeout=40))
         require(resumed['feed_run'] == result['feed_run'], 'watch:lease-feed-replaced')

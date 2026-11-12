@@ -24,6 +24,59 @@ _scratch = None
 _scratch_fd = None
 
 
+def remote_directory(anchor, controller, branch, *, create=True, caller_uid=None):
+    """Stable VM journals and bounded retention, separate from source capsules."""
+    uid = os.geteuid() if caller_uid is None else caller_uid
+    if uid != os.geteuid() and (os.geteuid() != 0 or create):
+        raise ValueError('remote storage requires authenticated read-only caller lookup')
+    parent = _directory('remote', root=Path(anchor), create=create, owner='host', uid=uid)
+    key = hashlib.sha256(json.dumps([str(controller), branch], separators=(',', ':')).encode()).hexdigest()
+    path = parent / key
+    if create:
+        path.mkdir(mode=0o700, exist_ok=True)
+    info = path.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+            or stat.S_IMODE(info.st_mode) != 0o700 or path.resolve() != path):
+        raise ValueError('unsafe remote operation storage')
+    return path
+
+
+def storage_root(root=None):
+    """Keep durable operation state out of disposable transferred sources."""
+    root = ROOT if root is None else Path(root)
+    if root != ROOT or not os.path.lexists(ROOT / '.onpc-remote-source.json'):
+        return root
+    if __package__:
+        from .vm_selection import vm_config
+    else:
+        from vm_selection import vm_config
+    origin = vm_config.remote_origin()
+    if origin is None or 'controller_root' not in origin:
+        return root
+    uid = int(os.environ.get('PKEXEC_UID', str(os.geteuid())))
+    return remote_directory(origin['storage_root'], origin['controller_root'],
+                            origin['branch'], create=False, caller_uid=uid)
+
+
+def storage_base():
+    root = storage_root()
+    return BASE if root == ROOT else root / 'output/test-runs'
+
+
+def watch_root(root):
+    """Associate transferred VM feeds with the host's registered Watch source."""
+    root = Path(root)
+    if root == ROOT and os.path.lexists(root / '.onpc-remote-source.json'):
+        if __package__:
+            from .vm_selection import vm_config
+        else:
+            from vm_selection import vm_config
+        origin = vm_config.remote_origin()
+        if origin is not None:
+            return Path(origin['storage_root'])
+    return root
+
+
 def disk_backed(fd):
     # Linux statfs: f_type is the first native long; reserve enough space for
     # the complete structure without depending on libc's architecture layout.
@@ -37,7 +90,7 @@ def disk_backed(fd):
 
 def directory(kind='allocations', *, root=None, create=True):
     if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans',
-                    'reports', 'state', 'exports', 'cache', 'sbuild', 'recordings', 'captures'):
+                    'reports', 'state', 'exports', 'cache', 'sbuild', 'recordings', 'captures', 'remote'):
         raise ValueError('invalid test storage kind')
     if kind == 'recordings':
         return recordings_directory(root=root, create=create)
@@ -75,7 +128,7 @@ def recordings_directory(*, root=None, caller_uid=None, create=True):
 
 def _directory(kind, *, root, create, owner, uid):
     # Shared ancestors are traversable; payload roots stay owner-private.
-    base = (Path(root) if root is not None else ROOT) / 'output/test-runs'
+    base = storage_root(root) / 'output/test-runs'
     path = base / owner / kind if owner is not None else base / kind
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -145,7 +198,7 @@ def _prepare_output_ancestor(parent, name, descriptor, uid):
 
 def contains(path):
     path = Path(path)
-    return path.is_absolute() and '..' not in path.parts and path.is_relative_to(BASE)
+    return path.is_absolute() and '..' not in path.parts and path.is_relative_to(storage_base())
 
 
 def allocation_parent():
@@ -185,7 +238,7 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     vm = selected(required=vm_source)
     if vm is not None:
         prefix += vm.name + '-'
-    base = BASE / ('host/allocations/' + prefix + identity)
+    base = storage_base() / ('host/allocations/' + prefix + identity)
     result = named_input_slot(base)
     # Diagnose producer/consumer locator differences without exposing paths or
     # source contents. Keep selection and all input validation unchanged.
@@ -298,7 +351,7 @@ def authenticated_input(selection, *, caller_uid=None, root=ROOT):
             or any(type(selection[key]) is not int or selection[key] <= 0
                    for key in ('device', 'inode', 'journal_device', 'journal_inode'))):
         raise ValueError('input: invalid selection')
-    root = Path(root)
+    root = storage_root(root)
     base = root / 'output/test-runs/host'
     journal = Path(selection['journal'])
     allocation = Path(selection['allocation'])
@@ -706,8 +759,21 @@ def scratch_descriptors():
     # Forward only its already-open private scratch owner descriptors, including
     # leases created through either import spelling of this module. No pathname
     # is opened to acquire another process's ownership.
-    parent = ROOT / 'output/test-runs' / ('privileged' if os.geteuid() == 0 else 'host') / 'scratch'
-    producer = ROOT / 'output/test-runs/host/fixtures/producer.lock'
+    parent = storage_base() / ('privileged' if os.geteuid() == 0 else 'host') / 'scratch'
+    parents = {parent}
+    scratch_users = {os.geteuid()}
+    receipt = ROOT / '.onpc-remote-source.json'
+    if os.path.lexists(receipt):
+        if __package__:
+            from .vm_selection import vm_config
+        else:
+            from vm_selection import vm_config
+        origin = vm_config.remote_origin()
+        if origin is not None:
+            parents.add(Path(origin['storage_root']) / 'output/test-runs/host/scratch')
+            if os.geteuid() == 0:
+                scratch_users.add(int(os.environ.get('PKEXEC_UID', '0')))
+    producer = storage_base() / 'host/fixtures/producer.lock'
     descriptors = set(() if _scratch_fd is None else (_scratch_fd,))
     for name in os.listdir('/proc/self/fd'):
         descriptor = int(name)
@@ -715,12 +781,13 @@ def scratch_descriptors():
             path = Path(os.readlink(f'/proc/self/fd/{descriptor}'))
             if str(path) == str(producer) + ' (deleted)':
                 raise ValueError('fixture producer lease was removed')
-            scratch_owner = (path.name == 'owner' and path.parent.parent == parent
+            scratch_owner = (path.name == 'owner' and path.parent.parent in parents
                              and path.parent.name.startswith('run-'))
             if not scratch_owner and path != producer:
                 continue
             info = os.fstat(descriptor)
-            if (stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+            allowed_uid = info.st_uid in scratch_users if scratch_owner else info.st_uid == os.geteuid()
+            if (stat.S_ISREG(info.st_mode) and allowed_uid
                     and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1):
                 if path == producer:
                     current = os.stat(path, follow_symlinks=False)

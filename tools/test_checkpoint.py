@@ -363,7 +363,8 @@ class PassCheckpoint:
                                          'resume its original supported workflow')
             for path in directory('state', root=self.root).glob('run-tests-family-vm-*'):
                 previous = _read_scheduling_record(path / 'current.json')
-                if previous and (previous.get('queue_claims') or self.resume and state is None
+                if previous and (set(previous.get('queue_claims', {}).values()) & set(self.pool)
+                        or self.resume and state is None
                         and (previous.get('queue_completed') or any(
                             entry.get('passed') or entry.get('complete')
                             for entry in previous.get('categories', {}).values()))):

@@ -86,21 +86,25 @@ def dormant_paths(os_id):
     raise ValueError('guest-tools:unsupported-os')
 
 
-def versions(os_id):
+def versions(os_id, *, snap_prepared=True):
     if os_id == 'ubuntu':
-        return VERSIONS
-    if os_id == 'fedora':
-        return FEDORA_VERSIONS
-    raise ValueError('guest-tools:unsupported-os')
+        expected = VERSIONS
+    elif os_id == 'fedora':
+        expected = FEDORA_VERSIONS
+    else:
+        raise ValueError('guest-tools:unsupported-os')
+    return {name: version for name, version in expected.items()
+            if snap_prepared or name != 'snapd'}
 
 
-def verify_fedora_packages(packages, expected=FEDORA_VERSIONS):
+def verify_fedora_packages(packages, expected=None):
     """Compare stable upstream versions, independently of RPM release counters.
 
     Presence-only requirements accept RPM version syntax. Requirements with
     a numeric minimum use numeric releases (OpenSSH also uses pN); refuse
     unknown formats rather than guessing their RPM ordering.
     """
+    expected = versions('fedora') if expected is None else expected
     def stable_version(value):
         if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:[.p][0-9]+)*', value):
             raise ValueError('guest-tools:unsupported-package-version')
@@ -130,9 +134,11 @@ def verify_fedora_packages(packages, expected=FEDORA_VERSIONS):
     return found
 
 
-def verify_installed(os_id, *, runner, root):
+def verify_installed(os_id, *, runner, root, snap_prepared=True):
+    expected = versions(os_id, snap_prepared=snap_prepared)
     if os_id == 'ubuntu':
-        found = verify_packages((root / 'var/lib/dpkg/status').read_text())
+        found = verify_packages((root / 'var/lib/dpkg/status').read_text(),
+                                [name + '=' + version for name, version in expected.items()])
         from chinese_language_assets import LocalFiles, verify
         verify(LocalFiles(root))
         return found
@@ -142,7 +148,7 @@ def verify_installed(os_id, *, runner, root):
     rows = [line.split('\t') for line in result.stdout.splitlines()]
     if any(len(row) != 2 for row in rows):
         raise ValueError('guest-tools:ambiguous-package-status')
-    found = verify_fedora_packages(rows)
+    found = verify_fedora_packages(rows, expected=expected)
     from chinese_language_assets import LocalFiles, verify
     verify(LocalFiles(root), os_id)
     return found
@@ -166,9 +172,10 @@ def ubuntu_archive_sources(contents):
     return ''.join(lines)
 
 
-def verify_packages(status, packages=PACKAGES):
+def verify_packages(status, packages=None):
     """Require fully configured packages at or above their qualified versions."""
-    expected = dict(package.split('=', 1) for package in packages)
+    expected = (versions('ubuntu') if packages is None else
+                dict(package.split('=', 1) for package in packages))
     found = {}
     for paragraph in status.split('\n\n'):
         fields = {}

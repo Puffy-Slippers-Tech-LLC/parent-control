@@ -6,12 +6,64 @@ from pathlib import Path
 import queue
 import subprocess
 import threading
+import json
+import re
+import stat
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def identity(root):
     return hashlib.sha256(os.fsencode(root)).hexdigest()[:16]
+
+
+def registered_vms(root):
+    """Observe transferred controllers without changing the host checkout's registry.
+
+    These extra names/IDs are display metadata only. VM tools continue to use
+    their authenticated source registry and the privileged backend guards.
+    """
+    from vm_selection import registry, vm_config
+    from e2e_watch_protocol import BASE
+    from test_storage import watch_root
+    configured = registry(Path(root) / 'config/environment.json')
+    parent = BASE / str(os.getuid())
+    try:
+        for path in (BASE, parent):
+            info = path.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0
+                    or info.st_mode & 0o022 or path.resolve() != path):
+                return configured
+        for path in parent.iterdir():
+            if re.fullmatch(r'(?:current|progress)-[0-9a-f]+\.json', path.name) is None:
+                continue
+            try:
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, 'rb') as stream:
+                    info = os.fstat(stream.fileno())
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                            or info.st_mode & 0o022 or info.st_size > 8192):
+                        continue
+                    data = stream.read(8193)
+                    if len(data) > 8192:
+                        continue
+                    value = json.loads(data)
+                if (not isinstance(value, dict) or value.get('checkout') != str(watch_root(root))
+                        or 'vm_id' not in value):
+                    continue
+                name = vm_config.validate_name(value['vm'])
+                identifier = value['vm_id']
+                if (path.stem.split('-', 1)[1] != name.encode('ascii').hex()
+                        or identifier is not None and (not isinstance(identifier, str)
+                            or re.fullmatch(r'[1-9][0-9]*', identifier) is None)):
+                    continue
+                configured.setdefault(name, SimpleNamespace(name=name, id=identifier))
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+    except OSError:
+        pass
+    return configured
 
 
 def checkout(path):
@@ -85,11 +137,10 @@ class Discovery:
             except queue.Empty:
                 pass
             self.updates.put_nowait(dict(known))
-            from vm_selection import registry
             configured = {}
             for root in known:
                 try:
-                    configured[root] = registry(root / 'config/environment.json')
+                    configured[root] = registered_vms(root)
                 except (OSError, ValueError):
                     # An invalid registry must not keep stale VM tabs alive.
                     configured[root] = {}

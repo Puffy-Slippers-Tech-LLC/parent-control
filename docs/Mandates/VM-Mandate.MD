@@ -129,6 +129,10 @@ guest preparation owns its local service's poweroff before SSH is available.
 Before that transport exists, preserve the preparation journal on a host error
 instead of injecting a power key. Snapshot restoration remains the existing
 guarded reset/recovery operation, outside customer journeys.
+If an interrupted controller has lost its SSH transport, recorded cleanup uses
+that outer restoration for either SPICE or VNC only after verifying its journal,
+exact running instance, isolation and baseline proof. It never starts a guest,
+adopts another owner or substitutes this path for ordinary SSH shutdown.
 
 Disaster recovery uses the scoped `tools/backupvm` and `tools/restorevm`
 routes described in [the environment guide](../../tests/integration/Environment.md#vm-disaster-recovery).
@@ -490,7 +494,11 @@ the existing case or unfinished brief, linked here.
   app-snapshot implementation and restore the powered-off baseline. One exclusive
   VM lock covers baseline work, package building, app preparation and final restore;
   nested stages borrow that process's lock without releasing the enclosing lease.
-  Ordinary setup and E2E runners never prepare or replace it implicitly; invoke
-  the preapproved auto-mode preparation separately when needed.
+  Ordinary setup and test attempts never prepare or replace it implicitly.
+  The [Snap switch](../../tests/integration/Environment.md#reusable-preparation-ownership)
+  has one worker-admission exception: enabling Snap against a baseline recorded
+  without it invokes this maintained auto-mode route before tests, under the
+  selected VM's existing reservation. Other stale preparation still requires
+  the preapproved auto-mode preparation separately.
   Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the
   host user's private `~/.onpc-config/.envrc`; E2E never changes passwords.

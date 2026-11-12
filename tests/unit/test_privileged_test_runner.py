@@ -30,6 +30,11 @@ def select(root, argv):
 @pytest.fixture
 def checkout(tmp_path, monkeypatch):
     import test_source
+    from vm_selection import vm_config
+    branch = vm_config.current_branch()
+    # Dispatcher subprocess doubles own only their selected controller, not
+    # Git discovery performed by the shared host-placement resolver.
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     for key in (*test_source.environment(), test_source.IMPORTS):
         monkeypatch.delenv(key, raising=False)
     root = Path(__file__).resolve().parents[2]
@@ -345,10 +350,14 @@ def test_system_selector_stays_a_single_argument(checkout):
     assert command[-2:] == [f'--test={value}', '--list']
 
 
-def test_system_update_pins_both_artifact_directories(checkout):
-    command = select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
-                               '--previous-artifacts', '/var/tmp/onpc-previous',
-                               '--area', 'session'])
+def test_system_update_pins_both_artifact_directories(checkout, monkeypatch):
+    import sys
+    with monkeypatch.context() as context:
+        # A normal older checkout need not have the new remote-storage API.
+        context.setitem(sys.modules, 'test_storage', SimpleNamespace())
+        command = select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
+                                   '--previous-artifacts', '/var/tmp/onpc-previous',
+                                   '--area', 'session'])
     assert command[3:] == [*VM_ARGS, '--artifacts', '/tmp/onpc-current',
                            '--previous-artifacts', '/var/tmp/onpc-previous', '--area=session']
 

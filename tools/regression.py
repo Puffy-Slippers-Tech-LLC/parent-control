@@ -1592,12 +1592,13 @@ def recover_initial_checks(root, state):
     """Accept only a dead owner stopped before the protected-suite gate passed."""
     import test_activity
     import test_retention
+    from test_storage import storage_root
     if not test_activity.descriptors() or len(state['paths']) != 1:
         return False
     record = state['paths'][0]
     report = Path(record['path'])
     if report.parent not in (root / 'docs/TestAutomation/Evidence/test-all-runs',
-                             root / 'output/test-runs/host/reports'):
+                             storage_root(root) / 'output/test-runs/host/reports'):
         return False
     try:
         # Verify the registered identity without removing anything. Missing or

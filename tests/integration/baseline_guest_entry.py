@@ -158,11 +158,13 @@ def update_system(os_id='ubuntu'):
             runner.run(['dnf5', 'check'], timeout=180)
             runner.run(['file', '-b', '-m', '/usr/share/fapolicyd/fapolicyd-magic.mgc',
                         '/usr/bin/true'])
-    prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
+    prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
+        snap_prepared=prepare_vm.vm_config.snap_tests_enabled())
 
 
 def main(argv=None):
-    args, _ = prepare_vm.vm_config.extract(sys.argv[1:] if argv is None else argv)
+    # This is guest metadata, not access to the VM host's hypervisor or disks.
+    args, _ = prepare_vm.vm_config.extract(sys.argv[1:] if argv is None else argv, local=False)
     root = ROOT
     print('baseline: [stage:entry]', flush=True)
     if os.geteuid() != 0 or prepare_vm.CHECKOUT != root / 'checkout':
@@ -170,7 +172,8 @@ def main(argv=None):
         return 1
     if args == ['--prepare-native']:
         os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
-        prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
+        prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
+            snap_prepared=prepare_vm.vm_config.snap_tests_enabled())
         try:
             prepare_native(os_id)
         except subprocess.SubprocessError as error:
@@ -187,7 +190,8 @@ def main(argv=None):
         if not previous or previous == BOOT_ID.read_text().strip():
             return 1
         os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
-        prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'))
+        prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
+            snap_prepared=prepare_vm.vm_config.snap_tests_enabled())
         (root / 'reboot-required').unlink()
         (root / 'success').write_text('success\n')
         return 0

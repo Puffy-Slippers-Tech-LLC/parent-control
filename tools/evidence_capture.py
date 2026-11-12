@@ -101,7 +101,9 @@ def _directory_identity(info):
 
 
 def _repository(path, caller):
-    path = Path(path)
+    # Source capsules are disposable. Captures bind their stable operational
+    # namespace so acknowledgements and retention survive source cleanup.
+    path = storage.storage_root(Path(path))
     logical._path(str(path))
     with retention.directory_descriptor(path) as fd:
         info = os.fstat(fd)

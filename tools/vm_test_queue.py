@@ -143,6 +143,9 @@ class FamilyAdmission:
 
 
 def source_identity(root):
+    origin = vm_config.remote_origin()
+    if origin is not None and 'source_identity' in origin:
+        return dict(origin['source_identity'])
     from regression_inputs import identity
     return dict(digest=identity(root), generation=test_source.SourceProtection(
         test_source.source_directory(root)).generation())
@@ -821,7 +824,27 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
                         with output_lock:
                             print(f'[{vm.name}] ' + pending.decode('utf-8', errors='replace'), flush=True)
                 evidence = None
-                if ready:
+                from vm_pool import remote
+                route = remote()
+                if route is not None:
+                    evidence = route.result.get('evidence')
+                    handoffs = []
+                    for index, received in enumerate(route.result.get('handoffs', [])):
+                        handoff = dict(received['failure'])
+                        path = directory / (vm.name + '-remote-' + attempt + '-' + str(index) + '.json')
+                        context = received.get('context')
+                        prefix = ('This failure ran on VM host ' + received['host'] +
+                                  '; original artifact paths below belong to that host. ')
+                        if context is not None:
+                            context_path = path.with_name(path.stem + '-context.json')
+                            context_path.write_text(json.dumps(context))
+                            context_path.chmod(0o600)
+                            prefix += 'Read the retained bounded failure context at ' + str(context_path) + '. '
+                        handoff['prompt'] = prefix + '\n' + handoff['prompt']
+                        path.write_text(json.dumps(handoff))
+                        path.chmod(0o600)
+                        handoffs.append(str(path))
+                elif ready:
                     saved = Checkpoint(root, guest_selection, resume=True, binding=vm.name)
                     evidence = saved.state.get('queue_evidence')
                 with (directory / (vm.name + '.log')).open('rb') as log:
@@ -960,7 +983,8 @@ def _worker(argv, finished):
     # The batch's checkout-local gate is not a VM reservation or cleanup proof.
     os.environ.pop(test_activity.VARIABLE, None)
     sys.stdout.frame(['Queued (waiting for VM checkout)'])
-    with launcher_reload.watching(), Control().installed(pipe=True) as control, reservation(name, stopped=control.stopped), \
+    from prepare_appsnapshot import snap_ready_reservation
+    with launcher_reload.watching(), Control().installed(pipe=True) as control, snap_ready_reservation(root, name, control), \
             test_activity.activity(root, named_vm=True), test_source.reader(root, stopped=control.stopped.is_set):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process
@@ -1033,8 +1057,7 @@ def _worker(argv, finished):
                 # checkout edits are informational, not a different attempt.
                 # Retain the admitted source generation and exact assignment;
                 # a managed source replacement still makes this diagnostic.
-                diagnostic=assignment['source']['generation'] != test_source.SourceProtection(
-                    test_source.source_directory(root)).generation())
+                diagnostic=assignment['source']['generation'] != source_identity(root)['generation'])
             finished.append((checkpoint, evidence))
         return status
 

@@ -59,6 +59,23 @@ in the private `~/.onpc-config/.envrc` file; neither uses an environment-variabl
 You can use the same password to log in manually. Do not commit it or put the
 real value in `.envrc.example`.
 
+Repeat the `TEST_ACCOUNT_PASSWORD` setup on **every VM host** in
+[`config/environment.json`](config/environment.json), including SSH hosts such
+as `myserver`. Use the account that the SSH alias logs in as, and set the same
+chosen test-account password on every host. Remote VM operations read that
+account's private file on the VM host; the local machine's credentials are not
+forwarded. Merge the assignment into an existing file without overwriting its
+other settings. After creating or editing the file, run on each VM host:
+
+```sh
+chmod 700 "$HOME/.onpc-config"
+chmod 600 "$HOME/.onpc-config/.envrc"
+```
+
+The file must belong to that account and contain exactly one literal
+`TEST_ACCOUNT_PASSWORD` assignment. Group-readable or group-writable modes such
+as `0664` are refused before VM preparation starts.
+
 For Fedora COPR publishing, copy [copr.example](config/copr.example) to
 `~/.config/copr` only if that file is absent:
 

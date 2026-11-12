@@ -28,7 +28,7 @@ def current_name(commands, root=ROOT):
     return snapshot_name(current_version(commands, root))
 
 
-def preparation_format(source, commands):
+def preparation_state(source, commands):
     base = system.baseline
     capture = base.Capture(source, commands, None)
     capture.directory_identity = capture.private_directory()
@@ -43,14 +43,13 @@ def preparation_format(source, commands):
             'current_source_sha256': capture.script_digest}, sort_keys=True),
             file=sys.stderr, flush=True)
     system.require(capture.state['phase'] == 'finalized' and
-                   capture.state['source']['layout']['uuid'] == source.uuid and
-                   capture.state['script_digest'] == capture.script_digest,
+                   capture.state['source']['layout']['uuid'] == source.uuid,
                    'baseline:preparation-outdated')
     proof = base.snapshot_proof(capture.proven_snapshot_xml(source.baseline()),
         capture.state['source']['layout'], capture.description())
     system.require(all(capture.state['proof'].get(key) == value for key, value in proof.items()),
                    'baseline:changed')
-    return system.package_target(capture.state['guest']).package_format
+    return capture
 
 
 def probe(expected_uuid, *, overwrite=True, release_notes_upgrade=False):
@@ -69,7 +68,13 @@ def probe(expected_uuid, *, overwrite=True, release_notes_upgrade=False):
         base.guest_contract.vm_config.require_online(base.guest_contract.vm_config.selected())
         source, _ = open_source()
         check_identity(source, expected_uuid)
-        package_format = preparation_format(source, commands)
+        capture = preparation_state(source, commands)
+        if (base.guest_contract.vm_config.snap_tests_enabled()
+                and not capture.state['guest'].get('snap_prepared', True)):
+            return 8  # Maintained auto preparation also refreshes stale sources.
+        system.require(capture.state['script_digest'] == capture.script_digest,
+                       'baseline:preparation-outdated')
+        package_format = system.package_target(capture.state['guest']).package_format
         journal = base.BASELINES / 'system-run.json'
         if os.path.lexists(journal):
             base.identity(journal, private=True, mode=0o600)

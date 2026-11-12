@@ -827,6 +827,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'evidence_bundle.py', 'recording_storage.py', 'artifact_export.py',
     'launcher_git.py', 'launcher_worktrees.py', 'launcher_question.py',
     'plan_reconciliation.py', 'vm_selection.py', 'vm_pool.py',
+    'host_dispatch.py', 'remote_sources.py', 'vm_source_snapshot.py', 'launcher_controller.py',
     '../tests/integration/vm_config.py', 'plan_response.schema.json',
 )
 

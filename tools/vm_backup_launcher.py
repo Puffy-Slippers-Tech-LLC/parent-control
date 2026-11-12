@@ -7,6 +7,7 @@ import sys
 
 from dev_privileges import check
 from vm_selection import vm_config
+from test_storage import scratch_descriptors
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = '/usr/local/libexec/onpc-setup'
@@ -39,23 +40,43 @@ def main(action, argv=None):
             vm_config.backup_root(vm=vm)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
-        check(HELPER)
         selector = ','.join(vm.name for vm in vms)
-        from vm_pool import arguments as checkout_arguments, check_queue
+        from vm_pool import arguments as checkout_arguments, check_queue, reservation
         check_queue(vms)
-        status = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            HELPER, *checkout_arguments(), tool, '--vm', selector], cwd=ROOT,
-            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}).returncode
-        if status:
-            failure(tool, f'archive operation failed (status {status}); selected VMs were not all backed up.'
-                    if action == 'backup' else f'restore operation failed (status {status}).')
-            return status
+        from host_dispatch import tool_host
+        owner = tool_host(ROOT).name
+        if any(vm.host.name != owner for vm in vms):
+            if any(vm.host.name == owner for vm in vms):
+                check(HELPER)
+            from regression_process import Control
+            import test_launcher
+            # Finish every archive before preparation begins. The reservation's
+            # routing sends only the archive helper operation to its VM host.
+            with Control().installed() as control:
+                for vm in vms:
+                    with reservation(vm.name, stopped=control.stopped):
+                        status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                            HELPER, tool, '--vm', vm.name], cwd=ROOT,
+                            env=test_launcher.environment(ROOT), wait_on_cancel=True)
+                    if status:
+                        failure(tool, f'archive operation failed (status {status}); remaining archives preserved.')
+                        return status
+        else:
+            check(HELPER)
+            status = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                HELPER, *checkout_arguments(), tool, '--vm', selector], cwd=ROOT,
+                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'},
+                pass_fds=scratch_descriptors()).returncode
+            if status:
+                failure(tool, f'archive operation failed (status {status}); remaining archives preserved.')
+                return status
         if action != 'restore':
             print(f'{tool}: SUCCESS: backed up {selector}.', flush=True)
             return status
         # The preparation launcher refreshes accepted helper pins after its queue.
         status = subprocess.run([str(ROOT / 'tools/prepare-vm'), '--vm', selector,
-                                 '--mode', 'auto', '--y'], cwd=ROOT).returncode
+                                 '--mode', 'auto', '--y'], cwd=ROOT,
+                                pass_fds=scratch_descriptors()).returncode
         if status:
             failure(tool, 'VMs restored; automatic preparation failed. Rerun '
                     'tools/prepare-vm --vm ' + selector + ' --mode auto --y.')

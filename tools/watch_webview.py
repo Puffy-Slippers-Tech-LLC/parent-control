@@ -28,6 +28,58 @@ from watch_output import Output, SessionOutput, JsonReader, active_launchers, wa
 from tests.integration.watch_activity import TerminalControls
 
 
+def recording_artifact(uri, anchor, host):
+    """Read only a current publication in this host's remote operation store."""
+    parsed = urlsplit(uri)
+    path = Path(unquote(parsed.path))
+    base = Path(anchor) / 'output/test-runs/host/remote'
+    if (parsed.scheme != 'onpc-recording' or parsed.netloc != host
+            or parsed.query or parsed.fragment or not path.is_absolute()
+            or '..' in path.parts or not path.is_relative_to(base)):
+        raise ValueError('Invalid recording URI or storage host.')
+    parts = path.relative_to(base).parts
+    if (len(parts) != 5 or re.fullmatch('[0-9a-f]{64}', parts[0]) is None
+            or parts[1:4] != ('output', 'test-runs', 'recordings') or path.suffix != '.webm'):
+        raise ValueError('Recording outside this host\'s managed remote storage.')
+    from recording_storage import Store
+    with Store(root=path.parents[3], create=False).open_published(path) as stream:
+        data = stream.read(64 * 1024 * 1024 + 1)
+    if len(data) > 64 * 1024 * 1024:
+        raise ValueError('Recording exceeds the inline transfer limit; open it on the source host.')
+    return dict(kind='video', data=base64.b64encode(data).decode('ascii'))
+
+
+def remote_recording_artifact(uri):
+    """Use current source for one read, preserving the remote host's checkout."""
+    from host_dispatch import tool_host
+    from vm_selection import vm_config
+    root = Path(__file__).resolve().parents[1]
+    document = vm_config.read_document(root / 'config/environment.json', validate_agent=False)
+    host = vm_config.host_registry(document).get(urlsplit(uri).netloc)
+    if host is None or host.name == tool_host(root, document).name:
+        raise ValueError('Recording host is not a remote registered host.')
+    from regression_process import Control
+    from remote_sources import RemoteVM
+    import test_launcher
+    environment = test_launcher.environment(root)
+    for variable in ('ONPC_TEST_VM', 'ONPC_VM_CHECKOUT', 'ONPC_VM_RECORDING_CONTROL',
+                     'ONPC_TEST_FAMILY_WORK', 'ONPC_TEST_VM_WORKER', 'ONPC_TEST_VM_BATCH'):
+        environment.pop(variable, None)
+    data = bytearray()
+    def received(block):
+        if len(data) + len(block) > 96 * 1024 * 1024:
+            raise ValueError('Recording response exceeds transfer limit.')
+        data.extend(block)
+    with Control().installed() as control:
+        status = RemoteVM(root, host=host).run(control,
+            ['/usr/bin/python3', '-B', str(root / 'tools/watch_webview.py'),
+             '--root', str(root), '--recording', uri], env=environment,
+            output=received, stderr_output=lambda block: None, timeout=60)
+    if status:
+        raise ValueError(f'Recording read failed on {host.name} (status {status}).')
+    return json.loads(data)
+
+
 def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
                  session_waiting=False, launcher=False):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
@@ -56,7 +108,8 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
                     uri = urlsplit(reference.destination)
                 except ValueError:
                     continue
-                if (reference.kind != 'inline' or uri.scheme != 'file' or uri.netloc
+                if (reference.kind != 'inline' or uri.scheme not in ('file', 'onpc-recording')
+                        or (uri.scheme == 'file' and uri.netloc)
                         or uri.query or uri.fragment or not uri.path.startswith('/')
                         or not unquote(uri.path).endswith('.webm')):
                     continue
@@ -293,14 +346,22 @@ class Viewer:
         from watch_output import open_private
         uri = request['uri']
         try:
-            if uri not in self.artifact_links:
-                raise ValueError('Artifact is no longer published by this reader.')
             parsed = urlsplit(uri)
-            if parsed.scheme not in ('', 'file') or parsed.netloc or parsed.query or parsed.fragment:
+            remote_recording = parsed.scheme == 'onpc-recording'
+            if uri not in self.artifact_links and not remote_recording:
+                raise ValueError('Artifact is no longer published by this reader.')
+            if ((parsed.scheme not in ('', 'file') and not remote_recording)
+                    or (parsed.netloc and not remote_recording) or parsed.query or parsed.fragment):
                 raise ValueError('Invalid artifact URI.')
             path = Path(unquote(parsed.path))
             if not path.is_absolute() or '..' in path.parts:
                 raise ValueError('Invalid artifact path.')
+            if remote_recording:
+                from host_dispatch import tool_host
+                for root in self.roots:
+                    if parsed.netloc == tool_host(root).name and path.is_relative_to(root):
+                        return recording_artifact(uri, root, parsed.netloc)
+                return remote_recording_artifact(uri)
             if uri in self.case_links:
                 if not any(path.resolve().is_relative_to(root.resolve() / 'tests') for root in self.roots):
                     raise ValueError('Case file outside checkout tests.')
@@ -797,7 +858,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True)
     parser.add_argument('--snapshot', action='store_true', help='Print one read-only snapshot and exit')
+    parser.add_argument('--recording', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.recording:
+        from vm_selection import vm_config
+        origin = vm_config.remote_origin()
+        if origin is None or args.snapshot:
+            raise ValueError('Recording read requires transferred controller source.')
+        try:
+            result = recording_artifact(args.recording, origin['storage_root'], origin['host'])
+        except (OSError, ValueError) as error:
+            result = dict(error=str(error))
+        print(json.dumps(result, separators=(',', ':')), flush=True)
+        return
     viewer = Viewer(checkout(args.root))
     try:
         if args.snapshot:

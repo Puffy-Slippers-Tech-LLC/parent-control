@@ -26,6 +26,7 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch)
     import hashlib
     import threading
     import launcher_reload
+    import prepare_appsnapshot
     import regression_process
     import test_activity
     import test_checkpoint
@@ -47,7 +48,8 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: dict(
         digest=hashlib.sha256(source.read_bytes()).hexdigest(), generation=0))
     monkeypatch.setattr(vm_test_queue.vm_config, 'select', lambda name: monkeypatch.setenv(VARIABLE, name))
-    monkeypatch.setattr(vm_test_queue, 'reservation', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(prepare_appsnapshot, 'reservation', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(prepare_appsnapshot, 'ensure_snap_prepared', lambda *args: 0)
     monkeypatch.setattr(test_activity, 'activity', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(test_source, 'reader', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(launcher_reload, 'watching', nullcontext)
@@ -207,6 +209,9 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
     import test_source
     import vm_test_queue
     from launcher_runtime import TaskBudget
+    from vm_selection import vm_config
+    branch = vm_config.current_branch()
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
 
     run = tmp_path / 'run'
     run.mkdir()
@@ -621,6 +626,7 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
     main = launcher['main']
     monkeypatch.setitem(main.__globals__, 'read_password', lambda: None)
     monkeypatch.setitem(main.__globals__, 'check', lambda _: None)
+    monkeypatch.setitem(main.__globals__, 'tool_host', lambda _: vms[0].host)
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     held, calls, refreshes = set(), [], []
     stopped = threading.Event()
@@ -1808,8 +1814,11 @@ def test_dispatcher_refuses_foreign_product_free_fixture_target(
 
 
 @pytest.fixture
-def frozen_fixture_selection():
+def frozen_fixture_selection(monkeypatch):
     from tools import fixture_execution
+    from vm_selection import vm_config
+    branch = vm_config.current_branch()
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     return fixture_execution.Selection('ubuntu', 'a' * 64,
         '/tmp/onpc-native-runtime-ubuntu-' + 'a' * 64 + '-private',
         1, 2, '/tmp/retention-private', 3, 4, 'b' * 32, 'c' * 64)
@@ -2804,9 +2813,14 @@ def test_untrusted_environment_is_removed(checkout, monkeypatch):
     for key in ('PYTHONPATH', 'PYTEST_PLUGINS', 'PYTEST_ADDOPTS', 'LD_PRELOAD',
                 'MAKEFLAGS', 'MAKEFILES', 'NODE_OPTIONS', 'GJS_PATH', 'BASH_ENV', 'CC'):
         monkeypatch.setenv(key, '/tmp/untrusted')
+    monkeypatch.setenv('SSH_AUTH_SOCK', '/caller/ssh-agent')
     env = host.environment(checkout)
     assert '/tmp/untrusted' not in env.values()
     assert env['PATH'] == '/usr/sbin:/usr/bin:/sbin:/bin'
+    assert env['SSH_AUTH_SOCK'] == '/caller/ssh-agent'
+    assert 'SSH_AUTH_SOCK' not in host.test_environment(checkout)
+    from host_dispatch import ssh_environment
+    assert ssh_environment(host.test_environment(checkout))['SSH_AUTH_SOCK'] == '/caller/ssh-agent'
 
 
 def test_pytest_storage_does_not_inherit_ramdisk_or_caller_override(checkout, monkeypatch):

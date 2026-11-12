@@ -48,7 +48,8 @@ def capture(root, destination, handoff_path, output):
     Missing/refused/truncated evidence stays explicit and cannot imply a pass.
     """
     root = Path(root)
-    storage = root / 'output/test-runs'
+    from test_storage import storage_root
+    storage = storage_root(root) / 'output/test-runs'
     files, failures, seen = [], [], set()
     remaining = MAX_BYTES
     raw_directories = set()

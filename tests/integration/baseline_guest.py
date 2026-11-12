@@ -383,7 +383,8 @@ def prepare(capture, guestfs, password, *, mode='manual'):
         manifest = verify(artifacts)
         fixture_root = artifacts / manifest['artifacts']['fixtures']['path']
         hashes = json.loads((fixture_root / 'SHA256SUMS.json').read_bytes())['files']
-        payload = {name: (fixture_root / name).read_bytes() for name in snap_assets.packages()}
+        payload = ({name: (fixture_root / name).read_bytes() for name in snap_assets.packages()}
+                   if prepare_vm.vm_config.snap_tests_enabled() else {})
         require(all(hashlib.sha256(data).hexdigest() == hashes[name]
                     for name, data in payload.items()), 'guest:snap-input-digest')
         flatpak_payload = {name: (fixture_root / name).read_bytes()
@@ -468,7 +469,8 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
             g.ln_s(UNIT, LINK)
         label_preparation(g)
         from tests.fixtures import snap_assets
-        require(set(snap_payload) == set(snap_assets.packages()), 'guest:snap-input-manifest')
+        expected_snaps = set(snap_assets.packages()) if prepare_vm.vm_config.snap_tests_enabled() else set()
+        require(set(snap_payload) == expected_snaps, 'guest:snap-input-manifest')
         for name, data in snap_payload.items():
             write(g, STAGE + '/snap-inputs/' + name, data)
         write(g, STAGE + '/snap-inputs/SHA256SUMS.json', json.dumps({
@@ -508,8 +510,9 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
             require(False, 'guest:preparation-failed; diagnostics:' + preparation_failure(
                 g, attempt=capture.state.get('operation')))
         require(not g.exists(STAGE + '/password'), 'guest:preparation-secret-retained')
-        from baseline_fixtures import verify_snaps, verify_flatpaks
-        verify_snaps(g)
+        from baseline_fixtures import verify_snaps, verify_flatpaks, regular
+        if prepare_vm.vm_config.snap_tests_enabled():
+            verify_snaps(g)
         verify_flatpaks(g)
         for name, data in snap_payload.items():
             path = STAGE + '/snap-inputs/' + name
@@ -599,7 +602,8 @@ def configure_clipboard(root):
         devices.remove(graphics)
     graphics = ET.Element('graphics', type='spice', autoport='yes')
     devices.insert(0, graphics)
-    ET.SubElement(graphics, 'listen', type='none')
+    # virt-manager's SSH tunnel connects to this host-loopback endpoint.
+    ET.SubElement(graphics, 'listen', type='address', address='127.0.0.1')
     ET.SubElement(graphics, 'clipboard', copypaste='yes')
     ET.SubElement(graphics, 'filetransfer', enable='no')
     for channel in devices.findall('channel'):

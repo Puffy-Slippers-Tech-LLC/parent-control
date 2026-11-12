@@ -42,6 +42,16 @@ def main(argv=None):
                 or args.transfer_batch_appsnapshot):
             raise ValueError('--if-available requires ordinary VM cleanup')
         root = Path(__file__).resolve().parents[1]
+        def remote_cleanup(vm):
+            from host_dispatch import vm_tool
+            options = ['--vm', vm.name, '--vm-only']
+            for name in ('discard_completed', 'if_available'):
+                if getattr(args, name):
+                    options.append('--' + name.replace('_', '-'))
+            for name in ('discard_unpublished_input', 'transfer_batch_input', 'transfer_batch_appsnapshot'):
+                if getattr(args, name):
+                    options += ['--' + name.replace('_', '-'), getattr(args, name)]
+            return vm_tool(root, vm, 'cleanup-e2e', options)
         snapshot = args.transfer_batch_appsnapshot
         transferring = bool(args.transfer_batch_input or snapshot)
         if args.discard_unpublished_input or transferring:
@@ -62,6 +72,9 @@ def main(argv=None):
                 options = qualification_input_options(root, selector)
                 if options is None or options.get('upgrade_source'):
                     raise ValueError('qualification has no ordinary artifact input declaration')
+            status = remote_cleanup(vms[0])
+            if status is not None:
+                return status
             os.environ.pop(BATCH, None)
             select(vms[0].name)
             with (reservation(vms[0].name) if transferring else nullcontext()), \
@@ -96,7 +109,8 @@ def main(argv=None):
         for vm in vms:
             select(vm.name)
             with reservation(vm.name, wait=not args.if_available), test_activity.activity(root):
-                if args.discard_completed:
+                status = remote_cleanup(vm)
+                if status is None and args.discard_completed:
                     from regression_process import category_run
                     from vm_selection import arguments
                     status = category_run(root, 'system',
@@ -104,7 +118,9 @@ def main(argv=None):
                     if status:
                         return status
                     test_retention.Store(test_activity.retention_path(root)).discard_completed(lambda paths: None)
-                status = cleanup(root)
+                    status = None
+                if status is None:
+                    status = cleanup(root)
                 if not status:
                     from test_checkpoint import recover_family_claims
                     recovered = recover_family_claims(root, vm.name)

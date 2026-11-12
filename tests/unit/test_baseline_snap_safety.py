@@ -108,3 +108,44 @@ def test_copied_snap_sources_require_their_exact_receipt_before_retirement(subst
         removed = {call.args[0] for call in g.rm.call_args_list}
         assert removed == {guest.STAGE + '/checkout/' + name for name in record['files']}
         assert {target, guest.STAGE + '/checkout/tests/integration/baseline_snaps.py'} <= removed
+
+
+@pytest.mark.parametrize('enabled,probe,expected', [
+    (False, 8, []), (True, 3, ['probe']), (True, 5, ['probe']),
+    (True, 8, ['probe', 'prepare']), (True, 2, ['probe']),
+])
+def test_snap_refresh_uses_only_maintained_preparation_before_execution(monkeypatch, enabled, probe, expected):
+    from contextlib import contextmanager, nullcontext
+    import prepare_appsnapshot as preparation
+    monkeypatch.setattr(preparation.vm_config, 'snap_tests_enabled', lambda: enabled)
+    monkeypatch.setattr(preparation, 'vm_arguments', lambda: ['--vm', 'Selected-guest'])
+    commands = []
+    held = []
+    @contextmanager
+    def reader(*args, **kwargs):
+        held.append(True)
+        try:
+            yield
+        finally:
+            held.pop()
+    monkeypatch.setattr(preparation.test_source, 'reader', reader)
+    monkeypatch.setattr(preparation.test_activity, 'activity', lambda *a, **kw: nullcontext())
+    recover = Mock(return_value=0)
+    monkeypatch.setattr(preparation, 'cleanup', recover)
+    def run(command, **kwargs):
+        if 'appsnapshot' in command:
+            assert held
+            commands.append('probe')
+            assert command[-2:] == ['--vm', 'Selected-guest']
+            return probe
+        commands.append('prepare')
+        assert not held
+        assert command == [str(ROOT / 'tools/prepare-vm'), '--vm', 'Selected-guest',
+                           '--mode', 'auto', '--y']
+        assert kwargs['wait_on_cancel']
+        return 0
+    status = preparation.ensure_snap_prepared(ROOT, SimpleNamespace(run=run,
+        stopped=SimpleNamespace(is_set=lambda: False)), {})
+    assert commands == expected
+    assert status == (2 if enabled and probe == 2 else 0)
+    assert recover.call_count == int(enabled and probe == 8)

@@ -61,7 +61,8 @@ class Session:
                 self.child = subprocess.Popen(argv, stdin=subprocess.DEVNULL,
                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                     pass_fds=(remote.fileno(), display.fileno(), *scratch_descriptors()),
-                    env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8'})
+                    env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8',
+                         'PKEXEC_UID': str(uid)})
             self.pidfd = os.pidfd_open(self.child.pid)
             self.control.settimeout(10)
             self.control.sendall(b'start')

@@ -202,13 +202,18 @@ Public commands using the shared controller accept `--branch NAME`, selecting a
 branch from `config/environment.json`. Without it, the matching `launchers` entry's
 `default_branch` wins, then the invoking checkout's current Git branch.
 `write-e2e --planb` and `write-e2e --planc` default to the current checkout's branch independently of
-Plan A's configured default; explicit `--branch` still overrides it. An
-unregistered current branch runs in its invoking checkout. Local placement uses
+Plan A's configured default; explicit `--branch` still overrides it. The
+invoking checkout must be on a registered Git branch, whose host is the tool
+host. Local placement uses
 the branch's `host` and `repo_root`, verifies the branch is already checked out,
 and launches the destination checkout's controller there. It never switches Git
 branches. Host `enabled` flags govern VM scheduling, not controller placement.
-SSH placement uses the configured host name as a private OpenSSH alias and its
-`ssh_port`. It runs the selected checkout's launcher on that server, verifies
+The selected branch's host is the controller host. When it equals the tool host,
+the controller runs locally, including on a host labelled `transport: ssh`.
+When the hosts differ, placement uses SSH, including when the destination is
+labelled `transport: local`. SSH uses the configured host name as a private
+OpenSSH alias and its optional `ssh_port` (otherwise OpenSSH selects the port).
+It runs the selected checkout's launcher on that host, verifies
 the checked-out branch, and pins the destination without reapplying remote
 launcher defaults. Arguments are shell-quoted; stdin/stdout/stderr and exit status
 travel through SSH without allocating a remote terminal.
@@ -217,7 +222,12 @@ connection failures never fall back to local execution. Run `./setup.sh --server
 on the server and `./setup.sh --connect-server` on the client first. No additional
 controller service is needed. Source and credentials remain host-local; dispatch
 does not synchronize checkouts or forward the client's environment.
-Routing policy lives in the reloadable `launcher_controller.py`; the stable
+The controller's current working source owns VM execution. Workers on another
+host receive isolated source copies, including uncommitted changes, through the
+shared [VM source transfer](../tests/integration/Environment.md#shared-vm-configuration).
+Shared host identity, checkout validation and SSH construction live in
+`tools/host_dispatch.py`; launcher admission lives in the reloadable
+`launcher_controller.py`. The stable
 public commands return after controller admission. Inspection commands such as
 `--help` use the same branch selection and placement rules.
 Internal `run-tests CATEGORY --unattended` children stay in their controller's

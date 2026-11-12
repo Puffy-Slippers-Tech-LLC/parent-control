@@ -22,6 +22,24 @@ MANIFEST = 'control.json'
 LOCK = '.controller.lock'
 
 
+def _directory(*, root=None, caller_uid=None, create=True):
+    base = test_storage.recordings_directory(root=root, caller_uid=caller_uid, create=create)
+    from vm_selection import vm_config
+    # Other-host workers record independently. Keep their controllers separate
+    # while preserving the existing per-case/VM media owners.
+    if ((root is None or Path(root) == vm_config.ROOT)
+            and vm_config.remote_origin() is not None):
+        path = base / ('.control-' + vm_config.selected(local=False).name)
+        if create:
+            path.mkdir(mode=0o700, exist_ok=True)
+        uid = os.geteuid() if caller_uid is None else caller_uid
+        _private(path.lstat(), uid, directory=True)
+        if path.resolve() != path:
+            raise ValueError('recording control: linked directory')
+        return path
+    return base
+
+
 def _identity(info):
     return dict(device=info.st_dev, inode=info.st_ino)
 
@@ -121,7 +139,7 @@ def _load(fd, uid):
 
 class Publication:
     def __init__(self, root=None):
-        self.directory = test_storage.recordings_directory(root=root)
+        self.directory = _directory(root=root)
         self.fd = self.lock = None
         self.state = None
         self.identity = None
@@ -251,7 +269,7 @@ def endpoint(root=None):
     else:
         uid = os.geteuid()
     try:
-        directory = test_storage.recordings_directory(**arguments)
+        directory = _directory(**arguments)
     except FileNotFoundError:
         return None
     fd = test_retention.directory(directory)

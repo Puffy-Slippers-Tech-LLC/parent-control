@@ -268,6 +268,49 @@ def reopened(lease):
     return result
 
 
+@pytest.mark.parametrize('graphics', ['vnc', 'spice'])
+@pytest.mark.parametrize('fault', [None, 'instance', 'run', 'snapshot', 'maintenance'])
+def test_interrupted_recovery_restores_only_the_recorded_instance_without_ssh(lease_rig, graphics, fault):
+    lease, current = lease_rig
+    lease.view.graphics_type = graphics
+    lease.__enter__()
+    lease.prepare()
+    lease.start()
+    lease.release()
+    original = lease.journal.read_bytes()
+    restores = lease.source.domain.revertToSnapshot.call_count
+    shutdowns = lease.source.shutdown_calls
+    if fault == 'instance':
+        current['id'] += 1
+    elif fault == 'run':
+        xml = ET.fromstring(current['xml'])
+        xml.find('description').text = runner.TAG + 'f' * 32
+        current['xml'] = ET.tostring(xml, encoding='unicode')
+    elif fault == 'snapshot':
+        xml = ET.fromstring(lease.source.baseline_xml)
+        xml.find('description').text += ' changed'
+        lease.source.baseline_xml = ET.tostring(xml, encoding='unicode')
+    elif fault == 'maintenance':
+        owner = lease.directory / 'vm-control.json'
+        owner.write_text(json.dumps({'run': lease.state['run']}))
+        owner.chmod(0o600)
+    held = runner.Lease(lease.source, lease.commands, lease.inspect,
+        directory=lease.directory, anchor=lease.capture.anchor, graphics_type=graphics)
+    recover = held.recover_graphical_cleanup if graphics == 'vnc' else held.recover_system_cleanup
+    if fault:
+        with pytest.raises(RuntimeError):
+            recover()
+        assert lease.journal.read_bytes() == original
+        assert lease.source.domain.revertToSnapshot.call_count == restores
+    else:
+        recover()
+        assert held.state['phase'] == 'complete' and current['id'] == -1
+        assert lease.source.domain.revertToSnapshot.call_count == restores + 1
+    assert lease.source.shutdown_calls == shutdowns
+    lease.source.domain.destroyFlags.assert_not_called()
+    lease.source.domain.create.assert_called_once()
+
+
 def start(lease):
     lease.view.graphics_type = 'vnc'
     with patch('vm_probe.prepare_maintenance_transport'):

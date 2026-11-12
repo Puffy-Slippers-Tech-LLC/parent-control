@@ -1,11 +1,10 @@
 """Blank VM provisioning. The same finite worker runs locally or over SSH."""
 import argparse
 import fcntl
-import inspect
+import base64
 import json
 import os
 from pathlib import Path
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -15,6 +14,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import vm_config
+from host_dispatch import tool_host
 
 
 def confirm(message):
@@ -27,7 +27,7 @@ def confirm(message):
 
 
 def provision(request):
-    # Self-contained so the identical implementation can be sent to an SSH host.
+    # Local and SSH workers use the invoking checkout's implementation.
     import fnmatch
     import json
     import os
@@ -37,8 +37,11 @@ def provision(request):
     import subprocess
     import sys
     import xml.etree.ElementTree as ET
+    from test_storage import scratch_descriptors
 
     def run(args, **kwargs):
+        kwargs['pass_fds'] = tuple(dict.fromkeys((*kwargs.get('pass_fds', ()),
+                                                *scratch_descriptors())))
         result = subprocess.run(args, text=True, capture_output=True, timeout=120, **kwargs)
         if result.returncode:
             raise ValueError(f'{args[0]} failed: {result.stderr.strip() or result.stdout.strip()}')
@@ -178,6 +181,8 @@ def create(name, host_name, family_name, *, root=ROOT):
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         original = config.read_bytes()
         document = vm_config.read_document(config, validate_agent=False)
+        owner = tool_host(root, document)
+        hosts = vm_config.host_registry(document)
         registered = vm_config.registry(config)
         vm_config.validate_name(name)
         vm_config.validate_name(host_name)
@@ -216,7 +221,7 @@ def create(name, host_name, family_name, *, root=ROOT):
                 interface.remove(mac)  # libvirt allocates a fresh address
         request = dict(name=name, root=host['virt-manager'], iso=family['iso'],
                        xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size)
-        request['checkout'] = (str(root) if host['transport'] == 'local' else next(
+        request['checkout'] = (str(root) if host_name == owner.name else next(
             (b['repo_root'] for b in document.get('branches', []) if b['host'] == host_name), ''))
         if not request['checkout']:
             raise ValueError('VM host requires a configured branch checkout and refreshed VM-host helpers')
@@ -243,19 +248,26 @@ def create(name, host_name, family_name, *, root=ROOT):
             vm_config.registry(Path(staging))
             print(f'newvm: creating {name} on {host_name}; powered off, registry disabled', flush=True)
             def execute():
-                if host['transport'] == 'local':
+                if host_name == owner.name:
                     return provision(request)
-                source = ('import json\n' + inspect.getsource(provision) +
-                          '\nprint(json.dumps(provision(' + repr(request) + ')))\n')
-                command = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
-                           '-p', str(host.get('ssh_port', 22)), host_name,
-                           shlex.join(['python3', '-c', 'import sys; exec(sys.stdin.read())'])]
-                completed = subprocess.run(command, input=source, text=True, capture_output=True,
-                                           timeout=600)
-                if completed.returncode:
-                    raise ValueError('SSH creation failed; inspect remote resources before retrying: ' +
-                                     completed.stderr.strip())
-                return json.loads(completed.stdout)
+                from remote_sources import RemoteVM
+                from regression_process import Control
+                import test_launcher
+                output = bytearray()
+                def collect(data):
+                    if len(output) + len(data) > 65536:
+                        raise ValueError('newvm: oversized provisioning response')
+                    output.extend(data)
+                encoded = base64.b64encode(json.dumps(request).encode()).decode('ascii')
+                with Control().installed() as control:
+                    status = RemoteVM(root, host=hosts[host_name]).run(control,
+                        ['/usr/bin/python3', '-IBu', str(root / 'tools/newvm'),
+                         '--provision-worker', encoded],
+                        env=test_launcher.environment(root), output=collect,
+                        stderr_output=lambda data: sys.stderr.buffer.write(data), wait_on_cancel=True)
+                if status:
+                    raise ValueError('SSH creation failed; inspect remote resources before retrying')
+                return json.loads(output)
             result = execute()
             if 'existing_uuid' in result:
                 confirm(f'VM {name} already exists in libvirt on {host_name}. '
@@ -278,6 +290,13 @@ def create(name, host_name, family_name, *, root=ROOT):
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == '--provision-worker':
+        if vm_config.remote_origin() is None:
+            raise ValueError('newvm: transferred source worker only')
+        request = json.loads(base64.b64decode(sys.argv[2], validate=True))
+        request['checkout'] = str(ROOT)
+        print(json.dumps(provision(request)), flush=True)
+        return 0
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--name', required=True)
     parser.add_argument('--host', required=True, help='Existing host name in config/environment.json')

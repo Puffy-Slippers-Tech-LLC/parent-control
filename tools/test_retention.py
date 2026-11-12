@@ -1139,9 +1139,13 @@ def remove(record, *, validate_only=False):
 
 
 def sbuild_scratch(record):
+    if __package__:
+        from .test_storage import storage_root
+    else:
+        from test_storage import storage_root
     path = Path(record['path'])
     return ((path.parent == Path('/var/tmp') or
-             path.parent == Path(__file__).resolve().parents[1] / 'output/test-runs/host/sbuild')
+             path.parent == storage_root() / 'output/test-runs/host/sbuild')
             and path.name.startswith('onpc-sbuild-scratch-')
             and record.get('mode') == 0o711)
 

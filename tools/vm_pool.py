@@ -24,6 +24,7 @@ VARIABLE = 'ONPC_VM_CHECKOUT'
 OPTION = '--vm-checkout='
 _local = ContextVar('vm_checkout', default=None)
 _keeper = ContextVar('vm_checkout_keeper', default=None)
+_remote = ContextVar('remote_vm_checkout', default=None)
 RELOAD_KEEPER = 'ONPC_VM_RELOAD_KEEPER'
 
 
@@ -36,6 +37,10 @@ class Busy(ValueError):
 def reload_keeper():
     """The current owner can exec while its existing checkout helper stays alive."""
     return _keeper.get()
+
+
+def remote():
+    return _remote.get()
 
 
 def identity(value):
@@ -211,6 +216,15 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
     """Caller-side lifetime: keep checkout across builds, failures and probing."""
     from vm_selection import vm_config
     configured = vm_config.load(name)
+    from host_dispatch import tool_host
+    root = Path(__file__).resolve().parents[1]
+    route = None
+    if configured.host.name != tool_host(root).name:
+        from remote_sources import RemoteVM
+        route = RemoteVM(root, configured)
+    enclosing = remote()
+    if enclosing is not None and enclosing.vm.name != configured.name:
+        raise ValueError('vm-pool: check in before requesting another VM/host')
     held = binding()
     if held is None:
         vm_config.require_online(configured)
@@ -224,7 +238,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
     # ask the host to verify that a selector names its reserved VM.
     helper = '/usr/local/libexec/onpc-test-runner'
     from dev_privileges import check
-    check(helper)
+    if route is None:
+        check(helper)
     command = ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                *arguments(), 'pool', *([] if wait else ['--no-wait']), '--vm', configured.name]
     inherited = os.environ.pop(RELOAD_KEEPER, None)
@@ -238,10 +253,12 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
             raise ValueError('vm-pool: inherited checkout keeper is not a pipe')
         if os.waitpid(saved['pid'], os.WNOHANG) != (0, 0):
             raise ValueError('vm-pool: inherited checkout keeper exited')
-    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                               env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})
+    environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
+    process = (route.pool_process(command, environment) if route is not None else
+               subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=environment))
     previous = os.environ.get(VARIABLE)
     token = None
+    remote_token = None
     try:
         while not select.select([process.stdout], [], [], 0.1)[0]:
             if cancelled():
@@ -262,6 +279,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
             os.environ[VARIABLE] = receipt
         token = _keeper.set(dict(name=configured.name, receipt=receipt, pid=process.pid,
                                  input=process.stdin.fileno(), output=process.stdout.fileno()))
+        if route is not None:
+            remote_token = _remote.set(route)
         if inherited is not None:
             # Borrow and verify through the ordinary host helper before joining
             # the pre-exec helper. At least one keeper holds the same checkout.
@@ -271,6 +290,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
                 raise ValueError('vm-pool: inherited checkout checkin failed')
         yield receipt
     finally:
+        if remote_token is not None:
+            _remote.reset(remote_token)
         if token is not None:
             _keeper.reset(token)
         if bind:

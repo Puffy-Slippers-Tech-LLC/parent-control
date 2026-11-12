@@ -250,7 +250,8 @@ class Source {
             request.delete_run_times ? 'delete run times' : request.artifact ? 'artifact' : 'snapshot';
         this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true,
             operation, started: performance.now(), bytes: 0 };
-        this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true), 10000);
+        this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true),
+            request.artifact ? 90000 : 10000);
         this.child.stdin.write(line);
     }
 

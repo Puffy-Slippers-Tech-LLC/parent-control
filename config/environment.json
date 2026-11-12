@@ -1,5 +1,6 @@
 {
   "agent": "codex",
+  "snap_tests_enabled": false,
   "hosts": [
     {
       "name": "local",

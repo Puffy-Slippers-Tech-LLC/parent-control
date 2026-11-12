@@ -89,6 +89,28 @@ class Store:
         return Recording(self, category, case_id, reserve=False)
 
     @contextmanager
+    def open_published(self, path):
+        """Open only a current, identity-and-digest-verified recording."""
+        path = Path(path)
+        if path.parent != self.path:
+            raise ValueError('recordings: file outside recording storage')
+        match = re.fullmatch(r'(system|e2e)-([A-Za-z_][A-Za-z0-9_]{0,119}|[1-9][0-9]*)-.+[.]webm', path.name)
+        if match is None:
+            raise ValueError('recordings: invalid publication filename')
+        category, case_id = match.groups()
+        case_id = int(case_id) if case_id.isdecimal() else case_id
+        try:
+            with self.owner(category, case_id) as owner:
+                current = owner.state['current']
+                if current is None or current['name'] != path.name:
+                    raise ValueError('recordings: no current publication for file')
+                owner._verify(current)
+                with os.fdopen(owner._open(current), 'rb') as stream:
+                    yield stream
+        except FileNotFoundError as error:
+            raise ValueError('recordings: no current publication for file') from error
+
+    @contextmanager
     def vm_owner(self, category, case_id, vm):
         """Prefer the pair's recording, falling back to matching legacy media."""
         for identifier in (vm_case_id(case_id, vm), case_id):

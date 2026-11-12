@@ -553,13 +553,16 @@ def inspect_guest(guestfs, disk, script_digest):
         marker = parse_json(raw)
         require(isinstance(marker, dict) and type(marker.get("schema_version")) is int, "guest:marker-schema")
         guest_contract.validate_marker(marker, os_id=os_id)
+        dependencies = guest_contract.guest_tools.versions(os_id, snap_prepared=(
+            guest_contract.vm_config.snap_tests_enabled() and marker.get('snap_prepared', True)))
         if os_id == 'ubuntu':
-            guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+            guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode(),
+                packages=[name + '=' + version for name, version in dependencies.items()])
         else:
             guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode('utf-8'))
             applications = g.inspect_list_applications2(roots[0])
             guest_contract.guest_tools.verify_fedora_packages(
-                (row['app2_name'], row['app2_version']) for row in applications)
+                ((row['app2_name'], row['app2_version']) for row in applications), expected=dependencies)
             require(not any(row['app2_name'].startswith('oh-no-parent-control')
                             for row in applications), 'guest:residue:package')
         from chinese_language_assets import verify as verify_chinese
@@ -602,7 +605,9 @@ def inspect_guest(guestfs, disk, script_digest):
                 script_digest != guest_contract.preparation_digest()))
             if script_digest == guest_contract.preparation_digest():
                 from baseline_fixtures import verify_snaps, verify_flatpaks
-                verify_snaps(g)
+                if (guest_contract.vm_config.snap_tests_enabled()
+                        and marker.get('snap_prepared', True)):
+                    verify_snaps(g)
                 verify_flatpaks(g)
             from baseline_guest import verify_clean_sources
             verify_clean_sources(g)
@@ -625,6 +630,7 @@ def inspect_guest(guestfs, disk, script_digest):
             require(not g.glob_expand(pattern), "guest:residue:service-session")
         return {"preparation_record_sha256": hashlib.sha256(raw).hexdigest(),
                 "preparation_script_sha256": script_digest,
+                **({'snap_prepared': marker['snap_prepared']} if 'snap_prepared' in marker else {}),
                 **({'fixture_boundary': 'clean'} if clean else {}),
                 **({'ubuntu_version': version} if os_id == 'ubuntu' else {'os_id': os_id, 'version': version}),
                 "accounts": marker["accounts"]}
@@ -1305,12 +1311,33 @@ class Capture:
 def prepare_state_root(directory=guest_contract.vm_config.STATE_ROOT):
     """Keep legacy provenance in place while adding per-VM state below it."""
     canonical(directory.parent)
+    parent = directory.parent.stat()
     directory.mkdir(mode=0o700, exist_ok=True)
     canonical(directory)
-    info = directory.stat()
-    require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.geteuid() and
-            info.st_gid == os.getegid() and stat.S_IMODE(info.st_mode) == 0o700,
-            'guard:baseline-state-root')
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # Serialize first-use normalization before any per-VM state is created.
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        info = os.fstat(descriptor)
+        require(info.st_uid == os.geteuid(), 'guard:baseline-state-root')
+        if (info.st_gid, stat.S_IMODE(info.st_mode)) != (os.getegid(), 0o700):
+            # mkdir(0700) inherits a setgid parent's group and setgid bit.
+            # An earlier interrupted initialization can leave the same empty
+            # private shell. Never adopt a foreign or populated directory.
+            require(parent.st_mode & stat.S_ISGID and info.st_gid == parent.st_gid and
+                    stat.S_IMODE(info.st_mode) == 0o2700 and not os.listdir(descriptor),
+                    'guard:baseline-state-root')
+            os.fchown(descriptor, os.geteuid(), os.getegid())
+            os.fchmod(descriptor, 0o700)
+            os.fsync(descriptor)
+        current = directory.lstat()
+        require((current.st_dev, current.st_ino) == (info.st_dev, info.st_ino) and
+                stat.S_ISDIR(current.st_mode) and current.st_uid == os.geteuid() and
+                current.st_gid == os.getegid() and stat.S_IMODE(current.st_mode) == 0o700,
+                'guard:baseline-state-root')
+    finally:
+        os.close(descriptor)
+    sync_directory(directory.parent)
 
 
 def recover_off_attempt(source, commands, inspect, *, mode='manual', confirm=None):

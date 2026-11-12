@@ -14,6 +14,15 @@ from pathlib import Path
 import stat
 import threading
 import time
+import sys
+
+# The previous installed setup dispatcher already validates checkout ownership
+# before importing this module. Pin its transferred source before refreshing
+# the embedded resolver; new helpers have already pinned it themselves.
+if (os.geteuid() == 0 and os.environ.get('PKEXEC_UID')
+        and not getattr(sys.modules.get('__main__'), '_REMOTE_SCRATCH_FDS', ())):
+    from dev_checkout import pin_remote_scratch
+    pin_remote_scratch(Path(__file__).resolve().parents[1], int(os.environ['PKEXEC_UID']))
 
 VARIABLE = 'ONPC_TEST_SOURCE_FD'
 WRITER = 'ONPC_TEST_SOURCE_WRITER'

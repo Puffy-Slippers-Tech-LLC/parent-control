@@ -3,29 +3,15 @@
 import json
 import os
 from pathlib import Path
-import shlex
 import subprocess
 import sys
+
+from host_dispatch import git as _git, require_checkout as _local_checkout, ssh_command, tool_host
 
 
 DESTINATION = 'ONPC_LAUNCHER_DESTINATION'
 BRANCH_HELP = ('--branch NAME selects a config/environment.json branch; default: '
                'this launcher\'s default_branch, then the current checkout branch.')
-
-
-def _git(root, *args):
-    result = subprocess.run(['git', '-C', str(root), *args], text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
-    if result.returncode:
-        raise ValueError(f'cannot identify launcher checkout at {root}: {result.stderr.strip()}')
-    return result.stdout.strip()
-
-
-def _local_checkout(root, branch):
-    if (not root.is_dir()
-            or Path(_git(root, 'rev-parse', '--show-toplevel')).resolve() != root.resolve()
-            or _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD') != branch):
-        raise ValueError(f'configured checkout {root} must have branch {branch} checked out')
 
 
 def _remote(host, branch, arguments):
@@ -54,12 +40,7 @@ os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
     # The destination verifies its checkout before resolving agent selection.
     # Native adapters prepare their own environment only for agent operations;
     # help, observation and stop must work without a coding CLI or NVM.
-    remote = shlex.join(destination)
-    command = ['ssh', '-T',
-               '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-               '-o', 'IgnoreUnknown=UseKeychain', '-o', 'ConnectTimeout=10',
-               '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
-               '-p', str(host.ssh_port), host.name, remote]
+    command = ssh_command(host, destination)
     sys.stdout.flush()
     sys.stderr.flush()
     return subprocess.run(command, check=False).returncode
@@ -108,25 +89,22 @@ def dispatch(entry):
             # Dispatch and agent-free inspection use branch metadata only.
             # The destination resolves its live selection after dispatch.
             document = vm_config.read_document(path, validate_agent=False)
+            owner = tool_host(root, document)
             defaults = vm_config.launcher_registry(document)
-            explicit = selected is not None
             # Plans B/C are independent of the original write-e2e owner and its
             # configured default checkout. Explicit branch routing still wins.
             default_branch = (None if name == 'write-e2e' and
                               any(flag in arguments for flag in ('--planb', '--planc'))
                               else defaults.get(name, {}).get('default_branch'))
             selected = selected or default_branch
-            configured = selected is not None
             selected = selected or _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
             pinned_branch = selected
             branch = vm_config.branch_registry(document).get(selected)
             if branch is None:
-                if explicit or configured:
-                    raise ValueError('--branch must name a branch in config/environment.json')
-                # Unregistered checkouts still run on their own current branch.
+                raise ValueError('--branch must name a branch in config/environment.json')
             else:
                 host = vm_config.host_registry(document)[branch['host']]
-                if host.transport != 'local':
+                if host.name != owner.name:
                     from test_source import leave_checkout
                     leave_checkout()
                     return _remote(host, branch, arguments)

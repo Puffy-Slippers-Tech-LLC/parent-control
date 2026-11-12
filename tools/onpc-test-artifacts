@@ -12,6 +12,8 @@ import stat
 import sys
 import zipfile
 
+sys.dont_write_bytecode = True
+
 CHECKOUT = None  # Replaced with the runtime resolver by install_test_runner.py.
 
 
@@ -32,6 +34,10 @@ def source_parts(source, checkout):
     roots = [Path('/var/log/oh-no-parent-control'),
              Path('/var/tmp/oh-no-parent-control-artifacts')]
     roots.extend(Path(checkout) / name for name in ('tests', 'artifacts', 'output'))
+    if os.path.lexists(Path(checkout) / '.onpc-remote-source.json'):
+        sys.path.insert(0, str(Path(checkout) / 'tools'))
+        from test_storage import storage_root
+        roots.append(storage_root(Path(checkout)) / 'output')
     temporary = (len(parts) >= 3 and
                  ((parts[1] == 'tmp' and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[2])) or
                   (len(parts) >= 4 and parts[1:3] == ['var', 'tmp'] and

@@ -34,11 +34,12 @@ def prepared(lease_rig):
         yield lease, current
 
 
-def test_vnc_isolation_removes_all_host_listeners():
+def test_vnc_isolation_keeps_only_loopback_spice_listener():
     root = ET.fromstring(runner.isolated_xml(xml(), UUID, RUN, graphics_type='vnc'))
     runner.validate_private_vnc(root)
     displays = root.findall('devices/graphics')
     assert [display.get('type') for display in displays] == ['spice', 'vnc', 'dbus']
+    assert displays[0].find('listen').attrib == {'type': 'address', 'address': '127.0.0.1'}
     assert displays[1].attrib == {'type': 'vnc'}
     assert displays[2].attrib == {'type': 'dbus', 'p2p': 'yes'}
     assert root.find('devices/disk/source').get('file') == '/image'
@@ -77,10 +78,11 @@ def test_clipboard_always_enabled_without_other_host_transfers(graphics_type):
     runner.validate_host_sharing(root)
     if graphics_type == 'vnc':
         runner.validate_private_vnc(root)
-    # Old disabled snapshots can still be stopped/recovered.
+    # Every accepted SPICE console uses the current clipboard contract.
     root.find('devices/graphics/clipboard').set('copypaste', 'no')
-    runner.validate_private_spice(root.find('devices/graphics'))
-    runner.validate_host_sharing(root)
+    with pytest.raises(runner.Error, match='guard:graphics-clipboard'):
+        runner.validate_host_sharing(root)
+    root.find('devices/graphics/clipboard').set('copypaste', 'yes')
     root.find('devices/graphics/filetransfer').set('enable', 'yes')
     with pytest.raises(runner.Error, match='guard:graphics-'):
         runner.validate_host_sharing(root)
@@ -143,12 +145,16 @@ def test_accepts_only_documented_non_listening_vnc_normalization(display):
     runner.validate_private_vnc(ET.fromstring('<domain><devices>' + display + '</devices></domain>'))
 
 
-@pytest.mark.parametrize('attributes', ['', ' autoport="yes"',
-                                     ' autoport="yes" port="-1" tlsPort="-1"'])
-def test_accepts_non_listening_spice_normalization(attributes):
+@pytest.mark.parametrize('attributes,listener', [
+    (' autoport="yes"', 'type="address" address="127.0.0.1"'),
+    (' autoport="yes" port="-1"', 'type="address" address="127.0.0.1"'),
+    (' autoport="yes" port="5900" listen="127.0.0.1"',
+     'type="address" address="127.0.0.1"'),
+])
+def test_accepts_loopback_spice_normalization(attributes, listener):
     root = ET.fromstring('<domain><devices>'
-        '<graphics type="spice"' + attributes + '><listen type="none"/>'
-        '<clipboard copypaste="no"/><filetransfer enable="no"/></graphics>'
+        '<graphics type="spice"' + attributes + '><listen ' + listener + '/>'
+        '<clipboard copypaste="yes"/><filetransfer enable="no"/></graphics>'
         '<graphics type="vnc"><listen type="none"/></graphics>'
         '<graphics type="dbus" p2p="yes"><gl enable="no"/></graphics>'
         '</devices></domain>')
@@ -156,17 +162,25 @@ def test_accepts_non_listening_spice_normalization(attributes):
 
 
 @pytest.mark.parametrize('replacement', [
-    ('type="spice"', 'type="spice" port="5900"'),
+    ('type="spice"', 'type="spice" port="0"'),
+    ('type="spice"', 'type="spice" port="65536"'),
     ('type="spice"', 'type="spice" tlsPort="5901"'),
     ('type="spice"', 'type="spice" socket="/private/display"'),
-    ('type="spice"', 'type="spice" autoport="invalid"'),
-    ('type="none"', 'type="address" address="127.0.0.1"'),
-    ('copypaste="no"', 'copypaste="invalid"'),
+    ('autoport="yes"', 'autoport="invalid"'),
+    ('type="address" address="127.0.0.1"', 'type="none"'),
+    ('address="127.0.0.1"', 'address="0.0.0.0"'),
+    ('address="127.0.0.1"', 'address="::"'),
+    (' address="127.0.0.1"', ''),
+    ('type="address" address="127.0.0.1"',
+     'type="address" address="127.0.0.1"/><listen type="none"'),
+    ('type="spice"', 'type="spice" listen="0.0.0.0"'),
+    ('copypaste="yes"', 'copypaste="no"'),
     ('enable="no"', 'enable="yes"'),
 ])
 def test_normalized_spice_still_refuses_exposure(replacement):
-    display = ('<graphics type="spice"><listen type="none"/>'
-               '<clipboard copypaste="no"/><filetransfer enable="no"/></graphics>')
+    display = ('<graphics type="spice" autoport="yes">'
+               '<listen type="address" address="127.0.0.1"/>'
+               '<clipboard copypaste="yes"/><filetransfer enable="no"/></graphics>')
     with pytest.raises(runner.Error, match='guard:graphics-'):
         runner.validate_private_spice(ET.fromstring(display.replace(*replacement)))
 

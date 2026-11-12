@@ -1,5 +1,6 @@
 """Build and prepare an online app snapshot through guarded standalone dispatch."""
 import argparse
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import sys
@@ -15,6 +16,40 @@ from test_recovery import cleanup
 from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue, BATCH
 from vm_queue import preparation
 from vm_pool import check_queue, reservation
+
+
+def ensure_snap_prepared(root, control, environment):
+    """Refresh only the selected Snap-incomplete baseline, under its reservation.
+
+    Run before acquiring checkout activity: maintained preparation owns that
+    activity and keeps all baseline/snapshot/VM ownership checks itself.
+    """
+    if not vm_config.snap_tests_enabled():
+        return 0
+    helper = '/usr/local/libexec/onpc-test-runner'
+    with test_source.reader(root, stopped=control.stopped.is_set):
+        status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+            helper, 'appsnapshot', '--probe', '--overwrite', 'true', *vm_arguments()],
+            cwd=root, env=environment)
+    if status != 8:
+        return 0 if status in (3, 5, 6) else status
+    with test_activity.activity(root, named_vm=True), \
+            test_source.reader(root, stopped=control.stopped.is_set):
+        status = cleanup(root)
+    if status:
+        return status
+    print('Snap enabled: preparing the selected baseline and app snapshots.', flush=True)
+    return control.run([str(root / 'tools/prepare-vm'), *vm_arguments(), '--mode', 'auto', '--y'],
+                       cwd=root, env=environment, wait_on_cancel=True)
+
+
+@contextmanager
+def snap_ready_reservation(root, name, control):
+    with reservation(name, stopped=control.stopped):
+        status = ensure_snap_prepared(root, control, test_launcher.environment(root))
+        if status:
+            raise ValueError(f'Snap baseline readiness failed (status {status})')
+        yield
 
 
 def arguments(argv=None):
@@ -74,16 +109,19 @@ def main(argv=None, *, _worker=False):
             print('prepare-appsnapshot: cancelled; no app snapshot was prepared.')
             return 0
         root = Path(__file__).resolve().parents[1]
+        from host_dispatch import tool_host
+        owner = tool_host(root).name
         helper = '/usr/local/libexec/onpc-test-runner'
         test_source.finish_admission()
         recipe_args = ['--release-notes-upgrade'] if args.release_notes_upgrade else []
         if not _worker:
-            check(helper)
+            if any(vm.host.name == owner for vm in vms):
+                check(helper)
             _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
             return status
         os.environ.pop(BATCH, None)
         select(args.vm)
-        with Control().installed() as control, reservation(args.vm, stopped=control.stopped), \
+        with Control().installed() as control, snap_ready_reservation(root, args.vm, control), \
                 test_activity.activity(root, named_vm=True), \
                 test_source.reader(root, stopped=control.stopped.is_set):
             check(helper)

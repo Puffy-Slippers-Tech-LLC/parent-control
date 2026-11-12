@@ -58,6 +58,13 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     cases = list(dict.fromkeys(cases))
     if not cases:
         raise ValueError(f'{category} collection returned no case identities for bounded verification')
+    from vm_selection import vm_config
+    if not vm_config.snap_tests_enabled():
+        retained = [case for case in cases if re.search(r'(?:^|[_/-])snap(?:[_/-]|$)', case) is None]
+        if len(retained) != len(cases):
+            print(f'{category}: skipped {len(cases) - len(retained)} Snap cases (snap_tests_enabled=false)',
+                  flush=True)
+        cases = retained
     return cases
 
 

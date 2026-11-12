@@ -154,13 +154,24 @@ if __name__ == '__main__':
                 and args[:1] not in (['status'], ['xml'], ['snapshots'], ['screenshot'],
                                     ['probe'], ['stop'], ['recover-online'])):
             vm_config.require_branch(configured, vm_config.current_branch())
+        from host_dispatch import vm_tool
+        args, input_fd = input_arguments(args)
+        from contextlib import nullcontext
+        guest_stdin = bool(args[:1] == ['exec'] and vm_config.guest_command_arguments(args[1:])[2])
+        with (os.fdopen(input_fd, 'rb', closefd=False) if input_fd is not None
+              else nullcontext(sys.stdin.buffer if guest_stdin else None)) as guest_input:
+            status = vm_tool(Path(__file__).resolve().parents[1], configured, 'test-vm',
+                ['--vm', configured.name, *args], stdin_file=guest_input, wait_on_cancel=True)
+        if status is not None:
+            if input_fd is not None:
+                os.close(input_fd)
+            sys.exit(status)
         status = baseline_restoration(args, configured)
         if status is None:
             status = fixture_maintenance(args, configured)
         if status is not None:
             sys.exit(status)
         # Keep the host selector before an exec command's -- boundary.
-        args, input_fd = input_arguments(args)
         if input_fd is not None and input_fd != 0:
             os.dup2(input_fd, 0)
             os.close(input_fd)

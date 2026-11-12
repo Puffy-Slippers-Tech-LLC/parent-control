@@ -95,9 +95,10 @@ includes offline hosts' VMs.
 An already-owned stop/recovery may resolve offline metadata and finish its
 identity-checked cleanup. Availability changes do not erase accepted UUID pins.
 
-For SSH entries, `name` is also the alias resolved through private OpenSSH
+For SSH dispatch, `name` is also the alias resolved through private OpenSSH
 configuration. The optional public `ssh_port` is an integer from 1 to 65535,
-defaulting to 22, for tools that explicitly select the registry port. Configure
+available on every host, including the workstation labelled `transport: local`.
+When omitted, OpenSSH selects the port from its private configuration. Configure
 machine-to-machine SSH separately and keep the alias's port consistent with it.
 `./setup.sh --connect-server` noninteractively verifies all configured SSH aliases
 and installs Watch. Open Watch from the local checkout to observe and manage
@@ -108,13 +109,46 @@ outside Git; the registry contains no SSH credentials. Remote launcher dispatch
 uses each branch's `host` and `repo_root`; the controller runs in that host's
 checkout, whose absolute path may differ from the laptop's. See
 [launcher placement](../../docs/Execution-Plans.md#common-launcher-interface).
-`tools/prepare-vm` dispatches SSH-host selections through the existing OpenSSH
-alias, without overriding its connection settings. It uses the current branch's
-checkout on that host when configured, otherwise the first registered checkout
-on that host. Owning-branch restrictions still apply at both ends. The destination
-must already contain this implementation and matching VM registry entries;
-preparation never copies source, credentials or leases. It verifies the remote
-Git checkout and target metadata before invoking the same public preparation
+Host dispatch compares the launching registered Git branch's host with the
+destination host; `transport` labels do not determine locality. A tool launched
+on a server operates that server's VMs locally and uses SSH for other hosts,
+including the workstation labelled `local`. Shared routing and noninteractive
+SSH options live in `tools/host_dispatch.py`.
+VM operations use the executing tool's working source. For a launcher this is
+the controller checkout, including uncommitted changes. Other-host workers and
+direct VM tools transfer that source into a private source directory under the
+remote shared scratch owner. The source inventory reuses Git visibility,
+the VM-source directory rules and the package manifest. Ignored/generated
+output is excluded; ambiguous file types within the selected source directories
+are included. The receiver checks every file against the manifest and never
+extracts into an existing checkout. Source copies use recorded shared scratch:
+descendant descriptors preserve active consumers, and the next allocation
+reclaims released copies, including after abrupt owner exits. The immediate SSH
+worker never deletes a source tree still needed by a privileged descendant.
+Installed helpers must include the scratch-lifetime resolver; refresh them with
+`./setup.sh --test-tools-only --host HOST` from the controller before using this
+route, or run `./setup.sh --test-tools-only` from an updated VM-host checkout.
+Only storage allocation uses the host's registered checkout. VM code comes from
+the transferred source, retaining the controller branch and verified destination
+placement in a private receipt. That receipt grants no VM authorization: helper
+authorization, baseline UUID pins and owner-serviced probe checks still apply.
+`tools/prepare-vm` uses the same source transfer for other-host selections.
+The first registered checkout supplies disk storage without changing its source,
+index or branch. Owning-branch restrictions use the controller's logical branch.
+Operational journals and bounded retention use a separate namespace keyed by
+controller checkout and branch, so they survive disposable source cleanup.
+VM feeds remain associated with the host's registered Watch source. Read-only
+Watch discovery includes active transferred controllers' VM names and IDs even
+when the host checkout's registry is older; those publications grant no VM
+execution authority. Failure handoffs return the established bounded diagnostic
+context to the controller for source repairs, while original VM-host evidence
+keeps its existing ownership and retention.
+Explicit artifact bundles are verified, copied into registered retained storage
+and verified again on the VM host. Git transfer includes only current HEAD and
+the artifact builder's pinned historical snapshots, preserving controller package
+revision/timestamps without copying full history or private Git configuration.
+VM selection, private credentials and host-local leases remain independently
+validated at the destination. Preparation invokes the transferred public
 launcher with the confirmed selection. Host groups run in selection order;
 each host uses its own preparation queue, concurrency, Watch, VM reservations,
 disk admission and helper refresh. Missing SSH access or prerequisites fail
@@ -130,10 +164,14 @@ its registered branch and absolute checkout path. Ordinary setup selects the
 local host when no assignment exists. Later refreshes preserve the assignment;
 a conflicting server assignment requires administrator repair. Existing servers
 must run `./setup.sh --server` once after receiving this implementation.
-Runtime branch changes never change host identity. Absent an installed assignment,
-only the registry's single local host is available. Direct VM operations refuse
-targets belonging to another host; only preparation dispatches those targets.
-Helper UUID pins and default backup paths use the executing host. Legacy registries without
+Public dispatch follows the executing registered branch. A transferred source
+uses its verified destination placement while retaining the controller's logical
+branch for VM ownership. Privileged backends independently enforce the installed
+physical host identity; editing branch placement cannot turn another host's VM
+into a local target. Direct privileged
+VM operations still refuse a target on another host; public dispatchers must
+route it before invoking those operations. Helper UUID pins and default backup
+paths use the executing host. Legacy registries without
 `hosts` retain their implicit local host and top-level concurrency/backup
 settings; do not mix the two layouts.
 
@@ -176,10 +214,12 @@ Host/guest clipboard sharing is always enabled in the interactive SPICE console,
 including baseline preparation, maintenance and restored app snapshots. There is
 no per-VM clipboard option. Baseline preparation configures the SPICE console and
 display-agent channel and installs/verifies `spice-vdagent` on both supported
-guests. Refresh existing baselines through the preparation route to apply these
-prerequisites. App preparation refreshes snapshots with clipboard sharing disabled.
-Disabled older layouts remain valid for owned cleanup. The watch panels remain
-read-only; clipboard sharing is available through the interactive VM console.
+guests. SPICE listens only on the VM host's `127.0.0.1`, allowing virt-manager's
+SSH tunnel during preparation, maintenance and tests. Automation's VNC endpoint
+remains listener-free and Watch remains read-only. Refresh existing baselines
+through the preparation route to apply these prerequisites.
+The watch panels remain read-only; clipboard sharing is available through the
+interactive VM console.
 
 Set a literal `TEST_ACCOUNT_PASSWORD` in the host user's private mode-0600
 `~/.onpc-config/.envrc`, then run `tools/prepare-vm --vm NAME --mode manual` on the development host with the
@@ -309,6 +349,20 @@ This is development tooling: activation is the next invocation (installed UUID
 pinning is refreshed by host preparation); no product activation or data migration.
 
 ## Reusable preparation ownership
+
+`snap_tests_enabled` in `config/environment.json` is a boolean, read through
+`vm_config.snap_tests_enabled()`. Set it to `false` to skip Snap preparation,
+Snap-specific baseline requirements and Snap cases during a Store outage. Native,
+Flatpak and other checks retain their normal requirements. Snap implementation
+and declared fixtures remain available.
+
+New baselines record the verified `snap_prepared` capability independently of
+the preparation fingerprint. A Snap-ready baseline works in either switch state.
+When the switch is enabled against a baseline recorded without Snap, the selected
+worker runs the maintained `tools/prepare-vm --mode auto --y` before admitting
+tests or app-snapshot preparation. That operation refreshes the baseline and app
+snapshots under the existing VM reservation; it never prepares another VM or
+installs prerequisites inside a test attempt.
 
 `tools/prepare-vm` owns all reusable one-time guest preparation. Tests,
 qualification workers and app-snapshot preparation verify readiness and refuse

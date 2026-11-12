@@ -498,12 +498,16 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             continue
         if not artifact.is_absolute():
             parser.error('artifact directories must be absolute')
+        storage = root
+        if os.path.lexists(root / '.onpc-remote-source.json'):
+            from test_storage import storage_root
+            storage = storage_root(root)
         parts = artifact.parts
         if ('..' in parts or not any(artifact.is_relative_to(base) and
                 len(parts) > len(base.parts) and re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', parts[len(base.parts)])
                 for base in (Path('/tmp'), Path('/var/tmp'),
-                             root / 'output/test-runs/host/allocations',
-                             root / 'output/test-runs/privileged/allocations')) or
+                             storage / 'output/test-runs/host/allocations',
+                             storage / 'output/test-runs/privileged/allocations')) or
                 any(p.is_symlink() for p in (artifact, *artifact.parents))):
             raise ValueError('test-runner:invalid-artifact-directory')
         command += ['--' + option.replace('_', '-'), str(artifact)]
@@ -590,13 +594,14 @@ def _run(root, argv, caller):
             environment.update(test_retention.environment())
             return control.run(command, cwd=root, env=environment, owned_group=True)
     if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk']):
+        from test_storage import scratch_descriptors
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
         if argv[:1] in (['pool'], ['pool-retire']):
             environment['PKEXEC_UID'] = str(caller.pw_uid)
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
         return subprocess.run(selection(root, argv), cwd=root, env=environment,
-                              check=False).returncode
+                              pass_fds=scratch_descriptors(), check=False).returncode
     retention_run = None
     if argv and argv[0].startswith('--retention-run='):
         retention_run = argv[0].partition('=')[2]
@@ -666,17 +671,21 @@ def _run(root, argv, caller):
     if vm_pool.VARIABLE in os.environ:
         environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
     if argv[0] in ('system', 'e2e') and '--list' in argv:
+        from test_storage import scratch_descriptors
         return subprocess.run(command, cwd=root, env=environment, user=caller.pw_uid,
                               group=caller.pw_gid,
                               extra_groups=os.getgrouplist(caller.pw_name, caller.pw_gid),
-                              check=False).returncode
+                              pass_fds=scratch_descriptors(), check=False).returncode
     if argv[:2] in (['vm', 'status'], ['vm', 'xml'], ['vm', 'screenshot']):
+        from test_storage import scratch_descriptors
         environment['PKEXEC_UID'] = str(caller.pw_uid)
-        return subprocess.run(command, cwd=root, env=environment, check=False).returncode
+        return subprocess.run(command, cwd=root, env=environment,
+                              pass_fds=scratch_descriptors(), check=False).returncode
     if argv[0] == 'appsnapshot' and '--probe' in argv:
+        from test_storage import scratch_descriptors
         environment.update(PKEXEC_UID=str(caller.pw_uid), **test_source.environment())
         return subprocess.run(command, cwd=root, env=environment,
-                              pass_fds=test_source.descriptors(), check=False).returncode
+                              pass_fds=scratch_descriptors(), check=False).returncode
     command = vm_snapshot_command(root, argv, command)
     # Run only the selected operation. Live lease/ownership and retention
     # checks stay in the target; regression tests are never cleanup preflight.

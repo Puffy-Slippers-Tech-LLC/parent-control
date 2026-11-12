@@ -113,8 +113,9 @@ def _sha256(path: Path) -> str:
 
 def _require_empty_output(output: Path) -> Path:
     resolved = output.resolve(strict=False)
+    from tools.test_storage import storage_root
     if ((resolved == REPOSITORY or REPOSITORY in resolved.parents)
-            and not resolved.is_relative_to(REPOSITORY / 'output/test-runs')):
+            and not resolved.is_relative_to(storage_root(REPOSITORY) / 'output/test-runs')):
         raise ArtifactError("artifact output must be outside the source checkout")
     if resolved.exists():
         if not resolved.is_dir() or any(resolved.iterdir()):
@@ -194,6 +195,12 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
     selection = ['HEAD', '--', *(path.as_posix() for path in source_paths)]
     revision = _run(['git', 'log', '-1', '--format=%H', *selection], cwd=REPOSITORY).stdout.strip()
     epoch = _run(['git', 'log', '-1', '--format=%ct', *selection], cwd=REPOSITORY).stdout.strip()
+    from tools.vm_selection import vm_config
+    origin = vm_config.remote_origin()
+    if origin is not None and 'package_revision' in origin:
+        # Transferred repositories contain finite shallow snapshots, not the
+        # controller's complete log. Preserve its package-only commit/time.
+        revision, epoch = origin['package_revision'], str(origin['package_epoch'])
     architecture = _run(["dpkg-architecture", "-qDEB_HOST_ARCH"], cwd=REPOSITORY).stdout.strip()
     if not revision or not epoch.isdecimal() or not architecture:
         raise ArtifactError("source revision metadata is invalid")

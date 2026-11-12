@@ -82,6 +82,7 @@ def main():
         root = Path(CHECKOUT)
         sys.path.insert(0, str(root / 'tools'))
         import test_source
+        from test_storage import scratch_descriptors
         options = sys.argv[1:]
         operation = options[1:] if options and options[0].startswith('--vm-checkout=') else options
         preparing = operation[:1] == ['prepare-vm']
@@ -95,7 +96,7 @@ def main():
             if report_status:
                 print(f'setup-helper: starting {argv[0]}', flush=True)
             result = subprocess.run(selected, cwd=root, check=False,
-                                    pass_fds=test_source.descriptors(),
+                                    pass_fds=scratch_descriptors(),
                                     env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
                                          'LANG': 'C.UTF-8', 'HOME': '/root',
                                          'PKEXEC_UID': str(int(os.environ['PKEXEC_UID'])),

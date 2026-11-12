@@ -254,17 +254,22 @@ Never copy private keys between hosts. Confirm
 `ssh -o BatchMode=yes myserver true` succeeds before configuring a
 [Watch SSH source](../vscode/onpc-watch/README.md#local-and-ssh-sources).
 The client SSH alias and Watch source settings remain client-owned.
+To refresh development helpers on a registered host using the invoking branch's
+current source, run `./setup.sh --test-tools-only --host HOST`. The shared source
+transfer runs the normal setup entry point in private scratch; it preserves the
+host's checkouts and existing authorization. This explicit setup route also
+updates older helpers before VM operations use transferred source.
 
 On the development computer, run `./setup.sh --connect-server`
 to verify existing SSH access to every configured SSH host and install Watch.
-It reads SSH hosts and their branches from `config/environment.json`, including
-hosts disabled for VM scheduling. The command is noninteractive and requires
+It reads the launching branch's host and the other hosts' branches from
+`config/environment.json`, including hosts disabled for VM scheduling. The command is noninteractive and requires
 no terminal or server selection; missing prerequisites fail with an error.
 The alias is always `host.name`. OpenSSH owns its address, username, port,
-identities and proxy settings. Setup uses that alias directly, just like manual
-`ssh ALIAS`, without overriding the port or changing SSH files.
-The optional registry `ssh_port` remains launcher-routing metadata; keep it
-consistent with the alias's port for tools that explicitly use it.
+identities and proxy settings. Setup uses that alias directly without changing
+SSH files. Shared tool dispatch uses the optional registry `ssh_port` when
+provided; otherwise OpenSSH selects the port. Keep an explicit registry port
+consistent with the alias's port.
 The first branch entry for each host supplies its starting checkout;
 all configured branch paths are displayed without asking for them again.
 Setup verifies noninteractive SSH with `BatchMode=yes`, strict host-key checking

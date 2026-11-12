@@ -136,6 +136,10 @@ def environment(root, *, scratch=True):
                'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP',
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD', 'ONPC_TEST_REVERSE')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
+    # Detached host controllers still dispatch VM work through the caller's
+    # SSH agent. Never forward this local socket to a guest or remote worker.
+    if 'SSH_AUTH_SOCK' in os.environ:
+        result['SSH_AUTH_SOCK'] = os.environ['SSH_AUTH_SOCK']
     from test_checkpoint import EXCLUDE, ONLY, completed_cases
     if 'ONPC_REPAIR_FAILED_CASES' in os.environ:
         omitted = json.loads(os.environ['ONPC_REPAIR_FAILED_CASES'])
@@ -175,6 +179,7 @@ def environment(root, *, scratch=True):
 
 def test_environment(root):
     result = environment(root)
+    result.pop('SSH_AUTH_SOCK', None)
     from vm_recording import VARIABLE as RECORDING_CONTROL
     result.pop(RECORDING_CONTROL, None)
     result.pop(test_activity.VARIABLE, None)

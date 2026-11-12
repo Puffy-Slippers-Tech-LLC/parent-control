@@ -73,7 +73,8 @@ def _run(command: list[str], *, environment: Mapping[str, str] | None = None) ->
 def _require_empty_output(output: Path) -> Path:
     resolved = output.resolve(strict=False)
     temporary_root = Path(tempfile.gettempdir()).resolve()
-    managed = resolved.is_relative_to(ROOT / 'output/test-runs')
+    from tools.test_storage import storage_root
+    managed = resolved.is_relative_to(storage_root(ROOT) / 'output/test-runs')
     if not managed and (resolved == ROOT or ROOT in resolved.parents or temporary_root not in resolved.parents):
         raise FixtureError("fixture output must be below the system temporary directory")
     if resolved.exists():

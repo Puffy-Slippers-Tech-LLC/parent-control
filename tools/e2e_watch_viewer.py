@@ -278,8 +278,9 @@ class Feed:
     def matches_checkout(self, registration):
         # Unscoped feeds remain available to standalone transport probes.
         # Old controllers without checkout metadata finish in the primary root.
+        from test_storage import watch_root
         return (self.root is None or registration.get('checkout', str(Path(__file__).resolve().parents[1]))
-                == str(self.root))
+                == str(watch_root(self.root)))
 
     def current_checkout(self, run):
         path = self.registration_path('current')

@@ -150,7 +150,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
 
 
 def validate_artifact_path(path):
-    storage = ROOT / 'output/test-runs'
+    from tools.test_storage import storage_root
+    storage = storage_root(ROOT) / 'output/test-runs'
     if path is None:
         raise ValueError('e2e:artifacts-required')
     if (not path.is_absolute() or '..' in path.parts

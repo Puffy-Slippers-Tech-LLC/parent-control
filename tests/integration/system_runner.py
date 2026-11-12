@@ -724,7 +724,7 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
     require(graphics_type in ('spice', 'vnc'), 'guard:graphics-type')
     # Keep SPICE first for interactive viewers and their keyboard capture.
     # Automation uses a separate private VNC endpoint, selected by protocol.
-    # Neither console listens on a host port/socket.
+    # SPICE uses host loopback for virt-manager's SSH tunnel; VNC has no listener.
     from baseline_guest import configure_clipboard
     configure_clipboard(root)
     if graphics_type == 'vnc':
@@ -748,7 +748,7 @@ def isolated_xml(xml, expected_uuid, run, *, graphics_type='spice'):
 
 
 def validate_private_vnc(root):
-    """Refuse display replacement or any host listener, including normalized XML."""
+    """Keep VNC listener-free and SPICE restricted to host loopback."""
     displays = root.findall('devices/graphics')
     validate_observer(displays)
     # Retain legacy VNC-only layouts for recorded cleanup and recovery.
@@ -782,24 +782,27 @@ def validate_observer(displays):
 
 
 def validate_private_spice(display):
-    """Preserve keyboard capture without reintroducing SPICE host transfers."""
+    """Require the clipboard-capable SPICE console on host loopback."""
+    listener = display.find('listen')
+    require(listener is not None and
+            listener.attrib == {'type': 'address', 'address': '127.0.0.1'},
+            'guard:graphics-listener')
+    port = display.get('port', '-1')
+    require(port == '-1' or (re.fullmatch(r'[0-9]{1,5}', port) is not None
+                            and 1 <= int(port) <= 65535), 'guard:graphics-endpoint')
     require(display.get('type') == 'spice' and
-            set(display.attrib) <= {'type', 'port', 'tlsPort', 'autoport'} and
-            display.get('port', '-1') == display.get('tlsPort', '-1') == '-1' and
-            # libvirt omits autoport when normalizing listen type='none'.
-            # The exact listener and disabled ports remain mandatory below.
-            display.get('autoport', 'yes') == 'yes', 'guard:graphics-endpoint')
+            set(display.attrib) <= {'type', 'port', 'tlsPort', 'autoport', 'listen'} and
+            display.get('listen', '127.0.0.1') == '127.0.0.1' and
+            display.get('tlsPort', '-1') == '-1' and
+            display.get('autoport') == 'yes', 'guard:graphics-endpoint')
     clipboard = display.find('clipboard')
-    # Disabled legacy layouts remain valid for their recorded owner's cleanup.
-    # Fresh snapshot reuse separately requires clipboard sharing enabled.
-    require(clipboard is not None and clipboard.get('copypaste') in {'no', 'yes'},
+    require(clipboard is not None and clipboard.attrib == {'copypaste': 'yes'},
             'guard:graphics-clipboard')
     require(len(display) == 3 and
             {child.tag: dict(child.attrib) for child in display} == {
-                'listen': {'type': 'none'}, 'clipboard': dict(clipboard.attrib),
+                'listen': dict(listener.attrib), 'clipboard': dict(clipboard.attrib),
                 'filetransfer': {'enable': 'no'}} and
             all(len(child) == 0 for child in display), 'guard:graphics-listener')
-    require(set(clipboard.attrib) == {'copypaste'}, 'guard:graphics-clipboard')
 
 
 def validate_host_sharing(root, *, category='guard:host-sharing'):
@@ -948,6 +951,9 @@ class Lease:
             # must not discover the incompatible marker only after restoration.
             require(self.capture.state['script_digest'] == self.capture.script_digest,
                     'baseline:preparation-outdated')
+            require(not baseline.guest_contract.vm_config.snap_tests_enabled()
+                    or self.capture.state['guest'].get('snap_prepared', True),
+                    'baseline:snap-not-prepared; run tools/prepare-vm --mode auto')
             log('stage:baseline-verification')
             run = uuid.uuid4().hex
             self.ownership_run = run
@@ -1133,8 +1139,13 @@ class Lease:
     @observed('Stopping the VM by restoring its baseline')
     def stop_by_restore(self):
         """Complete a graphical worker's off callback without an ACPI wait."""
-        self.close_probe()
         require(self.view.graphics_type == 'vnc', 'cleanup:graphics-required')
+        self._restore_owned_instance()
+
+    @observed('Restoring the recorded VM instance')
+    def _restore_owned_instance(self):
+        """Outer cleanup after proving the exact instance and baseline owner."""
+        self.close_probe()
         self.guard()
         require(self.view.domain_id is not None and
                 self.state['domain_id'] == self.view.domain_id,
@@ -1389,13 +1400,13 @@ class Lease:
                 log('recovery:restored-interrupted-off')
                 return
             self.mutated = True
-            if self.view.graphics_type == 'vnc' and not off:
+            if not off:
                 # Recovery has no attempt-owned SSH transport, even when the
-                # fresh run tag was recorded successfully. Use the graphical
-                # worker's guarded outer restoration for this exact instance;
+                # fresh run tag was recorded successfully. Use the shared
+                # guarded outer restoration for this exact instance;
                 # never send guest input or try to start it again.
                 self.state['domain_id'] = self.view.domain_id
-                self.stop_by_restore()
+                self._restore_owned_instance()
             # An interrupted bootstrap may leave a never-started isolated
             # guest. The held lock, null instance ID, run-tagged configuration,
             # unchanged disk identities and full snapshot proof above authorize
@@ -2017,8 +2028,11 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:
             require(package.is_file(), 'assets:package-platform-mismatch:' + os_id)
+        dependencies = baseline.guest_contract.guest_tools.versions(os_id,
+            snap_prepared=baseline.guest_contract.vm_config.snap_tests_enabled())
         if os_id == 'ubuntu':
-            baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode())
+            baseline.guest_contract.guest_tools.verify_packages(g.read_file('/var/lib/dpkg/status').decode(),
+                [name + '=' + version for name, version in dependencies.items()])
             from chinese_language_assets import verify as verify_chinese
             verify_chinese(g)
             sources_path = '/etc/apt/sources.list.d/ubuntu.sources'
@@ -2029,8 +2043,8 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
         else:
             baseline.guest_contract.selinux_policy(g.read_file('/etc/selinux/config').decode())
             baseline.guest_contract.guest_tools.verify_fedora_packages(
-                (row['app2_name'], row['app2_version'])
-                for row in g.inspect_list_applications2(root))
+                ((row['app2_name'], row['app2_version'])
+                 for row in g.inspect_list_applications2(root)), expected=dependencies)
             from chinese_language_assets import verify as verify_chinese
             verify_chinese(g, os_id)
             log('bootstrap:fedora-tools-ready')

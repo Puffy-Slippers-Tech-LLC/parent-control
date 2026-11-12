@@ -273,7 +273,15 @@ def reconcile(source, *, runner):
             require(observed['sha256'] in {saved['files'][name + '.snap'],
                 (saved['pending'] or saved['files'])[name + '.snap']}, 'foreign-package-digest')
     if assets.BASE not in rows:
-        runner.run(['/usr/bin/snap', 'install', assets.BASE], timeout=1200)
+        try:
+            runner.run(['/usr/bin/snap', 'install', assets.BASE], timeout=1200)
+        except subprocess.SubprocessError as error:
+            # This fixed public package command has no account or secret input.
+            # Keep its failure in the existing private preparation log, as for
+            # native package setup, so a fresh VM's prerequisite can be diagnosed.
+            if getattr(error, 'stderr', None):
+                print(error.stderr, file=sys.stderr, flush=True)
+            raise
     else:
         package_readback(assets.BASE, rows[assets.BASE])
     desired = {'purpose': PURPOSE, 'source': source, 'files': expected, 'pending': None}

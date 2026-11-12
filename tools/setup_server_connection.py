@@ -9,9 +9,34 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import vm_config
 sys.path.pop(0)
+from host_dispatch import ssh_command, tool_host
+
+
+def refresh_tools(name):
+    """Refresh one host from the invoking branch without updating its checkout."""
+    if os.geteuid() == 0:
+        raise ValueError('run setup as the checkout-owning administrator')
+    document = vm_config.read_document(validate_agent=False)
+    host = vm_config.host_registry(document).get(name)
+    if host is None:
+        raise ValueError('unknown host; choose a name from config/environment.json')
+    command = [str(ROOT / 'setup.sh'), '--test-tools-only']
+    if host.name == tool_host(ROOT, document).name:
+        os.execv(command[0], command)
+    from regression_process import Control
+    from remote_sources import RemoteVM
+    import test_launcher
+    environment = test_launcher.environment(ROOT)
+    for variable in ('ONPC_TEST_VM', 'ONPC_VM_CHECKOUT', 'ONPC_VM_RECORDING_CONTROL',
+                     'ONPC_TEST_FAMILY_WORK', 'ONPC_TEST_VM_WORKER', 'ONPC_TEST_VM_BATCH'):
+        environment.pop(variable, None)
+    with Control().installed() as control:
+        return RemoteVM(ROOT, host=host).run(control, command, env=environment,
+            mode='setup', wait_on_cancel=True)
 
 
 def run(argv, *, step):
@@ -36,10 +61,11 @@ def main():
         raise ValueError('install VS Code (or Codium) before setting up Watch')
 
     document = vm_config.read_document(ROOT / 'config/environment.json')
+    owner = tool_host(ROOT, document)
     servers = [host for host in vm_config.host_registry(document).values()
-               if host.transport == 'ssh']
+               if host.name != owner.name]
     if not servers:
-        raise ValueError('add an SSH host and its branches to config/environment.json first')
+        raise ValueError('add another host and its branches to config/environment.json first')
     branches = vm_config.branch_registry(document)
     print('Checking all configured SSH hosts, including hosts disabled for VM scheduling.')
     print('SSH addresses, users, ports and keys are managed separately from this repository.')
@@ -52,9 +78,7 @@ def main():
         for branch in checkouts:
             print(f"  {branch['name']}: {branch['repo_root']}")
         print(f'Setup: verifying noninteractive SSH access to {alias}...', flush=True)
-        ssh = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-               '-o', 'ConnectTimeout=15', '--', alias]
-        result = subprocess.run([*ssh, 'true'], check=False, stdin=subprocess.DEVNULL)
+        result = subprocess.run(ssh_command(server, ['true']), check=False, stdin=subprocess.DEVNULL)
         if result.returncode:
             raise ValueError(f'noninteractive SSH verification for {alias} failed '
                              f'(exit status {result.returncode}); see SSH output above. '
@@ -63,9 +87,10 @@ def main():
                              + shlex.join(['ssh', '-o', 'BatchMode=yes', alias, 'true'])
                              + ' before rerunning setup')
         # Watch uses the first checkout to discover the related Git worktrees.
-        probe = ('test -f ' + shlex.quote(checkouts[0]['repo_root'] + '/tools/watch_webview.py')
-                 + ' && command -v python3 >/dev/null')
-        run([*ssh, probe], step=f'checking the Watch checkout and Python 3 on {alias}')
+        probe = 'test -f "$1" && command -v python3 >/dev/null'
+        run(ssh_command(server, ['sh', '-c', probe, 'onpc-watch-checkout',
+                                checkouts[0]['repo_root'] + '/tools/watch_webview.py']),
+            step=f'checking the Watch checkout and Python 3 on {alias}')
     print('All configured SSH hosts verified. Open this local checkout:')
     print('  ' + editor + ' ' + shlex.quote(str(ROOT)))
     print('Use ONPC: Watch to observe and manage local and remote launchers together.')
@@ -75,6 +100,10 @@ def main():
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) == 3 and sys.argv[1] == '--refresh-tools':
+            sys.exit(refresh_tools(sys.argv[2]))
+        if sys.argv[1:]:
+            raise ValueError('use ./setup.sh --connect-server or --test-tools-only --host NAME')
         main()
     except (ValueError, OSError, KeyboardInterrupt) as error:
         # Avoid echoing server addresses or remote command arguments into logs.

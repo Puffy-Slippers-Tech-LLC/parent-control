@@ -30,7 +30,7 @@ class HostConfig:
     transport: str = 'local'
     concurrency: int = 1
     backup_root: Path | None = None
-    ssh_port: int = 22
+    ssh_port: int | None = None
 
 
 @dataclass(frozen=True)
@@ -187,13 +187,11 @@ def host_registry(document):
         if type(concurrency) is not int or concurrency < 1:
             raise ValueError('vm-config:host concurrency must be a positive integer')
         transport = entry['transport']
-        port = entry.get('ssh_port', 22)
+        port = entry.get('ssh_port')
         if transport not in ('local', 'ssh'):
             raise ValueError('vm-config:host transport must be local or ssh')
-        if type(port) is not int or not 1 <= port <= 65535:
+        if 'ssh_port' in entry and (type(port) is not int or not 1 <= port <= 65535):
             raise ValueError('vm-config:ssh_port must be an integer between 1 and 65535')
-        if transport == 'local' and 'ssh_port' in entry:
-            raise ValueError('vm-config:local host cannot have ssh_port')
         root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
         if 'virt-manager' in entry:
             absolute_path(entry['virt-manager'], 'virt-manager')
@@ -212,7 +210,8 @@ def require_available(vm):
 
 
 def require_online(vm):
-    return require_local(require_available(vm))
+    vm = require_available(vm)
+    return require_local(vm) if os.geteuid() == 0 else vm
 
 
 def require_local(vm, path=None):
@@ -239,15 +238,72 @@ def installed_host():
 
 
 def execution_host(path=None):
-    """Resolve host-local setup identity independently of checkout placement."""
-    hosts = host_registry(read_document(path, validate_agent=False))
-    name = installed_host()
-    if name is not None:
-        if name not in hosts:
+    """Identify the VM backend's physical host, independently of source branch."""
+    document = read_document(path, validate_agent=False)
+    hosts = host_registry(document)
+    branches = branch_registry(document)
+    installed = installed_host()
+    origin = remote_origin()
+    if origin is not None:
+        storage = branches.get(origin['storage_branch'])
+        if (origin['branch'] not in branches or storage is None
+                or storage['host'] != origin['host']
+                or storage['repo_root'] != origin['storage_root']):
+            raise ValueError('vm-config:remote source placement differs from controller registry')
+        if installed is not None and installed != origin['host']:
+            raise ValueError('vm-config:refusing local VM access; transferred destination '
+                             'differs from installed VM host')
+        return origin['host']
+    if installed is not None:
+        if installed not in hosts:
             raise ValueError('vm-config:installed VM host is absent from config/environment.json')
-        return name
+        return installed
+    # Historical hosts without an installed assignment retain their workstation
+    # identity. Public dispatch resolves branch placement separately.
     return next((host.name for host in hosts.values()
                  if host.transport == 'local'), None)
+
+
+def remote_origin():
+    """Read the private placement receipt in a transferred source directory.
+
+    Installed helpers have already authenticated the caller and validated the
+    source root. This is source metadata, never a replacement for VM UUID pins,
+    checkout receipts, journal identity or the caller's Polkit authorization.
+    """
+    path = ROOT / '.onpc-remote-source.json'
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None
+    with os.fdopen(descriptor) as stream:
+        info = os.fstat(stream.fileno())
+        caller = int(os.environ.get('PKEXEC_UID', str(os.geteuid())))
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 4096
+                or info.st_uid != caller or stat.S_IMODE(info.st_mode) != 0o400):
+            raise ValueError('vm-config:unsafe remote source receipt')
+        value = json.load(stream)
+    required = {'branch', 'host', 'storage_branch', 'storage_root'}
+    if (not isinstance(value, dict) or not required <= set(value)
+            or set(value) - required - {'controller_root', 'source_identity',
+                                        'package_revision', 'package_epoch'}
+            or any(not isinstance(value[key], str) or not value[key] for key in required)):
+        raise ValueError('vm-config:invalid remote source receipt')
+    if 'controller_root' in value:
+        absolute_path(value['controller_root'], 'remote controller root')
+    if 'source_identity' in value:
+        source = value['source_identity']
+        if (not isinstance(source, dict) or set(source) != {'digest', 'generation'}
+                or not isinstance(source['digest'], str)
+                or re.fullmatch('[0-9a-f]{64}', source['digest']) is None
+                or type(source['generation']) is not int or source['generation'] < 0):
+            raise ValueError('vm-config:invalid remote source identity')
+    if 'package_revision' in value or 'package_epoch' in value:
+        if (not isinstance(value.get('package_revision'), str)
+                or re.fullmatch('[0-9a-f]{40,64}', value['package_revision']) is None
+                or type(value.get('package_epoch')) is not int or value['package_epoch'] < 0):
+            raise ValueError('vm-config:invalid remote package metadata')
+    return value
 
 
 def fixture_targets(path=None):
@@ -364,7 +420,7 @@ def resolve(name, configured):
     raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
 
-def execution(name=None, path=None, *, remote=False):
+def execution(name=None, path=None, *, remote=None):
     """Only VMs whose own flag and host flag are true may be acquired."""
     _, configured = configuration(path)
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
@@ -382,15 +438,26 @@ def execution(name=None, path=None, *, remote=False):
         raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/environment.json')
     for vm in vms:
         require_available(vm)
-        if not remote:
+        if not (os.geteuid() != 0 if remote is None else remote):
             require_local(vm, path)
     return min(sum(host.concurrency for host in {vm.host for vm in vms}), len(vms)), vms
+
+
+def snap_tests_enabled(path=None):
+    """One switch for Snap preparation, baseline readiness and test selection."""
+    value = read_document(path, validate_agent=False).get('snap_tests_enabled', True)
+    if type(value) is not bool:
+        raise ValueError('vm-config:snap_tests_enabled must be a boolean')
+    return value
 
 
 def current_branch():
     """Read this checkout's branch; detached HEAD or unavailable Git matches none."""
     # Privileged backup/restore helpers must read Git as their authenticated
     # caller, retaining Git's ownership check for a user-owned checkout.
+    origin = remote_origin()
+    if origin is not None:
+        return origin['branch']
     caller = int(os.environ.get('PKEXEC_UID', '0')) if os.geteuid() == 0 else 0
     try:
         result = subprocess.run(['git', 'symbolic-ref', '--quiet', 'HEAD'], cwd=ROOT,
@@ -439,21 +506,22 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
                     hosts[host_name])
 
 
-def load(name=None, path=None):
+def load(name=None, path=None, *, local=None):
     # Availability gates new work, never metadata needed for owned cleanup.
-    return require_local(resolve(name, registry(path)), path)
+    vm = resolve(name, registry(path))
+    return require_local(vm, path) if (os.geteuid() == 0 if local is None else local) else vm
 
 
-def selected(*, required=True):
+def selected(*, required=True, local=None):
     name = os.environ.get(VARIABLE)
     if name is None and not required:
         return None
-    return load(name)
+    return load(name, **({'local': local} if local is not None else {}))
 
 
-def select(name, path=None):
+def select(name, path=None, *, local=None):
     """Bind this controller and its imported adapters to an explicit selection."""
-    configured = load(name, path)
+    configured = load(name, path, **({'local': local} if local is not None else {}))
     os.environ[VARIABLE] = configured.name
     guest = sys.modules.get('prepare_vm')
     if guest is not None:
@@ -493,13 +561,16 @@ def extract_selector(argv):
     return remaining, names[0] if names else None
 
 
-def extract(argv, *, required=True, path=None):
+def extract(argv, *, required=True, path=None, local=None):
     """Consume one --vm name or ID and bind its canonical name."""
     remaining, name = extract_selector(argv)
     controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
     if name is None and (not required or any(value in ('--help', '-h') for value in controls)):
         return remaining, None
-    configured = select(name, path)
+    placement = {'local': local} if local is not None else {}
+    if '--list' in controls:
+        placement['local'] = False
+    configured = select(name, path, **placement)
     return remaining, configured
 
 

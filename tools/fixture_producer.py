@@ -111,7 +111,7 @@ class Store:
 
     def __init__(self):
         self.path = Path(storage.fixture_directory())
-        self.checkout = Path(storage.ROOT)
+        self.checkout = storage.storage_root()
         self._store = retention.Store(self.path)
         with self._store.opened() as fd:
             self._root_identity = _identity(fd, self.path)

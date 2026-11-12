@@ -131,11 +131,16 @@ class Control:
 
     def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None,
             timeout=None, kill_after=30.0, cancel_signal=signal.SIGINT,
-            stderr_output=None, owned_group=False, started=None, **kwargs):
+            stderr_output=None, owned_group=False, started=None, input_stream=None,
+            stdin_file=None, wait_on_cancel=False, **kwargs):
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
-        from vm_pool import arguments
+        from vm_pool import arguments, remote
+        if input_stream is not None and not cooperative:
+            raise ValueError('streamed command input requires the cooperative channel')
+        if stdin_file is not None and cooperative:
+            raise ValueError('guest input and cooperative control require separate channels')
         if command and command[0] == '/usr/bin/pkexec':
             command = list(command)
             for index, value in enumerate(command):
@@ -148,10 +153,29 @@ class Control:
                               (timeout is not None and (not math.isfinite(timeout) or timeout <= 0))
                               or not math.isfinite(kill_after) or kill_after <= 0):
             raise ValueError('invalid owned worker timeout')
+        if wait_on_cancel and (cooperative or bounded_group):
+            raise ValueError('waiting cancellation requires an unbounded noncooperative command')
         if cancel_signal not in (signal.SIGINT, signal.SIGTERM):
             raise ValueError('invalid owned cancellation signal')
         if self.stopped.is_set():
             return 130
+        route = remote()
+        if route is not None and command and command[0] != 'ssh':
+            paths = {str(value) for value in command[:4]}
+            tools = route.root / 'tools'
+            vm_tools = ('vm_queue.py', 'vm_test_queue.py', 'vm_artifacts.py',
+                        'build_test_artifacts.py', 'fixture_execution.py',
+                        'prepare-vm', 'prepare-appsnapshot', 'test-vm', 'cleanup-e2e',
+                        'disable-extension', 'backupvm', 'restorevm')
+            if (any(str(tools / name) in paths for name in vm_tools)
+                    or command[0] == '/usr/bin/pkexec'
+                    and any(value in ('/usr/local/libexec/onpc-test-runner',
+                                      '/usr/local/libexec/onpc-setup') for value in command[:5])):
+                return route.run(self, command, cwd=cwd, env=env, output=output,
+                    cooperative=cooperative, tick=tick, timeout=timeout, kill_after=kill_after,
+                    cancel_signal=cancel_signal, stderr_output=stderr_output,
+                    owned_group=owned_group, started=started, stdin_file=stdin_file,
+                    wait_on_cancel=wait_on_cancel, **kwargs)
         frames = None
         # Pipe workers (including the privileged dispatcher) relay frames;
         # the outer caller renders them or publishes to its session observer.
@@ -170,10 +194,27 @@ class Control:
             env.pop(name, None)
         env.update(test_source.environment())
         child = subprocess.Popen(command, cwd=cwd, env=env,
-                                 stdin=subprocess.PIPE if cooperative else subprocess.DEVNULL,
+                                 stdin=subprocess.PIPE if cooperative else (
+                                     stdin_file if stdin_file is not None else subprocess.DEVNULL),
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE if stderr_output is not None else subprocess.STDOUT,
                                  start_new_session=True, **kwargs)
+        uploaded = threading.Event()
+        upload_errors = []
+        def upload():
+            try:
+                for block in iter(lambda: input_stream.read(1024 * 1024), b''):
+                    child.stdin.write(block)
+                child.stdin.flush()
+            except (OSError, ValueError) as error:
+                upload_errors.append(error)
+            finally:
+                uploaded.set()
+        sender = None
+        if input_stream is None:
+            uploaded.set()
+        else:
+            sender = threading.Thread(target=upload)
         try:
             descriptor = os.pidfd_open(child.pid)
         except BaseException:
@@ -185,7 +226,7 @@ class Control:
                     child.stdin.flush()
                 except BrokenPipeError:
                     pass
-            else:
+            elif not wait_on_cancel:
                 if bounded_group:
                     os.killpg(child.pid, signal.SIGTERM)
                 else:
@@ -209,6 +250,8 @@ class Control:
             else:
                 child.communicate()
             raise
+        if sender is not None:
+            sender.start()
         sent = False
         output_error = None
         deadline = time.monotonic() + timeout if timeout is not None else None
@@ -245,7 +288,7 @@ class Control:
                     started()  # The child has inherited any caller-owned startup leases.
                 while poller.get_map() or (not bounded_group and child.poll() is None):
                     now = time.monotonic()
-                    if self.stopped.is_set() and not sent:
+                    if self.stopped.is_set() and not sent and uploaded.is_set():
                         sent = True
                         if cooperative:
                             try:
@@ -253,7 +296,7 @@ class Control:
                                 child.stdin.flush()
                             except BrokenPipeError:
                                 pass
-                        else:
+                        elif not wait_on_cancel:
                             if bounded_group:
                                 # Keep fixture services alive while pytest
                                 # runs its ordinary KeyboardInterrupt cleanup.
@@ -317,6 +360,8 @@ class Control:
                 reaped = True
             if output_error is not None:
                 raise output_error
+            if upload_errors and status == 0:
+                raise ValueError('command input transfer failed') from upload_errors[0]
             if frames is not None:
                 frames.finish()
             return (130 if self.stopped.is_set() else
@@ -333,6 +378,8 @@ class Control:
                 child.wait()
             raise
         finally:
+            if sender is not None:
+                sender.join()
             os.close(descriptor)
             child.stdout.close()
             if child.stderr is not None:

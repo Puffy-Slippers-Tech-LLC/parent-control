@@ -526,8 +526,9 @@ def aggregate_arguments(category, args):
 
 def artifact_path(value):
     path = Path(value)
-    from test_storage import BASE
-    roots = (Path('/tmp'), Path('/var/tmp'), BASE / 'host/allocations', BASE / 'privileged/allocations')
+    from test_storage import storage_base
+    base = storage_base()
+    roots = (Path('/tmp'), Path('/var/tmp'), base / 'host/allocations', base / 'privileged/allocations')
     if (not path.is_absolute() or '..' in path.parts or
             not any(path.is_relative_to(root) and len(path.parts) > len(root.parts) and
                     re.fullmatch(r'onpc-[A-Za-z0-9_.-]+', path.parts[len(root.parts)])

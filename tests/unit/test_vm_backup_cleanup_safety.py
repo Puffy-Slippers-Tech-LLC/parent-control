@@ -213,6 +213,10 @@ def backup_rig(rig, tmp_path, monkeypatch):
     monkeypatch.setattr(vm_config, 'CONFIG', config)
     monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
     vm = vm_config.select('9')
+    # This fixture models one local tool host. Subprocess doubles below must
+    # not also intercept the dispatcher's separate Git-placement lookup.
+    import host_dispatch
+    monkeypatch.setattr(host_dispatch, 'tool_host', lambda *_args, **_kwargs: vm.host)
     rig.directory = vm.baseline_directory
     rig.capture = lambda: base.Capture(rig.source, rig.commands, rig.inspect,
                                       anchor=rig.anchor, directory=rig.directory)
@@ -934,6 +938,43 @@ def test_private_backup_directory_under_setgid_parent(tmp_path):
     assert unrelated.read_bytes() == b'other backups'
 
 
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_baseline_state_root_under_setgid_parent(tmp_path, interrupted):
+    parent = tmp_path / 'vm-images'
+    parent.mkdir()
+    parent.chmod(0o2775)
+    group = next((gid for gid in os.getgroups() if gid != os.getegid()), os.getegid())
+    os.chown(parent, -1, group)
+    state = parent / 'baseline-state'
+    if interrupted:
+        state.mkdir(mode=0o700)
+        assert stat.S_IMODE(state.stat().st_mode) == 0o2700
+    base.prepare_state_root(state)
+    assert stat.S_IMODE(state.stat().st_mode) == 0o700
+    assert (state.stat().st_uid, state.stat().st_gid) == (os.geteuid(), os.getegid())
+    (state / 'existing-state').write_bytes(b'preserve')
+    base.prepare_state_root(state)
+    assert (state / 'existing-state').read_bytes() == b'preserve'
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o2775
+
+
+@pytest.mark.parametrize('mode,populated', [(0o2700, True), (0o755, False)])
+def test_baseline_state_root_refuses_unexpected_existing_directory(tmp_path, mode, populated):
+    parent = tmp_path / 'vm-images'
+    parent.mkdir()
+    parent.chmod(0o2775)
+    state = parent / 'baseline-state'
+    state.mkdir()
+    state.chmod(mode)
+    if populated:
+        (state / 'existing-state').write_bytes(b'preserve')
+    with pytest.raises(base.CaptureError, match='baseline-state-root'):
+        base.prepare_state_root(state)
+    assert stat.S_IMODE(state.stat().st_mode) == mode
+    if populated:
+        assert (state / 'existing-state').read_bytes() == b'preserve'
+
+
 @pytest.mark.parametrize('mode', [0o755, 0o2775, 0o2700])
 def test_existing_shared_backup_directory_is_refused_without_adoption(tmp_path, mode):
     parent = tmp_path / 'shared'
@@ -954,6 +995,37 @@ def test_restore_prepares_auto_only_after_archive_success(backup_rig, monkeypatc
     assert run.call_args_list[0].args[0][-3:] == ['restorevm', '--vm', 'Backup-guest']
     assert run.call_args_list[1].args[0] == [str(launcher.ROOT / 'tools/prepare-vm'),
         '--vm', 'Backup-guest', '--mode', 'auto', '--y']
+
+
+def test_mixed_restore_finishes_all_archives_before_failed_preparation(monkeypatch):
+    from contextlib import nullcontext
+    import host_dispatch
+    import regression_process
+    import vm_pool
+    vms = [SimpleNamespace(name='Local-guest', host=SimpleNamespace(name='local')),
+           SimpleNamespace(name='Remote-guest', host=SimpleNamespace(name='server'))]
+    monkeypatch.setattr(launcher.vm_config, 'execution', lambda selector: (2, vms))
+    monkeypatch.setattr(launcher.vm_config, 'backup_root', lambda **kwargs: None)
+    monkeypatch.setattr(host_dispatch, 'tool_host', lambda root: SimpleNamespace(name='local'))
+    monkeypatch.setattr(vm_pool, 'check_queue', lambda selected: None)
+    monkeypatch.setattr(vm_pool, 'reservation', lambda *a, **kw: nullcontext())
+    monkeypatch.setattr(launcher, 'check', Mock())
+    events = []
+    control = SimpleNamespace(stopped=None)
+    control.installed = lambda: nullcontext(control)
+    def archive(command, **kwargs):
+        assert command[-3] == 'restorevm'
+        events.append(command[-1])
+        return 0
+    control.run = archive
+    monkeypatch.setattr(regression_process, 'Control', lambda: control)
+    def prepare(command, **kwargs):
+        assert events == ['Local-guest', 'Remote-guest']
+        assert command == [str(launcher.ROOT / 'tools/prepare-vm'), '--vm',
+                           'Local-guest,Remote-guest', '--mode', 'auto', '--y']
+        return SimpleNamespace(returncode=7)
+    monkeypatch.setattr(launcher.subprocess, 'run', prepare)
+    assert launcher.main('restore', ['--vm', 'Local-guest,Remote-guest']) == 7
 
 
 @pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', '/path//backup', None])
@@ -1550,10 +1622,22 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     vm_config.CONFIG.write_text(json.dumps(document))
     # Never let a remote selector reach this machine's libvirt or disks.
     with pytest.raises(ValueError, match='refusing local VM access'):
-        vm_config.execution('13')
+        vm_config.execution('13', remote=False)
     with pytest.raises(ValueError, match='refusing local VM access'):
-        vm_config.load('13')
-    assert vm_config.execution('9,12')[0] == 2
+        vm_config.load('13', local=True)
+    # A root guest may read its own metadata without claiming to be its VM
+    # host. The ordinary privileged host selector still refuses that target.
+    with monkeypatch.context() as context:
+        context.setattr(vm_config.os, 'geteuid', lambda: 0)
+        with pytest.raises(ValueError, match='refusing local VM access'):
+            vm_config.extract(['--vm', '13'])
+        _, metadata = vm_config.extract(['--vm', '13'], local=False)
+        assert metadata.name == 'Remote-guest'
+        assert vm_config.selected(local=False) == metadata
+        with pytest.raises(ValueError, match='refusing local VM access'):
+            vm_config.selected()
+    vm_config.select('9')
+    assert vm_config.execution('9,12', remote=False)[0] == 2
     document['families'][0]['vms'][1]['enabled'] = 'false'
     vm_config.CONFIG.write_text(json.dumps(document))
     assert [vm.name for vm in vm_config.execution('9,12')[1]] == ['Backup-guest']

@@ -791,8 +791,11 @@ def test_cancelled_reservation_never_enters_work_even_when_grant_is_ready(monkey
     import io
     from types import SimpleNamespace
     import dev_privileges
+    import host_dispatch
     from vm_selection import selected, vm_config
     branch = selected().owning_branch
+    host = selected().host
+    monkeypatch.setattr(host_dispatch, 'tool_host', lambda _: host)
     monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
     receipt = A + ':' + 'a' * 32
     process = SimpleNamespace(pid=42, stdin=io.BytesIO(), stdout=io.BytesIO(

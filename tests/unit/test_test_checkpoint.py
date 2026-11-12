@@ -339,6 +339,25 @@ def test_pass_refuses_legacy_resume_without_relabeling_accepted_progress(tmp_pat
     assert path.read_bytes() == original
 
 
+def test_pass_preserves_nonoverlapping_legacy_vm_claim(tmp_path):
+    legacy = Checkpoint(tmp_path, [('system', ['check_first'])],
+                        namespace='run-tests-family', binding='legacy-family')
+    legacy.state['queue_claims'] = {'a' * 64: 'occupied'}
+    legacy.save()
+    path = legacy.store.path / legacy.name
+    original = path.read_bytes()
+    work = dict(category='system', options=['check_first'], cases=['check_first'],
+                case='check_first', area=False)
+    with PassCheckpoint(tmp_path, [('system', ['check_first'])], {'free': 'deb'}, {'deb': [work]}):
+        pass
+    assert path.read_bytes() == original
+    with pytest.raises(ValueError, match='original supported implementation'):
+        with PassCheckpoint(tmp_path, [('system', ['check_first'])],
+                            {'occupied': 'deb'}, {'deb': [work]}):
+            pass
+    assert path.read_bytes() == original
+
+
 
 def event(checkpoint, kind, case, failed=()):
     checkpoint.event('unit', dict(kind=kind, nodeid=case), set(failed))

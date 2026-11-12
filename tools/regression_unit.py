@@ -5,6 +5,16 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+Host-dispatch matrix checks use tiny pytest-private registries and process-local
+SSH/controller doubles. Source capture owns tiny private Git/Make trees and
+bounded, waited children; its ignored large input is sparse and never read.
+No live VM, network, helper, account, bus, display or shared cache is accessed.
+The module is unit-only, compatible with overlap, and has no cleanup/UI entry.
+Recording publication guards add only tiny private media/manifests and file
+locks beneath pytest storage; they start no renderer or encoder. Snap admission
+checks use process-local command, activity and source-lease doubles, with no VM,
+package operation or Store connection. Existing overlap remains safe.
+
 Pass coordination checks use pytest-private checkpoint/source locks and
 process-local VM/controller doubles. Ready-executor checks use joined threads,
 private Events and reservation doubles; no live VM or shared checkout is used.
@@ -108,6 +118,7 @@ from regression_ui import Bucket
 
 
 REVIEWED = frozenset("""
+host_dispatch
 system_first_configure
 system_removal_faults
 build_package

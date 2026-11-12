@@ -62,7 +62,7 @@ class ResourceUsage:
         self.charts = []
 
     def vm_ram(self):
-        """Bytes charged to all system libvirt QEMU VMs, including overhead."""
+        """VM working set: charged memory less reclaimable inactive file cache."""
         if 'memory' not in (self.cgroups / 'cgroup.controllers').read_text().split():
             raise ValueError('cgroup v2 memory accounting unavailable')
         machines = self.cgroups / 'machine.slice'
@@ -75,16 +75,19 @@ class ResourceUsage:
             if not (scope.name.startswith('machine-qemu') and scope.name.endswith('.scope')):
                 continue
             try:
-                # Includes descendant emulator/vCPU/helper groups exactly once,
-                # guest RAM, QEMU allocations, charged cache and kernel memory.
+                # Includes descendant emulator/vCPU/helper groups exactly once.
+                # Keep guest RAM (including shmem), QEMU and kernel overhead;
+                # exclude inactive disk cache that can be reclaimed by the host.
                 current = int((scope / 'memory.current').read_text())
+                stats = dict(row.split() for row in (scope / 'memory.stat').read_text().splitlines())
+                inactive_file = int(stats['inactive_file'])
             except FileNotFoundError:
                 if not scope.exists():  # VM stopped during this sample.
                     continue
                 raise
-            if current < 0:
+            if current < 0 or inactive_file < 0:
                 raise ValueError('invalid VM memory accounting')
-            total += current
+            total += max(0, current - inactive_file)
         return total
 
     def text(self):

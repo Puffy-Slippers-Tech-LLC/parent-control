@@ -441,10 +441,15 @@ reconnecting its reader starts fresh; pauses leave gaps rather than joined curve
 The last graph remains visible during retries; its sampling history starts fresh
 when the replacement reader responds.
 
-**VM RAM** sums cgroup v2 `memory.current` for all system libvirt QEMU VM scopes
-on that host, including VMs outside the configured test inventory. It includes
-guest RAM, QEMU overhead, helper processes, charged kernel memory and file cache,
-without counting descendant groups twice. It shows decimal GB rounded to one
+**VM RAM** sums the current working set (`memory.current` minus
+`memory.stat`'s `inactive_file`, floored at zero per scope) for all system
+libvirt QEMU VM scopes on that host, including VMs outside the configured test
+inventory. It includes resident guest RAM (including shared-memory backing),
+QEMU overhead, helper processes, charged kernel memory and active file cache,
+without counting descendant groups twice. Reclaimable inactive disk cache is
+excluded. This is current occupancy, not a reservation: for parallel capacity,
+budget full configured guest RAM plus overhead per VM and leave host headroom.
+It shows decimal GB rounded to one
 decimal place; the graph uses the percentage of total host RAM. Swap is excluded. With no
 VM scopes it shows zero; unavailable accounting shows **—**. Stopping VMs removes
 their scopes from the total. The change in overall host memory use can differ

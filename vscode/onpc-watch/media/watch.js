@@ -1491,7 +1491,7 @@
                     canvas.setAttribute('aria-hidden', 'true');
                 }
                 group.title = `${name}: last minute, fixed 0–100% scale. History stays in memory only.` +
-                    (name === 'VM RAM' ? ' Total host RAM charged to all libvirt QEMU VMs, including QEMU and kernel overhead, in GB rounded to one decimal place. Graph shows percentage of host RAM. Excludes swap.' : '') +
+                    (name === 'VM RAM' ? ' Current working set of all libvirt QEMU VMs: charged memory minus inactive file cache, including guest RAM and QEMU/kernel overhead. Decimal GB; graph shows percentage of host RAM. Excludes swap. For capacity planning, reserve full configured guest RAM plus overhead per VM.' : '') +
                     (name === 'Disk' ? ' Busiest physical disk (iostat %util); NVMe busy time is not throughput saturation.' : '');
                 group.querySelector('strong').textContent = `${name}:`;
                 group.querySelector('.percentage').textContent = data.text;

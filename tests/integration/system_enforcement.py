@@ -1385,14 +1385,24 @@ def _native_policy_transition(accounts, record, variant, caller):
                     previous_events = {(row['segment'], row['sequence'])
                                        for row in read_events('broker')}
                     channel = Path('/run/fapolicyd/fapolicyd.fifo')
-                    # Vendor tmpfiles owns this directory as root:fapolicyd
-                    # 0770. Keep the strict guard for its higher ancestors and
-                    # validate the native service-group write permission here.
+                    # Vendor tmpfiles declares root:fapolicyd 0770, while
+                    # systemd's RuntimeDirectory=fapolicyd can recreate it as
+                    # root:root 0755. Accept only these exact layouts; keep
+                    # higher ancestors strict and pin this directory below.
                     parents(channel.parent)
                     directory_metadata = metadata(channel.parent.lstat())
+                    record(f'{prefix}.reload-directory', json.dumps({
+                        'is_directory': stat.S_ISDIR(directory_metadata[4]),
+                        'root_owner': directory_metadata[2] == 0,
+                        'root_group': directory_metadata[3] == 0,
+                        'service_group': directory_metadata[3] == grp.getgrnam('fapolicyd').gr_gid,
+                        'mode': format(stat.S_IMODE(directory_metadata[4]), '04o'),
+                        'expected_layouts': ['root:root 0755', 'root:fapolicyd 0770'],
+                    }, sort_keys=True))
                     guest.require(stat.S_ISDIR(directory_metadata[4]) and
-                                  directory_metadata[2:4] == (0, grp.getgrnam('fapolicyd').gr_gid) and
-                                  stat.S_IMODE(directory_metadata[4]) == 0o770,
+                                  (*directory_metadata[2:4],
+                                   stat.S_IMODE(directory_metadata[4])) in
+                                  ((0, 0, 0o755), (0, grp.getgrnam('fapolicyd').gr_gid, 0o770)),
                                   'enforcement:reload-directory-identity')
                     original_metadata = metadata(channel.lstat())
                     mode = stat.S_IMODE(original_metadata[4])

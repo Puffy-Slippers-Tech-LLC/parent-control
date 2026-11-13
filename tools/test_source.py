@@ -552,6 +552,10 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True, impact_ticket
                           'pending failure impact triage' if impact_ticket is None and protection.impact_holds()
                           else 'active source leases')
             if not wait:
+                if reason == 'pending failure impact triage':
+                    raise SourceBusy('checkout source is held by an unresolved failure impact decision; '
+                                     'resume the owning fix-tests run with --resume to process its retained '
+                                     'repair; source holds and saved progress were preserved')
                 raise SourceBusy('checkout source is busy; retry after its current owner finishes')
             now = time.monotonic()
             if now - started >= 1 and (reported is None or now - reported >= 30):

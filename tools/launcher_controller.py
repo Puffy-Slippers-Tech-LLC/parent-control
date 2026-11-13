@@ -380,7 +380,10 @@ def dispatch(entry):
     import test_source
     # Restore only the source admission released from the test/repair wrappers.
     # Plan/translation controls retain their existing agent-free recovery path.
-    admission = (test_source.admission(root, arguments, repair=name == 'fix-tests')
+    # A repair controller must reach recovery or report its blocker promptly;
+    # waiting behind a retained impact hold cannot make an idle repair advance.
+    admission = (test_source.admission(root, arguments, repair=name == 'fix-tests',
+                                      wait=name != 'fix-tests')
                  if name in ('run-tests', 'run-unit-tests', 'fix-tests') else nullcontext())
     with admission:
         return _entry(root, name, pinned_branch, arguments, entry)

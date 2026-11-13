@@ -243,7 +243,7 @@ def impact_prompt(context):
 
 
 def triage_failure(root, run, ticket, result, *, session, charge):
-    """Judge one failure under the coordinator's impact reader lease.
+    """Judge one failure under the coordinator's protected source lease.
 
     The coordinator owns tickets, holds and decision persistence. This action
     owns only bounded diagnostic context and the supervised read-only session.
@@ -1352,6 +1352,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 commits.state.pop('active_ticket', None)
                 release_repair()
                 return dict(outcome='resolved', attempt=value['reference'], source_changed=False)
+            # A preceding repair may have invalidated this ticket's impact.
+            # Reassess only after its recheck fails, before spending repair
+            # sessions, so a fresh isolated failure can still be left failed.
+            with repair_gate.source():
+                execution.refresh_impact()
 
         evidence = execution.failure or {}
         from repair_evidence import read_failure

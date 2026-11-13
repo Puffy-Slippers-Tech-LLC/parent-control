@@ -294,6 +294,8 @@ def test_public_repair_composes_triage_verification_and_closeout(
     class Execution:
         drained = True
         failure = None
+        def refresh_impact(self):
+            pass  # This fixture's impact is already current.
         def attempt(self, purpose, target=None):
             order.append(purpose)
             assert test_source.environment().get(test_source.WRITER) == str(run)
@@ -406,6 +408,8 @@ def test_public_repair_keeps_dirty_suspension_owned_on_resume(
     class Execution:
         drained = True
         failure = None
+        def refresh_impact(self):
+            pass  # This fixture's impact is already current.
         def attempt(self, purpose, target=None):
             control.order.append(purpose)
             return dict(status=0 if resumed else 1, accepted=resumed,

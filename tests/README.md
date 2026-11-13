@@ -634,6 +634,12 @@ it cannot publish writer intent merely to force that drain. Its original owned
 VM can serve other eligible family work after failed-attempt cleanup. A later
 blocking failure may force an earlier drain. Recheck the FIFO head after prior
 repairs through the same coordinator and original VM before another agent turn.
+At a drained boundary, stale impact from before a source change keeps admission
+on hold while that recheck runs; it does not start another impact-triage session
+ahead of the recheck. An accepted recheck settles the ticket without an agent.
+If the recheck fails, reassess its impact before another repair session, borrowing
+the FIFO head's exclusive source lease. This read-only reassessment preserves
+fresh isolation decisions needed to leave a case failed and continue.
 Recheck, diagnostic and exact-case verification borrow the active ticket's source
 lease; nested attempts never start another family scheduler. No other worker
 may load unverified repair edits. Owned cleanup and authorized recovery are

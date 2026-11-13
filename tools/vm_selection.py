@@ -22,6 +22,8 @@ WORKER = 'ONPC_TEST_VM_WORKER'
 SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
                  'or all; offline VMs/hosts are always skipped; owning_branch restrictions always apply; '
                  'config concurrency limits active work')
+HOST_HELP = ('--host NAME optionally limits the VM selection to that configured host '
+             '(e.g. myserver or local); omitted: no host filter. This does not change controller placement.')
 BASELINE_INSTRUCTIONS = (
     'When authorized baseline preparation is needed in launcher/session work, use '
     'tools/prepare-vm --vm NAME --mode auto --y (or --mode manual --y only '
@@ -35,6 +37,43 @@ APPSNAPSHOT_INSTRUCTIONS = (
     'manual work omits --y. Omitting --vm selects all enabled VMs. '
     'Both preparation tools accept VM lists, all-enabled and all, using config concurrency.')
 PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS
+
+
+def host_arguments(argv):
+    """Narrow a public launcher's selector before its existing workflow sees it."""
+    remaining, hosts = [], []
+    tokens = iter(argv)
+    for token in tokens:
+        if token == '--':
+            remaining.extend((token, *tokens))
+            break
+        if token == '--host':
+            hosts.append(next(tokens, None))
+        elif token.startswith('--host='):
+            hosts.append(token.partition('=')[2])
+        else:
+            remaining.append(token)
+    if not hosts:
+        return remaining
+    if len(hosts) != 1:
+        raise ValueError('vm-config:duplicate --host')
+    host = hosts[0]
+    if not host or host.startswith('-'):
+        raise ValueError('vm-config: --host requires a value')
+    controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
+    if any(option in controls for option in ('--help', '-h')):
+        return remaining
+    if host not in vm_config.host_registry(read_document(validate_agent=False)):
+        raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
+    remaining, selector = extract_selector(remaining)
+    _, vms = vm_config.execution(selector)
+    names = [vm.name for vm in vms if vm.host.name == host]
+    if not names:
+        raise ValueError(f'vm-config:no selected online enabled VMs on host {host}')
+    # Keep opaque arguments after -- intact, and persist the narrowed canonical
+    # selection through existing attachment, resume and worker binding routes.
+    boundary = remaining.index('--') if '--' in remaining else len(remaining)
+    return [*remaining[:boundary], '--vm', ','.join(names), *remaining[boundary:]]
 
 
 def execution_selection(name=None):

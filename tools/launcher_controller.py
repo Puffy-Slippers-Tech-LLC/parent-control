@@ -239,11 +239,14 @@ def dispatch(entry):
                     os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
                               *arguments], env)
 
+    from vm_selection import HOST_HELP, host_arguments
+    arguments = host_arguments(arguments)
     if pinned_branch is not None:
         _pending_startup = (pinned_branch, arguments)
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
+        print(HOST_HELP, flush=True)
         if name == 'write-e2e' and any(flag in arguments for flag in ('--planb', '--planc')):
             print('--planb/--planc default to the current checkout branch; --branch overrides it.', flush=True)
     import test_source

@@ -198,6 +198,14 @@ Report meaningful failures and unresolved work in the normal handoff.
 
 ## Common launcher interface
 
+Shared public launchers accept optional `--host NAME`, for example `--host myserver`
+or `--host local`. This intersects the current VM selection with that exact host
+name from `config/environment.json`; omitting it applies no host filter. Existing
+enabled flags, branch restrictions and concurrency limits still apply. Unknown
+hosts and empty intersections refuse before starting work. The narrowed canonical
+VM names use the existing attachment/resume binding rules. This option filters
+VMs only; `--branch` continues to control where the launcher runs.
+
 Public commands using the shared controller accept `--branch NAME`, selecting a
 branch from `config/environment.json`. Without it, the matching `launchers` entry's
 `default_branch` wins, then the invoking checkout's current Git branch.

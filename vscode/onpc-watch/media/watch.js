@@ -123,7 +123,7 @@
                 failed: 'failed', stopped: 'failed', finished: 'finished', 'Closing Task': 'closing-task',
                 'Stop Requested': 'stop-requested', Stopping: 'stop-requested',
                 'Reload Requested': 'stop-requested', Repairing: 'stop-requested',
-                Verifying: 'stop-requested',
+                Verifying: 'stop-requested', 'Committing Fix': 'finished',
             }[entry.status] || '';
             title.append(' (');
             element('span', `launcher-status ${statusClass}`, title).textContent =

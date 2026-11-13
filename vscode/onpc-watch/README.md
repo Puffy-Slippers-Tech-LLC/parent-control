@@ -200,8 +200,9 @@ VS Code's built-in modal warning dialog. Its button colors follow the host theme
 the public extension API does not expose a destructive/red button style.
 The title switches to the recorded final status when the launcher exits.
 While `fix-tests` is active, its title shows **Repairing** during repair sessions
-and **Verifying** while checking the repair. A live session takes precedence over
-a previously recorded final result.
+and **Verifying** while checking the repair. After verification, it shows
+**Committing Fix** in green during commit, push and propagation. A live session
+takes precedence over a previously recorded final result.
 Failed launcher titles appear in red.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**

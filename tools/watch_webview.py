@@ -481,10 +481,16 @@ class Viewer:
                 try:
                     steps, details = output.status(active)
                     if active and not status and output.repair:
+                        try:
+                            repair_state = output.reader.read(output.run / 'checkpoint.json')
+                        except (OSError, ValueError):
+                            repair_state = {}
                         phase = next((clean(line).removeprefix('Status: ')
                                       for line in reversed(steps[-1]['lines'] if steps else [])
                                       if clean(line).startswith('Status: ')), '')
-                        if phase in ('Verifying repair', 'Collecting diagnostic evidence'):
+                        if repair_state.get('pending') is not None:
+                            status = 'Committing Fix'
+                        elif phase in ('Verifying repair', 'Collecting diagnostic evidence'):
                             status = 'Verifying'
                         elif phase.startswith(('fixing errors', 'Repairing failed case',
                                                'validating retained response')) or session.active:

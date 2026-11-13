@@ -837,6 +837,7 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
         configured = vm_config.registry() if snapshot['vms'] else {}
         vms = [configured[name] for name in snapshot['vms']]
         groups = execution_groups(root, argv, vms)
+        host_args, guest_args = split(root, argv)
     # Resume/transport controls do not change the selected work's identity.
     for group in groups:
         group['args'] = [arg for arg in group['args'] if arg not in (
@@ -846,8 +847,12 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
     continue_on_errors = '--continue-on-errors' in argv
     matched = False
     last = dict(status=0, results={}, source_changed=False, terminal_failed=False)
+    ungrouped_selection = [[kind, [arg for arg in args if arg not in (
+        '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]]
+        for kind, args in (('_host', host_args), ('_guest', guest_args))]
     with GroupCheckpoint(root, groups, snapshot['vms'], resume='--resume' in argv,
-                         identity=pass_identity, scope=checkpoint_scope) as saved:
+                         identity=pass_identity, scope=checkpoint_scope,
+                         ungrouped_selection=ungrouped_selection) as saved:
         def settled(index):
             outcome = saved.state['outcomes'][index]
             return outcome is not None and (outcome['status'] == 0 or outcome['terminal_failed'])
@@ -864,8 +869,12 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
                             for n, other in enumerate(groups) if other['category'] == group['category'])):
                     actions['settle_task'](group['category'])
                 continue
-            scope = checkpoint_scope + '/' + group['key']
+            scope = saved.group_scope(index)
             identity = saved.group_identity(index)
+            # Routing may add a subcategory selector. An in-place legacy
+            # owner must still receive its original checkpoint selection.
+            group_args = (dict(ungrouped_selection)['_host' if group['category'] == 'host' else '_guest']
+                          if saved.state.get('ungrouped') else group['args'])
             with PassCheckpoint.saved(root, scope=scope) as previous:
                 resume = previous is not None and identity == {
                     key: previous.state[key] for key in ('run', 'pass')}
@@ -918,7 +927,7 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
                                     if status:
                                         last = dict(status=status, suspended=True)
                                         break
-                                args = [*(['--resume'] if resume else []), *group['args']]
+                                args = [*(['--resume'] if resume else []), *group_args]
                                 if replay is not None:
                                     args = [*([arg for arg in argv if arg.startswith('--resume-case=')
                                         or arg in ('--resume-case-only', '--resume-area-only')]), *args]

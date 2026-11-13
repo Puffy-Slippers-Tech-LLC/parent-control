@@ -226,18 +226,22 @@ def _repair_tickets(state):
 class GroupCheckpoint:
     """Sequential group cursor and admissions; case credit stays in PassCheckpoint."""
 
-    def __init__(self, root, groups, pool, *, resume=False, identity=None, scope='ordinary'):
+    def __init__(self, root, groups, pool, *, resume=False, identity=None, scope='ordinary',
+                 ungrouped_selection=None):
         self.root, self.groups, self.pool = root, _copy(groups), sorted(pool)
         for group in self.groups:
             group['vms'].sort()
         self.resume, self.identity, self.scope = resume, identity, scope
+        self.ungrouped_selection = ungrouped_selection
         self.store = Store(directory('state', root=root) / (PASS_NAMESPACES[scope] + '-groups'))
         self.resources = ExitStack()
 
     @staticmethod
     def validate(state, *, scope=None):
-        if (not isinstance(state, dict) or set(state) != {
+        if (not isinstance(state, dict) or set(state) - {'ungrouped'} != {
                 'version', 'scope', 'run', 'pass', 'groups', 'pool', 'workers', 'outcomes'}
+                or 'ungrouped' in state and (state['ungrouped'] is not True
+                    or not isinstance(state.get('groups'), list) or len(state['groups']) != 1)
                 or type(state['version']) is not int or state['version'] != 1
                 or not isinstance(state['scope'], str) or state['scope'] not in PASS_NAMESPACES
                 or scope is not None and state['scope'] != scope
@@ -300,8 +304,21 @@ class GroupCheckpoint:
                         self.state['groups'][index]['vms'] = group['vms']
                 self.save()
             else:
+                ungrouped = False
+                if previous is None and self.resume and self.identity is not None:
+                    with PassCheckpoint.saved(self.root, scope=self.scope) as saved:
+                        if saved is not None:
+                            if (len(self.groups) != 1
+                                    or self.identity != {key: saved.state[key] for key in ('run', 'pass')}
+                                    or self.ungrouped_selection != saved.state['selection']
+                                    or self.pool != sorted(saved.state['pool'])
+                                    or self.groups[0]['vms'] != self.pool):
+                                raise ValueError(RESUME_SELECTION_MISMATCH)
+                            ungrouped = True
                 for scope in pass_namespaces(self.root):
                     if scope == self.scope or scope.startswith(self.scope + '/'):
+                        if ungrouped and scope == self.scope:
+                            continue  # Keep the original validated case/repair owner.
                         with PassCheckpoint.saved(self.root, scope=scope) as saved:
                             if saved is not None and (saved.claims() or saved.repair_tickets()):
                                 raise ValueError('test group has unfinished owners; use --resume or owned recovery')
@@ -310,6 +327,8 @@ class GroupCheckpoint:
                     outcomes=[None] * len(self.groups))
                 if self.identity is not None:
                     self.state.update(self.identity)
+                if ungrouped:
+                    self.state.update(ungrouped=True, workers=[self.pool])
                 self.save()
             return self
         except BaseException:
@@ -324,8 +343,13 @@ class GroupCheckpoint:
         self.store.save(self.fd, self.state)
 
     def group_identity(self, index):
+        if self.state.get('ungrouped'):
+            return {key: self.state[key] for key in ('run', 'pass')}
         return dict(run=self.state['run'], **{'pass': uuid.uuid5(
             uuid.UUID(self.state['pass']), self.groups[index]['key']).hex})
+
+    def group_scope(self, index):
+        return self.scope if self.state.get('ungrouped') else self.scope + '/' + self.groups[index]['key']
 
 
 class PassCheckpoint:

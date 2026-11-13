@@ -69,7 +69,7 @@ def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path)
 
 
 def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_path):
-    from test_checkpoint import family_claims_pending, guard_scheduling_checkpoints
+    from test_checkpoint import GroupCheckpoint, family_claims_pending, guard_scheduling_checkpoints
 
     host_selection = [['_host', ['static']]]
     work = pass_work('authorization::selected')
@@ -84,6 +84,10 @@ def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_p
         with PassCheckpoint(tmp_path, [('system', work['options'])], {'one': 'deb'},
                             {'deb': [work]}, scope='repair-vm') as guests:
             claim = guests.claim('deb', 'one', work, 'a' * 64)
+            guests.enqueue_failure(claim, pass_evidence(claim, []), 1)
+            guest_identity = {key: guests.state[key] for key in ('run', 'pass')}
+            guest_selection = guests.state['selection']
+            guest_state = json.loads(json.dumps(guests.state))
             with PassCheckpoint(tmp_path, host_selection, {}, {}) as ordinary:
                 assert ordinary.store.path != host.store.path != guests.store.path
                 assert family_claims_pending(tmp_path, 'one') == 1
@@ -98,6 +102,34 @@ def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_p
         invalid = dict(host.state, scope='repair-vm')
         with pytest.raises(ValueError, match='identity or selection'):
             PassCheckpoint.validate(invalid, scope='repair-host')
+
+    # A pre-group repair resumes its exact owner in place; it cannot adopt a
+    # different selection, identity, pool or a newly split multi-group request.
+    groups = [dict(key='system', category='system', args=['system', *work['options']],
+                   vm_tag='general', vms=['one'])]
+    options = dict(resume=True, identity=guest_identity, scope='repair-vm',
+                   ungrouped_selection=guest_selection)
+    for changed in (dict(identity=dict(run='1' * 32, **{'pass': '2' * 32})),
+                    dict(ungrouped_selection=[])):
+        with pytest.raises(ValueError, match='selection differs'):
+            with GroupCheckpoint(tmp_path, groups, ['one'], **dict(options, **changed)):
+                pass
+    for requested_groups, pool in ((groups, []),
+                                   ([dict(groups[0], vms=[])], ['one']),
+                                   ([*groups, dict(groups[0], key='other')], ['one'])):
+        with pytest.raises(ValueError, match='selection differs'):
+            with GroupCheckpoint(tmp_path, requested_groups, pool, **options):
+                pass
+    with pytest.raises(ValueError, match='unfinished owners'):
+        with GroupCheckpoint(tmp_path, groups, ['one'], scope='repair-vm'):
+            pass
+    for _ in range(2):
+        with GroupCheckpoint(tmp_path, groups, ['one'], **options) as saved:
+            assert saved.group_identity(0) == guest_identity
+            assert saved.group_scope(0) == 'repair-vm'
+            assert saved.state['workers'] == [['one']]
+        with PassCheckpoint.saved(tmp_path, scope='repair-vm') as guests:
+            assert guests.state == guest_state
 
 
 def test_pass_failed_target_stays_on_original_vm_until_owned_recovery(tmp_path, monkeypatch):

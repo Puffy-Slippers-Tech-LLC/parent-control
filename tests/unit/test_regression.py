@@ -544,7 +544,8 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
         families = {}
         for vm in candidates:
             families.setdefault(vm.family, []).append(vm)
-        admitted = [workers[-1 if executions else 0] for workers in families.values()]
+        admitted = (list(candidates) if exact else
+                    [workers[-1 if executions else 0] for workers in families.values()])
         active.extend(vm.name for vm in admitted)
         events.append('admit')
         yield admitted
@@ -631,6 +632,34 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
         assert vm_test_queue.run(future, ['--resume', *selected]) == 0
         assert executions[before:] == [['e2e', '--subcategory', 'general']]
         assert not exact_admissions[-1]
+
+    # Pre-group E2E owners retain their original selectors even though current
+    # routing adds a subcategory. Reconnection keeps the scope, identity, and
+    # admitted pool rather than manufacturing fresh family credit.
+    from test_checkpoint import PassCheckpoint
+    for name in names:
+        configured[name] = replace(configured[name], enabled=True,
+                                   vm_tags=frozenset({'general'}))
+    vm_selection.execution_selection(selector)
+    legacy = tmp_path / 'ungrouped'
+    with PassCheckpoint(legacy, [['_host', []], ['_guest', ['e2e']]],
+                        {name: configured[name].family for name in names}, plan[-1],
+                        scope='repair-vm') as checkpoint:
+        identity = {key: checkpoint.state[key] for key in ('run', 'pass')}
+
+    def resume_legacy(root, args, **kwargs):
+        assert args == ['--resume', 'e2e']
+        assert kwargs['checkpoint_scope'] == 'repair-vm'
+        assert kwargs['pass_identity'] == identity
+        assert set(active) == set(names)
+        return execute(root, args, **kwargs)
+
+    monkeypatch.setattr(vm_test_queue, '_run_group', resume_legacy)
+    before = len(executions)
+    assert vm_test_queue.run(legacy, ['--resume', 'e2e'], pass_identity=identity,
+                             checkpoint_scope='repair-vm') == 0
+    assert executions[before:] == [['--resume', 'e2e']]
+    assert exact_admissions[-1]
 
 
 def test_ui_timings_preserve_nested_calls_failures_and_private_arguments():

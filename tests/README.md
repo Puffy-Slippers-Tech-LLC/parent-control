@@ -475,6 +475,11 @@ Resume skips settled groups and reacquires the current group's exact admitted
 subset; groups not yet entered receive fresh admission. Scoped retries retain
 the original group and VM, and cannot settle later cases or groups. Reset and
 owned claim recovery include every retained group checkpoint.
+An explicit repair resume can reconnect a pre-group ordinary-pass checkpoint
+when its entire original selection is one current group with the same run/pass
+identity and eligible VM pool. The group cursor retains that checkpoint's scope,
+identity and admitted workers; case credit, claims and repair transactions remain
+in place. Changed selections, split groups and incompatible VM pools still refuse.
 An unused candidate becoming unavailable does not invalidate admitted workers or
 completed groups. Future groups refresh candidates inside the original allowed
 pool; an unavailable or no-longer-matching admitted worker still refuses resume.

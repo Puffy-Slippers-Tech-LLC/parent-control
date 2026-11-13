@@ -538,6 +538,8 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True, impact_ticket
             _local.leases = [item for item in _local.leases if item is not lease]
         return
     with _lock(protection.directory / 'repair-owner') as fd:
+        started = time.monotonic()
+        reported = None
         while True:
             if stopped():
                 from detached_launcher import Stopped
@@ -546,9 +548,19 @@ def reader(root, *, stopped=lambda: False, fresh=False, wait=True, impact_ticket
                 if protection.admit(fd, impact_ticket=impact_ticket):
                     protection.check_generation(fresh=fresh)
                     break
+                reason = ('unfinished repair' if protection.owner() is not None else
+                          'pending failure impact triage' if impact_ticket is None and protection.impact_holds()
+                          else 'active source leases')
             if not wait:
                 raise SourceBusy('checkout source is busy; retry after its current owner finishes')
+            now = time.monotonic()
+            if now - started >= 1 and (reported is None or now - reported >= 30):
+                print(f'Source admission: waiting for {reason} ({int(now - started)}s elapsed).',
+                      flush=True)
+                reported = now
             time.sleep(.1)
+        if reported is not None:
+            print('Source admission: acquired; continuing.', flush=True)
         retain(fd)
         try:
             yield fd

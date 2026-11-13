@@ -656,6 +656,11 @@ allocation also saves `outcome.json`, including coordinator suspension, pending
 repairs, unfinished work and worker diagnostics alongside `results.json`.
 `fix-tests` saves the latest returned pass as `pass-outcome.json` in its own run.
 These files explain the verdict; checkpoints remain the resume authority.
+Git close-out retains its accepted coordinator attempt until settlement can
+recover it after interruption. Older runs can recover a completed close-out
+only when its commit journal explicitly links the accepted attempt and source
+digest to the controller's recorded completion commit. Resume settles that
+ticket without repeating its accepted verification.
 If diagnostic storage fails, the traceback and storage failure remain in the
 launcher output, and the original execution verdict is preserved.
 [`test_source.py`](../tools/test_source.py) owns checkout admission holds,
@@ -2079,7 +2084,10 @@ terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
 One private renderer belongs to the runner on its executing host, including its
-local concurrent VM queue. Transferred SSH workers own independent renderers per
+local concurrent VM queue. Its bus, renderer and compositor retain scratch and
+recording ownership, but never an execution source reader or repair writer;
+observation cannot prevent a repair's source lease from releasing.
+Transferred SSH workers own independent renderers per
 selected VM; their controllers and media stay in the host's managed remote
 operation storage. Published `onpc-recording://HOST/...` links use the controller's
 current reader through an isolated SSH source transfer, preserving the host's

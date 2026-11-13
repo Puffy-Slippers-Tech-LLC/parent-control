@@ -369,8 +369,9 @@ class Session:
                 raise
 
     def start(self):
-        from test_storage import runtime_directory, scratch_directory, scratch_descriptors
-        from watch_recording_worker import launch_command, launch_environment, process_identity
+        from test_storage import runtime_directory, scratch_directory
+        from watch_recording_worker import (launch_command, launch_environment, process_identity,
+                                            shared_owner_descriptors)
         from recording_storage import Store
         from recording_control import Publication
         try:
@@ -399,7 +400,7 @@ class Session:
                     owner_fd=self.publication.descriptors()[0], vm_names=tuple(self.configured)),
                     env=launch_environment(),
                     stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
-                    pass_fds=(remote.fileno(), *scratch_descriptors(),
+                    pass_fds=(remote.fileno(), *shared_owner_descriptors(),
                               *self.publication.descriptors()), start_new_session=True)
                 self.pidfd = os.pidfd_open(self.process.pid)
                 self.identity = process_identity(self.process)

@@ -87,6 +87,10 @@ def launch_environment():
                  'GDK_PIXBUF_MODULE_FILE', 'GDK_PIXBUF_MODULEDIR',
                  'GIO_MODULE_DIR', 'GIO_EXTRA_MODULES', 'GI_TYPELIB_PATH'):
         environment.pop(name, None)
+    # Observation outlives individual source-consuming operations and repairs.
+    from test_source import VARIABLE, WRITER, IMPORTS, STARTUP_READER, STARTUP_WRITER
+    for name in (VARIABLE, WRITER, IMPORTS, STARTUP_READER, STARTUP_WRITER):
+        environment.pop(name, None)
     environment.update(PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
                        XDG_DATA_DIRS='/usr/local/share:/usr/share',
                        GSETTINGS_SCHEMA_DIR='/usr/share/glib-2.0/schemas')
@@ -96,7 +100,11 @@ def launch_environment():
 def shared_owner_descriptors():
     """Keep the master ownership lease held by every explicitly owned child."""
     from test_storage import scratch_descriptors
-    return tuple(dict.fromkeys((*scratch_descriptors(),
+    from test_source import descriptors
+    # scratch_descriptors also forwards execution's source lease. A renderer
+    # must not retain that lease through an idle bus/compositor lifetime.
+    source = set(descriptors())
+    return tuple(dict.fromkeys((*(fd for fd in scratch_descriptors() if fd not in source),
                                 *((_owner_fd,) if _owner_fd is not None else ()))))
 
 

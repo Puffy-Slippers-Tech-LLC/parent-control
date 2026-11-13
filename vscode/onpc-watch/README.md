@@ -206,7 +206,10 @@ The title switches to the recorded final status when the launcher exits.
 While `fix-tests` is active, its title shows **Repairing** during repair sessions
 and **Verifying** while checking the repair. After verification, it shows
 **Committing Fix** in green during commit, push and propagation. A live session
-takes precedence over a previously recorded final result.
+takes precedence over a previously recorded final result. After Git close-out,
+the launcher returns to running tests without retaining the repair's verification status.
+The Launcher tab reports that transition. Source-admission waits report their
+reason and elapsed time every 30 seconds, then report when execution can continue.
 Failed launcher titles appear in red.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**

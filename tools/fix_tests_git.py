@@ -99,6 +99,56 @@ class RepairCommits:
         self.save()  # Retain acceptance before staging, committing or pushing.
         self.finish_pending()
 
+    def closed_attempt(self, ticket):
+        """Recover Git-complete qualification awaiting coordinator settlement."""
+        target = (ticket['work']['category'], ticket['case'] or '', ticket['vm'])
+        if self.state.get('pending') is not None or self.key(target) in self.state['repairs']:
+            return None
+        closed = self.state.get('closed_repair', {})
+        reference = closed.get('attempt')
+        if closed.get('failure') == list(target) and reference in ticket.get('attempts', []):
+            return reference if reference.get('accepted') else None
+        # Older controllers removed the repair entry after verified Git
+        # close-out. Recover only an exact accepted attempt explicitly linked
+        # by that run's completed commit journal, never by a commit title alone.
+        commit = self.state.get('last_commit')
+        if not commit or not ticket['vm']:
+            return None
+        message = f'TA: Fixed {target[0]} {target[1] or "infrastructure"} on {target[2]}'
+        progress = self.closeout_proof()
+        if progress is not None:
+            ownership = progress.get('ownership', {})
+            if (progress.get('status') != 'complete' or progress.get('source_commit') != commit
+                    or progress.get('pushed_head') != commit or progress.get('commit_message') != message
+                    or progress.get('source', {}).get('path') != str(self.root)):
+                return None
+            for attempt in ticket.get('attempts', []):
+                if (attempt.get('accepted') and attempt.get('purpose') == 'verification'
+                        and attempt['attempt'] == ownership.get('accepted_attempt')
+                        and attempt['source']['digest'] == ownership.get('accepted_source_digest')):
+                    if git_output(self.root, 'merge-base', '--is-ancestor', commit, 'HEAD',
+                                  check=False).returncode:
+                        raise ValueError('completed repair commit is absent from the resumed checkout')
+                    return attempt
+        return None
+
+    def closeout_proof(self):
+        """Carry the last completed Git receipt across resume allocations."""
+        from repair_evidence import read_failure
+        commit = self.state.get('last_commit')
+        if not commit:
+            return None
+        saved = self.run / 'closed-git-proof.json'
+        paths = ([saved] if saved.exists() else []) + sorted(
+            self.run.parent.glob('*/commit-skill/*/progress.json'))
+        for path in paths:
+            progress = read_failure(path)
+            if (progress.get('status') == 'complete' and progress.get('source_commit') == commit
+                    and progress.get('pushed_head') == commit
+                    and progress.get('source', {}).get('path') == str(self.root)):
+                return progress
+        return None
+
     def finish_pending(self):
         with closeout_lock(self.root, self.run, self.state):
             self._finish_pending()
@@ -174,6 +224,11 @@ class RepairCommits:
             from fix_tests import failure_target
             if failure_target(queued['failure'], queued['category']) == tuple(entry['failure']):
                 self.state.pop('queued_failure')
+        # Preserve the exact qualification across interruption between Git
+        # completion and the coordinator's separate settlement transaction.
+        if entry.get('coordinator_attempt') is not None:
+            self.state['closed_repair'] = dict(failure=entry['failure'],
+                                               attempt=entry['coordinator_attempt'])
         del self.state['repairs'][key]
         self.selections.pop(key, None)
         for field in ('pending', 'commit_intent', 'pull_intent', 'worktree_propagation'):

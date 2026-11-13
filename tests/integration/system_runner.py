@@ -1491,6 +1491,7 @@ def scenario_fixture_files(selection, *, target=None):
 
     PAM/enforcement/removal compare prepared mechanical bytes. Trusted histories
     additionally audit hard/soft and activity provenance, including its modules.
+    Partial-termination checks use the trusted hard witness across all roles.
     These are scenario oracles, not the reusable fixture collection.
     """
     trusted = any(item.case_id in (TRUSTED_FIXTURES_CASE, PREVIOUS_POLICY_CASE)
@@ -1502,6 +1503,9 @@ def scenario_fixture_files(selection, *, target=None):
         from tests.fixtures.native_assets import activity_sources
         files.extend(('fixtures/mechanical/identity-trusted-hard',
                       'fixtures/mechanical/identity-trusted-soft', *activity_sources()))
+    elif any(item.case_id == 'test_partial_app_termination_retry'
+             for item in selection.executions):
+        files.append('fixtures/mechanical/identity-trusted-hard')
     elif target == 'fedora' and any(item.phase in PAM_PHASES or
                                     item.case_id in ('test_remove_reboot_reinstall',
                                                      'test_aborted_cleanup_rollback_retry',
@@ -2481,10 +2485,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             subsets = (('command',) if fixture_selection['target'] == 'ubuntu'
                        else (*subsets, 'command'))
         if any(item.area == 'enforcement'
-               and item.case_id in ('test_broker_save_failure_recovery',
-                                    'test_partial_app_termination_retry')
+               and item.case_id == 'test_broker_save_failure_recovery'
                for item in selection.executions) and 'command' not in subsets:
             subsets += ('command',)
+        if any(item.case_id == 'test_partial_app_termination_retry'
+               for item in selection.executions):
+            subsets += ('trusted-hard-launcher',)
         if any(item.area == 'enforcement'
                and item.case_id == 'test_kiosk_execution_confinement'
                for item in selection.executions):
@@ -3048,25 +3054,11 @@ def main(argv=None):
                 from system_fixture_preparation import stage_mechanical_comparison
                 stage_mechanical_comparison(fixture_input,
                     directory / 'input/fixtures/mechanical/onpc-test-application')
-                if any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
-                       for item in selection.executions):
-                    for identity in ('trusted-hard', 'trusted-soft'):
+                for identity in ('trusted-hard', 'trusted-soft'):
+                    if 'fixtures/mechanical/identity-' + identity in options['fixture_files']:
                         stage_mechanical_comparison(fixture_input,
                             directory / ('input/fixtures/mechanical/identity-' + identity),
                             identity=identity)
-                if (fixture_input['target'] == 'fedora'
-                        and any(item.phase in PAM_PHASES or
-                                item.case_id in ('test_remove_reboot_reinstall',
-                                                 'test_aborted_cleanup_rollback_retry',
-                                                 'test_rpm_posterase_recovery',
-                                                 'test_interrupted_finalization_retry[denial-publication]',
-                                                 'test_interrupted_finalization_retry[account-finalization]',
-                                                 *REMOVAL_FAMILIES['test_ownership_refusal_retry'],
-                                                 *REMOVAL_FAMILIES['test_identity_filesystem_refusal_retry'])
-                                for item in selection.executions)):
-                    stage_mechanical_comparison(fixture_input,
-                        directory / 'input/fixtures/mechanical/identity-trusted-hard',
-                        identity='trusted-hard')
             if previous_assets is not None:
                 genuine = any(item.case_id in (PREVIOUS_POLICY_CASE, TRUSTED_FIXTURES_CASE)
                               for item in selection.executions)

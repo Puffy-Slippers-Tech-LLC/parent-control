@@ -1112,7 +1112,12 @@ def partial_termination_retry(record):
     """
     from system_assertions import account_states
 
-    accounts = provision_native()
+    # The mechanical command is admitted only for the two child accounts on
+    # Fedora. Use the existing trusted witness so the parent can run the same
+    # executable as both children without changing native admission policy.
+    variant = 'trusted-hard'
+    target, _, desktop_id = native_paths(variant)
+    accounts = provision_native(variant)
     child, other, parent = (accounts[role] for role in ('child', 'other', 'parent'))
 
     def require(condition, reason):
@@ -1134,7 +1139,7 @@ def partial_termination_retry(record):
                 'requires-clean-policy')
         request('SetParentControl', '(ubu)', (child, True, 30))
         preferences.update(parent_control_enabled=True, daily_time_limit_minutes=30,
-                           apps={DESKTOP_ID: {'state': 'conditional', 'targets': [str(TARGET)],
+                           apps={desktop_id: {'state': 'conditional', 'targets': [str(target)],
                                               'patterns': [], 'user_saved_match_rule': False}})
         request('SetPreferences', '(us)', (child, json.dumps(preferences)))
 
@@ -1187,7 +1192,7 @@ def partial_termination_retry(record):
                 for uid in (child, child, other, parent):
                     account = pwd.getpwuid(uid)
                     process = subprocess.Popen(
-                        [str(TARGET), '--stay-alive'], user=uid, group=account.pw_gid,
+                        [str(target), '--stay-alive'], user=uid, group=account.pw_gid,
                         extra_groups=[], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                         stderr=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'})
                     processes.append(process)
@@ -1198,7 +1203,7 @@ def partial_termination_retry(record):
                             process.poll() is None, 'app-not-ready')
                     entry = Path('/proc') / str(process.pid)
                     require(terminator._process_uids(entry / 'status') == (uid,) * 4 and
-                            (entry / 'exe').resolve() == TARGET, 'app-identity')
+                            (entry / 'exe').resolve() == target, 'app-identity')
                 child_pids = {process.pid for process in processes[:2]}
                 real_signal = terminator._pidfd_send_signal
                 signaled = []
@@ -1239,12 +1244,12 @@ def partial_termination_retry(record):
                         processes[closed[0] - 1].pid == signaled[0] and
                         processes[survivors[0] - 1].pid == refused[0], 'wrong-partial-app-set')
                 after_failure = account_states((child,))[child]
-                require(after_failure == (*prior[:4], [False, [str(TARGET)]]),
+                require(after_failure == (*prior[:4], [False, [str(target)]]),
                         'failed-revoke-time-or-strict-policy')
                 require(account_states((other, parent)) == peers and
                         all(process.poll() is None for process in processes[2:]),
                         'failure-disturbed-peers')
-                record_rules('partial-failed', child, True, record)
+                record_rules('partial-failed', child, True, record, variant=variant)
                 stage('failed-result', json.dumps({'closed_original_apps': closed,
                                                   'surviving_original_apps': survivors,
                                                   'old_time_preserved': True,
@@ -1256,13 +1261,13 @@ def partial_termination_retry(record):
                 require(all(process.wait(timeout=30) == -signal.SIGKILL
                             for process in processes[:2]), 'retry-did-not-close-original-apps')
                 after_retry = account_states((child,))[child]
-                require(after_retry == (*prior[:3], [0, 0], [False, [str(TARGET)]]),
+                require(after_retry == (*prior[:3], [0, 0], [False, [str(target)]]),
                         'retry-time-or-strict-policy')
-                require(not terminator.has_running(child, (str(TARGET),), ()) and
+                require(not terminator.has_running(child, (str(target),), ()) and
                         account_states((other, parent)) == peers and
                         all(process.poll() is None for process in processes[2:]),
                         'retry-disturbed-peers-or-restored-apps')
-                record_rules('partial-retried', child, True, record)
+                record_rules('partial-retried', child, True, record, variant=variant)
                 stage('retry', 'remaining-original-app-closed; first-still-closed; grant-cleared; peers-unchanged')
             finally:
                 # Attempt every directly owned child even if another cleanup

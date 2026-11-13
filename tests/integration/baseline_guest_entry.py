@@ -13,6 +13,24 @@ ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
 
 
+def reconcile_native_packages(os_id):
+    """Apply the exact Fedora compatibility repair in either preparation mode."""
+    runner = prepare_vm.Runner()
+    if os_id == 'fedora':
+        # Fedora 44's 2.0.1-1 magic database uses version 20, while file 5.48
+        # reads only version 21. Reconcile only this exact broken package pair
+        # with the repository's compatible signed packages before daemon start.
+        installed = runner.run(['rpm', '-q', '--queryformat', '%{NAME} %{VERSION}-%{RELEASE}\n',
+                                'fapolicyd', 'file-libs']).stdout.splitlines()
+        if installed == ['fapolicyd 2.0.1-1.fc44', 'file-libs 5.48-2.fc44']:
+            print('baseline: reconciling Fedora file-magic compatibility', flush=True)
+            runner.run(['dnf5', '-y', 'downgrade', 'file-5.46-9.fc44',
+                        'file-libs-5.46-9.fc44', 'python3-file-magic-5.46-9.fc44'], timeout=1800)
+            runner.run(['dnf5', 'check'], timeout=180)
+            runner.run(['file', '-b', '-m', '/usr/share/fapolicyd/fapolicyd-magic.mgc',
+                        '/usr/bin/true'])
+
+
 def prepare_native(os_id='ubuntu'):
     """Let the packaged daemon initialize its database after offline reconciliation.
 
@@ -143,21 +161,7 @@ def update_system(os_id='ubuntu'):
         print('baseline: updating ' + os_id + ': ' + command[-1], flush=True)
         subprocess.run(command, check=True, timeout=3600, env=environment,
                        stdin=subprocess.DEVNULL)
-    if os_id == 'fedora':
-        # Fedora 44's 2.0.1-1 package ships a version-20 magic database, but
-        # file 5.48 reads only version 21. Keep this exact broken distribution
-        # pair on the repository's compatible, signed file packages. Do not
-        # rewrite vendor data or hold back unrelated or future updates.
-        runner = prepare_vm.Runner()
-        installed = runner.run(['rpm', '-q', '--queryformat', '%{NAME} %{VERSION}-%{RELEASE}\n',
-                                'fapolicyd', 'file-libs']).stdout.splitlines()
-        if installed == ['fapolicyd 2.0.1-1.fc44', 'file-libs 5.48-2.fc44']:
-            print('baseline: reconciling Fedora file-magic compatibility', flush=True)
-            runner.run(['dnf5', '-y', 'downgrade', 'file-5.46-9.fc44',
-                        'file-libs-5.46-9.fc44', 'python3-file-magic-5.46-9.fc44'], timeout=1800)
-            runner.run(['dnf5', 'check'], timeout=180)
-            runner.run(['file', '-b', '-m', '/usr/share/fapolicyd/fapolicyd-magic.mgc',
-                        '/usr/bin/true'])
+    reconcile_native_packages(os_id)
     prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
         snap_prepared=prepare_vm.vm_config.snap_tests_enabled())
 
@@ -215,14 +219,16 @@ def main(argv=None):
     result = prepare_vm.main(password)
     password = ''
     if result == 0:
+        os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
         if mode == 'auto':
-            os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
             update_system(os_id)
             # A full power cycle after Fedora updates avoids depending on an
             # optional needs-restarting plugin. Manual mode performs no update.
             if os_id == 'fedora' or Path('/run/reboot-required').exists():
                 (root / 'reboot-required').write_text(BOOT_ID.read_text())
                 return 0
+        else:
+            reconcile_native_packages(os_id)
         (root / 'success').write_text('success\n')
     return result
 

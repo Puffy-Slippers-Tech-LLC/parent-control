@@ -1392,7 +1392,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             # A validated repair returned before reload is consumed directly.
             if (entry is not None and entry.get('status') in ('fixed', 'test_fixed', 'diagnostic_ready')
                     and entry.get('pending_response') is None and previous is not None
-                    and previous.get('verification') is None):
+                    and previous.get('evidence') is None):
                 result = previous
             else:
                 try:

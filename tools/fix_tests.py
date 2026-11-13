@@ -1417,6 +1417,44 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             with repair_gate.source():
                 value = execution.attempt('diagnostic' if diagnostic else 'verification',
                                           target=entry.get('verification_case'))
+                source = value['reference']['source']['digest']
+                if (not diagnostic and ticket['vm'] and value['status'] not in (0, 130)
+                        and entry.get('baseline_refresh_source') != source):
+                    # The dashboard stream can omit the actual error. Use the
+                    # attempt's retained runner handoffs as well as its output.
+                    outdated = 'baseline:preparation-outdated' in value.get('output_tail', '')
+                    for path in value.get('handoffs', []):
+                        try:
+                            handoff = read_failure(path)
+                        except (OSError, ValueError):
+                            continue
+                        if not isinstance(handoff, dict):
+                            continue
+                        details = handoff.get('error_details', [])
+                        if isinstance(details, list):
+                            outdated |= any(isinstance(detail, dict)
+                                and isinstance(detail.get('detail'), str)
+                                and 'baseline:preparation-outdated' in detail['detail']
+                                for detail in details)
+                    if outdated:
+                        # Preparation needs the launcher's actual source lease,
+                        # which native agent command processes cannot inherit.
+                        # Bound recovery to one refresh per source and failed VM.
+                        check_controller()
+                        entry['baseline_refresh_source'] = source
+                        commits.save()
+                        print('fix-tests: refreshing the outdated baseline on ' + ticket['vm'], flush=True)
+                        prepared = execution.prepare_baseline()
+                        entry['baseline_refresh_status'] = prepared['status']
+                        commits.save()
+                        if prepared['status']:
+                            prompt += ('\nLauncher-owned baseline preparation failed:\n'
+                                       + prepared['output_tail'])
+                            value['output_tail'] = (value.get('output_tail', '')
+                                + '\nBaseline preparation failed:\n' + prepared['output_tail'])[-16000:]
+                        else:
+                            check_controller()
+                            value = execution.attempt('verification', target=entry.get('verification_case'))
             latest_attempt = value['reference']
             result['verification'] = bool(value['accepted']) if not diagnostic else None
             result['evidence'] = dict(status=value['status'], reference=value['reference'],

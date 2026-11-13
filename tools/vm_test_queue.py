@@ -472,6 +472,37 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 self.executor = executor
                 self.drained = True
 
+            def prepare_baseline(self):
+                """Prepare through the original worker, without granting case credit.
+
+                Native agent command processes do not retain launcher file
+                descriptors. Keep preparation with the reserved worker and its
+                borrowed source writer instead of forwarding stale FD claims.
+                """
+                if not self.ticket['vm']:
+                    raise ValueError('baseline preparation requires the failed VM')
+
+                def prepare(worker):
+                    from vm_pool import VARIABLE as CHECKOUT
+                    environment = test_launcher.environment(root)
+                    environment.pop(BATCH, None)
+                    environment[VARIABLE] = worker.vm.name
+                    environment[CHECKOUT] = worker.receipt
+                    tail = b''
+
+                    def output(data):
+                        nonlocal tail
+                        tail = (tail + data)[-16000:]
+                        sys.stdout.buffer.write(data)
+                        sys.stdout.flush()
+
+                    status = control.run([str(root / 'tools/prepare-vm'), '--vm', worker.vm.name,
+                        '--mode', 'auto', '--y'], cwd=root, env=environment,
+                        output=output, wait_on_cancel=True)
+                    return dict(status=status, output_tail=tail.decode('utf-8', errors='replace'))
+
+                return self.executor.attempt(self.ticket['vm'], prepare)
+
             def attempt(self, purpose, target=None):
                 ticket = self.ticket
                 work = dict(ticket.get('execution', ticket['work']))

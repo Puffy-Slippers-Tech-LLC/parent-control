@@ -513,6 +513,18 @@ When baseline preparation is needed, follow the
 authorization, selectors and confirmation. Runners never prepare a baseline
 implicitly; guest prerequisites are described in [VM preparation](integration/Environment.md).
 
+When corrective verification explicitly reports `baseline:preparation-outdated`,
+`fix-tests` performs the preapproved auto-mode refresh on that failed VM through
+its original reserved worker, after admitted work and cleanup have drained. The
+refusal can appear in the attempt's retained failure record even when the
+dashboard's terminal output omits it; recovery reads both sources. The
+worker retains the actual source writer lease; native agent command processes
+cannot inherit that descriptor. Recovery is limited to one refresh per source
+identity in the retained repair, followed by the same exact-case verification
+and prerequisites. Preparation grants no passing credit. Failed preparation
+retains its output for the next repair session; diagnostic execution still runs
+only once per diagnostic outcome.
+
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
 or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit

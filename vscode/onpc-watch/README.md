@@ -210,11 +210,22 @@ takes precedence over a previously recorded final result. After Git close-out,
 the launcher returns to running tests without retaining the repair's verification status.
 The Launcher tab reports that transition. Source-admission waits report their
 reason and elapsed time every 30 seconds, then report when execution can continue.
+Queued failures remain visible in Status, Error and Session after their impact
+assessment agent exits. The coordinator publishes small display metadata with
+the VM, case, impact decision and reason. While repair waits, the title shows
+**Repair Pending** in the same orange as **Repairing**. Both content tabs show
+**Status:** followed by a short explanation, such as “Repair pending — waiting
+for active tests and VM cleanup.” The Error tab retains the actual failure details.
+The Session view retains the assessment transcript and distinguishes an inactive
+agent from a queued repair. These observations grant no execution or input authority.
 Failed launcher titles appear in red.
 **Status** shows the current run status, **Launcher** shows
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
-the session transcript and chat.
+the session transcript and chat. The Status tab places its bold **Status:** label
+on a separate row immediately below the run summary. The title and both content
+status fields use one shared color palette; titles stay brief, while the content
+fields share the same explanatory text and formatting.
 The Launcher tab streams running command output, including baseline preparation
 phases before VM startup; it does not wait for the command to finish.
 Branch names discovered from local and remote Git refs and commit hashes appear

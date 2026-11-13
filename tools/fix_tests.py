@@ -1342,12 +1342,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         # Never replace a retained response or diagnostic with a no-edit pass.
         if entry is None:
+            progress(category, 'Rechecking failed case')
             value = execution.attempt('recheck')
             if value['accepted']:
                 commits.state.pop('queued_failure', None)
                 commits.state.pop('writer_inputs', None)
                 commits.state.pop('active_ticket', None)
                 release_repair()
+                progress(category, 'Running tests')
                 return dict(outcome='resolved', attempt=value['reference'], source_changed=False)
             # A preceding repair may have invalidated this ticket's impact.
             # Reassess only after its recheck fails, before spending repair
@@ -1527,6 +1529,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         resume_tests(recovered_category)
 
     def pass_progress(value):
+        # Small observer projection; the coordinator checkpoint owns all verdicts.
+        repairs = value.get('repairs', [])
+        items = []
+        for repair in repairs[-16:]:
+            item = dict(repair)
+            for field, limit in (('case', 512), ('vm', 128), ('reason', 2000)):
+                text = item.get(field)
+                if isinstance(text, str) and len(text) > limit:
+                    item[field] = text[:limit] + '…'
+            items.append(item)
+        atomic(run / 'repair-progress.json', dict(total=len(repairs),
+            blocked=any(item['blocked'] for item in repairs), items=items))
         lines = [f'Round {round_number}/{rounds}']
         for family, categories in value['families'].items():
             lines.extend(f'{family} | {kind}: ({counts["completed"]}/{counts["total"]})'

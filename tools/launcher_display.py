@@ -9,7 +9,26 @@ from launcher_render import clean, style_task_counts
 from launcher_session import clock_duration
 
 
-def error_status_lines(task_info, key, clock):
+def launcher_status_color(status):
+    """One palette for launcher titles and both content status fields."""
+    if status in ('Repair Pending', 'Repairing', 'Verifying', 'Checking Impact',
+                  'Reload Requested', 'Stop Requested', 'Stopping'):
+        return '#ffa500'
+    if status in ('finished', 'Finished', 'Committing Fix', 'Closing Task'):
+        return '#008000'
+    if status in ('failed', 'Failed', 'stopped', 'Stopped', 'Waiting for input'):
+        return '#f14c4c'
+    return '#0098ff'
+
+
+def launcher_status_line(value, color):
+    line = Text('Status: ')
+    line.stylize('bold', 0, len('Status:'))
+    line.append(value, style=color)
+    return line
+
+
+def error_status_lines(task_info, key, clock, *, status_override=None, status_color=None):
     """Shared Last Error/Status fields and observer fallback clock."""
     error = clean(task_info.get('last_error', '')).strip()
     has_error = bool(error and error != '-')
@@ -18,10 +37,13 @@ def error_status_lines(task_info, key, clock):
         status = 'Running'
     elif status not in TASK_STATUSES or status == 'Running':
         status = TASK_STATUSES[0]
+    if status_override is not None:
+        status = status_override
     key = (*key, status)
     if clock is None or clock[0] != key:
         clock = (key, time.time())
-    status_age = clock_duration(time.time() - task_info.get('status_at', clock[1]))
+    status_at = clock[1] if status_override is not None else task_info.get('status_at', clock[1])
+    status_age = clock_duration(time.time() - status_at)
     last_error = Text('Last Error: ')
     last_error.stylize('bold', 0, len('Last Error:'))
     if has_error:
@@ -31,11 +53,10 @@ def error_status_lines(task_info, key, clock):
             last_error.append(f' ({clock_duration(time.time() - error_at)} ago)')
     else:
         last_error.append('-')
-    status_line = Text('Status: ')
-    status_line.stylize('bold', 0, len('Status:'))
     colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff',
                                     'yellow', '#0098ff')))
-    status_line.append(status, style=colors[status])
+    color = status_color or (launcher_status_color('Repair Pending') if status_override is not None else colors[status])
+    status_line = launcher_status_line(status, color)
     status_line.append(f' ({status_age} ago)', style='#0098ff')
     return [last_error, Text(''), status_line], clock
 

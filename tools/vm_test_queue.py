@@ -186,7 +186,7 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
     supplies repair policy only; claims, acceptance and recovery stay here.
     A saved run/pass identity may be supplied by the composing repair workflow.
     """
-    from test_checkpoint import PassCheckpoint
+    from test_checkpoint import PassCheckpoint, _repair_impact
     snapshot, vms, host_args, guest_args, guest_selection, families = plan
     actions = actions or {}
     lock = threading.RLock()
@@ -287,7 +287,13 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     for kind, cases in by_category.items()}
             actions['progress'](dict(run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']},
                 families=counts, host_completed=checkpoint.state.get('host_passed', []),
-                host_categories=sorted(host_categories)))
+                host_categories=sorted(host_categories), repairs=[dict(
+                    id=ticket['id'], attempt=ticket['attempt'], vm=ticket['vm'], case=ticket['case'],
+                    category=ticket['work']['category'], impact=impacts.get(ticket['id'], 'untriaged'),
+                    reason=(_repair_impact(ticket) or {}).get('decision', {}).get('reason',
+                        'Awaiting failure impact assessment.'),
+                    blocked=impacts.get(ticket['id']) != 'no' or not ticket['cleanup'])
+                    for ticket in checkpoint.repair_tickets()]))
 
         publish_progress()
 
@@ -515,6 +521,8 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
                     raise
             triaged[ticket['id']] = source_identity(root)
+            with lock:
+                publish_progress()
 
         class Execution:
             def __init__(self, ticket, executor):

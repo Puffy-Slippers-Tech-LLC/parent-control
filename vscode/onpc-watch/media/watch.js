@@ -126,8 +126,9 @@
                 Verifying: 'stop-requested', 'Committing Fix': 'finished',
             }[entry.status] || '';
             title.append(' (');
-            element('span', `launcher-status ${statusClass}`, title).textContent =
-                entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
+            const status = element('span', `launcher-status ${statusClass}`, title);
+            if (Object.hasOwn(entry, 'status_color')) status.style.color = entry.status_color || '';
+            status.textContent = entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
             title.append(')');
         }
         return defaultText;
@@ -137,7 +138,7 @@
         const entry = section.entry;
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
         section.editingTitle = undefined;
-        const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.session, entry.session_active,
+        const signature = JSON.stringify([entry.run, entry.custom_title, entry.server, entry.transport, entry.label, entry.status, entry.status_color, entry.session, entry.session_active,
             entry.session_number, entry.session_allowance, entry.session_inactive, entry.launcher_controls, entry.launcher_command, entry.launcher_action_command, entry.launcher_reload_command, entry.launcher_add_session_command, entry.launcher_kill, entry.launcher_close, entry.active, section.view, section.collapsed, maximizedRun === entry.id]);
         if (section.headingSignature === signature) return;
         section.headingSignature = signature;
@@ -1389,10 +1390,15 @@
             // status has no fixed summary and keeps all rows in the history.
             const summaryEnd = rows.findIndex(row => row.tagName === 'HR');
             const hasSummary = summaryEnd > 0 && entry.rows[0].some(part => part.text.startsWith('Total Tasks:'));
+            let statusRow = null;
             if (hasSummary) {
                 const summary = rows[0];
                 for (const row of rows.slice(1, summaryEnd)) {
                     if (!row.textContent.trim()) continue;
+                    if (row.textContent.startsWith('Status:')) {
+                        statusRow = row;
+                        continue;
+                    }
                     summary.append(' | ');
                     if (row.textContent.startsWith('Total Duration:')) {
                         summary.append(row.textContent.slice('Total Duration:'.length).trimStart());
@@ -1402,7 +1408,7 @@
                 }
             }
             section.summary.hidden = !hasSummary;
-            section.summary.replaceChildren(...(hasSummary ? [rows[0]] : []));
+            section.summary.replaceChildren(...(hasSummary ? [rows[0], ...(statusRow ? [statusRow] : [])] : []));
             section.history.replaceChildren(...(hasSummary ? rows.slice(summaryEnd + 1) : rows));
             if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         });

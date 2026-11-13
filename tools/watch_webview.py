@@ -423,6 +423,7 @@ class Viewer:
 
     def run_status(self, session_root=None, session_roots=()):
         from launcher_render import clean
+        from launcher_display import launcher_status_color, launcher_status_line
         branches = self.discovery.poll_branches()
         if branches is not None:
             self.branches = branches
@@ -511,32 +512,58 @@ class Viewer:
             error_lines = []
             failures, error_log = 0, None
             category_failures = {}
+            repair_lines = []
+            pending_repairs = []
+            summary = []
+            status_index = 0
+            steps = []
+            status_available = True
+            phase = ''
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
+                    repair_progress = output.repair_progress()
+                    pending_repairs = repair_progress['items']
+                    if pending_repairs:
+                        blocked = repair_progress['blocked']
+                        repair_lines = [f'Unresolved failures: {repair_progress["total"]}',
+                            ('New test admission paused; waiting for admitted attempts and cleanup before repair.'
+                             if blocked else 'Failures queued; independent tests may continue.')]
+                        if repair_progress['total'] > len(pending_repairs):
+                            repair_lines.append(f'Showing the latest {len(pending_repairs)} failures.')
+                        for ticket in pending_repairs:
+                            repair_lines.extend([
+                                f'{ticket["vm"] or "Host"} | {ticket["category"]} | {ticket["case"] or "preparation"}',
+                                f'Impact: {ticket["impact"]} — {ticket["reason"]}'])
                     if active and not status and output.repair:
                         try:
-                            repair_state = output.reader.read(output.run / 'checkpoint.json')
+                            repair_state = output.reader.read(output.run / 'checkpoint.json', 2 * 1024 * 1024)
                         except (OSError, ValueError):
                             repair_state = {}
                         phase = next((clean(line).removeprefix('Status: ')
-                                      for line in reversed(steps[-1]['lines'] if steps else [])
+                                      for step in reversed(steps) for line in reversed(step['lines'])
                                       if clean(line).startswith('Status: ')), '')
                         if repair_state.get('pending') is not None:
                             status = 'Committing Fix'
-                        elif phase in ('Verifying repair', 'Collecting diagnostic evidence'):
+                        elif phase in ('Rechecking failed case', 'Verifying repair', 'Collecting diagnostic evidence'):
                             status = 'Verifying'
+                        elif phase == 'Checking failure impact' and session.active:
+                            status = 'Checking Impact'
                         elif phase.startswith(('fixing errors', 'Repairing failed case',
                                                'validating retained response')) or session.active:
                             status = 'Repairing'
+                        elif pending_repairs:
+                            status = 'Repair Pending'
+                        elif phase == 'Checking failure impact':
+                            status = 'Checking Impact'
                     if active and not status and output.closing_task(steps, session_inactive=not session.active):
                         status = 'Closing Task'
-                    error_lines = output.error_status(steps)
                     summary = output.task_summary(active)
                     lines = [*summary, *(['─'] if summary else [])]
                     lines.extend(line for step in steps
                              if not (output.repair and step['key'] == 'pipelines')
-                             for line in step['lines'])
+                             for line in step['lines'] if not clean(line).startswith('Status: '))
+                    status_index = len(summary) if summary else len(lines)
                     if output.repair:
                         details = [line for line in details
                                    if not clean(line).startswith(('VM pipelines | concurrency ',
@@ -547,12 +574,15 @@ class Viewer:
                         if lines:
                             lines.append('─')
                         lines.extend(details)
+                    if repair_lines:
+                        lines.extend(['─', *repair_lines])
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
                     error_lines = ['Error status unavailable']
+                    status_available = False
                 if output.repair:
                     try:
-                        state = output.reader.read(output.run / 'checkpoint.json')
+                        state = output.reader.read(output.run / 'checkpoint.json', 2 * 1024 * 1024)
                         targets = {tuple(item['failure']) for item in state.get('failed_cases', [])}
                         failures = len(targets)
                         for category, _case, _vm in targets:
@@ -623,19 +653,59 @@ class Viewer:
                 lines.append('Paused - waiting for your answer')
             # A new question replaces the old clock, even within the same session.
             prompt_id = question.get('id') if question else None
+            status_value = status or ('Running' if active else output.completion_status() or 'Idle')
+            status_color = launcher_status_color(status_value)
+            status_detail = status_value
+            if status_value == 'Repair Pending':
+                status_detail = ('Repair pending — waiting for active tests and VM cleanup'
+                                 if blocked else
+                                 'Repair pending — waiting for independent tests to finish')
+            elif status_value == 'Checking Impact':
+                status_detail = 'Checking whether the failure affects other tests'
+            elif status_value == 'Verifying':
+                status_detail = {
+                    'Rechecking failed case': 'Rechecking the failed case before repair',
+                    'Collecting diagnostic evidence': 'Collecting diagnostic evidence',
+                }.get(phase, 'Verifying the repaired case')
+            elif status_value == 'Committing Fix':
+                status_detail = 'Committing and propagating the verified fix'
+            elif waiting:
+                status_detail = 'Waiting for your answer'
+            content_status = launcher_status_line(status_detail, status_color)
+            if status_available and output.run is not None:
+                try:
+                    error_lines = output.error_status(steps, pending_repairs=pending_repairs,
+                        prefer_pending=status_value in ('Repair Pending', 'Checking Impact'),
+                        status_override=(None if session.active and not waiting
+                                         and status_value in ('Running', 'Repairing') else status_detail),
+                        status_color=status_color)
+                    content_status = error_lines[-1]
+                except (OSError, ValueError, KeyError, TypeError):
+                    error_lines = ['Error status unavailable']
+            if status_available:
+                # The summary remains fixed above the scrolling test history.
+                lines.insert(status_index, content_status)
             signature = lines, failures, category_failures, error_log, session_run, waiting, deadline, prompt_id
             if self.status_cache.get(root, (None,))[0] != signature:
                 self.status_cache[root] = signature, status_spans(lines, failures=failures,
                     category_failures=category_failures, error_log=error_log,
                     session_waiting=waiting)
             session_view = None
-            if str(root) in session_roots and session.panel:
-                session_view = session.panel.webview()
-                session_view['rows'] = self.cached_spans(root, 'session', session_view.pop('lines'))
+            if str(root) in session_roots and (session.panel or repair_lines):
+                session_view = (session.panel.webview() if session.panel else
+                                dict(lines=[], model='', simplified=True))
+                transcript = session_view.pop('lines')
+                if repair_lines:
+                    transcript = [*repair_lines,
+                        'Agent session active.' if session.active else
+                        'No agent session active; repair remains queued.',
+                        '', *transcript]
+                session_view['rows'] = self.cached_spans(root, 'session', transcript)
                 session_view['input_enabled'] = session.input_enabled
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, closed=closed, status=status, rows=self.status_cache[root][1],
+                status_color=status_color,
                 run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
                 launcher_rows=self.cached_spans(root, 'launcher', self.launcher_logs[root].split('\n'),

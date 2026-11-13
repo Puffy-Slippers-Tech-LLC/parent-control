@@ -375,8 +375,10 @@ def publish_progress(run, key, lines, *, replaces=()):
         steps.append(step)
     # Keep compact completions alongside the latest two active steps so a
     # reconnect can recover the same task recap as an attached observer.
+    # Match entries by identity: an older step may have identical contents.
     active = [previous for previous in steps if not previous.get('replaces')][-2:]
-    retained = [previous for previous in steps if previous.get('replaces') or previous in active]
+    retained = [previous for previous in steps
+                if previous.get('replaces') or any(previous is current for current in active)]
     temporary = run / 'controller.tmp'
     temporary.write_text(json.dumps(retained))
     temporary.replace(run / 'controller.json')

@@ -1467,7 +1467,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     categories = list(inventory)
 
     def pass_progress(value):
-        lines = [f'Round {round_number}/{rounds} | Pass {value["pass"][:8]}']
+        lines = [f'Round {round_number}/{rounds}']
         for family, categories in value['families'].items():
             lines.extend(f'{family} | {kind}: ({counts["completed"]}/{counts["total"]})'
                          for kind, counts in categories.items())

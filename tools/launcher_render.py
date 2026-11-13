@@ -182,7 +182,11 @@ class AgentRenderer:
         self.failure = None
 
     def message(self, text, title='Agent', style='default'):
-        self.block(title, SessionMarkdown(clean(text)), style)
+        if isinstance(text, dict):
+            self.heading(title, style)
+            self.details(text)
+        else:
+            self.block(title, SessionMarkdown(clean(text)), style)
 
     def preview_message(self, text):
         """Replace observer-only prose without appending unconfirmed log text."""
@@ -538,6 +542,19 @@ class AgentRenderer:
                     descriptive = True
                     if isinstance(result.get('handoff'), str):
                         text += '\n\nNext session prompt:\n\n' + result['handoff']
+                elif isinstance(result, dict):
+                    title, style = 'Agent result', 'default'
+                    text = dict(result)
+                    descriptive = True
+                    if result.get('impact') in ('yes', 'no', 'unsure'):
+                        title = 'Impact assessment'
+                        text['impact'] = {
+                            'yes': 'Other cases may be affected.',
+                            'no': 'No impact on other cases identified within the assessed scope.',
+                            'unsure': 'Impact on other cases is uncertain.',
+                        }[result['impact']]
+                        if isinstance(text.get('classification'), str):
+                            text['classification'] = text['classification'].replace('_', ' ')
                 else:
                     title, style = 'Agent', 'default'
                 if self.on_description is None or not descriptive:

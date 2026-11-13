@@ -231,16 +231,37 @@ on the server and `./setup.sh --connect-server` on the client first. No addition
 controller service is needed. Source and credentials remain host-local; dispatch
 does not synchronize checkouts or forward the client's environment.
 After placement and destination checkout verification, shared controller admission
-runs `git pull` before host filtering, VM selection or workflow validation reads
-the destination configuration. A failed pull starts one
-low-effort recovery agent; startup requires its explicit success and a successful
-pull retry. Local work is preserved. Attachments, controls, retained repair fences
-and pending Git/start recovery keep their existing routes before synchronization.
+synchronizes upstream before importing the workflow, host filtering, VM selection
+or workflow validation reads the destination configuration. It fetches first,
+then uses `git pull --no-autostash` when an update is needed. Synchronization
+holds the selected controller family's admission gates, verifies idle kernel
+owners, and takes the shared Git transaction lock and exclusive source lease.
+Retained repair impact holds and pending recovery do not skip this step.
+For a retained source writer, only its original repair's `--resume` may synchronize.
+The fence, holds, dirty/staged/untracked edits, checkpoints and accepted results
+remain owned by recovery; synchronization neither settles nor transfers them.
+With retained repair recovery, startup permits only a fast-forward pull and
+refuses before job allocation if Git cannot preserve local work or has an
+unfinished operation. Existing Git transaction journals pin their source base:
+startup fetches and verifies that source already contains upstream, refusing
+before changing HEAD if an update would supersede their recorded recovery.
+Ordinary pull failures retain their low-effort recovery agent;
+startup requires explicit success and a successful pull retry. Attachments and
+controls keep their existing routes without mutating active source. A new job
+cannot fall back to stale imports when synchronization is busy.
+Independent host/VM scopes can start while another scope is active if a
+fetch-only check confirms that their shared source already contains upstream.
+It never applies updates over a live controller; an attachment can still use
+that owner, while a new job refuses until source can be synchronized safely.
 The bootstrap remains a placement-only handoff. When early synchronization changes HEAD,
 admission replaces the launcher interpreter before selection, retaining the verified
 destination and avoiding a second pull. Controller imports and newly launched jobs
-therefore use the synchronized source. Active owners and pending recovery defer
-early synchronization to their existing guarded workflow admission.
+therefore use the synchronized source. Before any potentially mutating pull,
+startup durably advances the shared generation without clearing repair fences
+or holds and forwards its locks to the Git child, including across controller
+death. A fetch that confirms source is current advances no generation.
+Valid accepted results remain recovery authority rather than being rerun merely
+because the controller was refreshed.
 The controller's current working source owns VM execution. Workers on another
 host receive isolated source copies, including uncommitted changes, through the
 shared [VM source transfer](../tests/integration/Environment.md#shared-vm-configuration).

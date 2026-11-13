@@ -4,8 +4,13 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from write_e2e import main
 from launcher_controller import run
+
+
+def main():
+    from write_e2e import main
+    return main()
+
 
 if __name__ == '__main__':
     sys.exit(run(main))

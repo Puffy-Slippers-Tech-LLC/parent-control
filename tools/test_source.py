@@ -277,6 +277,15 @@ class SourceProtection:
         remove(self.directory / 'repair-impact-holds.json')
         _sync(self.directory)
 
+    def advance_generation(self, descriptor):
+        """Record idle controller synchronization under state(), retaining fences.
+
+        Caller holds its controller admission gates and an exclusive source
+        lease. Synchronization owns no repair outcome or completion credit.
+        """
+        self.validate(descriptor, held=True, writer=True)
+        _write(self.directory / 'repair-generation.json', self.generation() + 1)
+
 
 class RepairGate:
     """Own a worker's source lease; callers own repair order and admission policy."""

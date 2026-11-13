@@ -4,10 +4,13 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_source import admission
-with admission(Path(__file__).resolve().parents[1], sys.argv[1:]):
-    from test_launcher import main
-    from launcher_controller import run
+from launcher_controller import run
 
-    if __name__ == '__main__':
-        sys.exit(run(lambda: main(category='unit')))
+
+def main():
+    from test_launcher import main
+    return main(category='unit')
+
+
+if __name__ == '__main__':
+    sys.exit(run(main))

@@ -19,50 +19,51 @@ _CONTROLS = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
              '--reconcile', '--review-ownership')
 
 
-def _pending_recovery(previous):
+def _pending_git(previous):
+    """Git journals pin their original source base until their owner settles."""
     if previous is not None:
+        from test_source import _read, IMPACT_MAX_BYTES
         for filename in ('checkpoint.json', 'translation-state.json'):
             path = previous / filename
-            if path.exists():
-                saved = json.loads(path.read_text())
-                if any(saved.get(key) for key in (
-                        'commit_intent', 'pull_intent', 'pending_completion', 'pending',
-                        'worktree_propagation', 'upstream_pull', 'git_reconciliation')):
+            saved = _read(path, max_bytes=IMPACT_MAX_BYTES)
+            if saved is not None:
+                if any(saved.get(key) is not None for key in (
+                        'commit_intent', 'pull_intent', 'worktree_propagation',
+                        'upstream_pull', 'git_reconciliation')):
                     return True
     return False
 
 
-def sync_startup(root, previous=None):
-    """Fallback admission for a startup deferred to its workflow owner."""
-    global _pending_startup
-    pending, _pending_startup = _pending_startup, None
-    if pending is not None:
-        # Recovery owns the original source until its recorded transaction is
-        # settled. Its existing safe pull boundary will synchronize afterward.
-        if _pending_recovery(previous):
-            print('Git: deferring startup pull to pending workflow recovery.', flush=True)
-            return
-        branch, arguments = pending
-        _startup_sync(root, branch, arguments)
+def require_startup_sync():
+    """Never start a job if early synchronization could not obtain ownership."""
+    if _pending_startup is not None:
+        raise ValueError('controller source synchronization is busy; retry after '
+                         'the active checkout owner finishes')
 
 
 def _early_sync(root, name, branch, arguments):
-    """Synchronize before selection, leaving live and recovering owners alone."""
+    """Synchronize before workflow imports; live owners retain attachment only."""
     if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
-        return None
+        return False
     from contextlib import ExitStack
     import fcntl
     from detached_launcher import lock, busy, current_run, private_directory
     from test_source import finish_admission
     from test_storage import directory
 
+    finish_admission()
     kinds = {'fix-tests': ('fix-tests', 'fix-tests-host'),
              'run-tests': ('sessions', 'sessions-host'),
              'run-unit-tests': ('sessions-host',),
              'write-e2e': ('write-e2e', 'plans'),
              'execute-plan': ('plans',), 'sync-whatsnew': ('sync-whatsnew',)}
-    finish_admission()
     with ExitStack() as locks:
+        previous_runs = []
+        repair_runs = []
+        retained_start = False
+        live = False
+        # Exclude replacement of this controller family. Other families retain
+        # independent scheduling under the shared source lease/generation guard.
         for kind in kinds.get(name, ()):
             try:
                 base = directory(kind, root=root, create=False)
@@ -84,21 +85,39 @@ def _early_sync(root, name, branch, arguments):
                 owner_path = (previous / 'owner' if kind.startswith('sessions') and previous
                               else scope / 'owner')
                 owner = locks.enter_context(lock(owner_path))
-                if (busy(owner) or (scope / 'pending-start.json').exists()
-                        or _pending_recovery(previous)):
-                    return None
-        return _startup_sync(root, branch, arguments, early=True)
+                live |= busy(owner)
+                retained_start |= (scope / 'pending-start.json').exists()
+                if previous is not None:
+                    previous_runs.append(previous)
+                    if name == 'fix-tests' and kind in ('fix-tests', 'fix-tests-host'):
+                        repair_runs.append(previous)
+        return _startup_sync(root, branch, arguments, previous_runs=previous_runs,
+                             repair_runs=repair_runs, retained_start=retained_start, live=live)
 
 
-def _pull(root):
-    result = subprocess.run(['git', 'pull'], cwd=root, text=True,
-        stdin=subprocess.DEVNULL, capture_output=True, timeout=120,
-        env=dict(os.environ, GIT_TERMINAL_PROMPT='0'), check=False)
-    if result.returncode:
-        raise ValueError(result.stderr.strip() or result.stdout.strip())
+def _pull(root, *, recovery=False, frozen=False, descriptors=(), before_change=lambda: None):
+    def execute(arguments):
+        result = subprocess.run(['git', *arguments], cwd=root, text=True,
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=120,
+            env=dict(os.environ, GIT_TERMINAL_PROMPT='0'), pass_fds=descriptors, check=False)
+        if result.returncode:
+            raise ValueError(result.stderr.strip() or result.stdout.strip())
+
+    execute(['fetch', '--no-tags'])
+    try:
+        _git(root, 'merge-base', '--is-ancestor', '@{upstream}', 'HEAD')
+        return  # Already synchronized; no source invalidation or mutation.
+    except ValueError as error:
+        if frozen:
+            raise ValueError('pushed source cannot be applied over a retained Git transaction; '
+                             'finish its recorded recovery before synchronizing') from error
+    # Durable invalidation precedes Git, including if this controller dies and
+    # the descriptor-owning Git child finishes the update after its death.
+    before_change()
+    execute(['pull', '--no-autostash', *(['--ff-only'] if recovery else [])])
 
 
-def _recover_pull(root, diagnostic, selection, profile):
+def _recover_pull(root, diagnostic, selection, profile, *, descriptors=()):
     from tempfile import TemporaryDirectory
     from agent_adapter import Delegation, SessionRequest, prepare_session
     from test_storage import scratch_directory
@@ -121,7 +140,7 @@ def _recover_pull(root, diagnostic, selection, profile):
             dict(os.environ))
         session.preflight()
         result = subprocess.run(session.argv, cwd=session.cwd, env=session.environment,
-                                input=prompt, text=True, timeout=1200, check=False)
+                                input=prompt, text=True, timeout=1200, pass_fds=descriptors, check=False)
         response = run / 'agent-result.json'
         saved = json.loads(response.read_text()) if response.is_file() else {}
         if result.returncode or saved.get('status') != 'synced':
@@ -135,15 +154,16 @@ def _recover_pull(root, diagnostic, selection, profile):
     _git(root, 'merge-base', '--is-ancestor', '@{upstream}', 'HEAD')
     # An agent can exit successfully after reporting a network/auth blocker.
     # Confirm real remote synchronization before admitting the job.
-    _pull(root)
+    _pull(root, descriptors=descriptors)
 
 
-def _startup_sync(root, branch, arguments, *, early=False):
+def _startup_sync(root, branch, arguments, *, previous_runs=(), repair_runs=(), retained_start=False,
+                  live=False):
     """Pull under shared source guards; report whether imports need replacing."""
     if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
         return
     import fcntl
-    from test_source import SourceProtection, source_directory, finish_admission, _lock
+    from test_source import SourceProtection, source_directory, finish_admission, _lock, _read, IMPACT_MAX_BYTES
     finish_admission()
     protection = SourceProtection(source_directory(root))
     common = Path(_git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
@@ -153,33 +173,76 @@ def _startup_sync(root, branch, arguments, *, early=False):
         try:
             fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
+            if live:
+                return None
             raise ValueError('repository synchronization is busy; retry after it finishes') from error
         with _lock(protection.directory / 'repair-owner') as source:
             with protection.state():
                 try:
                     fcntl.flock(source, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError as error:
-                    if early:
+                except BlockingIOError:
+                    if not live:
                         return None
-                    raise ValueError('checkout source is busy; retry after its owner finishes') from error
-                if protection.owner() is not None or protection.impact_holds():
-                    print('Git: deferring startup pull to retained repair recovery.', flush=True)
-                    return
-            from agent_adapter import resolve_profile, resolve_selection
-            selection = resolve_selection(root)
-            # Pin recovery code/profile before Git can put their source files
-            # into conflict. This prepares no session on the successful path.
-            selection.adapter()
-            profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
+                    try:
+                        # Independent host/VM controllers can start together
+                        # when source is already current. Fetch-only admission
+                        # needs no writer and cannot mutate active source.
+                        fcntl.flock(source, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        return None
+                pending = protection.owner()
+                if pending is not None and not live:
+                    if ('--resume' not in arguments
+                            or pending not in {str(run.resolve()) for run in repair_runs}):
+                        raise ValueError('retained repair source requires its original --resume; '
+                                         'source and checkpoints were preserved')
+                    saved = _read(Path(pending) / 'checkpoint.json', {}, max_bytes=IMPACT_MAX_BYTES)
+                    if not saved.get('active_ticket'):
+                        raise ValueError('retained source writer has no matching active repair ticket')
+                frozen = any(_pending_git(run) for run in previous_runs)
+                recovery = ('--resume' in arguments or frozen or retained_start or pending is not None
+                            or bool(protection.impact_holds()))
+            if live:
+                try:
+                    _pull(root, frozen=True, descriptors=(source, transaction))
+                except (OSError, ValueError, subprocess.TimeoutExpired):
+                    return None  # Attachment remains available; new jobs refuse.
+                return False
+            # Interrupted Git operations must retain their original recovery
+            # journal; a second pull cannot safely supersede that transaction.
+            for state in ('MERGE_HEAD', 'rebase-merge', 'rebase-apply', 'CHERRY_PICK_HEAD'):
+                if (root / _git(root, 'rev-parse', '--git-path', state)).exists():
+                    raise ValueError('unfinished Git operation prevents controller source synchronization; '
+                                     'source and recovery journals were preserved')
             head = _git(root, 'rev-parse', 'HEAD')
             print('Git: synchronizing controller checkout with its upstream.', flush=True)
+            invalidated = False
+            selection = profile = None
+            def invalidate():
+                nonlocal invalidated, selection, profile
+                if not invalidated:
+                    if not recovery:
+                        from agent_adapter import resolve_profile, resolve_selection
+                        selection = resolve_selection(root)
+                        # Pin recovery before a mutating ordinary pull can put
+                        # its code into conflict. No-op/repair sync needs no CLI.
+                        selection.adapter()
+                        profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
+                    with protection.state():
+                        protection.advance_generation(source)
+                    invalidated = True
             try:
-                _pull(root)
+                _pull(root, recovery=recovery, frozen=frozen, descriptors=(source, transaction),
+                      before_change=invalidate)
             except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                if recovery:
+                    raise ValueError('controller source synchronization failed; retained repair '
+                                     'ownership, edits and checkpoints were preserved: ' + str(error)) from error
                 print('Git pull failed; starting a low-effort recovery session.', flush=True)
-                _recover_pull(root, str(error), selection, profile)
+                invalidate()
+                _recover_pull(root, str(error), selection, profile, descriptors=(source, transaction))
             _local_checkout(root, branch)
-            return head != _git(root, 'rev-parse', 'HEAD')
+            return invalidated or head != _git(root, 'rev-parse', 'HEAD')
 
 
 def _remote(host, branch, arguments):
@@ -361,7 +424,15 @@ def _entry(root, name, pinned_branch, arguments, entry):
 def run(entry):
     def admitted():
         try:
-            return dispatch(entry)
+            import test_source
+            root = Path(__file__).resolve().parents[1]
+            # Bootstrap only reads placement/ownership metadata. It must remain
+            # available behind retained repair holds; workflow imports below
+            # still require their normal admission after synchronization.
+            bootstrap = (['--help'] if any(arg.split('=', 1)[0] in _CONTROLS
+                                         for arg in sys.argv[1:]) else ['--resume'])
+            with test_source.admission(root, bootstrap, repair=True):
+                return dispatch(entry)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f'launcher: {error}', file=sys.stderr)
             return 2

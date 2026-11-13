@@ -147,6 +147,8 @@ def _select(root, argv, *, reload=False):
             return run, False
         if '--stop' in argv:
             return None, False
+        from launcher_controller import require_startup_sync
+        require_startup_sync()
         current = directory / 'current.json'
         if run is not None:
             result = run / 'result'

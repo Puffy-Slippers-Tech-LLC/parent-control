@@ -809,8 +809,10 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             raise ValueError('--add-session requires a running launcher')
         if stop or cancel_stop or existing_only:
             return None, False
-        if source_participant and reload:
+        if reload:
             test_source.restart_execution()
+        from launcher_controller import require_startup_sync
+        require_startup_sync()
         pending_path = directory / 'pending-start.json'
         pending = None
         if not resumable_start and os.path.lexists(pending_path):
@@ -826,11 +828,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 _clear_start(pending_path)
                 return run, False  # Never spawn a possibly already published worker twice.
         else:
-            # Attachments, controls and pending-start recovery stay unchanged.
-            # Sync a new run before constructing its job or prerequisites.
+            # Early shared admission already synchronized and refreshed imports.
             source.close()
-            from launcher_controller import sync_startup
-            sync_startup(root, current_run(directory))
             if source_participant:
                 source.enter_context(test_source.startup(root, controls, repair=True, wait=False))
             run = directory / uuid.uuid4().hex

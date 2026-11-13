@@ -872,6 +872,12 @@ still reattaches regardless of `--resume`; a fresh allocation starts only after
 its owner and owned cleanup release their locks. Lock files remain in place;
 kernel locks, rather than file existence, determine ownership.
 Explicit resume carries the retained writer identity into the new allocation.
+Before workflow imports or allocation, idle public startup synchronizes through
+the [shared controller admission](../docs/Execution-Plans.md#common-launcher-interface).
+Retained repair holds do not skip that synchronization. The original repair's
+resume keeps its fence and saved progress while a guarded fast-forward receives
+pushed fixes; conflicting local work or an unfinished Git operation stops startup
+without allocating a job. Active owners still attach without changing source.
 Only that FIFO writer, holding the exclusive checkout source lease, transfers
 the source fence; readers and unrelated runs still refuse admission. Repeated
 resumes preserve this handoff even if the prior worker never acquired its lease.

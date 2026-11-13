@@ -772,13 +772,13 @@ class Execution:
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
                 if not self.run.continue_on_errors and not self.defer_failure_stop:
-                    self.run.control.stop()
+                    self.run.control.fail()
             self.run.dashboard.draw()
             if self.fixture_failed and not self.defer_failure_stop:
                 # Refuse new branches as soon as the durable event arrives.
                 # Waiting for pytest to exit permits unrelated work to start
                 # while a fixture has already lost storage or cleanup safety.
-                self.run.control.stop()
+                self.run.control.fail()
 
     def output(self, data):
         # Each fragment has a category label. UTF-8 and partial lines remain
@@ -855,7 +855,7 @@ class Execution:
                 raise ValueError('test infrastructure failed; further host work refused')
             if item.state == 'Failed' and not run.continue_on_errors:
                 run.report.checkpoint(force=True)
-                run.control.stop()
+                run.control.fail()
             return status, '\n'.join(self.captured)
         finally:
             self.close()
@@ -1652,7 +1652,7 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
                                    selections=selections, phases=phases, stop_on_error=stop_on_error,
                                    checkpoint=checkpoint)
-        return 130 if storage_control.stopped.is_set() else status
+        return 130 if storage_control.stopped.is_set() and status != 1 else status
 
 
 def retained_main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
@@ -1698,7 +1698,9 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                     if item.state == 'Running':
                         item.state = 'Failed'
         finally:
-            if control.stopped.is_set() and not failed:
+            if control.failure_stopped:
+                status = 1
+            elif control.stopped.is_set() and not failed:
                 status = 130
             if reloading and run is not None and any(
                     item.failures or item.state == 'Failed' for item in run.categories):

@@ -102,10 +102,16 @@ class Control:
         from launcher_control import CancellationEvent
         self.stopped = session_stop if session_stop is not None else CancellationEvent()
         self.interrupted = False
+        self.failure_stopped = False
         self.pipe = False
 
     def stop(self, *_):
         self.stopped.set()
+
+    def fail(self):
+        """Drain owned children without reporting a test failure as cancellation."""
+        self.failure_stopped = True
+        self.stop()
 
     def interrupt(self, *_):
         # Signal handlers only latch state. The coordinator renders the notice;

@@ -1141,6 +1141,7 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
 def test_first_failure_cancels_and_finalizes_with_handoff(
         tmp_path, monkeypatch, capsys, continue_on_errors, events):
     runs = []
+    monkeypatch.setattr(regression_process, 'session_stop', threading.Event())
 
     def execute(run):
         runs.append(run)
@@ -1159,7 +1160,7 @@ def test_first_failure_cancels_and_finalizes_with_handoff(
         assert run.control.stopped.is_set() is not continue_on_errors
 
     monkeypatch.setattr(regression.Run, 'run', execute)
-    assert regression.main(tmp_path, continue_on_errors=continue_on_errors) == (1 if continue_on_errors else 130)
+    assert regression.main(tmp_path, continue_on_errors=continue_on_errors) == 1
     run = runs[0]
     assert run.categories[0].state == 'Failed'
     assert run.report.stream.closed
@@ -1310,7 +1311,7 @@ def test_completed_collection_inventory_guards_remain_active_during_cancellation
         execution.close()
 
 
-@pytest.mark.parametrize('outcome', ['passed', 'failed', 'error', 'interrupted', 'interrupted-failure'])
+@pytest.mark.parametrize('outcome', ['passed', 'failed', 'fail-fast', 'error', 'interrupted', 'interrupted-failure'])
 def test_saved_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
     import evidence_bundle
     import runner_evidence
@@ -1325,11 +1326,14 @@ def test_saved_investigation_prompt_links_closed_report(tmp_path, monkeypatch, c
         runs.append(run)
         item = run.categories[0]
         item.done = 1
-        item.failures = int(outcome in ('failed', 'interrupted-failure'))
+        item.failures = int(outcome in ('failed', 'fail-fast', 'interrupted-failure'))
         item.state = 'Failed' if item.failures else 'Passed'
         run.report.write('\nDetailed failure evidence stays in this report.\n')
         if outcome.startswith('interrupted'):
             run.control.stopped.set()
+        if outcome == 'fail-fast':
+            run.control.fail()
+            monkeypatch.setattr(run, 'result_status', lambda: 130)
         if outcome == 'error':
             raise ValueError('discovery failure detail')
 

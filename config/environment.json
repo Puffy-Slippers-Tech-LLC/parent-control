@@ -18,7 +18,7 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "max_compute_unit": 6,
+      "max_compute_unit": 8,
       "disk_concurrency": 2
     }
   ],

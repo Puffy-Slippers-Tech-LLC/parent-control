@@ -76,9 +76,12 @@ def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency,
     assert Counter(vm.family for vm in choose(exhausted, units(3.5))) == {'a': 1, 'b': 1}
 
 
-@pytest.mark.parametrize('impact,cleanup', [('no', True), ('yes', True), ('unsure', True), ('no', False)])
+@pytest.mark.parametrize('impact,cleanup,failure_status', [
+    ('no', True, 1), ('yes', True, 1), ('unsure', True, 1), ('no', False, 1),
+    ('unsure', True, 130),
+])
 def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
-        tmp_path, monkeypatch, private_dispatch_source, impact, cleanup):
+        tmp_path, monkeypatch, private_dispatch_source, impact, cleanup, failure_status):
     import test_source
     import vm_test_queue
 
@@ -133,7 +136,7 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
         current = assignment.get('execution', assignment['work'])
         repairing = test_source.WRITER in test_source.environment()
         events.append(('recheck' if repairing else 'normal', current['case']))
-        status = int(not failed and not repairing)
+        status = failure_status if not failed and not repairing else 0
         failed |= bool(status)
         return dict(status=status, handoffs=[], evidence=dict(assignment, passed=[] if status else current['cases'],
                                                             cleanup=cleanup if status else True, diagnostic=False))
@@ -291,6 +294,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
             [('system', []), ('e2e', [])], {'a': work, 'b': work})
     retired, observed, recoveries, hosts = set(), [], [], []
     late_cleanup, clean_failure, attempt_root = [False], [False], [tmp_path]
+    retain_failed = [False]
     class Ready:
         def __init__(self, root, pool, limit, stopped):
             assert pool == vms
@@ -315,7 +319,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
                 for name in selected:
                     vm = next(vm for vm in vms if vm.name == name)
                     results[name] = completed(vm, execute(SimpleNamespace(vm=vm, receipt='owned')))
-                    if results[name]['status']:
+                    if results[name]['status'] and not retain_failed[0]:
                         retired.add(name)
             return results
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
@@ -323,6 +327,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
     monkeypatch.setattr(vm_test_queue.test_source, 'reader', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(test_commands, 'selections', lambda root, argv: [('unit', [])])
     fail = [True]
+    recovery_status = [0]
     def execute(worker, assignment, inherited, recovering):
         assert assignment['vm'] == worker.vm.name
         state_path = PassCheckpoint(attempt_root[0], [], {}, {}).store.path / 'current.json'
@@ -331,7 +336,10 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
         assert partition['claims'][work_key(assignment['work'])] == assignment
         if recovering:
             recoveries.append(worker.vm.name)
-            return dict(status=0, handoffs=[], evidence=dict(assignment=assignment, cleanup=True))
+            if recovery_status[0]:
+                assert recoveries.count(worker.vm.name) == 1, 'failed recovery was immediately retried'
+            return dict(status=recovery_status[0], handoffs=[],
+                        evidence=dict(assignment=assignment, cleanup=not recovery_status[0]))
         execution = assignment.get('execution', assignment['work'])
         observed.append((worker.vm.family, execution['case']))
         if fail[0] and worker.vm.family == 'b':
@@ -352,10 +360,20 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
     retired.clear()
     resumed = list(plan)
     resumed[3] = ['--resume', *plan[3]]
+    recovery_status[0] = 2
+    retain_failed[0] = True
+    blocked = vm_test_queue.execute_pass(tmp_path, tuple(resumed), Control(), execute, host=host)
+    assert blocked['status'] == 1 and blocked['suspended']
+    assert recoveries == ['b-0']
+    with PassCheckpoint.saved(tmp_path) as checkpoint:
+        assert len(checkpoint.claims('b')) == 1
+    retired.clear()
+    recovery_status[0] = 0
+    retain_failed[0] = False
     second = vm_test_queue.execute_pass(tmp_path, tuple(resumed), Control(), execute,
                                        host=host)
     assert second['status'] == 0
-    assert recoveries == ['b-0'] and hosts == ['host']
+    assert recoveries == ['b-0', 'b-0'] and hosts == ['host']
     assert [(family, case) for family, case in observed if family == 'a'] == [
         ('a', 'check_first'), ('a', 'E2E-001')]
     assert len(second['accepted']) == 1

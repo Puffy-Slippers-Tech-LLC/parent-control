@@ -401,6 +401,10 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         checkpoint.recover(assignment, cleanup=True)
                     elif not result['status']:
                         result = dict(result, status=2, error='missing original-worker cleanup result')
+                    if result['status']:
+                        # Retain the claim for resume; failed recovery must not
+                        # immediately select the same recovery again.
+                        suspended = True
                 else:
                     changed |= isinstance(evidence, dict) and evidence.get('diagnostic') is True
                     complete = False
@@ -445,7 +449,10 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
 
         def observed(vm, result):
             nonlocal prerequisite
-            if not repair_mode or not result['status'] or result['status'] in (130, launcher_reload.STATUS):
+            # A child can interrupt independently (including in preparation).
+            # Only coordinator cancellation excuses it from failure handling.
+            if (not repair_mode or not result['status'] or result['status'] == launcher_reload.STATUS
+                    or result['status'] == 130 and control.stopped.is_set()):
                 return
             with lock:
                 current = inflight.get(vm.name)

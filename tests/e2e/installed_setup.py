@@ -63,7 +63,6 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
     require(not destination.exists(), 'setup:input-exists')
     if package_only:
         from build_test_artifacts import verify
-        require(not (assets / 'fixtures').exists(), 'setup:package-only-scope')
         verify(assets, package_only=True)
     bundle = bundle if bundle is not None else inputs(system.ROOT)
     pair = None
@@ -103,6 +102,10 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
             'sha256': previous['sha256'], 'source': pair['sources']['previous']}))
         (destination / 'previous-inputs.json').chmod(0o600)
     files = bundle.stage(destination)
+    if package_only:
+        # Shared system inputs may include scenario comparison fixtures. The
+        # snapshot whitelist above excludes them; guard the outgoing payload.
+        require(not (destination / 'fixtures').exists(), 'setup:package-only-scope')
     identity = {'schema_version': 1, 'scope': 'e2e-installed-setup',
                 'selection': selection, 'files': files}
     (destination / 'selected-inputs.json').write_bytes(system.baseline.encode(identity))

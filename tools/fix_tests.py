@@ -52,6 +52,7 @@ MAX_REPAIR_SESSIONS = 5
 COMPLETED_WITH_FAILURES = 3
 CASE_RETRY_CATEGORIES = {'system', 'e2e', 'unit', 'component', 'ui', 'fixture-runtime'}
 STALE_RETENTION = 'retention: previous owner did not finish; preserve evidence for recovery'
+RECOVERY_PROMPT = 'Recover the failed selected operation and its retained repair.'
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -922,7 +923,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         print('fix-tests: repair Git close-out complete; resuming remaining selected tests.', flush=True)
 
     def failed(category, failure):
-        panel(dict(last_error=failure.get('prompt', 'The selected attempt failed.')[:4000]))
+        details = '\n'.join(detail['detail'] for detail in (failure.get('error_details') or [])
+                           if isinstance(detail, dict) and isinstance(detail.get('detail'), str))
+        message = failure.get('actual') or details or (
+            'The selected attempt failed; detailed error is unavailable. See the retained failure report.')
+        if len(message) > 4000:
+            message = '[Earlier failure details omitted]\n' + message[-3900:]
+        panel(dict(last_error=message, last_error_ticket=current_ticket['id']))
 
     def execute(kind, category='', options=(), *, agent_model=None, agent_effort=None, vm=None):
         check_controller()
@@ -1314,7 +1321,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         repair_gate.acquire(ready=lambda: execution.drained)
         commits.state['active_ticket'] = ticket['id']
         commits.state.setdefault('queued_failure', dict(category=category, failure=dict(
-            prompt='Recover the failed selected operation and its retained repair.',
+            prompt=RECOVERY_PROMPT,
             categories=[category], failures=[dict(category=category, case=target[1], vm=target[2])])))
         commits.save()
         publish_source()
@@ -1351,6 +1358,26 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         evidence = execution.failure or {}
         from repair_evidence import read_failure
         failure = commits.state.get('queued_failure', {}).get('failure', {})
+        # Controller replacement loses the coordinator's in-memory handoffs.
+        # Triage already retained the original failure under this exact ticket.
+        # Recover it before falling back to the generic repair instruction.
+        context_path = run / ('impact-context-' + ticket['id'] + '.json')
+        try:
+            retained = read_failure(context_path)
+            if retained.get('ticket') == ticket['id'] and retained.get('attempt') == ticket['attempt']:
+                context = retained['context']
+                recovered = {}
+                for field, source in (('prompt', 'handoff'), ('actual', 'actual')):
+                    value = context.get(source, {})
+                    missing = not failure.get(field) or field == 'prompt' and failure[field] == RECOVERY_PROMPT
+                    if missing and not value.get('unavailable') and value.get('text'):
+                        recovered[field] = value['text']
+                details = context.get('error_details', {}).get('value')
+                if not failure.get('error_details') and isinstance(details, list):
+                    recovered['error_details'] = details
+                failure = dict(failure, **recovered)
+        except (OSError, ValueError):
+            pass
         for path in evidence.get('handoffs', []):
             try:
                 failure = read_failure(path)
@@ -1367,7 +1394,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.state['queued_failure'] = dict(category=category, failure=failure)
         commits.save()
         progress(category, 'Repairing failed case')
-        failed(category, failure)
+        info = task_info(run, active_task)
+        if (info.get('last_error_ticket') != ticket['id'] or not info.get('last_error')
+                or info['last_error'] == RECOVERY_PROMPT):
+            failed(category, failure)
         previous = commits.state.get('repair_actions', {}).get(ticket['id'])
         while True:
             check_controller()

@@ -61,6 +61,7 @@
   "families": [
     {
       "family": "ubuntu26.04-x86_64",
+      "vm_tags": "general",
       "compute_unit": 1,
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",
       "package_format": "deb",
@@ -105,11 +106,22 @@
           "host": "myserver",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-102.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "110",
+          "name": "onpc-Ubuntu26.04-110",
+          "enabled": "true",
+          "host": "myserver",
+          "vm_tags": "heavy",
+          "compute_unit": 2,
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2",
+          "owning_branch": ""
         }
       ]
     },
     {
       "family": "fedora44-x86_64",
+      "vm_tags": "general",
       "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-44-*.x86_64.iso",
       "package_format": "rpm",
@@ -151,6 +163,7 @@
     },
     {
       "family": "fedora45-x86_64",
+      "vm_tags": "general",
       "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-45-*.x86_64.iso",
       "package_format": "rpm",

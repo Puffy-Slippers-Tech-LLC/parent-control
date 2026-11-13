@@ -99,7 +99,7 @@ def remote_recording_artifact(uri):
 
 
 def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
-                 session_waiting=False, launcher=False):
+                 session_waiting=False, launcher=False, branches=()):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
     from rich.text import Text
     from rich.console import Console
@@ -107,6 +107,10 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
     from document_checks import references
     from launcher_render import BLUE, COMPACT_LINE, SESSION_LINE, clean, compact_text
     console = Console()
+    git_names = re.compile(r'(?<![\w/.-])(?:' + '|'.join([
+        *(re.escape(name) for name in sorted(branches, key=len, reverse=True)),
+        r'[0-9a-fA-F]{64}', r'[0-9a-fA-F]{7,40}',
+    ]) + r')(?![\w/-]|\.[\w/-])') if launcher else None
     rows = []
     waiting_heading = False
     for line in lines:
@@ -140,6 +144,10 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
             linked.append_text(text[position:])
             text = linked
         if launcher:
+            # Resolve branch names from Git and recognize Git object
+            # IDs independently of the wording of an agent's closing summary.
+            for match in git_names.finditer(text.plain):
+                text.stylize('green', *match.span())
             # Preserve launcher emphasis as text spans in the webview, too.
             spans = []
             for segment in text.render(console):
@@ -255,6 +263,7 @@ class Viewer:
     def __init__(self, root):
         self.root = root
         self.discovery = Discovery(root)
+        self.branches = ()
         self.roots = {root: root.name}
         self.ui = {}
         self.vms = {}
@@ -277,17 +286,18 @@ class Viewer:
         self.run_times_at = 0
         self.timing_records = {}
 
-    def cached_spans(self, root, kind, lines):
+    def cached_spans(self, root, kind, lines, *, branches=()):
         """Reuse unchanged rows when a streaming update changes the text tail."""
         key = root, kind
         previous = self.span_cache.get(key, {})
         current, rows = {}, []
         for line in lines:
             if isinstance(line, str):
-                spans = current.get(line, previous.get(line))
+                line_key = line, branches
+                spans = current.get(line_key, previous.get(line_key))
                 if spans is None:
-                    spans = status_spans([line], launcher=kind == 'launcher')
-                current[line] = spans
+                    spans = status_spans([line], launcher=kind == 'launcher', branches=branches)
+                current[line_key] = spans
             else:
                 # Rich Text is mutable; never cache it by object identity.
                 spans = status_spans([line])
@@ -411,6 +421,9 @@ class Viewer:
 
     def run_status(self, session_root=None, session_roots=()):
         from launcher_render import clean
+        branches = self.discovery.poll_branches()
+        if branches is not None:
+            self.branches = branches
         session_roots = set(session_roots)
         if session_root:
             session_roots.add(session_root)
@@ -623,7 +636,8 @@ class Viewer:
                 active=active or session.active, closed=closed, status=status, rows=self.status_cache[root][1],
                 run=str(output.run) if output.run is not None else None,
                 launcher_output=self.launcher_logs[root],
-                launcher_rows=self.cached_spans(root, 'launcher', self.launcher_logs[root].split('\n')),
+                launcher_rows=self.cached_spans(root, 'launcher', self.launcher_logs[root].split('\n'),
+                                                branches=self.branches),
                 error_rows=self.cached_spans(root, 'error', error_lines),
                 session=session.identity,
                 session_active=session.active,

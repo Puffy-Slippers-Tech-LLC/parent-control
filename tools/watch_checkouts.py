@@ -98,6 +98,23 @@ def worktrees(root):
     return records
 
 
+def branch_names(root):
+    """Read local and remote branch names from Git, independent of config."""
+    result = subprocess.run(['git', '-C', str(root), 'for-each-ref',
+                             '--format=%(refname)', 'refs/heads/', 'refs/remotes/'],
+                            capture_output=True, timeout=2, check=True)
+    names = set()
+    for ref in os.fsdecode(result.stdout).splitlines():
+        if ref.startswith('refs/heads/'):
+            names.add(ref.removeprefix('refs/heads/'))
+        elif ref.startswith('refs/remotes/'):
+            # Remote names are prefixes, not part of the branch name.
+            name = ref.removeprefix('refs/remotes/').partition('/')[2]
+            if name and name != 'HEAD':
+                names.add(name)
+    return names
+
+
 class Discovery:
     """Git waits stay outside GTK. Registered roots survive idle periods."""
 
@@ -105,6 +122,7 @@ class Discovery:
         self.roots = queue.Queue()
         self.updates = queue.Queue(maxsize=1)
         self.vm_updates = queue.Queue(maxsize=1)
+        self.branch_updates = queue.Queue(maxsize=1)
         self.stop = threading.Event()
         self.ready = threading.Event()
         self.include_worktrees = include_worktrees
@@ -137,6 +155,17 @@ class Discovery:
             except queue.Empty:
                 pass
             self.updates.put_nowait(dict(known))
+            branches = set()
+            for root in sorted(seeds):
+                try:
+                    branches.update(branch_names(root))
+                except (OSError, subprocess.SubprocessError):
+                    continue
+            try:
+                self.branch_updates.get_nowait()
+            except queue.Empty:
+                pass
+            self.branch_updates.put_nowait(tuple(sorted(branches)))
             configured = {}
             for root in known:
                 try:
@@ -164,5 +193,11 @@ class Discovery:
     def poll_vms(self):
         try:
             return self.vm_updates.get_nowait()
+        except queue.Empty:
+            return None
+
+    def poll_branches(self):
+        try:
+            return self.branch_updates.get_nowait()
         except queue.Empty:
             return None

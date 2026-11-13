@@ -210,6 +210,8 @@ and **Status** fields with the same colors and elapsed ages, and **Session** ope
 the session transcript and chat.
 The Launcher tab streams running command output, including baseline preparation
 phases before VM startup; it does not wait for the command to finish.
+Branch names discovered from local and remote Git refs and commit hashes appear
+in green, independently of the message wording or environment configuration.
 Each launcher's tab selection is independent: opening **Session** in another
 worktree leaves existing Session panels open and refreshing. Chat stays routed
 to the session displayed in its own panel.

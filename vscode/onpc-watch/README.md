@@ -306,6 +306,9 @@ sent prompts and agent messages. Agent prose streams while it is being written;
 the completed message replaces its provisional text, including any corrections.
 Only completed messages enter the saved transcript. Launcher status metadata and
 structured workflow results wait for completion before being interpreted.
+Structured results appear as labeled text, including the impact assessment's
+reason, scope, evidence and classification. The original JSON remains available
+to the launcher for validation and scheduling.
 Agent session changes within a launcher run preserve terminal history; chat
 always targets the current session. Oldest rows expire under the bounded
 scrollback limits instead of clearing the conversation at each session change.

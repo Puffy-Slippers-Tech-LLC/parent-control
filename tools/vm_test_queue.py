@@ -475,12 +475,54 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 result['repair_ticket'] = ticket['id']
                 failure_results[ticket['id']] = dict(result)
 
+        def refresh_impact(ticket, *, writer=False):
+            if writer and (not checkpoint.repair_tickets()
+                    or checkpoint.repair_tickets()[0]['id'] != ticket['id']
+                    or test_source.WRITER not in test_source.environment()):
+                raise ValueError('impact reassessment requires the FIFO head owning its source writer')
+            if triaged.get(ticket['id']) == source_identity(root):
+                return
+            try:
+                # The head may reassess under its existing exclusive lease
+                # after a failed no-edit recheck. Ordinary triage still uses
+                # the named reader and cannot borrow another repair's writer.
+                with test_source.reader(root, stopped=control.stopped.is_set,
+                        impact_ticket=None if writer else impact_key(ticket), wait=False):
+                    envelope = actions['triage'](ticket, failure_results.get(ticket['id']))
+                    if envelope['source'] != source_identity(root):
+                        raise ValueError('triage source changed')
+                    with lock:
+                        ticket['impact'] = checkpoint.record_impact(ticket['id'], envelope['decision'],
+                            source=envelope['source'], evidence_digest=envelope['evidence_digest'])
+                    hold(ticket, envelope['decision']['impact'])
+                    impacts[ticket['id']] = envelope['decision']['impact']
+            except test_source.SourceBusy:
+                # Recovery must finish under its original writer before
+                # read-only triage can inspect the checkout. Keep the hold
+                # and retry later, without caching this as completed triage.
+                return
+            except Exception as error:
+                from detached_launcher import Stopped
+                if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                    repair_status.append(dict(ticket=ticket['id'], phase='triage',
+                        **report_error('Impact triage', error,
+                            ticket=ticket['id'], vm=ticket['vm'], case=ticket['case'])))
+                hold(ticket, 'unsure')
+                impacts[ticket['id']] = 'unsure'
+                if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                    raise
+            triaged[ticket['id']] = source_identity(root)
+
         class Execution:
             def __init__(self, ticket, executor):
                 self.ticket = ticket
                 self.failure = failure_results.get(ticket['id'])
                 self.executor = executor
                 self.drained = True
+
+            def refresh_impact(self):
+                """Reassess after a failed no-edit recheck, before repair sessions."""
+                refresh_impact(self.ticket, writer=True)
 
             def prepare_baseline(self):
                 """Prepare through the original worker, without granting case credit.
@@ -563,33 +605,17 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     reserved_tickets.add(ticket['vm'])
                 if triaged.get(ticket['id']) == source_identity(root):
                     continue
-                try:
-                    with test_source.reader(root, stopped=control.stopped.is_set,
-                                            impact_ticket=impact_key(ticket), wait=False):
-                        envelope = actions['triage'](ticket, failure_results.get(ticket['id']))
-                        if envelope['source'] != source_identity(root):
-                            raise ValueError('triage source changed')
-                        with lock:
-                            checkpoint.record_impact(ticket['id'], envelope['decision'],
-                                source=envelope['source'], evidence_digest=envelope['evidence_digest'])
-                        hold(ticket, envelope['decision']['impact'])
-                        impacts[ticket['id']] = envelope['decision']['impact']
-                except test_source.SourceBusy:
-                    # Recovery must finish under its original writer before
-                    # read-only triage can inspect the checkout. Keep the hold
-                    # and retry later, without caching this as completed triage.
-                    continue
-                except Exception as error:
-                    from detached_launcher import Stopped
-                    if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
-                        repair_status.append(dict(ticket=ticket['id'], phase='triage',
-                            **report_error('Impact triage', error,
-                                ticket=ticket['id'], vm=ticket['vm'], case=ticket['case'])))
+                prior_impact = ticket.get('impact')
+                if (drained and isinstance(prior_impact, dict)
+                        and isinstance(prior_impact.get('source'), dict)
+                        and prior_impact['source'] != source_identity(root)):
+                    # A preceding repair may have fixed this queued failure.
+                    # Keep admission fenced, but let the FIFO's exact-case
+                    # recheck run before spending another triage session.
                     hold(ticket, 'unsure')
                     impacts[ticket['id']] = 'unsure'
-                    if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
-                        raise
-                triaged[ticket['id']] = source_identity(root)
+                    continue
+                refresh_impact(ticket)
             tickets = checkpoint.repair_tickets()
             if drained and admitted() and pending_host():
                 return run_host()

@@ -602,10 +602,12 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     kind = 'suspended'
                     reason = 'failed repair retains shared impact or an unfinished writer'
                 # Hold a reader through final validation and release the hold
-                # under the same gate. VM qualification belongs to its captured
-                # inputs; host qualification still checks the live source.
+                # under the same gate. Wait for transient source contention
+                # after close-out rather than suspending an accepted repair.
+                # VM qualification belongs to its captured inputs; host
+                # qualification still checks the live source after admission.
                 with test_source.reader(root, stopped=control.stopped.is_set,
-                                        impact_ticket=impact_key(ticket), wait=False):
+                                        impact_ticket=impact_key(ticket)):
                     if kind == 'resolved' and (protection.owner() is not None
                             or not isinstance(outcome.get('attempt'), dict)
                             or not ticket['vm'] and outcome['attempt']['source'] != source_identity(root)):

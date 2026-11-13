@@ -44,8 +44,8 @@ privately through their existing owners, independently of developer shares.
 The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
 fresh network MAC addresses. An existing registry name prompts in red to confirm
-replacement, defaulting to No (including end-of-input). Confirmation retains its
-numeric ID and replaces the entry in the selected family only after successful
+replacement, defaulting to No (including end-of-input). Confirmation assigns its
+name-derived numeric ID and replaces the entry in the selected family only after successful
 provisioning. If the name also exists in libvirt, a separate red confirmation
 warns that overwriting recreates a blank VM and erases all data on its disk.
 Both prompts default to No, including end-of-input.
@@ -65,13 +65,15 @@ host with `./setup.sh --test-tools-only`. SSH creation also requires a configure
 branch checkout on that host so the helper can resolve its trusted sources.
 
 Creation defines but never starts the VM. Successful creation appends it to the
-selected family with a unique numeric ID and `enabled: "false"`, leaving the
+selected family with `enabled: "true"` and a unique positive decimal ID parsed
+from the name's final hyphen-separated section (`onpc-Fedora44-201` gives `201`).
+Invalid or duplicate IDs are refused before provisioning, leaving the
 host's availability unchanged. Concurrent newvm calls serialize registry
 updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
 the affected name/path; retrying requires confirmation again for existing domains
 and never adopts an orphaned disk file.
-After manual OS installation, enable the VM/host explicitly and follow the
+After manual OS installation, enable the host if needed and follow the
 normal preparation workflow before scheduling tests. Local prerequisites are
 `python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains
 and write the VM directory. SSH targets need the same tools/permissions plus

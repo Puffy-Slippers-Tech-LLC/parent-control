@@ -5,6 +5,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -186,7 +187,12 @@ def create(name, host_name, family_name, *, root=ROOT):
         registered = vm_config.registry(config)
         vm_config.validate_name(name)
         vm_config.validate_name(host_name)
+        vm_id = name.rsplit('-', 1)[-1]
+        if not re.fullmatch(r'[1-9][0-9]*', vm_id):
+            raise ValueError('VM name must end with a positive decimal ID, e.g. onpc-Fedora44-201')
         existing = registered.get(name)
+        if any(vm.id == vm_id and vm.name != name for vm in registered.values()):
+            raise ValueError(f'VM ID already registered: {vm_id}')
         if existing is None and any(vm.id == name for vm in registered.values()):
             raise ValueError(f'VM ID already registered: {name}')
         if existing is not None:
@@ -228,12 +234,10 @@ def create(name, host_name, family_name, *, root=ROOT):
         if existing is not None:
             confirm(f'VM {name} is already registered on {existing.host.name} '
                     f'in family {existing.family}. Overwrite its registry entry with '
-                    f'host {host_name}, family {family_name}, enabled=false?')
+                    f'host {host_name}, family {family_name}, ID {vm_id}, enabled=true?')
             for group in document['families']:
                 group['vms'] = [vm for vm in group['vms'] if vm['name'] != name]
-        entry = dict(id=(existing.id if existing is not None and existing.id else
-                         str(max([int(vm.id) for vm in registered.values() if vm.id] + [0]) + 1)),
-                     name=name, enabled='false', host=host_name,
+        entry = dict(id=vm_id, name=name, enabled='true', host=host_name,
                      disk_anchor=str(Path(host['virt-manager']) / (name + '.qcow2')), owning_branch='')
         family['vms'].append(entry)
         updated = (json.dumps(document, indent=2) + '\n').encode()
@@ -246,7 +250,7 @@ def create(name, host_name, family_name, *, root=ROOT):
                 os.fsync(stream.fileno())
             os.chmod(staging, config.stat().st_mode & 0o777)
             vm_config.registry(Path(staging))
-            print(f'newvm: creating {name} on {host_name}; powered off, registry disabled', flush=True)
+            print(f'newvm: creating {name} on {host_name}; powered off, registry enabled', flush=True)
             def execute():
                 if host_name == owner.name:
                     return provision(request)
@@ -275,12 +279,12 @@ def create(name, host_name, family_name, *, root=ROOT):
                 request['overwrite_uuid'] = result['existing_uuid']
                 result = execute()
             print(f'newvm: domain {name} ({identifier}) and disk {result["disk"]} created; '
-                  'publishing disabled registry entry', flush=True)
+                  'publishing enabled registry entry', flush=True)
             if config.read_bytes() != original:
                 raise ValueError('Registry changed during creation; VM/disk preserved; register manually')
             os.replace(staging, config)
             print(f'Created {name}: disk={result["disk"]}, ISO={result["iso"]}, '
-                  f'UUID={result["uuid"]}; enabled=false')
+                  f'UUID={result["uuid"]}; enabled=true')
             return result
         finally:
             if os.path.exists(staging):
@@ -304,7 +308,7 @@ def main():
     args = parser.parse_args()
     try:
         create(args.name, args.host, args.family)
-        print(f'\033[32mnewvm: SUCCESS: {args.name} created; powered off, enabled=false\033[0m', flush=True)
+        print(f'\033[32mnewvm: SUCCESS: {args.name} created; powered off, enabled=true\033[0m', flush=True)
         return 0
     except (OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:
         print(f'newvm: {error}', file=sys.stderr)

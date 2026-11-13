@@ -86,6 +86,22 @@
           "host": "myserver",
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-100.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "101",
+          "name": "onpc-Ubuntu26.04-101",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-101.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "102",
+          "name": "onpc-Ubuntu26.04-102",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-102.qcow2",
+          "owning_branch": ""
         }
       ]
     },
@@ -109,6 +125,22 @@
           "enabled": "true",
           "host": "myserver",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44-200.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "201",
+          "name": "onpc-Fedora44-201",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-201.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "202",
+          "name": "onpc-Fedora44-202",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-202.qcow2",
           "owning_branch": ""
         }
       ]

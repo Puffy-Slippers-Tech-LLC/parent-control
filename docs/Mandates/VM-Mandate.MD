@@ -103,7 +103,7 @@ see [the preparation contract](../Approval-Tools.md#one-time-setup).
 Explicit blank-VM provisioning uses
 [`tools/newvm`](../../tools/newvm) and the
 [creation contract](../../tests/integration/Environment.md#creating-a-blank-vm).
-It defines a fresh powered-off VM and registers it disabled, without booting
+It defines a fresh powered-off VM and registers it enabled, without booting
 or creating snapshots. Explicit red confirmation may replace an existing registry
 entry and, separately, recreate a powered-off libvirt VM and erase its disk under
 the creation contract's layout, reference and recorded-state guards. Replacement

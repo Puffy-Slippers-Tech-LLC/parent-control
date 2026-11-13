@@ -541,13 +541,17 @@ class SessionOutput:
             return False, False
         reset = (run, state['session']) != (self.run, self.identity)
         if reset:
+            same_run = run == self.run and self.panel is not None
             self.owner, self.run, self.identity = owner, run, state['session']
-            simplified = self.panel.simplified if self.panel else True
-            self.panel = SessionPanel(hide_tool_results=True)
-            self.panel.simplified = simplified
+            if not same_run:
+                simplified = self.panel.simplified if self.panel else True
+                self.panel = SessionPanel(hide_tool_results=True)
+                self.panel.simplified = simplified
+                self.offset = 0
+                self.decoder.reset()
+            # Input authority changes with the session, but bounded scrollback
+            # and the append-only transcript cursor belong to the run.
             self.panel.update_text_output({})
-            self.offset = 0
-            self.decoder.reset()
         panel = self.panel
         self.owner = owner
         self.state = state

@@ -119,20 +119,17 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             launcher.atomic(path, question)
         elif timeout is not None and 'deadline' not in previous:
             launcher.atomic(path, dict(previous, deadline=time.time() + timeout))
-    fresh = False
     view_path = run / 'session-view.json'
     # A resumed plan may reach its unanswered blocker before any agent starts.
     # Publish the same session surface so every observer can route the answer.
     if intervention or not view_path.exists():
         view = json.loads(view_path.read_text()) if view_path.exists() else {}
-        fresh = view.get('session') != identity
-        if fresh:
+        if view.get('session') != identity:
             launcher.atomic(view_path, dict(view, session=identity, status='finished',
-                                            interactive=False, started_at=time.time(),
-                                            continue_transcript=False))
+                                            interactive=False, started_at=time.time()))
     on_wait()
     publish_progress(run, progress_key, [heading, 'Paused — waiting for your answer'])
-    with closing(SessionTranscript(sys.stdout, run, append=not fresh)) as transcript:
+    with closing(SessionTranscript(sys.stdout, run)) as transcript:
         renderer = AgentRenderer(transcript,
             on_description=launcher.descriptive_output(run) if intervention else None)
         renderer.message(blocker['explanation'])
@@ -162,13 +159,6 @@ def wait_for_answer(run, blocker, identity, progress_key, *, label, heading,
             question = json.loads(path.read_text())
             if question['answer'] is not None:
                 renderer.message(question['answer'], 'You')
-                # The answer starts a new agent process, but continues the
-                # displayed conversation. Consume this display-only flag when
-                # the next supervisor publishes its fresh session identity.
-                view_path = run / 'session-view.json'
-                if view_path.exists():
-                    launcher.atomic(view_path, dict(json.loads(view_path.read_text()),
-                                                    continue_transcript=True))
                 return {'question': question['question'], 'answer': question['answer'],
                         **({'allowance_added': True} if question.get('allowance_added') else {})}
             if timeout is not None and time.time() >= question['deadline']:

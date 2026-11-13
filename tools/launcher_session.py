@@ -12,6 +12,10 @@ from rich.text import Text
 from launcher_render import COMPACT_LINE, SCROLLBACK_CHARACTERS, clean, retained_tail
 
 
+ACTIVITY_HEADING = re.compile(r'^• (?:Ran |Explored$|(?:Tool|Search) (?:working|complete)$|'
+                              r'File changes —|Plan$|Agent error$|Agent activity$)')
+
+
 def clock_duration(seconds):
     """Elapsed whole minutes, shared by launcher clocks and task-field ages."""
     hours, minutes = divmod(max(0, int(seconds // 60)), 60)
@@ -31,6 +35,8 @@ class SessionPanel:
                                highlight=False, color_system='truecolor', no_color=False)
         self.hide_tool_results = hide_tool_results
         self.transcript = deque()
+        self.conversation = deque()
+        self.conversation_prose = False
         self.pending = ''
         self.details = []
         self.question = None
@@ -55,6 +61,19 @@ class SessionPanel:
         else:
             lines = (self.pending + value).split('\n')
             self.pending = lines.pop()[:SCROLLBACK_CHARACTERS]
+        if self.hide_tool_results:
+            prose = []
+            for line in lines:
+                text = self.line_text(line)
+                if text.plain.startswith('• '):
+                    self.conversation_prose = (text.plain != '• Turn complete' and not (
+                        ACTIVITY_HEADING.match(text.plain)
+                        and text.get_style_at_offset(self.console, 2).bold))
+                if self.conversation_prose:
+                    prose.append(line)
+            # Activities hidden in Simplified must not evict its conversation.
+            # Bound visible prose independently of the expanded activity history.
+            self.conversation = retained_tail([*self.conversation, *prose])
         self.transcript = retained_tail([*self.transcript, *lines])
 
     def visible_lines(self, logs, *, incremental=False):
@@ -155,8 +174,7 @@ class SessionPanel:
                 command_output = None
                 if plain == '• Turn complete':
                     continue
-                nontext = re.match(r'^• (?:Ran |Explored$|(?:Tool|Search) (?:working|complete)$|'
-                                   r'File changes —|Plan$|Agent error$|Agent activity$)', plain)
+                nontext = ACTIVITY_HEADING.match(plain)
                 if nontext and text.get_style_at_offset(self.console, 2).bold:
                     heading = text
                     prose = unknown = False
@@ -228,11 +246,16 @@ class SessionPanel:
             # A streamed update changes the tail, not the whole transcript.
             # Retain decoded rows only within the existing history budget.
             self.webview_text = {line: self.line_text(line) for line in source}
-            logs = self.visible_lines(source)
+            # write() has already filtered tool bodies. Filtering the retained
+            # tail again would discard prose whose heading has scrolled out.
+            logs = list(source) if self.hide_tool_results else self.visible_lines(source)
             if simplified:
                 logs = self.simplified_lines(logs) if logs else None
             self.webview_cache[simplified] = signature, logs
         logs = self.webview_cache[simplified][1]
+        if simplified and self.hide_tool_results:
+            logs = [*(self.conversation or self.text_output or []),
+                    *(line for line in logs or [] if line.startswith(COMPACT_LINE))]
         if logs is None:
             logs = self.text_output or []
         return dict(lines=[*logs, *self.details, *self.streaming_lines], working=self.working(),

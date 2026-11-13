@@ -387,10 +387,9 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         if session_state is not None and 'repair_failure' in session_state:
             session_view.update(repair_failure=session_state['repair_failure'],
                                 task_session=session_state['task_sessions'])
-        view_path = run / 'session-view.json'
-        previous_view = json.loads(view_path.read_text()) if view_path.exists() else {}
-        session_transcript = SessionTranscript(sys.stdout, run,
-            append=previous_view.get('continue_transcript') is True)
+        # The allocation owns terminal history; changing the input recipient
+        # must not erase earlier agent sessions in that same launcher run.
+        session_transcript = SessionTranscript(sys.stdout, run)
         renderer = AgentRenderer(session_transcript, command_log=run / 'agent-commands.log',
                                  full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,

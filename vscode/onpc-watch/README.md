@@ -296,11 +296,15 @@ sent prompts and agent messages. Agent prose streams while it is being written;
 the completed message replaces its provisional text, including any corrections.
 Only completed messages enter the saved transcript. Launcher status metadata and
 structured workflow results wait for completion before being interpreted.
+Agent session changes within a launcher run preserve terminal history; chat
+always targets the current session. Oldest rows expire under the bounded
+scrollback limits instead of clearing the conversation at each session change.
 Command and tool result bodies are hidden in
 both modes; activity names remain visible and saved transcripts retain results.
 Simplified mode pins the latest command activity to one clipped line above the
 chatbox, with a divider separating it from the conversation. Each new activity
 replaces the previous one; earlier activities stay out of the conversation.
+Hidden activities do not consume the Simplified conversation's scrollback budget.
 Turn it off to see each activity with its original line breaks. Successful Read/Search exploration shows
 the activity only; file contents and search matches stay out of both views.
 The toggle also works on the retained transcript after the launcher finishes.

@@ -41,7 +41,9 @@ SCREENS = {
     **ENTRIES['approved'],
     **prefixed_stages('approved-supplied', retained_parent_entry(
         source='same-user', desktop_observation=False)),
-    'approved-balance': 'ui:time-explanation-reach-read',
+    # Parent is retained across approval; reload its cached status before
+    # comparing the newly issued grant with the request estimate.
+    'approved-balance': 'ui:time-explanation-refresh-read',
 }
 _entry_stages = {stage for fragment in ENTRIES.values() for stage in fragment}
 PLAN = JourneyPlan(

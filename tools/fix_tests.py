@@ -1391,10 +1391,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             panel(dict(status='Collecting diagnostic evidence' if diagnostic else
                        'Testing fix, previous error point not reached yet'))
             with repair_gate.source():
-                value = execution.attempt('diagnostic' if diagnostic else 'verification',
-                                          target=entry.get('verification_case'))
+                purpose = 'diagnostic' if diagnostic else 'verification'
+                value = execution.attempt(purpose, target=entry.get('verification_case'))
                 source = value['reference']['source']['digest']
-                if (not diagnostic and ticket['vm'] and value['status'] not in (0, 130)
+                if (ticket['vm'] and value['status'] not in (0, 130)
                         and entry.get('baseline_refresh_source') != source):
                     # The dashboard stream can omit the actual error. Use the
                     # attempt's retained runner handoffs as well as its output.
@@ -1430,7 +1430,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                                 + '\nBaseline preparation failed:\n' + prepared['output_tail'])[-16000:]
                         else:
                             check_controller()
-                            value = execution.attempt('verification', target=entry.get('verification_case'))
+                            value = execution.attempt(purpose, target=entry.get('verification_case'))
             latest_attempt = value['reference']
             result['verification'] = bool(value['accepted']) if not diagnostic else None
             result['evidence'] = dict(status=value['status'], reference=value['reference'],

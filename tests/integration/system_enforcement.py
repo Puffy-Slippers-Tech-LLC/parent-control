@@ -2,6 +2,7 @@
 
 import errno
 from contextlib import nullcontext
+import grp
 import hashlib
 import json
 import os
@@ -1376,30 +1377,51 @@ def _native_policy_transition(accounts, record, variant, caller):
                     # restored files and command errors alone prove no safety.
                     from product_logs import read_events
                     from system_assertions import account_states
-                    from system_removal_faults import identity, pinned_identity
+                    from system_removal_faults import metadata, parents
 
                     prior = account_states(accounts.values())
                     early = RULES.with_name('01-oh-no-parent-control-deny.rules')
                     rule_bytes = tuple(path.read_bytes() for path in (early, RULES, COMPILED_RULES))
                     previous_events = {(row['segment'], row['sequence'])
                                        for row in read_events('broker')}
-                    tool = Path('/usr/sbin/fapolicyd-cli').resolve(strict=True)
-                    original_tool = identity(tool)
-                    mode = stat.S_IMODE(original_tool[4])
-                    guest.require(mode & 0o111 and original_tool[2:4] == (0, 0),
-                                  'enforcement:reload-tool-identity')
-                    descriptor = os.open(tool, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                    channel = Path('/run/fapolicyd/fapolicyd.fifo')
+                    # Vendor tmpfiles owns this directory as root:fapolicyd
+                    # 0770. Keep the strict guard for its higher ancestors and
+                    # validate the native service-group write permission here.
+                    parents(channel.parent)
+                    directory_metadata = metadata(channel.parent.lstat())
+                    guest.require(stat.S_ISDIR(directory_metadata[4]) and
+                                  directory_metadata[2:4] == (0, grp.getgrnam('fapolicyd').gr_gid) and
+                                  stat.S_IMODE(directory_metadata[4]) == 0o770,
+                                  'enforcement:reload-directory-identity')
+                    original_metadata = metadata(channel.lstat())
+                    mode = stat.S_IMODE(original_metadata[4])
+                    guest.require(stat.S_ISFIFO(original_metadata[4]) and mode == 0o660
+                                  and original_metadata[2] == 0 and original_metadata[5] == 1,
+                                  'enforcement:reload-channel-identity')
+                    descriptor = os.open(channel, os.O_RDONLY | os.O_NONBLOCK |
+                                         os.O_NOFOLLOW | os.O_CLOEXEC)
                     try:
-                        guest.require(pinned_identity(descriptor) == original_tool == identity(tool),
-                                      'enforcement:reload-tool-changed')
-                        # Remove execute permission on the pinned original,
-                        # including in the broker's private mount namespace.
-                        # No native executable or daemon behavior is replaced.
-                        os.fchmod(descriptor, mode & ~0o111)
-                        disabled = (*original_tool[:4],
-                                    original_tool[4] & ~0o111, *original_tool[5:])
+                        def channel_identity():
+                            guest.require(metadata(channel.parent.lstat()) == directory_metadata,
+                                          'enforcement:reload-directory-changed')
+                            current = metadata(os.fstat(descriptor))
+                            guest.require(current == metadata(channel.lstat()),
+                                          'enforcement:reload-channel-changed')
+                            return (*current, tuple((name, os.getxattr(descriptor, name))
+                                                    for name in sorted(os.listxattr(descriptor))))
+
+                        original_channel = channel_identity()
+                        guest.require(original_channel[:6] == original_metadata,
+                                      'enforcement:reload-channel-changed')
+                        # The vendor CLI refuses notification unless its FIFO
+                        # mode is exactly 0660. Keep the compiler and CLI usable:
+                        # Fedora's fagenrules also invokes --check-rules.
+                        os.fchmod(descriptor, mode & ~0o060)
+                        disabled = (*original_channel[:4],
+                                    original_channel[4] & ~0o060, *original_channel[5:])
                         try:
-                            guest.require(pinned_identity(descriptor) == disabled == identity(tool),
+                            guest.require(channel_identity() == disabled,
                                           'enforcement:reload-fault-not-installed')
                             reply = caller.call('SetPreferences', '(us)', transaction)
                             guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
@@ -1407,9 +1429,13 @@ def _native_policy_transition(accounts, record, variant, caller):
                                           'enforcement:reload-failure-not-exposed')
                             events = [row for row in read_events('broker')
                                       if (row['segment'], row['sequence']) not in previous_events]
-                            guest.require(any(row['event'] == 'execution-policy.013' and
+                            guest.require(any(row['event'] == 'execution-policy.014' and
                                               row['fields'].get('stage') == 'notify'
-                                              for row in events),
+                                              for row in events) and
+                                          not any(row['event'] in ('execution-policy.013',
+                                                                   'execution-policy.014') and
+                                                  row['fields'].get('stage') == 'compile'
+                                                  for row in events),
                                           'enforcement:notification-failure-not-observed')
                             guest.require(account_states(accounts.values()) == prior and
                                           tuple(path.read_bytes() for path in
@@ -1422,11 +1448,11 @@ def _native_policy_transition(accounts, record, variant, caller):
                                    'notify-failed; prior-rules-and-accounts-restored; child-denied; peer-allowed')
                             print('onpc-system: stage=native-command-reload-failure outcome=passed', flush=True)
                         finally:
-                            guest.require(pinned_identity(descriptor) == disabled == identity(tool),
+                            guest.require(channel_identity() == disabled,
                                           'enforcement:reload-cleanup-identity-changed')
                             os.fchmod(descriptor, mode)
-                            guest.require(pinned_identity(descriptor) == original_tool == identity(tool),
-                                          'enforcement:reload-tool-not-restored')
+                            guest.require(channel_identity() == original_channel,
+                                          'enforcement:reload-channel-not-restored')
                     finally:
                         os.close(descriptor)
                 # This is also the identical transaction's retry after removing
@@ -1466,7 +1492,7 @@ def _native_policy_transition(accounts, record, variant, caller):
                               {uid: prior[uid] for uid in (other, accounts['parent'])},
                               'enforcement:reload-retry-changed-other-accounts')
                 record(f'{prefix}.reload-retry',
-                       'identical-save-committed; child-allowed; peers-unchanged; native-tool-restored')
+                       'identical-save-committed; child-allowed; peers-unchanged; notification-channel-restored')
             # The initial control and each denied policy prove UID isolation.
             # Repeating the other user's allow after clearing this child's
             # denial adds no new result; the child's own recovery stays live.

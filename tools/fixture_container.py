@@ -19,8 +19,11 @@ def compact(lease_fds):
             or len(set(originals)) != len(originals)):
         raise ValueError('invalid fixture container lease descriptors')
     for descriptor in originals:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError('fixture container lease must be a regular file')
+        mode = os.fstat(descriptor).st_mode
+        # Host-capacity reservations live through an inherited keeper pipe.
+        if not (stat.S_ISREG(mode) or (stat.S_ISFIFO(mode)
+                and fcntl.fcntl(descriptor, fcntl.F_GETFL) & os.O_ACCMODE == os.O_WRONLY)):
+            raise ValueError('fixture container lease must be a regular file or write-only pipe')
     final = tuple(range(3, 3 + len(originals)))
     floor = max((*originals, *final), default=2) + 1
     copies = []

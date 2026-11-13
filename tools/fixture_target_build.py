@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from contextvars import ContextVar
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -235,8 +236,11 @@ def build(source: Path, output: Path, target: str, *, lease_fds=()):
             or any(type(fd) is not int or fd < 3 for fd in descriptors)):
         raise ValueError('invalid fixture producer lease descriptors')
     for fd in descriptors:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            raise ValueError('fixture producer lease descriptor must be a regular file')
+        mode = os.fstat(fd).st_mode
+        # Keep host-capacity reservations alive through compiler descendants.
+        if not (stat.S_ISREG(mode) or (stat.S_ISFIFO(mode)
+                and fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE == os.O_WRONLY)):
+            raise ValueError('fixture producer lease must be a regular file or write-only pipe')
     token = _LEASE_FDS.set(descriptors)
     try:
         return _build(source, output, target)

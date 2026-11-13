@@ -158,6 +158,14 @@
           "host": "local",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora45.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "300",
+          "name": "onpc-Fedora45-300",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora45-300.qcow2",
+          "owning_branch": ""
         }
       ]
     }

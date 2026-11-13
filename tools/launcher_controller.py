@@ -2,6 +2,7 @@
 
 import json
 import os
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import sys
@@ -13,27 +14,80 @@ DESTINATION = 'ONPC_LAUNCHER_DESTINATION'
 BRANCH_HELP = ('--branch NAME selects a config/environment.json branch; default: '
                'this launcher\'s default_branch, then the current checkout branch.')
 _pending_startup = None
+_CONTROLS = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
+             '--cancel-stop', '--add-session', '--reload', '--reset',
+             '--reconcile', '--review-ownership')
+
+
+def _pending_recovery(previous):
+    if previous is not None:
+        for filename in ('checkpoint.json', 'translation-state.json'):
+            path = previous / filename
+            if path.exists():
+                saved = json.loads(path.read_text())
+                if any(saved.get(key) for key in (
+                        'commit_intent', 'pull_intent', 'pending_completion', 'pending',
+                        'worktree_propagation', 'upstream_pull', 'git_reconciliation')):
+                    return True
+    return False
 
 
 def sync_startup(root, previous=None):
-    """Run the public controller's sync only after detached start admission."""
+    """Fallback admission for a startup deferred to its workflow owner."""
     global _pending_startup
     pending, _pending_startup = _pending_startup, None
     if pending is not None:
         # Recovery owns the original source until its recorded transaction is
         # settled. Its existing safe pull boundary will synchronize afterward.
-        if previous is not None:
-            for filename in ('checkpoint.json', 'translation-state.json'):
-                path = previous / filename
-                if path.exists():
-                    saved = json.loads(path.read_text())
-                    if any(saved.get(key) for key in (
-                            'commit_intent', 'pull_intent', 'pending_completion', 'pending',
-                            'worktree_propagation', 'upstream_pull', 'git_reconciliation')):
-                        print('Git: deferring startup pull to pending workflow recovery.', flush=True)
-                        return
+        if _pending_recovery(previous):
+            print('Git: deferring startup pull to pending workflow recovery.', flush=True)
+            return
         branch, arguments = pending
         _startup_sync(root, branch, arguments)
+
+
+def _early_sync(root, name, branch, arguments):
+    """Synchronize before selection, leaving live and recovering owners alone."""
+    if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
+        return None
+    from contextlib import ExitStack
+    import fcntl
+    from detached_launcher import lock, busy, current_run, private_directory
+    from test_source import finish_admission
+    from test_storage import directory
+
+    kinds = {'fix-tests': ('fix-tests', 'fix-tests-host'),
+             'run-tests': ('sessions', 'sessions-host'),
+             'run-unit-tests': ('sessions-host',),
+             'write-e2e': ('write-e2e', 'plans'),
+             'execute-plan': ('plans',), 'sync-whatsnew': ('sync-whatsnew',)}
+    finish_admission()
+    with ExitStack() as locks:
+        for kind in kinds.get(name, ()):
+            try:
+                base = directory(kind, root=root, create=False)
+            except FileNotFoundError:
+                continue
+            scopes = ([path for path in sorted(base.iterdir())
+                       if len(path.name) == 64 and all(c in '0123456789abcdef' for c in path.name)]
+                      if kind == 'plans' else [base])
+            if kind == 'sessions':
+                scopes.extend(sorted(base.glob('vm-*')))
+            for scope in scopes:
+                private_directory(scope)
+                gate = locks.enter_context(lock(scope / 'gate'))
+                try:
+                    fcntl.flock(gate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return None
+                previous = current_run(scope)
+                owner_path = (previous / 'owner' if kind.startswith('sessions') and previous
+                              else scope / 'owner')
+                owner = locks.enter_context(lock(owner_path))
+                if (busy(owner) or (scope / 'pending-start.json').exists()
+                        or _pending_recovery(previous)):
+                    return None
+        return _startup_sync(root, branch, arguments, early=True)
 
 
 def _pull(root):
@@ -84,12 +138,9 @@ def _recover_pull(root, diagnostic, selection, profile):
     _pull(root)
 
 
-def _startup_sync(root, branch, arguments):
-    """Pull before job startup; controller code keeps its explicit reload path."""
-    controls = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
-                '--cancel-stop', '--add-session', '--reload', '--reset',
-                '--reconcile', '--review-ownership')
-    if any(arg.split('=', 1)[0] in controls for arg in arguments):
+def _startup_sync(root, branch, arguments, *, early=False):
+    """Pull under shared source guards; report whether imports need replacing."""
+    if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
         return
     import fcntl
     from test_source import SourceProtection, source_directory, finish_admission, _lock
@@ -108,6 +159,8 @@ def _startup_sync(root, branch, arguments):
                 try:
                     fcntl.flock(source, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except BlockingIOError as error:
+                    if early:
+                        return None
                     raise ValueError('checkout source is busy; retry after its owner finishes') from error
                 if protection.owner() is not None or protection.impact_holds():
                     print('Git: deferring startup pull to retained repair recovery.', flush=True)
@@ -118,6 +171,7 @@ def _startup_sync(root, branch, arguments):
             # into conflict. This prepares no session on the successful path.
             selection.adapter()
             profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
+            head = _git(root, 'rev-parse', 'HEAD')
             print('Git: synchronizing controller checkout with its upstream.', flush=True)
             try:
                 _pull(root)
@@ -125,6 +179,7 @@ def _startup_sync(root, branch, arguments):
                 print('Git pull failed; starting a low-effort recovery session.', flush=True)
                 _recover_pull(root, str(error), selection, profile)
             _local_checkout(root, branch)
+            return head != _git(root, 'rev-parse', 'HEAD')
 
 
 def _remote(host, branch, arguments):
@@ -165,6 +220,7 @@ def dispatch(entry):
     name = Path(sys.argv[0]).name
     arguments, selected = [], None
     pinned_branch = None
+    synced = False
     tokens = iter(sys.argv[1:])
     for token in tokens:
         if token == '--':
@@ -186,6 +242,7 @@ def dispatch(entry):
         if forwarded['root'] != str(root) or forwarded['launcher'] != name or selected is not None:
             raise ValueError('forwarded launcher destination changed')
         pinned_branch = forwarded['branch']
+        synced = forwarded.get('synced', False)
         if pinned_branch is not None:
             _local_checkout(root, pinned_branch)
     elif (name == 'run-tests' and selected is None
@@ -239,10 +296,36 @@ def dispatch(entry):
                     os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
                               *arguments], env)
 
+    if pinned_branch is not None and not synced:
+        _pending_startup = (pinned_branch, arguments)
+        changed = _early_sync(root, name, pinned_branch, arguments)
+        if changed is not None:
+            _pending_startup = None
+        if changed:
+            # Refresh all controller imports and pin placement across exec.
+            from test_source import leave_checkout
+            leave_checkout()
+            env = dict(os.environ)
+            env[DESTINATION] = json.dumps(dict(root=str(root), branch=pinned_branch,
+                launcher=name, pid=os.getpid(), synced=True))
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.chdir(root)
+            os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu',
+                      str(root / 'tools' / name), *arguments], env)
+    import test_source
+    # Restore only the source admission released from the test/repair wrappers.
+    # Plan/translation controls retain their existing agent-free recovery path.
+    admission = (test_source.admission(root, arguments, repair=name == 'fix-tests')
+                 if name in ('run-tests', 'run-unit-tests', 'fix-tests') else nullcontext())
+    with admission:
+        return _entry(root, name, pinned_branch, arguments, entry)
+
+
+def _entry(root, name, pinned_branch, arguments, entry):
+    global _pending_startup
     from vm_selection import HOST_HELP, host_arguments
     arguments = host_arguments(arguments)
-    if pinned_branch is not None:
-        _pending_startup = (pinned_branch, arguments)
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)

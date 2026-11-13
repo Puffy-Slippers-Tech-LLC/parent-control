@@ -4,6 +4,7 @@ No live VM, helper, network, account or checkout is accessed. Real Git/Make
 children for source capture are bounded, waited and confined to pytest storage.
 """
 import io
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -63,6 +64,8 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
     monkeypatch.setattr(launcher_controller, '__file__', str(tool / 'tools/launcher_controller.py'))
     monkeypatch.setattr(launcher_controller, '_local_checkout', lambda root, name:
         None if (root, name) == (tool, 'main') else pytest.fail('wrong local controller'))
+    monkeypatch.setattr(launcher_controller, '_early_sync', lambda *args: False)
+    monkeypatch.setattr('test_source.admission', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr('test_launcher.environment', lambda root: {'PATH': '/usr/bin'})
     selector = ','.join('Guest-' + str(index) for index in targets)
     monkeypatch.setattr(sys, 'argv', [str(tool / 'tools/run-tests'), '--branch', branch,

@@ -104,9 +104,11 @@ again. Errors never open the dialog automatically. Errors recorded before Watch
 opens appear on its icon when it opens.
 The live view remains visible through a translucent gray backdrop.
 The full diagnostic text is selectable and scrollable horizontally
-and vertically; **Copy all** copies it, and **Close** dismisses it. Additional
-distinct errors append to the open dialog; identical failures do not restart
-flashing for the rest of the VS Code session. Diagnostics also go
+and vertically; **Copy all** copies it, and **Close** dismisses it. **Clear** at
+the bottom right empties the recorded errors and hides the error icon while
+keeping the dialog open. Additional distinct errors append to the open dialog;
+identical failures do not restart flashing until the recorded errors are cleared
+or the VS Code session ends. Diagnostics also go
 to the **ONPC Watch** Output channel.
 This covers local Watch connection, rendering, clipboard, screenshot and action
 failures. Recoverable request timeouts retry for both local and remote readers.

@@ -31,6 +31,11 @@ class WatchErrors {
             if (message?.type === 'closeError') {
                 this.panel = undefined;
                 if (standalone) panel.dispose();
+            } else if (message?.type === 'clearError') {
+                this.entries.clear();
+                this.unread = false;
+                this.publishState();
+                this.publish();
             } else if (message?.type === 'copyError') {
                 try {
                     await vscode.env.clipboard.writeText(this.text());
@@ -110,9 +115,10 @@ color: inherit; background: var(--vscode-editorWidget-background); border: 1px s
 color: var(--vscode-input-foreground); background: var(--vscode-input-background); font-family: var(--vscode-editor-font-family); }
 #watch-error footer { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 #watch-error button { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 0; padding: 6px 14px; cursor: pointer; }
+#watch-error-clear { margin-left: auto; }
 </style><dialog id="watch-error" aria-labelledby="watch-error-title"><h1 id="watch-error-title">ONPC Watch error</h1>
 <textarea readonly aria-label="Full Watch error details" spellcheck="false"></textarea>
-<footer><button id="watch-error-copy">Copy all</button><button id="watch-error-close">Close</button><span role="status"></span></footer></dialog>
+<footer><button id="watch-error-copy">Copy all</button><button id="watch-error-close">Close</button><span role="status"></span><button id="watch-error-clear">Clear</button></footer></dialog>
 <script nonce="${nonce}">
 function initializeWatchErrors(vscode) {
 const dialog = document.getElementById('watch-error');
@@ -135,6 +141,7 @@ window.addEventListener('message', event => {
     if (event.data.type === 'errorCopyFailed') status.textContent = 'Copy failed: ' + event.data.message + '. Select the text and copy manually.';
 });
 document.getElementById('watch-error-copy').onclick = () => vscode.postMessage({ type: 'copyError' });
+document.getElementById('watch-error-clear').onclick = () => vscode.postMessage({ type: 'clearError' });
 const close = () => { dialog.close(); vscode.postMessage({ type: 'closeError' }); };
 document.getElementById('watch-error-close').onclick = close;
 dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });

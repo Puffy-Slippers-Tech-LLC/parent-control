@@ -302,7 +302,8 @@ def dispatch(entry):
     # letting its later child commands accidentally inherit a pinned route.
     forwarded = json.loads(os.environ.pop(DESTINATION, 'null'))
     if forwarded is not None and forwarded['pid'] == os.getpid():
-        if forwarded['root'] != str(root) or forwarded['launcher'] != name or selected is not None:
+        if (forwarded['root'] != str(root) or forwarded['launcher'] != name
+                or selected not in (None, forwarded['branch'])):
             raise ValueError('forwarded launcher destination changed')
         pinned_branch = forwarded['branch']
         synced = forwarded.get('synced', False)

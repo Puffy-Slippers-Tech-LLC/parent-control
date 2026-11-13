@@ -241,10 +241,10 @@ def png(pixels, width, height, stride, *, rgba=False, red_first=False):
     return 'data:image/png;base64,' + base64.b64encode(encoded).decode('ascii')
 
 
-def launcher_arguments(record, kind, *, execution_plan=False):
+def launcher_arguments(record, kind, *, branch, execution_plan=False):
     """Share the displayed action's arguments with its actual invocation."""
     if kind == 'resume' and not execution_plan:
-        return ['--resume']
+        return ['--branch', branch, '--resume']
     argv = record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop') else record['argv']
     # Replace lifecycle switches; never replay a destructive reset.
     tokens = iter(argv)
@@ -254,6 +254,7 @@ def launcher_arguments(record, kind, *, execution_plan=False):
             next(tokens, None)
         elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
             argv.append(arg)
+    argv = ['--branch', branch, *argv]
     if kind == 'add-session':
         return ['--add-session', '5', *argv]
     return argv if kind == 'resume' else [f'--{kind}', *argv]
@@ -348,7 +349,8 @@ class Viewer:
             return dict(ok=True, root=str(output.root), run=str(run), launcher=name,
                         allowance_key=allowance_key,
                         argv=([] if action['kind'] == 'kill' else
-                              launcher_arguments(record, action['kind'], execution_plan=output.execution_plan)))
+                              launcher_arguments(record, action['kind'], branch=self.roots[output.root],
+                                                 execution_plan=output.execution_plan)))
         except (OSError, ValueError, KeyError, TypeError) as error:
             return dict(ok=False, error=str(error))
 
@@ -655,13 +657,13 @@ class Viewer:
                     sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', '--branch', branch, *argv])
                     kind = 'cancel-stop' if status == 'Stop Requested' else 'stop' if active or session.active else 'resume'
                     sections[-1]['launcher_action_command'] = shlex.join([f'tools/{name}',
-                        *launcher_arguments(record, kind, execution_plan=output.execution_plan)])
+                        *launcher_arguments(record, kind, branch=branch, execution_plan=output.execution_plan)])
                     sections[-1]['launcher_reload_command'] = shlex.join([f'tools/{name}',
-                        *launcher_arguments(record, 'reload', execution_plan=output.execution_plan)])
+                        *launcher_arguments(record, 'reload', branch=branch, execution_plan=output.execution_plan)])
                     sections[-1]['launcher_kill'] = active
                     if active and session_allowance is not None and status not in ('Stopping', 'Stop Requested'):
                         sections[-1]['launcher_add_session_command'] = shlex.join([f'tools/{name}',
-                            *launcher_arguments(record, 'add-session', execution_plan=output.execution_plan)])
+                            *launcher_arguments(record, 'add-session', branch=branch, execution_plan=output.execution_plan)])
             except (OSError, ValueError, AttributeError, TypeError):
                 sections[-1]['launcher_controls'] = False
         # VM selections have independent publications, but finished results

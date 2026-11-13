@@ -84,8 +84,10 @@ All launcher menu commands run silently in the background on that same host
 and checkout, without opening a VS Code terminal. Follow progress in Watch.
 Watch uses its shared
 `Output.execution_plan` property to identify execution-plan runs: Resume reruns
-their saved command with the same parameters. Other launchers, including `fix-tests` and `run-tests`,
-receive only `--resume`, which restores their saved selection. Stop and cancel-stop
+their saved command with the same parameters. Other launchers, including
+`fix-tests`, `run-tests` and `sync-whatsnew`,
+receive `--resume`, which restores their saved selection. All launcher commands
+include `--branch NAME` for the displayed checkout. Stop and cancel-stop
 use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
 flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
 from replayed parameters. The action button's hover tooltip and confirmation

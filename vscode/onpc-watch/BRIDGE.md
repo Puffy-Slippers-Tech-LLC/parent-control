@@ -231,7 +231,8 @@ or `ok: true, root, run, launcher, argv`. Paths and argv stay within the extensi
 host; the webview receives display IDs and command text only. The adapter uses
 the existing `Output.execution_plan` property (run layout and `plan-view.json`). Resume replays saved
 parameters for execution-plan launchers, stripping earlier lifecycle switches;
-other launchers receive only `--resume`. Stop, cancel-stop and reload replace earlier
+other launchers receive `--resume`. All resolved public commands include
+`--branch NAME` for the displayed checkout. Stop, cancel-stop and reload replace earlier
 lifecycle switches with the requested flag. The extension shows the resolved
 public command in its confirmation dialog, revalidates the displayed
 run after confirmation, and opens a terminal on the originating local/SSH

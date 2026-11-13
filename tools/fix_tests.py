@@ -927,6 +927,10 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if active_task:
             update_task_info(run, active_task, value)
 
+    def resume_tests(category):
+        progress(category, 'Running tests')
+        print('fix-tests: repair Git close-out complete; resuming remaining selected tests.', flush=True)
+
     def failed(category, failure):
         panel(dict(last_error=failure.get('prompt', 'The selected attempt failed.')[:4000]))
 
@@ -1309,6 +1313,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         target = (ticket['work']['category'], ticket['case'] or '', ticket['vm'])
         category = target[0]
         key = commits.key(target)
+        accepted = commits.closed_attempt(ticket)
+        if accepted is not None:
+            print('fix-tests: recovering Git-complete repair settlement; preserving accepted verification.',
+                  flush=True)
+            resume_tests(category)
+            return dict(outcome='resolved', attempt=accepted, repair_ref=str(run / 'checkpoint.json'),
+                        source_changed=True)
         # The coordinator invokes this only at a finite drained boundary.
         repair_gate.acquire(ready=lambda: execution.drained)
         commits.state['active_ticket'] = ticket['id']
@@ -1324,6 +1335,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         if commits.state.get('pending') is not None:
             accepted = entry and entry.get('coordinator_attempt')
             commits.finish_pending()
+            resume_tests(category)
             commits.state.pop('writer_inputs', None)
             release_repair()
             if accepted is None:
@@ -1451,6 +1463,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 entry['coordinator_attempt'] = value['reference']
                 commits.save()
                 commits.verified(target, attempt=value['reference'])
+                resume_tests(category)
                 # Git may change HEAD but no verified source bytes. Publication
                 # before the attempt already advanced the source generation.
                 commits.state.pop('writer_inputs', None)
@@ -1473,16 +1486,20 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     # Accepted Git work has its own journal and must finish even when current
     # case collection or generated inputs are unavailable. Case credit remains
     # with the coordinator; it rechecks the unsettled ticket afterward.
+    recovered_category = None
     if commits.state.get('pending') is not None:
         repair_gate.acquire()
         entry = commits.state['repairs'][commits.state['pending']]
         validate_retained_response(entry, tuple(entry['failure']))
         commits.finish_pending()
+        recovered_category = entry['failure'][0]
         commits.state.pop('writer_inputs', None)
         release_repair()
     with source_startup(root, ['--resume'], repair=True):
         inventory = requested_inventory(root, selected_args)
     categories = list(inventory)
+    if recovered_category is not None:
+        resume_tests(recovered_category)
 
     def pass_progress(value):
         lines = [f'Round {round_number}/{rounds}']
@@ -1612,6 +1629,10 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
                 if re.fullmatch(r'(?:impact-context|failure-evidence|diagnostic)-[0-9a-f]{32}\.json', path.name):
                     retained[path.name] = read_failure(path)
             state = retained.get('checkpoint.json', {})
+            from fix_tests_git import RepairCommits
+            proof = RepairCommits(root, previous).closeout_proof()
+            if proof is not None:
+                retained['closed-git-proof.json'] = proof
             source = test_source.SourceProtection(test_source.source_directory(root))
             with source.state():
                 pending = source.owner()

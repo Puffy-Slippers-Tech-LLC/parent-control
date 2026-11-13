@@ -340,6 +340,56 @@ def test_public_repair_composes_triage_verification_and_closeout(
     assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
     assert TaskBudget(run).read()['completed'] == 1
 
+    # Git completion and coordinator settlement are separate transactions.
+    # Recovery must use their exact shared attempt, without another execution.
+    import fix_tests_git
+    commits = fix_tests_git.RepairCommits(tmp_path, run)
+    reference = dict(ticket=ticket['id'], attempt='d' * 32, purpose='verification',
+                     source=vm_test_queue.source_identity(tmp_path), accepted=True, status=0)
+    ticket['attempts'] = [reference]
+    commits.state['closed_repair'] = dict(failure=['unit', 'exact', ''], attempt=reference)
+    commits.state['rounds']['done'] = False
+    commits.save()
+    recovered = []
+    def settle(root, args, *, actions, **kwargs):
+        outcome = actions['repair'](ticket, Execution())
+        recovered.append(outcome['attempt'])
+        assert outcome['outcome'] == 'resolved'
+        return dict(status=0)
+    monkeypatch.setattr(vm_test_queue, 'run', settle)
+    before = list(order)
+    assert control.worker(reloading=True) == 0
+    assert recovered == [reference]
+    assert order == before
+    # A different ticket/attempt cannot inherit that accepted result.
+    assert commits.closed_attempt(dict(ticket, attempts=[])) is None
+
+    # Legacy recovery additionally needs the completed controller commit and
+    # its explicit journal link to this accepted attempt and source digest.
+    commits.state.pop('closed_repair')
+    commits.state['last_commit'] = 'e' * 40
+    ticket['vm'] = 'original-vm'
+    journal = run / 'commit-skill' / ('f' * 32)
+    journal.mkdir(parents=True)
+    receipt = dict(status='complete', source_commit='e' * 40, pushed_head='e' * 40,
+        commit_message='TA: Fixed unit exact on original-vm', source=dict(path=str(tmp_path)),
+        ownership=dict(accepted_attempt=reference['attempt'],
+                       accepted_source_digest=reference['source']['digest']))
+    (journal / 'progress.json').write_text(json.dumps(receipt))
+    monkeypatch.setattr(fix_tests_git, 'git_output', lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    assert commits.closed_attempt(ticket) == reference
+    replacement = tmp_path / 'replacement'
+    replacement.mkdir()
+    resumed_commits = fix_tests_git.RepairCommits(tmp_path, replacement)
+    resumed_commits.state = dict(commits.state)
+    proof = commits.closeout_proof()
+    (replacement / 'closed-git-proof.json').write_text(json.dumps(proof))
+    (journal / 'progress.json').unlink()  # Original allocation can now retire.
+    assert resumed_commits.closed_attempt(ticket) == reference
+    receipt['ownership']['accepted_attempt'] = '0' * 32
+    (replacement / 'closed-git-proof.json').write_text(json.dumps(receipt))
+    assert resumed_commits.closed_attempt(ticket) is None
+
 
 def test_public_repair_keeps_dirty_suspension_owned_on_resume(
         tmp_path, monkeypatch, isolated_source, _controlled_public_repair):
@@ -1155,6 +1205,8 @@ def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isola
     from concurrent.futures import ThreadPoolExecutor
     import threading
     import test_source
+    from test_storage import scratch_descriptors
+    from watch_recording_worker import shared_owner_descriptors
 
     overlap = threading.Barrier(2, timeout=5)
     def admitted():
@@ -1162,6 +1214,7 @@ def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isola
             overlap.wait()
             assert test_source.descriptors() == (descriptor,)
             assert test_source.environment() == {test_source.VARIABLE: str(descriptor)}
+            assert set(shared_owner_descriptors()) == set(scratch_descriptors()) - {descriptor}
             overlap.wait()
             return descriptor
     with ThreadPoolExecutor(max_workers=2) as workers:

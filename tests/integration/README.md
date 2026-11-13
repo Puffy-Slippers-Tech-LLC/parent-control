@@ -1204,12 +1204,14 @@ the installed-expiry case in `enforcement` and are not repeated during graphical
 preparation. The session case establishes its own guarded zero-time policy,
 extension and autologin setup without requiring a preceding area to pass.
 
-Select one graphical expiry history per invocation with a single `--id` or
-exact `--area session --test` selector. Selecting several graphical expiry
-histories together groups them into one attempt and refuses at
-`selection:separate-graphical-expiry-histories` before the history runs. Run the
-affected histories separately; preserve that guard rather than sharing fault
-state or credit across them.
+Select one graphical expiry history with a single `--id` or exact
+`--area session --test` selector, or select several through the area runner.
+The attempt planner restores separately for each session case when the selection
+contains several cases and a graphical expiry history. Each retains its own
+phase report under its attempt directory; aggregate evidence reads every report.
+The `selection:separate-graphical-expiry-histories` guard still rejects multiple
+graphical histories within an individual attempt, preventing shared fault state
+or credit across histories.
 
 The graphical history observes real scope creation,
 expiry locking, extension recovery, PAM admission and authenticated broker

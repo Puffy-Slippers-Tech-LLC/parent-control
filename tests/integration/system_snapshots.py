@@ -28,12 +28,25 @@ def attempts(selection, *, fresh_install=False):
     # autologin fixture. Keep it isolated for both current and fresh installs.
     groups.append((('extension-login',), not fresh_install))
     result = []
+    def append(phases, executions, installed):
+        if phases:
+            result.append((replace(selection, phases=phases, executions=executions), installed))
+
     for phases, installed in groups:
         selected = tuple(phase for phase in phases if phase in selection.phases)
-        if selected:
-            result.append((replace(selection, phases=selected,
-                executions=tuple(item for item in selection.executions if item.phase in selected)),
-                installed))
+        executions = tuple(item for item in selection.executions if item.phase in selected)
+        session = tuple(item for item in executions if item.phase == 'session')
+        if len(session) > 1 and any(item.case_id in system.GRAPHICAL_EXPIRY_CASES for item in session):
+            # Each graphical history seeds different fault/order state. Keep
+            # the selected area intact, but restore before each session case.
+            boundary = selected.index('session')
+            before, after = selected[:boundary], selected[boundary + 1:]
+            append(before, tuple(item for item in executions if item.phase in before), installed)
+            for item in session:
+                append(('session',), (item,), installed)
+            append(after, tuple(item for item in executions if item.phase in after), installed)
+        else:
+            append(selected, executions, installed)
     return result
 
 
@@ -85,7 +98,10 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
     prepared = []
     for index, (selected, installed) in enumerate(planned):
         progress.prepare_attempt(selected.executions)
-        attempt = directory / ('attempt-' + selected.phases[0])
+        name = 'attempt-' + selected.phases[0]
+        if sum(item.phases[0] == selected.phases[0] for item, _ in planned) > 1:
+            name += '-' + str(index + 1)
+        attempt = directory / name
         attempt.mkdir(mode=0o700)
         inputs = directory / 'input'
         if (inputs / 'package-input.json').is_file():
@@ -173,7 +189,9 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                 shutil.copytree(captured, results / attempt.name)
                 for phase in selected.phases:
                     path = captured / (phase + '.xml')
-                    if path.is_file():
+                    # Split histories retain independent phase reports below
+                    # their attempt names; never overwrite one with another.
+                    if path.is_file() and sum(phase in item.phases for item, _ in planned) == 1:
                         shutil.copyfile(path, results / path.name)
         if suite.verified is not None:
             suite.verified.recheck()

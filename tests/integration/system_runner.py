@@ -2425,7 +2425,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
     graphical_expiry = any(item.case_id in GRAPHICAL_EXPIRY_CASES
                            for item in selection.executions)
     # These histories have different entitlement/order witnesses. The public
-    # runner queues each case separately; never credit one history to the other.
+    # attempt planner restores for each case; never credit one history to the other.
     require(sum(item.case_id in GRAPHICAL_EXPIRY_CASES
                 for item in selection.executions) <= 1,
             'selection:separate-graphical-expiry-histories')
@@ -2875,9 +2875,11 @@ def selection_evidence(directory, selection):
     junit = {}
     for phase in selection.phases:
         try:
-            _, identities = junit_executions(directory / f'guest-results/{phase}.xml', phase)
-            executed.extend({'phase': phase, 'area': area, 'case_id': case_id}
-                            for area, case_id in identities)
+            reports = sorted((directory / 'guest-results').glob(f'attempt-*/{phase}.xml'))
+            for report in reports or [directory / f'guest-results/{phase}.xml']:
+                _, identities = junit_executions(report, phase)
+                executed.extend({'phase': phase, 'area': area, 'case_id': case_id}
+                                for area, case_id in identities)
             junit[phase] = 'collected'
         except Error as error:
             junit[phase] = str(error)

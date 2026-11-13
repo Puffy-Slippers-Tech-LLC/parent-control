@@ -15,15 +15,30 @@ import test_activity
 
 
 @dataclass(frozen=True)
+class SubcategorySpec:
+    name: str
+    vm_tag: str | None = None
+
+
+@dataclass(frozen=True)
 class CategorySpec:
     description: str
     leaf: bool = True
     implemented: bool = True
     scope: str = 'host'
+    vm_tag: str | None = None
+    subcategories: tuple[SubcategorySpec, ...] = ()
 
     def __post_init__(self):
         if self.scope not in ('host', 'vm'):
             raise ValueError('test category scope must be host or vm')
+        names = [child.name for child in self.subcategories]
+        if len(names) != len(set(names)):
+            raise ValueError('duplicate test subcategory')
+        for value in (self.vm_tag, *(child.vm_tag for child in self.subcategories), *names):
+            if value is not None and (not isinstance(value, str)
+                    or not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', value)):
+                raise ValueError('invalid test routing token')
 
 
 # Register readiness and coverage ownership beside the public command. New
@@ -51,7 +66,8 @@ CATEGORIES = {
     'graphical-worker': CategorySpec('contained host graphical-worker transfer, exit and interruption checks; no VM'),
     'package-notice': CategorySpec('host-native APT/dpkg notice lifecycle in private chroots; Ubuntu/Debian hosts only'),
     'system': CategorySpec('installed lifecycle, security and registered standalone checks; separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
-    'e2e': CategorySpec('all runnable E2E cases by default; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm'),
+    'e2e': CategorySpec('all runnable E2E cases by default; --subcategory NAME; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm',
+                        subcategories=(SubcategorySpec('general', vm_tag='general'),)),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
@@ -146,6 +162,10 @@ def suite_inventory(categories=(), *, inventory=None):
                  *(kind for kind in ('system', 'e2e') if kind in leaves)]
         inventory = {kind: {'description': leaves[kind].description,
                             'scope': leaves[kind].scope,
+                            **({'vm_tag': leaves[kind].vm_tag} if leaves[kind].vm_tag is not None else {}),
+                            **({'subcategories': {child.name: {
+                                **({'vm_tag': child.vm_tag} if child.vm_tag is not None else {})}
+                                for child in leaves[kind].subcategories}} if leaves[kind].subcategories else {}),
                             'args': list(HOST_ARGS) if kind == 'ui' else []}
                      for kind in order}
     if not categories:
@@ -337,8 +357,13 @@ selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
 has one case queue: idle VMs atomically pull its next work, so every selected
 case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
-Every selection skips offline VMs/hosts. Capacity admission reserves a fixed random
-subset, balancing compute across families; omitted VMs stay untested this run.
+Every selection skips offline VMs/hosts. Categories and their subcategories run
+sequentially. Each VM group filters the original --vm pool by its vm_tag before
+capacity admission reserves a fixed random subset, balancing compute across families.
+The reservation ends after that group's owned work and cleanup. Required family
+vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
+Missing category tags default to general; subcategory tags override their parent.
+E2E currently has only --subcategory general, with vm_tag general.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs

@@ -202,7 +202,7 @@ def backup_rig(rig, tmp_path, monkeypatch):
          'backup_root': str(tmp_path / 'backups')},
         {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'max_compute_unit': 6,
          'backup_root': '/remote/backups'}],
-        'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb',
+        'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb', 'vm_tags': 'general',
                       'fixture_path': 'common/ubuntu/common',
         'vms': [{'id': '9', 'name': 'Backup-guest', 'host': 'local',
                  'disk_anchor': str(rig.anchor), 'enabled': 'true'},
@@ -1034,7 +1034,7 @@ def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path
     config.write_text(json.dumps({'hosts': [
         {'name': 'local', 'transport': 'local', 'enabled': 'true', 'max_compute_unit': 2,
          'backup_root': value}], 'families': [
-        {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+        {'family': 'fixture', 'package_format': 'deb', 'vm_tags': 'general', 'fixture_path': 'common/ubuntu/common',
          'vms': [{'name': 'Guest', 'host': 'local', 'disk_anchor': '/disk'}]}]}))
     with pytest.raises(ValueError, match='backup_root'):
         vm_config.registry(config)
@@ -1050,7 +1050,7 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     (root / 'config').mkdir(parents=True)
     config = root / 'config/environment.json'
     document = {'families': [
-        {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
+        {'family': 'fixture', 'package_format': 'deb', 'vm_tags': 'general', 'fixture_path': 'common/ubuntu/common',
          'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}
     config.write_text(json.dumps(document))
     assert vm_config.registry(config)['Guest'].name == 'Guest'

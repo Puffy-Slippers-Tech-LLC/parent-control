@@ -780,7 +780,6 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
     from test_commands import host_only_request
     selected = json.loads(requested)
     gate = None
-    media = None
     status = 1
     lifetime = ExitStack()
     try:
@@ -792,18 +791,11 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
         test_source.finish_imports(root, keep=() if gate.fd is None else (gate.fd,), directories=(run,))
         from launcher_control import watching
         lifetime.enter_context(watching(run))
-        from vm_recording import recording
-        media = lifetime.enter_context(recording(root, enabled=not host_only_request(selected), run=run))
         status = reserved_worker(root, run, owner, model, effort, app_model, requested, rounds, resume,
                                  reloading=reloading, repair_gate=gate)
     except ReloadRequested:
-        # Interpreter replacement starts only after the recording supervisor
-        # and other finite controller lifetimes have joined their cleanup.
+        # Group-owned recording and execution have joined before replacement.
         lifetime.close()
-        if media is not None:
-            from launcher_reload import STATUS
-            media.write_index(run, STATUS)
-            media = None
         if (run / 'cancel').exists():
             status = 130
         else:
@@ -828,12 +820,10 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             print(f'fix-tests: owned cleanup failed: {error}', file=sys.stderr, flush=True)
         try:
             lifetime.close()
-            if media is not None:
-                media.write_index(run, status)
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             status = 1
-            detached_launcher.record_exception(run, 'Recording cleanup', error)
-            print(f'fix-tests: recording cleanup failed: {error}', file=sys.stderr, flush=True)
+            detached_launcher.record_exception(run, 'Controller cleanup', error)
+            print(f'fix-tests: controller cleanup failed: {error}', file=sys.stderr, flush=True)
         if gate is not None:
             gate.release(unfinished=True)
         budget = TaskBudget(run)
@@ -1515,37 +1505,32 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             lines.append(f'Host categories: ({len(value["host_completed"])}/{len(value["host_categories"])})')
         publish_progress(run, 'pass', lines)
 
+    def resume_prerequisite():
+        check_controller()
+        status = refresh_snapshots(root, run, owner, model, effort, commits)
+        check_controller()
+        return status
+
     def pass_request(names, *, resume, pass_identity, admit_task, settle_task):
-        while True:
-            check_controller()
-            if commits.state.get('snapshot_refresh', {}).get('pending'):
-                status = refresh_snapshots(root, run, owner, model, effort, commits)
-                check_controller()
-                if status:
-                    return dict(status=status, suspended=True)
-                resume = True
-            args = [value for name in names for value in (name, *inventory[name]['args'])]
-            if resume:
-                args.insert(0, '--resume')
-            outcome = execute_pass(root, args, reloading=reloading,
-                actions=dict(triage=triage, repair=repair_ticket,
-                             error=lambda context, error, **identity:
-                                 detached_launcher.record_exception(run, context, error, **identity),
-                             admit_task=admit_task,
-                             settle_task=settle_task, progress=pass_progress,
-                             prerequisite=lambda vm, result: request_snapshot_refresh(commits, vm, result)),
-                pass_identity=pass_identity, return_outcome=True,
-                checkpoint_scope='repair-host' if run.parent.name == 'fix-tests-host' else 'repair-vm')
-            try:
-                atomic(run / 'pass-outcome.json', outcome)
-            except OSError as error:
-                detached_launcher.record_exception(run, 'Saving pass outcome', error)
-            # execute_pass has left its executor/retention contexts here. The
-            # internal pause consumes no new pass identity or task admission.
-            check_controller()
-            if not outcome.get('prerequisite'):
-                return outcome
-            resume = True
+        check_controller()
+        args = [value for name in names for value in (name, *inventory[name]['args'])]
+        if resume:
+            args.insert(0, '--resume')
+        outcome = execute_pass(root, args, reloading=reloading,
+            actions=dict(triage=triage, repair=repair_ticket,
+                         error=lambda context, error, **identity:
+                             detached_launcher.record_exception(run, context, error, **identity),
+                         admit_task=admit_task, settle_task=settle_task, progress=pass_progress,
+                         prerequisite=lambda vm, result: request_snapshot_refresh(commits, vm, result),
+                         resume_prerequisite=resume_prerequisite),
+            pass_identity=pass_identity, return_outcome=True,
+            checkpoint_scope='repair-host' if run.parent.name == 'fix-tests-host' else 'repair-vm')
+        try:
+            atomic(run / 'pass-outcome.json', outcome)
+        except OSError as error:
+            detached_launcher.record_exception(run, 'Saving pass outcome', error)
+        check_controller()
+        return outcome
 
     try:
         print('fix-tests: run-wide rounds; each category covers all selected families and host work.', flush=True)
@@ -1665,6 +1650,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
     kind = 'fix-tests-host' if repair_host_only_request(root, categories) else 'fix-tests'
     def started(run):
         atomic(run / 'scheduling.json', repair_scheduling_marker())
+        atomic(run / 'admitted-vms.json', [])
         initialize_error_log(run, resume=resume)
         for filename, value in retained.items():
             atomic(run / filename, value)

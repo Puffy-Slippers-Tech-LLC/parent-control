@@ -47,7 +47,7 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
         # Deliberately invert these legacy labels. Identity decides locality.
         transport='local' if index == 1 else 'ssh', ssh_port=2200 + index)
         for index, name in enumerate(names)], branches=branches,
-        families=[dict(family='ubuntu26.04-x86_64', package_format='deb',
+        families=[dict(family='ubuntu26.04-x86_64', package_format='deb', vm_tags='general',
             fixture_path='common/ubuntu/common', vms=[dict(name='Guest-' + str(index),
                 id=str(index + 1), enabled='true', host=names[index],
                 disk_anchor=str(tmp_path / ('guest-' + str(index) + '.qcow2')))

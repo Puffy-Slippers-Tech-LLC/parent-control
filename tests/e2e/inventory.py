@@ -100,7 +100,7 @@ def _validate_inventory(document, *, root):
     require(isinstance(scenarios, list) and scenarios, 'inventory:empty')
     scenario_ids, case_ids, test_ids, coverage_ids = set(), set(), set(), set()
     for scenario in scenarios:
-        fields(scenario, ('id', 'title', 'category', 'owners', 'requirements', 'requirement_gap',
+        fields(scenario, ('id', 'title', 'category', 'subcategory', 'owners', 'requirements', 'requirement_gap',
                           'contract_refs', 'components', 'environment', 'preconditions',
                           'phases', 'interventions', 'assertions', 'expected_evidence',
                           'duration_seconds', 'matrix', 'variants'), 'scenario:fields')
@@ -109,6 +109,7 @@ def _validate_inventory(document, *, root):
         require(sid not in scenario_ids, 'scenario:duplicate-id')
         scenario_ids.add(sid)
         require(nonempty(scenario['title']), 'scenario:title')
+        require(token(scenario['subcategory']), 'scenario:subcategory')
         require(isinstance(scenario['category'], str) and scenario['category'] in CATEGORIES,
                 'scenario:category')
         for key in ('owners', 'contract_refs', 'components', 'preconditions', 'expected_evidence'):
@@ -305,7 +306,7 @@ def parse_ids(value):
 
 
 def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=False,
-                      require_runnable=False, root=ROOT):
+                      require_runnable=False, subcategory=None, root=ROOT):
     """A family expands all variants; an explicit case remains a partial result."""
     validate_inventory(document, root=root)
     if isinstance(coverage_id, str):
@@ -325,6 +326,8 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
             'selection:conflicting-selectors')
     selected = []
     for family in document['scenarios']:
+        if subcategory is not None and family['subcategory'] != subcategory:
+            continue
         for variant in family['variants']:
             cid = family['id'] + '/' + variant['id']
             if (variant['coverage_id'] in ids if coverage_id is not None
@@ -332,6 +335,7 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
                 selected.append({'case_id': cid, 'coverage_id': variant['coverage_id'],
                                  'title': family['title'],
                                  'scenario_id': family['id'],
+                                 'subcategory': family['subcategory'],
                                  'category': family['category'], 'owner': variant['owner'],
                                  'environment': family['environment'],
                                  'preconditions': family['preconditions'],
@@ -355,7 +359,7 @@ def resolve_selection(document, scenario=None, *, coverage_id=None, ready_only=F
         # suite so a blocked inventory can never be mistaken for a pass.
         require(bool(selected) or not require_runnable, 'selection:no-ready-cases')
     require(not require_runnable or not pending, 'selection:pending')
-    return {'schema_version': 1, 'scope': 'full' if scenario is None and not ready_only else 'partial',
+    return {'schema_version': 1, 'scope': 'full' if scenario is None and not ready_only and subcategory is None else 'partial',
             'selector': scenario, 'vm_required_for_execution': True,
             'ready_only': ready_only, 'excluded_pending_cases': excluded,
             'pending_cases': pending, 'cases': selected,
@@ -370,11 +374,13 @@ def main(argv=None):
     selectors.add_argument('--ready', action='store_true', help='select all ready variants explicitly')
     parser.add_argument('--require-runnable', action='store_true',
                         help='refuse pending cases; this command still never executes tests')
+    parser.add_argument('--subcategory', help='select one E2E subcategory')
     args = parser.parse_args(argv)
     try:
         document, digest = read_json(INVENTORY)
         selection = resolve_selection(document, args.scenario, ready_only=args.ready,
                                       coverage_id=args.id,
+                                      subcategory=args.subcategory,
                                       require_runnable=args.require_runnable)
         selection['inventory_sha256'] = digest
         selection['mode'] = 'list-only'

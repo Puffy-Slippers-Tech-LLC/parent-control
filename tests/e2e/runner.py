@@ -40,6 +40,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
     parser.add_argument('--list', action='store_true')
+    parser.add_argument('--subcategory', help='select one registered E2E subcategory')
     selectors = parser.add_mutually_exclusive_group()
     selectors.add_argument('--scenario', help='exact E2E-NNN family or E2E-NNN/variant')
     selectors.add_argument('--id', help='comma-separated numeric case IDs in docs/Test-Coverage.md')
@@ -54,7 +55,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     args = parser.parse_args(argv)
     if (args.qualify_transfer or args.qualify_install or args.qualify_install_refusal) and (
-            args.list or args.scenario is not None or args.id is not None or args.ready):
+            args.list or args.scenario is not None or args.id is not None or args.ready
+            or args.subcategory is not None):
         raise ValueError('e2e:qualification-cannot-select-scenarios')
     fixture_selection = None
     serial = args.qualify_install or args.qualify_install_refusal
@@ -112,13 +114,14 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     try:
         plan = api['resolve_selection'](document, args.scenario, ready_only=ready_only,
                                         coverage_id=args.id,
+                                        subcategory=args.subcategory,
                                         require_runnable=not args.list, root=root)
     except api['InventoryError'] as error:
         if str(error) == 'selection:pending':
             # Diagnose the exact refused in-memory selection without rereading
             # a changing inventory or relaxing the execution refusal.
             refused = api['resolve_selection'](document, args.scenario,
-                ready_only=ready_only, coverage_id=args.id, root=root)
+                ready_only=ready_only, coverage_id=args.id, subcategory=args.subcategory, root=root)
             error.add_note('e2e:pending-selection ' + json.dumps({
                 'inventory_sha256': digest,
                 'selector_kind': 'id' if args.id is not None else 'scenario' if args.scenario else 'ready',

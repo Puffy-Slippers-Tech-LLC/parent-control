@@ -837,7 +837,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
         argv = command(run, owner)
         admitted = None
         from vm_selection import BATCH, vm_config
-        if BATCH in os.environ and name not in ('fix-tests-host', 'sync-whatsnew'):
+        if BATCH in os.environ and name not in ('fix-tests', 'fix-tests-host', 'sync-whatsnew'):
             import host_compute
             configured = vm_config.registry()
             vms = [configured[name] for name in json.loads(os.environ[BATCH])['vms']]
@@ -1081,6 +1081,8 @@ def finish_shutdown(root, run, *, restore_vms=True):
         return
     from host_compute import admitted_names
     names = admitted_names(run)
+    if names == []:
+        return  # No execution group acquired a VM in this run.
     path = run / 'vm.json'
     # vm.json uses the existing save_binding/check_binding metadata contract;
     # unlike private startup receipts, older records use the caller's umask.

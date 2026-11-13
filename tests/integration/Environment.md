@@ -187,7 +187,11 @@ Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` form (for example
 `fedora45-x86_64`), an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
-first VM is created. Package consumers split `family` at the last hyphen to
+first VM is created. Every family also requires `vm_tags`, a nonempty
+comma-separated string of unique tag tokens (currently `"general"`). A VM may
+declare `vm_tags` to replace its family's set; omission inherits it.
+Tags route tests and do not change guest baseline identity.
+Package consumers split `family` at the last hyphen to
 derive the build target and architecture; separate attributes are unnecessary.
 The parsed target must match the verified guest release before package
 preparation/installation. Only `x86_64` is currently supported. Format alone never
@@ -205,9 +209,12 @@ Test and preparation selection follow the
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
 always requiring both VM and host enabled. The host's `max_compute_unit`
-limits the total reserved VM compute across launchers. Admission chooses a fixed
-subset for the entire run when necessary, maximizing family coverage and then
-balancing family compute before filling capacity. The
+limits the total reserved VM compute across launchers. Tests admit each sequential
+category/subcategory's tag-matched pool separately, releasing its reservation
+after owned cleanup before admitting the next group. Admission chooses a fixed
+subset for that group when necessary, maximizing family coverage and then
+balancing family compute before filling capacity. Other workflows retain their
+launcher-lifetime reservations. The
 [capacity contract](../../docs/Mandates/VM-Mandate.MD#target-selection) owns
 rounding, failure diagnostics, lifetime and the independent admission guard.
 Maintenance still requires one explicit

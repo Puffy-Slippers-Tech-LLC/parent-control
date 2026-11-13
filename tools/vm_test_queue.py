@@ -1,4 +1,4 @@
-"""Finite configured VM queue; workers use the maintained guarded controllers."""
+"""Run-tests group routing and case passes; vm_queue owns VM workers and leases."""
 
 import json
 import os
@@ -179,7 +179,7 @@ def repair_case_inventory(root, work, control, *, vm=None):
 
 
 def execute_pass(root, plan, control, execute, *, host=None, actions=None,
-                 pass_identity=None, checkpoint_scope='ordinary'):
+                 pass_identity=None, checkpoint_scope='ordinary', continue_on_errors=False):
     """Own a finite pass; callbacks execute one assignment, never another queue.
 
     ``actions`` may hold admission and observe accepted/failing attempts. It
@@ -210,6 +210,7 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
     impacts = {}
     limited = False
     prerequisite = False
+    host_cleanup_complete = True
     denied_categories = set()
     reserved_tickets = set()
     reserved_tickets = set()
@@ -296,13 +297,15 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
             return host_categories - set(checkpoint.state.get('host_passed', [])) - blocked - denied_categories
 
         def run_host():
-            nonlocal limited, suspended
+            nonlocal limited, suspended, host_cleanup_complete
             categories = pending_host()
             if not categories:
                 return False
             with test_source.reader(root, stopped=control.stopped.is_set):
                 value = host(categories=categories) if host is not None else dict(status=2)
                 status = value['status']
+                host_cleanup_complete = bool(value.get('cleanup', True))
+                suspended |= not host_cleanup_complete and not repair_mode
                 limited |= bool(value.get('limited'))
                 denied_categories.update(value.get('denied_categories', []))
                 passed = set(value.get('completed_categories', []))
@@ -321,7 +324,7 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                             hold(ticket, 'untriaged')
                     else:
                         failures.append(dict(vm='', status=status))
-                        suspended = True
+                        suspended |= repair_mode
             return True
 
         if not repair_mode and host_args and not checkpoint.state['host_complete']:
@@ -701,6 +704,11 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
         for assignment, evidence, status in deferred:
             try:
                 checkpoint.accept(assignment, evidence, status)
+                if continue_on_errors and not repair_mode and evidence['cleanup']:
+                    # The original worker has joined and supplied qualified
+                    # cleanup. Relinquish ownership without passing the failed
+                    # case, so independent groups may proceed safely.
+                    checkpoint.recover(assignment, cleanup=True)
             except ValueError as error:
                 # Missing or unqualified failure evidence leaves its original
                 # claim untouched; the terminal worker result already fails.
@@ -748,8 +756,9 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                              or category in set(checkpoint.state.get('host_passed', [])) | host_terminal)):
                     actions['settle_task'](category)
         return dict(status=status, results=results, accepted=accepted, failures=failures,
+                    cleanup_complete=host_cleanup_complete and not checkpoint.claims() and not checkpoint.repair_tickets(),
                     stopped=stopped, suspended=suspended or unfinished and not clean_limit
-                        and not any(statuses) and not terminal_failed,
+                        and not any(statuses) and not terminal_failed and not unhandled_failure,
                     source_changed=changed or repaired_source_changed, repair_status=repair_status,
                     terminal_failed=terminal_failed, limited=limited,
                     unfinished=unfinished, unhandled_failure=unhandled_failure,
@@ -759,8 +768,215 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']})
 
 
+def execution_groups(root, argv, vms):
+    """Resolve test routing before shared capacity admission sees candidates."""
+    from test_commands import CATEGORIES, selections
+    host_args, guest_args = split(root, argv)
+    groups = []
+    by_key = {}
+    if host_args:
+        groups.append(dict(key='host', category='host', args=host_args, vm_tag=None, vms=[]))
+    controls = [arg for arg in guest_args if arg in ('--stop-on-error',)
+                or arg.startswith('--resume-case=')
+                or arg in ('--resume-case-only', '--resume-area-only')]
+    for category, options in selections(root, guest_args) if guest_args else []:
+        spec = CATEGORIES[category]
+        children = [(None, spec.vm_tag or 'general', list(options))]
+        if spec.subcategories:
+            if category != 'e2e':
+                raise ValueError('subcategory inventory requires a category case binding')
+            import runpy
+            runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
+            selected = runner['preflight'](list(options), root=root, allow_missing_artifacts=True)
+            if 'cases' in selected:
+                membership = {case['subcategory'] for case in selected['cases']}
+                if not membership <= {child.name for child in spec.subcategories}:
+                    raise ValueError('E2E case belongs to an unregistered test subcategory')
+                # An exact selector can name a case from a later group. Do not
+                # manufacture an empty earlier group or rerun another selection.
+                base = []
+                tokens = iter(options)
+                for token in tokens:
+                    if token == '--subcategory':
+                        next(tokens, None)
+                    elif not token.startswith('--subcategory='):
+                        base.append(token)
+                children = [(child.name, child.vm_tag or spec.vm_tag or 'general',
+                             [*base, '--subcategory', child.name])
+                            for child in spec.subcategories if child.name in membership]
+        for name, tag, args in children:
+            candidates = [vm for vm in vms if tag in vm.vm_tags]
+            missing = {vm.family for vm in vms} - {vm.family for vm in candidates}
+            key = category + ('.' + name if name else '')
+            if missing:
+                raise ValueError(f'{key}: no selected VM with vm_tag={tag} for families: '
+                                 + ', '.join(sorted(missing)))
+            if not candidates:
+                raise ValueError(f'{key}: no selected VM with vm_tag={tag}')
+            if key in by_key:
+                by_key[key]['args'].extend((category, *args))
+            else:
+                group = dict(key=key, category=category, args=[*controls, category, *args],
+                             vm_tag=tag, vms=[vm.name for vm in candidates])
+                groups.append(group)
+                by_key[key] = group
+    return groups
+
+
 def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return_outcome=False,
         checkpoint_scope='ordinary'):
+    """Run sequential test groups; the scheduler only receives eligible pools."""
+    import host_compute
+    from contextlib import nullcontext
+    from test_checkpoint import GroupCheckpoint, PassCheckpoint, guard_scheduling_checkpoints
+    actions = actions or {}
+    original = {key: os.environ.get(key) for key in (BATCH, VARIABLE)}
+    with test_source.startup(root, argv, repair='repair' in actions):
+        guard_scheduling_checkpoints(root)
+        snapshot = json.loads(os.environ[BATCH]) if BATCH in os.environ else dict(vms=[])
+        configured = vm_config.registry() if snapshot['vms'] else {}
+        vms = [configured[name] for name in snapshot['vms']]
+        groups = execution_groups(root, argv, vms)
+    # Resume/transport controls do not change the selected work's identity.
+    for group in groups:
+        group['args'] = [arg for arg in group['args'] if arg not in (
+            '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
+    replay = next((arg.partition('=')[2] for arg in argv if arg.startswith('--resume-case=')), None)
+    # Continuation is a run-wide scheduling policy, not a leaf-case option.
+    continue_on_errors = '--continue-on-errors' in argv
+    matched = False
+    last = dict(status=0, results={}, source_changed=False, terminal_failed=False)
+    with GroupCheckpoint(root, groups, snapshot['vms'], resume='--resume' in argv,
+                         identity=pass_identity, scope=checkpoint_scope) as saved:
+        def settled(index):
+            outcome = saved.state['outcomes'][index]
+            return outcome is not None and (outcome['status'] == 0 or outcome['terminal_failed'])
+
+        for index, group in enumerate(groups):
+            from launcher_control import CancellationEvent
+            if CancellationEvent().is_set():
+                last = dict(status=130, stopped=True)
+                break
+            launcher_reload.check()
+            if replay is None and settled(index):
+                if (group['category'] != 'host' and 'settle_task' in actions
+                        and all(settled(n)
+                            for n, other in enumerate(groups) if other['category'] == group['category'])):
+                    actions['settle_task'](group['category'])
+                continue
+            scope = checkpoint_scope + '/' + group['key']
+            identity = saved.group_identity(index)
+            with PassCheckpoint.saved(root, scope=scope) as previous:
+                resume = previous is not None and identity == {
+                    key: previous.state[key] for key in ('run', 'pass')}
+                if replay is not None and (previous is None or not any(replay in work['cases']
+                        for partition in previous.state['families'].values()
+                        for work in partition['items'].values())):
+                    continue
+                matched = True
+            if replay is not None:
+                saved.state['outcomes'][index] = None
+                saved.save()
+            targets = saved.state['workers'][index]
+            exact = targets is not None
+            if exact and not set(targets) <= set(group['vms']):
+                raise ValueError(f'{group["key"]}: resume requires its original admitted VMs '
+                                 'to remain eligible for this group')
+            candidates = [configured[name] for name in (targets if exact else group['vms'])]
+            reservation = host_compute.launch(candidates, exact=exact, handoff=False) if candidates else nullcontext([])
+            try:
+                with reservation as admitted:
+                    if admitted:
+                        host_compute.bind(admitted)
+                    else:
+                        if original[BATCH] is not None:
+                            os.environ[BATCH] = json.dumps(dict(concurrency=0, vms=[]))
+                        else:
+                            os.environ.pop(BATCH, None)
+                        os.environ.pop(VARIABLE, None)
+                    saved.state['workers'][index] = [vm.name for vm in admitted]
+                    saved.save()
+                    owner_run = launcher_reload.current.run if launcher_reload.current is not None else None
+                    if admitted and owner_run is not None:
+                        from detached_launcher import atomic
+                        host_compute.save_admitted(owner_run, admitted)
+                    if hasattr(sys.stdout, 'controller'):
+                        sys.stdout.controller('test-group', [f'Test group: {group["key"]}'
+                            + (f' | VM tag: {group["vm_tag"]}' if group['vm_tag'] else '')])
+                    group_actions = dict(actions)
+                    # Category budgets settle after all its children, never
+                    # after the first successful child alone.
+                    if group['category'] != 'host':
+                        group_actions.pop('settle_task', None)
+                    from vm_recording import recording
+                    media, media_status = None, 1
+                    try:
+                        with recording(root, enabled=bool(admitted), run=owner_run) as media:
+                            while True:
+                                if 'resume_prerequisite' in actions:
+                                    status = actions['resume_prerequisite']()
+                                    if status:
+                                        last = dict(status=status, suspended=True)
+                                        break
+                                args = [*(['--resume'] if resume else []), *group['args']]
+                                if replay is not None:
+                                    args = [*([arg for arg in argv if arg.startswith('--resume-case=')
+                                        or arg in ('--resume-case-only', '--resume-area-only')]), *args]
+                                last = _run_group(root, args, reloading=reloading, actions=group_actions,
+                                    pass_identity=identity, return_outcome=True, checkpoint_scope=scope,
+                                    continue_on_errors=continue_on_errors)
+                                if not last.get('prerequisite') or 'resume_prerequisite' not in actions:
+                                    break
+                                resume = True
+                        media_status = last['status']
+                    except launcher_reload.ReloadRequested:
+                        media_status = launcher_reload.STATUS
+                        raise
+                    finally:
+                        if media is not None and owner_run is not None:
+                            media.write_index(owner_run, media_status)
+                    if admitted and owner_run is not None and last.get('cleanup_complete'):
+                        atomic(owner_run / 'admitted-vms.json', [])
+                    if not last.get('cleanup_complete'):
+                        last['suspended'] = True
+                        last['status'] = last['status'] or 1
+            finally:
+                for key, value in original.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+            if (last.get('stopped') or last.get('suspended') or last.get('pending_repairs')
+                    or last.get('limited') or last.get('prerequisite') or last['status'] not in (0, 1)):
+                break
+            if replay is not None:
+                # A focused attempt grants only its actual case credit. It
+                # cannot settle the whole group or advance to another group.
+                break
+            saved.state['outcomes'][index] = {key: last.get(key, False) for key in (
+                'status', 'source_changed', 'terminal_failed')}
+            saved.save()
+            if last['status'] and not last.get('terminal_failed') and not continue_on_errors:
+                break
+            category = group['category']
+            if category != 'host' and 'settle_task' in actions and not any(other['category'] == category
+                    and not settled(n) for n, other in enumerate(groups)):
+                actions['settle_task'](category)
+        completed = [outcome for outcome in saved.state['outcomes'] if outcome is not None]
+        last['source_changed'] = bool(last.get('source_changed') or any(value['source_changed'] for value in completed))
+        last['terminal_failed'] = bool(last.get('terminal_failed') or any(value['terminal_failed'] for value in completed))
+        if any(value['status'] for value in completed) and not last['status']:
+            last['status'] = 1
+        if replay is not None and not matched:
+            raise ValueError('case retry is outside the retained test groups')
+        last.update(run=saved.state['run'], **{'pass': saved.state['pass']},
+                    groups=[dict(group=group['key'], outcome=outcome)
+                            for group, outcome in zip(groups, saved.state['outcomes'], strict=True)])
+        return last if return_outcome else last['status']
+
+
+def _run_group(root, argv, *, reloading=False, actions=None, pass_identity=None, return_outcome=False,
+        checkpoint_scope='ordinary', continue_on_errors=False):
     # Recovery must inspect the original inventory even when its durable impact
     # hold blocks normal readers. Release this finite bootstrap before waits.
     with test_source.startup(root, argv, repair=bool(actions and 'repair' in actions)):
@@ -810,6 +1026,7 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
             finally:
                 sys.stdout = stream
             result = dict(status=status, handoffs=handoffs, output_tail=output_tail,
+                          cleanup=bool(getattr(saved, 'queue_finalized', False)),
                           complete=len(admitted_groups) == len(selected_groups),
                           limited=len(admitted_groups) != len(selected_groups),
                           denied_categories=[group[0] for group in selected_groups if group not in admitted_groups],
@@ -985,7 +1202,8 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
             try:
                 outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
                                        actions=actions, pass_identity=pass_identity,
-                                       checkpoint_scope=checkpoint_scope)
+                                       checkpoint_scope=checkpoint_scope,
+                                       continue_on_errors=continue_on_errors)
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

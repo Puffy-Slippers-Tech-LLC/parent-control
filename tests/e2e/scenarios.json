@@ -9,6 +9,7 @@
   "scenarios": [
     {
       "id": "E2E-065",
+      "subcategory": "general",
       "title": "Each child receives their saved warnings before time runs out",
       "category": "customer-journey",
       "owners": ["child-preferences"],
@@ -34,6 +35,7 @@
     },
     {
       "id": "E2E-064",
+      "subcategory": "general",
       "title": "Riley reads upgrade notes and returns to the same request",
       "category": "customer-journey",
       "owners": ["request-information"],
@@ -70,6 +72,7 @@
     },
     {
       "id": "E2E-063",
+      "subcategory": "general",
       "title": "A child's saved request presets and units survive editing and return",
       "category": "customer-journey",
       "owners": ["request-choices"],
@@ -108,6 +111,7 @@
     },
     {
       "id": "E2E-062",
+      "subcategory": "general",
       "title": "Each child's saved reminders survive a restart",
       "category": "customer-journey",
       "owners": ["child-preferences"],
@@ -150,6 +154,7 @@
     },
     {
       "id": "E2E-061",
+      "subcategory": "general",
       "title": "Language changes preserve countdown and natural expiry",
       "category": "customer-journey",
       "owners": [
@@ -360,6 +365,7 @@
     },
     {
       "id": "E2E-060",
+      "subcategory": "general",
       "title": "Keep the child's request language when the approving parent changes",
       "category": "customer-journey",
       "owners": ["personal-language"],
@@ -399,6 +405,7 @@
     },
     {
       "id": "E2E-059",
+      "subcategory": "general",
       "title": "Keep a child's request and saved work across Hebrew approval and English restoration",
       "category": "customer-journey",
       "owners": ["personal-language"],
@@ -441,6 +448,7 @@
     },
     {
       "id": "E2E-001",
+      "subcategory": "general",
       "title": "Fresh boot and graphical/observation transport",
       "category": "runner-smoke",
       "owners": ["graphical-harness", "controller"],
@@ -496,6 +504,7 @@
     },
     {
       "id": "E2E-002",
+      "subcategory": "general",
       "title": "Install the app and begin managing a child",
       "category": "customer-journey",
       "owners": ["installation"],
@@ -548,6 +557,7 @@
     },
     {
       "id": "E2E-003",
+      "subcategory": "general",
       "title": "Parent discovery and navigation",
       "category": "customer-journey",
       "owners": ["parent-navigation"],
@@ -600,6 +610,7 @@
     },
     {
       "id": "E2E-004",
+      "subcategory": "general",
       "title": "Standard user cannot manage policy",
       "category": "customer-journey",
       "owners": ["parent-navigation"],
@@ -653,6 +664,7 @@
     },
     {
       "id": "E2E-005",
+      "subcategory": "general",
       "title": "Change screen limits while starting or returning to a child desktop",
       "category": "customer-journey",
       "owners": ["parent-policy"],
@@ -713,6 +725,7 @@
     },
     {
       "id": "E2E-006",
+      "subcategory": "general",
       "title": "Change app rules while children use apps",
       "category": "customer-journey",
       "owners": ["parent-policy", "app-launch"],
@@ -770,6 +783,7 @@
     },
     {
       "id": "E2E-007",
+      "subcategory": "general",
       "title": "Cancel then confirm revocation with open apps",
       "category": "customer-journey",
       "owners": ["parent-policy", "app-isolation"],
@@ -827,6 +841,7 @@
     },
     {
       "id": "E2E-008",
+      "subcategory": "general",
       "title": "Natural daily exhaustion, retained unlock and fresh login denial",
       "category": "customer-journey",
       "owners": ["child-access"],
@@ -885,6 +900,7 @@
     },
     {
       "id": "E2E-009",
+      "subcategory": "general",
       "title": "Recover unfinished work after grant-only time runs out",
       "category": "customer-journey",
       "owners": ["child-access"],
@@ -937,6 +953,7 @@
     },
     {
       "id": "E2E-010",
+      "subcategory": "general",
       "title": "Switch User while child time expires",
       "category": "customer-journey",
       "owners": ["child-access"],
@@ -989,6 +1006,7 @@
     },
     {
       "id": "E2E-011",
+      "subcategory": "general",
       "title": "Plan child activity with the remaining-time countdown",
       "category": "customer-journey",
       "owners": ["countdown"],
@@ -1047,6 +1065,7 @@
     },
     {
       "id": "E2E-012",
+      "subcategory": "general",
       "title": "Request more time from the panel with the selected parent",
       "category": "customer-journey",
       "owners": ["request-approval"],
@@ -1100,6 +1119,7 @@
     },
     {
       "id": "E2E-013",
+      "subcategory": "general",
       "title": "Authentication denial and cancellation retry",
       "category": "customer-journey",
       "owners": ["request-approval", "kiosk-form"],
@@ -1155,6 +1175,7 @@
     },
     {
       "id": "E2E-014",
+      "subcategory": "general",
       "title": "Shared duration boundaries and duplicate submission",
       "category": "customer-journey",
       "owners": ["request-form", "kiosk-form"],
@@ -1214,6 +1235,7 @@
     },
     {
       "id": "E2E-015",
+      "subcategory": "general",
       "title": "Request surface exit behavior",
       "category": "customer-journey",
       "owners": ["request-form", "kiosk-form"],
@@ -1276,6 +1298,7 @@
     },
     {
       "id": "E2E-016",
+      "subcategory": "general",
       "title": "Restricted request station",
       "category": "customer-journey",
       "owners": ["kiosk-session"],
@@ -1329,6 +1352,7 @@
     },
     {
       "id": "E2E-017",
+      "subcategory": "general",
       "title": "Kiosk selection and unavailable requests",
       "category": "customer-journey",
       "owners": ["kiosk-form"],
@@ -1384,6 +1408,7 @@
     },
     {
       "id": "E2E-018",
+      "subcategory": "general",
       "title": "Remember each child's choices across both request forms",
       "category": "customer-journey",
       "owners": ["kiosk-form"],
@@ -1441,6 +1466,7 @@
     },
     {
       "id": "E2E-019",
+      "subcategory": "general",
       "title": "Use supported launch routes under each app rule",
       "category": "customer-journey",
       "owners": ["app-launch"],
@@ -1529,6 +1555,7 @@
     },
     {
       "id": "E2E-020",
+      "subcategory": "general",
       "title": "Catalog update/disappearance between display and save",
       "category": "customer-journey",
       "owners": ["app-launch"],
@@ -1581,6 +1608,7 @@
     },
     {
       "id": "E2E-021",
+      "subcategory": "general",
       "title": "Apply an action across a child's distinct retained desktops",
       "category": "customer-journey",
       "owners": ["app-isolation"],
@@ -1635,6 +1663,7 @@
     },
     {
       "id": "E2E-022",
+      "subcategory": "general",
       "title": "Customer lifecycle persistence and resume",
       "category": "customer-journey",
       "owners": ["persistence"],
@@ -1696,6 +1725,7 @@
     },
     {
       "id": "E2E-023",
+      "subcategory": "general",
       "title": "Zero allowance to kiosk approval, real gameplay and expiry",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -1751,6 +1781,7 @@
     },
     {
       "id": "E2E-024",
+      "subcategory": "general",
       "title": "Additional time accumulates during gameplay",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -1804,6 +1835,7 @@
     },
     {
       "id": "E2E-025",
+      "subcategory": "general",
       "title": "Replace an expired grant before returning with daily time left",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -1861,6 +1893,7 @@
     },
     {
       "id": "E2E-026",
+      "subcategory": "general",
       "title": "Customer package update and activation",
       "category": "customer-journey",
       "owners": ["package-update"],
@@ -1914,6 +1947,7 @@
     },
     {
       "id": "E2E-027",
+      "subcategory": "general",
       "title": "Install through remove, reinstall and purge",
       "category": "customer-journey",
       "owners": ["package-removal"],
@@ -1968,6 +2002,7 @@
     },
     {
       "id": "E2E-030",
+      "subcategory": "general",
       "title": "Identify the installed product and return to management",
       "category": "customer-journey",
       "owners": ["parent-navigation"],
@@ -2018,6 +2053,7 @@
     },
     {
       "id": "E2E-031",
+      "subcategory": "general",
       "title": "Feedback drafts, validation and attachment review",
       "category": "customer-journey",
       "owners": ["parent-navigation"],
@@ -2071,6 +2107,7 @@
     },
     {
       "id": "E2E-032",
+      "subcategory": "general",
       "title": "Send reviewed feedback and read service acceptance",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2121,6 +2158,7 @@
     },
     {
       "id": "E2E-033",
+      "subcategory": "general",
       "title": "Recover feedback sending after reconnecting",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2174,6 +2212,7 @@
     },
     {
       "id": "E2E-035",
+      "subcategory": "general",
       "title": "Choose allowances and save edits",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2226,6 +2265,7 @@
     },
     {
       "id": "E2E-036",
+      "subcategory": "general",
       "title": "Revoke when there is no active grant",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2278,6 +2318,7 @@
     },
     {
       "id": "E2E-038",
+      "subcategory": "general",
       "title": "Keep daily access after a grant ends and restore soft-app blocks",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2335,6 +2376,7 @@
     },
     {
       "id": "E2E-039",
+      "subcategory": "general",
       "title": "Leave a pending approval and request again",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2392,6 +2434,7 @@
     },
     {
       "id": "E2E-040",
+      "subcategory": "general",
       "title": "Refresh accounts and remembered selections after account changes",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2445,6 +2488,7 @@
     },
     {
       "id": "E2E-041",
+      "subcategory": "general",
       "title": "Search the app list and edit match rules",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2501,6 +2545,7 @@
     },
     {
       "id": "E2E-042",
+      "subcategory": "general",
       "title": "Read Help, About and command usage on each surface",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2555,6 +2600,7 @@
     },
     {
       "id": "E2E-043",
+      "subcategory": "general",
       "title": "Use local controls and approvals while offline",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2609,6 +2655,7 @@
     },
     {
       "id": "E2E-044",
+      "subcategory": "general",
       "title": "Use time across local day and daylight-saving boundaries",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2665,6 +2712,7 @@
     },
     {
       "id": "E2E-045",
+      "subcategory": "general",
       "title": "Review or decline an error report",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2716,6 +2764,7 @@
     },
     {
       "id": "E2E-047",
+      "subcategory": "general",
       "title": "Finish or stop feedback in different user flows",
       "category": "customer-journey",
       "owners": ["continuous-journeys"],
@@ -2771,6 +2820,7 @@
     },
     {
       "id": "E2E-048",
+      "subcategory": "general",
       "title": "Approve after the displayed estimate has aged",
       "category": "customer-journey",
       "owners": ["request-approval"],
@@ -2837,6 +2887,7 @@
     },
     {
       "id": "E2E-049",
+      "subcategory": "general",
       "title": "Change temporary app permission on every supported launch route",
       "category": "customer-journey",
       "owners": ["application-access"],
@@ -2909,6 +2960,7 @@
     },
     {
       "id": "E2E-050",
+      "subcategory": "general",
       "title": "Alternate homework, games and time sources over repeated sessions",
       "category": "customer-journey",
       "owners": ["household-routines"],
@@ -2967,6 +3019,7 @@
     },
     {
       "id": "E2E-051",
+      "subcategory": "general",
       "title": "Alternate two children's work and game routines without mixing their choices",
       "category": "customer-journey",
       "owners": ["household-routines"],
@@ -3020,6 +3073,7 @@
     },
     {
       "id": "E2E-054",
+      "subcategory": "general",
       "title": "Personal languages persist across accounts and offline use",
       "category": "customer-journey",
       "owners": [
@@ -3285,6 +3339,7 @@
     },
     {
       "id": "E2E-058",
+      "subcategory": "general",
       "title": "Finish fresh installation through the kiosk restart notice",
       "category": "customer-journey",
       "owners": ["package-lifecycle"],
@@ -3332,6 +3387,7 @@
     },
     {
       "id": "E2E-057",
+      "subcategory": "general",
       "title": "Finish fresh installation through the Child App restart notice",
       "category": "customer-journey",
       "owners": ["package-lifecycle"],
@@ -3380,6 +3436,7 @@
     },
     {
       "id": "E2E-056",
+      "subcategory": "general",
       "title": "Finish fresh installation through the Parent restart notice",
       "category": "customer-journey",
       "owners": ["package-lifecycle"],
@@ -3427,6 +3484,7 @@
     },
     {
       "id": "E2E-055",
+      "subcategory": "general",
       "title": "Change Parent language while retaining feedback and child policy",
       "category": "customer-journey",
       "owners": ["personal-language"],
@@ -3489,6 +3547,7 @@
     },
     {
       "id": "E2E-053",
+      "subcategory": "general",
       "title": "Chinese latest-install kiosk lifecycle",
       "category": "customer-journey",
       "owners": ["personal-language"],
@@ -3547,6 +3606,7 @@
     },
     {
       "id": "E2E-052",
+      "subcategory": "general",
       "title": "Lunar Client login autostart cannot bypass an ungranted soft block",
       "category": "customer-journey",
       "owners": ["application-access"],

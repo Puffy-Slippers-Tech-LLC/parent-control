@@ -334,7 +334,7 @@ def admitted_names(run, *, fallback=None):
     """Read canonical names only; expired reservation tokens are never persisted."""
     from test_source import _read
     names = _read(run / 'admitted-vms.json', fallback)
-    if names is not None and (not isinstance(names, list) or not names
+    if names is not None and (not isinstance(names, list)
             or any(not isinstance(name, str) or not name for name in names)
             or len(set(names)) != len(names)):
         raise ValueError('host-compute: invalid admitted VM selection')
@@ -399,8 +399,8 @@ def restrict(vms):
 
 
 @contextmanager
-def launch(vms, *, exact=False):
-    """Acquire all hosts before starting; unwind every earlier host on refusal."""
+def launch(vms, *, exact=False, handoff=True):
+    """Acquire all hosts; handoff=False joins release before another group starts."""
     if claims():
         admitted = restrict(vms)
         if exact and {vm.name for vm in admitted} != {vm.name for vm in vms}:
@@ -455,7 +455,7 @@ def launch(vms, *, exact=False):
                 print(f'host-compute: {host.name}: reserved {record["compute_unit"]} compute units; '
                       f'VMs: {", ".join(record["vms"])}', flush=True)
             yield restrict(vms)
-            handed_off = True
+            handed_off = handoff
         finally:
             if previous is None:
                 os.environ.pop(VARIABLE, None)

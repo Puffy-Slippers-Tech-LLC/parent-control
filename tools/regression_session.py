@@ -167,21 +167,20 @@ def _select(root, argv, *, reload=False):
         admitted = None
         original = None
         if not host_only:
-            import host_compute
             from vm_selection import BATCH, selected
             configured_vms = vm_config.registry()
             batch = BATCH in os.environ
             targets = ([configured_vms[name] for name in json.loads(os.environ[BATCH])['vms']]
                        if batch else [selected()])
             original = dict(vms=[vm.name for vm in targets])
-            exact = False
-            if '--resume' in requested and run is not None:
-                previous = json.loads(current.read_text())
-                targets, exact = host_compute.resume_selection(targets, run,
-                    fallback=(previous.get('vm_batch') or {}).get('vms'))
-            admitted = capacity.enter_context(host_compute.launch(targets, exact=exact))
-            if batch:
-                host_compute.bind(admitted)
+            if not batch:
+                # Explicit artifact preparation bypasses the test-group engine.
+                # Its single VM retains the existing standalone reservation.
+                import host_compute
+                exact = False
+                if '--resume' in requested and run is not None:
+                    targets, exact = host_compute.resume_selection(targets, run)
+                admitted = capacity.enter_context(host_compute.launch(targets, exact=exact))
         # Persist the actual selected guest, not an ID whose mapping may change
         # while this run is active. New public selectors still read current JSON.
         from vm_selection import extract_execution as extract
@@ -208,7 +207,9 @@ def _select(root, argv, *, reload=False):
                 from test_checkpoint import scheduling_marker
                 from detached_launcher import atomic
                 atomic(run / 'scheduling.json', scheduling_marker())
-                if admitted is not None:
+                if admitted is None:
+                    atomic(run / 'admitted-vms.json', [])
+                else:
                     host_compute.save_admitted(run, admitted)
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
                            str(root), str(run), str(owner), *requested]
@@ -465,7 +466,8 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
                 else:
                     checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
             before_run(root, argv, categories=categories)
-        with recording(root, enabled=not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
+        with recording(root, enabled=BATCH not in os.environ
+                       and not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
                            **({'reloading': True} if continuing else {}))
     except ReloadRequested:

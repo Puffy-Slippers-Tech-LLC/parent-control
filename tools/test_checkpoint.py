@@ -39,6 +39,27 @@ PASS_NAMESPACES = {'ordinary': PASS_NAMESPACE,
 PASS_MARKER = dict(version=1, implementation='ordinary-pass-v1')
 
 
+def pass_namespace(scope):
+    base, separator, group = scope.partition('/')
+    if base not in PASS_NAMESPACES or separator and not re.fullmatch(
+            r'[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)?', group):
+        raise ValueError('invalid pass checkpoint scope')
+    return PASS_NAMESPACES[base] + ('--' + group if separator else '')
+
+
+def pass_namespaces(root):
+    """Include retained group owners even after an inventory entry is removed."""
+    result = dict(PASS_NAMESPACES)
+    path = directory('state', root=root)
+    for candidate in path.iterdir():
+        for base, namespace in PASS_NAMESPACES.items():
+            if candidate.name.startswith(namespace + '--'):
+                scope = base + '/' + candidate.name[len(namespace) + 2:]
+                if pass_namespace(scope) == candidate.name:
+                    result[scope] = candidate.name
+    return result
+
+
 def _copy(value):
     return json.loads(json.dumps(value, allow_nan=False))
 
@@ -202,8 +223,113 @@ def _repair_tickets(state):
     return tickets
 
 
+class GroupCheckpoint:
+    """Sequential group cursor and admissions; case credit stays in PassCheckpoint."""
+
+    def __init__(self, root, groups, pool, *, resume=False, identity=None, scope='ordinary'):
+        self.root, self.groups, self.pool = root, _copy(groups), sorted(pool)
+        for group in self.groups:
+            group['vms'].sort()
+        self.resume, self.identity, self.scope = resume, identity, scope
+        self.store = Store(directory('state', root=root) / (PASS_NAMESPACES[scope] + '-groups'))
+        self.resources = ExitStack()
+
+    @staticmethod
+    def validate(state, *, scope=None):
+        if (not isinstance(state, dict) or set(state) != {
+                'version', 'scope', 'run', 'pass', 'groups', 'pool', 'workers', 'outcomes'}
+                or type(state['version']) is not int or state['version'] != 1
+                or not isinstance(state['scope'], str) or state['scope'] not in PASS_NAMESPACES
+                or scope is not None and state['scope'] != scope
+                or any(not isinstance(state[key], str) or not re.fullmatch(r'[0-9a-f]{32}', state[key])
+                       for key in ('run', 'pass')) or state['run'] == state['pass']
+                or not isinstance(state['groups'], list) or not state['groups']
+                or not isinstance(state['pool'], list)
+                or any(not isinstance(name, str) or not name for name in state['pool'])
+                or len(state['pool']) != len(set(state['pool']))
+                or any(not isinstance(state[key], list) or len(state[key]) != len(state['groups'])
+                       for key in ('workers', 'outcomes'))):
+            raise ValueError('invalid sequential test group checkpoint')
+        keys = set()
+        for group, workers, outcome in zip(state['groups'], state['workers'], state['outcomes'], strict=True):
+            if (not isinstance(group, dict) or set(group) != {'key', 'category', 'args', 'vm_tag', 'vms'}
+                    or not isinstance(group['key'], str) or group['key'] in keys
+                    or not re.fullmatch(r'[a-z0-9.-]+', group['key'])
+                    or not isinstance(group['category'], str)
+                    or not isinstance(group['args'], list)
+                    or any(not isinstance(arg, str) for arg in group['args'])
+                    or group['vm_tag'] is not None and (not isinstance(group['vm_tag'], str)
+                        or not re.fullmatch(r'[a-z0-9-]+', group['vm_tag']))
+                    or not isinstance(group['vms'], list)
+                    or any(not isinstance(name, str) or name not in state['pool'] for name in group['vms'])
+                    or workers is not None and (not isinstance(workers, list)
+                        or any(not isinstance(name, str) or name not in group['vms'] for name in workers)
+                        or len(workers) != len(set(workers))
+                        or bool(group['vms']) != bool(workers))
+                    or outcome is not None and (not isinstance(outcome, dict)
+                        or set(outcome) != {'status', 'source_changed', 'terminal_failed'}
+                        or type(outcome['status']) is not int or outcome['status'] not in (0, 1)
+                        or any(type(outcome[key]) is not bool for key in ('source_changed', 'terminal_failed'))
+                        or workers is None)):
+                raise ValueError('invalid sequential test group entry')
+            keys.add(group['key'])
+
+    def __enter__(self):
+        try:
+            ensure_directory(self.store.path)
+            self.fd = self.resources.enter_context(self.store.opened())
+            self.resources.enter_context(self.store.locked(self.fd, 'gate', blocking=False))
+            previous = _read_scheduling_record('current.json', strict=True, dir_fd=self.fd)
+            if previous is not None:
+                self.validate(previous, scope=self.scope)
+            if previous is not None and self.resume:
+                def selection(groups):
+                    return [{key: value for key, value in group.items() if key != 'vms'}
+                            for group in groups]
+                if (selection(previous['groups']) != selection(self.groups)
+                        or not set(self.pool) <= set(previous['pool'])
+                        or self.identity is not None and self.identity != {
+                            key: previous[key] for key in ('run', 'pass')}):
+                    raise ValueError(RESUME_SELECTION_MISMATCH)
+                self.state = previous
+                # Unentered groups have no admission or case ownership to
+                # preserve. Refresh their eligible candidates within the
+                # original allowed pool before a future admission is saved.
+                for index, group in enumerate(self.groups):
+                    if self.state['workers'][index] is None:
+                        self.state['groups'][index]['vms'] = group['vms']
+                self.save()
+            else:
+                for scope in pass_namespaces(self.root):
+                    if scope == self.scope or scope.startswith(self.scope + '/'):
+                        with PassCheckpoint.saved(self.root, scope=scope) as saved:
+                            if saved is not None and (saved.claims() or saved.repair_tickets()):
+                                raise ValueError('test group has unfinished owners; use --resume or owned recovery')
+                self.state = dict(version=1, scope=self.scope, run=uuid.uuid4().hex, **{'pass': uuid.uuid4().hex},
+                    groups=self.groups, pool=self.pool, workers=[None] * len(self.groups),
+                    outcomes=[None] * len(self.groups))
+                if self.identity is not None:
+                    self.state.update(self.identity)
+                self.save()
+            return self
+        except BaseException:
+            self.resources.close()
+            raise
+
+    def __exit__(self, *_):
+        self.resources.close()
+
+    def save(self):
+        self.validate(self.state, scope=self.scope)
+        self.store.save(self.fd, self.state)
+
+    def group_identity(self, index):
+        return dict(run=self.state['run'], **{'pass': uuid.uuid5(
+            uuid.UUID(self.state['pass']), self.groups[index]['key']).hex})
+
+
 class PassCheckpoint:
-    """The coordinator's one ordinary pass record, held exclusively until exit.
+    """One group's case-credit record, held exclusively until its pass exits.
 
     Reports and VM checkpoints are bounded attempt evidence. Only accept()
     grants family credit, and recovery only relinquishes an original claim.
@@ -217,7 +343,7 @@ class PassCheckpoint:
         self.pool = _copy(pool)
         self.families = _copy(families)
         self.resume = resume
-        if not isinstance(scope, str) or scope not in PASS_NAMESPACES:
+        if not isinstance(scope, str):
             raise ValueError('invalid ordinary pass checkpoint scope')
         self.scope = scope
         if identity is not None and (not isinstance(identity, dict) or set(identity) != {'run', 'pass'}
@@ -225,7 +351,7 @@ class PassCheckpoint:
                        for value in identity.values()) or identity['run'] == identity['pass']):
             raise ValueError('invalid requested pass identity')
         self.identity = identity
-        self.store = Store(directory('state', root=root) / PASS_NAMESPACES[scope])
+        self.store = Store(directory('state', root=root) / pass_namespace(scope))
         self._lifetime = None
         self.fd = None
 
@@ -240,7 +366,7 @@ class PassCheckpoint:
             raise ValueError('incompatible ordinary pass state; finish with its original supported '
                              'implementation or use the existing explicitly authorized --reset contract')
         if (not isinstance(state.get('scope', 'ordinary'), str)
-                or state.get('scope', 'ordinary') not in PASS_NAMESPACES
+                or not pass_namespace(state.get('scope', 'ordinary'))
                 or scope is not None and state.get('scope', 'ordinary') != scope
                 or not token(state.get('run')) or not token(state.get('pass'))
                 or state['run'] == state['pass']
@@ -352,7 +478,7 @@ class PassCheckpoint:
             # ordinary passes may leave settled historical family records alone.
             guard_scheduling_checkpoints(self.root)
             if self.identity is not None:
-                for scope, namespace in PASS_NAMESPACES.items():
+                for scope, namespace in pass_namespaces(self.root).items():
                     if scope == self.scope:
                         continue
                     previous = _read_scheduling_record(
@@ -957,13 +1083,20 @@ def guard_scheduling_checkpoints(root):
         path = directory('state', root=root, create=False)
     except FileNotFoundError:
         return
-    for scope, namespace in PASS_NAMESPACES.items():
+    for scope, namespace in pass_namespaces(root).items():
         ordinary_path = path / namespace
         if ordinary_path.exists() or ordinary_path.is_symlink():
             private(ordinary_path.lstat())
         ordinary = _read_scheduling_record(ordinary_path / 'current.json', strict=True)
         if ordinary is not None:
             PassCheckpoint.validate(ordinary, scope=scope)
+    for scope, namespace in PASS_NAMESPACES.items():
+        groups_path = path / (namespace + '-groups')
+        if groups_path.exists() or groups_path.is_symlink():
+            private(groups_path.lstat())
+        groups = _read_scheduling_record(groups_path / 'current.json', strict=True)
+        if groups is not None:
+            GroupCheckpoint.validate(groups, scope=scope)
     for candidate in sorted(path.iterdir()):
         if not re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}', candidate.name):
             continue
@@ -995,7 +1128,7 @@ def _family_claims(root, vm_name, *, recover):
     # guard refuses incompatible legacy progress; explicit reset retires those
     # old records only after its maintained owned cleanup succeeds.
     ordinary = 0
-    for scope, namespace in PASS_NAMESPACES.items():
+    for scope, namespace in pass_namespaces(root).items():
         ordinary_path = directory('state', root=root) / namespace
         if not ordinary_path.exists():
             continue

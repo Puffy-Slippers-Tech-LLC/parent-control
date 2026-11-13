@@ -940,19 +940,23 @@ def test_vm_artifact_helper_uses_vm_scope_before_host_activity(tmp_path, monkeyp
         assert admissions[-1] == ([name], False)
         assert host_compute.admitted_names(run) == [name]
         os.close(owners.pop())
-        # An implicit default request may be attached using the equivalent all
-        # selector even when its admitted subset contains only one VM.
+        # A queue keeps its original superset through startup, attachment and
+        # resume; its group engine, not this launcher, will admit workers.
         run, started = regression_session._select(tmp_path, ['system'])
         assert started
-        original = admissions[-1][0]
+        original = json.loads((directory / 'current.json').read_text())['vm_requested']['vms']
         assert len(original) > 1
+        assert len(admissions) == 1  # Queues admit only inside their current group.
+        assert json.loads(spawns[-1]['env'][BATCH])['vms'] == original
         assert test_commands.vm_request(remembered['argv'])[0] == ['system']
         assert ','.join(original) in remembered['argv']
         assert regression_session._select(tmp_path, ['system', '--vm', 'all']) == (run, False)
         admitted = host_compute.admitted_names(run)
+        assert admitted == []
         os.close(owners.pop())
         resumed, started = regression_session._select(tmp_path, ['--resume', 'system'])
-        assert started and admissions[-1] == (admitted, True)
+        assert started and len(admissions) == 1
+        assert json.loads(spawns[-1]['env'][BATCH])['vms'] == original
         assert host_compute.admitted_names(resumed) == admitted
     finally:
         for fd in owners:

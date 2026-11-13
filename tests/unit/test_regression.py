@@ -420,6 +420,19 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
             assert checkpoint.passed('b', 'system') == (set() if late else {'authorization::first'})
             assert len(checkpoint.claims('b')) == 1
 
+    # Continuation relinquishes only a qualified, joined original-worker
+    # failure claim. Failed cases remain pending and never receive credit.
+    late_cleanup[0], fail[0] = False, True
+    retired.clear()
+    attempt_root[0] = tmp_path / 'clean-failed-continuation'
+    failed = vm_test_queue.execute_pass(attempt_root[0], history_plan, Control(), execute,
+        host=lambda **kwargs: dict(status=0), continue_on_errors=True)
+    assert failed['status'] == 1 and failed['cleanup_complete'] and not failed['suspended']
+    with PassCheckpoint.saved(attempt_root[0]) as checkpoint:
+        assert checkpoint.claims('b') == []
+        assert checkpoint.passed('b', 'system') == {'authorization::first'}
+        assert checkpoint.pending('b') == [history]
+
     late_cleanup[0], fail[0] = False, False
     retired.clear()
     attempt_root[0] = tmp_path / 'unrelated'
@@ -460,17 +473,35 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
     resumed_reload = vm_test_queue.execute_pass(attempt_root[0], tuple(reload_plan), Control(), execute)
     assert resumed_reload['status'] == 0 and resumed_reload['pass'] == reload_result['pass']
 
+    # A clean ordinary host failure remains a failure, but is not an ownership
+    # suspension that would prohibit explicitly requested independent VM work.
+    host_plan = ({'concurrency': 0}, [], ['unit'], [], [], {})
+    for cleanup in (True, False):
+        failed = vm_test_queue.execute_pass(tmp_path / 'host-failure', host_plan, Control(), execute,
+            host=lambda **kwargs: dict(status=1, cleanup=cleanup))
+        assert failed['status'] == 1
+        assert failed['suspended'] is not cleanup
+        assert failed['cleanup_complete'] is cleanup
+
 
 @pytest.mark.parametrize(('selector', 'names'), [(None, ['one', 'two', 'three']),
                                                ('two,three', ['two', 'three'])])
-def test_pass_plan_uses_only_the_requested_or_configured_pool(tmp_path, monkeypatch, selector, names):
+def test_pass_plan_uses_only_the_requested_or_configured_pool(
+        tmp_path, monkeypatch, private_dispatch_source, selector, names):
+    from contextlib import contextmanager
+    from dataclasses import replace
+    import host_compute
+    import launcher_reload
+    import runpy
+    import vm_recording
     import vm_pool
     import vm_selection
     import vm_test_queue
     config = vm_selection.vm_config
     host = config.HostConfig(max_compute_unit=6)
     configured = {name: config.VMConfig(name, tmp_path / name, enabled=name != 'offline',
-        package_format='deb', family=family, fixture_path='fixtures', host=host)
+        package_format='deb', family=family, fixture_path='fixtures', host=host,
+        vm_tags=frozenset({'general'}))
         for name, family in [('one', 'a'), ('two', 'a'), ('three', 'b'), ('offline', 'b')]}
     monkeypatch.setattr(config, 'configuration', lambda path=None: (6, configured))
     monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
@@ -486,6 +517,120 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(tmp_path, monkeypa
     assert list(plan[-1]) == ['a', 'b']
     assert all([work['case'] for work in items] == ['E2E-001', 'E2E-002']
                for items in plan[-1].values())
+
+    # Exercise this same pool guarantee at the sequential controller boundary:
+    # repeated selectors share credit, and only the admitted group owns capture
+    # and shutdown recovery. All guests/recorders remain private doubles.
+    def validate_one(root, args):
+        if any(arg in test_commands.CATEGORIES for arg in args[1:]):
+            raise ValueError('split category selections')
+    monkeypatch.setattr(test_commands, 'validate_one', validate_one)
+    monkeypatch.setattr(runpy, 'run_path', lambda path: {
+        'preflight': lambda *args, **kwargs: dict(cases=[dict(subcategory='general')])})
+    monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
+    owner = tmp_path / 'controller'
+    owner.mkdir(mode=0o700)
+    monkeypatch.setattr(launcher_reload, 'current', launcher_reload.ReloadRequest(owner))
+    events, executions, exact_admissions = [], [], []
+    active = []
+    pending = [False]
+    ordinary_failure = [False]
+
+    @contextmanager
+    def admit(candidates, *, exact, handoff):
+        assert not active and not handoff
+        assert all(vm.name in names for vm in candidates)
+        exact_admissions.append(exact)
+        families = {}
+        for vm in candidates:
+            families.setdefault(vm.family, []).append(vm)
+        admitted = [workers[-1 if executions else 0] for workers in families.values()]
+        active.extend(vm.name for vm in admitted)
+        events.append('admit')
+        yield admitted
+        assert host_compute.admitted_names(owner) == (active if pending[0] else [])
+        events.append('release')
+        active.clear()
+
+    @contextmanager
+    def record(root, *, enabled, run):
+        assert enabled and run == owner
+        assert json.loads(os.environ[vm_selection.BATCH])['vms'] == active
+        assert host_compute.admitted_names(owner) == active
+        events.append('capture')
+        yield SimpleNamespace(write_index=lambda *args: None)
+        events.append('capture joined')
+
+    def execute(root, args, **kwargs):
+        assert host_compute.admitted_names(owner) == active
+        executions.append(list(args))
+        if ordinary_failure[0]:
+            ordinary_failure[0] = False
+            return dict(status=1, cleanup_complete=True)
+        pending[0] = len(executions) == 2
+        if pending[0]:
+            return dict(status=1, suspended=True, cleanup_complete=False)
+        return dict(status=0, cleanup_complete=True)
+
+    monkeypatch.setattr(host_compute, 'launch', admit)
+    monkeypatch.setattr(vm_recording, 'recording', record)
+    monkeypatch.setattr(vm_test_queue, '_run_group', execute)
+    requested = ['system', 'check_first', 'system', 'check_second', 'e2e']
+    assert vm_test_queue.run(tmp_path, requested) == 1
+    assert executions == [['system', 'check_first', 'system', 'check_second'],
+                          ['e2e', '--subcategory', 'general']]
+    assert events == ['admit', 'capture', 'capture joined', 'release'] * 2
+    assert json.loads(os.environ[vm_selection.BATCH])['vms'] == names
+    # An admitted worker must remain eligible; an unused candidate may go
+    # offline without invalidating completed groups or the retained workers.
+    configured['two'] = replace(configured['two'], enabled=False)
+    vm_selection.execution_selection(selector)
+    with pytest.raises(ValueError, match='original admitted VMs'):
+        vm_test_queue.run(tmp_path, ['--resume', *requested])
+    configured['two'] = replace(configured['two'], enabled=True)
+    if selector is None:
+        configured['one'] = replace(configured['one'], enabled=False)
+    vm_selection.execution_selection(selector)
+    assert vm_test_queue.run(tmp_path, ['--resume', *requested]) == 0
+    assert executions[-1] == ['e2e', '--subcategory', 'general']
+    assert exact_admissions == [False, False, True]
+    assert events == ['admit', 'capture', 'capture joined', 'release'] * 3
+    assert host_compute.admitted_names(owner) == []
+    assert vm_test_queue.run(tmp_path, ['--resume', *requested]) == 0
+    assert len(executions) == 3
+
+    # Explicit continuation runs later groups while retaining the failure.
+    # Resume retries only the failed group, not the already accepted group.
+    continued = tmp_path / 'continued'
+    selected = ['system', 'e2e', '--continue-on-errors']
+    ordinary_failure[0] = True
+    assert vm_test_queue.run(continued, selected) == 1
+    assert executions[3:] == [['system'], ['e2e', '--subcategory', 'general']]
+    assert vm_test_queue.run(continued, ['--resume', *selected]) == 0
+    assert executions[5:] == [['system']]
+    ordinary_failure[0] = True
+    assert vm_test_queue.run(tmp_path / 'stop-on-failure', ['system', 'e2e']) == 1
+    assert executions[6:] == [['system']]
+
+    if selector is None:
+        # An unentered group admits from current eligibility inside the same
+        # original allowlist, including a VM whose tags changed since startup.
+        from test_checkpoint import GroupCheckpoint
+        configured['one'] = replace(configured['one'], enabled=True)
+        configured['two'] = replace(configured['two'], vm_tags=frozenset({'heavy'}))
+        vm_selection.execution_selection()
+        future = tmp_path / 'future-group'
+        selected = ['system', 'e2e']
+        groups = vm_test_queue.execution_groups(future, selected, [configured[name] for name in names])
+        with GroupCheckpoint(future, groups, names) as saved:
+            saved.state['workers'][0] = ['one', 'three']
+            saved.state['outcomes'][0] = dict(status=0, source_changed=False, terminal_failed=False)
+            saved.save()
+        configured['two'] = replace(configured['two'], vm_tags=frozenset({'general'}))
+        before = len(executions)
+        assert vm_test_queue.run(future, ['--resume', *selected]) == 0
+        assert executions[before:] == [['e2e', '--subcategory', 'general']]
+        assert not exact_admissions[-1]
 
 
 def test_ui_timings_preserve_nested_calls_failures_and_private_arguments():

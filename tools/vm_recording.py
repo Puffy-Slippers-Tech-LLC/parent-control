@@ -385,6 +385,21 @@ class Session:
             if not names or len(set(names)) != len(names) or set(names) - configured.keys():
                 raise ValueError('recording: invalid runner VM queue')
             self.configured = {name: configured[name] for name in names}
+            if self.run is not None:
+                from watch_output import read_json
+                try:
+                    previous = read_json(self.run / 'recordings.json', limit=8 * 1024 * 1024)
+                    records = previous['recordings']
+                    if (previous.get('run_id') != self.run.name or not isinstance(records, list)
+                            or any(not isinstance(record, dict)
+                                or not {'category', 'id', 'vm'} <= record.keys() for record in records)):
+                        raise ValueError('recording: invalid previous group index')
+                    self.records = list(records)
+                except FileNotFoundError:
+                    pass
+                except (OSError, ValueError, KeyError, TypeError) as error:
+                    print(f'Recording index unavailable: {type(error).__name__}; '
+                          'earlier media remains in its publication store.', file=sys.stderr, flush=True)
             self.store = Store(root=self.root)
             self.publication = Publication(self.root)
             self.stack.callback(self.publication.close)

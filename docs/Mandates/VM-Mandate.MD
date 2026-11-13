@@ -63,12 +63,33 @@ otherwise inheriting its family's value (legacy families default to 1). Both
 fields accept decimals. The host-wide capacity authority atomically calculates
 `available_compute = max_compute_unit - total_used_compute` across active
 reservations, independently of repository, branch or initiating machine.
-Launcher admission reserves a fixed random subset for its entire lifetime,
-including idle phases and reloads; surviving owned commands retain the charge.
-The original request remains attachment metadata; the admitted canonical names
-are recorded separately for execution, resume and shutdown recovery. Resume
-reserves that exact admitted subset, refusing insufficient capacity rather than
-drawing different workers or discarding its saved pass ownership.
+Test execution reserves capacity separately for each sequential category or
+subcategory. `run-tests` treats the launcher's `--vm` selection as the allowed
+superset, applies enabled/host/branch restrictions, then matches the group's
+effective `vm_tag` against each VM's effective `vm_tags` before capacity admission.
+Subcategory `vm_tag` overrides category `vm_tag`; omission inherits the category,
+whose default is `general`. Families require comma-separated `vm_tags`; an optional
+VM value replaces the family's tags. Matching uses exact tokens. A required family
+without a matching candidate refuses execution, never falls back or earns a pass.
+The shared capacity scheduler receives eligible candidates only and owns no test
+membership or tag inheritance. `fix-tests` passes its allowed pool through and
+supplies repair callbacks and rounds; it performs no separate VM scheduling.
+
+Admission reserves a fixed random subset for the current test group, including
+its repairs, prerequisite preparation and reload recovery. Owned execution and
+cleanup join before the reservation is released and the next group is admitted
+from the original allowed pool. Thus different groups need not fit simultaneously.
+Other workflows retain their launcher-lifetime reservations. Surviving owned
+commands retain the charge. The original request remains attachment metadata;
+group checkpoints record admitted canonical names separately. Resume reserves
+the active group's exact admitted subset, refusing insufficient capacity rather
+than drawing different workers or discarding saved ownership. Completed groups
+stay complete. Unused candidates may become unavailable without blocking resume;
+retained workers must still satisfy current availability and tag rules. Future
+groups refresh eligible candidates within the original allowed pool and receive
+admission when reached; resume never widens that pool. Shutdown recovery
+uses only the current group's recorded admitted VMs. Its receipt is cleared
+after joined cleanup, so shutdown cannot revisit a VM released by an earlier group.
 If availability is below the smallest selected VM's cost on any selected host,
 the entire launcher fails before work starts, with a red diagnostic giving the
 limit, used, available and minimum required compute. Earlier host reservations
@@ -96,7 +117,7 @@ Owned stop/recovery retains its UUID, journal and instance checks after VM/host
 availability changes, without requesting new execution capacity. This exception
 permits only the existing recovery path and grants no new guest execution.
 
-Tests use one pending case queue per admitted family: an available VM
+Within each test group, tests use one pending case queue per admitted family: an available VM
 atomically claims its next case, so each case executes once per family. The same
 pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
 failed or interrupted claims retain their owner through cleanup and recovery.

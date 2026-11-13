@@ -298,7 +298,7 @@ defines equivalent workers sharing package format and a fixture directory.
 Each host's positive numeric `max_compute_unit` limits reserved guest compute.
 VM costs inherit family `compute_unit` unless overridden; both accept decimals.
 The [capacity authority](../docs/Mandates/VM-Mandate.MD#target-selection) reserves
-a fixed subset for each launcher, balances family compute, and independently
+a fixed subset for each test group, balances family compute, and independently
 guards VM admission. Every selected case runs once per admitted family.
 VMs are eligible only when both VM and host have `enabled: "true"`. Every queue
 selection skips offline entries; direct maintenance refuses before access.
@@ -313,14 +313,29 @@ All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
-The ordinary `execute_pass` coordinator owns one FIFO per family across the
-selected categories. Ready VMs pull one item at a time; there are no advance
-shards or category barriers. Every included family keeps its complete selection,
+`run-tests` expands categories into ordered subcategories and executes groups
+sequentially. The original `--vm` selection is an allowed superset. Test inventory
+owns `vm_tag` inheritance; VM configuration owns required family `vm_tags` and
+optional replacing VM overrides. The runner filters each group by exact tag
+membership before shared capacity admission. No matching VM for a required family
+is an unschedulable selection, never a skip or a pass. The scheduler manages
+capacity, leases and workers without knowing test membership or tag inheritance.
+E2E currently has one explicit subcategory, `general`, with `vm_tag: general`;
+every current scenario declares that membership. `--subcategory general` narrows
+E2E explicitly; there is no heavy test subcategory yet. The VM registry owns
+the available machines and their tags.
+
+Within each group the ordinary `execute_pass` coordinator owns one FIFO per
+family. Ready VMs pull one item at a time; there are no advance shards.
+Repeated selectors for the same category/subcategory share that group's queue
+and accepted case credit.
+The group joins execution, repairs and cleanup before releasing its reservation;
+the next group selects afresh from the original allowed pool. Every included family keeps its complete selection,
 including while its VMs are occupied. Admission fills one available worker per
 family before a second, rotates equal-compute priority on refill, and uses spare
 capacity when a family is busy or drained. Required-VM recovery stays with its
 original worker. Host work runs once per pass through the existing host scheduler
-and the shared source-admission boundary, without consuming VM slots.
+and shared source admission before VM groups, without consuming VM slots.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
 with `tools/prepare-vm` defaulting to `all` online VMs in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the
@@ -338,6 +353,14 @@ within each host or VM workflow; implementation agents remain serial.
 `write-e2e` and `fix-tests` share that pass coordinator through `run-tests`;
 `fix-tests` supplies impact triage, repair actions and run-wide rounds under the
 [repair loop](#scripted-repair-loop).
+
+| Module | Scheduling responsibility |
+| --- | --- |
+| `tests/integration/vm_config.py` | Validate VM registry and resolve inherited VM tags. |
+| `tools/test_commands.py` and the category inventory | Declare categories, subcategories, test tags and case membership. |
+| `tools/vm_test_queue.py` (`run-tests` engine) | Select each group's eligible pool, run groups sequentially and own case/repair progress. |
+| `tools/host_compute.py` and `tools/vm_queue.py` | Admit supplied candidates under capacity policy, dispatch workers and join owned cleanup; no test-tag rules. |
+| `tools/fix_tests.py` | Pass the requested pool and selections through, supply repair callbacks and own run-wide rounds. |
 
 VM ownership is coordinated by the host-wide
 [VM pool](../docs/Mandates/VM-Mandate.MD#central-vm-checkout), keyed by domain UUID.
@@ -385,6 +408,9 @@ Complete categories and aggregates stop at the first reported
 failure by default, with the same cooperative cleanup, final evidence and failure
 investigation prompt as Ctrl+C. Use `tools/run-tests all --vm NAME --continue-on-errors`
 (or the corresponding aggregate) to continue independent tests after failures.
+Clean failed groups retain their failing verdict while later groups execute;
+resume retries those failed groups and skips accepted groups. Qualified original
+worker cleanup releases failed claims without granting failed cases any credit.
 Safety and infrastructure refusals still stop the run. Reattachment preserves
 the original options. The flag takes no value and can accompany `--serial-builds`.
 For selected granular categories, the leading `--stop-on-error` option enables
@@ -437,12 +463,21 @@ the selected VMs and runs maintained VM-only cleanup for those owners
 the VM reservation and excludes competing queue writers before returning claims
 to pending; a failed recovery preserves the claims and stops the launch.
 Resumed queues retain their ownership and recover through their original workers.
-Ordinary pass state has one exclusive coordinator gate. Its family partitions,
+Each group's ordinary pass state has one exclusive coordinator gate. Its family partitions,
 accepted attempt receipts and uncertain claims share the same record. Resume
 cleans uncertain claims through their original VM before requeueing them;
 standalone cleanup and reset use that same recovery transition under ownership.
 They cannot rewrite a live coordinator's claims. A crash may repeat work, but
 worker checkpoints alone never become family completion authority.
+A shared group checkpoint retains the ordered selection, original allowed pool,
+each group's admitted workers and settled group outcomes. It owns no case credit.
+Resume skips settled groups and reacquires the current group's exact admitted
+subset; groups not yet entered receive fresh admission. Scoped retries retain
+the original group and VM, and cannot settle later cases or groups. Reset and
+owned claim recovery include every retained group checkpoint.
+An unused candidate becoming unavailable does not invalidate admitted workers or
+completed groups. Future groups refresh candidates inside the original allowed
+pool; an unavailable or no-longer-matching admitted worker still refuses resume.
 Explicit resume parameters must match the saved request; omitted options are
 inherited. VM names and IDs are compatible when they resolve to the same VM set.
 Incompatible parameters fail before attachment or execution and report the previous
@@ -563,10 +598,10 @@ execution and corrective verification alike. Each newly entered
 category and each fresh verification pass starts without `--resume`.
 
 For a configured VM pool, host categories run once per pass. The shared
-coordinator owns one FIFO per family across selected categories and records each
+coordinator owns one FIFO per family within the current sequential group and records each
 claim before execution. Every family retains its full selection; ready equivalent
 VMs pull work without fixed shards. Failed attempts keep their original VM for
-recovery and exact repair verification. Host work runs alongside VM work without
+recovery and exact repair verification. Host work finishes before VM groups without
 consuming VM compute; the host compute cap limits active VM attempts.
 Normal cases execute in
 parallel through fresh runner invocations with the original selectors
@@ -589,10 +624,10 @@ retaining a whole category's frozen inputs.
 
 The dashboard shows logical case progress by family and category in the current
 pass, one run-wide round/pass, and VM assignments, attempts and resource waits.
-`Overall` accumulates completed selected system and E2E cases
-over their combined selected total for that family and pass. Both inventories are
-discovered before the first case, so changing categories does not reset Overall.
-The installed-system/E2E row shows completed cases over that category's selected
+The active group is identified separately. `Overall` shows completed selected
+cases over the current group's selected total for that family; entering another
+group starts its own counts. Settled earlier groups remain in the group checkpoint.
+The installed-system/E2E row shows completed cases over that group's selected
 inventory. Discovery, prerequisite replays and package preparation still run but
 add nothing to these totals. Successful preparation rows disappear from the shared
 dashboard; unfinished preparation and failures remain visible.
@@ -2089,8 +2124,10 @@ private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
 window header and bottom checkout/resource controls.
-One private renderer belongs to the runner on its executing host, including its
-local concurrent VM queue. Its bus, renderer and compositor retain scratch and
+One private renderer belongs to the admitted test group on its executing host,
+including its local concurrent VM queue. It starts after capacity admission,
+observes only admitted VMs and joins before their reservation is released.
+Its bus, renderer and compositor retain scratch and
 recording ownership, but never an execution source reader or repair writer;
 observation cannot prevent a repair's source lease from releasing.
 Transferred SSH workers own independent renderers per
@@ -2103,10 +2140,11 @@ It fans the same masked frames to at most one encoder per active VM case.
 Lifecycle phases for the same case in one attempt retain their private scratch
 segments and join them into one video when the final selected phase finishes.
 Interleaved cases remain separate; earlier attempts and repair sessions are excluded.
-For `fix-tests` VM queues, the parent repair launcher owns that controller
+For `fix-tests` VM queues, the shared group execution owns that controller
 through all worker retries and owned cleanup; nested runners inherit its verified
-endpoint rather than creating competing controllers. Its recording index belongs
-to the parent run. Capture includes only that queue's feeds from this checkout: another
+endpoint rather than creating competing controllers. The parent run's recording
+index retains the latest case receipts across groups. Capture includes only the
+admitted group's feeds from this checkout: another
 controller's secret seals cannot authorize recording its display. The **ONPC: Watch**
 tab can be opened, closed or absent independently.
 The recording is human review material; test assertions and result reports

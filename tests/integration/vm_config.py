@@ -47,6 +47,7 @@ class VMConfig:
     owning_branch: str = ''
     host: HostConfig = HostConfig()
     compute_unit: float = 1
+    vm_tags: frozenset[str] = frozenset()
 
     def require_build_target(self):
         # Standalone helpers can import vm_config before adding the checkout.
@@ -342,10 +343,11 @@ def fixture_targets(path=None):
 
 def validate_family(document):
     if (not isinstance(document, dict) or
-            not {'family', 'package_format', 'fixture_path', 'vms'} <= set(document) or
+            not {'family', 'package_format', 'fixture_path', 'vm_tags', 'vms'} <= set(document) or
             not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
     family = document['family']
+    parse_vm_tags(document['vm_tags'])
     compute_unit(document.get('compute_unit', 1), 'family compute_unit')
     if 'iso' in document:
         pattern = document['iso']
@@ -363,6 +365,17 @@ def validate_family(document):
             any(part in {'', '.', '..'} for part in value.split('/'))):
         raise ValueError('vm-config:fixture_path; use a relative directory without traversal')
     return document
+
+
+def parse_vm_tags(value):
+    """Parse exact routing tokens; an explicit VM value replaces family tags."""
+    if not isinstance(value, str):
+        raise ValueError('vm-config:vm_tags must be a nonempty comma-separated string')
+    tags = [tag.strip() for tag in value.split(',')]
+    if (any(not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', tag) for tag in tags)
+            or len(tags) != len(set(tags))):
+        raise ValueError('vm-config:vm_tags must contain unique nonempty tag tokens')
+    return frozenset(tags)
 
 
 def compute_unit(value, field='compute_unit'):
@@ -516,7 +529,8 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
     return VMConfig(name, Path(value), enabled == 'true', identifier,
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
                     hosts[host_name], compute_unit(document.get('compute_unit', family.get('compute_unit', 1)),
-                                                  'VM compute_unit'))
+                                                  'VM compute_unit'),
+                    parse_vm_tags(document.get('vm_tags', family['vm_tags'])))
 
 
 def load(name=None, path=None, *, local=None):

@@ -8,6 +8,7 @@
       "transport": "local",
       "virt-manager": "/Data/virt-manager",
       "concurrency": 3,
+      "disk_concurrency": 1,
       "backup_root": "/Data/virt-manager/backups/onpc"
     },
     {
@@ -17,7 +18,8 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "concurrency": 6
+      "concurrency": 6,
+      "disk_concurrency": 2
     }
   ],
   "branches": [

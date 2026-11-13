@@ -596,7 +596,7 @@ def _run(root, argv, caller):
     if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk']):
         from test_storage import scratch_descriptors
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
-        if argv[:1] in (['pool'], ['pool-retire']):
+        if argv[:1] in (['pool'], ['pool-retire'], ['disk']):
             environment['PKEXEC_UID'] = str(caller.pw_uid)
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]

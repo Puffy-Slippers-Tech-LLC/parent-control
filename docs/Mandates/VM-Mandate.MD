@@ -255,9 +255,13 @@ ownership.
 
 ### Host disk queue
 
-The shared [disk admission helper](../../tools/host_disk.py) serializes expensive
+The shared [disk admission helper](../../tools/host_disk.py) throttles expensive
 disk operations across all participating VMs, users and checkouts on the host.
-Each physical host has its own FIFO queue and admits one operation at a time.
+Each physical host has its own FIFO queue and admits up to its host entry's
+`disk_concurrency` operations at a time in `config/environment.json`. This must
+be a positive integer and defaults to 1 when omitted, independently of VM
+`concurrency`. The executing host's identity selects the limit, including for
+transferred SSH source.
 Operations on different hosts proceed independently; the controller must not
 reserve its own disk slot for work performed on an SSH host.
 Actual snapshot creation/restoration, guest product package transactions, host

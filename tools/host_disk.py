@@ -2,7 +2,8 @@
 
 The root-owned VM pool runtime is shared by users and checkouts. Each admitted
 request has a kernel-locked ticket on the host doing the work. Only that host's
-oldest live ticket may execute; different hosts have independent queues;
+oldest live tickets up to its configured disk concurrency may execute;
+different hosts have independent queues;
 unlocked tickets are abandoned requests, never expired or stolen owners.
 Durable workflow journals remain their existing owners' responsibility.
 """
@@ -23,8 +24,10 @@ import uuid
 
 try:
     import vm_pool
+    from vm_selection import vm_config
 except ModuleNotFoundError:
     from . import vm_pool
+    from .vm_selection import vm_config
 
 # Script and package launchers must share nesting state in the same process.
 sys.modules.setdefault('host_disk', sys.modules[__name__])
@@ -105,6 +108,8 @@ def _cancelled(stopped=None, incoming=None):
 @contextmanager
 def _host(*, stopped=None, incoming=None):
     """Short gate orders admission; waiting never holds the admission gate."""
+    hosts = vm_config.host_registry(vm_config.read_document(validate_agent=False))
+    limit = hosts[vm_config.execution_host()].disk_concurrency
     directory = vm_pool.RUNTIME / 'disk'
     vm_pool.RUNTIME.mkdir(mode=0o700, exist_ok=True)
     info = vm_pool.RUNTIME.lstat()
@@ -135,19 +140,20 @@ def _host(*, stopped=None, incoming=None):
             _cancelled(stopped, incoming)
             fcntl.flock(gate, fcntl.LOCK_EX)
             try:
-                first = None
+                ahead = 0
                 for path in sorted((p for p in directory.iterdir() if _ticket.fullmatch(p.name)),
                                    key=lambda p: int(p.name.partition('-')[0])):
                     if path.name == name:
-                        first = name
                         break
                     prior = _open(directory, path.name)
                     try:
                         try:
                             fcntl.flock(prior, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         except BlockingIOError:
-                            first = path.name
-                            break
+                            ahead += 1
+                            if ahead >= limit:
+                                break
+                            continue
                         # No process retains this ticket. Its operation has
                         # finished or crashed; there is no PID-based stealing.
                         path.unlink()
@@ -155,7 +161,7 @@ def _host(*, stopped=None, incoming=None):
                         os.close(prior)
             finally:
                 fcntl.flock(gate, fcntl.LOCK_UN)
-            if first == name:
+            if ahead < limit:
                 _cancelled(stopped, incoming)
                 yield fd
                 break

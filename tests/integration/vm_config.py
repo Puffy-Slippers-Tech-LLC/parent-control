@@ -31,6 +31,7 @@ class HostConfig:
     concurrency: int = 1
     backup_root: Path | None = None
     ssh_port: int | None = None
+    disk_concurrency: int = 1
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,9 @@ def host_registry(document):
         concurrency = entry['concurrency']
         if type(concurrency) is not int or concurrency < 1:
             raise ValueError('vm-config:host concurrency must be a positive integer')
+        disk_concurrency = entry.get('disk_concurrency', 1)
+        if type(disk_concurrency) is not int or disk_concurrency < 1:
+            raise ValueError('vm-config:host disk_concurrency must be a positive integer')
         transport = entry['transport']
         port = entry.get('ssh_port')
         if transport not in ('local', 'ssh'):
@@ -195,7 +199,8 @@ def host_registry(document):
         root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
         if 'virt-manager' in entry:
             absolute_path(entry['virt-manager'], 'virt-manager')
-        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, port)
+        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, port,
+                                 disk_concurrency)
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
     return hosts

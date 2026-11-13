@@ -1367,6 +1367,10 @@ class Lease:
                 self.guard()
             require(self.capture.verify_snapshot(boundary='recovery') ==
                     self.capture.state['proof'], 'recovery:baseline-changed')
+            from e2e_watch import begin, attach
+            begin(self)
+            if not off:
+                attach(self)
             from vm_internet import restore as restore_internet
             restore_internet(self)
             if restored_off:

@@ -249,7 +249,12 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 guest_input.write(block)
                 if guest_input.tell() > 64 * 1024 * 1024:
                     raise ValueError('remote source: guest input exceeds 64 MiB')
-        with test_source.reader(root):
+        # Pool capture is control plumbing, not test admission. It must remain
+        # available behind impact holds so shutdown can acquire/release its VM.
+        # Never wait for a source writer here; queue owners can retry without
+        # retaining a VM or an execution slot.
+        with (test_source.startup(root, ['--resume'], repair=True, wait=False)
+              if mode == 'pool' else test_source.reader(root)):
             manifest = transfer_archive(root, archive)
             git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
             files = {}

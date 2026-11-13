@@ -1084,14 +1084,14 @@ def finish_shutdown(root, run, *, restore_vms=True):
     # and waits for baseline restoration before checkin. Do not inherit the stop request
     # as cancellation of this recovery or register it as new agent-owned work.
     selection = ','.join(dict.fromkeys(names))
-    print(f'launcher: restoring VMs to baseline before shutdown: {selection}.', flush=True)
+    print(f'launcher: checking and recovering VMs before shutdown: {selection}.', flush=True)
     from vm_pool import Busy
     for name in dict.fromkeys(names):
         status = subprocess.run([str(root / 'tools/cleanup-e2e'), '--vm', name, '--if-available'],
                                 cwd=root, env=environment(), stdin=subprocess.DEVNULL,
                                 pass_fds=scratch_descriptors(), check=False).returncode
         if status == Busy.status:
-            print(f'launcher: {name} is busy; recovery deferred to the next run. '
+            print(f'launcher: {name} or its checkout source is busy; recovery deferred to the next run. '
                   'Leaving the current VM owner untouched.', flush=True)
         elif status:
             raise ValueError(f'launcher: baseline cleanup failed (status={status}); '

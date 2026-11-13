@@ -599,7 +599,7 @@ def startup(root, argv, *, repair=False, wait=True, fresh=False):
                         else:
                             break
                     if not wait:
-                        raise ValueError('checkout source is busy; retry after its current owner finishes')
+                        raise SourceBusy('checkout source is busy; retry after its current owner finishes')
                     time.sleep(.1)
                 protection.check_generation(fresh=fresh)
                 retain(fd, owner)

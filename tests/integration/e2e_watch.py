@@ -1,6 +1,8 @@
 """Lease-owned display collector. It never owns or launches a viewer window."""
 
 import array
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -223,6 +225,8 @@ class Publication:
         # transports must never steal or remove another controller's feed.
         self.current = self.directory / (f'activity-{run}.json' if registry == 'activity.json' else
                                         'current-' + self.vm_name.encode('ascii').hex() + '.json')
+        self.frames = registry == 'current.json'
+        self.previous = None
         self.server = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         try:
             self.server.bind(str(self.path))
@@ -233,13 +237,58 @@ class Publication:
             self.server.close()
             raise
 
-    def publish(self):
+    @contextmanager
+    def registry_lock(self):
+        """Serialize frame handoff and retirement, never VM or socket work."""
+        if not self.frames:
+            yield
+            return
+        fd = os.open(self.directory / 'publication.lock',
+                     os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(fd)
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                    and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1,
+                    'publication-lock')
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+
+    def previous_registration(self):
+        """Remember the detached collector that this finite observer replaces."""
+        try:
+            fd = os.open(self.current, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(fd)
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                        and not info.st_mode & 0o022 and info.st_nlink == 1
+                        and info.st_size <= 8192, 'publication-registration')
+                value = json.loads(stream.read(8193))
+            if (not isinstance(value, dict) or value.get('vm') != self.vm_name
+                    or not isinstance(value.get('run'), str)
+                    or re.fullmatch('[0-9a-f]{32}', value['run']) is None):
+                return None
+            if value['run'] == self.run:
+                return self.previous
+            path = self.directory / (value['run'] + '.sock')
+            info = path.lstat()
+            require(stat.S_ISSOCK(info.st_mode) and info.st_uid == 0, 'publication-socket')
+            return value, path, (info.st_dev, info.st_ino)
+        except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+            return None
+
+    def write_registration(self, value):
         temporary = self.directory / (self.run + '.json')
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
         with os.fdopen(fd, 'w') as stream:
-            json.dump(self.metadata, stream)
+            json.dump(value, stream)
             os.fchmod(stream.fileno(), 0o644)
         temporary.replace(self.current)
+
+    def publish(self):
+        with self.registry_lock():
+            if self.frames:
+                self.previous = self.previous_registration()
+            self.write_registration(self.metadata)
 
     def close(self):
         self.server.close()
@@ -248,11 +297,23 @@ class Publication:
                 self.path.unlink()
         except FileNotFoundError:
             pass
-        try:
-            if json.loads(self.current.read_text()) == self.metadata:
+        with self.registry_lock():
+            try:
+                if json.loads(self.current.read_text()) != self.metadata:
+                    return
+                if self.previous is not None:
+                    value, path, identity = self.previous
+                    try:
+                        info = path.lstat()
+                    except FileNotFoundError:
+                        pass
+                    else:
+                        if stat.S_ISSOCK(info.st_mode) and (info.st_dev, info.st_ino) == identity:
+                            self.write_registration(value)
+                            return
                 self.current.unlink()
-        except FileNotFoundError:
-            pass
+            except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+                pass
 
 
 class Observer:

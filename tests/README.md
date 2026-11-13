@@ -1187,8 +1187,10 @@ input cancels the entire launcher. A second Ctrl+C also cancels while the first
 interruption is still being processed; repeated Escape preserves the session.
 Owned tests finish their guarded cleanup before the controller exits. Shutdown
 recovery tries each selected VM without queuing behind another workflow's
-reservation. A busy VM is left untouched, with recovery explicitly deferred to
-the next run; once recovery has acquired a VM, restoration finishes before exit.
+reservation. A busy VM or checkout source is left untouched, with recovery
+explicitly deferred to the next run. Recovery borrows the existing source scope
+behind impact holds, but never waits for a source writer while holding a VM.
+Once admitted, restoration finishes before exit.
 Piped observers retain signal cancellation.
 
 After each completed task, the launcher stages its owned paths and commits them

@@ -270,6 +270,11 @@ def resume(lease, *, stopping=False, recovery_instance=None, fixture_maintenance
         lease.view.run = recover_identity(lease)
     lease.guard(off=stopping and current_id == -1)
     runner.require(lease.capture.verify_snapshot() == lease.capture.state['proof'], 'baseline:changed')
+    if stopping or recovery_instance is not None:
+        from e2e_watch import begin, attach
+        begin(lease)
+        if current_id >= 0:
+            attach(lease)
     lease.mutated = True
     if recovery_instance is not None:
         lease.state['run'] = lease.view.run

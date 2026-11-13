@@ -8,6 +8,7 @@ from contextlib import nullcontext
 
 import test_activity
 import test_retention
+import test_source
 from test_recovery import cleanup, cleanup_host
 from vm_selection import select, vm_config, BATCH
 from vm_pool import Busy, reservation, check_queue
@@ -108,7 +109,11 @@ def main(argv=None):
         os.environ.pop(BATCH, None)
         for vm in vms:
             select(vm.name)
-            with reservation(vm.name, wait=not args.if_available), test_activity.activity(root):
+            # Acquire the VM first, then borrow recovery source without waiting
+            # on a writer that may itself need this VM. Keep this scope around
+            # remote dispatch and explicit retirement as well as ordinary cleanup.
+            with reservation(vm.name, wait=not args.if_available), test_activity.activity(root), \
+                    test_source.startup(root, ['--resume'], repair=True, wait=False):
                 status = remote_cleanup(vm)
                 if status is None and args.discard_completed:
                     from regression_process import category_run
@@ -129,7 +134,7 @@ def main(argv=None):
             if status:
                 return status
         return 0 if args.vm_only else cleanup_host(root)
-    except Busy as error:
+    except (Busy, test_source.SourceBusy) as error:
         print('cleanup-e2e: ' + str(error), file=sys.stderr)
         return Busy.status
     except (ValueError, OSError) as error:

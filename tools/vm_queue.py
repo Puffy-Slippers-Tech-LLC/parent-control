@@ -7,11 +7,12 @@ import os
 import queue
 import sys
 import threading
-import launcher_control
-from detached_launcher import record_exception
 
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import launcher_control
+from detached_launcher import record_exception
 
 
 class _NoWork(Exception):

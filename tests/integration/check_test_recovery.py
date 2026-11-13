@@ -13,6 +13,7 @@ from check_tmp_storage_cleanup import unused
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 import test_retention
+from watch_activity import observed
 
 
 def reconcile_vm(root):
@@ -28,6 +29,7 @@ def reconcile_vm(root):
         guard(root)
 
 
+@observed('Checking recorded VM recovery and retained evidence')
 def main():
     if len(sys.argv) != 1 or os.geteuid() != 0 or Path.cwd() != ROOT:
         raise ValueError('retention: invalid recovery invocation')

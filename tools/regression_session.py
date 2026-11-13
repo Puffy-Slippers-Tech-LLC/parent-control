@@ -338,10 +338,11 @@ def worker(root, argv, run, owner, *, reloading=False):
         import test_io
         import launcher_reload
         from test_storage import scratch_descriptors
-    regression_process.session_stop = threading.Event()
+    from launcher_control import watching, CancellationEvent
+    regression_process.session_stop = CancellationEvent(run)
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
-    with launcher_reload.watching(run), regression_process.Control().installed(), test_io.low_io(), \
+    with watching(run), regression_process.Control().installed(), test_io.low_io(), \
             ExitStack() as resources:
         try:
             return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
@@ -385,16 +386,6 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
             return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
     import regression_process
     from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS
-    finished = threading.Event()
-
-    def cancellation():
-        while not finished.wait(0.1):
-            if (run / 'cancel').exists():
-                regression_process.session_stop.set()
-                return
-
-    watcher = threading.Thread(target=cancellation, daemon=True)
-    watcher.start()
     status = 1
     continuing = reloading
     reloading = False
@@ -463,8 +454,6 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
               file=sys.stderr, flush=True)
         status = 1
     finally:
-        finished.set()
-        watcher.join()
         if status in (0, RELOAD_STATUS) and regression_process.session_stop.is_set():
             status = 130
         if media is not None:

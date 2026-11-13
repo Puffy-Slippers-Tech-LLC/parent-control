@@ -807,7 +807,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             guard_scheduling_checkpoints(root)
             gate = RepairGate(run, root=root)
         test_source.finish_imports(root, keep=() if gate.fd is None else (gate.fd,), directories=(run,))
-        from launcher_reload import watching
+        from launcher_control import watching
         lifetime.enter_context(watching(run))
         from vm_recording import recording
         media = lifetime.enter_context(recording(root, enabled=not host_only_request(selected), run=run))

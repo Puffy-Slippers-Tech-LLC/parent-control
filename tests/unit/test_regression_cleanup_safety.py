@@ -57,6 +57,7 @@ def test_aggregate_signal_warning_precedes_cleanup_and_survives_redraw(tmp_path,
 
 
 def test_interrupt_waits_for_owned_cleanup_and_preserves_unrelated_process(tmp_path):
+    from launcher_control import watching
     child = tmp_path / 'child.py'
     child.write_text('''import signal,time
 def stop(*_):
@@ -71,16 +72,16 @@ finally:
 ''')
     sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
     sentinel_fd = os.pidfd_open(sentinel.pid)
-    control = Control()
     output = bytearray()
     def receive(data):
         output.extend(data)
         if b'ready' in output:
-            control.stop()
-            control.stop()  # Repeated interrupts never abort the finally block.
+            (tmp_path / 'cancel').touch()
+            (tmp_path / 'cancel').touch()  # Repeated requests preserve cleanup.
     try:
-        assert control.run([sys.executable, str(child)], cwd=tmp_path, env=os.environ.copy(),
-                           output=receive) == 130
+        with watching(tmp_path):
+            assert Control().run([sys.executable, str(child)], cwd=tmp_path, env=os.environ.copy(),
+                                 output=receive) == 130
         assert b'cleanup complete' in output
         assert sentinel.poll() is None
     finally:
@@ -146,9 +147,19 @@ pathlib.Path({str(marker)!r}).write_text('cleaned')
 
 
 def test_cancelled_controller_never_starts_another_child(tmp_path):
-    control = Control()
-    control.stop()
-    assert control.run(['/missing/command'], cwd=tmp_path, env={}) == 130
+    from launcher_control import watching
+
+    with watching(tmp_path):
+        previous = Control()
+        previous.stop()  # An operation-local suspension cannot poison a new pass.
+        control = Control()
+        assert not control.stopped.is_set()
+        (tmp_path / 'cancel').touch()
+        assert control.stopped.wait(1)
+        assert control.run(['/missing/command'], cwd=tmp_path, env={}) == 130
+        control.stopped.clear()
+        assert Control().run(['/missing/command'], cwd=tmp_path, env={}) == 130
+    assert not Control().stopped.is_set()  # The next controller has its own lifetime.
 
 
 def test_failed_pidfd_acquisition_reaps_the_spawned_child(tmp_path, monkeypatch):

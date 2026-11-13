@@ -984,7 +984,8 @@ def _worker(argv, finished):
     os.environ.pop(test_activity.VARIABLE, None)
     sys.stdout.frame(['Queued (waiting for VM checkout)'])
     from prepare_appsnapshot import snap_ready_reservation
-    with launcher_reload.watching(), Control().installed(pipe=True) as control, snap_ready_reservation(root, name, control), \
+    from launcher_control import watching
+    with watching(), Control().installed(pipe=True) as control, snap_ready_reservation(root, name, control), \
             test_activity.activity(root, named_vm=True), test_source.reader(root, stopped=control.stopped.is_set):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process

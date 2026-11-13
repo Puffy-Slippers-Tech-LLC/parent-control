@@ -99,7 +99,8 @@ class Control:
     """
 
     def __init__(self):
-        self.stopped = session_stop if session_stop is not None else threading.Event()
+        from launcher_control import CancellationEvent
+        self.stopped = session_stop if session_stop is not None else CancellationEvent()
         self.interrupted = False
         self.pipe = False
 

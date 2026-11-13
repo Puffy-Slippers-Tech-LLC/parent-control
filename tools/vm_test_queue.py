@@ -196,6 +196,11 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
     inflight = {}
     deferred = []
     repair_mode = 'triage' in actions and 'repair' in actions
+    def report_error(context, error, **identity):
+        from detached_launcher import record_exception
+        if 'error' in actions:
+            return actions['error'](context, error, **identity)
+        return record_exception(None, context, error, **identity)
     protection = test_source.SourceProtection(test_source.source_directory(root))
     failure_results = {}
     triaged = {}
@@ -529,9 +534,13 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         hold(ticket, envelope['decision']['impact'])
                         impacts[ticket['id']] = envelope['decision']['impact']
                 except Exception as error:
+                    from detached_launcher import Stopped
+                    if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                        repair_status.append(dict(ticket=ticket['id'], phase='triage',
+                            **report_error('Impact triage', error,
+                                ticket=ticket['id'], vm=ticket['vm'], case=ticket['case'])))
                     hold(ticket, 'unsure')
                     impacts[ticket['id']] = 'unsure'
-                    from detached_launcher import Stopped
                     if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
                         raise
                 triaged[ticket['id']] = source_identity(root)
@@ -546,16 +555,21 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
             if remaining and not blocking:
                 return
             ticket = tickets[0]
+            phase = 'repair action'
             try:
                 outcome = actions['repair'](ticket, Execution(ticket, executor))
                 if not isinstance(outcome, dict):
                     raise ValueError('repair must return an outcome')
                 kind = outcome.get('outcome')
+                phase = 'repair settlement'
+                reason = outcome.get('reason')
                 if kind == 'resolved' and (protection.owner() is not None
                         or not ticket['vm'] and outcome.get('attempt', {}).get('source') != source_identity(root)):
                     kind = 'suspended'
+                    reason = 'resolved repair retains a writer or stale host qualification'
                 if kind == 'leave_failed' and (impacts.get(ticket['id']) != 'no' or protection.owner() is not None):
                     kind = 'suspended'
+                    reason = 'failed repair retains shared impact or an unfinished writer'
                 # Hold a reader through final validation and release the hold
                 # under the same gate. VM qualification belongs to its captured
                 # inputs; host qualification still checks the live source.
@@ -571,7 +585,7 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         if kind != 'suspended':
                             protection.release_impact(impact_key(ticket))
                 repaired_source_changed |= bool(outcome.get('source_changed'))
-                repair_status.append(dict(ticket=ticket['id'], outcome=kind))
+                repair_status.append(dict(ticket=ticket['id'], outcome=kind, reason=reason))
                 if kind == 'suspended':
                     suspended = True
                     return
@@ -583,10 +597,15 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 publish_progress()
                 return True
             except Exception as error:
-                checkpoint.settle_repair(ticket['id'], 'suspended')
-                repair_status.append(dict(ticket=ticket['id'], outcome='suspended', error=str(error)))
-                suspended = True
                 from detached_launcher import Stopped
+                if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                    details = report_error(phase, error,
+                        ticket=ticket['id'], vm=ticket['vm'], case=ticket['case'])
+                else:
+                    details = dict(error=str(error))
+                checkpoint.settle_repair(ticket['id'], 'suspended')
+                repair_status.append(dict(ticket=ticket['id'], outcome='suspended', **details))
+                suspended = True
                 if isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
                     raise
 
@@ -608,10 +627,12 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
         for assignment, evidence, status in deferred:
             try:
                 checkpoint.accept(assignment, evidence, status)
-            except ValueError:
+            except ValueError as error:
                 # Missing or unqualified failure evidence leaves its original
                 # claim untouched; the terminal worker result already fails.
-                pass
+                repair_status.append(dict(assignment=assignment['assignment'], phase='acceptance',
+                    **report_error('Deferred attempt acceptance', error,
+                        assignment=assignment['assignment'], vm=assignment['vm'])))
         host_terminal = {ticket['work']['category'] for ticket in checkpoint.state.get('repairs', [])
                          if not ticket['vm'] and ticket.get('outcome') == 'leave_failed'}
         unfinished = bool(host_categories - set(checkpoint.state.get('host_passed', [])) - host_terminal) or any(
@@ -657,6 +678,8 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         and not any(statuses) and not terminal_failed,
                     source_changed=changed or repaired_source_changed, repair_status=repair_status,
                     terminal_failed=terminal_failed, limited=limited,
+                    unfinished=unfinished, unhandled_failure=unhandled_failure,
+                    clean_limit=clean_limit, denied_categories=sorted(denied_categories),
                     pending_repairs=bool(checkpoint.repair_tickets()),
                     prerequisite=prerequisite,
                     run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']})
@@ -885,10 +908,23 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
                 return result
 
             publish_frames()
-            outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
-                                   actions=actions, pass_identity=pass_identity,
-                                   checkpoint_scope=checkpoint_scope)
+            try:
+                outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
+                                       actions=actions, pass_identity=pass_identity,
+                                       checkpoint_scope=checkpoint_scope)
+            except Exception as error:
+                from detached_launcher import Stopped, record_exception
+                if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
+                    record_exception(directory, 'VM pass coordinator', error)
+                raise
             results = outcome['results']
+            from detached_launcher import atomic
+            try:
+                atomic(directory / 'outcome.json', outcome)
+                (directory / 'outcome.json').chmod(0o600)
+            except OSError as error:
+                from detached_launcher import record_exception
+                record_exception(directory, 'Saving VM pass outcome', error)
             if not results:
                 return outcome if return_outcome else outcome['status']
             # Keep the actual joined results even if failure-detail processing

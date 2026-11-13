@@ -1135,6 +1135,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
     except launcher.Stopped:
         status, reason = 130, 'cancelled after owned cleanup'
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        launcher.record_exception(run, 'Plan controller', error, task=state.get('task_id'))
         status, reason = 1, str(error)
     finally:
         try:
@@ -1143,6 +1144,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     launcher.mark_stopping(run)
                 launcher.finish_shutdown(root, run)
             except (OSError, ValueError, subprocess.SubprocessError) as error:
+                launcher.record_exception(run, 'Plan owned cleanup', error, task=state.get('task_id'))
                 reload, status, reason = False, 1, f'owned cleanup failed: {error}'
             if reload and (run / 'cancel').exists():
                 reload, status, reason = False, 130, 'cancelled after owned cleanup'
@@ -1160,6 +1162,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 try:
                     reload_controller(root, run, owner, spec)
                 except OSError as error:
+                    launcher.record_exception(run, 'Plan controller reload', error, task=state.get('task_id'))
                     launcher.mark_stopping(run)
                     status, reason = 1, f'controller reload failed: {error}; resume with a fresh run'
                     state['reason'] = reason

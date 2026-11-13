@@ -631,6 +631,17 @@ impact stops or suspends the run. Suspension, exceptions, lost results and
 mismatched references retain the ticket, continuation and fences. Resume restores
 original ownership and finishes accepted Git work first, then restores impact
 decisions conservatively. Cancellation waits for all owned cleanup.
+Coordinator and worker exceptions retain their type, bounded traceback and
+available ticket/VM/case or task identity. Shared launcher runs keep the latest
+16 exceptions in private `controller-errors.json`, independently of transcript
+compaction; cleanup errors append rather than replace the original failure.
+Normal cancellation and reload are not exception records. The VM queue's retained
+allocation also saves `outcome.json`, including coordinator suspension, pending
+repairs, unfinished work and worker diagnostics alongside `results.json`.
+`fix-tests` saves the latest returned pass as `pass-outcome.json` in its own run.
+These files explain the verdict; checkpoints remain the resume authority.
+If diagnostic storage fails, the traceback and storage failure remain in the
+launcher output, and the original execution verdict is preserved.
 [`test_source.py`](../tools/test_source.py) owns checkout admission holds,
 reader/writer leases, durable fences and source generation; it owns no case FIFO
 or completion ledger. Workers and propagation resolvers retain source descriptors

@@ -829,16 +829,19 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
             except (Stopped, KeyboardInterrupt):
                 status = 130
             except (OSError, ValueError) as error:
+                detached_launcher.record_exception(run, 'Controller reload', error)
                 print(f'fix-tests: controller reload failed: {error}; resume the retained run.', file=sys.stderr, flush=True)
     except (KeyboardInterrupt, Stopped):
         status = 130
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
+    except Exception as error:
+        detached_launcher.record_exception(run, 'Repair controller', error)
         print(f'fix-tests: {error}', file=sys.stderr, flush=True)
     finally:
         try:
             detached_launcher.finish_shutdown(root, run, restore_vms=not host_only_request(selected))
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             status = 1
+            detached_launcher.record_exception(run, 'Owned cleanup', error)
             print(f'fix-tests: owned cleanup failed: {error}', file=sys.stderr, flush=True)
         try:
             lifetime.close()
@@ -846,6 +849,7 @@ def worker(root, run, owner, model, effort, app_model, requested='[]', rounds='1
                 media.write_index(run, status)
         except (OSError, ValueError, subprocess.SubprocessError) as error:
             status = 1
+            detached_launcher.record_exception(run, 'Recording cleanup', error)
             print(f'fix-tests: recording cleanup failed: {error}', file=sys.stderr, flush=True)
         if gate is not None:
             gate.release(unfinished=True)
@@ -1488,11 +1492,18 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if resume:
                 args.insert(0, '--resume')
             outcome = execute_pass(root, args, reloading=reloading,
-                actions=dict(triage=triage, repair=repair_ticket, admit_task=admit_task,
+                actions=dict(triage=triage, repair=repair_ticket,
+                             error=lambda context, error, **identity:
+                                 detached_launcher.record_exception(run, context, error, **identity),
+                             admit_task=admit_task,
                              settle_task=settle_task, progress=pass_progress,
                              prerequisite=lambda vm, result: request_snapshot_refresh(commits, vm, result)),
                 pass_identity=pass_identity, return_outcome=True,
                 checkpoint_scope='repair-host' if run.parent.name == 'fix-tests-host' else 'repair-vm')
+            try:
+                atomic(run / 'pass-outcome.json', outcome)
+            except OSError as error:
+                detached_launcher.record_exception(run, 'Saving pass outcome', error)
             # execute_pass has left its executor/retention contexts here. The
             # internal pause consumes no new pass identity or task admission.
             check_controller()

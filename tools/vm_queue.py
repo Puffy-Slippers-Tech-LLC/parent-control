@@ -7,6 +7,8 @@ import os
 import queue
 import sys
 import threading
+import launcher_control
+from detached_launcher import record_exception
 
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -176,7 +178,8 @@ class Executor:
                                 Stopped, launcher_reload.ReloadRequested):
                             raise
                         except Exception as error:
-                            value = dict(status=2, handoffs=[], error=str(error))
+                            value = dict(status=2, handoffs=[],
+                                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))
                         status = value.get('status', 0) if isinstance(value, dict) else value
                         if status and worker.used and not worker.source_refused:
                             result.set_result(value)
@@ -210,7 +213,8 @@ class Executor:
         except (ValueError, OSError) as error:
             if result.done():
                 raise
-            result.set_result(dict(status=2, handoffs=[], error=str(error)))
+            result.set_result(dict(status=2, handoffs=[],
+                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error)))
         except BaseException as error:
             if result.done():
                 raise
@@ -334,7 +338,8 @@ class Executor:
                             except (_NoWork, Stopped, launcher_reload.ReloadRequested):
                                 raise
                             except Exception as error:
-                                value = dict(status=2, handoffs=[], error=str(error))
+                                value = dict(status=2, handoffs=[],
+                                    **record_exception(launcher_control.current_run, f'VM attempt {vm.name}', error))
                             if observed is not None:
                                 observed(vm, value)
                         if value.get('status') and worker.used and not worker.source_refused:
@@ -368,7 +373,7 @@ class Executor:
                     if result_sent:
                         raise
                     events.put(('terminal', vm.name, dict(status=2, handoffs=[],
-                                                         cleanup=False, error=str(error))))
+                        cleanup=False, **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))))
                     reservation_stack.close()
                     return
 
@@ -395,8 +400,9 @@ class Executor:
                                 value = replacement
                         except Exception as error:
                             completion_failed = True
-                            value = dict(status=2, handoffs=value.get('handoffs', []),
-                                         cleanup=False, error=str(error))
+                            value = dict(status=2, handoffs=value.get('handoffs', []), attempt_result=value,
+                                cleanup=False, **record_exception(launcher_control.current_run,
+                                    f'VM completion {name}', error))
                     previous = results[name]
                     results[name] = dict(value, handoffs=[*previous.get('handoffs', []),
                                                          *value.get('handoffs', [])])

@@ -223,6 +223,7 @@ def test_executor_retained_sole_vm_continues_then_borrows_writer_for_recovery(
 
 
 def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_pool):
+    import launcher_control
     import vm_queue
 
     state = executor_pool
@@ -235,14 +236,22 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
     def completed(vm, result):
         assert not state.held, 'success notified before reservation teardown'
         if len(attempts) == 2:
-            return dict(result, status=2, error='acceptance refused')
+            raise ValueError('acceptance refused')
 
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+    run = state.root / 'controller'
+    run.mkdir(mode=0o700)
+    with launcher_control.watching(run), vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
         result = executor.run_ready(execute, choose=lambda ready, active: ready[0],
                                     needed=lambda vm: True, completed=completed)
     assert attempts == ['first', 'first']
     assert result['first']['handoffs'] == ['1', '2']
     assert result['first']['status'] == 2
+    assert result['first']['error_type'] == 'ValueError'
+    assert 'acceptance refused' in result['first']['traceback']
+    assert result['first']['attempt_result']['status'] == 0
+    errors = json.loads((run / 'controller-errors.json').read_text())
+    assert errors[-1]['context'] == 'VM completion first'
+    assert errors[-1]['traceback'] == result['first']['traceback']
     attempts.clear()
     def reject_completion(vm, result):
         raise ValueError('completion rejected after execution')

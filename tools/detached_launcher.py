@@ -17,6 +17,7 @@ import stat
 import subprocess
 import sys
 import time
+import traceback
 import uuid
 from test_storage import scratch_descriptors
 from agent_adapter import Delegation, SessionRequest, prepare_session
@@ -105,6 +106,37 @@ def atomic(path, value):
     temporary = path.with_suffix('.tmp')
     temporary.write_text(json.dumps(value), encoding='utf-8')
     temporary.replace(path)
+
+
+def exception_details(error):
+    """Bound diagnostic text without collecting frame locals or credentials."""
+    trace = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+    if len(trace) > 32768:
+        trace = '[Earlier traceback omitted under the diagnostic limit.]\n' + trace[-32768:]
+    return dict(error=str(error)[-8192:], error_type=type(error).__name__,
+                traceback=trace)
+
+
+def record_exception(run, context, error, **identity):
+    """Keep failures through transcript compaction and later cleanup errors."""
+    details = exception_details(error)
+    print(f'{context}: {details["traceback"]}', file=sys.stderr, flush=True)
+    if run is not None:
+        try:
+            from watch_output import read_json
+            with lock(run / 'controller-errors-gate') as gate:
+                fcntl.flock(gate, fcntl.LOCK_EX)
+                try:
+                    records = read_json(run / 'controller-errors.json', 8 * 1024 * 1024)
+                except FileNotFoundError:
+                    records = []
+                if not isinstance(records, list) or any(not isinstance(item, dict) for item in records):
+                    raise ValueError('invalid controller error records')
+                atomic(run / 'controller-errors.json', [*records[-15:],
+                    dict(details, context=context, recorded_at=time.time(), **identity)])
+        except (OSError, ValueError) as logging_error:
+            print(f'Could not retain controller error: {logging_error}', file=sys.stderr, flush=True)
+    return details
 
 
 def owner_record(run, **fields):
@@ -389,13 +421,21 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         child_env[WORKFLOW_DIRECTORY] = str(run)
     if kind != 'agent':
         child_env[FRAME_DIRECTORY] = str(run)
-    child = subprocess.Popen(command.argv if kind == 'agent' else command,
-                             cwd=command.cwd if kind == 'agent' else root, env=child_env,
-                             stdin=subprocess.PIPE if interactive else source if source is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
-                             start_new_session=True,
-                             pass_fds=scratch_descriptors())
+    try:
+        child = subprocess.Popen(command.argv if kind == 'agent' else command,
+                                 cwd=command.cwd if kind == 'agent' else root, env=child_env,
+                                 stdin=subprocess.PIPE if interactive else source if source is not None else subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
+                                 start_new_session=True,
+                                 pass_fds=scratch_descriptors())
+    except Exception as error:
+        record_exception(run, f'{kind} spawn', error)
+        if source is not None:
+            source.close()
+        if log is not None:
+            log.close()
+        raise
     if source is not None:
         source.close()
     descriptor = None
@@ -515,6 +555,11 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         if conversation and not requested and not conversation.done and status == 0:
             raise ValueError('Agent conversation ended without a workflow result; see retained output')
         return 130 if requested else status if status >= 0 else 128 - status
+    except Exception as error:
+        from launcher_reload import ReloadRequested
+        if not isinstance(error, (Stopped, ReloadRequested)):
+            record_exception(run, f'{kind} supervision', error)
+        raise
     finally:
         # Failure while supervising must not release ownership over a live child.
         if child.returncode is None:
@@ -861,9 +906,13 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                     if descriptor is not None:
                         child_environment['ONPC_REPAIR_STARTUP_FD'] = descriptor
                 ReloadRequest(run).inherit(child_environment)
-                subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
-                                 stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                                 pass_fds=(owner, *scratch_descriptors()))
+                try:
+                    subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
+                                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                                     pass_fds=(owner, *scratch_descriptors()))
+                except Exception as error:
+                    record_exception(run, 'Controller spawn', error)
+                    raise
         return run, True
 
 

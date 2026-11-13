@@ -447,6 +447,9 @@ class Viewer:
                 self.sessions[root] = SessionOutput(output)
             session = self.sessions[root]
             session.poll()
+            # Session discovery can observe a newly admitted owner after the
+            # output poll. Do not publish the previous outcome beside live work.
+            active = active or session.active
             closed = (output.run is not None and not active and not session.active
                       and watch_closed(output.run))
             if supervisor(output.run) is not None:
@@ -477,6 +480,15 @@ class Viewer:
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
+                    if active and not status and output.repair:
+                        phase = next((clean(line).removeprefix('Status: ')
+                                      for line in reversed(steps[-1]['lines'] if steps else [])
+                                      if clean(line).startswith('Status: ')), '')
+                        if phase in ('Verifying repair', 'Collecting diagnostic evidence'):
+                            status = 'Verifying'
+                        elif phase.startswith(('fixing errors', 'Repairing failed case',
+                                               'validating retained response')) or session.active:
+                            status = 'Repairing'
                     if active and not status and output.closing_task(steps, session_inactive=not session.active):
                         status = 'Closing Task'
                     error_lines = output.error_status(steps)

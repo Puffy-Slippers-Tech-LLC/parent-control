@@ -98,6 +98,14 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                 '--provision-domain', name, '--expected-uuid', identifier]
     if argv == ['disk']:
         return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_disk.py'))]
+    if argv[:1] == ['compute']:
+        from vm_selection import vm_config
+        remaining, selector = vm_config.extract_selector(argv[1:])
+        if remaining not in ([], ['--exact']) or selector is None:
+            raise ValueError('host-compute: requires --vm SELECTION and optional --exact')
+        vm_config.execution(selector, root / 'config/environment.json')
+        return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_compute.py')),
+                *remaining, selector]
     if argv[:1] in (['graphical-worker'], ['package-notice']):
         if len(argv) != 1:
             raise ValueError('test-runner:host-check-accepts-no-arguments')
@@ -563,7 +571,7 @@ def run(root, argv, caller):
     sys.path.insert(0, str(root / 'tools'))
     import test_source
     operation = list(argv)
-    for prefix in ('--vm-checkout=', '--retention-run='):
+    for prefix in ('--vm-checkout=', '--host-compute=', '--retention-run='):
         if operation and operation[0].startswith(prefix):
             operation.pop(0)
     if operation[:1] == ['--unattended']:
@@ -593,13 +601,16 @@ def _run(root, argv, caller):
                 Control().installed(pipe=argv[:1] == ['--unattended']) as control:
             environment.update(test_retention.environment())
             return control.run(command, cwd=root, env=environment, owned_group=True)
-    if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk']):
+    if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk'], ['compute']):
         from test_storage import scratch_descriptors
         environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
-        if argv[:1] in (['pool'], ['pool-retire'], ['disk']):
+        if argv[:1] in (['pool'], ['pool-retire'], ['disk'], ['compute']):
             environment['PKEXEC_UID'] = str(caller.pw_uid)
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
+        from host_compute import TOKENS
+        if TOKENS in os.environ:
+            environment[TOKENS] = os.environ[TOKENS]
         return subprocess.run(selection(root, argv), cwd=root, env=environment,
                               pass_fds=scratch_descriptors(), check=False).returncode
     retention_run = None

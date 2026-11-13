@@ -26,6 +26,21 @@ _local = ContextVar('vm_checkout', default=None)
 _keeper = ContextVar('vm_checkout_keeper', default=None)
 _remote = ContextVar('remote_vm_checkout', default=None)
 RELOAD_KEEPER = 'ONPC_VM_RELOAD_KEEPER'
+_compute = {}
+
+
+def compute_descriptors(fd=None):
+    return tuple(_compute.values()) if fd is None else ((_compute[fd],) if fd in _compute else ())
+
+
+def release(fd):
+    """Release checkout and its host capacity together, including on failure."""
+    compute = _compute.pop(fd, None)
+    try:
+        os.close(fd)
+    finally:
+        if compute is not None:
+            os.close(compute)
 
 
 class Busy(ValueError):
@@ -65,11 +80,12 @@ def binding(value=None):
 
 
 def arguments():
+    from host_compute import arguments as compute_arguments
     value = os.environ.get(VARIABLE)
     if value is None:
-        return []
+        return compute_arguments()
     binding(value)
-    return [OPTION + value]
+    return [OPTION + value, *compute_arguments()]
 
 
 def check_queue(vms):
@@ -90,8 +106,9 @@ def consume(argv):
         value = argv[0][len(OPTION):]
         binding(value)
         os.environ[VARIABLE] = value
-        return argv[1:]
-    return argv
+        argv = argv[1:]
+    from host_compute import consume as compute_consume
+    return compute_consume(argv)
 
 
 def _open(vm, suffix='.lock'):
@@ -121,7 +138,7 @@ def _wait(fd, vm, incoming=None, *, wait=True):
                 pass
 
 
-def _take(vm, incoming=None, token=None, *, wait=True):
+def _take(vm, incoming=None, token=None, *, wait=True, compute=True):
     """New checkouts take gate then lifetime; borrowers take lifetime only."""
     gate = _open(vm, '.gate')
     fd = None
@@ -129,7 +146,15 @@ def _take(vm, incoming=None, token=None, *, wait=True):
         _wait(gate, vm, incoming, wait=wait)
         fd = _open(vm)
         _wait(fd, vm, incoming, wait=wait)
+        capacity = None
+        if compute and os.geteuid() == 0:
+            from host_compute import acquire_vm
+            from vm_selection import selected
+            capacity, proof = acquire_vm(selected())
+            _compute[fd] = capacity
         os.ftruncate(fd, 0)
+        if capacity is not None:
+            os.pwrite(fd, (token or '').ljust(32, '\0').encode('ascii') + b'\n' + proof.encode('ascii'), 0)
         if token is not None:
             os.pwrite(fd, token.encode('ascii'), 0)
             # Hold admission through the conversion: flock conversion itself
@@ -138,13 +163,13 @@ def _take(vm, incoming=None, token=None, *, wait=True):
         return fd
     except BaseException:
         if fd is not None:
-            os.close(fd)
+            release(fd)
         raise
     finally:
         os.close(gate)
 
 
-def acquire(vm, *, wait=True):
+def acquire(vm, *, wait=True, compute=True):
     """Checkout one VM, or borrow this driver's existing reservation.
 
     A request hierarchy may reserve exactly one VM. Refusing a cross-VM nested
@@ -156,7 +181,10 @@ def acquire(vm, *, wait=True):
     if local is not None and local[2] == os.getpid():
         if local[0] != vm:
             raise ValueError('vm-pool: check in the reserved VM before requesting another VM')
-        return os.dup(local[1])
+        fd = os.dup(local[1])
+        if local[1] in _compute:
+            _compute[fd] = os.dup(_compute[local[1]])
+        return fd
     held = binding()
     if held is not None:
         if held[0] != vm:
@@ -167,37 +195,49 @@ def acquire(vm, *, wait=True):
                 fcntl.flock(fd, fcntl.LOCK_SH | (0 if wait else fcntl.LOCK_NB))
             except BlockingIOError:
                 raise Busy('vm-pool: VM busy: ' + vm)
-            if os.pread(fd, 33, 0) == held[1].encode('ascii'):
+            if os.pread(fd, 32, 0) == held[1].encode('ascii'):
+                if compute and os.geteuid() == 0:
+                    from host_compute import borrow
+                    from vm_selection import selected
+                    proof = os.pread(fd, 32, 33).decode('ascii')
+                    _compute[fd] = borrow(selected(), proof)
                 return fd
             raise ValueError('vm-pool: reservation is no longer available')
         except BaseException:
             os.close(fd)
             raise
-    return _take(vm, wait=wait)
+    return _take(vm, wait=wait, compute=compute)
 
 
 @contextmanager
-def checkout(vm):
+def checkout(vm, *, compute=True):
     """Keep preprocessing and controller acquisition within one checkout."""
-    fd = acquire(vm)
+    fd = acquire(vm, compute=compute)
     token = _local.set((vm, fd, os.getpid()))
     try:
         yield
     finally:
         _local.reset(token)
-        os.close(fd)
+        release(fd)
 
 
-def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None):
+def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None, compute=True):
     """Privileged keeper. EOF checks in; active commands retain their locks."""
     fd = None
     try:
         held = binding()
         token = held[1] if held else uuid.uuid4().hex
-        fd = acquire(vm, wait=wait) if held else _take(vm, incoming, token, wait=wait)
+        fd = acquire(vm, wait=wait) if held else _take(vm, incoming, token, wait=wait, compute=compute)
         if ready is not None:
             ready()
-        print(json.dumps({'checkout': vm + ':' + token}), file=output, flush=True)
+        record = {'checkout': vm + ':' + token}
+        if fd in _compute:
+            from vm_selection import selected
+            configured = selected()
+            record['compute'] = dict(host=configured.host.name,
+                                     token=os.pread(fd, 32, 33).decode('ascii'),
+                                     vms=[configured.name])
+        print(json.dumps(record), file=output, flush=True)
         while os.read(incoming, 1):
             pass
         return 0
@@ -208,7 +248,7 @@ def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None):
         return 130
     finally:
         if fd is not None:
-            os.close(fd)
+            release(fd)
 
 
 @contextmanager
@@ -257,6 +297,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
     process = (route.pool_process(command, environment) if route is not None else
                subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=environment))
     previous = os.environ.get(VARIABLE)
+    from host_compute import VARIABLE as COMPUTE
+    previous_compute = os.environ.get(COMPUTE)
     token = None
     remote_token = None
     try:
@@ -269,7 +311,8 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
             if status == Busy.status:
                 raise Busy('vm-pool: VM busy: ' + configured.name)
             raise ValueError('vm-pool: checkout failed (status ' + str(status) + ')')
-        receipt = json.loads(line)['checkout']
+        record = json.loads(line)
+        receipt = record['checkout']
         binding(receipt)
         if held is not None and receipt != previous:
             raise ValueError('vm-pool: nested checkout changed VM')
@@ -277,6 +320,14 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
             raise KeyboardInterrupt
         if bind:
             os.environ[VARIABLE] = receipt
+            if previous_compute is None and 'compute' in record:
+                # A standalone reserved driver has already charged this VM.
+                # Nested launchers borrow it instead of spending capacity twice.
+                info = os.fstat(process.stdin.fileno())
+                claim = dict(record['compute'], fd=process.stdin.fileno(),
+                             device=info.st_dev, inode=info.st_ino)
+                host = claim.pop('host')
+                os.environ[COMPUTE] = json.dumps({host: claim})
         token = _keeper.set(dict(name=configured.name, receipt=receipt, pid=process.pid,
                                  input=process.stdin.fileno(), output=process.stdout.fileno()))
         if route is not None:
@@ -295,6 +346,10 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
         if token is not None:
             _keeper.reset(token)
         if bind:
+            if previous_compute is None:
+                os.environ.pop(COMPUTE, None)
+            else:
+                os.environ[COMPUTE] = previous_compute
             if previous is None:
                 os.environ.pop(VARIABLE, None)
             else:
@@ -375,7 +430,7 @@ def host_main(argv=None):
         from e2e_watch import begin
         from watch_activity import operation
         vm_config.select(name)
-        with operation('Retiring completed state for a recreated VM'), checkout(current):
+        with operation('Retiring completed state for a recreated VM'), checkout(current, compute=False):
             holder = SimpleNamespace(watch=None)
             begin(holder)
             try:
@@ -401,7 +456,7 @@ def host_main(argv=None):
             finally:
                 connection.close()
         ready()
-        return keep(expected, ready=ready)
+        return keep(expected, ready=ready, compute=False)
     argv, vm = vm_config.extract(argv)
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--expected-uuid')

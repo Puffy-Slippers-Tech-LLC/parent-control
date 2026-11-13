@@ -591,7 +591,7 @@ def finish(child):
         child.stderr.close()
 
 
-def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_path):
+def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_path, monkeypatch):
     first_root, second_root = tmp_path / 'branch-a', tmp_path / 'worktree-b'
     first_root.mkdir()
     second_root.mkdir()
@@ -623,6 +623,102 @@ def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_pa
         for child in (first, third, second):
             if child is not None:
                 finish(child)
+
+    # Host admission is independent of the scheduling policy and checkout root.
+    # Competing launchers cannot both spend the same decimal capacity. Borrowed
+    # commands keep it charged after the admitting owner exits.
+    from concurrent.futures import ThreadPoolExecutor
+    import host_compute
+    from vm_selection import vm_config
+    host = vm_config.HostConfig(max_compute_unit=0.3)
+    vms = [vm_config.VMConfig(name, tmp_path / name, enabled=True, host=host,
+                             compute_unit=cost, family=name)
+           for name, cost in [('first', 0.1), ('second', 0.2)]]
+    configured = {vm.name: vm for vm in vms}
+    monkeypatch.setattr(vm_config, 'read_document', lambda **kwargs: {})
+    monkeypatch.setattr(vm_config, 'host_registry', lambda document: {'local': host})
+    monkeypatch.setattr(vm_config, 'execution_host', lambda: 'local')
+    monkeypatch.setattr(vm_config, 'registry', lambda: configured)
+    monkeypatch.setattr(host_compute, '_running', lambda configured, host: set())
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: 'main')
+    barrier = threading.Barrier(2)
+
+    def attempt():
+        barrier.wait(timeout=5)
+        try:
+            return host_compute.admit(vms, subset=False)
+        except ValueError as error:
+            return error
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(lambda _: attempt(), range(2)))
+    winner, = [value for value in results if isinstance(value, tuple)]
+    refused, = [value for value in results if isinstance(value, ValueError)]
+    assert 'available_compute=0' in str(refused) and 'minimum vm.compute_unit=0.1' in str(refused)
+    fd, token, admitted = winner
+    assert admitted == vms
+    borrowed = host_compute.borrow(vms[0], token)
+    os.close(fd)
+    try:
+        with pytest.raises(ValueError, match='insufficient'):
+            host_compute.admit(vms)
+        with pytest.raises(ValueError, match='outside'):
+            host_compute.borrow(replace(vms[0], compute_unit=0.2), token)
+    finally:
+        os.close(borrowed)
+    with pytest.raises(ValueError, match='exited'):
+        host_compute.borrow(vms[0], token)
+    monkeypatch.setattr(host_compute, 'choose', lambda requested, available: requested * 2)
+    with pytest.raises(ValueError, match='guard refused'):
+        host_compute.admit(vms)
+    monkeypatch.setattr(host_compute, 'choose', lambda requested, available: requested)
+    # A scheduler that ignores the budget must fail in the guard, not run.
+    host = replace(host, max_compute_unit=0.2)
+    vms = [replace(vm, host=host) for vm in vms]
+    configured = {vm.name: vm for vm in vms}
+    with pytest.raises(ValueError, match='capacity guard refused'):
+        host_compute.admit(vms)
+    # A guest left running without a live launcher must still consume compute.
+    monkeypatch.setattr(host_compute, '_running', lambda configured, host: {'second'})
+    with pytest.raises(ValueError, match='insufficient'):
+        host_compute.admit([vms[0]])
+    # A faulty chooser may omit a requested guest that is already running.
+    # The independent guard must count that guest as well as the new subset.
+    host = replace(host, max_compute_unit=2)
+    vms = [vm_config.VMConfig(name, tmp_path / name, enabled=True, host=host,
+                             compute_unit=1, family=family)
+           for name, family in [('first', 'a'), ('second', 'a'), ('third', 'b')]]
+    configured = {vm.name: vm for vm in vms}
+    monkeypatch.setattr(host_compute, '_running', lambda configured, host: {'first', 'second'})
+    monkeypatch.setattr(host_compute, 'choose', lambda requested, available, **kwargs:
+                        [requested[0], requested[2]])
+    with pytest.raises(ValueError, match='omitted_running=1'):
+        host_compute.admit(vms)
+    # A stopped workflow recovers its admitted VMs, not every requested VM.
+    import detached_launcher
+    from vm_selection import save_binding
+    from types import SimpleNamespace
+    run = tmp_path / 'workflow'
+    run.mkdir(mode=0o700)
+    save_binding(run, dict(concurrency=3, vms=[vm.name for vm in vms]))
+    host_compute.save_admitted(run, [vms[0], vms[2]])
+    (run / 'cancel').touch(mode=0o600)
+    recovered = []
+    monkeypatch.setattr(detached_launcher, 'finish_nested', lambda *args: None)
+    monkeypatch.setattr(detached_launcher, 'scratch_descriptors', lambda: ())
+    def cleanup(command, **kwargs):
+        name = command[command.index('--vm') + 1]
+        assert name in ('first', 'third')
+        recovered.append(name)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(detached_launcher.subprocess, 'run', cleanup)
+    detached_launcher.finish_shutdown(tmp_path, run)
+    assert recovered == ['first', 'third']
+    # Resume uses the persisted subset exactly, even when more workers fit now.
+    resumed, exact = host_compute.resume_selection(vms, run)
+    assert exact and [vm.name for vm in resumed] == ['first', 'third']
+    with pytest.raises(ValueError, match='original admitted VMs'):
+        host_compute.resume_selection(vms[:1], run)
 
 
 @pytest.mark.parametrize('crash', [False, True])
@@ -767,6 +863,8 @@ def test_receipt_crosses_dispatch_prefix_and_host_work_keeps_it(monkeypatch):
     command = dispatch(ROOT, ['pool', '--no-wait', '--vm', vm_name()])
     assert command[:3] == ['/usr/bin/python3', '-B', str(ROOT / 'tools/vm_pool.py')]
     assert '--no-wait' in command and vm_name() in command
+    command = dispatch(ROOT, ['compute', '--exact', '--vm', vm_name()])
+    assert command[-2:] == ['--exact', vm_name()]
     receipt = A + ':' + 'a' * 32
     monkeypatch.setenv(vm_pool.VARIABLE, receipt)
     assert vm_pool.arguments() == [vm_pool.OPTION + receipt]
@@ -779,8 +877,9 @@ def test_receipt_crosses_dispatch_prefix_and_host_work_keeps_it(monkeypatch):
         vm_pool.check_queue(['first', 'second'])
 
 
-def test_vm_artifact_helper_uses_vm_scope_before_host_activity(monkeypatch):
+def test_vm_artifact_helper_uses_vm_scope_before_host_activity(tmp_path, monkeypatch):
     import test_commands
+    monkeypatch.setattr(os, 'environ', os.environ.copy())
     from vm_selection import selected, BATCH, vm_config
     branch = selected().owning_branch
     monkeypatch.setattr(vm_config, 'current_branch', lambda: branch)
@@ -792,6 +891,72 @@ def test_vm_artifact_helper_uses_vm_scope_before_host_activity(monkeypatch):
     args, vm = test_commands.vm_request([*request, '--vm', name])
     assert args == request and vm.name == name
     assert BATCH not in os.environ
+    # Exercise public controller admission too: artifacts deliberately have a
+    # single-VM binding, while test batches keep separate request/admitted pools.
+    from contextlib import contextmanager, nullcontext
+    import regression_session
+    import detached_launcher
+    import host_compute
+    import test_source
+    import test_checkpoint
+    import test_retention
+    import test_launcher
+    from types import SimpleNamespace
+    directory = tmp_path / 'sessions'
+    directory.mkdir(mode=0o700)
+    monkeypatch.setattr(regression_session, 'prepare', lambda *args, **kwargs: directory)
+    monkeypatch.setattr(test_source, 'startup', lambda *args, **kwargs: nullcontext())
+    monkeypatch.setattr(test_source, 'finish_admission', lambda: None)
+    monkeypatch.setattr(test_checkpoint, 'guard_scheduling_checkpoints', lambda *args: None)
+    monkeypatch.setattr(test_checkpoint, 'guard_scheduling_run', lambda *args: None)
+    monkeypatch.setattr('launcher_controller.require_startup_sync', lambda: None)
+    monkeypatch.setattr(test_retention, 'Store', lambda path: SimpleNamespace(
+        path=path, session=lambda: nullcontext()))
+    monkeypatch.setattr(test_retention, 'retain', lambda *args: None)
+    monkeypatch.setattr(detached_launcher, 'nested_operation', lambda *args: nullcontext())
+    monkeypatch.setattr(test_launcher, 'environment', lambda *args: dict(os.environ))
+    monkeypatch.setattr('test_storage.scratch_descriptors', lambda: ())
+    remembered = {}
+    def request_record(root, kind, value=None):
+        if value is not None:
+            remembered.update(value)
+        return remembered or None
+    monkeypatch.setattr(test_checkpoint, 'request_record', request_record)
+    owners, spawns, admissions = [], [], []
+    def spawn(command, **options):
+        owners.append(os.dup(int(command[6])))
+        spawns.append(options)
+    monkeypatch.setattr(regression_session.subprocess, 'Popen', spawn)
+    @contextmanager
+    def admit(vms, *, exact=False):
+        admissions.append(([vm.name for vm in vms], exact))
+        yield tuple(vms) if exact else tuple(vms[:1])
+    monkeypatch.setattr(host_compute, 'launch', admit)
+    # Keep real VM request canonicalization; no test inventory or worker runs.
+    monkeypatch.setattr(test_commands, 'validate', lambda root, argv: test_commands.vm_request(argv))
+    try:
+        run, started = regression_session._select(tmp_path, [*request, '--vm', name])
+        assert started and BATCH not in spawns[-1]['env']
+        assert admissions[-1] == ([name], False)
+        assert host_compute.admitted_names(run) == [name]
+        os.close(owners.pop())
+        # An implicit default request may be attached using the equivalent all
+        # selector even when its admitted subset contains only one VM.
+        run, started = regression_session._select(tmp_path, ['system'])
+        assert started
+        original = admissions[-1][0]
+        assert len(original) > 1
+        assert test_commands.vm_request(remembered['argv'])[0] == ['system']
+        assert ','.join(original) in remembered['argv']
+        assert regression_session._select(tmp_path, ['system', '--vm', 'all']) == (run, False)
+        admitted = host_compute.admitted_names(run)
+        os.close(owners.pop())
+        resumed, started = regression_session._select(tmp_path, ['--resume', 'system'])
+        assert started and admissions[-1] == (admitted, True)
+        assert host_compute.admitted_names(resumed) == admitted
+    finally:
+        for fd in owners:
+            os.close(fd)
 
 
 @pytest.mark.parametrize('at_grant', [None, False, True, 'busy'])

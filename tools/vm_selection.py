@@ -21,7 +21,7 @@ BATCH = 'ONPC_TEST_VM_BATCH'
 WORKER = 'ONPC_TEST_VM_WORKER'
 SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
                  'or all; offline VMs/hosts are always skipped; owning_branch restrictions always apply; '
-                 'config concurrency limits active work')
+                 'host max_compute_unit limits reserved VM compute')
 HOST_HELP = ('--host NAME optionally limits the VM selection to that configured host '
              '(e.g. myserver or local); omitted: no host filter. This does not change controller placement.')
 BASELINE_INSTRUCTIONS = (
@@ -35,7 +35,7 @@ APPSNAPSHOT_INSTRUCTIONS = (
     'to reuse a fresh matching snapshot). Always specify --overwrite explicitly '
     'for unattended usage. Snapshots are always online; --y suppresses confirmation; '
     'manual work omits --y. Omitting --vm selects all enabled VMs. '
-    'Both preparation tools accept VM lists, all-enabled and all, using config concurrency.')
+    'Both preparation tools accept VM lists, all-enabled and all, using host compute reservations.')
 PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS
 
 
@@ -78,6 +78,9 @@ def host_arguments(argv):
 
 def execution_selection(name=None):
     concurrency, vms = vm_config.execution(name)
+    from host_compute import restrict
+    vms = restrict(vms)
+    concurrency = min(concurrency, len(vms))
     from vm_pool import check_queue
     check_queue(vms)
     for vm in vms:

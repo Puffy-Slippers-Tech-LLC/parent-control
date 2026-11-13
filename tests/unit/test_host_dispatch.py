@@ -43,7 +43,7 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
                          repo_root=str(tmp_path / ('worker checkout ' + str(index))))
                     for index in range(1, 3)
                     if not any(item['host'] == names[index] for item in branches))
-    document = dict(agent='codex', hosts=[dict(name=name, enabled='true', concurrency=2,
+    document = dict(agent='codex', hosts=[dict(name=name, enabled='true', max_compute_unit=2,
         # Deliberately invert these legacy labels. Identity decides locality.
         transport='local' if index == 1 else 'ssh', ssh_port=2200 + index)
         for index, name in enumerate(names)], branches=branches,

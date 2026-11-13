@@ -39,7 +39,7 @@ def private_dispatch_source(monkeypatch):
                                                      (2, [1, 1, 0])])
 def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency, expected):
     from vm_test_queue import FamilyAdmission
-    vms = [SimpleNamespace(name=f'{family}-{index}', family=family)
+    vms = [SimpleNamespace(name=f'{family}-{index}', family=family, compute_unit=1)
            for family in ('a', 'b', 'c') for index in range(3)]
     admission = FamilyAdmission(vms)
     ready = [vm.name for vm in vms]
@@ -60,6 +60,20 @@ def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency,
         observed.add(name)
     assert {name[0] for name in observed} == {'a', 'b', 'c'}
     assert admission.choose(['a-0', 'a-1'], ['b-0']) == 'a-0'
+    from host_compute import choose, units
+    from collections import Counter
+    balanced = [SimpleNamespace(name=f'{family}-{cost}', family=family, compute_unit=cost)
+                for family in ('a', 'b') for cost in (1, 2)]
+    selected = choose(balanced, units(4))
+    totals = Counter()
+    for vm in selected:
+        totals[vm.family] += vm.compute_unit
+    assert totals == {'a': 2, 'b': 2}
+    equal = [SimpleNamespace(name=f'{family}-{i}', family=family, compute_unit=1)
+             for family in ('a', 'b') for i in range(2)]
+    assert Counter(vm.family for vm in choose(equal, units(3))) == {'a': 2, 'b': 1}
+    exhausted = [vm for vm in balanced if vm.family != 'a' or vm.compute_unit == 1]
+    assert Counter(vm.family for vm in choose(exhausted, units(3.5))) == {'a': 1, 'b': 1}
 
 
 @pytest.mark.parametrize('impact,cleanup', [('no', True), ('yes', True), ('unsure', True), ('no', False)])
@@ -73,7 +87,7 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
     monkeypatch.setattr(test_source, 'source_directory', lambda *args, **kwargs: source_path)
     identity = dict(digest='a' * 64, generation=0)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(identity))
-    vm = SimpleNamespace(name='sole-worker', family='family')
+    vm = SimpleNamespace(name='sole-worker', family='family', compute_unit=1)
     work = [dict(category='system', options=[], cases=[case], case=case, area=False)
             for case in ('first', 'second')]
     monkeypatch.setattr(vm_test_queue, 'repair_case_inventory',
@@ -159,7 +173,7 @@ def test_snapshot_prerequisite_pause_resumes_same_pass_without_repair_or_task_ch
 
     monkeypatch.setattr(test_source, 'source_directory', lambda *args, **kwargs: tmp_path)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(digest='a' * 64, generation=0))
-    vm = SimpleNamespace(name='worker', family='family')
+    vm = SimpleNamespace(name='worker', family='family', compute_unit=1)
     work = [dict(category='system', options=[], cases=[case], case=case, area=False)
             for case in ('first', 'second')]
     identity = dict(run='a' * 32, **{'pass': 'b' * 32})
@@ -227,7 +241,7 @@ def test_repair_mode_preserves_worker_failures_without_a_ticket(
 
     monkeypatch.setattr(test_source, 'source_directory', lambda *args, **kwargs: tmp_path)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(digest='a' * 64, generation=0))
-    vms = [SimpleNamespace(name=name, family='family') for name in ('failed-owner', 'other-owner')]
+    vms = [SimpleNamespace(name=name, family='family', compute_unit=1) for name in ('failed-owner', 'other-owner')]
     work = dict(category='system', options=[], cases=['case'], case='case', area=False)
     plan = ({'concurrency': 1}, vms, [], ['system'], [('system', [])], {'family': [work]})
     class Ready:
@@ -269,7 +283,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_p
     import vm_test_queue
     from test_checkpoint import PassCheckpoint
     from vm_case_queue import work_key
-    vms = [SimpleNamespace(name=f'{family}-{index}', family=family)
+    vms = [SimpleNamespace(name=f'{family}-{index}', family=family, compute_unit=1)
            for family in ('a', 'b') for index in range(2)]
     work = [dict(category=category, options=[], cases=[case], case=case, area=False)
             for category, case in [('system', 'check_first'), ('e2e', 'E2E-001')]]
@@ -436,7 +450,7 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(tmp_path, monkeypa
     import vm_selection
     import vm_test_queue
     config = vm_selection.vm_config
-    host = config.HostConfig(concurrency=6)
+    host = config.HostConfig(max_compute_unit=6)
     configured = {name: config.VMConfig(name, tmp_path / name, enabled=name != 'offline',
         package_format='deb', family=family, fixture_path='fixtures', host=host)
         for name, family in [('one', 'a'), ('two', 'a'), ('three', 'b'), ('offline', 'b')]}

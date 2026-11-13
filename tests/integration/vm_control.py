@@ -185,7 +185,8 @@ def resume(lease, *, stopping=False, recovery_instance=None, fixture_maintenance
     lease.capture.directory_identity = lease.capture.private_directory()
     lease.compatibility_fd = base.compatibility_lock(lease.directory)
     lock = lease.capture.lock_path
-    lease.fd = base.open_controller_lock(lock, vm_uuid=lease.source.uuid)
+    lease.fd = base.open_controller_lock(lock, vm_uuid=lease.source.uuid,
+                                        compute=not (stopping or recovery_instance is not None))
     if not stopping and recovery_instance is None:
         base.guest_contract.vm_config.require_online(base.guest_contract.vm_config.selected())
     base.identity(lock, private=True, mode=0o600)

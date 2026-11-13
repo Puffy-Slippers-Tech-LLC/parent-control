@@ -612,6 +612,8 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
     import regression_process
     import test_source
     import vm_pool
+    import host_compute
+    monkeypatch.setattr(host_compute, 'launch', lambda vms: nullcontext(vms))
     from vm_selection import vm_config
 
     vms = tuple(vm_config.VMConfig(name, tmp_path / name, enabled=True)

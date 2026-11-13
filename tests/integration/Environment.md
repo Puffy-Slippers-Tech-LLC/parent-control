@@ -86,7 +86,7 @@ family and VM levels, allowing new metadata without breaking existing consumers.
 Required fields, recognized values, duplicate keys and identity/reference checks
 remain validated.
 Its tracked `hosts` array declares each host's unique `name`, `transport`
-(`local` or `ssh`), string `enabled`, positive integer `concurrency`, and optional
+(`local` or `ssh`), string `enabled`, positive finite numeric `max_compute_unit`, and optional
 positive integer `disk_concurrency` (default 1) for the shared
 [host disk queue](../../docs/Mandates/VM-Mandate.MD#host-disk-queue), plus optional
 absolute `backup_root` (required for backup/restore). Each VM's `host` names one
@@ -179,7 +179,11 @@ paths use the executing host. Legacy registries without
 `hosts` retain their implicit local host and top-level concurrency/backup
 settings; do not mix the two layouts.
 
-Its `families` array groups equivalent VMs. Each family has a
+Its `families` array groups equivalent VMs. Each family declares positive finite
+numeric `compute_unit` (legacy entries default to 1). Each VM may optionally
+override `compute_unit`; omission inherits the family value. Both host capacity
+and VM cost accept decimals, using exact decimal arithmetic for admission.
+Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` form (for example
 `fedora45-x86_64`), an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
@@ -200,9 +204,13 @@ Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
 `--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
-always requiring both VM and host enabled. The host's positive integer
-`concurrency` limits simultaneous operations,
-refilling each free slot immediately. Maintenance still requires one explicit
+always requiring both VM and host enabled. The host's `max_compute_unit`
+limits the total reserved VM compute across launchers. Admission chooses a fixed
+subset for the entire run when necessary, maximizing family coverage and then
+balancing family compute before filling capacity. The
+[capacity contract](../../docs/Mandates/VM-Mandate.MD#target-selection) owns
+rounding, failure diagnostics, lifetime and the independent admission guard.
+Maintenance still requires one explicit
 selector, matching a configured name exactly, including case.
 Workers inherit validated selections; there is no
 ambient environment override for public commands. Each VM has its own exclusive
@@ -281,7 +289,7 @@ still reuses an existing fresh snapshot without building.
 One exclusive per-VM controller lock covers the complete sequence, including
 package building and the final restore. Nested controllers duplicate the held
 lock descriptor in-process; ending one stage cannot release the outer lease.
-Queue workers retain isolated state and the registry concurrency limit. Helper
+Queue workers retain isolated state and the host compute limit. Helper
 UUID pins refresh once after the workers finish.
 
 Automatic updates use Ubuntu's scripting interface,
@@ -346,7 +354,7 @@ compatibility lease excludes older controllers that still own the state root
 exclusively. Finish tests and stop maintenance on the same VM before preparation.
 Guest identity and snapshot isolation configuration, and loader sources, are included
 in the preparation digest. Changing them requires matching guest preparation
-before a new baseline can be accepted. Queue `concurrency`, per-VM `enabled`
+before a new baseline can be accepted. Host capacity, family/VM compute costs, per-VM `enabled`
 flags, selector IDs and movable `fixture_path` selections are excluded: changing scheduling does not invalidate
 prepared baselines or derived app snapshots.
 This is development tooling: activation is the next invocation (installed UUID

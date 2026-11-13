@@ -166,7 +166,8 @@ def environment(root, *, scratch=True):
     if RECORDING_CONTROL in os.environ:
         result[RECORDING_CONTROL] = os.environ[RECORDING_CONTROL]
     from vm_selection import VARIABLE, BATCH, WORKER
-    for variable in (VARIABLE, BATCH, WORKER):
+    from host_compute import VARIABLE as COMPUTE
+    for variable in (VARIABLE, BATCH, WORKER, COMPUTE):
         if variable in os.environ:
             result[variable] = os.environ[variable]
     import test_retention

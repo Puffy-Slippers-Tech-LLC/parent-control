@@ -356,6 +356,7 @@ def preparation_source_digest(read, files):
             # change between preparation and app-snapshot execution.
             document = json.loads(contents, object_pairs_hook=vm_config.unique_keys)
             document.pop('concurrency', None)
+            document.pop('max_compute_unit', None)
             # Archive location is host-only and may change on a replacement
             # machine without changing any prepared guest input.
             document.pop('backup_root', None)
@@ -366,9 +367,11 @@ def preparation_source_digest(read, files):
             # describe the controller, not prepared guest contents.
             document.pop('hosts', None)
             for family in document.get('families', []):
+                family.pop('compute_unit', None)
                 # Movable fixture selection belongs to runtime artifact inputs.
                 family.pop('fixture_path', None)
                 for entry in family['vms']:
+                    entry.pop('compute_unit', None)
                     entry.pop('id', None)
                     entry.pop('enabled', None)
                     entry.pop('host', None)

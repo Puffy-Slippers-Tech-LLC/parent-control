@@ -812,4 +812,12 @@ def scratch_descriptors():
         else:
             import test_source
     descriptors.update(test_source.descriptors())
+    if __package__:
+        from . import host_compute
+    else:
+        import host_compute
+    descriptors.update(host_compute.descriptors())
+    pool = sys.modules.get('vm_pool')
+    if pool is not None:
+        descriptors.update(pool.compute_descriptors())
     return tuple(sorted(descriptors))

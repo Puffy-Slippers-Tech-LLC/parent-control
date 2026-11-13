@@ -7,7 +7,7 @@
       "enabled": "true",
       "transport": "local",
       "virt-manager": "/Data/virt-manager",
-      "concurrency": 3,
+      "max_compute_unit": 3,
       "disk_concurrency": 1,
       "backup_root": "/Data/virt-manager/backups/onpc"
     },
@@ -18,7 +18,7 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "concurrency": 6,
+      "max_compute_unit": 6,
       "disk_concurrency": 2
     }
   ],
@@ -61,6 +61,7 @@
   "families": [
     {
       "family": "ubuntu26.04-x86_64",
+      "compute_unit": 1,
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",
       "package_format": "deb",
       "fixture_path": "common/ubuntu/common",
@@ -109,6 +110,7 @@
     },
     {
       "family": "fedora44-x86_64",
+      "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-44-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
@@ -149,6 +151,7 @@
     },
     {
       "family": "fedora45-x86_64",
+      "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-45-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",

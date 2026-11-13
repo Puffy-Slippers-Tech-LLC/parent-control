@@ -1321,6 +1321,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             save_binding(selected, binding)
         from launcher_view import publish_plan_view
         run, started = launcher.select(root, 'plans', command, stop=args.stop, stop_marker='stop',
+                                       resume_compute=True,
                                        cancel_stop=args.cancel_stop,
                                        on_attach=attach, on_start=start,
                                        namespace=plan_namespace(path), resumable_start=True,

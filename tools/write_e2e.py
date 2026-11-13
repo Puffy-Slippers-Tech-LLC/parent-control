@@ -1219,6 +1219,9 @@ def task_info_instructions(run, task):
 
 
 def worker(root, run, owner, tasks, state_json):
+    from contextlib import ExitStack
+    import host_compute
+    capacity = ExitStack()
     from launcher_progress import publish_progress, read_progress
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
 
@@ -1385,8 +1388,22 @@ def worker(root, run, owner, tasks, state_json):
                 raise ValueError('active task changed outside the workflow; inspect the checkpoint')
             state['task_scope'] = task_scope(root, task)
             from vm_selection import task_selection, save_binding
+            if not host_only(state) and not host_compute.claims():
+                from vm_selection import vm_config
+                _, vms = vm_config.execution(state.get('vm_selector'))
+                previous = Path(state['recovery_run']) if state.get('recovery_run') else None
+                vms, exact = host_compute.resume_selection(vms, previous)
+                admitted = capacity.enter_context(host_compute.launch(vms, exact=exact))
+                host_compute.bind(admitted)
+                host_compute.save_admitted(run, admitted)
             state['vm'] = task_selection(state.get('vm_selector'), host_only=host_only(state))
-            save_binding(run, state['vm'])
+            if not host_only(state):
+                # Attachments compare the request, not the admitted random subset.
+                from vm_selection import vm_config
+                concurrency, requested = vm_config.execution(state.get('vm_selector'))
+                save_binding(run, dict(concurrency=concurrency, vms=[vm.name for vm in requested]))
+            else:
+                save_binding(run, None)
             selection = resolve_selection(root)
             session_model(state, selection=selection)
             count += 1
@@ -1521,6 +1538,7 @@ def worker(root, run, owner, tasks, state_json):
             sys.stdout.flush()
         launcher.atomic(run / 'result.json', {'status': status, 'sessions': count,
                                              'tasks': completed})
+        capacity.close()
         os.close(owner)
     return status
 
@@ -1786,7 +1804,7 @@ def select(root, argv):
         parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
             epilog='Reviewed queue revisions: --reconcile RUN [--check] validates/adopts the '
                    'exact inactive checkpoint without executing tasks, models or VMs.')
-        parser.add_argument('--vm', help='registered VM name or ID; omitted: configured enabled queue and concurrency')
+        parser.add_argument('--vm', help='registered VM name or ID; omitted: enabled queue within host compute capacity')
         add_plan_options(parser)
         parser.add_argument('--closeout-only', action='store_true',
                             help='finish retained accepted Git close-out without starting a task session')
@@ -1860,6 +1878,7 @@ def select(root, argv):
 
     args = parse()
     return launcher.select(root, 'plans' if NAMESPACE else 'write-e2e', command,
+                           resume_compute=True,
                            namespace=NAMESPACE, launcher_name='write-e2e',
                            stop_argv=COMMAND.split()[1:] + ['--stop'],
                            stop='--stop' in argv, stop_marker='stop',

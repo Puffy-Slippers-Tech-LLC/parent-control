@@ -61,7 +61,8 @@ class _Worker:
                 if executor._full(self.vm):
                     raise _CapacityWait()
                 executor._active += 1
-                executor._host_active[self.vm.host.name] += 1
+                from host_compute import units
+                executor._host_active[self.vm.host.name] += units(self.vm.compute_unit)
             operation.callback(executor._release_slot, self.vm)
             executor._check(self.vm, recovery=recovery)
             self.used = True
@@ -91,8 +92,7 @@ class Executor:
             names.add(vm.name)
         check_queue(self.vms)
         self.stopped = stopped
-        self.limit = min(concurrency, len(self.vms),
-                         sum(host.concurrency for host in {vm.host for vm in self.vms}))
+        self.limit = min(concurrency, len(self.vms))
         self._capacity = threading.Condition()
         self._active = 0
         self._host_active = {vm.host.name: 0 for vm in self.vms}
@@ -123,13 +123,16 @@ class Executor:
     def _release_slot(self, vm):
         with self._capacity:
             self._active -= 1
-            self._host_active[vm.host.name] -= 1
+            from host_compute import units
+            self._host_active[vm.host.name] -= units(vm.compute_unit)
             self._capacity.notify_all()
 
     def _full(self, vm):
+        from host_compute import units
         with self._capacity:
             return (self._active >= self.limit
-                    or self._host_active[vm.host.name] >= vm.host.concurrency)
+                    or self._host_active[vm.host.name] + units(vm.compute_unit)
+                        > units(vm.host.max_compute_unit))
 
     def _wait_capacity(self, vm):
         with self._capacity:
@@ -464,10 +467,12 @@ class Executor:
                 try:
                     while ready and len(active) + len(selected) < self.limit:
                         admitted = active | set(selected)
+                        from host_compute import units
                         available = tuple(vm.name for vm in self.vms
                             if vm.name in ready and needed(vm)
-                            and sum(targets[name].host.name == vm.host.name for name in admitted)
-                                < vm.host.concurrency)
+                            and sum((units(targets[name].compute_unit) for name in admitted
+                                     if targets[name].host.name == vm.host.name), units(0))
+                                + units(vm.compute_unit) <= units(vm.host.max_compute_unit))
                         if not available:
                             break
                         name = choose(available, tuple(vm.name for vm in self.vms
@@ -506,6 +511,12 @@ def preparation(root, tool, args, concurrency, vms):
     replacements to finish while cancellation prevents queued work. App workers
     use their existing signal handler and wait for owned cleanup.
     """
+    import host_compute
+    with host_compute.launch(vms) as admitted:
+        return _preparation(root, tool, args, min(concurrency, len(admitted)), admitted)
+
+
+def _preparation(root, tool, args, concurrency, vms):
     import test_source
     with test_source.reader(root):
         from regression_process import Control

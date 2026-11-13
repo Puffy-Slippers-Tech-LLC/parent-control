@@ -295,8 +295,11 @@ Each VM executes one attempt at a time. VM tests default to every
 VM in `config/environment.json` whose `enabled` equals the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
-Each host's positive integer `concurrency` limits active guests: 1 is serial, 2 permits
-two simultaneous guests. Every selected case runs once per selected family.
+Each host's positive numeric `max_compute_unit` limits reserved guest compute.
+VM costs inherit family `compute_unit` unless overridden; both accept decimals.
+The [capacity authority](../docs/Mandates/VM-Mandate.MD#target-selection) reserves
+a fixed subset for each launcher, balances family compute, and independently
+guards VM admission. Every selected case runs once per admitted family.
 VMs are eligible only when both VM and host have `enabled: "true"`. Every queue
 selection skips offline entries; direct maintenance refuses before access.
 Each available VM atomically claims the next pending work from its family's
@@ -314,7 +317,7 @@ The ordinary `execute_pass` coordinator owns one FIFO per family across the
 selected categories. Ready VMs pull one item at a time; there are no advance
 shards or category barriers. Every included family keeps its complete selection,
 including while its VMs are occupied. Admission fills one available worker per
-family before a second, rotates equal-count priority on refill, and uses spare
+family before a second, rotates equal-compute priority on refill, and uses spare
 capacity when a family is busy or drained. Required-VM recovery stays with its
 original worker. Host work runs once per pass through the existing host scheduler
 and the shared source-admission boundary, without consuming VM slots.
@@ -563,7 +566,7 @@ coordinator owns one FIFO per family across selected categories and records each
 claim before execution. Every family retains its full selection; ready equivalent
 VMs pull work without fixed shards. Failed attempts keep their original VM for
 recovery and exact repair verification. Host work runs alongside VM work without
-consuming a VM slot; the registry concurrency cap limits active VM attempts.
+consuming VM compute; the host compute cap limits active VM attempts.
 Normal cases execute in
 parallel through fresh runner invocations with the original selectors
 and required lifecycle prerequisites. For a system case spanning several phases,
@@ -1020,7 +1023,7 @@ version snapshot) rebuild every selected VM. Installation/fixture recipe changes
 check all selected VMs together and rebuild only snapshots whose recipe is stale;
 matching snapshots are reused. A missing initial snapshot or VM-local snapshot
 problem refreshes only the reporting VMs. No VM outside the original selection
-is interrupted or prepared. Preparation uses the registry concurrency cap,
+is interrupted or prepared. Preparation uses host compute admission,
 followed by guarded maintenance cleanup, then resumes pending cases with their
 claims, session allowances and completed results retained. Interrupted cases
 receive no passing credit. An unsuccessful refresh or a repeated refusal for the

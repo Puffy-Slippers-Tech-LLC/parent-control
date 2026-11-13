@@ -332,12 +332,13 @@ fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --reload requests a controller refresh at safe boundaries and returns immediately;
 when idle, the flag is ignored and execution starts normally.
 VM categories read config/environment.json and select VMs with enabled equal to
-the string "true" on online hosts, using each host's concurrency limit. Queue
+the string "true" on online hosts, using each host's max_compute_unit limit. Queue
 selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
 has one case queue: idle VMs atomically pull its next work, so every selected
 case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a name or ID, a comma-separated list, all-enabled, or all.
-Every selection skips offline VMs/hosts. Free slots refill immediately.
+Every selection skips offline VMs/hosts. Capacity admission reserves a fixed random
+subset, balancing compute across families; omitted VMs stay untested this run.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs
@@ -388,7 +389,7 @@ Complete categories (combine in any order; execute host, system, e2e)
   Without host, VM categories prepare verified package inputs (reuse or build).
   Focused system --area AREA --test CASE also prepares inputs per VM when
   --artifacts is omitted. Each family must declare package_format (deb or rpm) in
-  config/environment.json; there is no default. Configured concurrency still applies.
+  config/environment.json; there is no default. Host compute capacity still applies.
   After host and e2e, system remains.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.

@@ -129,10 +129,13 @@ class FamilyAdmission:
 
     def __init__(self, vms):
         self.families = {vm.name: vm.family for vm in vms}
+        self.compute = {vm.name: vm.compute_unit for vm in vms}
         self.order = list(dict.fromkeys(self.families.values()))
 
     def choose(self, ready, active):
-        counts = {family: sum(self.families[name] == family for name in active)
+        from host_compute import units
+        counts = {family: sum((units(self.compute[name]) for name in active
+                              if self.families[name] == family), units(0))
                   for family in self.order}
         candidates = {self.families[name] for name in ready}
         family = min((family for family in self.order if family in candidates),

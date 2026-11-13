@@ -17,6 +17,8 @@ and process-local account doubles; the native-copy bucket remains compatible.
 
 Suspend safety checks use process-local domain/SSH/clock doubles only. They
 open no VM, socket, subprocess or shared path; existing compatible buckets apply.
+Owned offline-stop checks reuse the VM-control fixture's private locks and
+process-local capacity/domain doubles; they add no live VM or cleanup owner.
 """
 
 from pathlib import PurePosixPath

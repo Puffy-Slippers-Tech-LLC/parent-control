@@ -40,11 +40,11 @@ and cleanup.
 
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
-| `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Registry concurrency cap |
-| `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Registry concurrency cap; isolated workers |
-| `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Registry concurrency cap; isolated workers |
-| `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses registry concurrency |
-| `tools/write-e2e` | One registered name or ID | Enabled queue | Registry concurrency cap |
+| `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Host compute cap |
+| `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Host compute cap; isolated workers |
+| `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Host compute cap; isolated workers |
+| `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses host compute admission |
+| `tools/write-e2e` | One registered name or ID | Enabled queue | Host compute cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
 | `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |
@@ -57,14 +57,52 @@ Controllers retain canonical names for leases, UUID pins and active-run ownershi
 never a saved ID mapping. Queue selectors do not imply that every Make entry
 point accepts a queue; use the public launcher's help.
 
-The host's positive integer `concurrency` caps parallel queue operations with or without
-`--vm`. Tests use one pending case queue per selected family: an available VM
+The host's positive finite `max_compute_unit` caps reserved compute with or without
+`--vm`. Families declare positive finite `compute_unit`; a VM may override it,
+otherwise inheriting its family's value (legacy families default to 1). Both
+fields accept decimals. The host-wide capacity authority atomically calculates
+`available_compute = max_compute_unit - total_used_compute` across active
+reservations, independently of repository, branch or initiating machine.
+Launcher admission reserves a fixed random subset for its entire lifetime,
+including idle phases and reloads; surviving owned commands retain the charge.
+The original request remains attachment metadata; the admitted canonical names
+are recorded separately for execution, resume and shutdown recovery. Resume
+reserves that exact admitted subset, refusing insufficient capacity rather than
+drawing different workers or discarding its saved pass ownership.
+If availability is below the smallest selected VM's cost on any selected host,
+the entire launcher fails before work starts, with a red diagnostic giving the
+limit, used, available and minimum required compute. Earlier host reservations
+are released on failed admission.
+
+When the whole selection cannot fit, maximize family coverage first. Among
+feasible allocations, minimize the squared distance of each covered family's
+compute from an equal share of the available budget, capped by the smallest
+covered family's attainable total, allowing indivisible-VM rounding. Balance
+takes precedence over filling capacity; utilization breaks
+equal-balance ties, then earlier configured families receive extra compute.
+VMs are randomized within the chosen allocation. Omitted VMs remain untested
+for that run. The scheduling policy only proposes a subset: an independent
+host-side guard reloads canonical costs and validates unique membership and
+the total before committing a reservation under the same host gate. Each VM
+checkout independently validates its reservation membership and cost; standalone
+VM work reserves through this same authority. There is no second uncharged
+maintenance pool. A read-only libvirt census also charges running registered
+guests without a live reservation, including guests left running by maintenance.
+Admission transfers requested running guests into the new reservation without
+double charging them. Capacity configuration changes require draining active work;
+changing a file cannot retroactively reduce an existing guarantee. Manual
+virt-manager operations remain outside participating-tool coordination.
+Owned stop/recovery retains its UUID, journal and instance checks after VM/host
+availability changes, without requesting new execution capacity. This exception
+permits only the existing recovery path and grants no new guest execution.
+
+Tests use one pending case queue per admitted family: an available VM
 atomically claims its next case, so each case executes once per family. The same
 pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
 failed or interrupted claims retain their owner through cleanup and recovery.
 Stateful histories and system area attempts remain indivisible. Each VM runs
 one attempt at a time, retaining its own lease and journals.
-Preparation remains per VM: each free slot takes the next registered VM, and
+Preparation remains per admitted VM: each free slot takes the next registered VM, and
 the preparation queue drains even after an individual VM fails.
 Baseline helper refresh runs once after preparation workers finish.
 Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
@@ -260,7 +298,7 @@ disk operations across all participating VMs, users and checkouts on the host.
 Each physical host has its own FIFO queue and admits up to its host entry's
 `disk_concurrency` operations at a time in `config/environment.json`. This must
 be a positive integer and defaults to 1 when omitted, independently of VM
-`concurrency`. The executing host's identity selects the limit, including for
+`max_compute_unit`. The executing host's identity selects the limit, including for
 transferred SSH source.
 Operations on different hosts proceed independently; the controller must not
 reserve its own disk slot for work performed on an SSH host.

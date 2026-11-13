@@ -52,7 +52,8 @@ def arguments(argv=None):
 
 def prepare_hosts(args, vms, *, refresh):
     """Keep all VM authority and concurrency on the machine doing the work."""
-    if checkout_arguments():
+    from vm_pool import binding
+    if binding() is not None:
         raise ValueError('vm-pool: check in before dispatching preparation to another host')
     document = vm_config.read_document(validate_agent=False)
     local = tool_host(ROOT, document).name
@@ -67,6 +68,15 @@ def prepare_hosts(args, vms, *, refresh):
     if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
         print('prepare-vm: cancelled; no baseline snapshot was prepared.')
         return 0
+    import host_compute
+    with host_compute.launch(vms) as admitted:
+        groups = {}
+        for vm in admitted:
+            groups.setdefault(vm.host, []).append(vm)
+        return prepare_groups(args, groups, local, refresh=refresh)
+
+
+def prepare_groups(args, groups, local, *, refresh):
     test_source.leave_checkout()
     statuses = []
     for host, targets in groups.items():

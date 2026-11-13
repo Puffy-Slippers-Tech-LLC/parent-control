@@ -241,7 +241,9 @@ class CodexAdapter:
         if request.standard_speed:
             setting('service_tier', 'default')
             setting('features.fast_mode', False)
-        for name, value in request.shell_environment:
+        from host_compute import VARIABLE as COMPUTE
+        compute_environment = ((COMPUTE, os.environ[COMPUTE]),) if COMPUTE in os.environ else ()
+        for name, value in (*request.shell_environment, *compute_environment):
             if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', name):
                 raise ValueError('invalid agent shell environment name')
             setting(f'shell_environment_policy.set.{name}', value)

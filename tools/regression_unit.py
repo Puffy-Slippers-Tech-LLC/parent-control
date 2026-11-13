@@ -34,6 +34,8 @@ process-local clock/file bindings; they mutate no host timezone or shared state.
 
 Suspend ownership checks in vm_control_cleanup_safety use only process-local
 domain, SSH and clock doubles; no new resources or cleanup lifetime are added.
+The offline-stop extension uses the same private checkout locks and a local
+capacity-admission double; it opens no live pool or libvirt connection.
 
 The extension-manager transport cases own private Unix socketpairs/pipes and
 GLib sources; their credential-drop subprocess is mocked. Every descriptor and
@@ -88,6 +90,13 @@ Shared executor admission checks add bounded, joined worker threads with local
 Events and reservation/source-reader doubles. They use no live pool, VM, source
 lease, subprocess, service, cache, socket, bus or display; their tiny private
 state and CPU demand preserve vm_pool's compatible unit classification.
+Its compute admission race uses two joined threads, private kernel tickets and
+process-local registry/libvirt census doubles. No live libvirt connection, VM,
+host runtime, external service, socket or display is accessed; compatible overlap
+and the existing cleanup/UI exclusion remain valid.
+Public artifact/resume/attachment checks in that module use private session
+metadata and locked owner descriptors with a mocked child spawn. Descriptors
+close in a finally block; no worker, live helper or shared runtime is started.
 
 Checkout source-fence checks in test_launchers use private pytest lock files
 and bounded, waited Python children, including one interpreter replacement.

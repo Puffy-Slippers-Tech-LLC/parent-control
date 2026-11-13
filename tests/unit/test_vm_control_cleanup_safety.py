@@ -270,13 +270,28 @@ def reopened(lease):
 
 @pytest.mark.parametrize('graphics', ['vnc', 'spice'])
 @pytest.mark.parametrize('fault', [None, 'instance', 'run', 'snapshot', 'maintenance'])
-def test_interrupted_recovery_restores_only_the_recorded_instance_without_ssh(lease_rig, graphics, fault):
+def test_interrupted_recovery_restores_only_the_recorded_instance_without_ssh(
+        lease_rig, monkeypatch, graphics, fault):
     lease, current = lease_rig
     lease.view.graphics_type = graphics
     lease.__enter__()
     lease.prepare()
     lease.start()
     lease.release()
+    from dataclasses import replace
+    import vm_pool
+    config = runner.baseline.guest_contract.vm_config
+    selected = config.selected()
+    offline = replace(selected, enabled=False, host=replace(selected.host, enabled=False))
+    monkeypatch.setattr(config, 'selected', lambda *args, **kwargs: offline)
+    acquire = vm_pool.acquire
+    compute_requests = []
+    def guarded_acquire(vm_uuid, *, compute=True):
+        compute_requests.append(compute)
+        if compute:
+            config.require_online(offline)
+        return acquire(vm_uuid, compute=compute)
+    monkeypatch.setattr(vm_pool, 'acquire', guarded_acquire)
     original = lease.journal.read_bytes()
     restores = lease.source.domain.revertToSnapshot.call_count
     shutdowns = lease.source.shutdown_calls
@@ -309,6 +324,7 @@ def test_interrupted_recovery_restores_only_the_recorded_instance_without_ssh(le
     assert lease.source.shutdown_calls == shutdowns
     lease.source.domain.destroyFlags.assert_not_called()
     lease.source.domain.create.assert_called_once()
+    assert compute_requests == [False]
 
 
 def start(lease):
@@ -721,6 +737,22 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     lease.source.domain.reboot.assert_not_called()
     lease.source.domain.sendKey.assert_called_once_with(
         lease.source.api.VIR_KEYCODE_SET_LINUX, 100, [28], 1, 0)
+    # Owned stop must still reach journal/instance verification when availability
+    # changes. A new-work capacity acquisition would reject this offline VM.
+    from dataclasses import replace
+    import vm_pool
+    config = runner.baseline.guest_contract.vm_config
+    selected = config.selected()
+    offline = replace(selected, enabled=False, host=replace(selected.host, enabled=False))
+    monkeypatch.setattr(config, 'selected', lambda *args, **kwargs: offline)
+    acquire = vm_pool.acquire
+    compute_requests = []
+    def guarded_acquire(vm_uuid, *, compute=True):
+        compute_requests.append(compute)
+        if compute:
+            config.require_online(offline)
+        return acquire(vm_uuid, compute=compute)
+    monkeypatch.setattr(vm_pool, 'acquire', guarded_acquire)
     resumed = reopened(lease)
     try:
         control.operate(resumed, 'stop', [])
@@ -732,6 +764,7 @@ def test_start_reboot_input_stop_share_one_attempt_and_restore_only_at_edges(lea
     assert resumed.capture.verification_totals['bytes_read'] == 0
     assert lease.source.off
     transport.poweroff.assert_called_once_with()
+    assert compute_requests == [False]
 
 
 @pytest.mark.parametrize('phase', ['running', 'cleanup-requested'])
@@ -1860,6 +1893,7 @@ def test_attached_diagnostic_prefix_cannot_claim_a_complete_journey(tmp_path, mo
 
 def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):
     import dev_privileges
+    import host_dispatch
     import vm_selection
     from tests.support.vm_registry import vm_entry
     import sys
@@ -1867,6 +1901,8 @@ def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkey
     guest = ['printf', '--vm', 'unknown-vm', '--help', '--list']
     launch = Mock()
     monkeypatch.setattr(dev_privileges, 'launch', launch)
+    # This check owns argument forwarding, not registered-host routing or SSH.
+    monkeypatch.setattr(host_dispatch, 'vm_tool', lambda *args, **kwargs: None)
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     monkeypatch.setattr(vm_selection.vm_config, 'current_branch',
                         lambda: vm_entry().get('owning_branch') or 'test-branch')

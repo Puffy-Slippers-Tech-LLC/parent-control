@@ -22,7 +22,8 @@ def main(argv=None):
         parser.error('invoke as the driver user')
     try:
         with reservation(args.vm):
-            status = subprocess.run(command, check=False).returncode
+            from test_storage import scratch_descriptors
+            status = subprocess.run(command, check=False, pass_fds=scratch_descriptors()).returncode
             return status if status >= 0 else 128 - status
     except KeyboardInterrupt:
         return 130

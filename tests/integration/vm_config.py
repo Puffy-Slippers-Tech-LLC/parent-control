@@ -6,6 +6,7 @@ Loading never accesses libvirt or VM disks.
 from dataclasses import dataclass
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -28,7 +29,7 @@ class HostConfig:
     name: str = 'local'
     enabled: bool = True
     transport: str = 'local'
-    concurrency: int = 1
+    max_compute_unit: float = 1
     backup_root: Path | None = None
     ssh_port: int | None = None
     disk_concurrency: int = 1
@@ -45,6 +46,7 @@ class VMConfig:
     fixture_path: str | None = None
     owning_branch: str = ''
     host: HostConfig = HostConfig()
+    compute_unit: float = 1
 
     def require_build_target(self):
         # Standalone helpers can import vm_config before adding the checkout.
@@ -166,27 +168,25 @@ def host_registry(document):
     """
     if 'hosts' not in document:
         entries = [dict(name='local', enabled='true', transport='local',
-                        concurrency=document.get('concurrency', 1),
+                        max_compute_unit=document.get('max_compute_unit', document.get('concurrency', 1)),
                         **({'backup_root': document['backup_root']} if 'backup_root' in document else {}))]
     else:
-        if 'concurrency' in document or 'backup_root' in document:
-            raise ValueError('vm-config:concurrency and backup_root belong to hosts')
+        if any(key in document for key in ('concurrency', 'max_compute_unit', 'backup_root')):
+            raise ValueError('vm-config:max_compute_unit and backup_root belong to hosts')
         entries = document['hosts']
     if not isinstance(entries, list) or not entries:
         raise ValueError('vm-config:hosts must be a nonempty array')
     hosts = {}
     for entry in entries:
         if (not isinstance(entry, dict) or
-                not {'name', 'enabled', 'transport', 'concurrency'} <= set(entry)):
+                not {'name', 'enabled', 'transport', 'max_compute_unit'} <= set(entry)):
             raise ValueError('vm-config:host fields')
         name = validate_name(entry['name'])
         if name in hosts:
             raise ValueError('vm-config:duplicate-host')
         if entry['enabled'] not in ('true', 'false'):
             raise ValueError('vm-config:host enabled must be the string true or false')
-        concurrency = entry['concurrency']
-        if type(concurrency) is not int or concurrency < 1:
-            raise ValueError('vm-config:host concurrency must be a positive integer')
+        compute = compute_unit(entry['max_compute_unit'], 'host max_compute_unit')
         disk_concurrency = entry.get('disk_concurrency', 1)
         if type(disk_concurrency) is not int or disk_concurrency < 1:
             raise ValueError('vm-config:host disk_concurrency must be a positive integer')
@@ -199,7 +199,7 @@ def host_registry(document):
         root = absolute_path(entry['backup_root'], 'backup_root') if 'backup_root' in entry else None
         if 'virt-manager' in entry:
             absolute_path(entry['virt-manager'], 'virt-manager')
-        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, concurrency, root, port,
+        hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, compute, root, port,
                                  disk_concurrency)
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
@@ -346,6 +346,7 @@ def validate_family(document):
             not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
     family = document['family']
+    compute_unit(document.get('compute_unit', 1), 'family compute_unit')
     if 'iso' in document:
         pattern = document['iso']
         if (not isinstance(pattern, str) or not pattern.endswith('.iso') or
@@ -362,6 +363,13 @@ def validate_family(document):
             any(part in {'', '.', '..'} for part in value.split('/'))):
         raise ValueError('vm-config:fixture_path; use a relative directory without traversal')
     return document
+
+
+def compute_unit(value, field='compute_unit'):
+    if (type(value) not in (int, float) or value <= 0
+            or type(value) is float and not math.isfinite(value)):
+        raise ValueError(f'vm-config:{field} must be a positive finite number')
+    return value
 
 
 def absolute_path(value, field):
@@ -383,7 +391,6 @@ def backup_root(path=None, *, vm=None):
 def configuration(path=None):
     document = read_document(path, validate_agent=False)
     hosts = host_registry(document)
-    concurrency = sum(host.concurrency for host in hosts.values() if host.enabled)
     result = {}
     anchors = set()
     ids = set()
@@ -407,7 +414,7 @@ def configuration(path=None):
     for vm in result.values():
         if vm.id in result and result[vm.id] != vm:
             raise ValueError('vm-config:ambiguous-id-or-name')
-    return concurrency, result
+    return len([vm for vm in result.values() if vm.enabled and vm.host.enabled]), result
 
 
 def registry(path=None):
@@ -445,7 +452,7 @@ def execution(name=None, path=None, *, remote=None):
         require_available(vm)
         if not (os.geteuid() != 0 if remote is None else remote):
             require_local(vm, path)
-    return min(sum(host.concurrency for host in {vm.host for vm in vms}), len(vms)), vms
+    return len(vms), vms
 
 
 def snap_tests_enabled(path=None):
@@ -508,7 +515,8 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
     return VMConfig(name, Path(value), enabled == 'true', identifier,
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
-                    hosts[host_name])
+                    hosts[host_name], compute_unit(document.get('compute_unit', family.get('compute_unit', 1)),
+                                                  'VM compute_unit'))
 
 
 def load(name=None, path=None, *, local=None):

@@ -114,7 +114,7 @@ def _select(root, argv, *, reload=False):
     directory = prepare(root, host_only=host_only,
                         vm_name=session_vm)
     test_source.finish_admission()
-    with lock(directory / 'gate') as gate, ExitStack() as source:
+    with lock(directory / 'gate') as gate, ExitStack() as source, ExitStack() as capacity:
         fcntl.flock(gate, fcntl.LOCK_EX)
         source.enter_context(test_source.startup(root, ['--reload'] if reload else argv, wait=False))
         run, active = current_session(directory)
@@ -135,8 +135,9 @@ def _select(root, argv, *, reload=False):
             _, active_vm = extract(record['argv'], required=False)
             if active_vm is not None and requested_vm != active_vm:
                 raise ValueError('vm-config: active run requires its original --vm NAME')
-            if record.get('vm_batch') is not None and requested_vm is not None:
-                if requested_vm != ','.join(record['vm_batch']['vms']):
+            original = record.get('vm_requested', record.get('vm_batch'))
+            if original is not None and requested_vm is not None and active_vm is None:
+                if requested_vm != ','.join(original['vms']):
                     raise ValueError('vm-config: active run requires its original VM queue')
             if '--stop' in argv:
                 (run / 'cancel').touch(mode=0o600)
@@ -163,6 +164,24 @@ def _select(root, argv, *, reload=False):
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
         validate(root, requested)
+        admitted = None
+        original = None
+        if not host_only:
+            import host_compute
+            from vm_selection import BATCH, selected
+            configured_vms = vm_config.registry()
+            batch = BATCH in os.environ
+            targets = ([configured_vms[name] for name in json.loads(os.environ[BATCH])['vms']]
+                       if batch else [selected()])
+            original = dict(vms=[vm.name for vm in targets])
+            exact = False
+            if '--resume' in requested and run is not None:
+                previous = json.loads(current.read_text())
+                targets, exact = host_compute.resume_selection(targets, run,
+                    fallback=(previous.get('vm_batch') or {}).get('vms'))
+            admitted = capacity.enter_context(host_compute.launch(targets, exact=exact))
+            if batch:
+                host_compute.bind(admitted)
         # Persist the actual selected guest, not an ID whose mapping may change
         # while this run is active. New public selectors still read current JSON.
         from vm_selection import extract_execution as extract
@@ -189,6 +208,8 @@ def _select(root, argv, *, reload=False):
                 from test_checkpoint import scheduling_marker
                 from detached_launcher import atomic
                 atomic(run / 'scheduling.json', scheduling_marker())
+                if admitted is not None:
+                    host_compute.save_admitted(run, admitted)
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
                            str(root), str(run), str(owner), *requested]
                 # Publish before spawning: terminal loss immediately after
@@ -199,6 +220,7 @@ def _select(root, argv, *, reload=False):
                 # Display provenance only; this grants no execution or input authority.
                 temporary.write_text(json.dumps(owner_record(run, launcher='run-tests', argv=requested,
                     observer=os.environ.get(FRAME_DIRECTORY) or os.environ.get(WORKFLOW_DIRECTORY),
+                    vm_requested=original,
                     vm_batch=json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None)))
                 temporary.replace(current)
                 from test_storage import scratch_descriptors
@@ -217,8 +239,7 @@ def _select(root, argv, *, reload=False):
                                   if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
                                   and not arg.startswith('--resume-case=')]
                     if not host_only and configured is None:
-                        from vm_selection import execution_arguments
-                        remembered.extend(execution_arguments())
+                        remembered.extend(('--vm', ','.join(original['vms'])))
                     request_record(root, 'run-tests', {'argv': remembered, 'session_vm': session_vm})
                     subprocess.Popen(command, cwd=root, env=environment,
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,

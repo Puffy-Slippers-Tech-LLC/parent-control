@@ -745,7 +745,7 @@ def _audit_start(store, directory, pending):
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None,
-           add_session=None, source_resume=False):
+           add_session=None, source_resume=False, resume_compute=False):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -757,7 +757,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
     source_participant = name in ('fix-tests', 'fix-tests-host')
     if source_participant:
         test_source.finish_admission()
-    with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner, ExitStack() as source:
+    with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner, \
+            ExitStack() as source, ExitStack() as capacity:
         fcntl.flock(gate, fcntl.LOCK_EX)
         if source_participant:
             controls = ['--stop'] if stop else ['--reload'] if reload else ['--resume'] if source_resume else []
@@ -834,6 +835,17 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             run = directory / uuid.uuid4().hex
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
+        admitted = None
+        from vm_selection import BATCH, vm_config
+        if BATCH in os.environ and name not in ('fix-tests-host', 'sync-whatsnew'):
+            import host_compute
+            configured = vm_config.registry()
+            vms = [configured[name] for name in json.loads(os.environ[BATCH])['vms']]
+            exact = False
+            if source_resume or resume_compute:
+                vms, exact = host_compute.resume_selection(vms, current_run(directory))
+            admitted = capacity.enter_context(host_compute.launch(vms, exact=exact))
+            host_compute.bind(admitted)
         private_directory(run)
         import test_retention
         store = test_retention.Store(directory / 'retention')
@@ -856,6 +868,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             _publish_start(pending_path, pending)
         if on_start is not None:
             on_start(run)
+        if admitted is not None:
+            host_compute.save_admitted(run, admitted)
         if resumable_start:
             _validate_start(directory, pending)
             with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
@@ -1065,6 +1079,8 @@ def finish_shutdown(root, run, *, restore_vms=True):
     finish_nested(root, run)
     if not restore_vms or not (stopped or (run / 'cancel').exists()):
         return
+    from host_compute import admitted_names
+    names = admitted_names(run)
     path = run / 'vm.json'
     # vm.json uses the existing save_binding/check_binding metadata contract;
     # unlike private startup receipts, older records use the caller's umask.
@@ -1072,9 +1088,10 @@ def finish_shutdown(root, run, *, restore_vms=True):
     if not isinstance(record, dict) or set(record) != {'vm'}:
         raise ValueError('invalid shutdown VM binding; preserve recovery records')
     binding = record['vm']
-    if binding is None:
+    if binding is None and names is None:
         return  # Host-only workflows must not acquire or change a VM.
-    names = binding.get('vms') if isinstance(binding, dict) else [binding]
+    if names is None:
+        names = binding.get('vms') if isinstance(binding, dict) else [binding]
     if (not isinstance(names, list) or not names
             or any(not isinstance(name, str) or not name for name in names)):
         raise ValueError('invalid shutdown VM selection; preserve recovery records')

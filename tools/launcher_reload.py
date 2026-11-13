@@ -91,7 +91,8 @@ def replace(command, descriptors):
     """Exec without releasing the owner's lock or its inherited leases."""
     import vm_pool
     import test_source
-    descriptors = (*descriptors, *test_source.descriptors())
+    import host_compute
+    descriptors = (*descriptors, *test_source.descriptors(), *host_compute.descriptors())
     source_environment = test_source.environment()
     previous_source = {name: os.environ.get(name) for name in (test_source.VARIABLE, test_source.WRITER)}
     os.environ.update(source_environment)

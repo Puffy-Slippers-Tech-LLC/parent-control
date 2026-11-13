@@ -98,7 +98,7 @@ def controller_scope(path, fd, *, watch=None):
         _controller.reset(token)
 
 
-def open_controller_lock(path, *, vm_uuid=None):
+def open_controller_lock(path, *, vm_uuid=None, compute=True):
     held = _controller.get()
     if held is not None and held[0] == Path(path) and held[2] == os.getpid():
         owning = _pool_descriptors.get(held[1])
@@ -113,7 +113,7 @@ def open_controller_lock(path, *, vm_uuid=None):
                     for item in _pool_descriptors.values()),
             'state:busy-controller; nested stages must borrow controller_scope')
     from vm_pool import acquire
-    pool = acquire(vm_uuid)
+    pool = acquire(vm_uuid, compute=compute)
     fd = None
     try:
         fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
@@ -126,7 +126,8 @@ def open_controller_lock(path, *, vm_uuid=None):
     except BaseException:
         if fd is not None:
             os.close(fd)
-        os.close(pool)
+        from vm_pool import release
+        release(pool)
         raise
 
 
@@ -136,7 +137,8 @@ def close_controller_lock(fd):
         os.close(fd)
     finally:
         if owned is not None:
-            os.close(owned[0])
+            from vm_pool import release
+            release(owned[0])
 
 
 def controller_descriptors(fd, compatibility=None):
@@ -145,8 +147,9 @@ def controller_descriptors(fd, compatibility=None):
     held = _controller.get()
     if owner is None and held is not None and held[2] == os.getpid():
         owner = _pool_descriptors.get(held[1])
-    return tuple(value for value in (fd, compatibility, owner[0] if owner else None)
-                 if value is not None)
+    from vm_pool import compute_descriptors
+    return (*tuple(value for value in (fd, compatibility, owner[0] if owner else None)
+                   if value is not None), *(compute_descriptors(owner[0]) if owner else ()))
 
 
 def bind_controller(commands, fd, compatibility):

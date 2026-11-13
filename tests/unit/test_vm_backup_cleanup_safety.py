@@ -198,9 +198,9 @@ def backup_rig(rig, tmp_path, monkeypatch):
     state_root = tmp_path / 'state'
     state_root.mkdir(mode=0o700)
     config.write_text(json.dumps({'hosts': [
-        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'concurrency': 2,
+        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'max_compute_unit': 2,
          'backup_root': str(tmp_path / 'backups')},
-        {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'concurrency': 6,
+        {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'max_compute_unit': 6,
          'backup_root': '/remote/backups'}],
         'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb',
                       'fixture_path': 'common/ubuntu/common',
@@ -1032,7 +1032,7 @@ def test_mixed_restore_finishes_all_archives_before_failed_preparation(monkeypat
 def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path, value):
     config = tmp_path / 'registry.json'
     config.write_text(json.dumps({'hosts': [
-        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'concurrency': 2,
+        {'name': 'local', 'transport': 'local', 'enabled': 'true', 'max_compute_unit': 2,
          'backup_root': value}], 'families': [
         {'family': 'fixture', 'package_format': 'deb', 'fixture_path': 'common/ubuntu/common',
          'vms': [{'name': 'Guest', 'host': 'local', 'disk_anchor': '/disk'}]}]}))
@@ -1107,7 +1107,7 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     document['agent'] = 'codex'
     document['unknown'] = {'future': True}
     document['hosts'] = [dict(name='local', enabled='true', transport='local',
-                              concurrency=1, unknown={'future': True})]
+                              max_compute_unit=1, unknown={'future': True})]
     document['branches'] = [dict(name='main', host='local', repo_root=str(root), unknown=True)]
     document['launchers'] = [dict(name='write-e2e', default_branch='main', unknown=True)]
     document['families'][0]['unknown'] = True
@@ -1115,6 +1115,20 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     config.write_text(json.dumps(document))
     assert resolve_selection(root).name == 'codex'
     assert vm_config.registry(config)['Guest'].name == 'Guest'
+    # Scheduling metadata is validated before any privileged VM admission.
+    document['hosts'][0]['max_compute_unit'] = 1.5
+    document['families'][0]['compute_unit'] = 0.5
+    config.write_text(json.dumps(document))
+    vm = vm_config.registry(config)['Guest']
+    assert vm.host.max_compute_unit == 1.5 and vm.compute_unit == 0.5
+    document['families'][0]['vms'][0]['compute_unit'] = 0.25
+    config.write_text(json.dumps(document))
+    assert vm_config.registry(config)['Guest'].compute_unit == 0.25
+    for invalid in (0, -0.1, True, '0.5', None, float('inf'), float('nan')):
+        document['families'][0]['vms'][0]['compute_unit'] = invalid
+        config.write_text(json.dumps(document))
+        with pytest.raises(ValueError, match='positive finite number'):
+            vm_config.registry(config)
     config.unlink()
     with pytest.raises(ValueError, match='executing checkout.*unreadable'):
         resolve_selection(root)
@@ -1662,7 +1676,7 @@ def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
     config = tmp_path / 'config/environment.json'
     document = json.loads(config.read_text())
     document['hosts'][0]['backup_root'] = '/replacement-drive/backups'
-    document['hosts'][0]['concurrency'] = 1
+    document['hosts'][0]['max_compute_unit'] = 1
     document['hosts'][1]['enabled'] = 'true'
     config.write_text(json.dumps(document))
     assert guest.preparation_digest(tmp_path) == before

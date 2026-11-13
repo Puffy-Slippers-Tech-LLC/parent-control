@@ -416,6 +416,13 @@ def run_worker(root, request_file, request, paths):
     # owners; only the host-verified VM checkout receipt crosses as text.
     allowed = ('ONPC_VM_CHECKOUT', 'ONPC_TEST_VM', 'ONPC_TEST_VM_WORKER',
                'ONPC_TEST_FAMILY_WORK', 'ONPC_TEST_REVERSE')
+    from host_compute import VARIABLE as COMPUTE
+    if COMPUTE in request['environment']:
+        # Membership is portable; the keeper's local pipe descriptors are not.
+        claims = json.loads(request['environment'][COMPUTE])
+        claims = {host: {key: value[key] for key in ('token', 'vms')}
+                  for host, value in claims.items()}
+        environment[COMPUTE] = os.environ[COMPUTE] = json.dumps(claims)
     for name in allowed:
         if name in request['environment']:
             environment[name] = mapped(request['environment'][name])

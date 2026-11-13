@@ -39,7 +39,7 @@ class RestartExecution(Exception):
 
 
 class SourceBusy(ValueError):
-    """A live source owner prevents immediate reader admission."""
+    """A source owner prevents immediate reader admission."""
 
 
 def restart_execution():
@@ -245,8 +245,9 @@ class SourceProtection:
         try:
             pending = self.owner()
             if pending is not None and (owner is None or pending != owner and resumed != {'run': pending}):
-                raise ValueError('another unfinished repair retains unverified checkout edits; resume that repair first '
-                                 'or use --reset to abandon saved progress and verify from scratch')
+                error = SourceBusy if impact_ticket is not None else ValueError
+                raise error('another unfinished repair retains unverified checkout edits; resume that repair first '
+                            'or use --reset to abandon saved progress and verify from scratch')
             if owner is not None:
                 if prepare is not None:
                     prepare()

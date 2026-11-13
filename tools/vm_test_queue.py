@@ -574,6 +574,11 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                                 source=envelope['source'], evidence_digest=envelope['evidence_digest'])
                         hold(ticket, envelope['decision']['impact'])
                         impacts[ticket['id']] = envelope['decision']['impact']
+                except test_source.SourceBusy:
+                    # Recovery must finish under its original writer before
+                    # read-only triage can inspect the checkout. Keep the hold
+                    # and retry later, without caching this as completed triage.
+                    continue
                 except Exception as error:
                     from detached_launcher import Stopped
                     if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

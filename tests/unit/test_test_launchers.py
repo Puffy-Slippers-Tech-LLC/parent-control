@@ -1092,7 +1092,7 @@ def test_checkout_source_impact_holds_fence_normal_work_but_allow_triage(
         with source.state():
             source.finish(first, unfinished=True)
     # A crashed/cancelled writer stays fenced even for an otherwise valid triage.
-    with pytest.raises(ValueError, match='unfinished repair'):
+    with pytest.raises(test_source.SourceBusy, match='unfinished repair'):
         with test_source.reader(tmp_path, impact_ticket=second, wait=False):
             pytest.fail('triage read retained unverified edits')
     with launcher.lock(tmp_path / 'repair-owner') as writer, source.state():

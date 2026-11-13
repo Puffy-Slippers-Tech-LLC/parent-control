@@ -433,8 +433,29 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                     const document = await vscode.workspace.openTextDocument({ content: result.text, language: 'markdown' });
                     await vscode.window.showTextDocument(document, { preview: false });
                 } else if (result.kind === 'video' && typeof result.data === 'string' && /^[A-Za-z0-9+/]*={0,2}$/.test(result.data)) {
-                    const video = vscode.window.createWebviewPanel('onpc.watch.recording', 'Watch recording', vscode.ViewColumn.Active, {});
-                    video.webview.html = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src data:; style-src 'unsafe-inline';"></head><body style="margin:0;background:#111"><video controls autoplay style="width:100%;height:100vh" src="data:video/webm;base64,${result.data}"></video></body></html>`;
+                    const video = vscode.window.createWebviewPanel('onpc.watch.recording', 'Watch recording', vscode.ViewColumn.Active,
+                        { enableScripts: true, localResourceRoots: [] });
+                    const nonce = randomBytes(16).toString('hex');
+                    const listener = video.webview.onDidReceiveMessage(message => {
+                        if (message.type === 'playback-error') errors.report('Cannot play Watch recording', 'VS Code could not decode the transferred WebM recording.');
+                    });
+                    video.onDidDispose(() => listener.dispose());
+                    // A Blob avoids putting an entire recording into a media URL.
+                    video.webview.html = `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';"></head>
+                        <body style="margin:0;background:#111;color:white"><p id="error" hidden>Cannot play this recording. See the Watch error details.</p>
+                        <video controls autoplay style="width:100%;height:100vh"></video>
+                        <script nonce="${nonce}">
+                        const vscode = acquireVsCodeApi();
+                        const video = document.querySelector('video');
+                        video.addEventListener('error', () => {
+                            document.getElementById('error').hidden = false;
+                            vscode.postMessage({type: 'playback-error'});
+                        });
+                        const bytes = Uint8Array.from(atob('${result.data}'), character => character.charCodeAt(0));
+                        const url = URL.createObjectURL(new Blob([bytes], {type: 'video/webm'}));
+                        video.src = url;
+                        window.addEventListener('unload', () => URL.revokeObjectURL(url));
+                        </script></body></html>`;
                 } else throw new Error('Adapter returned an unsupported artifact.');
             } catch (error) { errors.report('Cannot open Watch artifact', error); }
         }

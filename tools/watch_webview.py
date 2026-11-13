@@ -28,6 +28,27 @@ from watch_output import Output, SessionOutput, JsonReader, active_launchers, wa
 from tests.integration.watch_activity import TerminalControls
 
 
+def inline_video(stream):
+    """Convert a playback copy to VS Code's supported VP8, keeping originals."""
+    import subprocess
+    limit = 64 * 1024 * 1024
+    if stream.seek(0, 2) > limit:
+        raise ValueError('Recording exceeds the inline transfer limit; open it on the source host.')
+    stream.seek(0)
+    try:
+        result = subprocess.run([
+            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0',
+            '-map', '0:v:0', '-an', '-c:v', 'libvpx', '-deadline', 'realtime',
+            '-cpu-used', '8', '-threads', '1', '-crf', '40', '-b:v', '1M',
+            '-pix_fmt', 'yuv420p', '-fs', str(limit), '-f', 'webm', 'pipe:1'],
+            stdin=stream, capture_output=True, timeout=60, check=True)
+    except (subprocess.SubprocessError, OSError) as error:
+        raise ValueError('Cannot prepare VP8 recording playback: ' + str(error)) from error
+    if not result.stdout or len(result.stdout) >= limit:
+        raise ValueError('Playback copy exceeds the inline transfer limit; open it on the source host.')
+    return dict(kind='video', data=base64.b64encode(result.stdout).decode('ascii'))
+
+
 def recording_artifact(uri, anchor, host):
     """Read only a current publication in this host's remote operation store."""
     parsed = urlsplit(uri)
@@ -43,10 +64,7 @@ def recording_artifact(uri, anchor, host):
         raise ValueError('Recording outside this host\'s managed remote storage.')
     from recording_storage import Store
     with Store(root=path.parents[3], create=False).open_published(path) as stream:
-        data = stream.read(64 * 1024 * 1024 + 1)
-    if len(data) > 64 * 1024 * 1024:
-        raise ValueError('Recording exceeds the inline transfer limit; open it on the source host.')
-    return dict(kind='video', data=base64.b64encode(data).decode('ascii'))
+        return inline_video(stream)
 
 
 def remote_recording_artifact(uri):
@@ -381,12 +399,13 @@ class Viewer:
                 if not request['inline']:
                     return dict(kind='file', uri=path.as_uri(),
                                 media_type='video/webm' if video else 'text/markdown')
-                limit = 64 * 1024 * 1024 if video else 2 * 1024 * 1024
+                if video:
+                    return inline_video(stream)
+                limit = 2 * 1024 * 1024
                 data = stream.read(limit + 1)
                 if len(data) > limit:
                     raise ValueError('Artifact exceeds the inline transfer limit; open it on the source host.')
-            return (dict(kind='video', data=base64.b64encode(data).decode('ascii')) if video else
-                    dict(kind='text', text=data.decode('utf-8', errors='replace')))
+            return dict(kind='text', text=data.decode('utf-8', errors='replace'))
         except (OSError, ValueError) as error:
             return dict(error=str(error))
 

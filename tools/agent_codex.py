@@ -1,6 +1,7 @@
 """Codex-native session configuration and protocol beneath shared supervision."""
 
 import json
+import os
 from pathlib import Path
 import re
 import shutil

@@ -123,11 +123,15 @@
                 failed: 'failed', stopped: 'failed', finished: 'finished', 'Closing Task': 'closing-task',
                 'Stop Requested': 'stop-requested', Stopping: 'stop-requested',
                 'Reload Requested': 'stop-requested', Repairing: 'stop-requested',
+                'Repair Pending': 'stop-requested', 'Checking Impact': 'stop-requested',
                 Verifying: 'stop-requested', 'Committing Fix': 'finished',
             }[entry.status] || '';
             title.append(' (');
             const status = element('span', `launcher-status ${statusClass}`, title);
-            if (Object.hasOwn(entry, 'status_color')) status.style.color = entry.status_color || '';
+            // Keep orange titles on the model's shared CSS color, including older remote bridges.
+            if (statusClass !== 'stop-requested' && Object.hasOwn(entry, 'status_color')) {
+                status.style.color = entry.status_color || '';
+            }
             status.textContent = entry.status.charAt(0).toUpperCase() + entry.status.slice(1);
             title.append(')');
         }

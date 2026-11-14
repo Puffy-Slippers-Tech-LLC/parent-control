@@ -89,7 +89,7 @@ def disk_backed(fd):
 
 
 def directory(kind='allocations', *, root=None, create=True):
-    if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew', 'plans',
+    if kind not in ('allocations', 'scratch', 'sessions', 'sessions-host', 'fix-tests', 'fix-tests-host', 'sync-whatsnew', 'plans',
                     'reports', 'state', 'exports', 'cache', 'sbuild', 'recordings', 'captures', 'remote'):
         raise ValueError('invalid test storage kind')
     if kind == 'recordings':

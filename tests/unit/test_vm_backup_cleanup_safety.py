@@ -1109,7 +1109,7 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     document['hosts'] = [dict(name='local', enabled='true', transport='local',
                               max_compute_unit=1, unknown={'future': True})]
     document['branches'] = [dict(name='main', host='local', repo_root=str(root), unknown=True)]
-    document['launchers'] = [dict(name='write-e2e', default_branch='main', unknown=True)]
+    document['launchers'] = [dict(name='execute-plan', default_branch='main', unknown=True)]
     document['families'][0]['unknown'] = True
     document['families'][0]['vms'][0].update(host='local', unknown=True)
     config.write_text(json.dumps(document))

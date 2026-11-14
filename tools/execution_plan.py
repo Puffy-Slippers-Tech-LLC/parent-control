@@ -101,10 +101,6 @@ class Task:
     requires: tuple
     scope: str = ''
 
-    @property
-    def ui_obligation(self):
-        return self.scope.startswith('UI obligation;')
-
     def acceptance_metadata(self):
         return acceptance_metadata(self.brief.read_text(), self.id)
 

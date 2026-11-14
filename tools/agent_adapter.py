@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Iterator, Literal, NamedTuple, Protocol
 
 
-Role = Literal['backend_reviewer', 'monitor', 'worker', 'adviser', 'translator']
+Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
 ProfileRole = Literal['implementation', 'repair', 'impact_triage', 'backend_reviewer', 'monitor',
-                      'worker', 'adviser', 'translator', 'commit_helper', 'conflict_resolver']
+                      'worker', 'translator', 'commit_helper', 'conflict_resolver']
 
 
 @dataclass(frozen=True)

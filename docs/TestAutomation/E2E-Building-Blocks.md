@@ -21,8 +21,8 @@ system-test obligations and cannot be selected by the E2E runner. Current scenar
 
 Standalone qualifications for ordinary supporting helpers were removed under
 the [standalone scope reduction](../../tests/integration/README.md#aggregate-scheduling).
-Their names below and in completed queue rows describe historical qualification;
-they do not require recreating the entry points or repeating those histories.
+Qualification scope below does not require recreating retired entry points or
+repeating unchanged qualification.
 Keep the qualified shared operations and runtime guards. Validate changes through
 affected product consumers and focused critical-boundary checks under the
 [test scope mandate](../Mandates/Test-Scope-Mandate.md).
@@ -105,9 +105,8 @@ external maintenance. Establish exact identity, ownership and the expected state
 before changing compatibility or reconciliation code; preserve refusal guards
 and unrelated inputs. Do not accept arbitrary subsets or rewrite ownership
 receipts merely to make preparation pass.
-Continue useful focused diagnosis within the launcher's existing session allowance;
-for `write-e2e`, use its [diagnostic continuation](../../tests/README.md#live-diagnosis-before-another-repair-attempt)
-before acceptance when necessary. Carry actual new observations and a concrete
+Continue useful focused [live diagnosis](../../tests/README.md#live-diagnosis-before-another-repair-attempt)
+within the current task before clean acceptance when necessary. Carry actual new observations and a concrete
 next probe; do not repeat unchanged failed operations or consultations without
 new evidence. Return to the product test as soon as preparation is verified.
 Do not create another maintenance workflow, prerequisite queue task or new
@@ -239,7 +238,7 @@ ambiguity, required recipient focus, input and independent-result guards.
 | UI11 | A | Observe absence of an explicit `automation-id` within an otherwise positively ID-addressed surface. Bind `snapshot` or `stable` mode explicitly. Both require complete fresh reads; stable mode additionally requires its declared finite interval and deadline. | Existing absence/window-closure paths must use registered IDs for both the absent target and surrounding surface. Incomplete/defunct reads cannot prove absence; stable reads restart their interval. [Search contracts](#search-and-standard-sign-in-contracts), [Parent discovery contracts](#parent-discovery-block-contracts) and [About contracts](#about-block-contracts). | ready |
 | UI12 | A | Compare explicit sanitized observations with an explicit expected value or earlier observation; report the differing approved fields. No hidden initial/new-child slots. | `SettingsObservation.from_settings` freezes sanitized values; `compare_settings(observed, expected)` compares explicit immutable observations and reports only differing field names. `JourneyPlan.settings_checks` owns expectations and prior-stage references. [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
 | UI13 | A | Observe a bounded public collection of children first resolved by stable public IDs: canonical identities/order, matching window count, or displayed row set. Inputs declare the ID-addressed root, projection, maximum and expected cardinality (including zero). Order may be verified as a result but never used as identity or to calculate input. Require complete fresh traversal for exclusion/count claims; reject duplicate IDs and unknown requested targets. | `AccessibleUI.app_rows` / `AppRowsObservation` qualify complete App Limits collections through `check_e2e_app_row_observations`; see [app-row observations](#app-row-observations). Case 159 qualified `AccessibleUI.parent_window_count` as a strict complete-tree projection of exactly one owned Parent management window after a second direct launch; duplicate/absent windows refuse. Product choice collections use API canonical identities; greeter and supporting fixture collections retain their separately scoped public adapters. Harness and [Parent discovery contracts](#parent-discovery-block-contracts). | ready |
-| UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one challenge whose surface, recipient and empty masked field were freshly resolved by owned public IDs or a qualified external-provider adapter. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_password::type_fixture_secret` consumes one proof from `enter_gdm_challenge`; distinct Parent GDM challenges are qualified by `check_e2e_challenges`, and the explicit child challenge by [fresh child qualification](#fresh-child-success-qualification). Used identities and the terminal failure latch never reset. Serial retains its separate proof binding; other graphical surfaces remain pending. [Challenge contract](#refactoring-the-established-cases). | ready |
+| UI19 | A | Type one fixture secret once through the unchanged secret-safe API for one challenge whose surface, recipient and empty masked field were freshly resolved by owned public IDs or a qualified external-provider adapter. Accept a registered secret reference and explicit recipient proof, never plaintext in stage data. Do not submit or infer authentication success. Capture remains sealed and uncertainty/failure forbids replay. | `onpc_password::type_fixture_secret` consumes one proof from `enter_gdm_challenge`; distinct Parent GDM challenges are qualified by `check_e2e_challenges`, and the explicit child challenge by [fresh child qualification](#fresh-child-success-qualification). Used identities and the terminal failure latch never reset. Serial retains its separate proof binding; other graphical surfaces remain pending. [Challenge contract](#shared-composition-contracts). | ready |
 | UI20 | A | Native double-click: unsupported and excluded from automation; do not implement or schedule consumers. | See the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Public mouse synthesis requires geometry; semantic activation is not the gesture. No compliant callable or qualification. E2E-014 cases 38–43 remain uncovered and unscheduled. | excluded; no active task or queue blocker |
 | UI23 | A | Make logically collapsed product content available through its declared API value/action only when the required result needs it. Clipping requires no action. | `AccessibleUI.reveal_id` and the shared API facade; `parent-time-status` and declared disclosures use their ordinary handlers. | ready |
 | UI24 | A | Read `feedback-editor-document` through `getValue` and compare bounded synthetic text, inline attributes, block attributes and links independently of toolbar state. Selection indexes use Quill UTF-16 offsets. | `AccessibleUI` formatting/block readers project the public document delta; shared `feedback_formats` and `block_semantics` preserve their finite assertions. No arbitrary DOM/JavaScript or private draft reads. | ready for declared Parent bold/normal, complex inline and `body-blocks` ranges, linked inline and complete format/removal composition; other bindings pending |
@@ -333,7 +332,7 @@ accept a prompt as the final destination. Retained lock/unlock remains separate.
 
 `check_e2e_jordan_daily_access` / `jordan_daily_access.PLAN` /
 `JordanDailyAccessJourney` and `onpc_challenges::jordan_daily_access` passed on
-Ubuntu 26.04 in `20261102T225510Z-19b1c92b`. Jamie saves Jordan's positive
+Ubuntu 26.04. Jamie saves Jordan's positive
 15-minute daily allowance with no grant; fresh Jordan entry reads a countdown
 against that public balance. Normal logout and retained Jamie entry preserve
 the original desktop, Parent endpoint/PID, selected Jordan, page and saved
@@ -355,16 +354,14 @@ the shared display/sampling tolerance and the existing 30-minute worker budget.
 No clock, policy, usage or grant injection supplies results.
 
 Affected default Riley denial, retained Parent and enabled/off countdown
-regressions passed in `20261102T230325Z-b850adb0`,
-`20261102T230816Z-557f8253` and `20261102T231524Z-079ad6fa`. Scoped host checks,
+regressions passed. Scoped host checks,
 collection, worker/callback shutdown, owned cleanup and baseline restoration
 passed. This qualifies only the stated Ubuntu named-child bindings; other
 bindings/platforms remain separate. The focused selector has no standalone
 system inventory registration and supplies no complete-case credit.
 
 Complete case 7, `daily_access_case.DailyAccessJourney` /
-`onpc_allowance_case::daily_only_new`, subsequently passed on Ubuntu 26.04 in
-`20261102T233931Z-67453a2e`. Its 30→40→0 daily-only history verifies fresh
+`onpc_allowance_case::daily_only_new`, subsequently passed on Ubuntu 26.04. Its 30→40→0 daily-only history verifies fresh
 positive access/countdown, zero-time denial, retained Jamie/Parent window,
 limits-off access/countdown absence and Allowed/Hard app results. Shared custom
 input admits 30/40 minutes, and named Jordan toggles retain selected-child and
@@ -373,25 +370,21 @@ request for the separate Riley trace guard. Collection, owned cleanup and
 baseline restoration passed. Other E2E-005 bindings remain separate.
 
 Complete case 8, `daily_access_case.RetainedDailyAccessJourney` /
-`onpc_allowance_case::daily_only_retained`, passed on Ubuntu 26.04 in
-`20261103T022318Z-7d29f9c0`. The same Jordan desktop and original usable work
+`onpc_allowance_case::daily_only_retained`, passed on Ubuntu 26.04. The same Jordan desktop and original usable work
 survived enablement; the original app was compared, used and closed before
 Hard denial. The 30→40→0 history, same Jamie/Parent window, zero-time retained
 denial, limits-off countdown absence/access and Allowed/Hard results, and
 re-enabled zero-time denial all passed, including collection, worker/callback
 shutdown, owned cleanup and baseline restoration. Coverage was regenerated.
-The affected case-7 regression passed on Ubuntu 26.04 in
-`20261103T045224Z-b071f5e9`, including the enabled child's normal logout,
+The affected case-7 regression passed on Ubuntu 26.04, including the enabled child's normal logout,
 the complete fresh-child history, collection, owned cleanup and baseline
-restoration. Task 054 is complete. Temporary logout diagnostics were removed;
-the earlier intermittent failure did not recur, and no causal fix is claimed.
+restoration.
 
 #### Jordan extra-time access
 
 Complete case 9, `grant_access_case.GrantAccessJourney` /
 `onpc_allowance_case::grant_only_new`, passed on Ubuntu 26.04 through
-`tools/run-tests --vm onpc-Ubuntu26.04 --resume e2e --id '9'` in
-`20261103T080858Z-d022996e`. Jamie's real 20-minute soft-included approval
+`tools/run-tests --vm onpc-Ubuntu26.04 --resume e2e --id '9'`. Jamie's real 20-minute soft-included approval
 permits fresh Jordan entry at zero daily time. The 0→30→0 allowance history
 preserves the original grant deadline, with fresh child entries/countdowns,
 normal logout and the original Jamie/Parent window and settings after each
@@ -412,8 +405,7 @@ passed. All four extra-time bindings are implemented; these complete cases suppl
 other-family acceptance.
 
 Complete case 10, `grant_access_case.RetainedGrantAccessJourney` /
-`onpc_allowance_case::grant_only_retained`, passed on Ubuntu 26.04 in
-`20261103T154435Z-e7bf7779`. Jordan's original desktop and usable Allowed work
+`onpc_allowance_case::grant_only_retained`, passed on Ubuntu 26.04. Jordan's original desktop and usable Allowed work
 survived zero-time enablement, specific retained-entry denial and one real
 20-minute Jamie approval. The original work was compared, resumed and normally
 closed before new Allowed/Hard launch checks. The 0→30→0 allowance history
@@ -423,27 +415,24 @@ re-enabled zero denied retained access without restoring the grant. The same
 Jamie/Parent window and settings, collection, worker/callback shutdown, owned
 cleanup and baseline restoration passed. Both grant-only bindings share the
 finite plan builder and worker, including the unchanged scoped credential route.
-The affected fresh-entry case 9 regression passed on Ubuntu 26.04 in
-`20261103T171608Z-3d785f9b`, including all four normal child logouts and
+The affected fresh-entry case 9 regression passed on Ubuntu 26.04, including all four normal child logouts and
 independent usable-greeter returns, the original grant across allowance edits,
 limits-off clearing, re-enabled denial, collection and owned cleanup.
 
 Complete case 11, `grant_access_case.COMBINED_PLAN` / `GrantAccessJourney` /
-`onpc_allowance_case::combined_new`, passed on Ubuntu 26.04 in
-`20261103T174911Z-66957224`. Initial 30-minute daily access, Allowed use/Hard
+`onpc_allowance_case::combined_new`, passed on Ubuntu 26.04. Initial 30-minute daily access, Allowed use/Hard
 denial, a real 20-minute addition to the observed daily remainder, the original
 grant across 30→40→0 edits and fresh child visits, normal logouts, retained
 Parent settings, limits-off grant clearing/countdown absence and re-enabled
 zero-time denial all passed. The 40-minute allowance-only save requires no extra
 desktop visit. Public refreshes and controller read brackets retain the original
-grant deadline. The affected case 9 regression passed in
-`20261103T180811Z-05fe9e3a`. Scoped host checks, collection, worker shutdown,
+grant deadline. The affected case 9 regression passed. Scoped host checks, collection, worker shutdown,
 owned cleanup, baseline restoration and final VM off-state passed; coverage
 was regenerated after each case.
 
 Complete case 12, `grant_access_case.COMBINED_RETAINED_PLAN` /
 `RetainedGrantAccessJourney` / `onpc_allowance_case::combined_retained`, passed
-on Ubuntu 26.04 in `20261103T190153Z-e4325f90`. Jordan's original desktop and
+on Ubuntu 26.04. Jordan's original desktop and
 usable Allowed work survived enabling the 30-minute allowance; the original
 work was compared, resumed and normally closed before new Allowed/Hard launch
 checks. One real 20-minute addition and the 30→40→0 daily edits preserved the
@@ -452,7 +441,7 @@ departure used Switch User and returned to Jamie's original Parent window/settin
 Disabling cleared the grant/countdown while app blocks remained; enabling zero
 again denied retained entry without restoring the grant. The activity fixture
 closure is explicitly bound to this consumer before journey construction.
-Affected fresh-session case 11 passed in `20261103T192331Z-635cf4fc`.
+Affected fresh-session case 11 passed.
 Scoped host checks, collection, worker/callback shutdown, owned cleanup, baseline
 restoration and final VM off-state passed; coverage was regenerated after both cases.
 
@@ -491,7 +480,7 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK01 | C | Observe a usable desktop for the explicitly selected fixture; require its normal Shell controls. | `AccessibleUI.standard_shell_desktop(no_prompt=True)` uses the bound fixture session bus, one complete scoped Shell snapshot per read, unique showing enabled Activities control and complete unknown/authentication-modal refusal. `check_e2e_fresh_desktop` independently qualified fresh Parent and standard desktop results over two seconds in separate restored attempts; the same adapter qualified the intended child's fresh desktop through [fresh child qualification](#fresh-child-success-qualification). `check_e2e_desktop_keyring` additionally qualified `cancel_keyring_prompt` on a prepared real standard-account gcr challenge, followed by disappearance and an independent two-second desktop readback without replaying login input. Lock observation is qualified separately under DESK06; the preserved child's usable desktop passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). Other retained bindings and Shell surfaces remain pending. | pending; fresh Parent/standard/child, stated retained-child success and prepared standard gcr Cancel return ready |
 | DESK02 | A | Retired Shell system/session-menu automation. These menus are not product features. | Use shared DESK03/04/05 and LIFE02/03/06 system operations. No menu adapter to qualify. | retired |
 | DESK03 | C | Lock and switch to the greeter while retaining the fixture desktop. Independently check the original session and usable GDM destination. | `journey_blocks.desktop_return` declares the scoped desktop read, switch and greeter result. `session_control.observe` uses the bound user's public ScreenSaver lock and GDM switching API over guarded SSH; `onpc_desktop_session::switch_user` then observes GDM01. Logind's transient `opening` state is observed without treating it as a ready input source or greeter destination; foreground status is independent while a session opens or closes. `check_e2e_desktop_session` qualified a fresh installed Parent entry, one switch, independent source locked/inactive readback and usable GDM using its then-current installed snapshot, then requalified it in a separate restored attempt alongside DESK04; private collection and owned cleanup passed. [Fresh child qualification](#fresh-child-success-qualification) additionally consumes a newly observed Parent `repeat-desktop` proof after allowance preparation. [FLOW17](#reusable-journey-fragments) qualifies the retained child with real overlay approval pending on Fedora 44, including usable GDM and authenticated return to the same unlocked session and unchanged request. No Quick Settings. Other fixture bindings and retained-window behavior remain pending. | pending; fresh and newly reobserved Parent bindings and stated pending-approval child binding on Fedora 44 ready |
-| DESK04 | C | Log out the bound fixture desktop and independently check that its session ended and GDM is usable. | Shared `session_control.observe` invokes `gnome-session-quit --logout --no-prompt` once as the bound user over guarded SSH, verifies the source session is logged out and a greeter session is active; `onpc_desktop_session::log_out` then observes usable GDM01. Convergent logind reads exclude `closing` records, whose users have logged out while leftover processes remain; live inactive/locked sessions still block fresh entry. `check_e2e_desktop_session` qualified a fresh installed Parent desktop, direct logout and independent GDM result, then requalified DESK03 in a separate restored attempt; private collection and owned cleanup passed. Complete case 22 additionally passed approved Riley logout and independent usable GDM on Ubuntu 26.04 in `20261030T003818Z-f8c88376`. The [FLOW17 sign-out qualification](#reusable-journey-fragments) covers Riley logout with pending approval on Fedora 44. No logout-dialog/Cancel or forced-termination fallback. Other fixture/platform bindings remain pending. | pending; fresh Parent logout, approved Riley logout on Ubuntu 26.04 and pending-approval Riley logout on Fedora 44 ready |
+| DESK04 | C | Log out the bound fixture desktop and independently check that its session ended and GDM is usable. | Shared `session_control.observe` invokes `gnome-session-quit --logout --no-prompt` once as the bound user over guarded SSH, verifies the source session is logged out and a greeter session is active; `onpc_desktop_session::log_out` then observes usable GDM01. Convergent logind reads exclude `closing` records, whose users have logged out while leftover processes remain; live inactive/locked sessions still block fresh entry. `check_e2e_desktop_session` qualified a fresh installed Parent desktop, direct logout and independent GDM result, then requalified DESK03 in a separate restored attempt; private collection and owned cleanup passed. Complete case 22 additionally passed approved Riley logout and independent usable GDM on Ubuntu 26.04. The [FLOW17 sign-out qualification](#reusable-journey-fragments) covers Riley logout with pending approval on Fedora 44. No logout-dialog/Cancel or forced-termination fallback. Other fixture/platform bindings remain pending. | pending; fresh Parent logout, approved Riley logout on Ubuntu 26.04 and pending-approval Riley logout on Fedora 44 ready |
 | DESK05 | C | Explicitly lock through Super+L or the supported session lock API and independently observe the lock surface. Never manufacture natural expiry. | `onpc_desktop_session::lock` consumes a fresh desktop proof, invokes shared `session_control` Lock once and calls DESK06. `desktop_session.LOCK_PLAN` / `SUPPLIED_LOCK_PLAN` qualify separate command and independently supplied Super+L attempts. No system-menu navigation. [Parent scope](#parent-lock-surface-qualification); child command Lock passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). | fresh Parent command/Super+L and child command Lock ready; other bindings pending |
 | DESK06 | C | Observe the intended user's lock surface: curtain, already-open password challenge or already exposed native time restriction. Reveal with one normal key only for curtain. | `journey_blocks.lock_challenge` / `onpc_desktop_session::observe_lock` and `AccessibleUI.shell_lock_snapshot` bind the sole local locked declared fixture session and its Shell-owned public window. Curtain requires the English unlock hint and fresh scoped focus before one Space; challenge reads the public intended-fixture identity and focused password role without contents or secret authority. Wrong-session, other-surface, ambiguity and replacement guards retain independent result readback. [Qualified scope](#parent-lock-surface-qualification); child curtain/reveal and challenge read passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). The child's native configured-zero restriction passed [retained denial qualification](#retained-child-time-restriction-and-greeter-return-qualification), through the same guarded curtain reveal. `child-lock-time-denial-ready` independently pins the already exposed [post-suspend restriction](#time-and-ordinary-lifecycle-boundaries) without input. Recipient proofs are qualified separately. | Parent and child curtain/reveal, independent challenge read and child native zero-time restriction ready; already exposed post-suspend restriction ready on Ubuntu 26.04; other bindings pending |
 | DESK07 | A | Qualify the lock-screen recipient, masked empty focused field and intended identity independently of GDM. | `journey_blocks.lock_recipient` / `onpc_desktop_session::lock_recipient`, `AccessibleUI.lock_surface` and `UiObservations` bind two ordered fresh proofs to the same actual lock window and password field. `desktop_session.LOCK_RECIPIENT_PLAN` / `LockRecipientQualification` independently qualify the Parent command-lock binding. [Parent scope](#parent-lock-recipient-qualification); the shared `account='child'` proofs passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). | Parent and child command-lock recipient proofs ready; other retained-user bindings pending |
@@ -678,10 +667,7 @@ window and reads 30. Each retained visit selects the peer before Jordan and
 reaches Screen Limits to reload current policy. Original window endpoint/PID
 and desktop-session comparisons are independent for each parent.
 
-`check_e2e_manage_from_the_second_parent_s_own_window` passed in
-`20261112T112819Z-54d913b4`; retained-Parent regression passed in
-`20261112T113512Z-3fbbf758`. The direct-launch regression passed as case 5 in
-`20261112T114638Z-ac5a14ef`, which owns the consolidated historical case-6
+`check_e2e_manage_from_the_second_parent_s_own_window` passed; retained-Parent regression passed. The direct-launch regression passed as case 5, which owns the consolidated historical case-6
 assertion under the [current recipe](E2E-Scenario-Recipes.md#e2e-004).
 Collection, worker shutdown, owned cleanup and baseline restoration passed.
 This qualifies the stated management binding, not complete case 251 or other
@@ -703,7 +689,7 @@ Qualification is surface/account specific:
 | Parent chooser | `check_e2e_parent_language`, `read_parent_language`, `parent_language_management/operation/state`: Ubuntu 26.04, untouched English/native names, English/German/Simplified Chinese/Hebrew Save/readback, Chinese Cancel preserving German, relaunch persistence and unchanged selected child/zero allowance/app policy. |
 | Jordan kiosk | `kiosk_language.PLAN`, `onpc_request_flow::kiosk_language`, `read_kiosk_language`, `kiosk_language_form/policy`: same four-language Save/Cancel/German-reentry scope; request values and public policy unchanged. The [baseline binding](#c04l-kiosk-language-and-human-pause) renews both targets and adds only the 90-second initial-chooser pause. |
 | Riley overlay | `overlay_language.PLAN` / `OverlayLanguageJourney`, `onpc_request_flow::overlay_language`, `read_overlay_language`, `overlay_language_operation`: Ubuntu 26.04, child application/active Riley session, untouched and reopened UID-bound chooser, same four languages/Cancel, fixed request and German direct-command relaunch without automatic startup setup. |
-| Riley panel after overlay Save | `panel_language.PanelLanguageJourney` / `PLAN`, `onpc_request_flow::panel_language_refresh`, `check_e2e_panel_language_refresh`: Ubuntu 26.04 in `20261030T145814Z-b56f6fea`, English → Hebrew through a command-opened overlay, normal Cancel and independent `child-panel` meaning/canonical-time reads. Request values, saved Parent policy/app rules and zero grant remain unchanged. Time changes only within monotonic elapsed bounds plus one tick. Restoration, progression and natural expiry remain task 310's complete history. |
+| Riley panel after overlay Save | `panel_language.PanelLanguageJourney` / `PLAN`, `onpc_request_flow::panel_language_refresh`, `check_e2e_panel_language_refresh`: Ubuntu 26.04, English → Hebrew through a command-opened overlay, normal Cancel and independent `child-panel` meaning/canonical-time reads. Request values, saved Parent policy/app rules and zero grant remain unchanged. Time changes only within monotonic elapsed bounds plus one tick. Restoration, progression and natural expiry belong to case 262. |
 | Selected-child kiosk restoration | `kiosk_language_restoration.PLAN` / `KioskLanguageRestorationJourney`, `onpc_request_flow::kiosk_language_restoration`: Ubuntu 26.04, Jordan/German and Riley/Hebrew restoration, approver independence, fresh reentry, unchanged policy/time/apps and Parent English. Each child retains 1800 seconds, hidden custom text and excluded soft apps. |
 | Enabled Parent isolation | `ParentLanguageIsolationJourney` / `ISOLATION_PLAN`, `onpc_parent::qualify_language_isolation`, `check_e2e_parent_language_isolation`: Jamie/Chinese on Ubuntu 26.04, Riley→Jordan→Riley, separate immutable English 60-minute policy/name/balance captures, zero grants and public readbacks/relaunch within 600 seconds. |
 
@@ -796,31 +782,31 @@ Compare policy/name/app captures before/after recovery under the recipe's bound.
 E2E-059/case 260 uses `overlay_presentation.PLAN` /
 `OverlayLanguageHistoryJourney` and `onpc_request_flow::overlay_language_history`.
 The complete Riley/Jamie English → Hebrew → English history passed on Ubuntu
-26.04 in `20261030T124615Z-a7c9aacd`: immutable 75-second soft-included request,
+26.04: immutable 75-second soft-included request,
 genuine Shell approval, Hebrew success, unchanged usable original activity,
 restored English/Cancel and elapsed-bounded original grant deadline. Its
 attempt declares `ACTIVITY_SUBSETS` with caller `E2E-059/overlay-hebrew` before
 journey construction; missing activity preparation previously refused at that
 boundary. Collection, worker shutdown, owned cleanup, baseline restoration and
-finalization passed. The VM was observed off. This completes task 308 only.
+finalization passed. The VM was observed off.
 
 E2E-060/case 261 uses `kiosk_presentation.PLAN` /
 `KioskLanguageHistoryJourney` and `onpc_request_flow::kiosk_language_history`.
 The complete Riley English → Hebrew → English station history passed on Ubuntu
-26.04 in `20261030T135343Z-a4765f49`: the custom 75-second soft-included request
+26.04: the custom 75-second soft-included request
 stayed unchanged through Jamie → Casey, with retained Hebrew choice and matching
 translated text, restored English with Casey retained, station restrictions and
 normal Cancel/sign-in return. `language-history-riley-en-casey-restricted` combines
 the shared station exclusion guard with the exact restored-English form read.
 The initial greeter's recorder phase assignment was corrected without changing
 assertions. Collection, worker shutdown, owned cleanup, baseline restoration and
-recording finalization passed; the VM was observed off. This completes task 309 only.
+recording finalization passed; the VM was observed off.
 
 #### Complete panel language and expiry history
 
 E2E-061/case 262 uses `panel_expiry.PLAN` / `PanelExpiryJourney` and
 `onpc_request_flow::panel_language_expiry`. Its uninterrupted Riley English →
-Hebrew → English history passed on Ubuntu 26.04 in `20261030T153447Z-0cf92259`:
+Hebrew → English history passed on Ubuntu 26.04:
 Jamie publicly saved the ten-minute daily-only allowance with zero grant;
 both language changes preserved the original usable activity, request values
 and elapsed countdown. Real minute/final-second progression led to natural
@@ -830,7 +816,7 @@ The case declares `ACTIVITY_SUBSETS` and caller `E2E-061/panel-expiry` before
 journey construction. `overlay_entry` accepts its existing Hebrew form observer
 for the restored-English entry. Collection, worker shutdown, owned cleanup,
 baseline restoration and recording finalization passed; the VM was observed off.
-This completes task 310 only; no Fedora acceptance is claimed. For LANG01,
+No Fedora acceptance is claimed. For LANG01,
 FLOW13 and TIME01–04, this is the additional accepted ten-minute
 `E2E-061/panel-expiry` composition; table references to other pending bindings
 exclude this exact scope and do not qualify further consumers.
@@ -839,8 +825,8 @@ Its Parent preparation composes `journey_blocks.daily_time_settings` /
 The full daily-profile helpers reuse that same settings portion before DESK03.
 
 Other compositions and new bindings stay pending. Reuse existing LANG01
-and `language_persistence.PLAN` request readers instead of separate 308a/309a
-presentation histories. Task 310a supplies the shared panel endpoint projection.
+and `language_persistence.PLAN` request readers. The shared panel endpoint owns
+its projection.
 
 Use the [language recipes](E2E-Scenario-Recipes.md#personal-language-acceptance-decomposition)
 for full values/order. Shared IDs and prerequisite qualifications do not establish
@@ -862,7 +848,7 @@ and [ChildUI notification surface](Application-UI-API.md#child-panel).
 | `check_e2e_reminder_child_station_binding` | Qualified on Fedora 44: Jordan's own overlay defaults/language and Cancel; Riley's saved 90-second ID through kiosk deletion/Cancel/reopen and deletion/Save/reopened defaults, with Jordan/request/policy preservation and zero grant. |
 | `check_e2e_reminder_fullscreen_preference` | Qualified saved false, Cancel of true draft and reopened false on both targets; no delivery credit. |
 | Natural reminder | Qualified on Ubuntu 26.04 through `check_e2e_natural_reminder_observation`: independently saved 30-second literal row, real ten-minute grant and native activity, natural delivery, current body/live balance/critical urgency, same-delivery UUID and removal at the natural lock. Shared `NaturalReminderJourney` and `AccessibleUI.natural_reminder_wait` scope notification samples to the pinned ChildUI owner's complete inventory; natural lock retains its separate qualified provider observation. Fullscreen and complete reminder histories remain separate. |
-| Fullscreen banner | Qualified on Ubuntu 26.04 through `check_e2e_fullscreen_reminder_visibility` in `20261111T004530Z-c6d3d69a`. `FullscreenReminderJourney` composes two independently restored Riley intervals through the shared `natural_reminder_wait` observer: enabled fullscreen delivery and windowed high-urgency delivery followed by the game's single normal fullscreen action and same-delivery surface suppression. Public `delivery_id` metadata retains identity without hidden-control reads. Both branches preserve saved reminders and Parent policy and prove continued use of the original game. The observer authorizes its first move only after successful launch and independent owned-window/mode readback. The affected natural-reminder regression passed in `20261111T012350Z-c420a16b`; other platforms and complete reminder histories remain separate. |
+| Fullscreen banner | Qualified on Ubuntu 26.04 through `check_e2e_fullscreen_reminder_visibility`. `FullscreenReminderJourney` composes two independently restored Riley intervals through the shared `natural_reminder_wait` observer: enabled fullscreen delivery and windowed high-urgency delivery followed by the game's single normal fullscreen action and same-delivery surface suppression. Public `delivery_id` metadata retains identity without hidden-control reads. Both branches preserve saved reminders and Parent policy and prove continued use of the original game. The observer authorizes its first move only after successful launch and independent owned-window/mode readback. The affected natural-reminder regression passed; other platforms and complete reminder histories remain separate. |
 
 `AccessibleUI.overlay_reminder_open/read/editor/delete/fullscreen/commit`
 and `UiObservations` validate canonical records and prior draft source.
@@ -1003,10 +989,10 @@ Parent's periodic displayed status can be 30 seconds old. Both readers publicly
 reselect the guarded child to load fresh status within the controller read
 bracket, without changing saved policy/grant or relaxing time/precision checks.
 Case 17's named-child binding passed Cancel and Confirm for Jordan's zero-daily,
-real twenty-minute grant on Ubuntu 26.04 in `20261105T015431Z-68a208f7`, including
+real twenty-minute grant on Ubuntu 26.04, including
 the original A/S activity comparisons, retained-entry denial and Riley's final
 usable activity. The unchanged Riley Confirm binding passed its affected
-`check_e2e_revocation` regression in `20261105T021133Z-feba7884`.
+`check_e2e_revocation` regression.
 Other bindings and remaining complete cases stay pending.
 
 ### App-row observations
@@ -1110,8 +1096,7 @@ requires `row=None/undef` and ends with the automatic report open; caller owns
 review/closure/restored-rule assertions. Complete cases remain separate.
 
 Case 186 (`match_reopen_case.PLAN` /
-`onpc_fresh_thirty_allowance::match_reopen_case`) passed on Ubuntu 26.04 in
-`20261104T014326Z-6873fc13`. It saves S's finite `match-soft-precise` path,
+`onpc_fresh_thirty_allowance::match_reopen_case`) passed on Ubuntu 26.04. It saves S's finite `match-soft-precise` path,
 checks suggested-pattern redisplay after child reselection and Parent reopening,
 then reselects precise before subsequent saves. A's custom wildcard/Allowed
 survives reopening and a rejected-directory save; Jordan independently proves
@@ -1222,12 +1207,9 @@ Callers own lifecycle/finite expectations; case 184 remains separate.
 
 ### Baseline operation applicability
 
-Compatible fixture preparation and the finite native grant/use/revoke history
-formerly scheduled as 313a/313 were delivered through C04p1/C04p. Their duplicate
-E2E queue tasks are removed; the scope below remains reusable. Trust accepted
-delivery without retrieving old reports or rerunning unchanged qualification.
-Changed boundaries receive their affected checks; later customer journeys keep
-their own complete public outcomes.
+Compatible fixture preparation and the finite native grant/use/revoke operations
+below are reusable within their stated scope. Changed boundaries receive affected
+checks; customer journeys retain their own complete public outcomes.
 
 The [baseline recipe](E2E-Scenario-Recipes.md#c04b-baseline-public-use-slice)
 defines a finite request/grant/use/revoke history. Reuse exact qualified
@@ -1412,74 +1394,23 @@ Observe the same session/request after a wait and reacquire both recipient
 proofs; only the same empty native input field may wait for bounded readback.
 Replacement or other refusal stops immediately, without another input.
 
-#### C04j1 selected activity input preparation
+#### Selected activity input preparation
 
-C04j1 qualified the fixed baseline caller's immutable `native` plus `activity`
-union through `prepare_installed_setup`, including the actual
-`NativeFixtures(profile='activity').verify()` before product input. Other callers
-retain native-only defaults. Activity hashes come from the selected manifest;
-verification uses current attempt readiness and independent runtime trust
-readback rather than the legacy embedded-fixture receipt.
+The fixed baseline caller selects `('native', 'activity', 'baseline-child')`
+through `prepare_installed_setup`. Other callers retain their declared defaults.
+`NativeFixtures(profile='baseline-child')` independently reads Riley's four
+A/H/S/N launchers and the Jordan-owned shared runtime before product input.
+Selected manifest hashes, role owners, modes, no-link checks and current
+attempt/boot readiness remain mandatory.
 
-The actual command was
-`tools/run-tests integration --vm 'onpc-Ubuntu26.04,onpc-Fedora44' check_fixture_e2e_installed`:
-Ubuntu passed in 18.6 minutes and Fedora in 11.7 minutes. Each passed two online
-resume/rebind and two explicit offline attachment attempts, exact selected
-bytes/modes/role owners/native admissions, harmless native/activity use, frozen
-selection after producer edits, no-write repeats, fresh attempt/boot binding and
-missing/incompatible/stale consumer-readiness refusals. Fedora retained enforcing
-SELinux with exact labels/admissions. Collection and baseline restoration passed;
-serial owned cleanup passed and both guests were independently observed off.
-
-Existing affected host consumers passed. New unit coverage is limited to four
-shared attempt-readiness cases; wrapper/helper matrices were removed under the
-[test scope mandate](../Mandates/Test-Scope-Mandate.md). Frozen installed/system
-input closures now include the required `baseline_environment` alias. No product
-backend or package input changed.
-
-This is preparation acceptance only. At C04j1 close-out, the changed
-input/preparation envelope made Fedora's earlier complete customer pass
-historical and left Ubuntu's final Parent save to diagnose. C04j2/j3 resolved
-the subsequent input and native transition defects, and
-[C04j passed both complete histories](#c04j-complete-baseline-composition) with
-the resulting envelope. Separate feature/pause results remain reusable;
-preparation acceptance itself closes no customer history or other queue task.
-
-C04j's subsequent live maintenance replay passed this selected preparation but
-stopped before its first H access input: Riley's public catalogue had no A/H/S/N
-rows. The `native` subset supplies Jordan's four user-local launchers and none of
-Riley's; `riley-grid` supplies only Riley's A and is insufficient. Adding only
-identical launchers to Riley in the disposable live guest, then refreshing the
-public catalogue, exposed all four rows; H permanent persisted across reselection
-with its match unchanged. The successful bounded reload read followed an initial
-premature read during loading. This is engineering diagnosis, not preparation or
-customer acceptance. C04j2 adds only Riley's four native launchers as the finite
-`baseline-child` subset. The existing fixed baseline caller selects
-`('native', 'activity', 'baseline-child')`; native and Riley-grid defaults remain
-unchanged. `NativeFixtures(profile='baseline-child')` independently reads Riley's
-four launchers and the Jordan-owned shared runtime before product input, with
-selected hashes and the existing owner, mode, no-link and readiness guards.
-
-The same `check_fixture_e2e_installed` consumer now runs one online and one
-offline attachment with the normal Parent worker. It observes Riley's exact
-A/H/S/N rows and default matches, saves H permanent and S conditional, then
-requires those saved values after child reselection and unchanged Jordan
-defaults. It publicly restores H/S Allowed and controls off, verifies settings
-and zero balances, collects the worker and restores the clean baseline.
-Ubuntu passed both attachments in 18.4 minutes and Fedora in 16.9 minutes.
-Both consumers completed worker collection and baseline restoration. Serial
-owned cleanup passed and both pinned guests were independently observed off.
-Fedora's enclosing runner initially failed its recording-finished notification
-with `vm-config:fields` after the registry changed during its lifetime; its
-recording itself closed successfully. The current parser accepts that registry.
-A fresh `tools/run-tests --vm 'onpc-Fedora44' integration 'check_test_recovery'`
-passed the same notification and recording closure with exit status zero.
-No source change or repeat of the valid installed histories was needed. Serial
-owned cleanup passed again and both pinned guests were independently observed
-off. C04j2 is complete. C04j1's completed guard qualifications remain valid; no
-complete customer history or other queue task receives acceptance credit.
-
-<a id="c04j3-active-grant-disable"></a>
+`check_fixture_e2e_installed` covers online and offline attachment, selected
+bytes and runtime admissions, harmless fixture use, frozen selection,
+idempotent readback and missing/incompatible/stale readiness refusals. Its
+Parent consumer reads Riley's A/H/S/N rows and default matches, saves H permanent
+and S conditional, rereads them after child reselection and requires unchanged
+Jordan defaults. It restores H/S Allowed, controls off and zero balances before
+collection and baseline restoration. This qualifies preparation on Ubuntu 26.04
+and Fedora 44, not a customer journey.
 
 #### Active-grant disable and native continuity
 
@@ -1493,96 +1424,21 @@ a genuine 600-second approval with zero daily time, disables controls through
 Parent, independently reloads saved settings/app rules and resumes retained
 child activity. Fault injection contributes only engineering evidence.
 
-The repair uses a verified full-day native schedule as the transition bridge
-and restores the original schedule last. Independent Astra review identified
-an approval/disable race; sharing the existing transaction lock through snapshots,
-commit and rollback resolved it. Fresh independent review found no remaining
-issues. All 184 focused product checks and both package builds passed.
-
-Ubuntu and Fedora each passed both fresh attempts, collection and baseline
-restoration. Serial owned cleanup passed and both pinned guests were independently
-observed off. This binding covers only the restoration
-transition exposed by the v1.3-derived baseline; complete baseline histories,
-C05 acceptance and general feature coverage retain their existing owners.
-
-<a id="c04j-complete-baseline-composition"></a>
+The transition uses a verified full-day native schedule as its bridge and
+restores the original schedule last, under the shared product transaction lock.
+The binding is qualified on Ubuntu 26.04 and Fedora 44 for that transition;
+complete baseline and general feature results retain their own acceptance.
 
 #### Complete baseline composition
 
 `baseline_journey.PLAN` / `BaselineJourney` and
 `onpc_baseline_journey::run` compose the
-[finite core history](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
-Both complete installed histories passed on 2026-10-24 UTC, after
-[C04j3's native transition repair](#c04j3-active-grant-disable). Each passed all
-246 observations, including 244 public screen stages and two setup stages.
-Ubuntu's worker took 1361.391 seconds and its qualification envelope 1381.843;
-Fedora's worker took 1433.262 seconds and its envelope 1463.140. Both retained
-the original 1800-second worker deadline. The actual commands were
-`tools/run-tests --vm 'onpc-Ubuntu26.04' integration 'check_e2e_baseline_journey'`
-and `tools/run-tests --vm 'onpc-Fedora44' integration 'check_e2e_baseline_journey'`.
-Worker collection, stopped workers, closed callbacks, verified shutdown, owned
-baseline restoration and serial cleanup passed. Both pinned guests were
-independently observed off. These histories qualify this composition and are
-available for C05's separate applicability review; no C05 or E2E case closes here.
+[finite core journey](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
+This composition is qualified on Ubuntu 26.04 and Fedora 44. It retains the
+following ordered public results, independent collection and owned restoration.
+A collection of separate operation passes does not prove this composition.
 
-The dispatcher now uses its existing installed-qualification registry to give
-each qualification its own live evidence owner; the strict storage guard is
-unchanged. Its 163 existing focused host checks passed, followed by the maintained
-test-helper refresh. The baseline alone opts into compact request preparation:
-12 redundant checkpoints are omitted while actual inputs, initial eligible-account
-checks, fresh complete request reads and all comparison endpoints remain.
-Another 203 existing worker-order, request and target/authentication checks
-passed. No excluded composition/history unit suite was recreated. Product code,
-package inputs and shared default preparation are unchanged by these repairs.
-
-Original failed attempts retain no acceptance credit. Earlier import, selected
-activity and selected-child catalogue gaps were resolved by the recorded repairs
-and C04j1/j2. The original Ubuntu final-save alert was a native timer crash;
-the clear-first trial was withdrawn after its lock risk was identified, and
-C04j3 qualified the safe transition. In this session, parallel fixture production
-refused its occupied producer, inherited dispatcher ownership refused startup,
-and a separate recording controller refused overlap. The first full Ubuntu
-attempt then reached its 1800-second deadline during app restoration. The
-dispatcher repair and serial runs resolved startup; compact preparation removed
-repeated identical setup. Both later complete passes include the final save,
-settings and zero-balance results without bypassing any refusal or enlarging bounds.
-
-The common worker distribution is
-`bbb2c11f3e6a3db2e7304b4b7b03eef5d5380b2524a88525313663c50309fc85`;
-inventory SHA-256 is `756bf5176c3b9d8ff96ee382d6ee1b6327bd072960dcddc8dbedfadc3700855b`.
-Both used online `onpc-v1.4` snapshots with installation recipe
-`59584a5c20d6c6dc9af94f5ff7ad21fa4f3ece60864f4aef7a81a81860c1cae2`
-and the verified `native`, `activity`, `baseline-child` union.
-
-| Exact accepted identity | onpc-Ubuntu26.04 | onpc-Fedora44 |
-| --- | --- | --- |
-| Source SHA-256 | `92b8d002733ee01ef791c359c9b3ec11a1ce020921f9de09ca23998e527f8511` | `171687b0a694749cf22ddd258c2f164ee9e7cf8138825c10fae278b1da1f9cab` |
-| Package archive SHA-256 | `4704251b0ee8878bbeabecf40d4d6098334d84aeb4977c5f266ec2bed0bfd3ca` | `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552` |
-| Installed package content SHA-256 | `93e0806ccde2aaf6f54900c438ee78fbdcda3efab0527603b2a3bd75dfda96be` | `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552` |
-| Assets SHA-256 | `48cbdd976508f4323c601e6a23fa69cc10b89c02849893281bd9d34b5c3064ea` | `6b1d1f65a1c63cdb93ab78cd0602e27c33c58134fc8196bc6ddcf000fa82d753` |
-| Baseline SHA-256 | `0258e5e1c68ee767ca97159c6972d718033d52b32d6fbccaf23d5826ec1f85fd` | `0be92111b8feb8a6c6c8ace8b70634ec25762396b91633e8a30b72dfe3fbfd09` |
-| Fixture build identity | `1dd1ea17fd1efe4d8629d7d2571c710bab1f558c070021af5045973e03915eba` | `c80ed55f1cec62b65e59b8888d704aa3a903545322b85d4a6086ee96e502c1d7` |
-| Fixture selection key | `0638d9f1fe6d2f9cf002b181de41e1b179f17c73e51d3359adbe2a72c4e6169d` | `c0e2dcdc1bdc336a749d05fcfd6c752750d9a6aa9ce02c076a5520f20c3bf8b9` |
-| Environment | `ubuntu26-04-1f9a3275a5d51c4f684cb65883582a3b77be4be0d109ea4f3717797245dab629` | `fedora44-3656c93bfe21977071afb21ebd5caedc080cb75affcf6a3a1f6432ca7f45a134` |
-| GDM / Shell / MATE agent | `50.1-0ubuntu0.1` / `50.1-0ubuntu1.4` / `1.26.1-6` | `1:50.3-1.fc44` / `0:50.6-1.fc44` / `0:1.28.1-8.fc44` |
-
-Ubuntu's online snapshot archive is
-`9bed7416c862216ec7c794d8b6bc2e7cff39f9c35b50a5d13bbb6d58b4a4a2b1`;
-its installed-content identity matches the selected rebuilt DEB above. Fedora's
-snapshot and selected RPM archive identities are identical. Providers used
-US XKB input, Shell/GDM `en_US.UTF-8` and MATE `en_US.utf8`.
-
-| Complete caller source | SHA-256 on both targets |
-| --- | --- |
-| `tests/e2e/baseline_journey.py` | `fe9145cbb340347a014e7e5313a3ca61d82274c97e1808cc6834122b9b3e554f` |
-| `tests/e2e/request_flow.py` | `f02cb7e90a930e23227eb02a2fac6986f27238c4e7f624895c9562a56c6f90cd` |
-| `tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm` | `e60cef084f6a20a6416f8d781c12be1ac932f78f43b074a6364505a1d974c9d0` |
-| `tests/integration/graphical_smoke/lib/onpc_request_flow.pm` | `6f99aaa00096af713a98e2ce80630d68b2964f5f7b2d945cca6861070113a683` |
-
-The following maps the baseline and consuming C05 core assertions to their
-accepted ordered endpoints. Every row passed independently on both targets.
-
-| Required public result | Accepted endpoints |
+| Required public result | Required endpoints |
 | --- | --- |
 | Zero daily/grant/total and saved A/H/S policy | `allowance-configured`, `saved-settings`, `saved-policy` |
 | Explicit kiosk rejection, preserved choices, no grant or policy change | `kiosk-rejection-flow-preserved`, `rejection-policy` |
@@ -1595,130 +1451,6 @@ accepted ordered endpoints. Every row passed independently on both targets.
 | Remembered reentry, distinct fresh approval, usable retained child/S and H denial | `kiosk-final-new-form`, `kiosk-final-approval-success`, `final-countdown`, `final-soft-use-submitted`, `final-hard-denied`, `final-policy` |
 | Both apps Allowed with unchanged exact rules, controls disabled/saved and zero balances | Both `restore-*-access` / `restore-*-final-match` reads, `restore-saved`, `restore-settings`, `restore-balance` |
 | Collection and owned restoration | Worker exit zero, callback closed, verified shutdown, restored baseline and independent off-state |
-
-<a id="c04-readiness-audit"></a>
-
-C04's host audit matched every row above to the current
-[Python caller](../../tests/e2e/baseline_journey.py),
-[installed entry](../../tests/integration/check_e2e_baseline_journey.py),
-`BaselineJourneyQualification` and
-[worker](../../tests/integration/graphical_smoke/lib/onpc_baseline_journey.pm).
-The four complete-caller hashes above still match. The installed entry remains
-registered as `check_e2e_baseline_journey`; it selects source-bound package and
-fixture inputs, the `native`/`activity`/`baseline-child` preparation and the
-same versioned installed snapshot. The ordered endpoints cover every core
-assertion for both C05u (Ubuntu) and C05f (Fedora), with the exact per-target
-candidate, fixture, provider, finite values, bounds and restoration recorded
-above and in the [recipe](E2E-Scenario-Recipes.md#commands-bounds-and-restoration).
-
-No product/package source, native fixture payload, core caller, provider binding
-or assertion changed in this audit. The pre-existing maintenance-only
-restoration diagnostic and equivalent normal snapshot rebind extraction do not
-change the qualified history. The pre-existing blank line in
-`tests/fixtures/baseline_assets.py` changes source bytes but no fixture behavior;
-future preparation must still honor its ordinary source fingerprints, without
-relabeling old inputs as a new build. These differences supply no concrete
-invalidation of either recorded complete result. No core history is missing for
-C05 to execute at this boundary; each C05 task must independently check its
-selected candidate against these identities and renew only concretely affected
-scope. Recorded identities describe the original results; old reports are not
-prerequisites, and checked tasks stay complete. This host finding grants no
-installed acceptance.
-
-Separate C04l/s/r/i feature histories and C04l/w's 90/45-second human-pause
-histories remain accepted for their unchanged bindings. Compact preparation is
-opt-in to this baseline; those default callers and feature assertions did not
-change. C04 found no changed feature/pause caller, provider or assertion and no
-affected renewal slice for either C05 consumer. The finite language, choice,
-reminder, About and pause outcomes remain those in the
-[separate qualification boundary](#feature-and-human-pause-boundaries), rather
-than additional steps inferred from the core pass. No ordinary-use mismatch
-remained in these accepted histories. Alternate
-graphical-session behavior retains its route-specific scope; other deliberate routes remain for C06a review;
-no new breach test or escape claim was added. FLOW19/FLOW20 and broader cases
-34/36/44–49 retain their existing pending scope.
-
-Independent Sol High source review found no live registration for retired
-mechanisms or gap in the C04a/C04c dispositions; stale prospective B1–B4 wording
-in the proof consumer was corrected while its historical ledger remained intact.
-C04's 35 focused inventory checks, runner listing, plan metadata and scoped
-links passed. No executable inventory or coverage source changed, so no coverage
-regeneration or package build was needed. This audit ran no installed checks,
-reopened no completed task and left no owned resources.
-
-<a id="c05u-ubuntu-baseline-acceptance"></a>
-
-#### Ubuntu baseline acceptance
-
-C05u independently applied the
-[complete baseline reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
-and accepts C04j's complete `onpc-Ubuntu26.04` history above as installed
-acceptance. The selected candidate is the recorded rebuilt DEB, installed-content
-SHA-256 `93e0806ccde2aaf6f54900c438ee78fbdcda3efab0527603b2a3bd75dfda96be`,
-with its recorded snapshot, source, fixture and provider identities. All 246
-observations passed in 1361.391 seconds within the unchanged 1800-second worker
-bound, including the mapped negative, approval, activity, revocation, fresh-request
-and public restoration results.
-
-Comparison from C04j through C04 and the current checkout found no changed
-product/package source, native fixture payload, provider binding or assertion.
-All four recorded complete-caller hashes still match. The existing fixture
-blank line, maintenance-only diagnostic, equivalent snapshot rebind extraction
-and host test-recovery/classification edits do not invalidate those public
-results. No new candidate or fixture input is claimed. The separate C04l/s/r/i
-feature and C04l/w human-pause results also remain applicable to their unchanged
-bindings. No renewal is required.
-
-The accepted history completed collection, worker/callback shutdown and owned
-baseline restoration, with the guest independently observed off. C05u started
-no VM, worker or helper requiring cleanup. Alternate graphical-session access
-retains its separate local desktop composition; TTY, SSH and exposed child-accessible routes remain for
-C06a/C06 review. Remote desktop testing is excluded by the developer. The retained
-routes are unqualified, not observed baseline
-failures or a final confinement claim. Only C05u closes; Fedora remains C05f's
-installed acceptance gate.
-
-<a id="c05f-fedora-baseline-acceptance"></a>
-
-#### Fedora baseline acceptance and both-target handoff
-
-C05f independently applied the
-[complete baseline reuse contract](E2E-Execution-Contracts.md#complete-baseline-evidence-reuse)
-and accepts C04j's complete `onpc-Fedora44` history as installed acceptance.
-The selected candidate is the recorded rebuilt RPM, archive/installed-content
-SHA-256 `7b98a3f839e4a324df1b159f8ea0340e968a7ab1aa70a2f2c5f74e0485298552`,
-with the source, assets, online snapshot, native/activity/baseline-child fixtures,
-GDM/Shell/MATE providers and finite inputs in the
-[exact identity and public-result tables](#complete-baseline-composition).
-All 246 observations passed in 1433.262 seconds within the original 1800-second
-worker bound, including negative requests, genuine approval, usable A/S with H
-denied, preserved overlay activity, revocation, fresh remembered reentry and
-public policy/time restoration. Collection, worker/callback shutdown, owned
-baseline restoration and the independent guest-off observation also passed.
-
-The applicability review found all four complete-caller hashes unchanged and no
-product/package, native fixture payload, provider, input or assertion change
-since the accepted composition. The existing fixture blank line, maintenance-only
-restoration diagnostic, equivalent snapshot rebind extraction and host
-test-recovery/classification changes do not invalidate either target's public
-results. No new package or fixture build is claimed. The separate C04l/s/r/i
-feature and C04l/w 90/45-second human-pause results retain their unchanged
-bindings. Independent Sol High source review agreed that neither a complete
-history nor a separate feature/pause slice needs renewal. Ubuntu's
-[C05u acceptance](#c05u-ubuntu-baseline-acceptance) remains applicable to its
-recorded DEB and identities; Fedora's result does not substitute for it.
-
-Baseline product, automation and current documentation match this finite scope
-on both targets. C05f started no VM, worker or helper requiring cleanup and
-recovered no historical reports. Only this baseline queue closes. Local alternate
-graphical-session selection and request-session actions yielding a full desktop
-retain their separate local desktop composition. Remote desktop testing is excluded by the
-developer, with no remote acceptance claimed. Standalone terminal/TTY and SSH
-remain for C06a/C06, with other exposed
-actions and child-controlled consumed inputs for C06x/C06i. These are concrete
-coverage gaps for their route reviews, not observed baseline defects or accepted
-escape defenses. No E2E row, Fedora release qualification or final post-protection
-acceptance is granted.
 
 The caller owns order, values, immutable per-approval captures and comparison
 endpoints. Shared operations own public inputs, guarded authentication, native
@@ -1840,7 +1572,7 @@ refresh a fixed legacy bundle. Retain provenance, freshness and ownership guards
 `check_e2e_overlay_translated_approval` additionally qualify Riley/Jamie's
 75-second soft-included request with Hebrew product text and the unchanged
 English desktop agent. Both independent clean entries passed on Ubuntu 26.04,
-Shell `50.1-0ubuntu1.4`, `en_US.UTF-8`, `xkb/us` in `20261030T121510Z-a41107c4`:
+Shell `50.1-0ubuntu1.4`, `en_US.UTF-8`, `xkb/us`:
 fresh same-challenge recipient/refusal proofs, one sealed credential submission,
 Hebrew **זמן הוענק** success, automatic return, the same usable original
 window/draft/score and the elapsed-bounded public time increment. Collection,
@@ -1857,8 +1589,7 @@ qualification alone supplies no complete-case acceptance.
 compose FLOW04/05 with TIME01 and the caller's earlier public balance and
 immutable activity capture. `approval_return.NEW_PLAN` and `OPEN_PLAN` passed
 independent Riley/Jamie/new/30-second/soft-excluded and
-Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04 in
-`20261030T195753Z-0ebb7dd5`, through
+Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04, through
 `check_e2e_compose_approval_and_return_to_the_child`. Both proved explicit
 child-owned approval, automatic return, the earlier countdown plus the requested
 interval minus measured elapsed time within two seconds, and the same usable
@@ -1885,7 +1616,7 @@ regression obligation. Shared operation qualifications remain reusable;
 historical case references must not recreate the removed family or its probes.
 
 Case **223** separately passed the complete delayed daily-only overlay history
-on Ubuntu 26.04 in `20261030T210453Z-adbeab0b`, through
+on Ubuntu 26.04, through
 `delayed_approval.PLAN` / `DelayedApprovalJourney` and
 `onpc_request_flow::delayed_approval`. It adds FLOW13's six-minute daily-only
 binding, a real TIME03 45-second wait at the same prompt before fresh recipient
@@ -1893,13 +1624,11 @@ proofs, and two FLOW20 30-second additions without resetting the first grant.
 Both canonical countdown increments and independent Parent balances passed;
 controller read brackets and two-second refresh margins distinguish elapsed
 time from a frozen estimate. Affected new/open and fixed English/Hebrew approval
-regressions passed in `20261030T211604Z-975223cd`. Collection, worker shutdown,
+regressions passed. Collection, worker shutdown,
 owned cleanup and baseline restoration passed throughout; the VM was observed
 off. This supplies neither another balance profile nor a kiosk binding.
 
-The timing correction passed complete grant-only case **225** in
-`20261030T235858Z-1bb2127b` and affected daily-only case **223** in
-`20261031T000950Z-1107bc49` on Ubuntu 26.04. The current declarations use a
+The timing correction passed complete grant-only case **225** and affected daily-only case **223** on Ubuntu 26.04. The current declarations use a
 real twenty-minute grant or ten-minute daily allowance, with five-minute
 request-start/open-prompt margins. Both keep the real 45-second wait, two
 30-second additions, elapsed-time/frozen-estimate distinction and independent
@@ -1915,8 +1644,7 @@ composes caller-bound FLOW04/05 with fresh FLOW15 and TIME01/UI12.
 `kiosk_fresh_return.NEW_PLAN` / `OPEN_PLAN` and `KioskFreshReturnJourney`,
 dispatched by `onpc_request_flow::kiosk_fresh_return`, passed independent
 Riley/Jamie/new/30-second/soft-excluded and
-Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04 in
-`20261102T163620Z-fcb3c7da`, through `check_e2e_kiosk_fresh_return`.
+Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04, through `check_e2e_kiosk_fresh_return`.
 Each publicly prepared 30 daily minutes with at least 900 seconds remaining,
 approved once, observed explicit success and automatic GDM return, signed in
 fresh as the selected child and compared the public countdown with the captured
@@ -1942,8 +1670,7 @@ reuses FLOW04/05 and explicit retained FLOW15, followed by TIME01/UI12.
 `KioskFreshReturnJourney`, dispatched by
 `onpc_request_flow::kiosk_fresh_return(..., 'retained')`, passed independent
 Riley/Jamie/new/30-second/soft-excluded and
-Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04 in
-`20261102T174354Z-604526ed`, through `check_e2e_kiosk_approval_return`.
+Jordan/Casey/open/75-second/soft-included histories on Ubuntu 26.04, through `check_e2e_kiosk_approval_return`.
 
 Each publicly prepared 30 daily minutes, captured the child's recognizable
 activity, and refreshed Parent's actual daily balance after switching away,
@@ -1964,11 +1691,10 @@ Together these qualify all four kiosk entry/destination bindings, with no
 additional choice matrix, expiry wait or complete-scenario registration.
 
 The following E2E-048 kiosk results are historical only under the
-[failed-save scope boundary](E2E-Execution-Instructions.md#failed-usage-saves-scope-boundary).
+[failed-save scope boundary](../Failed_Save.md).
 They are not runnable cases, required regressions or pending E2E work.
 
-Complete daily-only kiosk case **224** passed on Ubuntu 26.04 in
-`20261102T183436Z-3b5a0d5f`, through `kiosk_delayed_approval.PLAN` /
+Complete daily-only kiosk case **224** passed on Ubuntu 26.04, through `kiosk_delayed_approval.PLAN` /
 `KioskDelayedApprovalJourney` and `onpc_request_flow::kiosk_delayed_approval`.
 It composes ten daily minutes, the real 45-second prompt wait, fresh recipient
 proofs, two 30-second additions, both retained-child returns and the original
@@ -1977,8 +1703,7 @@ and distinguish paused daily time from a grant started at the earlier estimate.
 Repeated desktop entries use the main journey's declared challenge identities;
 request-local scopes retain their separate approval proofs. Collection, worker
 shutdown, owned cleanup and baseline restoration passed; the VM was observed off.
-Complete grant-dominant kiosk case **230** passed on Ubuntu 26.04 in
-`20261102T185436Z-02fe3ad3`, through `kiosk_delayed_approval.GRANT_PLAN` /
+Complete grant-dominant kiosk case **230** passed on Ubuntu 26.04, through `kiosk_delayed_approval.GRANT_PLAN` /
 `GrantDominantKioskJourney` and the same worker's grant-dominant branch.
 It prepares thirty daily minutes and the original usable activity before a real
 twenty-minute setup addition. Fresh Parent balances establish G>D>0 with the
@@ -2070,9 +1795,9 @@ The shared panel operation carries the explicit child binding; Shell hiding
 the surrounding panel does not change the product's logical availability.
 Lock, greeter, logical-hidden, detached and active-request refusals remain.
 
-The fullscreen slice passed in `20261110T051332Z-14e6511a`. Its unchanged
+The fullscreen slice passed. Its unchanged
 qualification was retained while the Riley normal-panel/open-form regression
-passed `check_e2e_shell_panel` in `20261110T054351Z-fddd6215`, including Cancel
+passed `check_e2e_shell_panel`, including Cancel
 and independent desktop return. Panel reads that reuse an open form consume
 the existing bounded form-diagnostic stream separately from the final result;
 the result-size and ownership guards remain unchanged. Collection,
@@ -2237,7 +1962,7 @@ Other durations/authentication/surfaces require separate qualification.
 `request_preset_controls.PLAN` / `RequestPresetControlsJourney`,
 `onpc_request_preset_controls::run` and
 `check_e2e_request_preset_controls` qualified Riley's dedicated station binding
-on Ubuntu 26.04 in `20261110T063043Z-005a696f`.
+on Ubuntu 26.04.
 Public Parent preparation independently requires enabled limits, zero daily
 allowance and no grant. `AccessibleUI.kiosk_presets_open/read`,
 `kiosk_preset_change` and `kiosk_presets_close` record the shipped list, add
@@ -2253,7 +1978,7 @@ Collection, worker closure, owned cleanup and baseline restoration passed.
 The existing preset UI owner uses these same operations; focused shared safety
 checks retain wrong-entry, wrong-child and replaced-dialog refusals.
 This supplies no complete-scenario credit: selected-preset deletion fallback
-and the full ordered Cancel/reentry history remain task 314.
+and the full ordered Cancel/reentry history belong to case 264.
 
 #### Invalid kiosk choice qualification
 
@@ -2276,7 +2001,7 @@ Launcher visibility is an acceptance requirement only for Flatpak apps. For
 native and Snap apps, do not validate whether blocked launchers are visible;
 require the declared execution-denial result only for active supported bindings.
 Snap enforcement bindings are deferred under the
-[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary);
+[shared Snap boundary](../Snap_Limitation.md#e2e-scope-decision);
 their denial/closure is not today's acceptance or a prerequisite for Allowed
 Snap use. This developer-confirmed boundary does not replace active
 route-specific launch/use assertions or input-recipient guards.
@@ -2307,8 +2032,8 @@ Await fresh public results within deadlines, accounting for observation latency.
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). The `native-space` profile supplies the [child-owned executable copy](#space-bearing-executable-copy). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text, diagnostic Save destination and Jordan's space-bearing executable copy on Ubuntu 26.04 ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). [Child-owned saved work](#child-owned-saved-work) adds document Open/reopen and independent saved-byte readback. File reads alone cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP, named Parent diagnostic-export and fixed Jordan/Riley saved-work bindings ready; other retained-work and exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change) runs as Jamie for standard/single attachment inputs. [Child-owned saved work](#child-owned-saved-work) separately qualifies public edit/Save, independent readback and APP03/04 work observations. UI16/public Save/readback only for work observed by an enforcement/retention case. | standard/single synthetic source preparation and fixed Jordan/Riley document Save/reopen ready; product snapshot/re-add belongs to the attachment UI matrix; other work bindings pending |
-| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `native_usable_app('files', role=None\|'S')` adds the [Jordan A/S Files bindings](#native-files-launch-and-separate-windows); `native_blocked_app(..., route='files')` adds H/S denial with retained A work in case 236. `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's and Riley's exact Allowed fixture grid routes under [native fixture preparation](#native-fixture-preparation), including Jordan's explicit A/Alias shared-target bindings and `other-child` / `child` identities. `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active desktop user over guarded SSH, including Jamie/Parent through [distinct-user retention](#distinct-user-retained-app-qualification), with independent APP02 window readback. `native_blocked_app('A', route='grid')` adds the [case-64/66 bindings](#application-routes-and-complete-customer-journeys). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds the [original Lunar AppImage command](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, Jordan A/Alias Allowed grid, stated Jamie/child command bindings and Jordan hard/soft-blocked A grid on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) and supplied Lunar command launch ready; other bindings pending |
-| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | The [Jordan A/H/S Files qualification](#native-files-launch-and-separate-windows) adds A/S presence and closure, H/S denial and owner-bound temporary S closure with retained A work. `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie's command-window presence. [Native denial qualification](#native-launch-denial-qualification) adds Jordan's H/S command denial and N command-window presence/closure. `native-grid-denied` and `native-command-blocked` add the independent [case-64/66/82/83/84 results](#application-routes-and-complete-customer-journeys). [Captured activity closure](#captured-native-activity-closure) compares Jordan's original A window after precise Hard/Soft saves. UI01 → UI03 for presence; FILE06 for command denial; UI11 for Flatpak hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds [usable Lunar and complete absence after Quit](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley and Jordan A/Alias Allowed grid presence/normal closure, stated command bindings, Jamie command presence, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan Flatpak S hiding/restoration](#flatpak-grid-use) ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) and supplied Lunar presence/Quit absence ready; other bindings pending |
+| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `native_usable_app('files', role=None\|'S')` adds the [Jordan A/S Files bindings](#native-files-launch-and-separate-windows); `native_blocked_app(..., route='files')` adds H/S denial with retained A work in case 236. `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's and Riley's exact Allowed fixture grid routes under [native fixture preparation](#native-fixture-preparation), including Jordan's explicit A/Alias shared-target bindings and `other-child` / `child` identities. `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active desktop user over guarded SSH, including Jamie/Parent through [distinct-user retention](#distinct-user-retained-app-qualification), with independent APP02 window readback. `native_blocked_app('A', route='grid')` adds the [case-64/66 bindings](#native-fixture-preparation). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds the [original Lunar AppImage command](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, Jordan A/Alias Allowed grid, stated Jamie/child command bindings and Jordan hard/soft-blocked A grid on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) and supplied Lunar command launch ready; other bindings pending |
+| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | The [Jordan A/H/S Files qualification](#native-files-launch-and-separate-windows) adds A/S presence and closure, H/S denial and owner-bound temporary S closure with retained A work. `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie's command-window presence. [Native denial qualification](#native-launch-denial-qualification) adds Jordan's H/S command denial and N command-window presence/closure. `native-grid-denied` and `native-command-blocked` add the independent [case-64/66/82/83/84 results](#native-fixture-preparation). [Captured activity closure](#captured-native-activity-closure) compares Jordan's original A window after precise Hard/Soft saves. UI01 → UI03 for presence; FILE06 for command denial; UI11 for Flatpak hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds [usable Lunar and complete absence after Quit](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley and Jordan A/Alias Allowed grid presence/normal closure, stated command bindings, Jamie command presence, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan Flatpak S hiding/restoration](#flatpak-grid-use) ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) and supplied Lunar presence/Quit absence ready; other bindings pending |
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. [Child-owned saved work](#child-owned-saved-work) adds edit/Save and usable reopened-window submission. `lunar_ui.run` adds [public Lunar Settings](#lunar-original-appimage-launch-and-quit). | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch), fixed saved-work use and supplied Lunar Settings ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | The [same-S Files qualification](#native-files-launch-and-separate-windows) adds separate-primary/secondary and unchanged-original comparisons; the [same-S desktop qualification](#native-desktop-entry-and-usable-launch) adds those comparisons after Jordan's desktop activation. `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). [Distinct-user retention](#distinct-user-retained-app-qualification) qualifies Jamie/Riley captures and original-window comparisons through Switch User. [Child-owned saved work](#child-owned-saved-work) distinguishes same-window rereads from deliberate close/reopen with saved text. No hidden process/window inspection. | [Jordan's same-S Files activity](#native-files-launch-and-separate-windows) and [desktop activity](#native-desktop-entry-and-usable-launch) on Ubuntu 26.04 ready; native primary capture/same-window comparison, stated Jamie/Riley retention and case 17 Jordan A/S Cancel retention on Ubuntu ready; fixed Jordan/Riley saved-work comparisons ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode=...)` / `AccessibleUI.game_operation('game-windowed-level'/'game-fullscreen-level')` observe the actual GTK mode and fixed level independently before the real move; qualified [windowed](#windowed-game-expiry) and [fullscreen](#fullscreen-game-expiry) compositions. The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed/fullscreen level 1 and Riley's windowed case-128 binding on Ubuntu 26.04 ready; other bindings pending |
@@ -2435,8 +2160,7 @@ before editing, and `work_document_actions(saves=...)` independently verifies
 each saved value and the unchanged peer document. TIME04 accepts the resulting
 immutable saved-work activity without reading work behind the lock.
 
-`check_e2e_child_saved_work` passed on `onpc-Ubuntu26.04` in
-`20261110T090347Z-98d6ff38`: independent Jordan/Riley entries, public edit/Save,
+`check_e2e_child_saved_work` passed on `onpc-Ubuntu26.04`: independent Jordan/Riley entries, public edit/Save,
 exact saved bytes, unchanged peer, same-window reread, normal close/reopen,
 recovered text and usable reopened windows. Collection, worker shutdown, owned
 file cleanup and baseline restoration passed. This qualifies the fixed text
@@ -2445,16 +2169,14 @@ histories remain in their consumers.
 
 `repeated_saved_work.RepeatedSavedWorkJourney` /
 `onpc_app_rows::repeated_saved_work` is qualified by
-`check_e2e_repeated_saved_work` on `onpc-Ubuntu26.04` in
-`20261110T231851Z-f3272c43`: `homework cycle 1` and `work again cycle 1`
+`check_e2e_repeated_saved_work` on `onpc-Ubuntu26.04`: `homework cycle 1` and `work again cycle 1`
 were independently saved and submitted in the same original window, with exact
 bytes and unchanged peer work. Normal close/reopen recovered the second value.
 After a real ten-minute approval at zero daily time, TIME04 observed the original
 deadline's natural lock and protected input; a real twenty-minute approval
 returned to the original pre-lock window and usable submitted text. Owned file
 cleanup, collection, worker closure and baseline restoration passed. Existing
-fixed Jordan/Riley work and windowed game-expiry regressions also passed in
-`20261110T234107Z-efff9c0c` and `20261110T234639Z-774601c8`. Complete alternating
+fixed Jordan/Riley work and windowed game-expiry regressions also passed. Complete alternating
 game/work cycles remain with case 247; this is a work-only capability slice.
 
 #### Synthetic source change
@@ -2649,11 +2371,9 @@ secondary public window to this exact copied executable. Independent window
 and Submit/readback results establish usable Allowed access; a successful copy
 or command reply alone does not.
 
-`check_e2e_native_space_path` passed on Ubuntu 26.04 in
-`20261107T204119Z-bb638703`: two independent copy/use/normal-close/cleanup
+`check_e2e_native_space_path` passed on Ubuntu 26.04: two independent copy/use/normal-close/cleanup
 lifetimes, exact identical bytes, final logout, collection, worker shutdown and
-baseline restoration passed. Affected both-child grid/command case 62 passed
-in `scenario-965b812b88c544d1a3748f83a0ee8d03`, including collection and cleanup.
+baseline restoration passed. Affected both-child grid/command case 62 passed, including collection and cleanup.
 The selector has no standalone system registration and supplies no complete
 case-188 credit. The [comma binding](#comma-bearing-executable-copy) extends the
 same mechanism; original/copy Hard/Soft policy effects remain with case 188.
@@ -2730,7 +2450,7 @@ restoration and host/source preservation passed. Other targets and complete
 scenarios retain their separate acceptance.
 
 The post-deadline `suspend_active_grant.EXPIRED_PLAN` binding passed
-`check_e2e_suspend` on Ubuntu 26.04 in `20261107T115340Z-d1b0e284`: a genuine
+`check_e2e_suspend` on Ubuntu 26.04: a genuine
 600-second approval with zero daily allowance, original usable activity and
 positive countdown, 242.500 seconds asleep across the original deadline and
 unchanged boot/locked child. `denial-ready` pinned the already exposed native
@@ -2743,11 +2463,10 @@ The former active-only wrapper is retired; both plans retain the same worker
 and suspend/wake operation. Complete case 125 composes that operation and native
 denial with expired persistence setup/recovery in `suspend_wake_expired.PLAN` /
 `SuspendWakeExpiredJourney` and `onpc_lifecycle::app_restart_expired`. Its Ubuntu
-26.04 journey passed in `20261107T123121Z-2f210939`: the original deadline crossed
+26.04 journey passed: the original deadline crossed
 during sleep, same-child denial, unchanged saved allowance/app rules, explicit
 twenty-minute replacement, positive usable time, retained work and Allowed/Hard/Soft
-results. The affected expired app-reopening case 117 passed in
-`20261107T130048Z-0778627f`; both attempts completed collection and owned cleanup.
+results. The affected expired app-reopening case 117 passed; both attempts completed collection and owned cleanup.
 Other targets retain their separate acceptance.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
@@ -2777,7 +2496,7 @@ prepares four daily minutes with zero grant before fresh child entry opens the
 actual native fixture app. Compare the immutable initial public countdown with
 the earlier Parent balance, retaining its actual display interval and original
 upper bound plus 15 seconds. The current four-minute fixture passed on Ubuntu
-26.04 in `20261031T011829Z-582da384`, including natural lock, same-lock input
+26.04, including natural lock, same-lock input
 ownership, worker/collection completion, owned cleanup and baseline restoration.
 The refactored read-only wait passed the four-minute Fedora 44 binding in
 `b87d63a860c14c7b8d95a0d2fa27b3e2`, including the original submitted work,
@@ -2810,11 +2529,10 @@ complete customer histories remain separate.
 Complete E2E-011 cases 27 and 28 compose TIME01/02/04 with the qualified direct
 child lock/unlock and original native activity operations. Daily-only case 27 uses
 [`countdown_daily.PLAN` / `CountdownDailyJourney`](../../tests/e2e/countdown_daily.py)
-and `onpc_challenges::countdown_daily`; its historical Ubuntu 26.04 regression passed
-in `20261030T092025Z-90141f75` with public four-minute/no-grant preparation.
+and `onpc_challenges::countdown_daily`; its historical Ubuntu 26.04 regression passed with public four-minute/no-grant preparation.
 Grant-only case 28 uses
 [`countdown_grant.PLAN` / `CountdownGrantJourney`](../../tests/e2e/countdown_grant.py)
-and `onpc_challenges::countdown_grant`; it historically passed in `20261030T090926Z-dabc2614`
+and `onpc_challenges::countdown_grant`; it historically passed
 with zero daily time and one real two-minute approval. Both passed retained
 original usable work and resumed time, minute/final-second progression, natural
 lock and same-lock input ownership, collection, worker shutdown, recording,
@@ -2822,21 +2540,17 @@ owned cleanup and baseline restoration. This qualifies those complete bindings
 on Ubuntu; Fedora acceptance remains separate.
 Combined case 29 uses
 [`countdown_combined.PLAN` / `CountdownCombinedJourney`](../../tests/e2e/countdown_combined.py)
-and `onpc_challenges::countdown_combined`. It historically passed on Ubuntu 26.04 in
-`scenario-55432f8076bd426581bd5feff022816d`: public four-minute daily allowance,
+and `onpc_challenges::countdown_combined`. It historically passed on Ubuntu 26.04: public four-minute daily allowance,
 real two-minute addition, Parent G>D>0/total=max(D,G), preserved usable work and
 resumed time, minute/final-second progression, natural lock and same-lock input
 ownership. Collection, worker shutdown, recording, owned cleanup and baseline
 restoration passed. That historical minute-edge comparison retained three edges
-for daily-only and permitted five for combined; affected case 27 passed separately in
-`scenario-39dd5708640a446588ceea8730b0ddb1` with the same complete cleanup.
+for daily-only and permitted five for combined; affected case 27 passed separately with the same complete cleanup.
 The current declarations use six daily minutes for case 27, a 600-second
 grant for case 28, and four daily minutes plus a 240-second addition for case 29.
 Their minute progression allows at most five, nine and seven real minute edges
 respectively, each within 90 seconds, before the unchanged final-second checks
-and actual natural lock. Current grant-only case 28 passed on Ubuntu 26.04 in
-`20261031T004013Z-a591c42a`; combined case 29 passed in
-`20261031T005631Z-daaae707`. Both preserved original work, refreshed countdown
+and actual natural lock. Current grant-only case 28 passed on Ubuntu 26.04; combined case 29 passed. Both preserved original work, refreshed countdown
 arithmetic, minute progression, the final transition, two exact-second decreases
 and natural lock. Collection, owned cleanup, baseline restoration and recording
 finalization passed. These representative affected checks cover the shared
@@ -2910,7 +2624,7 @@ read/update tolerance; absent observations require both fields to be null.
 `panel_language.PanelLanguageJourney` / `PLAN` and
 `onpc_request_flow::panel_language_refresh` qualify the fixed English → Hebrew
 overlay Save/normal Cancel comparison through `check_e2e_panel_language_refresh`
-on Ubuntu 26.04 in `20261030T145814Z-b56f6fea`. Public countdown meaning, canonical
+on Ubuntu 26.04. Public countdown meaning, canonical
 1745 → 1675 seconds over 70.177 real seconds, request values and unchanged saved
 Parent policy/app rules with zero grant passed, including collection and owned
 cleanup. The panel observes the overlay's session application lifetime, covering
@@ -2927,7 +2641,7 @@ deadlines or required denied-access results. No private clock/usage/grant/policy
 manipulation supplies results. Independently repeated desktop reads and
 wrong-account refusal require no observer preparation/input.
 
-Apply this balance comparison to remaining tasks in all three execution plans.
+Apply this balance comparison to all countdown consumers.
 A native refresh may move the displayed balance slightly in either direction;
 an increase within the declared comparison interval passes. In particular, a
 ten-second refresh difference is within the ordinary one-minute sampling
@@ -2962,8 +2676,7 @@ same observer with `child='existing'`; see the exact
 
 #### Locked and inactive child countdown qualification
 
-`check_e2e_countdown_session_availability` passed on Ubuntu 26.04 in
-`20261030T013630Z-abcfcb7b`, using `countdown_qualification.SESSION_PLAN` /
+`check_e2e_countdown_session_availability` passed on Ubuntu 26.04, using `countdown_qualification.SESSION_PLAN` /
 `CountdownJourney` and `onpc_challenges::countdown_session`. One public positive
 15-minute allowance precedes fresh child entry, explicit Lock, greeter return
 without another Lock, and legitimate retained-child authentication. Shared
@@ -2984,10 +2697,9 @@ Retained return restores the same pinned session/owner/preference and the normal
 positive countdown, compared against the earlier public Parent balance.
 `child_countdown` keeps its unlocked-active-child entry guard. Collection,
 worker shutdown, callback closure, owned cleanup and baseline restoration passed.
-This supplies 052b's OS-dependent component observation, with no new customer
+This supplies the OS-dependent child-panel component observation, with no new customer
 scenario or natural-expiry/cross-account qualification.
-Affected enabled/off and animation-preference regressions also passed on Ubuntu
-in `20261030T014248Z-f87a3274` and `20261030T015144Z-d0647819`, with their owned
+Affected enabled/off and animation-preference regressions also passed on Ubuntu, with their owned
 cleanup and baseline restoration. Scoped host/source checks passed; no product
 backend code changed.
 
@@ -3017,7 +2729,7 @@ Ubuntu 26.04 and Fedora 44; its current four-minute fixture passed on Ubuntu.
 `countdown_qualification.TICK_PLAN` / `CountdownTicksJourney` reuse the minute
 sampler; `onpc_challenges::countdown_ticks` shares its guarded daily setup and
 fresh-entry worker. The current declaration uses four daily minutes with zero
-grant and passed in `20261031T011111Z-4348ce5e`, including all three progression
+grant and passed, including all three progression
 results, collection, owned cleanup and baseline restoration. Fedora's accepted
 two-minute history supplies no four-minute result.
 The child supplies an independent positive minute sample, observes at most
@@ -3338,8 +3050,8 @@ consumer.
 FEED17/18 follow the [documented report lifetime](../SystemDesign/Logging-and-Feedback.md#feedback-and-diagnostic-export):
 while a report is sending, its Close action is explicitly labeled Stop sending
 and close and stops retries directly. There is no additional warning or
-stay-open response to implement. Tasks 190a/190b cover component retry/recovery
-while the report is left open; 190o/190k cover the direct Stop action. Former
+stay-open response to implement. Component checks cover retry/recovery while
+the report is open and the direct Stop action. Former
 cases 218/219 retain actual dialog closure and callback ordering under declared
 fake responses, without claiming an installed exit destination.
 Closing ordinary Parent feedback instead preserves its retries in the same
@@ -3353,10 +3065,10 @@ to every route; external-send authorization applies only to optional real sendin
 | ACCOUNT02 | C | Add/remove/change the role of a registered spare fixture account through shared system commands or AccountsService and read back the change. | `system_accounts.create_disposable_identity` / `delete_disposable_identity`, the finite `account_registry.SPARE_CHILDREN` and guarded `SpareChildrenFixture` transport supply the child profiles and single-use Jordan removal. Case 180 passed one logged-out spare removal with independent same-window Parent and reopened-station Riley fallback on Fedora 44. Case 181 independently prepared and removed the sole logged-out spare, then observed the original Parent window's automatic explanation, disabled empty picker and `(None)` label through `account_changes.LAST_CHILD_PLAN`. `SpareApproverFixture` / `system_accounts.change_spare_approver_role` add registered Sam and change only that logged-out account to standard, retaining eligible Jamie. Case 182 passed exact role readback, Sam exclusion and untouched first-eligible-parent selection on both reopened request forms on Fedora 44. Baseline identities, administrators, station, active sessions and changed target identities remain protected; snapshot restoration owns reversal. No GNOME Users wizard or fixture-only qualification. | ready for the listed finite spare-child and spare-approver profiles; other bindings pending |
 | PANEL01 | C | Read the child's saved animation preference through `child-countdown-animation-toggle`; discover the owned panel surface independently. | `AccessibleUI.child_countdown_animation(child=...)` uses shared `child-panel` client `getValue` and explicit Riley/Jordan session guards; use `child-countdown-menu.activate` only when ordinary menu entry itself is needed. E2E-022 cases 118/120 own persistence and isolation; E2E-008 case 22 owns locking with animation enabled. | ready for enabled Ubuntu 26.04 Riley/Jordan desktops; case 118 qualified independent reads before and after normal sign-out/fresh return. The original `countdown_animation.PLAN` / `check_e2e_operate_the_countdown_context_menu` qualification retains fresh readback and wrong-account refusal |
 | PANEL02 | C | Set the canonical animation boolean through the panel API and independently read it before continuing child activity. Preserve session/account persistence assertions. | `AccessibleUI.child_countdown_animation(desired, child=...)` passes the declared child through UI17's account/session guard on `child-countdown-animation-toggle`, with independent PANEL01 readback and DESK01; `onpc_challenges::countdown_animation` retains independent Riley entry, with no popup or Escape dependency. | ready for enabled Ubuntu 26.04 Riley-off/Jordan-on bindings through case 118, including unchanged public policy/time and fresh usable app checks. Original host on/off and wrong-account coverage retained; collection, worker shutdown, owned cleanup and baseline restoration passed. Reboot persistence and animation-enabled natural locking remain separate |
-| PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | `child_shell_interaction._assert_countdown_explanation` uses the owner-pinned shared `child-panel` client to compare the literal explanation and HH:MM:SS with independent canonical remaining-time reads, allowing one display tick of lag. | ready local UI coverage through `test_child_shell_lifecycle.py`; focused isolated-Shell and indicator Node checks passed in task 181h. No installed time-accuracy or complete-scenario credit |
+| PANEL03 | C | Read the public countdown explanation through `child-request-tooltip.getText` in its local UI owner. | `child_shell_interaction._assert_countdown_explanation` uses the owner-pinned shared `child-panel` client to compare the literal explanation and HH:MM:SS with independent canonical remaining-time reads, allowing one display tick of lag. | ready local UI coverage through `test_child_shell_lifecycle.py`; isolated-Shell and indicator Node checks own this scope. No installed time-accuracy or complete-scenario credit |
 | INFO01 | C | Check declared Help/About external links are clickable, then stop. Never invoke them or inspect their URIs/destinations. Kiosk asserts unavailable external actions instead. | `AccessibleUI.clickable_link` reads owned visible/enabled control and sole action without activation. Shared Parent `check_parent_help/check_parent_information` and overlay `read_overlay_link` qualify Help/all five About links with owned Close/unchanged settings or request. Kiosk requires absent external actions. Case 190 is [UI-owned](UI-and-E2E-Coverage.md#duplicate-review-and-allocation) with no executable; case 191 owns overlay information/return. No external handler dependency. [About contracts](#about-block-contracts). | Parent and overlay Help/all five About links qualified; case 190 UI-only/excluded; case 191 overlay information/unchanged-form scope qualified on Ubuntu 26.04; other bindings pending |
 | INFO02 | C | Read one installed product help command or command manual from bounded, guarded SSH stdout as the parent fixture account. | `onpc_documentation::read(journey, binding)` invokes `command_documentation.observe`; the stdout adapter checks fixed command identity, help usage/options or manual sections/purpose without Terminal rendering. Case 193 composes all four bindings and one final independent desktop result. | ready stdout bindings; consolidated case return awaits live verification |
-| INFO03 | C | Open station-owned What's New, read packaged child content for the installed upgrade range, close normally and compare the unchanged prepared request. | `AccessibleUI.open_kiosk_whats_new` / `read_kiosk_whats_new` / `close_kiosk_whats_new`, `kiosk_whats_new.KioskWhatsNewJourney` and `onpc_kiosk_whats_new::run` compose the public menu/document/close IDs with immutable FLOW04 request comparisons. The independent oracle binds shipped TOML bytes, installed package identity and installation range. `KioskWhatsNewQualification` in `kiosk_update_reentry_qualification.py` reuses genuine pinned prior/current package preparation and activation; no history or acknowledgement injection. Case 265 uses `kiosk_release_notes.PLAN` / `KioskReleaseNotesJourney` and `onpc_kiosk_whats_new::run_case`, binding the range through genuine-upgrade snapshot preparation without private installation-history probes in the customer steps. | Ubuntu 26.04 English kiosk scope qualified by `check_e2e_kiosk_whats_new` in `20261110T080843Z-7c9ec41f`: independent entry, Parent wrong-owner refusal, Child 1.4 content for the 1.2→2.0 upgrade, unchanged Riley/Jamie/75-second/soft-included request, normal Cancel/GDM return, unchanged policy and zero balances. Complete case 265 passed in `20261110T100544Z-b8a1d601`, including unchanged public time/app policy, zero balances and normal Parent logout. Collection, worker closure, owned cleanup and baseline restoration passed. Other surfaces/ranges remain unqualified. |
+| INFO03 | C | Open station-owned What's New, read packaged child content for the installed upgrade range, close normally and compare the unchanged prepared request. | `AccessibleUI.open_kiosk_whats_new` / `read_kiosk_whats_new` / `close_kiosk_whats_new`, `kiosk_whats_new.KioskWhatsNewJourney` and `onpc_kiosk_whats_new::run` compose the public menu/document/close IDs with immutable FLOW04 request comparisons. The independent oracle binds shipped TOML bytes, installed package identity and installation range. `KioskWhatsNewQualification` in `kiosk_update_reentry_qualification.py` reuses genuine pinned prior/current package preparation and activation; no history or acknowledgement injection. Case 265 uses `kiosk_release_notes.PLAN` / `KioskReleaseNotesJourney` and `onpc_kiosk_whats_new::run_case`, binding the range through genuine-upgrade snapshot preparation without private installation-history probes in the customer steps. | Ubuntu 26.04 English kiosk scope qualified by `check_e2e_kiosk_whats_new`: independent entry, Parent wrong-owner refusal, Child 1.4 content for the 1.2→2.0 upgrade, unchanged Riley/Jamie/75-second/soft-included request, normal Cancel/GDM return, unchanged policy and zero balances. Complete case 265 passed, including unchanged public time/app policy, zero balances and normal Parent logout. Collection, worker closure, owned cleanup and baseline restoration passed. Other surfaces/ranges remain unqualified. |
 | FEED15 | C | Review or decline a displayed product error report. Request result entry explicitly sets Report this error then closes the result; Parent entry observes its automatically opened report without inventing a report button. Read the report or declared exit destination. | Request: UI17(report choice) → UI04(result Close) → UI01 → FEED03 for review; Parent: `parent_reports.report_review` / `onpc_feedback_privacy::review_parent_report` → FEED03/UI16 → FEED05 → guarded UI18 → independent destination/rule read. Direct closure: `parent_reports.report_close` / `onpc_feedback_privacy::close_parent_report` → automatic-draft read → guarded UI18 → independent destination/rule read. See [automatic Parent error reports](#automatic-parent-error-reports). Parent has no report-choice toggle. E2E-045. | ready for the declared Parent review and edited/untouched report-close bindings; request surfaces and other bindings pending |
 | FEED17 | A | Read the sending error report's explicit Stop sending and close action and current retry state without activating it. | FEED09(retry) → UI02(enabled Stop action on the owned report). There is no warning dialog or stay response. E2E-047. | pending |
 | FEED18 | C | Activate Stop sending and close once, then independently require actual report closure and its recorded component exit callback. | Reuse the request component preview's real dialog and fake sender under the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation). Installed desktop/GDM return remains with real request-exit owners. Stopping ends pending retries and cannot recall an already accepted request. | pending component assertions; no installed destination credit |
@@ -3414,16 +3126,14 @@ FLOW17 overlay Switch User uses
 `onpc_request_flow::overlay_switch`, with shared
 `journey_blocks.desktop_entry(source='pending-overlay', entry='retained')` /
 `onpc_desktop_session::enter_desktop`. The fixed Riley/Jamie, 75-second,
-soft-included slice passed on selected Fedora 44 in
-`20261109T181932Z-54231dae`: real pending approval, shared DESK03 switch, usable
+soft-included slice passed on selected Fedora 44: real pending approval, shared DESK03 switch, usable
 GDM, two fresh same-child recipient proofs and authenticated return to the
 original unlocked session. Return uses `system:child-desktop-identity` and its
 immutable session comparison: the retained fullscreen request hides Shell's
 Activities control. Separate public reads prove old-prompt absence, unchanged
 usable request choices and Parent balances allowing elapsed usage, with zero
 new grant. Collection, worker/callback shutdown, cleanup and baseline restoration
-passed. The affected lock qualification also passed in
-`20261109T182904Z-51775f15`. This qualifies the child pending-approval DESK03
+passed. The affected lock qualification also passed. This qualifies the child pending-approval DESK03
 binding on Fedora 44; case 172 still owns fresh approval and complete recovery.
 
 FLOW17 overlay sign-out uses
@@ -3434,16 +3144,14 @@ FLOW17 overlay sign-out uses
 `session_control.execute('child-logout')` submits the normal logout once and
 independently observes the ended session and active greeter; fresh entry refuses
 any retained child desktop. `check_e2e_sign_out_during_pending_overlay_approval`
-passed the Riley/Jamie, 75-second, soft-included slice on selected Fedora 44 in
-`20261109T215558Z-9631db7a` (Shell `0:50.6-1.fc44`, `en_US.UTF-8`, `xkb/us`).
+passed the Riley/Jamie, 75-second, soft-included slice on selected Fedora 44 (Shell `0:50.6-1.fc44`, `en_US.UTF-8`, `xkb/us`).
 The real pending prompt, normal logout, usable GDM, two fresh child recipient
 proofs, new unlocked child session, old-prompt absence, reopened usable request
 with unchanged choices and public Parent balances allowing elapsed use all
 passed. No new grant or cooldown wait was introduced. Collection, worker/callback
 shutdown, cleanup and baseline restoration passed. This supplies no old-window
 continuity or complete case 173 approval/recovery credit.
-The affected Switch User qualification also passed in
-`20261109T220512Z-2d4d35fd`, including its unchanged retained-session, choices,
+The affected Switch User qualification also passed, including its unchanged retained-session, choices,
 balances and owned cleanup results.
 
 Other FLOW17 routes remain pending. Extend the declared request prompt, session
@@ -3479,7 +3187,7 @@ launch is hidden in this operation.
 
 `NamedAppSetJourney` / `onpc_app_rows::qualify_named_app_set` /
 `check_e2e_compose_a_named_app_rule_set` passed on the developer-selected
-Ubuntu 26.04 target in `20261104T070126Z-0561b069`. Fresh Parent/Riley entry
+Ubuntu 26.04 target. Fresh Parent/Riley entry
 saved A precise/Allowed, H precise/Hard and S wildcard/Soft; retained return
 preserved every rule and the original Parent desktop/window/child/page/settings.
 An independently supplied same-user retained Parent entry then saved A
@@ -3490,22 +3198,20 @@ families remain unqualified by this run; no complete-scenario credit is claimed.
 
 Case 13 subsequently qualified the Jordan A/S precise/Allowed setup through
 `named_app_set.named_app_set` / `onpc_app_rows::named_app_set` with same-user
-retained Parent entry on Ubuntu 26.04 in `20261104T091552Z-e6d1cd66`.
+retained Parent entry on Ubuntu 26.04.
 Its complete six-transition journey also qualified S's secondary activity
 capture/comparison through `native-unmatched-soft-*`, while A's policy activity
 remained independently bound.
 
 Case 14 qualified the enabled Jordan A `*.AppImage`/Allowed and S
-precise/Allowed setup through the same operations on Ubuntu 26.04 in
-`20261104T155650Z-3b4a47fe`. `app_rule_changes_case.PATTERN_PLAN` /
+precise/Allowed setup through the same operations on Ubuntu 26.04. `app_rule_changes_case.PATTERN_PLAN` /
 `onpc_app_rule_changes::run(..., 'pattern')` passed all six directed saves,
 captured A closure and matching launch results, retained/new nonmatching S use,
 Riley's original activity and resumed use after each save, the real 75-second
 soft-included approval, and final reopened Parent readback. Collection,
 worker shutdown, owned cleanup and baseline restoration passed.
 
-Case 15's disabled/precise journey passed on Ubuntu 26.04 in
-`20261104T180325Z-d749ef37`. `app_rule_changes_case.DISABLED_PLAN` /
+Case 15's disabled/precise journey passed on Ubuntu 26.04. `app_rule_changes_case.DISABLED_PLAN` /
 `onpc_app_rule_changes::run(..., 'precise', 1)` reuse the six rounds with
 independent limits-off settings before each save and after Parent reopening.
 The Soft→Hard preparation temporarily enables limits, obtains the same real
@@ -3515,8 +3221,7 @@ matching launch results, retained/new nonmatching S use and Riley's original
 activity with resumed use passed after every transition. Collection, worker
 shutdown, owned cleanup and baseline restoration passed.
 
-Case 16's disabled/pattern journey passed on Ubuntu 26.04 in
-`20261104T221123Z-f4e1c198`. `app_rule_changes_case.DISABLED_PATTERN_PLAN` /
+Case 16's disabled/pattern journey passed on Ubuntu 26.04. `app_rule_changes_case.DISABLED_PATTERN_PLAN` /
 `onpc_app_rule_changes::run(..., 'pattern', 1)` combine that limits-off history
 with A's `*.AppImage` rule. All six saves, captured closure and matching launch
 results, nonmatching S use, Riley's original activity, real 75-second approval,
@@ -3540,7 +3245,7 @@ Flatpak routes and complete cases remain separate.
 | FLOW05 | C | Complete a real approval from a prepared form, observe confirmation and its declared automatic or immediate exit. | REQUEST09 → AUTH02(correct credential) → REQUEST11(success) → REQUEST12(automatic or immediate). `kiosk_approved_flow.approved_request` / `onpc_request_flow::approve`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification) and [finite explicit kiosk automatic approval](#explicit-kiosk-choices-and-fresh-child-return-qualification). `request_flow.overlay_approved_request` / `onpc_request_flow::overlay_approve`; see [overlay composition qualification](#overlay-immediate-exit-and-approval-compositions) and [finite explicit automatic approval](#explicit-overlay-choices-and-countdown-return-qualification). | fixed kiosk and overlay 75-second/soft-included automatic and immediate bindings, plus finite explicit kiosk/overlay automatic bindings ready |
 | FLOW06 | C | Obtain time through kiosk from an existing GDM screen and return to GDM. | FLOW04(kiosk) → FLOW05. `kiosk_approved_flow.obtain_time` / `onpc_request_flow::obtain_time`; see [approved kiosk flow qualification](#approved-kiosk-flow-qualification). Child login/unlock is deliberately a later step. | fixed kiosk remembered-choice binding ready; other choices pending |
 | FLOW07 | C | Reject/cancel one request and compare its preserved choices. Return with that form open; do not retry yet. | REQUEST03(before) → REQUEST09 → AUTH02(wrong/cancel) → REQUEST11 → UI12. `approval_flow.rejected_request` / `onpc_request_flow::reject`; see [rejected kiosk flow qualification](#rejected-kiosk-flow-qualification). `request_flow.overlay_rejected_request` / `onpc_request_flow::overlay_reject`; see [overlay composition qualification](#overlay-immediate-exit-and-approval-compositions). The recipe can inspect restrictions before invoking FLOW05 for a successful retry, avoiding a second implementation of approval. | fixed kiosk and overlay 75-second/soft-included rejection and Cancel bindings ready; other choices pending |
-| FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | `native_usable_app('files', role=None\|'S')` composes the [Jordan A/S Files route](#native-files-launch-and-separate-windows). `journey_blocks.native_usable_app(route, child=...)` / `onpc_app_rows::native_usable_app(journey, route, desktop, child)` compose APP01 → APP02 → APP03 for the declared native `command`, `grid`, `files` or `desktop` usable route; [qualification](#native-fixture-preparation). Grid binds Jordan to `other-child` and Riley to `child` explicitly. `native_usable_app('command', child='child')` adds Riley's usable-time command binding through the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); `child='parent'` explicitly binds Jamie through [distinct-user retention](#distinct-user-retained-app-qualification). `native_blocked_app('H'/'S')` and the matching worker qualify Jordan's exact command-denial bindings; `role='N'` adds unaffected command use under [native denial qualification](#native-launch-denial-qualification). `native_blocked_app('A', route='grid'/'command')` adds the [case-64/66 grid and case-82/83/84 command bindings](#application-routes-and-complete-customer-journeys). [Captured activity closure](#captured-native-activity-closure) adds the earlier-window result before denied relaunch, preserving unaffected N use. No alternative launch after failure. APP03 runs only for expected usable access. | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, stated Jamie/child command use, Jordan N command use, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other policy-denial bindings pending |
+| FLOW08 | C | Exercise an app through its declared route and prove the expected usable/denied result. | `native_usable_app('files', role=None\|'S')` composes the [Jordan A/S Files route](#native-files-launch-and-separate-windows). `journey_blocks.native_usable_app(route, child=...)` / `onpc_app_rows::native_usable_app(journey, route, desktop, child)` compose APP01 → APP02 → APP03 for the declared native `command`, `grid`, `files` or `desktop` usable route; [qualification](#native-fixture-preparation). Grid binds Jordan to `other-child` and Riley to `child` explicitly. `native_usable_app('command', child='child')` adds Riley's usable-time command binding through the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification); `child='parent'` explicitly binds Jamie through [distinct-user retention](#distinct-user-retained-app-qualification). `native_blocked_app('H'/'S')` and the matching worker qualify Jordan's exact command-denial bindings; `role='N'` adds unaffected command use under [native denial qualification](#native-launch-denial-qualification). `native_blocked_app('A', route='grid'/'command')` adds the [case-64/66 grid and case-82/83/84 command bindings](#native-fixture-preparation). [Captured activity closure](#captured-native-activity-closure) adds the earlier-window result before denied relaunch, preserving unaffected N use. No alternative launch after failure. APP03 runs only for expected usable access. | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, stated Jamie/child command use, Jordan N command use, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other policy-denial bindings pending |
 | FLOW09 | C | Visit an explicitly retained user and prove the same app/activity remains usable. Inputs include source surface and that user's earlier activity observation. | `journey_blocks.retained_app_visit` / `onpc_app_rows::retained_app_visit`: FLOW15(entry=retained) → APP04(compare) → APP03. Caller binds first entry to the prior capture through `JourneyPlan.activity_entries`, then immutable `activity_checks` before original-window Submit. No launch, replacement desktop or qualifier replay. [Distinct-user qualification](#distinct-user-retained-app-qualification). | stated Jamie/Parent and Riley visits plus case 17 Jordan Cancel retention on Ubuntu ready; other bindings pending |
 | FLOW10 | C | Launch the prepared real game with its declared mode/level and play to natural lock. | FLOW08(game, usable, registered launch options) → APP05 → APP04(record activity) → TIME04. `game_expiry.GameExpiryJourney` / `onpc_app_rows::game_expiry` qualify Jordan's [windowed](#windowed-game-expiry) and [fullscreen](#fullscreen-game-expiry) level-1 compositions. | Jordan's windowed/fullscreen level 1 on Ubuntu 26.04 ready; other bindings pending |
 | FLOW11 | C | After a displayed lock, obtain legitimate replacement time, unlock and observe the expected retained app or closed blocked app. | Case-level DESK11 → FLOW20(kiosk, retained) → APP02 → APP04(compare) → APP03 when preservation is expected. Closed-app branch ends at APP02. Reuse the case's original captures; no standalone qualifier. The app/game owners retain their missing bindings. | pending complete customer histories; no separate qualification task |
@@ -3591,7 +3296,7 @@ grant. This extends the finite preparation binding, not the standalone matrix.
 `grant_only_profile.PLAN/REVOKE_PLAN`, `onpc_set_allowance::qualify_grant`
 and `check_e2e_grant_only_profile` declare Riley/Jamie qualification through
 two independently restored attempts. Their current 1200-second fixture passed
-both histories on Ubuntu 26.04 in `20261031T012835Z-415e8c84`, including retained
+both histories on Ubuntu 26.04, including retained
 Parent readback, worker/collection completion, owned cleanup and baseline
 restoration. The earlier 120-second qualification remains historical.
 Fresh `gdm/fresh/new` entry reuses the
@@ -3615,7 +3320,7 @@ The shared declaration/worker accepts `balance_readback=False` / final argument
 `0` to finish at GDM directly after approval. The caller must independently read
 saved zero daily time before approval, then the public estimate, success and
 positive child countdown. Case 25 historically passed this route with a four-minute request
-on Ubuntu 26.04 in `20261030T054552Z-161dd5f4`, including initial countdown,
+on Ubuntu 26.04, including initial countdown,
 foreground activity before expiry, four real one-minute intervals, retained-child
 denial and continued use of the original Parent activity. Collection, owned
 cleanup, baseline restoration and recording finalization passed. Other callers
@@ -3629,16 +3334,14 @@ the current ten-minute wall-clock grant on another Parent login. The unchanged r
 retains owner/child bindings and fresh status reload. Its complete customer
 history is recorded under [natural enforced lock](#natural-enforced-lock-qualification).
 
-Case 26 historically passed the same four-minute preparation on Ubuntu 26.04 in
-`20261030T063013Z-c491dbd2`, with the other child's limits-off activity captured
+Case 26 historically passed the same four-minute preparation on Ubuntu 26.04, with the other child's limits-off activity captured
 before approval. Its exact scoped kiosk credential binding retains the two fresh
 recipient proofs and single-use input. The other child resumed the original
 window/draft before expiry and across four measured one-minute intervals;
 retained-child time denial and final use of that same activity passed, with
 collection, owned cleanup, baseline restoration and recording finalization.
 The current cases 25/26 use ten-minute grants and four 150-second work intervals;
-case 25 passed the changed preparation and shared expiry history on Ubuntu 26.04
-in `20261031T002044Z-e5874f56`, including the original grant deadline, retained
+case 25 passed the changed preparation and shared expiry history on Ubuntu 26.04, including the original grant deadline, retained
 child denial and continued use of the same Parent activity. Collection, owned
 cleanup, baseline restoration and recording finalization passed. Case 26 shares
 that preparation and interval driver; its distinct other-child history retains
@@ -3662,12 +3365,11 @@ rounding tolerance, and G bounded by the earlier D+1200, measured elapsed time,
 both display precisions and two seconds of tolerance. No clock change or grant
 clearing occurs after approval.
 
-The current four-minute daily/twenty-minute addition binding passed in
-`20261031T014208Z-de102d73`, including retained Parent readback,
+The current four-minute daily/twenty-minute addition binding passed, including retained Parent readback,
 worker/collection completion, owned cleanup and baseline restoration. It finishes
 at usable GDM after readback; no twenty-minute expiry wait is required.
 
-The historical two-minute addition passed in `20261030T095545Z-d1f77e61`:
+The historical two-minute addition passed:
 D=240 seconds, G=314 seconds and
 total=314 seconds, followed by usable GDM. Collection, worker/callback shutdown,
 owned cleanup, baseline restoration and finalization passed. The exact credential
@@ -3692,8 +3394,7 @@ total=max(D,G), at least 300 seconds of grant and a dominance gap above 90
 seconds after rounding. Original-grant bounds use the earlier public result
 and controller read brackets; the allowance save neither revokes nor renews it.
 
-`check_e2e_time_profiles_dominant` qualified this binding on Ubuntu 26.04 in
-`20261109T124749Z-838b9335`. After returning to GDM, the same attempt opens a
+`check_e2e_time_profiles_dominant` qualified this binding on Ubuntu 26.04. After returning to GDM, the same attempt opens a
 75-second, soft-excluded kiosk request. Its independent estimate must preserve
 daily dominance and the original positive grant within elapsed/rounding bounds;
 it then Cancels without another approval and returns to usable GDM. Collection,
@@ -3725,7 +3426,7 @@ records desktop and Switches User; preparation starts/ends at GDM.
 The qualification declares `ACTIVITY_SUBSETS` with the fixed
 `check_e2e_retained_app_visits` caller before journey construction, retaining
 shared readiness and independent activity-file verification. This clean
-Ubuntu 26.04 binding passed in `20261106T025708Z-03ba144c`, including all original
+Ubuntu 26.04 binding passed, including all original
 window/draft comparisons, resumed use, refusals and owned cleanup.
 
 FLOW09 visits Jamie from GDM, Riley from Jamie and independently Jamie from
@@ -3930,7 +3631,7 @@ pending; do not silently broaden what the status means.
 
 ## Fixture boundaries and the common attempt envelope
 
-The [snapshot and case-entry contract](#parent-login-and-time-scenarios) owns
+The [snapshot and case-entry contract](../../tests/e2e/README.md#run-e2e-scenarios) owns
 suite preparation, online/offline restoration and final audit. The rows below
 own finite fixture operations within that envelope; a fixture result supplies
 no customer acceptance.
@@ -4149,7 +3850,7 @@ reads to the same administrator desktop and preparation identity.
 `check_e2e_flatpak_fixtures` reuses the shared Parent row-reading composition to
 check Jordan's three exact identities and Allowed/precise defaults independently
 after navigating away and reopening the list. This installed scope passed on
-Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in `20261106T014550Z-5b34bbd7`, including
+Ubuntu 26.04 (`onpc-Ubuntu26.04-1`), including
 collection, worker/callback shutdown, owned cleanup and baseline restoration;
 the VM was independently observed off. Existing recipient and cleanup guards
 were reused, and the five new Flatpak privilege/scope checks plus nine existing
@@ -4171,18 +3872,17 @@ IDs distinguish A/H/S as `primary`/`hard`/`soft`, with S's second window using
 instance names are restricted to Flatpak fixtures. UID, PID/start-time and
 non-zombie checks remain required because Flatpak may proxy the D-Bus connection.
 
-The Ubuntu 26.04 qualification passed in `20261106T023224Z-4734977e`: each
+The Ubuntu 26.04 qualification passed: each
 command opened its independently owned window and submitted a normal draft;
 immutable captures distinguished both S windows and preserved the first S
 activity. Wrong-scope, echo-only and uncertain-input refusals, collection,
 worker/callback shutdown and baseline restoration passed. The affected Allowed
-Snap command and native retained-work checks passed in
-`20261106T023748Z-6f5ea08a` and `20261106T025708Z-03ba144c`, respectively;
+Snap command and native retained-work checks passed, respectively;
 the selected VM was independently observed off. Other users, grid, enforcement
 and complete customer cases remain separate.
 
 Case 104 (`flatpak_app_launch.PLAN` / `onpc_app_launch::run`) passed on Ubuntu
-26.04 in `20261106T034616Z-cdec323b`. Parent saved Jordan's 30-minute daily
+26.04. Parent saved Jordan's 30-minute daily
 allowance with zero grant and independently read A's Allowed row. Fresh Jordan
 and Riley each launched the same system Flatpak by command and submitted the
 normal draft with independent owned-window/result reads. The added Riley
@@ -4194,13 +3894,11 @@ Allowed A command use and that complete enabled case only; other roles, grid
 and enforcement remain separate.
 
 Case 105 (`flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
-Allowed command binding) passed on Ubuntu 26.04 in
-`20261106T075655Z-cac5262c`. Parent independently read Jordan's untouched
+Allowed command binding) passed on Ubuntu 26.04. Parent independently read Jordan's untouched
 limits-off/zero-allowance settings and saved/read A's Allowed row without an
 allowance or approval. Fresh Jordan and Riley each launched the same system
 Flatpak and submitted the normal draft, with independent owned-window/result
-readback and Riley's policy untouched. The affected enabled case 104 passed in
-`20261106T080521Z-c27b8464`. Both runs passed collection, worker shutdown, owned
+readback and Riley's policy untouched. The affected enabled case 104 passed. Both runs passed collection, worker shutdown, owned
 cleanup and baseline restoration; coverage was regenerated and the VM was
 observed off. This adds the complete disabled Allowed command case only.
 
@@ -4218,9 +3916,8 @@ submits a draft after each block. No temporary app approval is prepared.
 All named-child operations, including the initial 30-minute allowance setup,
 explicitly bind Jordan; shared recipient, owner and uncertain-input guards remain.
 
-This slice passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in
-`20261106T083346Z-1ce07b7f`. The affected native captured-closure regression
-passed in `20261106T084612Z-23faa745`, including its wrong-activity/owner refusals.
+This slice passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`). The affected native captured-closure regression
+passed, including its wrong-activity/owner refusals.
 Source checks, 36 existing credential/recipient safety checks, collection,
 worker/callback shutdown, owned cleanup and baseline restoration passed;
 the VM was independently observed off. Other-user denial independence, grid
@@ -4239,9 +3936,8 @@ Jordan desktop requires complete captured S-window absence, exact administrator
 policy denial of a new S command, and unchanged original A work with another
 successful Submit and independent original-window readback.
 
-This scope passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`) in
-`20261106T124729Z-73e4a08b`; the affected A/H/S command and separate S-window
-regression passed in `20261106T125758Z-08286798`. Ambiguous/wrong-owner targets,
+This scope passed on Ubuntu 26.04 (`onpc-Ubuntu26.04-1`); the affected A/H/S command and separate S-window
+regression passed. Ambiguous/wrong-owner targets,
 prelaunch absence, single-use input and uncertain replies retain their shared
 guards. Focused safety/source checks, collection, worker/callback shutdown,
 owned cleanup and baseline restoration passed; the VM was observed off.
@@ -4252,7 +3948,7 @@ that independent scenario.
 Case 246 separately composes that capability in
 `flatpak_temporary_access.PLAN` / `TemporaryAccessJourney` and
 `onpc_request_flow::flatpak_temporary_access`. Its complete Ubuntu 26.04 journey
-passed in `scenario-470ce36a1aa04019bec736200f68b50f`: three ordered station
+passed: three ordered station
 approvals with independent Jamie/Sam/Jamie prompt identity, initial S denial,
 usable included S, captured S closure and denied relaunch after replacement
 exclusion, original usable A throughout, H denial after each approval and final
@@ -4260,8 +3956,7 @@ unchanged saved A/H/S choices. The case uses the qualified shared operations;
 per-stage kiosk bindings keep each prompt's declared request immutable during
 authentication. This adds no grid, other-user or Snap enforcement qualification.
 
-The affected case 246 regression passed again on Ubuntu 26.04 in
-`20261106T232036Z-fb6e6829` with five-minute requests and the developer's
+The affected case 246 regression passed again on Ubuntu 26.04 with five-minute requests and the developer's
 two-minute countdown tolerance. That tolerance requires a request of at least
 five minutes, accounts for elapsed time and adds no sampling or rounding margin.
 All three fresh parent approvals, child app effects, preserved work and final
@@ -4273,8 +3968,8 @@ The shared Flatpak observer binds A/H/S to the launchers' distinct
 `secondary`. The fixture executable, GUI, public-ID scopes and activity decoder
 admit that same finite set. Allowed policy capture and resubmission preserve its
 original window and child-session identity through each approval. Case 243
-passed this binding on Ubuntu 26.04 in `20261107T101144Z-3ef8397c`; the affected
-command/station case 246 passed in `20261107T103120Z-e60aa1fe`. All product,
+passed this binding on Ubuntu 26.04; the affected
+command/station case 246 passed. All product,
 infrastructure, collection and cleanup outcomes, baseline restoration and
 coverage refreshes passed; the VM was observed off.
 
@@ -4295,8 +3990,8 @@ normally. Other users, blocked H grid bindings and complete cases remain separat
 The fixture's exported desktop entry supplies its explicit instance and
 `SingleMainWindow=false`, truthfully declaring its independent-window support
 before GNOME loads the launcher. This scope passed on Ubuntu 26.04
-(`onpc-Ubuntu26.04-1`) in `20261106T153943Z-98dfd80b`; the shared Allowed Snap
-grid regression passed in `20261106T155324Z-b2b130a8`. The 48 scoped input/scope
+(`onpc-Ubuntu26.04-1`); the shared Allowed Snap
+grid regression passed. The 48 scoped input/scope
 safety checks and source checks passed. Both runs completed collection,
 worker/callback shutdown, owned cleanup and baseline restoration; the VM was
 independently observed off. This qualifies the named grid slice, with no
@@ -4304,7 +3999,7 @@ complete-scenario or deferred Snap enforcement credit.
 
 Case 243 (`flatpak_temporary_access.GRID_PLAN` / `execute_grid` and
 `onpc_request_flow::flatpak_temporary_access` with `route=grid`) passed its
-complete Ubuntu 26.04 journey in `20261106T225011Z-4c835af6`. Jordan requests
+complete Ubuntu 26.04 journey. Jordan requests
 five extra minutes from the child overlay in the ordered Jamie/exclude,
 Sam/include and Jamie/exclude rows. Each real prompt independently identifies
 the selected parent. The countdown uses the developer's two-minute tolerance
@@ -4318,20 +4013,19 @@ grid/child-overlay case; the precision change does not establish a timer
 root-cause repair or add other-user or Snap coverage.
 
 Case 98 (`flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run`) passed on
-Ubuntu 26.04 in `scenario-5ed92cfda3ba49ee91e49347619fac66`. Parent saved
+Ubuntu 26.04. Parent saved
 Jordan's 30-minute daily allowance with zero grant and independently read A's
 Allowed row. Fresh Jordan and Riley each opened the same system Flatpak A from
 the grid and submitted the normal draft, with independent owned-window and
 submitted-result reads. This adds Riley's A/primary grid binding through
 `native_usable_app('grid', kind='flatpak', role='A', child='child')`, preserving
 the shared account, exact-launcher, recipient and uncertain-input guards.
-The affected command case 104 passed in
-`scenario-195d328b275f4bf0bec33b68f619f643`. Both runs passed collection,
+The affected command case 104 passed. Both runs passed collection,
 worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
 after each case and the VM was observed off. Other grid rules remain separate.
 
 Case 100 (`flatpak_app_launch.HARD_GRID_PLAN` / `onpc_app_launch::run`) passed
-on Ubuntu 26.04 in `scenario-f5acc41af764408f9c4bad644af2d5ce`. Parent saved and
+on Ubuntu 26.04. Parent saved and
 independently read Jordan's 30-minute daily allowance, zero grant and Hard Blocked
 Flatpak A rule. Fresh Jordan's exact grid search required the hidden launcher
 and complete window absence, followed by an app-specific administrator-policy
@@ -4339,7 +4033,7 @@ command denial. Fresh Riley opened and submitted the same app through the grid
 with independent owned-window/result reads and untouched policy and limits.
 The shared worker composes the existing hidden-grid and command-denial operations;
 no input, ownership or cleanup guard changed. The affected Allowed grid case 98
-passed in `scenario-b4534bab58fc4c749e243d37aad8f359`. Both runs passed collection,
+passed. Both runs passed collection,
 worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
 after each case and the VM was observed off. Soft-blocked grid cases remain
 separate.
@@ -4426,8 +4120,7 @@ the same shared operation. On selected Fedora 44, Parent's independently read
 Jordan and Riley entries. Each searched `ONPC Snap Allowed Fixture`, opened the
 intended strict/system Snap window and submitted the normal draft with independent
 readback. Riley's policy and disabled limits remained untouched. Complete case 86,
-collection, worker/callback shutdown, owned cleanup and baseline restoration passed
-in `scenario-051222608a89418780acc16f8aeaf746`. This supplies no Snap denial,
+collection, worker/callback shutdown, owned cleanup and baseline restoration passed. This supplies no Snap denial,
 policy-driven closure or deferred-case acceptance.
 
 ### Offline game activity
@@ -4459,8 +4152,7 @@ and natural expiry; complete windowed recovery is also qualified below.
 ### Game permission qualification
 
 `game_permission.GamePermissionJourney` / `onpc_app_rows::game_permission`
-passed `check_e2e_game_permission` on Ubuntu 26.04 in
-`20261110T154655Z-6cf4c67c`. FLOW03 uses the shared policy editor and independent
+passed `check_e2e_game_permission` on Ubuntu 26.04. FLOW03 uses the shared policy editor and independent
 saved reads for Jordan's precise game Soft rule, Always Allowed work editor and
 Hard fixture. With thirty daily minutes and fifteen-minute approvals, each
 independently entered windowed/fullscreen slice proves denied game launch before
@@ -4477,8 +4169,7 @@ denial checks the active unlocked session and owned app absence without requirin
 Shell's Activities control, which fullscreen play hides; permission-error and
 prompt guards remain mandatory.
 
-The affected `check_e2e_fullscreen_request` regression passed in
-`20261110T160532Z-4714dbe0`. All 131 existing scoped host safety checks,
+The affected `check_e2e_fullscreen_request` regression passed. All 131 existing scoped host safety checks,
 source/traceability, collection, worker/callback shutdown, owned cleanup and
 baseline restoration passed; the VM was independently observed off. This
 qualifies only the stated Jordan game-permission bindings. Case 247's repeated
@@ -4486,8 +4177,7 @@ cycles, exhaustion, allowance changes, revocation and Riley history remain
 separate acceptance.
 
 `GamePermissionJourney(..., RILEY_PLAN)` / `onpc_app_rows::game_permission(...,
-'child')` passed `check_e2e_riley_game_permission` on `onpc-Ubuntu26.04` in
-`20261112T181111Z-1f6ff1f0`. This adds Riley's windowed binding with thirty daily
+'child')` passed `check_e2e_riley_game_permission` on `onpc-Ubuntu26.04`. This adds Riley's windowed binding with thirty daily
 minutes and real fifteen-minute approvals: initial game denial, included access
 and level-1 play, the original captured game after included station approval,
 then captured closure and denied relaunch after exclusion. The same original
@@ -4496,7 +4186,7 @@ denied. Riley's exact fixture selection, account/session, immutable game/work
 observations and single-use approval guards share the existing operations.
 `request-overlay-riley-ready` reuses guarded form readiness without assuming
 fresh default choices; FLOW04 still explicitly selects and reads each request.
-Jordan's windowed/fullscreen regression passed in `20261112T182936Z-d94fb106`.
+Jordan's windowed/fullscreen regression passed.
 Focused host safety and source/traceability checks, collection, worker/callback
 shutdown, owned file cleanup and baseline restoration passed; the VM is off.
 Riley fullscreen remains unqualified. Case 251 composes the two-child rounds
@@ -4508,7 +4198,7 @@ execution-queue row.
 
 `retained_game_denial.RetainedGameDenialJourney` /
 `onpc_app_rows::retained_game_denial` qualified `check_e2e_retained_game_denial`
-on Ubuntu 26.04 in `20261110T215959Z-a69463ee`. Each independently entered
+on Ubuntu 26.04. Each independently entered
 windowed/fullscreen slice starts with saved homework, a precise Soft game rule,
 a real fifteen-minute soft-included approval and a level-1 move. Enabled daily
 allowance saves to 45 and zero minutes preserve the original grant deadline.
@@ -4530,8 +4220,7 @@ checkout-drift rejection; the developer accepted the captured pass under the
 without replaying it. The shared queue and VM repair acceptance now preserve
 captured results across later edits. Focused snapshot/receipt regressions, existing
 runner/checkpoint checks, 135 approval-safety checks and source/traceability passed.
-The affected `check_e2e_game_permission` regression then passed normally in
-`20261110T222503Z-ba3e1c97`, including queue acceptance after later checkout edits
+The affected `check_e2e_game_permission` regression then passed normally, including queue acceptance after later checkout edits
 and owned cleanup; the VM was independently observed off. This qualifies only
 the stated retained-game denial bindings. Case 247 remains unregistered for its
 complete repeated-cycle journey.
@@ -4539,7 +4228,7 @@ complete repeated-cycle journey.
 ### Windowed game expiry
 
 `game_expiry.GameExpiryJourney` / `onpc_app_rows::game_expiry` passed
-`check_e2e_game` on Ubuntu 26.04 in `20261109T102243Z-5d8b78bd`.
+`check_e2e_game` on Ubuntu 26.04.
 Parent publicly prepares Jordan's zero daily allowance after observing no grant,
 then a real kiosk approval issues 600 seconds. Game assets and the shared expiry
 observer are ready before issuance. The request worker explicitly selects the
@@ -4578,8 +4267,7 @@ a separate FLOW11 qualification. It does not qualify fullscreen play.
 
 `game_time_extension.GameTimeExtensionJourney` and
 `onpc_app_rows::game_time_extension` passed complete case 128
-(`E2E-024/daily-dominant-windowed`) on Ubuntu 26.04 in
-`20261109T133836Z-624d6727`. Riley's original ten-minute grant survives the
+(`E2E-024/daily-dominant-windowed`) on Ubuntu 26.04. Riley's original ten-minute grant survives the
 enabled twenty-minute daily allowance save. The game stays Always Allowed;
 Jamie approves Custom 1.25 Minutes (75 seconds) with soft apps excluded.
 The public request and returned countdown preserve the daily-dominant operands
@@ -4597,7 +4285,7 @@ TIME04 binding in this complete journey; fullscreen remains pending.
 
 `game_expiry.FULLSCREEN_PLAN` / `GameExpiryJourney` and
 `onpc_app_rows::game_expiry(..., 'fullscreen')` passed
-`check_e2e_game_fullscreen` on Ubuntu 26.04 in `20261109T201507Z-aea38f72`.
+`check_e2e_game_fullscreen` on Ubuntu 26.04.
 Parent saved Jordan's zero daily allowance after observing no grant, then a real
 kiosk approval issued 600 seconds. Two independent fullscreen level-1 entries
 each passed a real move and immutable activity capture; the first window closed
@@ -4626,7 +4314,7 @@ errors. This qualifies only Jordan's fullscreen APP05/FLOW10/TIME04 binding.
 
 `game_access_case.FULLSCREEN_PLAN` / `GameAccessJourney` and
 `onpc_app_rows::game_access(..., 'fullscreen')` passed complete case 127
-(`E2E-023/fullscreen`) on Ubuntu 26.04 in `20261110T033059Z-72c7121a`.
+(`E2E-023/fullscreen`) on Ubuntu 26.04.
 After natural expiry and the native time restriction, a real twenty-minute
 kiosk approval returned to the preserved unlocked child session. Fullscreen
 hides Activities and the panel: `standard-desktop-identity` proves the session,
@@ -4670,10 +4358,10 @@ qualifications do not verify this changed placement. The
 historical both-target full-profile qualification from the specific route and
 placement each later history needs.
 
-Task 227's H isolation and then-current fourteen/eleven-file profiles passed on
-Ubuntu 26.04 through complete case 185 (`20261104T005309Z-44b93576`), the
-affected native-denial qualification (`20261104T010024Z-cd54129c`) and both-child
-case 62 (`20261104T011050Z-5742fb1e`). Collection, owned cleanup and baseline
+H isolation and the native fixture profiles are qualified on
+Ubuntu 26.04 through complete case 185, the
+affected native-denial qualification and both-child
+case 62. Collection, owned cleanup and baseline
 restoration passed. This records the selected Ubuntu placement; it supplies no
 new Fedora qualification.
 
@@ -4684,31 +4372,28 @@ routes and compositions remain pending. Distinct bytes alone do not
 prove window identity. `Alias.desktop` shares A's exact target; A/H/S/N retain
 four distinct executable contents; C adds a fifth distinct executable. Alias placement/readback and public launch
 readiness are implemented by `shared_target_launchers.PLAN` /
-`onpc_app_rows::shared_target_launchers`. Task 229a's
-`check_e2e_shared_target_launchers` passed on Ubuntu 26.04 in
-`20261104T023952Z-f90cb5b1`: all fifteen native inputs, distinct Jordan Parent
+`onpc_app_rows::shared_target_launchers`.
+`check_e2e_shared_target_launchers` passed on Ubuntu 26.04: all fifteen native inputs, distinct Jordan Parent
 rows, separate A/Alias grid launches, public draft submission through each,
 normal closure before the next launch and logout passed. Affected both-child
-case 62 passed in `20261104T024547Z-0a55c166`; collection, owned cleanup and
+case 62 passed; collection, owned cleanup and
 baseline restoration passed in both attempts. The guest provisioner's movable
 declaration now imports `LAUNCHERS`, fixing the prior missing-import failure.
 This qualifies FIX06 and APP01/02/03 for Jordan's Allowed shared-target grid
-bindings on Ubuntu only. Task 229's complete case 187 passed on Ubuntu 26.04
-in `20261104T031145Z-35631824`: blocking either launcher while the other stayed
+bindings on Ubuntu only. Complete case 187 is qualified on Ubuntu 26.04: blocking either launcher while the other stayed
 Allowed denied both launches, and restoring both to Allowed recovered usable
 launch/Submit/readback/closure through each. Each round independently read both
 saved choices and preserved the same Jordan-selected Parent session/window and
 30-minute allowance. `journey_blocks.native_blocked_app` and
 `onpc_app_rows::native_blocked_app` now qualify both `A` and `Alias` grid bindings
 with the existing single-use input and independent denial guards. Affected
-original-launcher case 64 passed in `20261104T033317Z-ed993b26`, including Jordan's
+original-launcher case 64 passed, including Jordan's
 denial and Riley's unaffected usable app. Collection, owned cleanup and baseline
 restoration passed in both attempts; coverage was regenerated after each. This
 supplies no Fedora qualification.
 The future-version/new-nonmatch binding is implemented in
 [versioned_appimage_assets.py](../../tests/e2e/versioned_appimage_assets.py),
-qualified on Ubuntu 26.04 by `check_e2e_qualify_versioned_appimage_pattern_assets`
-in `20261108T044143Z-95de3786`. FIX06 declares the distinct root-level
+qualified on Ubuntu 26.04 by `check_e2e_qualify_versioned_appimage_pattern_assets`. FIX06 declares the distinct root-level
 `LunarClient-3.8.0.AppImage` source and `Versioned/PrismLauncher.AppImage`.
 The source has no space so A's separate `Exact*.AppImage` wildcard can preserve
 it as an unrelated executable; the versioned copy retains its space-bearing name.
@@ -4726,8 +4411,8 @@ window's public Submit/readback/closure with exact Jordan/executable owner check
 route, excluded from standalone system registration. Case 189 still owns the
 wildcard Save, denials, refresh interval and rejected-save recovery.
 Both independent copy/use/cleanup lifetimes passed for all three bindings.
-Affected native-denial qualification (`20261108T012923Z-a1f3061e`) and both-child
-case 62 (`20261108T014447Z-1d37e230`) passed, including collection, owned cleanup
+Affected native-denial qualification and both-child
+case 62 passed, including collection, owned cleanup
 and baseline restoration. The shared logout observer now allows GNOME's delayed
 session-client shutdown while preserving one submission and independent greeter
 readback. Scoped host safety/source checks and coverage generation passed.
@@ -4813,8 +4498,7 @@ durable reply and rejects missing/replayed captures or changed state/window.
 
 Native activity snapshots require a live visible owned window, without requiring
 every retained window to be foreground. Case 17's Jordan A/S binding passed the
-same-window comparisons and normal use after Cancel on Ubuntu 26.04 in
-`20261105T015431Z-68a208f7`. The bounded maintenance command
+same-window comparisons and normal use after Cancel on Ubuntu 26.04. The bounded maintenance command
 `tools/test-vm --vm NAME reproduce-revocation-return` reuses `revocation_case.PLAN`
 and retains that desktop before its first post-Cancel activity read; it supplies
 diagnostic context, not customer acceptance.
@@ -4890,14 +4574,14 @@ Reuse [InstalledSetup](../../tests/e2e/installed_setup.py),
 [InstalledJourney](../../tests/e2e/installed_journey.py),
 [execution](../../tests/e2e/execution.py) and
 [leased recording](../../tests/e2e/leased_recording.py). The
-[migration constraints](#refactoring-the-established-cases) preserve this runtime
+[migration constraints](#shared-composition-contracts) preserve this runtime
 rather than adding another recorder, worker or installer.
 
 #### Native Files launch and separate windows
 
 `native_files_usable.PLAN` / `onpc_app_rows::native_files_usable` and
 `check_e2e_native_files_usable` qualify Jordan's Allowed A/S Files bindings on
-Ubuntu 26.04 in `20261108T062938Z-40e4eb08`. FILE04/07 and APP01/02/03 reuse
+Ubuntu 26.04. FILE04/07 and APP01/02/03 reuse
 `journey_blocks.native_usable_app('files', role=None)` for A and `role='S'`
 for S. Files activates the exact argument-free executable with one Enter;
 the independently owned fixture window must accept Submit and expose its result.
@@ -4918,18 +4602,17 @@ directories, selections and ambiguous owners/windows still refuse.
 The qualified provider tuple is Nautilus `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`,
 `xkb/us`. Case 74's `app_launch.FILES_PLAN` / `onpc_app_launch::run`
 qualified the same A Files launch/Submit/result and Files dismissal for fresh
-Jordan and Riley on Ubuntu 26.04 in `20261108T065443Z-4340e7a8`, with Jordan's
+Jordan and Riley on Ubuntu 26.04, with Jordan's
 saved enabled 30-minute allowance and precise Allowed rule and Riley's policy
 untouched. Riley's recorded provider tuple matches the one above. The affected
-`check_e2e_native_files_usable` regression passed in `20261108T070551Z-876289a7`,
+`check_e2e_native_files_usable` regression passed,
 including S's separate-window/original-work comparison. Both runs passed
 collection, worker/callback shutdown, owned cleanup and baseline restoration.
 Other account/fixture bindings, locations and provider tuples remain pending.
 
 `native_files_routes.PLAN` / `NativeFilesRoutesJourney` and
 `onpc_app_rows::native_policy_closure(..., 'files')` add Jordan's precise A
-Hard/Soft results through `check_e2e_native_file_routes`, passed on Ubuntu 26.04
-in `20261108T080641Z-3143a994`. The shared
+Hard/Soft results through `check_e2e_native_file_routes`, passed on Ubuntu 26.04. The shared
 `journey_blocks.native_blocked_app('A', route='files')` / matching worker
 opens the exact Files selection and sends Enter once, with no substitute launch.
 Each policy starts with an independent fresh Jordan entry, usable Files-opened
@@ -4941,25 +4624,22 @@ access is restored and read back between the two policy histories.
 The first Files launch also qualified read-only wrong-file (N in the same
 directory) and wrong-user refusal before reacquiring the valid Enter recipient.
 The existing wrong-activity/owner closure-comparison refusals passed.
-The affected `check_e2e_native_files_usable` regression passed in
-`20261108T082714Z-7e5615ec`, retaining A/S launch/use, separate S windows and
+The affected `check_e2e_native_files_usable` regression passed, retaining A/S launch/use, separate S windows and
 unchanged original work. Both runs passed collection, worker/callback shutdown,
 owned cleanup, baseline restoration and host/source preservation; the VM ended
 off. Scoped host input/dispatch safety and source/traceability checks passed.
 This capability supplies no complete-case credit, other Files target or
 standalone system registration. Complete case 76 subsequently passed on Ubuntu
-26.04 in `20261108T084425Z-941cb3f5`: Parent's saved precise permanent block and
+26.04: Parent's saved precise permanent block and
 30-minute allowance/zero grant, fresh Jordan's denied Files activation, and
 fresh Riley's Files launch/Submit/readback with untouched policy. Affected
-Allowed Files case 74 passed in `20261108T090001Z-3ebc8efa`. Both passed
+Allowed Files case 74 passed. Both passed
 collection, worker shutdown, owned cleanup and baseline restoration; the VM
-ended off. Complete case 78 passed on Ubuntu 26.04 in
-`scenario-2d648d0c47fb4f8390ae6bbeb96fabfa`: Parent's saved precise conditional
+ended off. Complete case 78 passed on Ubuntu 26.04: Parent's saved precise conditional
 block and 30-minute allowance/zero grant, fresh Jordan's denied Files activation,
 and fresh Riley's Files launch/Submit/readback with untouched policy and limits.
 Collection, worker shutdown, owned cleanup and baseline restoration passed;
-the VM ended off. Affected Hard Files case 76 passed in
-`scenario-ab66bee5d4074893ac64007d27f0539e`, including both children's independent
+the VM ended off. Affected Hard Files case 76 passed, including both children's independent
 results, collection, worker shutdown, owned cleanup and baseline restoration.
 Coverage was regenerated after each pass; scoped host safety, source checks
 and Markdown links passed. Other Files bindings and provider tuples remain separate.
@@ -4970,7 +4650,7 @@ without replying and retaining the owned child scene for investigation and
 `stop`. It supplies no acceptance credit.
 
 Case 236's `native_temporary_access.FILES_KIOSK_PLAN` / `execute_files_kiosk`
-passed on Ubuntu 26.04 in `scenario-a62cfba42a4b484d95cbdab05d1bf742`.
+passed on Ubuntu 26.04.
 The shared temporary-access worker selects `route=files`; APP01/02 now also
 qualify Jordan's H/S Files denial with A's original work retained. Argument-free
 native H/S executables default to distinct hard/soft fixture windows; explicit
@@ -5008,33 +4688,30 @@ internal keyboard selection, so the worker sends Ctrl+A once, independently
 observes the exact sole selected/focused icon, then sends Enter once. No geometry,
 file-manager setup or alternative launch route is used.
 
-`check_e2e_native_desktop_usable` passed on `onpc-Ubuntu26.04` in
-`20261108T125253Z-50c4cb1a` with two independent entries: trusted placement, wrong-icon
+`check_e2e_native_desktop_usable` passed on `onpc-Ubuntu26.04` with two independent entries: trusted placement, wrong-icon
 and ambiguous-owner refusal, icon focus/selection, real desktop activation,
 normal Submit and submitted-draft readback, closure and owned file cleanup.
 Collection, worker/callback shutdown, baseline restoration and host/source
 preservation passed; the VM was observed off. The DING provider tuple is
 `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
 
-Case 68 (`app_launch.DESKTOP_PLAN` / `onpc_app_launch::run`) passed on Ubuntu 26.04
-in `scenario-f9155443fe914b45b850cd8c68ebcaa8`: Parent's saved precise Allowed rule
+Case 68 (`app_launch.DESKTOP_PLAN` / `onpc_app_launch::run`) passed on Ubuntu 26.04: Parent's saved precise Allowed rule
 and Jordan's enabled 30-minute daily allowance/zero grant, then fresh Jordan and
 Riley desktop launch, normal draft submission and independent readback. Each
 child's app was closed and owned desktop entry removed before leaving that
 visit; Riley's policy and limits were untouched. The exact caller is registered
 for the shared native/activity/baseline-child fixture closure. The affected
-`check_e2e_native_desktop_usable` regression passed in
-`20261108T133854Z-d115f839`, including both independent placements, refusals,
+`check_e2e_native_desktop_usable` regression passed, including both independent placements, refusals,
 collection, worker shutdown and baseline restoration; the VM was observed off.
 
 Case 70 (`app_launch.HARD_DESKTOP_PLAN` / `onpc_app_launch::run`) passed on
-Ubuntu 26.04 in `scenario-d85ba01415704d05804e8e10a5fdf0b8`: Parent saved
+Ubuntu 26.04: Parent saved
 Jordan's precise permanent block and enabled 30-minute daily allowance with
 zero grant. Fresh Jordan's exact desktop activation remained denied for the
 15-second observation; fresh Riley opened and submitted the same app through
 the desktop with independent readback and unchanged policy. Both owned entries
 were removed and Riley's app closed. The affected Allowed desktop case 68 passed
-separately in `scenario-7453b958f6c7490cb3b6a6dc6fec43c3`. Collection,
+separately. Collection,
 worker/callback shutdown and baseline restoration passed for both attempts;
 the VM was observed off. Other policy bindings remain separate.
 
@@ -5063,7 +4740,7 @@ cannot transfer compositor focus from the active app. The unchanged exact-icon
 observation still precedes selection and Enter. Callers select this branch
 before input; it is not a fallback after a failed launch or focus operation.
 
-`check_e2e_native_desktop_new_window` passed in `20261108T181000Z-4e4fc697`:
+`check_e2e_native_desktop_new_window` passed:
 two independent original/second S window pairs, trusted secondary desktop entry,
 exact icon selection/Enter, normal Submit/readback, distinct public endpoints,
 unchanged original endpoints/work and normal closure. The first attempt's
@@ -5071,8 +4748,7 @@ unchanged original endpoints/work and normal closure. The first attempt's
 panel-cycle navigation made the same guarded icon operation pass while keeping
 the original endpoint and draft. The fixed diagnostic reproduction/probe routes
 are documented in the [runner guide](../../tests/e2e/README.md#shared-guarded-worker).
-The required `check_e2e_native_desktop_usable` regression passed in
-`20261108T181510Z-007da474`. Scoped host safety/source checks, collection,
+The required `check_e2e_native_desktop_usable` regression passed. Scoped host safety/source checks, collection,
 worker/callback shutdown, baseline restoration and host/source preservation
 passed; the VM was observed off. The provider tuple remains
 `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`. This qualifies the sole ordinary S
@@ -5091,12 +4767,10 @@ for 15 seconds and a recognized prompt-free desktop. No command denial or
 alternative launcher supplies this result. Unaffected N remains usable and
 each round removes only its owned desktop entry before logout.
 
-`check_e2e_native_desktop_route` passed on Ubuntu 26.04 in
-`20261108T183836Z-f9987566`: independent Hard/Soft desktop entries, original-window
+`check_e2e_native_desktop_route` passed on Ubuntu 26.04: independent Hard/Soft desktop entries, original-window
 closure, denied desktop relaunch, unaffected app use, wrong-icon and ambiguous-owner
 refusals, collection, worker/callback shutdown and baseline restoration passed.
-The affected `check_e2e_native_desktop_usable` regression passed in
-`20261108T185959Z-0977c763`, including both independent placements and normal
+The affected `check_e2e_native_desktop_usable` regression passed, including both independent placements and normal
 closure. All 32 scoped host safety checks, source/traceability, links, collection,
 worker/callback shutdown and baseline restoration passed; the VM was observed off.
 The DING tuple remains `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
@@ -5117,7 +4791,7 @@ other children and icon populations remain separate.
 
 #### Native launch denial qualification
 
-Task 079d's `native_denial.PLAN` / `NativeDenialJourney`,
+`native_denial.PLAN` / `NativeDenialJourney`,
 `journey_blocks.native_blocked_app` and `onpc_app_rows::native_denial` qualify
 Jordan's saved H/Hard precise path and S/Soft wildcard command denial with no
 prior target window or temporary approval. `AccessibleUI.native_launch_command`
@@ -5126,9 +4800,8 @@ The same visit uses/submits/closes A through the grid and N through its exact
 command; N's public activity is bound to its executable and primary instance.
 All outcomes repeat after logout and independent fresh Jordan entry.
 
-`check_e2e_native_denial` passed on Ubuntu 26.04 in
-`20261102T220520Z-3fc601be`; affected allowed-grid/command case 62 passed for
-Jordan and Riley in `20261102T221800Z-0a7b3f1a`. Collection, worker shutdown,
+`check_e2e_native_denial` passed on Ubuntu 26.04; affected allowed-grid/command case 62 passed for
+Jordan and Riley. Collection, worker shutdown,
 owned cleanup and baseline restoration passed; the VM ended off. Source checks,
 76 existing affected diagnostic/ownership checks, inventory listing, coverage
 generation and Markdown links passed. Native/Snap launcher visibility is outside
@@ -5152,8 +4825,7 @@ read the updated target and saved Hard rule. Fresh Jordan entry must deny the
 updated command with complete owned-window absence. The shared native command
 route now requires the bound child's direct exec to return EACCES or EPERM;
 exit status or journal availability alone cannot establish denial.
-The complete case passed on Ubuntu 26.04 in
-`scenario-f3bcfa5077a242c1a43bdb6955d22e38`, with collection, worker shutdown,
+The complete case passed on Ubuntu 26.04, with collection, worker shutdown,
 owned cleanup and baseline restoration passed.
 
 Case 111 uses `catalogue_update_case.REMOVE_PLAN` and the same journey/worker.
@@ -5165,14 +4837,14 @@ open through removal and Save; LIFE01/PARENT02 refresh then reads a complete
 loaded catalogue with empty search and all filters selected before proving the
 app absent. Reinstallation and another refresh must expose the retained wildcard
 and Hard rule before any edits. Fresh Jordan entry must deny the same executable
-with complete window absence. This continuous case passed on Ubuntu 26.04 in
-`scenario-54a6e034ab694e27887149518aa446da`, including collection, worker shutdown,
+with complete window absence. This continuous case passed on Ubuntu 26.04, including collection, worker shutdown,
 owned cleanup and baseline restoration. Other fixture formats remain unqualified.
 
 #### Captured native activity closure
 
-Task 079a implements `native_policy_closure.PLAN` /
-`NativePolicyClosureJourney` and `onpc_app_rows::native_policy_closure`.
+`native_policy_closure.PLAN` /
+`NativePolicyClosureJourney` and `onpc_app_rows::native_policy_closure`
+implement captured-activity closure qualification.
 `AccessibleUI.native_policy_activity` captures Jordan's primary A window and
 submitted draft with its child/session identity. After a Parent save,
 `native_app_closed(complete_absence=True)` requires a complete current absence
@@ -5184,28 +4856,26 @@ wrong child/session or a present replacement cannot establish closure.
 
 The focused selector
 `check_e2e_observe_native_policy_denial_and_existing_window_closure` passed on
-Ubuntu 26.04 in `20261104T041639Z-6056d952`. It opens A permissively via grid/command before
+Ubuntu 26.04. It opens A permissively via grid/command before
 precise Hard/Soft saves respectively, returns to each original child desktop,
 observes closure before a denied command, and uses/submits/closes unaffected N.
 Independent fresh Jordan entries and the two new comparison refusals are included.
-Affected case 62 passed in `20261104T043000Z-a6599cdf`, retaining both children's
+Affected case 62 passed, retaining both children's
 Allowed grid/command use and normal closure between launches. Host source checks,
 collection, worker/callback shutdown, owned cleanup and baseline restoration passed.
-079d's unchanged H/S no-prior-window denial remains qualified separately; this
+`native_denial.PLAN`'s unchanged H/S no-prior-window denial remains qualified separately; this
 slice supplies no complete E2E-006/case-13 acceptance.
 
-Case 14's complete enabled/pattern journey subsequently passed on Ubuntu 26.04
-in `20261104T155650Z-3b4a47fe`, adding captured A closure and command denial
+Case 14's complete enabled/pattern journey subsequently passed on Ubuntu 26.04, adding captured A closure and command denial
 after the `*.AppImage` Soft/Hard saves, including Soft→Hard after real approval.
 It independently preserved and used the nonmatching S window and Riley's same
 activity after every transition. Case 15 subsequently passed the same captured
-closure/denial and isolation results with precise matching and limits off in
-`20261104T180325Z-d749ef37`, including preserved A activity after the temporary
+closure/denial and isolation results with precise matching and limits off, including preserved A activity after the temporary
 approval's limits-off toggle and before the Soft→Hard save. Case 16 passed
 those same closure/denial and isolation results with pattern matching and
-limits off in `20261104T221123Z-f4e1c198`, including collection and owned cleanup.
+limits off, including collection and owned cleanup.
 
-Case 19 passed on Ubuntu 26.04 in `20261105T055838Z-a1d70581`, extending
+Case 19 passed on Ubuntu 26.04, extending
 `native_policy_activity(role='S')` to capture and compare complete secondary-window
 closure after real grant revocation, bound to the original child/session.
 The same continuous journey preserved the Allowed primary activity and denied
@@ -5229,271 +4899,12 @@ a family link is not permission to sample. Customer setup is part of each
 independent case. Harness case 1 remains separate qualification. Retired E2E
 IDs 140–150 retain only the engineering obligations below.
 
-### Parent, login and time scenarios
-
-Every E2E invocation, including a single-case selection, holds one exclusive VM
-lease. Suite preparation runs once, before the first case, reusing an existing
-`onpc-v[version]` snapshot (the current app release without package revisions).
-Qualification inputs are keyed to current source content through `named_input()`.
-Reuse requires matching package bytes, baseline identity and the
-installation recipe recorded in snapshot metadata, plus the requested mode and
-online freshness/restore guards. Missing, legacy or changed snapshots restore
-`onpc_baseline`, install and verify the declared package, and capture the version
-snapshot under the shared lease. Online mode captures the running guest after
-verified reboot; offline mode captures after shutdown and gets its clean restart
-when the restored guest boots. This installation belongs to suite preparation.
-
-Freshness metadata is published only after snapshot creation returns successfully,
-using libvirt's [metadata redefinition API](https://libvirt.org/html/libvirt-libvirt-domain-snapshot.html#virDomainSnapshotCreateXML).
-An interrupted creation leaves an unmarked snapshot, which preparation refreshes.
-
-The installed-state fingerprint deliberately excludes test code, guest helper
-logging, scenario selections, fixture delivery payloads, documentation and run
-outputs. These are refreshed as a separately verified test payload before each
-attempt; they do not reinstall the app. Reusable fixture sources instead belong
-to the baseline preparation identity; changes invalidate the baseline and its
-derived app snapshots. App-snapshot preparation installs the product and verifies
-the declared baseline inputs. It never installs persistent test prerequisites.
-The [guest input resolver](../../tests/integration/guest_inputs.py) follows local
-Python imports recursively from declared entry points, including imports inside
-functions, and rejects missing or ambiguous dependencies before staging. Dynamic
-entry points and non-Python resources still require explicit consumer declarations.
-E2E freezes its helper bundle once per invocation; system tests freeze their
-selected closure before acquiring the VM. Later checkout edits affect the next
-bundle. Existing transfer digests and offline retirement of old guest payloads
-prevent changed or removed helpers from leaking across restored attempts.
-
-Each case then starts from the snapshot required by its purpose:
-
-- Installed-app validation must declare `installed-digest-verified-product` and
- restore the suite's version snapshot, without installing or rebooting as case
- setup. This covers E2E-003's two ready variants, both E2E-004 launch routes,
- E2E-030/parent and E2E-042/command-help.
-- Cases testing installation, removal or package behavior may declare
- `declared-package-lifecycle-fixture` and start from `onpc_baseline`, with
- installation performed as part of the tested package behavior.
-- Runner-only product-free harness checks, including retained case E2E-001, start
- from `onpc_baseline` without installing the app.
-
-Inventory validation enforces these declarations for existing and future cases;
-the installed-app and package-lifecycle prerequisites are mutually exclusive.
-The suite verifies the required snapshot was restored before provisioning.
-Installed journeys have no per-case installer: a missing snapshot fails the
-invocation without fallback installation.
-
-The expensive baseline audit and offline guest inspection bracket the suite.
-After collecting a case's observations, the worker's final power-off callback
-restores the required off state through the shared lease; it does not wait for
-ACPI. After fresh attempt inputs are staged, installed online state resumes
-through the owned memory-snapshot route; offline/product-free state uses guarded
-provisioning and boot. The shared lease owns these transitions; cases issue no
-additional restores. Live ownership, disk identity, snapshot metadata and
-isolation checks still apply; transitions add no package validation,
-installation or reboot. Suite cleanup restores `onpc_baseline` and
-preserves the version snapshot through the final audit. The journal records its
-exact name during creation for interrupted-preparation cleanup; successful creation
-clears that deletion obligation so completed snapshots survive interrupted runs.
-Per-case evidence is
-provisional until the final suite audit and release; failures stop subsequent
-cases. This changes runner transitions, not any customer action or assertion.
-See [suite lease](../../tests/e2e/suite_lease.py) and the shared
-[app snapshot module](../../tests/e2e/app_snapshot.py). `run-tests` calls it with
-`overwrite=False` to reuse a current version snapshot and uses the shared [cleanup module](../../tools/test_recovery.py)
-before starting the E2E run.
-
-Standalone preparation uses `tools/prepare-appsnapshot` under
-[Approval tools](../Approval-Tools.md#one-time-setup), which owns overwrite
-behavior, platform selection and maintained recovery. It always prepares online
-snapshots and defaults to overwriting; unattended callers explicitly choose
-`--overwrite true` or `--overwrite false`. The guest remains running under
-VM-maintenance ownership. Snapshots retain `onpc-v[version]`; neither a snapshot name nor prior
-mutable guest state is freshness or acceptance evidence. Reusable guest inputs
-remain exclusively owned by baseline preparation.
-
-A retained snapshot is a setup prerequisite, not customer-acceptance evidence.
-Release online maintenance before a qualification or E2E attempt acquires its
-own lease; subsequent VM actions retain guarded ownership.
-
-
-E2E-001 remains [harness qualification](#case-1-stage-contract). For customer
-families E2E-002–011, select the exact [family recipe](E2E-Scenario-Recipes.md#family-compositions)
-and consult the [family allocation review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
-for assertion ownership. Case IDs and runtime bindings come from the inventory;
-this catalogue does not maintain another case list.
-
-### Request forms and remembered choices
-
-Case 34 composes `overlay_recovery.PLAN` / `onpc_overlay_recovery::run`:
-wrong password, a separate password-free Cancel and fresh valid approval in one
-Riley/Jamie/75-second soft-included history. `GrantAppEffectsJourney` reuses the
-immutable refreshed-estimate comparisons after each failure and accepts the
-finite 1800-second daily profile for initial/final public policy and grant reads.
-The worker retains the existing fixed single-use credential scopes. Both
-negative app-denial results precede success; the final original activity,
-countdown increment, soft-app use and hard denial are independent outcomes.
-Ubuntu 26.04 complete-case acceptance passed.
-
-Case 36 composes `kiosk_recovery.PLAN` / `onpc_kiosk_recovery::run` in one
-zero-daily Riley/Jamie history: wrong-password rejection, a separate password-free
-Cancel and a fresh twenty-minute approval. Each failure independently preserves
-the open form, denies correct-password child sign-in, retains zero public daily
-and grant balances and saved hard/soft rules, and preserves remembered choices
-after normal station reentry. `request_flow.continued_request` adds only the
-soft-included kiosk 75→1200-second binding through the existing public duration
-and authentication leaves. The final request returns normally to GDM, permits
-fresh child entry with at least 300 seconds, supports soft-app Submit and retains
-hard-command denial. Parent independently compares issued time with the original
-1200-second estimate and unchanged saved policy. Complete case 36 passed on
-Ubuntu 26.04 in `20261105T180858Z-571a8267`, including collection, worker shutdown,
-owned cleanup and baseline restoration. This adds no Fedora or broader baseline
-qualification; the existing 600-second baseline continuation remains unchanged.
-
-The [E2E-012–018 recipes](E2E-Scenario-Recipes.md#e2e-012) own request, approval,
-exit, selector and persistence composition. E2E-014 retains the
-[native-gesture exclusion](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures);
-uncovered assertions are neither qualification nor a new gesture task.
-
-`onpc_remembered_choices::run` and `run_reverse` compare immutable original
-captures for transfer and persistence/isolation. No approval, retained-desktop
-return or time denial is part of these histories.
-
-| Case / `remembered_choices` binding | Finite history |
-| --- | --- |
-| 58 / `PLAN` | Jordan then Riley: custom 1.25 minutes/75 seconds soft included, then 2.5 minutes/150 seconds soft excluded. Overlay Casey, kiosk Jamie. One overlay visit/transfer per child, then both kiosk reselections compare against original captures. |
-| 59 / `SECOND_PLAN` | Same history, Riley then Jordan, using `remembered-second` choices. |
-| 60 / `REVERSE_PLAN` | Seed Casey in each overlay and log out. Station Jamie saves Jordan 75 seconds/included then Riley 150 seconds/excluded. Untouched transfer and freshly reopened overlay reads compare against original kiosk captures. |
-| 61 / `REVERSE_SECOND_PLAN` | Same reverse history, Riley then Jordan; Jamie stays station-local and Casey overlay-local, with normal logout between fresh visits. |
-
-`request_flow.kiosk_to_overlay(..., choices='remembered')` reuses FLOW12's
-fresh transport. Wrong-account refusal precedes unrelated provider discovery.
-Caller-declared order, current recipient guards and immutable comparisons before
-durable reply remain mandatory. `remembered_choices.DIAGNOSTIC_PLAN` is the
-maintenance-only retained-return scene, not required customer composition.
-These complete-case bindings cover Ubuntu 26.04 and Fedora 44; current source/
-qualification guards still apply.
-
-### Application routes and complete customer journeys
-
-The [E2E-019–027 recipes](E2E-Scenario-Recipes.md#e2e-019) own finite launch,
-catalogue, retained-session, gameplay, update and removal histories.
-
-Native Allowed bindings use shared policy edits, fresh entry and independent
-window/Submit/result comparisons. `AppPolicyJourney` checks settings, balances,
-match and access before acknowledgement. Parent saves Jordan's precise Allowed
-rule; Riley's existing policy and disabled limits stay untouched. No approval
-or alternative launch substitutes for the declared route.
-
-| Case / binding | Scope |
-| --- | --- |
-| 62 / `app_launch.GRID_PLAN`, `onpc_app_launch::run(..., 'enabled', 'grid')` | 30 daily minutes/zero grant; Jordan `other-child`, Riley `child`; each freshly enters and uses A through the grid. Reuses the qualified native/activity/baseline-child preparation: setup verifies Riley's catalogue and shared runtime; the native stage action verifies Jordan's catalogue. |
-| 64 / `app_launch.HARD_GRID_PLAN`, `run(..., 'enabled', 'grid', 'hard-blocked')` | Same 30-minute/zero-grant preparation; Parent saves A's precise permanent block for Jordan. Jordan's grid action is independently denied; Riley enters fresh and opens/submits the same A through the grid. |
-| 66 / `app_launch.SOFT_GRID_PLAN`, `run(..., 'enabled', 'grid', 'soft-blocked')` | Same target, precise match, 30-minute allowance and zero grant; Parent saves conditional access for Jordan without approval. Jordan's grid action is independently denied; fresh Riley grid launch/use remains unaffected. |
-| 74 / `app_launch.FILES_PLAN`, `run(..., 'enabled', 'files')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise Allowed A rule. Fresh Jordan and then fresh Riley open the same argument-free executable from Files, submit the draft and independently read the result. Riley's policy and disabled limits remain untouched; Files is dismissed before leaving each desktop. Passed on Ubuntu 26.04; see [Files qualification](#native-files-launch-and-separate-windows). |
-| 76 / `app_launch.HARD_FILES_PLAN`, `run(..., 'enabled', 'files', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise permanent A block. Fresh Jordan's one Files activation requires continuous complete app-window absence for 15 seconds; fresh Riley opens/submits the same executable from Files with independent result readback and untouched policy/limits. Both Files windows are dismissed. Passed on Ubuntu 26.04; see [Files qualification and complete-case result](#native-files-launch-and-separate-windows). |
-| 78 / `app_launch.SOFT_FILES_PLAN`, `run(..., 'enabled', 'files', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves and reads Jordan's precise conditional A block without approval. Fresh Jordan's one Files activation requires continuous complete app-window absence for 15 seconds; fresh Riley opens/submits the same executable from Files with independent result readback and untouched policy/limits. Both Files windows are dismissed. Passed on Ubuntu 26.04; see [Files qualification and complete-case result](#native-files-launch-and-separate-windows). |
-| 80 / `app_launch.PLAN`, `onpc_app_launch::run` | Same enabled setup; Jordan then Riley freshly enter and use `Exact Fixture.AppImage` through the fixed command route. |
-| 81 / `app_launch.DISABLED_PLAN`, `run(..., 'disabled')` | Limits off/zero allowance; skip only enabled allowance setup/readback. Both children prove the same command target usable. |
-| 82 / `app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise permanent block for Jordan. Fresh Jordan command execution requires an attributed permission denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same executable usable with Riley's policy untouched. |
-| 83 / `app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise permanent block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy untouched. |
-| 84 / `app_launch.SOFT_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'soft-blocked')` | 30 daily minutes/zero grant; Parent saves A's precise conditional block without approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
-| 85 / `app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked')` | Limits off/zero allowance; Parent reads Jordan's untouched settings, then saves A's precise conditional block without an allowance or approval. Fresh Jordan command execution requires attributed denial and complete owned-window absence; fresh Riley command launch/Submit/readback proves the same target usable with Riley's policy and limits untouched. |
-| 86 / `snap_app_launch.GRID_PLAN`, `run(..., 'enabled', 'grid', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent readback. Fresh Jordan and then fresh Riley open the same strict/system package through the app grid and submit the normal draft with independent window/result reads; Riley's policy and limits stay untouched. Passed on selected Fedora 44. |
-| 92 / `snap_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'snap')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Snap access with independent row readback. Jordan then Riley freshly enter, launch the same strict/system package by command and submit the normal draft with independent result reads; Riley's policy and limits stay untouched. Qualified on Fedora 44. |
-| 104 / `flatpak_app_launch.PLAN`, `run(..., 'enabled', 'command', 'allowed', 'flatpak')` | Parent gives Jordan 30 daily minutes/zero grant and saves A's Allowed Flatpak access with independent row readback. Fresh Jordan and Riley each launch and submit the same system Flatpak by command, with independent window/result reads and Riley's policy untouched. Passed on Ubuntu 26.04; see [Flatpak command use](#flatpak-command-use). |
-| 105 / `flatpak_app_launch.DISABLED_PLAN`, `run(..., 'disabled', 'command', 'allowed', 'flatpak')` | Parent reads Jordan's untouched limits-off/zero-allowance settings and saves/reads A's Allowed Flatpak row without an allowance or approval. Fresh Jordan and Riley each launch and submit the same system Flatpak by command, with independent window/result readback and Riley's policy untouched. Passed on Ubuntu 26.04; see [Flatpak command use](#flatpak-command-use). |
-| 106 / `flatpak_app_launch.HARD_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'hard-blocked', 'flatpak')` | Parent gives Jordan 30 daily minutes/zero grant and saves/reads A's permanent Flatpak access. Fresh Jordan's exact system command produces the app-specific administrator-policy denial with complete owned-window absence. Fresh Riley launches and submits the same app with independent window/draft readback and untouched policy/limits. Passed on Ubuntu 26.04 in `20261106T091459Z-ac38a70e`; affected Allowed case 104 passed in `20261106T092248Z-dae6e791`. Collection, worker shutdown, cleanup and baseline restoration passed. Other families and rule/control bindings remain separate. |
-| 107 / `flatpak_app_launch.HARD_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'hard-blocked', 'flatpak')` | Parent reads Jordan's untouched limits-off/zero-allowance settings and saves/reads A's permanent Flatpak access without an allowance or approval. Fresh Jordan's exact command requires the app-specific administrator-policy denial and complete owned-window absence. Fresh Riley launches/submits the same app with independent window/draft readback and untouched policy/limits. Passed on Ubuntu 26.04 in `scenario-020080344d38498397e5f18c2c7d10d2`, including collection, worker shutdown, cleanup and baseline restoration. Other families and rule/control bindings remain separate. |
-| 108 / `flatpak_app_launch.SOFT_COMMAND_PLAN`, `run(..., 'enabled', 'command', 'soft-blocked', 'flatpak')` | Parent gives Jordan 30 daily minutes/zero grant and saves/reads A's conditional Flatpak access. Fresh Jordan's exact system command requires the app-specific administrator-policy denial and complete owned-window absence. Fresh Riley launches/submits the same app with independent window/draft readback and untouched policy/limits. Passed on Ubuntu 26.04 in `scenario-697fb1efa1774312b2dc7f44d571f65c`; affected Hard command case 106 passed in `scenario-643f1fe82b974415ad9bf1e6f7f1334e`. Collection, worker shutdown, cleanup and baseline restoration passed. Limits-off and other families remain separate. |
-| 109 / `flatpak_app_launch.SOFT_COMMAND_DISABLED_PLAN`, `run(..., 'disabled', 'command', 'soft-blocked', 'flatpak')` | Parent reads Jordan's untouched limits-off/zero-allowance settings and saves/reads A's conditional Flatpak access without an allowance or approval. Fresh Jordan's exact command requires the app-specific administrator-policy denial and complete owned-window absence. Fresh Riley launches/submits the same app with independent window/draft readback and untouched policy/limits. Passed on Ubuntu 26.04 in `scenario-1da3e6b9f9e34d8385315bb87a87a26a`, including collection, worker shutdown, owned cleanup and baseline restoration. Other families remain separate. |
-| 187 / `shared_launchers_case.PLAN`, `onpc_fresh_thirty_allowance::shared_launchers_case` | Jordan's A and Alias share one native target. Block A with Alias Allowed, restore both, block Alias with A Allowed, then restore both again. Each child visit independently proves both denials or both usable apps. Saved choices, Parent session/window, child selection and allowance persist across the complete history; [Ubuntu qualification](#native-fixture-preparation). |
-
-The Allowed native-A grid/command bindings are qualified on Ubuntu 26.04 and Fedora 44.
-Case 64 passed on Ubuntu 26.04 in `20261103T204515Z-ad6fb573`, including
-collection, worker shutdown, owned cleanup and baseline restoration.
-Affected allowed-grid/command case 62 passed on the same target in
-`20261103T205343Z-b132bf75`, including both children's independent use and normal
-closure between routes. Coverage was regenerated after each pass; source checks,
-inventory listing and Markdown links passed, and the VM ended off.
-`native_blocked_app` / `onpc_app_rows::native_blocked_app` focus the offered
-launcher and submit Enter once; separate `native-grid-denied` requires complete
-owned-window absence and desktop return. A hidden launcher instead retains the
-same executable's guarded command-denial witness; visibility is not asserted.
-The family's combined `visible-result` requires the complete ordered observations
-of Jordan's denial and Riley's submitted draft. Other families remain unqualified
-for this hard-blocked grid binding.
-Case 66 passed on Ubuntu 26.04 in `20261103T210802Z-0a5f3ae9`, including
-the saved conditional rule, Jordan's independent grid denial and Riley's
-submitted draft, collection, worker shutdown, owned cleanup and baseline
-restoration. Coverage was regenerated. This soft-blocked grid binding remains
-unqualified on other families.
-The shared blocked-grid composition's affected case 64 passed on Ubuntu 26.04
-in `20261103T211608Z-6cf3a4f9`, including both children's independent results,
-collection, cleanup and baseline restoration. Coverage was regenerated after
-both passes, and the VM was observed off.
-Other route/rule/control bindings remain separate. Invalid control, wrong-child,
-allowance or result readbacks fail before durable reply.
-
-Case 82 passed on Ubuntu 26.04 in `20261103T220114Z-5fb5d30d`, including
-Jordan's attributed command denial, Riley's independent submitted draft,
-collection, worker shutdown, owned cleanup and baseline restoration. Its
-`native_blocked_app('A', route='command')` declaration uses the existing
-`native-command-blocked` operation directly; there is no grid search or route
-fallback. Coverage was regenerated. This exact hard-blocked command binding
-remains unqualified on other families.
-The shared route composition's affected hard-blocked grid case 64 passed on
-Ubuntu 26.04 in `20261103T220811Z-8875890c`, including collection, worker shutdown,
-owned cleanup and baseline restoration. Coverage was regenerated after both
-passes, and the VM was observed off.
-
-Case 83 passed on Ubuntu 26.04 in `20261103T224128Z-9b8fc78c`, including
-Jordan's disabled-limits readback, saved precise permanent rule, attributed
-command denial and Riley's independent app use. Recording finalization,
-collection, owned cleanup and baseline restoration passed. The affected
-enabled-limits command case 82 passed separately in
-`20261103T224754Z-74511ec0` with the same completion and cleanup gates.
-Coverage was regenerated after each pass, and the VM ended off. Other families
-remain unqualified for this disabled hard-blocked command binding.
-
-Case 84 passed on Ubuntu 26.04 in `20261103T225928Z-6eeac48f`, including
-Jordan's enabled allowance and saved conditional rule, attributed command
-denial, complete owned-window absence and Riley's independent submitted draft.
-Collection, worker shutdown, owned cleanup and baseline restoration passed;
-coverage was regenerated. This soft-blocked command binding remains
-unqualified on other families. The shared soft-blocked route guard's affected
-grid case 66 passed in `20261103T230845Z-b402a82e` on Ubuntu 26.04, including
-both children's independent outcomes, collection, worker shutdown, owned
-cleanup and baseline restoration. Coverage was regenerated after both passes;
-host ownership/source checks, inventory listing and Markdown links passed,
-and the VM ended off.
-
-Case 85 passed on Ubuntu 26.04 in `20261103T235708Z-3da23929`, including
-Jordan's limits-off/zero-allowance readback, saved precise conditional block,
-attributed command denial, complete owned-window absence and Riley's independent
-submitted draft. Collection, worker shutdown, owned cleanup and baseline
-restoration passed; coverage was regenerated. This disabled soft-blocked command
-binding remains unqualified on other families.
-The affected enabled-limits command case 84 passed on Ubuntu 26.04 in
-`20261104T000340Z-a474825d`, including both children's independent results,
-collection, worker shutdown, owned cleanup and baseline restoration. Coverage
-was regenerated after each pass. Scoped host ownership/source checks, inventory
-listing and Markdown links passed; the VM ended off.
-
-### Recovery, information and feedback
-
-Use the [E2E-030/031 recipes](E2E-Scenario-Recipes.md#e2e-030) for installed
-information and report composition. Former E2E-032/033 sending/retry cases
-follow the [mock-sending UI allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation),
-without installed, live-service or real-network acceptance.
-Retired families E2E-028/029 retain the engineering obligations listed under
-[inventory reconciliation](#inventory-reconciliation).
-
-### Additional customer coverage
-
-Use the [remaining family recipes](E2E-Scenario-Recipes.md#e2e-035) and
-[additional finite branch recipes](E2E-Scenario-Recipes.md#additional-finite-branch-recipes)
-for later features. The [coverage review](UI-and-E2E-Coverage.md#complete-scenario-family-review)
-records absorbed, removed and UI-owned assertions; the inventory owns stable
-IDs and executable status. The Lunar gate below supplements E2E-052's recipe.
+Suite preparation, snapshot freshness and attempt lifecycle belong to the
+[runner guide](../../tests/e2e/README.md#run-e2e-scenarios) and the
+[VM mandate](../Mandates/VM-Mandate.MD). Use the selected family's
+[recipe](E2E-Scenario-Recipes.md#family-compositions) and
+[coverage allocation](UI-and-E2E-Coverage.md#complete-scenario-family-review).
+This catalogue does not maintain a second case list or acceptance ledger.
 
 ### Lunar Client preparation and observation gate
 
@@ -5813,7 +5224,7 @@ restores the service and repeats the identical query. Both children's preference
 limits, grant and app filter remain unchanged; the owned mask is removed before
 outer baseline restoration. No policy, usage or time injection, graphical expiry,
 PAM or approval matrix is included. Installed qualification passed on Ubuntu
-26.04 in `20261107T153537Z-9e216938`: unavailable reads returned an error,
+26.04: unavailable reads returned an error,
 the identical retry succeeded, both children's saved state stayed unchanged,
 and collection, owned cleanup and baseline restoration passed. The stop uses
 the shared command budget to accommodate the daemon's normal inactivity exit.
@@ -5827,8 +5238,7 @@ password delivered. Independent observations require denial, enabled request
 controls and safe exit; authoritative checks require no grant or control changes
 and unchanged other accounts. After restoring that exact agent route, one fresh
 75-second request succeeds and Parent independently reads the child's balance.
-Installed qualification passed on `onpc-Ubuntu26.04-1` in
-`20261109T045607Z-5cd33794`, including collection, worker closure, owned cleanup
+Installed qualification passed on `onpc-Ubuntu26.04-1`, including collection, worker closure, owned cleanup
 and baseline restoration; the VM was independently confirmed off. Existing
 component authentication outcomes and bounded startup refusal remain reused.
 This supplies Ubuntu engineering qualification only, with no Fedora or customer
@@ -5846,8 +5256,7 @@ refuses preference rollback, so the exposed `RollbackFailure` is checked
 separately from independently verified preservation. Exact fault removal and a
 fresh broker instance permit the identical 45-minute transaction to commit to
 disk and AccountsService without changing app policy or other accounts.
-Installed qualification passed on `onpc-Ubuntu26.04-1` in
-`20261109T070926Z-6fd7a2d1`, including collection, caller closure, owned mount
+Installed qualification passed on `onpc-Ubuntu26.04-1`, including collection, caller closure, owned mount
 removal, policy restoration and outer baseline restoration; the VM was confirmed
 off. Existing deterministic time/app-policy rollback tests remain reused. This
 supplies no extension-manager fault matrix, Fedora or customer E2E credit.
@@ -5860,8 +5269,7 @@ requires a fresh password challenge on the same caller and one new 300-second
 grant. Every other account's preferences, limits, grant and app filter remain
 unchanged. Existing role/policy cleanup and the real successful-request cooldown
 finish before later transactions. Installed qualification, collection, owned
-cleanup and baseline restoration passed on `onpc-Ubuntu26.04-1` in
-`20261109T073940Z-87117ec8`; the VM was independently confirmed off.
+cleanup and baseline restoration passed on `onpc-Ubuntu26.04-1`; the VM was independently confirmed off.
 Former selectors 257–262 remain retired into 28; deletion and other mutation
 assertions reuse that history without another authentication matrix.
 This supplies Ubuntu engineering qualification only, with no Fedora or customer
@@ -5890,8 +5298,7 @@ exit. Independent original-process and account observations retain the failed
 partial set, old time and strict policy. Removing that local fault permits the
 same revocation to close the surviving original app and clear the grant, without
 recreating the first app or disturbing other-child/parent apps and state.
-The first installed attempt passed on `onpc-Ubuntu26.04-1` in
-`20261109T095427Z-20b37118`, including collection, exact process/fault/policy
+The first installed attempt passed on `onpc-Ubuntu26.04-1`, including collection, exact process/fault/policy
 cleanup, normal broker recovery and baseline restoration; the VM was confirmed
 off. Existing deterministic policy, UID/pidfd and discovery matrices remain
 reused. This supplies Ubuntu engineering qualification only, with no Fedora,
@@ -5912,7 +5319,7 @@ registered once as `session::test_persistent_lock_outage` (system **313**).
 It reuses system 282's attached worker, original work, protected-input and peer
 mechanics through `STOP_PLAN`; no customer journey or second fault framework
 is introduced. The characterization passed on session-selected
-`onpc-Ubuntu26.04-1` in `20261109T000907Z-148ad941`: original child input/work
+`onpc-Ubuntu26.04-1`: original child input/work
 remained usable after original expiry and revocation while lock requests were
 unavailable. Restored locking/protected input, original child/parent work,
 normal facade/setting/native owner, collection and owned cleanup passed.
@@ -5998,7 +5405,7 @@ the legacy serial install/refusal callers and all existing safety regressions.
 The public GDM blocks must remain usable by another independently supplied valid
 entry state; they must not depend on case 1 having run first.
 
-## Refactoring the established cases
+## Shared composition contracts
 
 Ready cases are discovered from the executable inventory, including installation
 and unavailable-request variants. Each recipe composes the catalogue and shared
@@ -6008,17 +5415,6 @@ declarations come from `journey_blocks`, with no case-to-case plan imports.
 
 Qualification belongs to each route's catalogue entry and retained runner
 result. Composition checks alone supply no live credit.
-
-The current product-focused revision removes consecutive activity readbacks in
-cases 44–46, duplicate unavailable-form reads in cases 54/55 and their
-qualifications, and duplicate pre-request station restriction sweeps in cases
-51/52. Original activity is still compared before resuming; every forbidden
-station route is checked after denial/cancellation (before exit for approval).
-Both empty-account cases finish through normal Cancel and an independent
-usable-greeter result. Case 152 keeps wrong-entry exercises in isolated harness
-qualification. Cases 184/193/255 and retained-entry qualifications have the narrower
-contracts recorded above. Their changed compositions need scoped live validation;
-historical passes and ready inventory bindings alone do not establish it.
 
 | Established code | Shared composition | Preserved behavior |
 | --- | --- | --- |
@@ -6113,11 +5509,6 @@ Shared capabilities and remaining extension boundaries:
  administrator return. Unexpected or additional boot changes still fail;
  existing plans retain their unchanged single-boot path. LIFE05's product
  activation/persistence assertions remain with their consumers.
-
-Do this incrementally, retaining old registered operation adapters while each
-consumer migrates. A new block's output shape and event sequence must be checked
-against its old consumer before replacing that path. No wholesale worker,
-recorder, schema or VM-runner replacement is needed.
 
 The composition guard discovers ready executables and registered workers,
 rejects local mechanics/case dependencies and reconciles phases/assertions with
@@ -6304,7 +5695,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |
-| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 supplied-profile verification, original Lunar launch/Quit, independent owned app/tray presence and same-route Hard command denial/absence are qualified on Ubuntu 26.04. Normal-login access and separate Minecraft launcher entry/exit/approval remain pending. Test app access only; no tray-feature, Settings, vendor account, download, gameplay or continuous game-specific observer requirement. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 and the stated Lunar APP01/02/06/UI18 bindings ready on Ubuntu 26.04; remaining access bindings pending. |
+| Lunar/AppImageLauncher/tray/Minecraft launcher | Ubuntu 26.04 qualification covers FIX05 supplied-profile verification, original Lunar launch/Quit, independent owned app/tray presence, Hard command denial/absence, [Allowed autostart](#allowed-lunar-startup-after-sign-in), [ungranted Soft denial after normal sign-in](#blocked-lunar-access-after-sign-in), [Minecraft entry/exit](#separate-minecraft-launcher-entry-and-exit) and [Minecraft access/approval](#minecraft-launcher-access-and-approval). Test app access only; no tray-feature, Settings, vendor account, download, gameplay or continuous game-specific observer requirement. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 and the stated Lunar/Minecraft APP01/02/06/UI18 bindings ready on Ubuntu 26.04. Other bindings and targets require their own qualification; complete-case acceptance remains separate. |
 
 Generic Shell notifications, graphical VT6 and diagnostic-export viewers have no
 active customer requirement or acceptance credit. Chooser qualification follows
@@ -6421,7 +5812,7 @@ must refuse.
 `check_e2e_update_no_action` and
 [`UpdateNoActionJourney`](../../tests/e2e/update_no_action.py) implement the
 LIFE04/LIFE05 none binding, qualified on Fedora 44 by
-`check_e2e_update_no_action` in `20261106T031706Z-66cef6f4`.
+`check_e2e_update_no_action`.
 [`build_no_action`](../../tools/build_test_artifacts.py) builds the same exact
 current RPM source generation with the supported packaging Releases `0.1.dev`
 and `0.2.dev`, recording both release inputs, source identities and package
@@ -6465,8 +5856,7 @@ supplies no acceptance credit and leaves the maintenance guest owned until
 
 `check_e2e_activation_process` and
 [`ActivationProcessJourney`](../../tests/e2e/activation_process.py) qualify
-LIFE04/LIFE05 automatic process activation on Fedora 44 in
-`20261106T041639Z-879ab624`. The developer chose to retain the existing automatic
+LIFE04/LIFE05 automatic process activation on Fedora 44. The developer chose to retain the existing automatic
 broker restart, without extra instructions to reopen Parent.
 
 [`build_process`](../../tools/build_test_artifacts.py) binds current RPM sources
@@ -6484,7 +5874,7 @@ Parent comparison supply the journey. Fresh older installation and its actual
 activation reboot precede the update. Exact configuration completion, absence of
 a reboot notice, unchanged boot and the same usable Parent endpoint/PID with
 Riley's saved 30-minute allowance passed. The shared no-action regression passed
-separately in `20261106T042615Z-f86e0541`. Both attempts completed collection,
+separately. Both attempts completed collection,
 worker shutdown, owned cleanup, baseline restoration and preservation. Complete
 case 136, other package formats and session/reboot profiles remain separate.
 
@@ -6493,7 +5883,7 @@ case 136, other package formats and session/reboot profiles remain separate.
 `check_e2e_activation_session` and
 [`ActivationSessionJourney`](../../tests/e2e/activation_session.py), composed by
 `onpc_customer_reboot::run_session`, qualify LIFE04/LIFE05 session renewal on
-Fedora 44 in `20261106T162010Z-1f896d7c`. The developer chose no added update
+Fedora 44. The developer chose no added update
 instructions: require exact configuration completion without a restart notice,
 then perform normal logout/fresh login for every named affected child.
 
@@ -6534,7 +5924,7 @@ sets and package formats remain outside this qualification.
 `check_e2e_activation_reboot`,
 [`ActivationRebootJourney`](../../tests/e2e/activation_reboot.py) and
 `onpc_customer_reboot::run_reboot` qualify LIFE04/LIFE05 reboot activation on
-Fedora 44 in `20261106T180610Z-03503392`. The journey installs the earlier
+Fedora 44. The journey installs the earlier
 package, activates it with a real reboot, saves Riley's 30-minute allowance and
 animation-off choice, then updates once and follows the final reboot notice.
 The second changed boot and usable greeter, fresh usable Parent with the saved
@@ -7059,7 +6449,7 @@ Reuse them without a second runner or treating harness checks as customer result
 | Need | Implementation | Contract |
 | --- | --- | --- |
 | Public UI read boundary | [accessible_ui.py](../../tests/e2e/accessible_ui.py): `run`, `wait`, `observation`, `nodes` | All registered operations and standalone waits use the same element-independent observation scope. Composed lookups reuse a complete tree and its scoped projections until input, a pending predicate, a failed read or an accessibility-client reset invalidates it. Separate operations always start fresh. Protected text scopes stay distinct; tolerant/incomplete reads never seed complete observations. |
-| Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Use the [snapshot and case-entry contract](#parent-login-and-time-scenarios) for content identity, online/offline capture, independent restoration and final audit. Preparation failure is terminal; no case-local fallback installer. |
+| Installed app prerequisite | [suite_lease.py](../../tests/e2e/suite_lease.py), [installed_setup.py](../../tests/e2e/installed_setup.py) | Use the [snapshot and case-entry contract](../../tests/e2e/README.md#run-e2e-scenarios) for content identity, online/offline capture, independent restoration and final audit. Preparation failure is terminal; no case-local fallback installer. |
 | Controller rendezvous | [installed_journey.py](../../tests/e2e/installed_journey.py): `JourneyPlan`, `InstalledJourney` | Ordered requests, durable observation callback, fresh ownership guard, then atomic reply. Boot identity supplies harness continuity only. |
 | Recorder composition | [installed_journey.py](../../tests/e2e/installed_journey.py): `record_installed_journey` | Provision fixture credentials, enter declared phases, checkpoint observations and reconcile screenshots. Strict customer execution; existing recorder owns evidence and final acceptance. |
 | Product-free serial envelope | [serial_harness.py](../../tests/e2e/serial_harness.py): `record_serial_journey`, `matched_screens`, `validate_stages`, `validate_completion` | Retain case 1's credential/getty/assets setup, unchanged-boot recording, durable phase transitions, HAR09/HAR10 checks and separate evidence outcomes. Outer execution owns lease restoration. |
@@ -7130,7 +6520,7 @@ the shared recorder/viewer; viewing supplies observation, not acceptance.
  intermediate results and `reboot_transition` for a customer reboot. Finite
  `additional_reboot_transitions` supports at most four more; each refuses input
  until every preceding reboot has an independent changed-boot observation.
- Their scopes are maintained under [shared capabilities](#refactoring-the-established-cases).
+ Their scopes are maintained under [shared capabilities](#shared-composition-contracts).
  Product-free install recipes use `record_package_journey` with declared
  public-result checks. Fixed account-fixture stage actions are supported.
  Extend only a missing binding; do not recreate these mechanisms in a case.

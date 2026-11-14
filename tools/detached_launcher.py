@@ -778,7 +778,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 # removal with the worker committing its boundary stop.
                 clear_stop_request(run)
                 return run, False
-            if not stop and name in ('fix-tests', 'write-e2e', 'plans'):
+            if not stop and name in ('fix-tests', 'plans'):
                 from vm_pool import check_attachment
                 check_attachment(record)
             if add_session is not None:
@@ -949,7 +949,7 @@ def nested_operation(root, child_run):
     plan_owner = (parent.parent.parent == directory('plans', root=root)
                   and len(parent.parent.name) == 64
                   and all(c in '0123456789abcdef' for c in parent.parent.name))
-    if (parent.parent != directory('write-e2e', root=root) and not plan_owner) or (
+    if not plan_owner or (
             len(parent.name) != 32 or any(c not in '0123456789abcdef' for c in parent.name)):
         raise ValueError('invalid workflow owner directory')
     private_directory(parent)
@@ -1005,7 +1005,7 @@ def worktree_resolution_owner(root, session):
                   and len(workflow.parent.name) == 64
                   and all(c in '0123456789abcdef' for c in workflow.parent.name))
     if (not plan_owner and workflow.parent not in tuple(directory(kind, root=source_root)
-            for kind in ('write-e2e', 'fix-tests', 'fix-tests-host', 'sync-whatsnew'))):
+            for kind in ('fix-tests', 'fix-tests-host', 'sync-whatsnew'))):
         raise ValueError('invalid propagation source launcher')
     private_directory(source)
     info = source.stat()

@@ -4,7 +4,7 @@ This mandate owns VM target selection, observation, leases, preparation
 lifetime and timing resilience for VM tests.
 [Approval tools](../Approval-Tools.md) owns command grants;
 [test maintenance](../../tests/README.md#all-established-regressions) owns runner
-scheduling and [E2E execution](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract)
+scheduling and [E2E execution](../../tests/e2e/README.md#verify-edits)
 owns task acceptance. A documentation-only reconciliation performs no VM work
 and supplies no live qualification.
 
@@ -44,7 +44,6 @@ and cleanup.
 | `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Host compute cap; isolated workers |
 | `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Host compute cap; isolated workers |
 | `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses host compute admission |
-| `tools/write-e2e` | One registered name or ID | Enabled queue | Host compute cap |
 | `tools/cleanup-e2e` | Same queue selectors, or `--host-only` for no VM access | Enabled queue | Serial; stops on a cleanup failure |
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
 | `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |

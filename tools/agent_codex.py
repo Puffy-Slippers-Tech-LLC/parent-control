@@ -62,8 +62,6 @@ ROLES = {
         'Routine read-only monitoring; no resource ownership or mutations'),
     'worker': ('plan_worker', 'plan_worker.toml',
         'Bounded routine work or coverage refresh on explicitly assigned files'),
-    'adviser': ('e2e_adviser', 'write_e2e_adviser.toml',
-        'Bounded read-only diagnosis or review; no implementation or tests'),
     'translator': ('whatsnew_translator', 'sync_whatsnew_translator.toml',
         'Read-only latest-release translator/reviewer'),
 }

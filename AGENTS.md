@@ -106,13 +106,11 @@
   mechanical repairs from behavior decisions; do not redefine expectations to pass.
 - For customer acceptance, use the installed product's public actions/results.
   Keep internal probes and fault injection in engineering tests. The
-  [shared task contract](docs/TestAutomation/E2E-Execution-Contracts.md#task-brief-contract)
+  [E2E implementation guide](tests/e2e/README.md#verify-edits)
   routes implementation, UI/E2E allocation, bounded supporting work and composition
   preflight. Cases own finite data/order/assertions; shared libraries own reusable mechanics.
-- For "Implement the next task in docs/TestAutomation/E2E-Execution-Plan.md",
-  follow the [plan](docs/TestAutomation/E2E-Execution-Plan.md) and its first
-  unchecked active queue row through acceptance and close-out. Documentation
-  reconciliation does not execute or close a queue task.
+- Implement E2E work in normal sessions or ordinary execution plans through
+  `tools/execute-plan`; apply the E2E guide's scoped qualification and live acceptance.
 - Review new host modules and resource-affecting test changes under the
   [parallelism contract](tests/README.md#host-test-parallelism-review), including
   every applicable inventory; runtime fallback is not completed review.

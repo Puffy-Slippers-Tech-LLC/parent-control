@@ -909,7 +909,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         publish_repair_status(run, round_number, category, categories, status,
                               model=model, effort=effort, completed=0)
         active_task = f'{round_number}:{category}'
-        update_task_info(run, active_task, {})
+        # A category can contain several independent repairs. Retain the error
+        # through investigation, verification and Git close-out, then clear it
+        # when the resolved ticket returns control to ordinary test execution.
+        update_task_info(run, active_task, dict(last_error='', last_error_ticket=None)
+                         if status == 'Running tests' else {})
         atomic(run / 'chat-state.json', dict(task_id=active_task,
             progress_key=read_progress(run)[-1]['key'], session=None, status='waiting',
             **({} if model is None else dict(model=model, effort=effort))))

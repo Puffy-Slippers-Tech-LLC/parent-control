@@ -249,7 +249,9 @@ The preceding check duration includes the whole case, including repair sessions
 and retries; the session duration measures only the current agent session.
 For `fix-tests`, Last Error includes the failing check, the runner's error text
 (or a readable summary of a structured failure, falling back to a bounded text
-output tail), and its output-log path. Full JSON results remain in that log. Reload launcher
+output tail), and its output-log path. It clears when the failure is resolved and
+the launcher resumes the remaining tests, after any required Git close-out.
+Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;

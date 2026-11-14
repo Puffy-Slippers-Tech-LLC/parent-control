@@ -13,5 +13,4 @@ if __name__ == '__main__':
     arguments = parser.parse_args()
     sys.exit(main(assets=named_input(vm_source=True, fixture_source=True),
                   selection=json.loads(arguments.fixture_selection),
-                  source_selection=json.loads(arguments.fixture_source_selection),
-                  baseline_activity=True))
+                  source_selection=json.loads(arguments.fixture_source_selection)))

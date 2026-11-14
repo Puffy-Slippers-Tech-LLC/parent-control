@@ -272,7 +272,12 @@ def triage_failure(root, run, ticket, result, *, session, charge):
         result = result or {}
         failure = dict(prompt='Failure context is unavailable.',
                        actual='The selected attempt did not complete successfully.')
-        evidence = None
+        if ticket.get('infrastructure'):
+            failure['prompt'] = ('Repair the VM infrastructure failure that prevented qualified attempt evidence. '
+                                 'The original VM claim is retained; no case pass or cleanup has been accepted. '
+                                 'Preserve the original selection and verify its attempted case after repair.')
+        evidence = (dict(output_tail=result['output_tail'])
+                    if isinstance(result.get('output_tail'), str) else None)
         handoffs = result.get('handoffs', [])
         if isinstance(handoffs, list) and handoffs and isinstance(handoffs[0], str):
             try:

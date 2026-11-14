@@ -203,8 +203,13 @@ def test_pass_failure_fifo_keeps_exact_attempts_without_accepting_them(tmp_path)
                           dict(first, case=None, area=False)):
             with pytest.raises(ValueError, match='one exact case'):
                 checkpoint.begin_attempt(ticket['id'], 'verification', source, execution)
-        unfinished = dict(pass_evidence(other, []), cleanup=False)
-        later = checkpoint.enqueue_failure(other, unfinished, 2)
+        with pytest.raises(ValueError, match='evidence'):
+            checkpoint.enqueue_failure(other, None, 2)
+        later = checkpoint.infrastructure_failure(other, 2)
+        assert checkpoint.infrastructure_failure(other, 2) == later
+        assert later['infrastructure'] is True and later['case'] is None and later['cleanup'] is False
+        with pytest.raises(ValueError, match='failing status'):
+            checkpoint.infrastructure_failure(other, 0)
         assert [item['id'] for item in checkpoint.repair_tickets()] == [ticket['id'], later['id']]
         assert ticket['id'] != ticket['transaction']
         assert {field: ticket[field] for field in assignment} == assignment
@@ -222,6 +227,8 @@ def test_pass_failure_fifo_keeps_exact_attempts_without_accepting_them(tmp_path)
         assert checkpoint.pending('deb') == [first, second]
         with pytest.raises(ValueError, match='stale'):
             checkpoint.enqueue_failure(assignment, evidence, 1)
+        with pytest.raises(ValueError, match='stale'):
+            checkpoint.infrastructure_failure(other, 2)
 
 
 def test_vm_repair_pass_keeps_captured_source_after_checkout_changes(tmp_path):
@@ -248,12 +255,17 @@ def test_pass_retained_attempts_keep_exact_case_bounds(tmp_path):
         assignment = checkpoint.claim('deb', 'one', work, source)
         ticket = checkpoint.enqueue_failure(assignment, pass_evidence(assignment, []), 1)
         target = dict(work, case=work['cases'][0], cases=work['cases'][:1], area=False)
-        checkpoint.begin_attempt(ticket['id'], 'verification', source, target)
+        reference = checkpoint.begin_attempt(ticket['id'], 'verification', source, target)
         for invalid in (dict(target, cases=[], case=None), dict(target, case=None), work):
             saved = json.loads(json.dumps(checkpoint.state))
             saved['repairs'][0]['attempts'][0]['execution'] = invalid
             with pytest.raises(ValueError, match='one exact case'):
                 PassCheckpoint.validate(saved)
+        attempt = dict(assignment, attempt=reference['attempt'], execution=target)
+        rejected = checkpoint.finish_attempt(ticket['id'], reference,
+            pass_evidence(attempt, None), 0, source=source)
+        assert not rejected['accepted'] and checkpoint.claims() == [assignment]
+        assert checkpoint.passed('deb', 'system') == set()
     command = dict(category='static', options=[], cases=[], case=None, area=False)
     with PassCheckpoint(tmp_path / 'command', [['_host', ['static']]], {}, {}) as checkpoint:
         ticket = checkpoint.host_failure(command, source, 1)

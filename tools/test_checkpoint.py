@@ -157,7 +157,8 @@ def _repair_tickets(state):
                 'assignment', 'attempt', 'source', 'case', 'status', 'cleanup'}
     for ticket in tickets:
         if (not isinstance(ticket, dict) or not required <= ticket.keys()
-                or set(ticket) - required - {'execution', 'impact', 'attempts', 'outcome', 'repair_ref', 'resolution'}):
+                or set(ticket) - required - {'execution', 'impact', 'attempts', 'outcome', 'repair_ref', 'resolution',
+                                             'infrastructure'}):
             raise ValueError('invalid ordinary pass repair ticket')
         for field in ('id', 'transaction', 'assignment', 'attempt'):
             if not isinstance(ticket[field], str) or not re.fullmatch(r'[0-9a-f]{32}', ticket[field]):
@@ -183,11 +184,15 @@ def _repair_tickets(state):
                 or type(ticket['cleanup']) is not bool):
             raise ValueError('invalid ordinary pass repair assignment')
         execution = _pass_execution(ticket)
+        infrastructure = ticket.get('infrastructure', False)
+        if ('infrastructure' in ticket and infrastructure is not True
+                or infrastructure and (host or ticket['case'] is not None or ticket['cleanup'])):
+            raise ValueError('invalid infrastructure repair failure')
         if (set(ticket['work']) != {'category', 'options', 'cases', 'case', 'area'}
                 or set(execution) != {'category', 'options', 'cases', 'case', 'area'}
                 or ticket['case'] is not None and (not isinstance(ticket['case'], str)
                                                   or ticket['case'] not in execution['cases'])
-                or ticket['case'] is None and execution['cases']):
+                or ticket['case'] is None and execution['cases'] and not infrastructure):
             raise ValueError('repair failure is outside its original execution')
         failure = (ticket['assignment'], ticket['attempt'], ticket['case'])
         if failure in failures:
@@ -785,13 +790,16 @@ class PassCheckpoint:
         expected = {field: ticket[field] for field in (
             'run', 'pass', 'selection', 'family', 'vm', 'work', 'assignment')}
         expected.update(attempt=attempt['attempt'], source=attempt['source'], execution=execution)
-        qualified = (isinstance(evidence, dict) and evidence.get('cleanup') is True
-                     and evidence.get('diagnostic') is False
-                     # VM controllers execute captured inputs. Their receipt
-                     # stays bound to those inputs, not a later checkout.
-                     and (bool(ticket['vm']) or source == attempt['source'])
-                     and all(evidence.get(field) == value for field, value in expected.items())
-                     and set(execution['cases']) == completed_cases(json.dumps(evidence.get('passed', []))))
+        try:
+            qualified = (isinstance(evidence, dict) and evidence.get('cleanup') is True
+                         and evidence.get('diagnostic') is False
+                         # VM controllers execute captured inputs. Their receipt
+                         # stays bound to those inputs, not a later checkout.
+                         and (bool(ticket['vm']) or source == attempt['source'])
+                         and all(evidence.get(field) == value for field, value in expected.items())
+                         and set(execution['cases']) == completed_cases(json.dumps(evidence.get('passed', []))))
+        except (TypeError, ValueError):
+            qualified = False  # Malformed receipts remain failed qualification, never pass credit.
         attempt.update(status=status, accepted=bool(not status and qualified
                                                    and attempt['purpose'] != 'diagnostic'))
         self.save()
@@ -852,17 +860,35 @@ class PassCheckpoint:
                 or not completed_cases(json.dumps(evidence['passed'])) <= set(execution['cases'])):
             raise ValueError('missing, stale, mismatched or diagnostic repair failure evidence')
         case = execution['case'] if case is None else case
+        return self._enqueue_failure(assignment, status, case=case, cleanup=evidence['cleanup'])
+
+    def infrastructure_failure(self, assignment, status):
+        """Record a controller-observed failure without trusting a worker receipt.
+
+        This retains the original VM claim, grants no case or cleanup credit,
+        and uses the VM/category infrastructure repair budget. Resolution still
+        requires an ordinary qualified attempt on that VM.
+        """
+        self._claimed(assignment)
+        if type(status) is not int or not status:
+            raise ValueError('infrastructure failure requires a failing status')
+        return self._enqueue_failure(assignment, status, case=None, cleanup=False, infrastructure=True)
+
+    def _enqueue_failure(self, assignment, status, *, case, cleanup, infrastructure=False):
         for ticket in self.state.get('repairs', []):
             if (ticket['assignment'], ticket['attempt'], ticket['case']) == (
                     assignment['assignment'], assignment['attempt'], case):
-                if ticket['status'] != status or ticket['cleanup'] != evidence['cleanup']:
+                if (ticket['status'] != status or ticket['cleanup'] != cleanup
+                        or ticket.get('infrastructure', False) != infrastructure):
                     raise ValueError('mismatched repeated repair failure evidence')
                 return _copy(ticket)
         fields = ('run', 'pass', 'selection', 'family', 'vm', 'work',
                   'assignment', 'attempt', 'source', 'execution')
         ticket = {field: _copy(assignment[field]) for field in fields if field in assignment}
         ticket.update(id=uuid.uuid4().hex, transaction=uuid.uuid4().hex, case=case,
-                      status=status, cleanup=evidence['cleanup'])
+                      status=status, cleanup=cleanup)
+        if infrastructure:
+            ticket['infrastructure'] = True
         candidate = _copy(self.state)
         candidate.setdefault('repairs', []).append(ticket)
         self.validate(candidate)

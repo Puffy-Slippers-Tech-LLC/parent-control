@@ -136,6 +136,7 @@ def test_repair_admission_starts_repair_before_remaining_work(
     plan = ({'concurrency': 2}, [vm, companion], [], ['system'], [('system', [])], {'family': work})
     events = []
     failed = False
+    unqualified_recheck = False
     together = threading.Barrier(2)
     first_assigned = threading.Event()
     initial_done = threading.Event()
@@ -183,7 +184,7 @@ def test_repair_admission_starts_repair_before_remaining_work(
 
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     def execute(worker, assignment, inherited, recovering):
-        nonlocal failed
+        nonlocal failed, unqualified_recheck
         assert assignment['vm'] == worker.vm.name
         assert not recovering
         current = assignment.get('execution', assignment['work'])
@@ -200,20 +201,35 @@ def test_repair_admission_starts_repair_before_remaining_work(
         events.append(('recheck' if repairing else 'normal', current['case']))
         status = failure_status if not failed and not repairing else 0
         failed |= bool(status)
+        if not cleanup:
+            if repairing and not unqualified_recheck:
+                unqualified_recheck = True
+                return dict(status=0, handoffs=[], evidence=None, output_tail='worker omitted its receipt')
+            if status:
+                return dict(status=status, handoffs=[], evidence=None,
+                            output_tail='worker startup failed before checkpoint')
         return dict(status=status, handoffs=[], evidence=dict(assignment, passed=[] if status else current['cases'],
                                                             cleanup=cleanup if status else True, diagnostic=False))
     def triage(ticket, result):
         events.append(('triage', impact))
         assert test_source.WRITER not in test_source.environment()
+        if not cleanup:
+            assert ticket['infrastructure'] is True and ticket['case'] is None and not ticket['cleanup']
+            assert 'infrastructure failure' in result['error']
+            assert result['output_tail'] == 'worker startup failed before checkpoint'
         return dict(source=identity, evidence_digest='b' * 64, decision=dict(
             impact=impact, reason='Scoped evidence.', scope=['private selected case'],
             evidence=['The other selected input is independent.'], classification='test_issue'))
     def repair(ticket, execution):
-        events.append(('repair', ticket['case']))
+        events.append(('repair', ticket['work']['case']))
         gate = test_source.RepairGate(tmp_path, root=tmp_path)
         assert gate.try_acquire(), 'the coordinator called repair before readers drained'
         try:
             result = execution.attempt('recheck')
+            if not cleanup:
+                assert result['status'] == 2 and not result['accepted']
+                assert 'without qualified completion' in result['error']
+                result = execution.attempt('recheck')
             assert result['accepted']
             return dict(outcome='resolved', attempt=result['reference'], source_changed=False)
         finally:
@@ -225,7 +241,7 @@ def test_repair_admission_starts_repair_before_remaining_work(
     normal = events.index(('normal', 'second'))
     repairing = events.index(('repair', 'first'))
     assert repairing < normal
-    assert events.count(('recheck', 'first')) == 1
+    assert events.count(('recheck', 'first')) == (1 if cleanup else 2)
     assert events.count(('interrupted', 'second')) == 1
     assert not result['pending_repairs'] and not result['unfinished']
     protection = test_source.SourceProtection(source_path)
@@ -311,6 +327,7 @@ def test_repair_mode_preserves_worker_failures_without_a_ticket(
     vms = [SimpleNamespace(name=name, family='family', compute_unit=1) for name in ('failed-owner', 'other-owner')]
     work = dict(category='system', options=[], cases=['case'], case='case', area=False)
     plan = ({'concurrency': 1}, vms, [], ['system'], [('system', [])], {'family': [work]})
+    terminal_cleanup = False
     class Ready:
         def __init__(self, *args):
             pass
@@ -319,6 +336,14 @@ def test_repair_mode_preserves_worker_failures_without_a_ticket(
         def __exit__(self, *_):
             pass
         def run_ready(self, execute, *, choose, needed, completed, observed, service, keep_failed):
+            if terminal_cleanup:
+                assert needed(vms[0])
+                value = execute(SimpleNamespace(vm=vms[0], receipt='owned'))
+                observed(vms[0], value)
+                value = completed(vms[0], value)
+                assert not needed(vms[0])
+                service(self, True)
+                return {vms[0].name: value}
             failure = (completed(vms[0], dict(status=2, handoffs=[], error='reservation failed'))
                        if failure_point == 'reservation' else dict(status=0, handoffs=[]))
             assert needed(vms[1])
@@ -333,6 +358,9 @@ def test_repair_mode_preserves_worker_failures_without_a_ticket(
             return {vms[0].name: failure, vms[1].name: success}
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     def execute(worker, assignment, inherited, recovering):
+        if terminal_cleanup:
+            assert recovering
+            return dict(status=2, handoffs=[], error='original VM cleanup still fails')
         return dict(status=0, handoffs=[], evidence=dict(assignment, passed=['case'], cleanup=True, diagnostic=False))
     def unexpected(*args):
         pytest.fail('an unticketed resource refusal must not run a repair action')
@@ -344,6 +372,22 @@ def test_repair_mode_preserves_worker_failures_without_a_ticket(
     assert result['status'] == 1
     assert result['accepted'][0]['vm'] == 'other-owner'
     assert result['failures'] == ([dict(vm='failed-owner', status=2)] if failure_point == 'reservation' else [])
+    if failure_point == 'reservation':
+        from test_checkpoint import PassCheckpoint
+        terminal_cleanup = True
+        selection = [['_host', []], ['_guest', ['system']]]
+        pool = {vm.name: vm.family for vm in vms}
+        with PassCheckpoint(tmp_path, selection, pool, {'family': [work]}) as checkpoint:
+            assignment = checkpoint.claim('family', vms[0].name, work, vm_test_queue.source_identity(tmp_path))
+            ticket = checkpoint.infrastructure_failure(assignment, 2)
+            checkpoint.settle_repair(ticket['id'], 'leave_failed')
+        resumed = (*plan[:3], ['--resume', 'system'], *plan[4:])
+        failed_cleanup = vm_test_queue.execute_pass(tmp_path, resumed, Control(), execute,
+                                                   actions=dict(triage=unexpected, repair=unexpected))
+        assert failed_cleanup['status'] == 1 and failed_cleanup['suspended']
+        with PassCheckpoint.saved(tmp_path) as checkpoint:
+            assert checkpoint.claims() == [assignment] and not checkpoint.repair_tickets()
+        assert not test_source.SourceProtection(tmp_path).impact_holds()
 
 
 def test_execute_pass_claims_fifo_once_per_family_and_recovers_original_vm(tmp_path, monkeypatch):

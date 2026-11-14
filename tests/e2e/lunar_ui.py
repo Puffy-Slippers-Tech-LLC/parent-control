@@ -69,11 +69,7 @@ def run(ui, operation, require, require_session):
         return pid, fields[19], int(fields[1])
 
     def applications():
-        root = ui.api.get_desktop(0)
-        require(root is not None, 'ui:incomplete-tree')
-        apps = [root.get_child_at_index(index) for index in range(root.get_child_count())]
-        require(len(apps) <= 64 and all(app is not None for app in apps), 'ui:incomplete-tree')
-        matches = [app for app in apps if app.get_name() == 'lunarclient']
+        matches = [app for app in ui.desktop_applications() if app.get_name() == 'lunarclient']
         require(len(matches) <= 1, 'ui:lunar-ambiguous-application')
         for app in matches:
             identity(app.get_process_id())
@@ -214,10 +210,7 @@ def run(ui, operation, require, require_session):
         # Activate the provider's ordinary accessibility service before reading
         # Chromium's document. This changes no launcher or product setting.
         prompt_guard()
-        ui.input_uncertain = True
-        call('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties',
-             'Set', 'ssv', ('org.a11y.Status', 'ScreenReaderEnabled', GLib.Variant('b', True)))
-        ui.input_uncertain = False
+        ui.enable_screen_reader()
     elif operation in ('lunar-launch', 'lunar-command-blocked'):
         ui.wait(absent, 'lunar-before-launch', prompt_in_predicate=True)
         require(original.is_file() and not original.is_symlink()

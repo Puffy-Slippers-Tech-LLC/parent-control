@@ -5,7 +5,7 @@ from journey_blocks import (app_policy_entry, desktop_entry, native_usable_app,
                             overlay_entry, prefixed_stages)
 from policy_edits import AppPolicyJourney
 from private_artifacts import require
-from request_flow import approval_and_return
+from request_flow import overlay_approved_request, prepared_request
 from ui_observations import SettingsObservation
 
 
@@ -29,10 +29,9 @@ ENTRIES = {
     'child-return': desktop_entry('other-child', source='desktop', entry='retained',
                                   source_account='parent'),
 }
-APPROVAL = approval_and_return(prefix='new', entry='open', child='existing-fixture-child',
-    approver='fixture-parent', duration_seconds=900, allow_soft=True)
 # App access is the result; countdown arithmetic has its own qualification.
-del APPROVAL['countdown']
+CHOICES = dict(child='existing-fixture-child', approver='fixture-parent',
+               duration_seconds=900, allow_soft=True)
 SCREENS = {
     **app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read',
                        initial_rows=False),
@@ -52,7 +51,9 @@ SCREENS = {
     **allowed_work('denied-work'),
     **prefixed_stages('approved', {
         **overlay_entry('request', 'command', form_operation='request-overlay-jordan-ready'),
-        **APPROVAL}),
+        **prepared_request(prefix='new', entry='open', initial='observed',
+                           surface='overlay', **CHOICES),
+        **overlay_approved_request(exit='automatic', **CHOICES)}),
     **launcher('approved'),
     'child-logout': 'system:standard-logout',
 }

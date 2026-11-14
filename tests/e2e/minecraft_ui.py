@@ -15,7 +15,7 @@ from lunar_profile_guest import MINECRAFT, MINECRAFT_COMMIT
 
 
 def run(ui, operation, require, require_session):
-    from gi.repository import Gio, GLib
+    from gi.repository import Gio
 
     account = pwd.getpwnam('onpc-child-jordan')
     require(os.getuid() == os.geteuid() == account.pw_uid, 'ui:minecraft-account')
@@ -61,14 +61,8 @@ def run(ui, operation, require, require_session):
         return [pid, before[19], instance['instance-id']]
 
     def applications():
-        root = ui.api.get_desktop(0)
-        require(root is not None, 'ui:incomplete-tree')
-        count = root.get_child_count()
-        require(0 <= count <= 64, 'ui:incomplete-tree')
-        apps = [root.get_child_at_index(index) for index in range(count)]
-        require(all(app is not None for app in apps), 'ui:incomplete-tree')
         matches = []
-        for app in apps:
+        for app in ui.desktop_applications():
             pin = owner(app)
             if pin is not None:
                 matches.append((app, pin))
@@ -109,13 +103,7 @@ def run(ui, operation, require, require_session):
 
     if operation == 'minecraft-observer-ready':
         ui.handle_system_prompt()
-        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        ui.input_uncertain = True
-        bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties',
-            'Set', GLib.Variant('(ssv)', ('org.a11y.Status', 'ScreenReaderEnabled',
-                                        GLib.Variant('b', True))),
-            None, Gio.DBusCallFlags.NO_AUTO_START, 5000, None)
-        ui.input_uncertain = False
+        ui.enable_screen_reader()
     elif operation in ('minecraft-launch', 'minecraft-command-blocked'):
         ui.wait(absent, 'minecraft-before-launch', prompt_in_predicate=True)
         ui.prepare_launch_desktop()

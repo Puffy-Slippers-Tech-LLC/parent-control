@@ -2031,6 +2031,25 @@ owned surface and public controls, while password and unknown-prompt refusals
 remain active. The [Lunar adapter](../e2e/lunar_ui.py) demonstrates both boundaries;
 diagnose the actual provider state before changing selectors or adding retries.
 
+External launcher adapters share `AccessibleUI.enable_screen_reader` for ordinary
+accessibility activation and `desktop_applications` for the complete bounded
+registry read. Activate accessibility in the bound desktop only after the
+provider's prompt guard; keep provider identity, readiness, ambiguity and
+independent absence checks in the adapter. A missing application in an
+incomplete registry is never absence.
+Lunar and Minecraft reuse these mechanics without sharing their distinct
+AppImage/tray and Flatpak ownership qualifications.
+
+When composing `desktop_entry`, declare only its sign-in observations in the
+ordered `invocations`: `source-desktop` and `source-greeter` belong to the source
+switch, consumed separately before `sign_in_challenge`. Keep those observations
+in the plan and retain their guards. Check the worker's complete call boundary,
+not every `ui:` tag in the entry fragment, as in
+[Minecraft access](../e2e/minecraft_access.py). For an app-access approval,
+compose `prepared_request` and `overlay_approved_request` directly when no
+countdown result is needed; do not construct and then delete a result from the
+larger `approval_and_return` fragment.
+
 Import fixtures explicitly instead of loading every helper as a global plugin.
 Include dependency fixtures in the consumer too; aliases can disambiguate names.
 Helpers must not import collected cases, mutate the desktop at import time or

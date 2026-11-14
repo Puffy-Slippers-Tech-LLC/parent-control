@@ -8381,6 +8381,29 @@ class AccessibleUI:
         require(not any(self.showing(node) and public_automation_id(node) in forbidden
                         for node in nodes), 'ui:help-product-window')
 
+    def enable_screen_reader(self):
+        """Enable ordinary provider accessibility after the caller's prompt guard."""
+        from gi.repository import Gio, GLib
+
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.input_uncertain = True
+        bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties',
+            'Set', GLib.Variant('(ssv)', ('org.a11y.Status', 'ScreenReaderEnabled',
+                                        GLib.Variant('b', True))),
+            None, Gio.DBusCallFlags.NO_AUTO_START, 5000, None)
+        self.input_uncertain = False
+
+    def desktop_applications(self):
+        """Read the complete bounded registry; provider owners select their apps."""
+        root = self.api.get_desktop(0)
+        require(root is not None, 'ui:incomplete-tree')
+        count = root.get_child_count()
+        require(0 <= count <= 64, 'ui:incomplete-tree')
+        apps = [root.get_child_at_index(index) for index in range(count)]
+        require(all(app is not None for app in apps), 'ui:incomplete-tree')
+        return apps
+
     def prepare_launch_desktop(self):
         """Leave Shell's overview once and independently observe its closure.
 

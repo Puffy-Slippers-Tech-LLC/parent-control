@@ -306,8 +306,10 @@ queue, including when the family has only one VM. Claims are recorded before
 execution, preventing concurrent duplicate cases; credit follows teardown and
 owned cleanup. Stateful histories remain indivisible, as do independent system
 area attempts that share preparation. Cancellation stops queued work and waits
-for active guests' cleanup. `--vm` accepts one name or ID, a comma-separated
-list, `all-enabled`, or `all`. All selectors require both enabled flags.
+for active guests' cleanup. `--vm` accepts a VM name/ID or family name/ID, a comma-separated
+mixture, `all-enabled`, or `all`, with case-insensitive matching. Families expand to eligible members and overlapping
+selectors include each VM once. Optional `--host` accepts one host or a comma-separated
+list and intersects the selected pool. All selectors require both enabled flags.
 All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the

@@ -389,7 +389,9 @@ the string "true" on online hosts, using each host's max_compute_unit limit. Que
 selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
 has one case queue: idle VMs atomically pull its next work, so every selected
 case runs once per family. One VM uses the same queue as multiple workers.
---vm accepts a name or ID, a comma-separated list, all-enabled, or all.
+--vm accepts a VM name/ID or family name/ID, a comma-separated mixture, all-enabled, or all.
+Matching is case-insensitive. Families expand to their eligible VMs;
+overlapping entries select each VM once.
 Every selection skips offline VMs/hosts. Categories and their subcategories run
 sequentially. Each VM group filters the original --vm pool by its vm_tags before
 capacity admission reserves a fixed random subset, balancing compute across families.

@@ -346,7 +346,6 @@ def validate_family(document):
             not {'family', 'package_format', 'fixture_path', 'vm_tags', 'vms'} <= set(document) or
             not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
-    family = document['family']
     parse_vm_tags(document['vm_tags'])
     compute_unit(document.get('compute_unit', 1), 'family compute_unit')
     if 'iso' in document:
@@ -355,8 +354,14 @@ def validate_family(document):
                 '/' in pattern or '\\' in pattern or
                 any(ord(char) < 32 for char in pattern)):
             raise ValueError('vm-config:iso must be an ISO filename pattern without directories')
-    if not isinstance(family, str) or not family.strip() or any(ord(char) < 32 for char in family):
-        raise ValueError('vm-config:family must be a nonempty literal string')
+    for field in ('family', 'id'):
+        if field not in document:
+            continue
+        value = document[field]
+        if (not isinstance(value, str) or not value or value.startswith('-') or value != value.strip()
+                or ',' in value or any(ord(char) < 32 for char in value)):
+            raise ValueError(f'vm-config:family {field} must be a nonempty selector '
+                             'without leading hyphens, commas or surrounding whitespace')
     if document['package_format'] not in ('deb', 'rpm'):
         raise ValueError('vm-config:package_format must explicitly be deb or rpm')
     value = document['fixture_path']
@@ -402,17 +407,26 @@ def backup_root(path=None, *, vm=None):
 
 
 def configuration(path=None):
-    document = read_document(path, validate_agent=False)
+    return parse_configuration(read_document(path, validate_agent=False))
+
+
+def parse_configuration(document):
+    """Validate VM identities together in the shared selector namespace."""
     hosts = host_registry(document)
     result = {}
     anchors = set()
     ids = set()
     families = set()
+    family_ids = set()
     for family in document['families']:
         validate_family(family)
         if family['family'] in families:
             raise ValueError('vm-config:duplicate-family')
         families.add(family['family'])
+        if 'id' in family:
+            if family['id'] in family_ids:
+                raise ValueError('vm-config:duplicate-family-id')
+            family_ids.add(family['id'])
         for entry in family['vms']:
             configured = validate_entry(entry, family, hosts, explicit_hosts='hosts' in document)
             anchor = (configured.host.name, configured.disk_anchor)
@@ -424,9 +438,12 @@ def configuration(path=None):
                 if configured.id in ids:
                     raise ValueError('vm-config:duplicate-id')
                 ids.add(configured.id)
-    for vm in result.values():
-        if vm.id in result and result[vm.id] != vm:
-            raise ValueError('vm-config:ambiguous-id-or-name')
+    selectors = [value.casefold() for value in (*result, *ids, *families, *family_ids)]
+    if len(selectors) != len(set(selectors)):
+        raise ValueError('vm-config:ambiguous-id-name-or-family; '
+                         'VM IDs, VM names, family IDs and family names must be unique ignoring case')
+    if {'all', 'all-enabled'} & set(selectors):
+        raise ValueError('vm-config:VM names and family IDs/names cannot use reserved selectors all or all-enabled')
     return len([vm for vm in result.values() if vm.enabled and vm.host.enabled]), result
 
 
@@ -439,26 +456,41 @@ def resolve(name, configured):
     if name is None:
         raise ValueError('vm-config: --vm NAME_OR_ID is required')
     validate_name(name)
+    selector = name.casefold()
     for vm in configured.values():
-        if name == vm.name or name == vm.id:
+        if selector == vm.name.casefold() or selector == vm.id:
             return vm
     raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
 
 def execution(name=None, path=None, *, remote=None):
     """Only VMs whose own flag and host flag are true may be acquired."""
-    _, configured = configuration(path)
+    document = read_document(path, validate_agent=False)
+    _, configured = parse_configuration(document)
+    families = {family['family'].casefold(): [] for family in document['families']}
+    for vm in configured.values():
+        families[vm.family.casefold()].append(vm)
+    families.update({family['id'].casefold(): families[family['family'].casefold()]
+                     for family in document['families'] if 'id' in family})
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
-    if name is None or name in ('all-enabled', 'all'):
+    if name is None or name.casefold() in ('all-enabled', 'all'):
         vms = tuple(vm for vm in configured.values()
                     if vm.host.enabled and vm.enabled and (not vm.owning_branch or vm.owning_branch == branch))
     else:
         # Resolve the whole request before work, deduplicating aliases in order.
-        vms = tuple({vm.name: vm for vm in
-                     (resolve(value, configured) for value in name.split(','))}.values())
-        vms = tuple(vm for vm in vms if vm.enabled and vm.host.enabled)
-        for vm in vms:
-            require_branch(vm, branch)
+        selected = {}
+        for value in name.split(','):
+            value = value.casefold()
+            if value in families:
+                matches = (vm for vm in families[value]
+                           if not vm.owning_branch or vm.owning_branch == branch)
+            else:
+                matches = (resolve(value, configured),)
+            for vm in matches:
+                if vm.enabled and vm.host.enabled:
+                    require_branch(vm, branch)
+                    selected[vm.name] = vm
+        vms = tuple(selected.values())
     if not vms:
         raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/environment.json')
     for vm in vms:
@@ -588,13 +620,13 @@ def extract_selector(argv):
     return remaining, names[0] if names else None
 
 
-HOST_HELP = ('--host NAME optionally limits the VM selection to that configured host '
-             '(e.g. myserver or local); omitted: no host filter. Single-VM tools still '
+HOST_HELP = ('--host NAME[,NAME...] optionally limits the VM selection to those configured hosts '
+             '(e.g. myserver or local,myserver); omitted: no host filter. Single-VM tools still '
              'require --vm. This does not change controller placement.')
 
 
 def host_arguments(argv, *, single=False, path=None):
-    """Intersect VM targets with one host, preserving opaque command arguments.
+    """Intersect VM targets with a host list, preserving opaque command arguments.
 
     Single-target maintenance resolves metadata only: observations and owned
     recovery must remain possible after availability or branch flags change.
@@ -624,13 +656,14 @@ def host_arguments(argv, *, single=False, path=None):
         return remaining
     if '--host-only' in controls:
         raise ValueError('vm-config: --host cannot be combined with --host-only')
-    if host not in host_registry(read_document(path, validate_agent=False)):
+    host_names = set(host.split(','))
+    if not host_names <= host_registry(read_document(path, validate_agent=False)).keys():
         raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
     insertion = next((index for index, value in enumerate(controls)
                       if value == '--vm' or value.startswith('--vm=')), None)
     remaining, selector = extract_selector(remaining)
     vms = (load(selector, path, local=False),) if single else execution(selector, path)[1]
-    names = [vm.name for vm in vms if vm.host.name == host]
+    names = [vm.name for vm in vms if vm.host.name in host_names]
     if not names:
         raise ValueError(f'vm-config:no selected VMs on host {host}')
     boundary = remaining.index('--') if '--' in remaining else len(remaining)

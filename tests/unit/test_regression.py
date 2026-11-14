@@ -567,7 +567,9 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
         package_format='deb', family=family, fixture_path='fixtures', host=host,
         vm_tags=frozenset({'general'}))
         for name, family in [('one', 'a'), ('two', 'a'), ('three', 'b'), ('offline', 'b')]}
-    monkeypatch.setattr(config, 'configuration', lambda path=None: (6, configured))
+    monkeypatch.setattr(config, 'read_document', lambda path=None, **kwargs:
+                        {'families': [{'family': 'a'}, {'family': 'b'}]})
+    monkeypatch.setattr(config, 'parse_configuration', lambda document: (6, configured))
     monkeypatch.setattr(vm_pool, 'check_queue', lambda vms: None)
     monkeypatch.delenv(vm_selection.WORKER, raising=False)
     monkeypatch.delenv(vm_selection.VARIABLE, raising=False)

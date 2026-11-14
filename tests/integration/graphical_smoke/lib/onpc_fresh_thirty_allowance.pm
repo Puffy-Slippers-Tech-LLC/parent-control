@@ -242,11 +242,10 @@ sub shared_launchers_case {
         my ($name, $edits, $usable) = @$round;
         for my $edit (@$edits) {
             my ($role, $choice) = @$edit;
-            onpc_app_rows::edit_policy($journey, onpc_app_rows::fixture_app($role),
-                $role eq 'Alias' ? 'match-alias-precise' : 'match-precise',
-                $choice, "$name-" . lc($role), []);
+            my $prefix = "$name-" . lc($role);
+            onpc_app_rows::access_choice($journey, "$prefix-access-save", "$prefix-access");
+            $journey->seen("$prefix-final-match");
         }
-        onpc_text::replace_text($journey, 'catalogue-clear', "$name-clear");
         $journey->seen($_) for ("$name-original-choice", "$name-alias-choice",
                               "$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
         onpc_desktop_session::enter_desktop(

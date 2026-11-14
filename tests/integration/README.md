@@ -297,6 +297,14 @@ worker cleanup, as in the base qualification; do not add that cleanup time to
 the test total. Older qualification results omit these spans, even when other
 preparation work was measured; their stage totals are not comparable.
 
+System ledger timings log `state=started` and `state=finished` or `state=failed`
+with monotonic elapsed time. Setup names snapshot readiness, bootstrap payload,
+guest start, address discovery, SSH readiness, startup readiness, fixture
+provisioning, input transfer and installed verification as separate operations.
+These sequential spans accumulate into the existing stage totals; no extra
+timing store is used. PAM histories retain the already downloaded pre-reboot
+results locally rather than transferring the same guest tree twice.
+
 All guarded VM categories also emit `vm-transport-timing:` for SSH exchanges
 lasting at least one second and for failed exchanges. Each line separates the
 host ownership guard from command execution, with total monotonic elapsed time
@@ -328,12 +336,16 @@ selected manifest bytes and harmless native and activity use as Riley,
 missing/incompatible refusal, fresh attempt readiness, no-write repeats and
 unchanged selection after actual producer-source edits. The actual activity
 consumer also refuses absent, incompatible and prior-generation readiness.
-One online and one offline attachment also use the normal Parent worker to
-observe Riley's A/H/S/N catalogue defaults, save H permanent and S conditional,
-and read those saved choices after fresh child reselection. Jordan's defaults
-remain unchanged. Public controls restore Riley's H/S Allowed and controls off,
-with settings and zero balances independently observed. Results retain package
-metadata and frozen helpers rather than the complete fixture collection.
+Both online and offline attachments retain the complete preparation and actual
+consumer checks. The online attachment uses the normal Parent worker to observe
+Riley's A/H/S/N catalogue defaults, save H permanent and S conditional, and read
+those saved choices after fresh child reselection. Jordan's defaults remain
+unchanged. Public controls restore Riley's H/S Allowed and controls off, with
+settings and zero balances independently observed. The offline attachment starts
+from fresh product state and checks its distinct restore/bootstrap boundary
+without repeating that catalogue journey or provisioning graphical credentials.
+Results retain package metadata and frozen helpers rather than the complete
+fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
 Standalone transfer and serial retain their separately qualified preparation

@@ -221,7 +221,7 @@
       "search-filters": {"steps": ["Open the child's app list.", "Search and filter the list.", "Check the intended apps and their saved choices appear."]},
       "match-editor": {"steps": ["Edit an app's match rule.", "Check valid rules save and rejected rules preserve the last accepted choice.", "Try the affected child launches."]},
       "match-reopen": {"steps": ["Save a precise match override for an app with a suggested pattern.", "Reopen Parent and inspect the documented suggested-pattern redisplay.", "Select precise matching again before saving and check launches."]},
-      "shared-launchers": {"steps": ["Inspect apps that share a launcher target.", "Save the intended app rule.", "Try the related child launches and check the rule applies correctly."]},
+      "shared-launchers": {"execution_revision": 2, "steps": ["Inspect apps that share a launcher target.", "Save the intended app rule.", "Try the related child launches and check the rule applies correctly."]},
       "special-paths": {"steps": ["Copy the child's apps whose paths contain spaces or commas.", "Save Hard choices and check the child cannot open either original or copy while a different app works.", "Repeat with Soft choices without an exception, then restore Allowed and remove the copies."]},
       "pattern-files": {"steps": ["Save a file-pattern rule for an app.", "Copy or rename the relevant files.", "Check matching launches are restricted and unrelated launches remain usable."]}
     }
@@ -294,6 +294,7 @@
     "steps": ["Install with the child's desktop language set to Chinese and read the restart notice.", "Restart, inspect the Chinese request station and save Chinese as the child's language.", "Approve two requests across separate station visits.", "Check Chinese prompts and confirmations, remembered language and added time."]
   },
   "E2E-054": {
+    "execution_revision": 2,
     "expected": "Each account keeps its own language across forms and sessions, offline and after reconnection, without policy changes.",
     "summary": "Keep personal languages separate across accounts and offline sessions.",
     "steps": ["Go offline and save Chinese for Parent and different languages for two children.", "Switch children and approvers and reopen the request station.", "Reopen the child overlay and start a new desktop session.", "Check each account retains its own language and unchanged policy before and after reconnecting."]

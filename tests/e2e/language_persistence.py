@@ -37,6 +37,9 @@ PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-riley-enab
     'riley-session-selected': 'ui:parent-language-riley-selected',
     'riley-session-before': 'ui:parent-language-riley-enabled-zh-hans',
     'parent-switch': 'system:parent-switch-user', 'parent-greeter': 'ui:gdm-returned'})
+# Later account/approver changes and reentry read each actual translated form.
+# The representative Cancel/reopen below owns checked-language persistence;
+# repeating the chooser after every unchanged form adds no customer outcome.
 STATION = {**station_entry('initial-'),
     'station-initial-language': 'ui:kiosk-language-initial', 'station-initial-save': 'ui:kiosk-language-save',
     'jordan-jamie': 'ui:kiosk-language-jordan-jamie',
@@ -57,35 +60,27 @@ STATION = {**station_entry('initial-'),
     'riley-cancelled': 'ui:language-history-riley-he-jamie',
     'jordan-restored': 'ui:language-history-jordan-restored',
     'jordan-restored-form': 'ui:language-history-jordan-de-jamie',
-    'jordan-choice': 'ui:kiosk-language-open', 'jordan-close': 'ui:kiosk-language-cancel',
     'jordan-casey-select': 'ui:language-history-jordan-casey-select',
     'jordan-casey': 'ui:language-history-jordan-de-casey',
-    'jordan-casey-choice': 'ui:kiosk-language-open', 'jordan-casey-close': 'ui:kiosk-language-cancel',
     'jordan-jamie-select': 'ui:language-history-jordan-jamie-select',
     'riley-restored': 'ui:language-history-riley-restored', 'riley-restored-form': 'ui:language-history-riley-he-jamie',
-    'riley-choice': 'ui:kiosk-riley-language-open', 'riley-close': 'ui:kiosk-riley-language-cancel',
     'riley-casey-select': 'ui:language-history-riley-casey-select', 'riley-casey': 'ui:language-history-riley-he-casey',
-    'riley-casey-choice': 'ui:kiosk-riley-language-open', 'riley-casey-close': 'ui:kiosk-riley-language-cancel',
     'riley-jamie-select': 'ui:language-history-riley-jamie-select',
     'jordan-final': 'ui:language-history-jordan-restored',
     'station-cancel': 'ui:kiosk-request-cancel', 'station-returned': 'ui:gdm-station-returned',
     **station_entry('renewed-'),
     'jordan-reentered': 'ui:language-history-jordan-de-jamie',
-    'jordan-reentered-choice': 'ui:kiosk-language-open', 'jordan-reentered-close': 'ui:kiosk-language-cancel',
     'riley-reentered-select': 'ui:language-history-riley-restored',
     'riley-reentered': 'ui:language-history-riley-he-jamie',
-    'riley-reentered-choice': 'ui:kiosk-riley-language-open', 'riley-reentered-close': 'ui:kiosk-riley-language-cancel',
     'final-station-cancel': 'ui:kiosk-request-cancel', 'final-station-returned': 'ui:gdm-station-returned',
 }
 OVERLAY = {**CHILD, **overlay_entry('direct', 'command', form_operation='language-history-overlay-he-casey'),
     'overlay-choice': 'ui:overlay-language-open', 'overlay-close': 'ui:overlay-language-cancel',
     'overlay-cancel': 'ui:overlay-qualification-cancel', 'overlay-returned': 'ui:overlay-desktop',
     **overlay_entry('relaunched', 'command', form_operation='language-history-overlay-he-casey'),
-    'relaunched-choice': 'ui:overlay-language-open', 'relaunched-close': 'ui:overlay-language-cancel',
     'relaunched-cancel': 'ui:overlay-qualification-cancel', 'relaunched-returned': 'ui:overlay-desktop',
     'child-logout': 'system:child-logout', **RENEWED,
     **overlay_entry('renewed-overlay', 'command', form_operation='language-history-overlay-he-casey'),
-    'renewed-choice': 'ui:overlay-language-open', 'renewed-close': 'ui:overlay-language-cancel',
     'renewed-cancel': 'ui:overlay-qualification-cancel', 'renewed-returned': 'ui:overlay-desktop',
     'child-switch': 'system:child-switch-user', 'child-greeter': 'ui:gdm-returned',
 }
@@ -109,8 +104,8 @@ ASSERTIONS = {'initial-language': 'initial-english-native-names', 'offline-enter
     'parent-riley-state': 'chinese-riley', 'parent-jordan-state': 'chinese-jordan', 'parent-riley-return-state': 'chinese-riley-return',
     'reopened-choice': 'parent-relaunch-choice', 'jordan-original': 'jordan-request-captured',
     'jordan-german': 'german-form', 'riley-original': 'riley-request-captured', 'riley-hebrew': 'hebrew-form',
-    'cancel-retained': 'cancel-preserved-hebrew', 'jordan-casey-choice': 'jordan-approver-independent',
-    'riley-casey-choice': 'riley-approver-independent', 'jordan-reentered': 'german-reentry',
+    'cancel-retained': 'cancel-preserved-hebrew', 'jordan-casey': 'jordan-approver-independent',
+    'riley-casey': 'riley-approver-independent', 'jordan-reentered': 'german-reentry',
     'riley-reentered': 'hebrew-reentry', 'direct-form': 'overlay-kiosk-sharing',
     'relaunched-form': 'overlay-relaunch', 'renewed-overlay-form': 'renewed-session-language',
     'jordan-offline-final': 'jordan-offline-policy', 'riley-offline-final': 'riley-offline-policy',
@@ -145,9 +140,7 @@ CHOICE_LANGUAGES = {'initial-language': 'en', 'chinese-open': 'en', 'chinese-cho
     'station-initial-language': 'en', 'german-open': 'en', 'german-choose': 'de',
     'hebrew-open': 'en', 'hebrew-choose': 'he',
     'cancel-german-open': 'he', 'cancel-german-choose': 'de',
-    'cancel-retained': 'he', 'jordan-choice': 'de', 'jordan-casey-choice': 'de',
-    'riley-choice': 'he', 'riley-casey-choice': 'he', 'jordan-reentered-choice': 'de',
-    'riley-reentered-choice': 'he', 'overlay-choice': 'he', 'relaunched-choice': 'he', 'renewed-choice': 'he'}
+    'cancel-retained': 'he', 'overlay-choice': 'he'}
 CHECKS = {stage: public_language_value('language', {**CHOOSERS[language],
     'initial': stage in ('initial-language', 'station-initial-language')})
     for stage, language in CHOICE_LANGUAGES.items()}

@@ -69,11 +69,15 @@ def prepare_hosts(args, vms, *, refresh):
         print('prepare-vm: cancelled; no baseline snapshot was prepared.')
         return 0
     import host_compute
-    with host_compute.launch(vms) as admitted:
+    # Preparation stays in the foreground; join remote keepers before returning
+    # to the shell so their final diagnostics cannot overwrite its prompt.
+    with host_compute.launch(vms, handoff=False) as admitted:
         groups = {}
         for vm in admitted:
             groups.setdefault(vm.host, []).append(vm)
-        return prepare_groups(args, groups, local, refresh=refresh)
+        status = prepare_groups(args, groups, local, refresh=refresh)
+    return outcome(status, 'preparation failed; inspect the reported errors.' if status else
+                   f'onpc_baseline prepared and accepted for {args.vm}.')
 
 
 def prepare_groups(args, groups, local, *, refresh):
@@ -91,9 +95,7 @@ def prepare_groups(args, groups, local, *, refresh):
         statuses.append(status)
         if status == 130:
             break
-    status = next((value for value in statuses if value), 0)
-    return outcome(status, 'preparation failed; inspect the reported errors.' if status else
-                   f'onpc_baseline prepared and accepted for {args.vm}.')
+    return next((value for value in statuses if value), 0)
 
 
 def main(argv=None, *, refresh=True, _worker=False, _expected=None):

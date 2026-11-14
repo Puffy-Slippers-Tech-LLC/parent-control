@@ -933,6 +933,15 @@ are not required. Lower-tier stalls escalate within the same budget. Missing pre
 and permissions use their maintained repair/blocker routes, not model escalation
 by themselves. These are session limits, not token budgets.
 
+An assigned VM worker that returns missing, stale or invalid attempt evidence
+enters that infrastructure repair queue instead of terminating the repair loop.
+Its original claim stays owned; the rejected receipt supplies no case or cleanup
+credit. The log identifies the admission failure, and triage retains the original
+worker error/output even without a failure handoff. Resolution requires a fresh
+qualified retry on the original VM, using the attempted case within the original
+selection. Unqualified successful retries remain repair failures. Resource
+admission refusals before assignment retain their normal refusal behavior.
+
 Detaching preserves the live loop. After a stopped/dead owner, `fix-tests --resume`
 restores the latest selection, completed categories, current round and pending
 runner checkpoint. Explicit categories retain their original selectors. Without

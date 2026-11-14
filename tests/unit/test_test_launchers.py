@@ -197,11 +197,15 @@ def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_p
         (tmp_path / 'agent-result.json').write_text(json.dumps(decision))
         return 0
     def triage(value):
-        return fix_tests.triage_failure(tmp_path, tmp_path, value, {'error': 'failed input'},
+        return fix_tests.triage_failure(tmp_path, tmp_path, value,
+                                        {'error': 'failed input', 'output_tail': 'original worker startup error'},
                                         session=session, charge=charge)
 
     envelope = triage(ticket)
     assert envelope['decision'] == decision
+    context = json.loads((tmp_path / ('impact-context-' + ticket['id'] + '.json')).read_text())['context']
+    assert context['actual']['text'] == 'failed input'
+    assert context['output']['text'] == 'original worker startup error'
     assert calls[0][0] == 'impact-triage'
     assert calls[0][1]['repair_session'] == 1
     assert calls[0][2] == dict(agent_model='native-high', agent_effort='high')

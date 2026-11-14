@@ -441,9 +441,9 @@ sandbox. Sandboxed owner remapping can look like an invalid installation; verify
 that context before reinstalling or interpreting it as a host-policy denial.
 The helper reports the observed UID and mode separately from an unsafe file type
 or writable mode. Ownership refusal never relaxes the guard or establishes a
-host installation defect. The [E2E launcher](../tests/README.md#scripted-e2e-implementation)
-can replace a stale agent once after its controller independently passes the
-same host checks, within the existing task session allowance.
+host installation defect. After establishing that a session has stale helper
+policy, start a fresh session under the current grants; do not change ownership
+or broaden authorization to bypass the refusal.
 
 Development activation is `none`: installed helpers change on their next
 invocation, Polkit watches its rule directory, and Codex loads rules on restart.
@@ -808,14 +808,6 @@ supported recovery actions.
 
 ## Category coverage and future additions
 
-After an explicitly reviewed E2E queue revision,
-`tools/write-e2e --reconcile RUN --check` previews adoption of that queue by the
-exact inactive current run; omit `--check` only after reviewing the result.
-This scoped administrative operation preserves the original checkpoint and
-unfinished-task ownership/history, refuses active or unresolved transactions,
-and starts no tests, agents, Git writes or VM operations. It supplies no task
-acceptance. See [E2E resumption](TestAutomation/E2E-Execution-Instructions.md#resume-after-a-reviewed-queue-revision).
-
 Setup authorization is separate from runtime test authorization. The installed
 `/usr/local/libexec/onpc-setup` accepts exactly one of `dependencies`,
 `codex-rules`, `test-tools`, `graphical-policy`, `ppa-build-tools`, `rpm-build-tools`, `vm-host`,
@@ -904,7 +896,6 @@ validated legacy `/tmp/onpc-*` bundles remain accepted inputs, not output exampl
 | Authenticated installation qualification | `tools/run-tests e2e --vm NAME --qualify-install --artifacts 'ARTIFACTS'` | Fixed package installation through fixture-authenticated serial input; same guarded lease, private capture and owned recovery. No scenario/list selector; diagnostic qualification supplies no complete-scenario acceptance. Current bindings belong to the [scenario inventory](../tests/e2e/scenarios.json). |
 | Established regressions | `make test-all VM=NAME` / `tools/run-tests all --vm NAME` / `tools/run-tests --vm NAME` | All established suites and ready E2E variants, automatic discovery, streaming report, owned cancellation; no selectors. With only `--vm NAME`, starts `all` when idle; [reconnection](../tests/README.md#aggregate-execution-and-reconnection) retains the original canonical selection. |
 | Scripted test repair | `tools/fix-tests [--vm NAME] [CATEGORY ...] [--model MODEL] [--effort EFFORT] [--rounds X] [--tasks N]` / `tools/fix-tests --vm NAME --stop` | Granular pass only by default; --rounds X adds X-1 verification rounds; explicit selectors remain fixed. The [repair policy](../tests/README.md#scripted-repair-loop) owns GPT-6.1 Sol Medium → High → xHigh → Max escalation, with Low → Medium → High → xHigh for unit failures (including mixed/aggregate runs), five sessions per case/VM including answered blockers, and bounded diagnostic changes handed to launcher-owned execution. The launcher commits and pushes each repair's owned paths after confirming its specific case passed, before another repair; Git failures retain close-out for restart. Fresh serial Standard-speed sessions preserve stronger effort overrides; other models are refused and final-tier stalls may stop early. Different-case/preparation interruptions leave verification unknown without an exact runner-owned case pass. Existing sandbox/rules and owned cleanup apply; no automatic setup or authority expansion. |
-| Scripted E2E implementation | `tools/write-e2e --vm NAME [--tasks N]` / `tools/write-e2e --vm NAME --stop` | The [launcher policy](../tests/README.md#scripted-e2e-implementation) owns fresh serial model selection, promotion/advice, the shared task limit, built-in per-task session caps and resumable close-out. Launcher-owned staging, commit and `git push` after every accepted task; every three completed close-outs adds a resumable Sol High lessons/composition audit with a refactor commit and push. Explicit literal paths exclude unrelated work and output artifacts; existing grants, safe session-boundary stop and guarded owned cancellation/cleanup apply. |
 | Execution plans | `tools/execute-plan PATH [--tasks N] [--stop] [--check]` | The [shared plan contract](Execution-Plans.md) owns format, task budgets and safe resumption. The task limit defaults to zero. Zero/negative task limits mean all remaining; oversized limits warn and finish with the queue. Each task owns its checks. The driver completes owned cleanup and Git close-out, then advances to the next unchecked row without collecting archives or rechecking old reports; `--check` makes no Git changes. Ownership, permissions and operation-specific mandates apply. |
 | Complete host category | `tools/run-tests host [--continue-on-errors]` | All host work, including publishing, two fresh builds and comparison, in the aggregate's four branches; no VM discovery, authorization or execution |
 | Complete VM category | `tools/run-tests vm [--vm NAME] [--continue-on-errors]` | System lifecycle, registered standalone checks and ready E2E coverage; required inputs are prepared automatically; independent host runs may overlap |

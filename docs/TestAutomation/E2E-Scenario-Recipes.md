@@ -418,7 +418,7 @@ separate and require the full uncertainty to distinguish the requested addition.
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
 | Kiosk multiple/ineligible accounts (53/56) | Read exact eligible child/approver sets. Request and Cancel Riley/Jamie, then Jordan/Sam (the second fixture administrator is Casey). Final selection and actual selected-parent prompts cover both identities with two pairs; do not cross every child with every parent. |
 | App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Prepare daily 30 with at least 900 seconds actually remaining before the 75-second soft-app approval, including when temporarily enabling a limits-off profile; max(D,G)+R supplies ample access for the opening transition. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
-| Match/control/route matrix | Preserve all four precise/pattern × on/off cases. [E2E-019](#e2e-019) retains native/Flatpak rules and Allowed Snap use; Snap denial/closure is deferred under the [shared boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary). Alias, special-path, update and file-pattern data run only in their owning cases. |
+| Match/control/route matrix | Preserve all four precise/pattern × on/off cases. [E2E-019](#e2e-019) retains native/Flatpak rules and Allowed Snap use; Snap denial/closure is deferred under the [shared boundary](../Snap_Limitation.md#e2e-scope-decision). Alias, special-path, update and file-pattern data run only in their owning cases. |
 
 The daily picker offers 50 presets; case 158 checks one installed choice.
 Noninteracting combinations, such as every attachment size with every app launch
@@ -427,12 +427,12 @@ interacting matrix is complete; this is a finite coverage model, not a claim
 that arbitrary inputs, elapsed durations and user histories can be enumerated.
 Setup is shared code, not prior execution. Group implementation work, but run
 each numeric variant as an independent attempt. Long calendar
-cases retain their declared acceptance prerequisites and budgets in the same fixed queue.
+cases retain their declared acceptance prerequisites and budgets.
 
 ### Pre-test clock preparation
 
 The developer authorizes an attempt-owned guest clock preset so unfinished
-non-calendar tasks can run at any host time. Before any parent/child input,
+non-calendar cases can run at any host time. Before any parent/child input,
 daily-policy setup, approval or timed observation, use
 `calendar_fixture.preset_ordinary_daytime` at `setup-detached` after normal
 restore/setup. It reuses the calendar fixture's guarded preparation: disable
@@ -447,8 +447,8 @@ whose daily balances, request estimates, positive access or uninterrupted
 history could otherwise depend on the host's time of day. Bind each implemented
 journey's exact prefix in the shared helper; a planned consumer has no executable
 binding until its own implementation and acceptance. Read-only fixture checks
-and tasks with no time-of-day dependency need no clock mutation. Deferred tasks
-stay deferred. This rule is inherited by all three execution queues.
+and cases with no time-of-day dependency need no clock mutation. Deferred cases
+stay deferred; preparation grants no acceptance.
 
 Calendar-boundary cases keep their declared ordinary-midnight or seasonal
 preparation under [natural calendar windows](#natural-calendar-windows).
@@ -595,8 +595,7 @@ direct command invocation, without opening Terminal).
 Implementation status: Cases 7 (`daily-only-new`) and 8 (`daily-only-retained`)
 are implemented through `daily_access_case.DailyAccessJourney`,
 `RetainedDailyAccessJourney` and the shared `onpc_allowance_case` worker.
-Both complete bindings passed on Ubuntu 26.04, including task 054's affected
-case-7 regression. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
+Both complete bindings are qualified on Ubuntu 26.04. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
 `grant_access_case.GrantAccessJourney` and
 `onpc_allowance_case::grant_only_new`. Case 10 (`grant-only-retained`) is
 implemented through `grant_access_case.RetainedGrantAccessJourney` and
@@ -668,13 +667,8 @@ again denies retained access without replacing the desktop or restoring the gran
 
 ### E2E-006
 
-Implementation status: Case 13's enabled/precise composition passed on Ubuntu
-26.04 in task 080. Case 14's enabled/pattern composition passed on Ubuntu
-26.04 in task 081 (`20261104T155650Z-3b4a47fe`). Case 15's disabled/precise
-composition passed on Ubuntu 26.04 in task 082
-(`20261104T180325Z-d749ef37`). Case 16's disabled/pattern composition passed on
-Ubuntu 26.04 in task 083 (`20261104T221123Z-f4e1c198`), including recording,
-collection, worker shutdown, owned cleanup and baseline restoration.
+Implementation status: Cases 13–16's enabled/disabled and precise/pattern
+compositions are qualified on Ubuntu 26.04.
 
 **Change app rules while children use apps.** Cases 13, 14, 15, 16.
 
@@ -709,10 +703,9 @@ the six transitions.
 ### E2E-007
 
 Implementation status: Case 17's `revocation_case.PLAN` /
-`RevocationCaseJourney` and `onpc_revocation_case::run` passed on Ubuntu 26.04 in
-`20261105T015431Z-68a208f7`. Case 19 is registered through
+`RevocationCaseJourney` and `onpc_revocation_case::run` passed on Ubuntu 26.04. Case 19 is registered through
 `revocation_case.REMAINING_PLAN` and the same journey/worker, and passed on
-Ubuntu 26.04 in `20261105T055838Z-a1d70581`. Cancel preserved balances, saved
+Ubuntu 26.04. Cancel preserved balances, saved
 rules and both original activities. Confirm cleared the grant with daily time
 remaining, closed the original soft activity, preserved usable Allowed work and
 denied both H/S command launches; Riley's original work remained usable.
@@ -751,8 +744,7 @@ no product response bound or countdown is extended.
 
 Implementation status: Case 22 is registered through `natural_access.PLAN` /
 `NaturalAccessJourney` and `onpc_challenges::natural_access`. The complete journey,
-collection and owned cleanup passed on the selected Ubuntu 26.04 target in
-`20261030T003818Z-f8c88376`; other target families have no acceptance credit from
+collection and owned cleanup passed on the selected Ubuntu 26.04 target; other target families have no acceptance credit from
 that run.
 
 **Natural daily exhaustion, retained unlock and fresh login denial.** Case 22.
@@ -944,7 +936,7 @@ Implementation status: cases 38–43 are excluded from automation scheduling und
 the [unsupported native-gesture rule](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures).
 Their stable inventory IDs remain pending without executables or acceptance
 credit. The following recipe records uncovered behavior, not an implementation
-instruction. Do not create tasks for it or make it block the remaining queue.
+instruction. It is not an ordinary E2E prerequisite.
 Local duration validation is independent and remains with the UI coverage owner.
 
 **Shared duration boundaries and duplicate submission.** Cases 38, 39, 40, 41, 42, 43.
@@ -1243,7 +1235,7 @@ Wrong-entry refusal is qualification-only.
 ### E2E-018
 
 Implementation status belongs to the inventory; the
-[catalogue](E2E-Building-Blocks.md#request-forms-and-remembered-choices)
+[catalogue](E2E-Building-Blocks.md#overlay-choices-transferred-to-kiosk)
 owns exact reusable scopes.
 
 **Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
@@ -1322,7 +1314,7 @@ binding with the same target, precise match, allowance and fresh child entries.
 Parent saves `conditional` access instead of `permanent`; no approval is
 prepared. Jordan must still be denied and Riley must independently open and
 submit the same app through the grid.
-The [catalogue](E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
+The [catalogue](E2E-Building-Blocks.md#native-fixture-preparation)
 records accepted scopes.
 
 Case 82 is registered through `app_launch.HARD_COMMAND_PLAN` and the same worker's
@@ -1362,7 +1354,7 @@ With limits enabled, retain native/Flatpak routes under all three rules and
 Allowed Snap launches. With limits disabled, retain native-command and
 flatpak-command under all three rules and Allowed snap-command. Snap blocked
 cases 88/90/94/95/96/97 are deferred known product limitations under the
-[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary),
+[shared Snap boundary](../Snap_Limitation.md#e2e-scope-decision),
 not active denial requirements. They keep their IDs and pending status without
 executables or acceptance credit; the retained blocked compositions below are
 future remediation targets only for those cases. No known-failure replay or
@@ -2019,8 +2011,7 @@ Bindings: flow = overlay-lock / overlay-switch / overlay-signout / overlay-close
 
 Historical cooldown cases 176/178 remain pending and excluded from scheduling
 with no executables because successful requests no longer impose a waiting
-period. Their unfinished tasks 218/220 and capability tasks 187a/187o/187b/187k
-are retired without acceptance credit. Former report cases 206/207 and same-child
+period. Former report cases 206/207 and same-child
 station case 177 remain removed; none of these IDs may be reused. Genuine
 request-error review/decline still needs a public error route under FEED15.
 Immediate repeat requests with fresh authentication reuse E2E-012's panel-request
@@ -2085,8 +2076,9 @@ exception. Parent finally restores Allowed before the child-owned copies' guarde
 content/identity cleanup. No copy is attempted while its source is blocked.
 
 Case 187 uses [shared_launchers_case.py](../../tests/e2e/shared_launchers_case.py)
-and `onpc_fresh_thirty_allowance::shared_launchers_case`. It reuses 229a's native
-readiness and distinct A/Alias rows, then keeps the same Jordan-selected Parent
+and `onpc_fresh_thirty_allowance::shared_launchers_case`. It reuses the qualified
+[native readiness](E2E-Building-Blocks.md#native-fixture-preparation) and distinct
+A/Alias rows, then keeps the same Jordan-selected Parent
 window through four child visits: A Hard/Alias Allowed, both Allowed, A
 Allowed/Alias Hard, both Allowed. Each visit reads both saved choices before
 Jordan enters fresh and tries each declared grid launcher. Blocked grid entries
@@ -2202,8 +2194,7 @@ results, never raw command text. The complete consumer is `command_help::execute
 
 Implementation: case 194 uses `offline_approvals.PLAN` /
 `OfflineApprovalsJourney` and `onpc_offline_approvals::run`. The complete
-both-screen journey passed on the selected Ubuntu 26.04 family in
-`20261107T075255Z-5ed3a9da`, including collection, owned cleanup and baseline
+both-screen journey passed on the selected Ubuntu 26.04 family, including collection, owned cleanup and baseline
 restoration. No Fedora acceptance is claimed.
 
 **Use local controls and approvals while offline.** Case 194.
@@ -2379,7 +2370,7 @@ resubmission reads the same original window before and after the public action.
 Runtime readiness and executable bindings remain in the inventory.
 
 Snap cases 239/242 are deferred from active scheduling under the
-[shared Snap boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary).
+[shared Snap boundary](../Snap_Limitation.md#e2e-scope-decision).
 Their denial, alternating Soft permission and closure steps below are future
 remediation targets, not today's accepted behavior. Keep their IDs pending
 without executables or passing credit; no active task depends on their repair
@@ -2830,7 +2821,7 @@ Reuse the existing Parent/request previews' fake HTTP sessions; the actual
 editor, encoder, retry controller and result handlers run, while no message
 contacts the real service or an inbox. No recipient profile, inbox access or
 external-send authorization is required. Real sending is separate optional
-integration work, never routine queue acceptance. A fake response proves app
+integration work, never routine E2E acceptance. A fake response proves app
 behavior under that response, not live service acceptance or email delivery.
 One action is issued once; uncertain input is never replayed.
 
@@ -2895,8 +2886,8 @@ waits happen before the case starts; no artificial clock or saved-usage change
 is allowed during the customer journey. The developer authorizes pre-test guest
 clock preparation for these calendar cases as described below.
 Every case has a 3600-second execution bound. Calendar work is the fixed final
-part of the queue; it does not select whichever case happens to fit today's date.
-Prepare separate eligible windows in queue order. Independent cases cannot reuse
+preparation; it does not select whichever case happens to fit today's date.
+Prepare separate eligible windows in the selected case order. Independent cases cannot reuse
 an earlier case's state. Each seasonal case prepares both children before the
 same offset change and observes both within that one attempt; it does not
 schedule separate grant journeys at the same transition.
@@ -3138,8 +3129,6 @@ at the Hebrew final read; both English return reads compare names against the
 original English capture. Policy reads use a 600-second monotonic history bound
 and two-second refresh/formatter tolerance; the entire case deadline is 900 seconds.
 
-<a id="overlay-language-presentation-planned-task-308"></a>
-
 ### E2E-059
 
 Overlay language presentation is case **260**, `overlay-hebrew`, implemented by
@@ -3171,8 +3160,6 @@ approved deadline and actual elapsed use; language restoration must not reset
 time. This completes English → Hebrew → English without saving Hebrew again or
 repeating request preparation. Do not send feedback.
 
-<a id="kiosk-language-presentation-planned-task-309"></a>
-
 ### Kiosk language presentation
 
 `E2E-060/kiosk-hebrew` (case 261) binds this recipe to
@@ -3195,8 +3182,6 @@ Error-report drafts end on closure under the
 [specification](../Specification.md#feedback-and-error-reports).
 No external-link activation. Ordinary translated kiosk approvals remain in
 E2E-053's continuous Chinese case.
-
-<a id="panel-language-and-expiry-planned-task-310"></a>
 
 ### Panel language and expiry
 

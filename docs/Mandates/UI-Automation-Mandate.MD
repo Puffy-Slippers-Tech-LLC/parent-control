@@ -63,7 +63,7 @@ operations without repeating the full supporting qualification history. Reuse
 valid qualification for an unchanged exact binding; changes to the guard, route
 or composition require affected product checks, any shared safety checks admitted
 by the [test scope mandate](Test-Scope-Mandate.md), and scoped qualification under
-the [live verification contract](../TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
+the [live verification contract](../../tests/e2e/README.md#verify-edits).
 Do not skip runtime guards, infer a new binding's readiness or count a product
 pass as safety qualification.
 
@@ -75,10 +75,18 @@ longer timeout for an intermittent dependency, establish that the dependency
 is necessary. Remove incidental dependencies at their shared owner and update
 their consumers. Do not weaken enforcement, authorization, persistence, child
 isolation, retained work, recovery or lifecycle assertions. Credential-recipient,
-ownership and uncertain-input guards remain mandatory. The
-[journey review contract](../TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys)
-owns implementation and documentation reconciliation; historical completion
-does not qualify a changed route.
+ownership and uncertain-input guards remain mandatory. Review the shared
+callable and its consuming worker, declaration and recipe together. Removing a recorded stage without removing its operation leaves the
+dependency in place; removing an operation without updating its comparisons can
+lose a product assertion. Documentation review grants no new live acceptance.
+
+Prefer equivalent supported paths to the required destination. Do not force a
+GDM password challenge or a locked desktop merely to reach the next product
+surface. Preference-transfer cases need the declared child and public save/readback,
+not an unrelated zero-time restriction or authentication matrix. Keep a particular
+provider route when that integration or retained session is itself under test.
+Supporting qualification failures remain distinct from a feature case's result;
+neither grants nor cancels acceptance for the other.
 
 In both layers, a toggle's final on/off state or a selector's final value is
 sufficient when that value is the feature being tested. When the choice controls
@@ -218,7 +226,7 @@ product UI test, its setup or its result assertions.
   delivery. Explicit authentication/enforcement tests retain their required
   challenge or denial result. Unknown prompts, ambiguous destinations and
   uncertain input still refuse. Apply the
-  [product-focused journey review](../TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys)
+  [result-oriented scope](#result-oriented-test-scope)
   before expanding provider work to accommodate unrelated variance.
 - **Observe the tested result:** System-command success establishes only that
   input was accepted. Independently check the required destination/session and

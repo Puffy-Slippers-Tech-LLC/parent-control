@@ -1974,7 +1974,7 @@ the recorder, fixture actions and comparison class; grid callers add only their
 qualified fixture context before calling it. Cases 62, 64, 66 and 81–84 share
 these operations and one worker; their recipes retain control state, account
 order and assertion phases.
-The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#application-routes-and-complete-customer-journeys)
+The [catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#native-fixture-preparation)
 owns the exact qualified fixture/route bindings.
 
 The standalone command and grid qualifications in `native_app` and

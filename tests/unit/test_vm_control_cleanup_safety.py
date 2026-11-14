@@ -1954,11 +1954,14 @@ def test_dispatcher_passes_input_marker_without_a_privileged_host_path():
     assert command[-3:] == ['--stdin', '--', 'cat']
 
 
-@pytest.mark.parametrize('args', [[], ['id'], ['--'], ['--host', 'other', '--', 'id']])
-def test_root_guest_dispatch_refuses_invalid_host_controls(args):
+@pytest.mark.parametrize('args,error', [
+    ([], 'vm-probe:'), (['id'], 'vm-probe:'), (['--'], 'vm-probe:'),
+    (['--host', 'other', '--', 'id'], 'vm-config:unknown host'),
+])
+def test_root_guest_dispatch_refuses_invalid_host_controls(args, error):
     root = Path(__file__).resolve().parents[2]
     dispatch = runpy.run_path(str(root / 'tools/onpc-test-runner'))['selection']
-    with pytest.raises(ValueError, match='vm-probe:'):
+    with pytest.raises(ValueError, match=error):
         dispatch(root, ['vm', 'exec', *VM_ARGS, *args])
 
 

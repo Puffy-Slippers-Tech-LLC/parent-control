@@ -2,7 +2,7 @@
 
 Use this structure when asked to turn a large job into an execution plan. Create
 a short master plan, one ordered task queue and a separate brief for each
-unfinished task, following the [E2E queue](TestAutomation/E2E-Task-Queue.md).
+unfinished task using the format below.
 The master owns the sole next-task pointer; the queue owns order, prerequisites,
 completion and a short result note. Each task owns its deliverable and validation.
 Link enduring requirements to their existing owners instead of copying them.
@@ -185,9 +185,9 @@ Resolve actionable findings and
 revalidate material revisions before completion. No review is required by this
 exception for changes outside core backend code. Review supplies no acceptance
 credit and changes no generic implementation, consultation or escalation policy.
-`write-e2e` and `fix-tests` retain their existing
-[model ladders and specialized execution contracts](../tests/README.md#scripted-repair-loop).
-Their existing consultation/repair boundaries still apply; reusable infrastructure
+`fix-tests` retains its existing
+[model ladder and specialized execution contract](../tests/README.md#scripted-repair-loop).
+Its existing consultation/repair boundaries still apply; reusable infrastructure
 does not move acceptance or resource ownership into an observer or worker.
 
 Run the lowest effective maintained checks required by the current task,
@@ -206,9 +206,7 @@ This option filters VMs only; `--branch` continues to control where the launcher
 Public commands using the shared controller accept `--branch NAME`, selecting a
 branch from `config/environment.json`. Without it, the matching `launchers` entry's
 `default_branch` wins, then the invoking checkout's current Git branch.
-`write-e2e --planb` and `write-e2e --planc` default to the current checkout's branch independently of
-Plan A's configured default; explicit `--branch` still overrides it. The
-invoking checkout must be on a registered Git branch, whose host is the tool
+The invoking checkout must be on a registered Git branch, whose host is the tool
 host. Local placement uses
 the branch's `host` and `repo_root`, verifies the branch is already checked out,
 and launches the destination checkout's controller there. It never switches Git
@@ -322,7 +320,7 @@ ONPC: Watch uses these values for both **Session x/y** labels and offers
 allowance intervention resumes that same task/case without a second grant;
 an unrelated developer decision still requires an answer.
 
-Plan launchers and `write-e2e` stop between sessions with `--stop`.
+Plan launchers stop between sessions with `--stop`.
 `--cancel-stop` clears that queued request and exits immediately. The worker
 accepts the stop under the same run lock used to cancel it. Once accepted,
 cancellation fails with a red “already stopping and is not cancellable” message;
@@ -353,12 +351,8 @@ grant increases its allowance. Capacity retries keep the original
 session's kind and charge neither allowance again. An exhausted allowance stops
 with the exact retained handoff rather than skipping the task.
 This is a launcher failure: the unfinished task remains unchecked and later
-tasks do not start, since they may depend on it. This rule also applies to
-`write-e2e` after its shared timed developer intervention: the developer may
-explicitly grant five more sessions for the same unfinished task; stopping or
-timeout retains the failure and handoff. Its intervention uses the same recording
-links, playback offsets, deadline, flashing status and `+10m` extension as
-`fix-tests`, through `launcher_question`. Only `fix-tests` may record an exhausted case as failed and continue
+tasks do not start, since they may depend on it. Only `fix-tests` may record an
+exhausted case as failed and continue
 its independent repair queue; that exception must not enter shared plan execution.
 Older checkpoints retain their original charges; an absent repair counter starts
 at zero without guessing or refunding historical turn classifications.
@@ -399,15 +393,15 @@ result, caller-owned cancellation/cleanup markers, no agent response/error and
 an empty nested-owner record. Other interrupted sessions retain their refusal;
 never edit checkpoints or clear ownership records manually.
 
-Ordinary plans, `write-e2e` and `fix-tests` share response recovery in
+Ordinary plans and `fix-tests` share response recovery in
 [`launcher_runtime.py`](../tools/launcher_runtime.py). A successful agent session
 with missing/malformed JSON or a rejected handoff/acceptance/queue transition
 returns to its coordinator after owned cleanup. The latest rejected response and
 exact guard failure remain in the run allocation and corrective prompt. Recovery
 keeps the task's handoff and counters. Ordinary plans use current queue and brief
 definitions, while specialized launchers retain their own baseline policy. Ordinary plans use the
-separate three-session coordinator repair allowance above; `write-e2e` and
-`fix-tests` retain their existing session allowance. Recovery grants no completion
+separate three-session coordinator repair allowance above; `fix-tests`
+retains its existing session allowance. Recovery grants no completion
 credit, promotion or allowance reset.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
 the applicable session cap with a resumable checkpoint and diagnostic handoff.
@@ -429,7 +423,7 @@ retains a resumable failure. Manual restarts also consume the current queue and
 briefs without comparing their definitions with old snapshots.
 
 The shared `--reload` option applies to ordinary plans and their dedicated wrappers,
-`fix-tests`, `write-e2e`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
+`fix-tests`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
 launcher. Use the same plan/VM/scope selection as for an existing run.
 The request returns immediately; when idle the flag is ignored and ordinary startup
 applies. It preserves workflow progress and allowances. Bare `fix-tests --reload`
@@ -468,10 +462,10 @@ already loaded by an active child or undo work it has completed. No file watcher
 source snapshot or per-file hot-patching protocol is involved.
 
 Capacity recovery applies to every launcher-owned model session: ordinary plans,
-`fix-tests`, `write-e2e` (including optimization), `sync-whatsnew`, and worktree
+`fix-tests`, `sync-whatsnew`, and worktree
 conflict resolution. The shared runtime owns the retry policy. Ordinary plans
 retain their checkpointed controller recovery; other workflows use the shared
-supervisor without spending another task, repair, optimization or batch slot.
+supervisor without spending another task, repair or batch slot.
 An explicit capacity-failed turn returns to the same task and logical session
 after supervisor and nested cleanup.
 Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
@@ -728,8 +722,8 @@ successfully pushed HEAD, including any merge resolution, and propagation uses
 that pinned commit. A restart resumes that exact propagation before accepting
 completion; it does not repin a transaction with completed destinations.
 
-This boundary is shared by ordinary-plan launchers, `write-e2e` (including its
-optimization commits), and `fix-tests`. Every committing launcher must use
+This boundary is shared by ordinary-plan launchers and `fix-tests`.
+Every committing launcher must use
 `launcher_git.commit_push_propagate()` for the entire commit, source push and
 destination propagation operation. Commit creation and propagation helpers are
 private to the shared Git module; launchers must not import or call them or
@@ -740,7 +734,7 @@ shared operation owns the repository-wide lock and supervised skill invocation.
 Task completion and
 selection of further work wait until every destination has been pushed.
 
-Plan and E2E controllers pull their current branch at session boundaries before
+Plan controllers pull their current branch at session boundaries before
 new work. Repair controllers pull during fenced startup and before repair turns;
 translation controllers pull at startup and between batches. No timer runs and
 no pull mutates a checkout during its active child session or tests. Pending
@@ -884,7 +878,7 @@ tools/execute-plan 'docs/Source-Plan.md' --reconcile RUN --split-plan 'docs/New-
 Use composition with small policy objects and presentation strategies. Avoid a
 single state machine containing every task type's acceptance branches.
 
-Every execution-plan launcher, including `write-e2e`, publishes its checkout and
+Every execution-plan launcher publishes its checkout and
 master plan through `publish_plan_view`. Watch owns layout, task/session labels,
 live timing, suspension display and completion overview.
 Watch's Status tab uses the same plan totals and
@@ -916,20 +910,18 @@ The current adapters use these components according to their workflow:
 
 | Launcher | Shared infrastructure | Execution input and retained engine |
 | --- | --- | --- |
-| `write-e2e` | Task options/budgets, detached supervision, Watch projection metadata, shared plan progress, Git and queue reader | E2E master, ordered queue and briefs through its specialized acceptance, model and optimization engine |
 | `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 
-Run E2E plans through `write-e2e`; their task-specific acceptance metadata and
-close-out rules remain with the E2E contracts. `execute-plan --check` validates
-ordinary plans, not the specialized E2E brief format.
-The maintained E2E [host consistency checks](TestAutomation/E2E-Execution-Contracts.md#completion-and-document-cleanup)
-validate its master, queue, briefs and scenario bindings.
+For E2E batches, use ordinary plans whose installed briefs declare their targets
+and exact cases. The [E2E implementation guide](../tests/e2e/README.md#verify-edits)
+owns composition, scoped qualification and live acceptance in both ordinary
+plans and normal coding sessions.
 
 A new ordinary plan needs Markdown and a thin wrapper constructing `PlanWorkflow`,
 or the generic `execute-plan PATH` command. Specialized state machines such as
-E2E acceptance and test repair compose the same ownership, budgets, Git and
+test repair compose the same ownership, budgets, Git and
 presentation pieces while retaining their purpose-specific rules. New adapters
 must preserve identity, cancellation, retention and current-task result guards and cover
 their own interruption/recovery boundaries. Plan namespaces are hashes of the

@@ -2,8 +2,8 @@
 
 Status and developer scope decision: 2026-11-05. This document owns the known
 Snap enforcement limitation, investigation findings and possible future work.
-Product enforcement is unchanged. Snap remediation is separate from the active
-[E2E plans](TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Product enforcement is unchanged. Snap remediation is separate from ordinary
+E2E implementation and regression work under the [scope decision](#e2e-scope-decision).
 
 ## Today's behavior
 
@@ -18,7 +18,7 @@ app has closed. Launcher filtering can work while execution remains possible.
 | Fedora running-app closure | The captured Hard fixture stayed alive after Parent saved Hard and returned to the original child session. The installed terminator found no matching Snap label. | SELinux was enforcing, the payload was `unconfined_t`, and the kernel lacked AppArmor. Declared strict installation did not provide the required AppArmor identity. |
 | Fedora fresh launch | With Hard still saved, the actual fixture payload ran through `snap run` and the public Snap command after the original process was closed. A new payload also remained alive through the normal desktop command mechanism. | Engineering probes establish process admission; they do not qualify a usable new window or every Snap package. |
 | Ubuntu strict Snaps | Strict Snap confinement normally provides per-app AppArmor identities, a stronger basis for running-process discovery. | Our installed closure and blocked-launch results were not qualified on Ubuntu. The shared command-path rule design still has a gap. |
-| Soft blocks and approvals | Saved conditional choices and approval state are separate from actual Snap enforcement. | Task 109 stopped in the Hard branch. Soft denial, restoration and approval-driven closure have no passing acceptance from that attempt. Do not infer either success or a live-tested failure matrix. |
+| Soft blocks and approvals | Saved conditional choices and approval state are separate from actual Snap enforcement. | The failed qualification stopped in the Hard branch. Soft denial, restoration and approval-driven closure have no passing acceptance from that attempt. Do not infer either success or a live-tested failure matrix. |
 | Classic Snaps | VS Code's official Snap uses `--classic`. | Strict-Snap isolation and identity assumptions cannot automatically be transferred to classic payloads; inspect their actual identity before making a guarantee. |
 
 The source preserves `/snap/bin/<command>` or
@@ -32,9 +32,8 @@ the app; copying is not needed for the demonstrated bypass.
 
 See [catalogue identity](../broker/oh_no_parent_control/catalog.py),
 [execution rules](../broker/oh_no_parent_control/execution_policy.py),
-[process termination](../broker/oh_no_parent_control/app_termination.py) and the
-[deferred task 109](TestAutomation/E2E-Tasks/109-snap.md).
-Its retained failed acceptance is
+[process termination](../broker/oh_no_parent_control/app_termination.py).
+The Snap qualification failed at
 `snap-policy-closure.hard-prior-window-closure`; the formal furthest checkpoint
 is `snap-policy-closure.hard-policy-saved-and-child-returned`. Later maintenance
 experiments are diagnosis, not acceptance. No product correction was applied.
@@ -117,27 +116,24 @@ exception, upstream change or new product warning is implemented by this documen
 
 ## E2E scope decision
 
-The developer explicitly separated Snap remediation from E2E on 2026-11-05.
-Active work accepts today's supported behavior without claiming blocked Snap
-execution is reliable. Both plans use the
-[shared Snap acceptance boundary](TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary).
+Snap remediation requires a separate explicit developer request. Ordinary E2E
+implementation and regression work accepts the supported Allowed behavior without
+claiming that blocked Snap execution is reliable.
 
-Task 109 and enforcement tasks 114/114b/115/115b/111/112/281/284 remain unchecked
-under Plan B's deferred work. Cases 88/90/94/95/96/97/239/242 retain their IDs,
-pending status and no executable. They have no current-release consumer and
-cannot hold either active plan's pointer. Their old denial/closure recipes are
-future remediation targets, not today's supported behavior or expected failures
-that should be made to pass. Do not resume them or request another product
-choice during ordinary E2E work.
+Cases **88, 90, 94, 95, 96, 97, 239 and 242** retain their inventory IDs,
+pending status and no executable bindings. They cover command/grid Hard/Soft
+denial, captured-app closure and child-overlay/kiosk access. Their recipes are
+future remediation targets, not expected failures to make pass or prerequisites
+for unrelated cases. Do not reproduce the known enforcement failure or request
+another product choice during ordinary E2E work.
 
-Allowed Snap grid qualification 109a and case 86/task 110 remain active, depending
-on completed allowed-command task 109b rather than deferred enforcement. Existing
-completed fixture/use tasks 109p/109b/113/113b stay complete. Other E2E cases use
-their declared native, Flatpak or game identities; no general app-block assertion
-implicitly adds a Snap matrix. New unrelated failures retain normal handling.
+Allowed command/grid launch and use remain implemented separately, including
+case **86**. Saved Allowed/Hard/Soft choices and public catalogue readback remain
+valid assertions; a saved block or hidden launcher does not establish execution
+denial. Other app cases use their declared native, Flatpak or game fixtures.
+A generic app-block assertion never implicitly adds a Snap matrix.
 
-Return condition for deferred work: an explicit developer request to resume Snap
-remediation, followed by a chosen supported contract and causal qualification
-before the cases are returned to an active queue. Resolving that choice is not
-an active E2E prerequisite. This scope decision grants no passing acceptance and
-does not weaken native/Flatpak assertions or the existing process-ownership guards.
+Return condition: an explicit request for Snap remediation, a chosen supported
+product contract, then causal qualification before reactivating these cases.
+This grants no passing acceptance and does not weaken native/Flatpak assertions,
+process-ownership guards or normal handling of new unrelated failures.

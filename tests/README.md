@@ -20,7 +20,7 @@ for current and future launcher/session behavior.
 | Add a host module or change resources | [Parallelism review](#host-test-parallelism-review) and [coverage maintenance](#coverage-maintenance-workflow) |
 | Plan or repair timing in a VM test | [Timing and slow-VM resilience](../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) |
 | Investigate a failure or continue prior work | [Failure handling](#handling-test-failures), [reconnection](#aggregate-execution-and-reconnection), then [resume](#resuming-test-execution) if needed |
-| Automate repairs or E2E implementation | [Repair loop](#scripted-repair-loop) or [E2E launcher](#scripted-e2e-implementation), respectively |
+| Automate repairs or E2E implementation | [Repair loop](#scripted-repair-loop) or [E2E implementation](#e2e-implementation), respectively |
 | Read, export or reclaim test output | [Artifact access](#prompt-free-test-artifact-access), [retention](#aggregate-output-retention) and [cleanup safety](#cleanup-safety-prerequisites) |
 | Observe a host UI run | [Host UI viewer](#watching-host-ui-tests) |
 
@@ -37,12 +37,11 @@ Use the [shared support guide](support/README.md) before adding fixture code.
 It maps existing broker, D-Bus, preview, package, VM and E2E helpers to their
 contracts. Reusable code belongs in support modules, not collected case files.
 
-For queued E2E implementation, follow the
-[execution plan](../docs/TestAutomation/E2E-Execution-Plan.md) and its first
-unchecked active row. The [building blocks](../docs/TestAutomation/E2E-Building-Blocks.md)
-own reusable operations, not task selection. Each complete scenario remains its
-own task and independent attempt. A fresh chat does not require rerunning
-unaffected tests.
+For E2E implementation, follow the [E2E guide](e2e/README.md#verify-edits)
+in a normal session or an ordinary [execution plan](../docs/Execution-Plans.md).
+The [building blocks](../docs/TestAutomation/E2E-Building-Blocks.md) own reusable
+operations. Each complete scenario uses an independent attempt. A fresh chat
+does not require rerunning unaffected tests.
 
 ## All established regressions
 
@@ -351,8 +350,7 @@ Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
 inputs are prepared through the maintained builders. Repair agents remain serial
 within each host or VM workflow; implementation agents remain serial.
-`write-e2e` and `fix-tests` share that pass coordinator through `run-tests`;
-`fix-tests` supplies impact triage, repair actions and run-wide rounds under the
+`fix-tests` uses that pass coordinator through `run-tests` and supplies impact triage, repair actions and run-wide rounds under the
 [repair loop](#scripted-repair-loop).
 
 | Module | Scheduling responsibility |
@@ -1145,7 +1143,7 @@ model success rates or a measured allowance improvement. No paid-model benchmark
 is part of launcher validation.
 
 An agent-reported blocker waits for developer instructions using the
-same [question implementation](../tools/launcher_question.py) as `write-e2e`.
+shared [question implementation](../tools/launcher_question.py).
 The menu offers two or three suggestions, selects the first recommendation by
 default, and includes editable Other input. Enter submits the selection; neither
 elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests --vm NAME`
@@ -1184,12 +1182,7 @@ with a failure result after draining the queue. Unverified repair edits remain
 in the checkout without being committed as verified repairs. Stateful histories
 retain their indivisible scheduling boundary.
 
-This fail-and-continue policy belongs only to `fix-tests`. `write-e2e` uses the
-same intervention session, recording links, playback error offsets, local
-daytime/nighttime deadline, flashing waiting status and `+10m` extension.
-Continuing grants five more sessions on the same task. Stopping or timeout exits
-with failure and retains the unfinished task and handoff; dependent tasks never
-start. Other plan launchers retain their
+This fail-and-continue policy belongs only to `fix-tests`. Plan launchers retain their
 [plan allowance contract](../docs/Execution-Plans.md#common-launcher-interface).
 
 Watch case and overall totals show **completed/failed/total**: completed is green,
@@ -1201,366 +1194,30 @@ report expected versus actual behavior and ask before accepting changed behavior
 or altering expectations unless that exact change is already authorized. The
 loop does not weaken checks or bypass permissions to continue.
 
-### Scripted E2E implementation
+### E2E implementation
 
-Run [tools/write-e2e](../tools/write-e2e) to implement the execution plan's first
-unchecked active task through fresh unattended Codex sessions:
-
-```sh
-tools/write-e2e --vm NAME --tasks 1
-tools/write-e2e --vm NAME --tasks 2
-tools/write-e2e --vm NAME
-tools/write-e2e --vm NAME --stop
-tools/write-e2e --planb --branch BRANCH --vm NAME --tasks 1
-tools/write-e2e --planb --branch BRANCH --stop
-tools/write-e2e --planc --branch BRANCH --vm NAME --tasks 1
-tools/write-e2e --planc --branch BRANCH --stop
-```
-
-Omitting both selectors selects [Plan A](../docs/TestAutomation/E2E-Execution-Plan.md);
-`--planb` selects [Plan B](../docs/TestAutomation/E2E-Execution-PlanB.md) and
-`--planc` selects [Plan C](../docs/TestAutomation/E2E-Execution-PlanC.md).
-The selectors are mutually exclusive. All use the same launcher and [shared instructions](../docs/TestAutomation/E2E-Execution-Instructions.md),
-with separate queues, pointers, locks, saved progress and optimization batches.
-Use the same selector for attachment, stop, reload, reconciliation and close-out.
-The queues have no unfinished dependencies on each other. They may run at
-different times or concurrently on separate branches/checkouts. Plan A uses the
-configured launcher default branch; `--planb` and `--planc` default to the current checkout's
-branch. Explicit `--branch` overrides these defaults. Shared VM/Git locks
-still apply. Do not run concurrent coding agents in the same checkout.
-
-`--tasks N` limits completed tasks and defaults to `0` (all remaining). There is
-no total session limit. Each task can use at most 5 sessions per new launcher process.
-A restarted launcher retains the task's cumulative
-session count and adds 5 to it for that process's task cap. Attaching to a
-running launcher does not renew the cap. If the task is still incomplete at
-that cap, a fresh intervention session presents a concise explanation and the
-latest test/building-block recording links with playback error timestamps.
-It uses the [shared repair intervention](#scripted-repair-loop), including the
-same deadline, flashing status and extension. Continuing grants five more
-sessions; stopping or timeout exits with failure and prints a bold
-red warning as the final line of its worker summary, after the follow-up
-instructions and before the shared observer's final tasks overview recap.
-The next task starts with its own cap of 5.
-Zero and negative task limits run all remaining tasks. An oversized positive
-limit warns and finishes when the queue is exhausted. A task counts only after
-acceptance, queue close-out, successful staging, its completion commit and
-`git push`. An empty active queue stops the workflow. A task blocker pauses for
-your answer as described below.
-VM-dependent sessions check the selected VM's read-only status before task work.
-If an agent reports an installed test-runner ownership refusal before live
-acceptance, the controller independently runs the existing host helper safety
-and noninteractive authorization checks. When those pass, it retains the handoff
-and automatically starts one fresh agent for that task before asking a blocker
-question. This consumes the normal session allowance and never renews it; the
-retry flag survives restart. A repeated refusal, exhausted allowance or failed
-host check retains the normal intervention route. No helper installation,
-ownership change, grant expansion or VM operation occurs during this recovery.
-With a live run, an invocation without parameters attaches without changing the
-task limit. Explicit `--tasks`
-values replace the existing maximum: `--tasks 2` sets it to 2; `--tasks -1`
-or `--tasks 0` removes the task limit. An omitted limit stays unchanged.
-Replacements are serialized across terminals. They take effect
-before the next session; the current session
-finishes normally and completed work is preserved. Invalid options are rejected.
-An owner already finishing at its limit refuses adjustments; restart after it exits.
-Workers started before adjustable-limit support require a restart to accept changes.
-ONPC: Watch observes the retained session transcript at any time.
-`--stop` finishes the current session, including test cleanup and its handoff or
-task close-out, then starts no further session. In the interactive chat composer,
-Cancel, Escape or Ctrl+C interrupts the active turn and waits for owned cleanup, leaving
-the same session open for further instructions. Escape preserves the session when
-already waiting. Ctrl+C again while waiting for
-input cancels the entire launcher. A second Ctrl+C also cancels while the first
-interruption is still being processed; repeated Escape preserves the session.
-Owned tests finish their guarded cleanup before the controller exits. Shutdown
-recovery tries each selected VM without queuing behind another workflow's
-reservation. A busy VM or checkout source is left untouched, with recovery
-explicitly deferred to the next run. Recovery borrows the existing source scope
-behind impact holds, but never waits for a source writer while holding a VM.
-Once admitted, restoration finishes before exit.
-Piped observers retain signal cancellation.
-
-After each completed task, the launcher stages its owned paths and commits them
-as `TA: Completed task ID`, then runs `git push` and completes
-[shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
-before selecting another task. Optimization commits use the same propagation.
-The push uses the checkout's existing Git remote and branch configuration.
-Git uses literal task paths and the
-[shared Git policy](../docs/Execution-Plans.md#git-close-out-and-recovery):
-the commit skill commits only task-owned changes and preserves unrelated staged,
-unstaged and untracked work, including on overlapping task paths.
-Agents return explicit owned paths and never commit themselves.
-A pending accepted completion takes priority over an older
-response rejection on restart, preserving its passing checks for Git-only recovery.
-Use `tools/write-e2e --closeout-only` to finish that retained accepted Git
-close-out and leave the next task ready without starting an agent session.
-A staging, commit or push
-failure retains the accepted result; restart retries close-out without repeating
-valid acceptance. Commit intent is checkpointed before Git writes. Recovery
-recognizes the matching immediate commit with unchanged owned files and saves
-its identity. A saved completion or propagation identity also permits recovery
-from a descendant HEAD after verifying the original committed tree against the
-intent; later edits remain untouched. Unrecorded HEAD changes or mismatched
-completion contents refuse, avoiding duplicate or unrelated completion credit.
-Push recovery retries the push after recognizing the existing commit.
-E2E results report the current task's host/live outcomes and may include scoped
-`checks` containing kind, target and result. Passing live results cover the selected
-targets. Saved results may contain an ignored legacy `evidence` string; new
-responses need no evidence field. Continuations and Git
-retries use the saved outcome without reopening referenced files, authenticating
-archival declarations or collecting turn capsules. A completed task stays done.
-Missing Git identity, remote/upstream configuration or a failing Git hook remains
-an actionable close-out failure; the launcher does not change Git configuration
-or bypass hooks.
-
-Every **three accepted and committed tasks**, a fresh **GPT-6.1 Sol High** session
-runs before another queue task. Its batch identity is the exact three completed
-queue IDs, displayed as the actual first-to-last ID range (IDs may have suffixes
-or inserted prerequisites). Its reuse audit covers all VM tests, including
-system tests, E2E cases and shared support, rather than only the
-batch's affected E2E cases. This required session optimizes the current code;
-it does not collect proof, inspect old reports or repeat completed tasks' checks.
-Refactoring changes receive only their affected validation; unchanged code needs
-no new test run. It analyzes lessons from successful work
-and merges useful guidance into the owning instructions/mandates without
-duplicates. It audits duplicated and one-off mechanics across VM test suites and
-refactors them into existing shared owners for reuse. Tests retain finite data,
-ordering and assertions; ready E2E cases compose shared building blocks, harness
-and libraries. Refactoring targets concrete reuse opportunities without adding
-unrelated test coverage.
-It also cleans up code delivered or affected by each task that became messy
-across progressive sessions of that same task, including redundant or obsolete
-code, temporary workarounds and inconsistent structure left by successive attempts.
-It preserves behavior, qualifications and guards, completes affected validation
-and resource review, then the launcher stages the fix and commits it as
-`TA: Refactored task FIRST to LAST`, then runs `git push` through the same
-resumable close-out. A verified audit with no needed edits still
-gets an empty checkpoint commit. Optimization cannot close or reorder queue rows.
-
-The existing retained checkpoint owns pending batch IDs, the last optimized batch
-and commit, and any active optimization handoff/commit intent. It survives
-separate launcher runs, prerequisite suspension, stops and interruptions.
-Tasks predating this policy are not retroactively counted. Optimization uses
-its own five-session cap, renewed on restart; it does not
-count against `--tasks`. A due optimization runs even after the task limit, while
-stop and cancellation can defer it. Restart performs the due work
-before another task, including when the active queue is empty. No parallel or
-ordinary adviser agents run during optimization; the shared mandatory backend
-review remains required for core backend changes. A blocked optimization uses the same
-developer question and answer recovery as task work.
-
-New tasks start with **GPT-6.1 Sol High** as coordinator and implementer. The
-launcher promotes the implementer automatically within the existing five-session
-task cap:
-
-| Evidence at the session boundary | Next coordinator and implementer |
-| --- | --- |
-| First unsuccessful substantive live attempt | Sol High gets one repair session |
-| Two unsuccessful substantive live attempts | GPT-6.1 Sol Extra High (`xhigh`), normally session 3 |
-| A correction fails at the same checkpoint without meaningful progress, or reasoning stalls | GPT-6.1 Sol High → GPT-6.1 Sol Extra High → GPT-6.1 Sol Max |
-| Further failures with verified progress or new diagnostic evidence | Keep the selected tier; the two-attempt promotion still applies |
-
-Every tier uses `gpt-6.1-sol`, with `high`, `xhigh`, then `max` reasoning effort.
-Coordinator prompts render the adapter's resolved profiles, including native
-adviser, monitor and worker assets, while this policy owns their permitted use.
-Astra is reserved for the shared mandatory independent review of core backend
-changes; implementation and ordinary consultations retain their Sol policy.
-Promotion survives launcher restarts,
-answered blockers and prerequisite suspension; a new task resets to Sol High.
-A GPT-6.1 Sol Max reasoning stall stops the launcher early with retained
-evidence. Other incomplete outcomes retain the ordinary session cap. Promotion
-never renews that cap or bypasses acceptance, staging, ownership or cleanup.
-
-Structured results carry `progress`: a stable `failure_checkpoint` scoped to its
-qualification/regression, the `furthest_checkpoint` independently verified, and
-`repair_outcome` (`advanced`, `diagnostic`, `failed_repair`, `stalled` or
-`not_applicable`). Handoffs retain the supporting evidence, attempted correction
-and expected/actual result. Generic SSH/worker errors, timestamps and report paths
-are not checkpoint identities. `failed_repair` must match both previous checkpoint
-fields; advancing a verified milestone keeps the current tier. Classify from
-already collected evidence without diagnosing or retrying a new live failure;
-use `diagnostic` when uncertain. Diagnostic-only live failures still count toward
-the two-attempt promotion. Semantic classification remains the agent's
-responsibility; the launcher validates field consistency and enforces promotion.
-Legacy unfinished checkpoints use their retained live-attempt count to select
-Sol High or Sol Extra High; missing repair evidence never implies Max.
-
-Only normal failed live handoffs and reasoning stalls with an actual failed live
-result increment the new unsuccessful-attempt counter. Blockers, interruptions,
-preparation and raw session counts do not promote. Missing authority, external
-prerequisites and customer behavior decisions still use the maintained blocker
-route. A reasoning stall with no useful authorized next step may return `stalled`
-before live execution, with the actual validation outcome and owned cleanup;
-it promotes without inventing a live attempt or asking the user an unnecessary
-question. Normal handoffs retain the host/live validation boundary below.
-
-While Sol High is coordinating, use one bounded **GPT-6.1 Sol Max** consultation through the
-[read-only adviser](../tools/write_e2e_adviser.toml) when a High repair failed
-verification without improving the explanation, conflicting evidence prevents
-a defensible correction, or a consequential security, concurrency or ownership
-design question remains unresolved. State the concrete escalation reason and
-what High already established. Ordinary diagnosis, missing prerequisites,
-permissions and preparation failures use their maintained repair/blocker routes.
-After promotion, the selected Sol 6.1 tier owns implementation and validation
-directly, with ordinary delegation disabled; the mandatory backend review remains
-available at every tier. Do not add an ordinary adviser or hand the repair
-back to Sol High. The adviser configuration pins `gpt-6.1-sol` at `max` effort.
-This policy overrides model recommendations in older saved handoffs.
-Consult before implementing such an unresolved risky design, including in the
-initial session without first spending a failed attempt. All coordinators and
-advisers pin Standard speed, so personal Fast settings cannot silently increase
-subscription usage. Keep source reads and
-diagnostic output scoped, reuse unchanged context and carry concise handoffs;
-never reduce required understanding, assertions, acceptance or cleanup.
-
-Consultations are sequential: the coordinator gives one exact question, relevant
-source/evidence paths, attempted corrections, applicable contracts and user
-decisions in a fresh context,
-waits for the answer, then closes the adviser before resuming work or consulting
-again. Codex V1 is configured with one concurrent child slot and one level of
-delegation. The adviser cannot delegate further and its profile requests read-only;
-native role files inherit the parent sandbox, so separate enforcement remains
-unqualified. The required
-read-only boundary remains unchanged. Its
-instructions prohibit edits, tests/builds, VM control and task completion. It
-returns concise findings, evidence, a proposed correction, uncertainty and required
-regressions. The coordinator checks the advice and owns all implementation,
-validation, cleanup and queue updates. Advice provides no acceptance credit.
-Consult once per unresolved question; repetition requires materially new evidence
-or a distinct question. Carry the question, findings, attempted correction and
-remaining uncertainty in the handoff across sessions and restarts. Cosmetic
-rewording or another failed run is not new evidence. These consultation rules
-are agent instructions; the launcher enforces the coordinator session cap and
-concurrency/depth bounds, not semantic novelty or an adviser token ceiling.
-Consultations are part of the coordinator session, not extra task sessions;
-they still consume model usage. Do not introduce parallel agents or overlapping
-coordinator work. While Sol High coordinates, the same single slot also supports
-bounded GPT-6.1 Sol Low `plan_monitor` observations or Sol Medium `plan_worker`
-coverage refreshes under the [common delegation contract](../docs/Execution-Plans.md#execution-and-delegation).
-These roles never implement repairs, operate VMs, run acceptance or close tasks;
-coverage writes are limited to explicitly assigned generated assets. The
-coordinator verifies their output. Higher coordinator tiers retain their existing
-direct-work policy. `fix-tests` keeps ordinary delegation disabled. Both retain
-the shared mandatory backend review, without changing their model ladders.
-Start a new launcher run to adopt this policy; attaching to an existing run
-does not reconfigure its already-running coordinator.
-
-Each run retains `agent-usage.jsonl` beside its existing output, with one record
-per reported CLI turn: cumulative launcher session number, task, phase, selected
-model/effort/speed and available input, cached-input, output and reasoning-output
-counts. Missing counters remain unknown, not zero. These are CLI-reported turn
-counters; adviser inclusion is not established, so do not treat them as complete
-account usage or add reasoning counters to output without checking their semantics.
-Recording failure warns without interrupting validation or cleanup. Compare
-usage per accepted task (including retries and consultations) and the account's
-weekly dashboard, together with first-pass acceptance and review findings.
-Host regressions validate routing and preservation of acceptance gates; they do
-not establish equal model success rates or a measured allowance improvement.
-OpenAI's [model guidance](https://learn.chatgpt.com/docs/models#gpt-61-sol)
-recommends 6.1 Sol for complex coding at near-Astra capability. Its
-[pricing documentation](https://learn.chatgpt.com/docs/pricing#token-rates)
-separates credit rates from included subscription usage, and
-[Standard speed](https://learn.chatgpt.com/docs/agent-configuration/speed)
-avoids Fast mode's 2.5x included-usage multiplier. No fixed weekly savings are
-inferred from API prices or the counters.
-
-The first session implements, host-validates and runs the first live VM test.
-Success completes acceptance and close-out in that session; failure preserves
-evidence and hands off after cleanup, leaving review and repairs to the next
-session. Every subsequent session, including recovery after an interruption
-or answered blocker, investigates the previous VM failure when present, reviews
-unstaged code and retained evidence, and repairs authorized defects before host
-validation and live VM acceptance in that same session. Recovery first rechecks
-the interrupted operation or blocked prerequisite and owned cleanup. Every live
-failure ends the session after evidence preservation and cleanup; investigation
-and repairs of that new failure belong to the next session. A normal handoff
-requires passing host checks and a completed failed VM attempt, including in
-recovery. The diagnostic continuation below permits useful preparation diagnosis
-before acceptance and further live investigation of a retained failure without
-another acceptance attempt.
-A preparation failure before VM access does not count as a failed live
-attempt: repair authorized mechanical defects or prepare missing generated inputs
-through the maintained artifact builder and resume validation in the same session.
-Apply the [bounded supporting-work contract](../docs/TestAutomation/E2E-Building-Blocks.md#keep-supporting-work-bounded)
-to the immediate preparation failure. Source/history and saved-state investigation
-through authorized routes is part of mechanical repair, even when normal refresh
-failed. An unresolved cause alone does not establish a need for external maintenance.
-Do not ask the developer to choose between building and restoring qualification
-inputs. Integration qualification wrappers declare their input profile with
-literal `named_input()` options. `tools/test_commands.py` reads that declaration
-without importing the wrapper; no separate selector/preparation lists are
-maintained. All profiles bind automatically to the selected VM, including
-callers omitting `vm_source`. The shared `tools/vm_artifacts.py` route selects
-an explicit `deb` or `rpm` builder from pinned baseline provenance before
-dispatch, and rechecks cached bundles against that format. A wrong cached
-format refuses without replacing evidence or entering the journey. Genuine
-upgrade pairs pin v1.2 for DEB and v1.3 for RPM through that same infrastructure.
-`system --upgrade-inputs` prepares the selected VM's pair before the existing
-explicit current/previous package route, including independent parallel workers.
-The low-level builder API and CLI require a package format;
-no DEB fallback is permitted. Host Debian reproducibility/cache routes supply
-`deb` explicitly. Launcher coverage discovers consumers independently and
-checks a new unlisted wrapper against both verified platform results.
-Current-package authentication regressions use `named_input(package_source=True)`
-in both selector and launcher preparation. A fixed legacy input can select an
-older version snapshot even after current app preparation succeeds. Preserve
-existing immutable bundles; prepare the new source-specific input rather than
-replacing the old bundle or relaxing snapshot validity.
-Only a prerequisite requiring external action or an unresolved behavior decision
-returns a blocker with the actual validation outcome. A passing session completes
-the plan's acceptance, checks the row and advances its sole pointer. It returns an explicit
-list of task-related code, test and
-close-out files; the launcher stages, commits and pushes those files before
-starting another session. This staging uses literal Git paths and needs no
-agent-side Git permission grant. Task 192 retains the plan's explicit host-only exception.
-Staged code is the baseline; agents do not analyze staged diffs.
+Implement a small case or related change in a normal coding session. For a
+substantial batch, use an ordinary [execution plan](../docs/Execution-Plans.md)
+through `tools/execute-plan PATH`. The
+[E2E guide](e2e/README.md#verify-edits) owns composition, live qualification and
+completion. Applicable VM, UI, storage and failure contracts apply in either route.
 
 #### Live diagnosis before another repair attempt
 
-After an initial scoped live attempt, start repair with bounded source and
-retained-error review. Use a directly established mechanical cause to make a
-focused correction. When that review leaves competing explanations, the failure
-depends on transient session/process state, or a correction fails again at the
-same checkpoint without explaining why, move to live reproduction and probing
-before another speculative patch or full acceptance run. Do not wait for a fixed
-number of failures or require maintenance for every straightforward defect.
-Explain the unresolved question and the observation that would distinguish its
-possible causes. A timeout or generic transport error alone does not identify one.
+After a scoped live failure, review the source and retained error. Make a focused
+correction when the mechanical cause is established. If explanations compete,
+the failure depends on transient state, or a correction repeats the same failure,
+reproduce and probe the actual failing boundary before another speculative patch
+or full acceptance run. First remove incidental provider dependencies under the
+[UI mandate](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
+A timeout alone does not identify a cause.
 
-The repair session's sequence is evidence review → live reproduction/probes when
-needed → focused live fix experiment → maintained correction and host checks →
-clean acceptance. Failed formal acceptance still ends the session after evidence
-and owned cleanup; the next session investigates it. Diagnostic experiments on
-the previous failure happen before that session's formal acceptance attempt.
-They do not erase the original failure, supply acceptance credit, renew session
-limits or alter the launcher's unsuccessful-attempt/promotion accounting.
-
-If bounded preparation or live investigation remains unresolved but has useful next work,
-return structured status `investigating` after owned maintenance cleanup, with
-`live_result: not_run`, actual `host_validated`, empty `stage_paths`, no blocker,
-and progress outcome `diagnostic` with an empty `failure_checkpoint`. Report
-actual new observations and an exact next probe or experiment in the handoff.
-Preparation diagnosis requires no prior failed acceptance; live diagnosis
-continues a retained failed attempt. This does not permit deferring a runnable
-first attempt or skipping validation after a supported correction. The launcher
-refuses a diagnostic result claiming a new live pass/failure, staging or queue
-advancement. It retains any formal failure's
-progress separately from diagnostic progress, preserving subsequent
-same-checkpoint failed-repair promotion. Each continuation consumes the existing
-session budget, but increments neither live/unsuccessful-attempt counts nor the
-model tier. Success still requires all host and clean live acceptance checks.
-This route also applies to optimization preparation and repair. No separate
-maintenance workflow or queue task is needed to continue the immediate repair.
-Missing authority, an unavailable external prerequisite or an unresolved product
-behavior decision still uses the blocker route; exhausting the session allowance
-uses its existing intervention rather than inventing an external maintenance need.
-Formal live outcomes are retained independently of promotion counters. A failed
-attempt reported with a blocker permits diagnostic continuation after the blocker
-is resolved, without counting the blocker as a failed repair. Blockers, stalls and
-diagnostic rounds without a new live attempt preserve the last formal outcome and
-its checkpoint evidence. An outstanding optimization live failure requires a
-subsequent clean live pass; host-only completion cannot clear it.
+Carry actual observations, rejected hypotheses and the next discriminating probe
+in the normal handoff. Useful bounded diagnosis is ongoing work, not a reason to
+invent another maintenance workflow. Missing authority, an unavailable external
+resource or an unresolved product behavior decision remains a blocker under
+[failure handling](#handling-test-failures). Finish each attempt's collection and
+owned cleanup; maintenance experiments supply no customer acceptance.
 
 Engineering investigation and customer E2E acceptance are separate activities.
 During investigation, use whatever guest-side inspection, debugger, temporary
@@ -1579,7 +1236,7 @@ then validate the maintained fix with clean customer acceptance.
    process, intercept teardown, borrow its lease or adopt a foreign running VM.
    Start an owned online maintenance instance through
    `tools/prepare-appsnapshot --vm NAME --y --overwrite false`,
-   under the [live preparation contract](../docs/TestAutomation/E2E-Execution-Contracts.md#live-verification-contract).
+   under the [installed preparation contract](e2e/README.md#run-e2e-scenarios).
    A matching instance already owned by this workflow can be reused through its
    maintained ownership checks. Use the selected registered target, valid package
    input and required baseline; a missing prerequisite follows its repair/blocker
@@ -1622,9 +1279,9 @@ then validate the maintained fix with clean customer acceptance.
    experiment established; retain and retire disproven hypotheses. One
    inconclusive probe does not send the workflow back to log-only guessing.
    Repeated experiments need a new hypothesis, changed probe or materially new
-   evidence. Bound each command and investigation to the existing task/session
-   limits; do not create an unbounded retry loop or claim a reasoning stall while
-   a useful authorized experiment remains. A handoff carries the symptom,
+   evidence. Bound each command and investigation to the current task; do not
+   create an unbounded retry loop or claim a reasoning stall while a useful
+   authorized experiment remains. A handoff carries the symptom,
    reproduction inputs/commands, established observations, rejected explanations,
    temporary changes and before/after results, evidence locations, cleanup and
    exact next live probe. End the session with owned maintenance cleanup; the
@@ -1642,151 +1299,6 @@ then validate the maintained fix with clean customer acceptance.
    not experimental guest mutations. Keep expected versus actual behavior and
    unresolved product decisions under [failure handling](#handling-test-failures).
 
-Close-out ignores reported paths that are absent from both the working tree and
-the Git index, such as temporary briefs created and deleted within the task.
-Tracked deletions still stage normally. If Git close-out fails after acceptance, the
-launcher retains the accepted result and current handoff. Restart revalidates
-that result against the saved queue state and retries only its staging/commit/push before
-selecting the next task; it does not repeat the completed live acceptance or
-rewrite the previous run's evidence. Recovery preserves newly queued unchecked
-tasks; changes to existing task order or another task's status still refuse.
-
-If a session discovers a missing capability, the plan permits inserting an
-unchecked prerequisite immediately before its unfinished consumer. The launcher
-validates that insertion, preserves the consumer's handoff, staging ownership
-and session counts, and starts the prerequisite in a fresh session. This earns
-no completion or live-acceptance credit. Existing task order/status must remain
-unchanged, and the inserted rows must be explicit dependencies with briefs.
-After the prerequisites pass, the consumer resumes in a recovery session.
-Restart also recognizes this dependency relationship in an older interrupted
-checkpoint, preserving its evidence and requiring cleanup verification first;
-unrelated queue changes still refuse. No checkpoint deletion or manual editing
-is needed.
-
-An authorized scope exclusion is recorded as `Excluded tasks: **ID, ID**` in
-the canonical queue. On restart, an interrupted excluded prerequisite can
-return to its saved suspended consumer only when every removed row is explicitly
-excluded and unchecked, all remaining rows retain their order/status, and the
-consumer is the first unchecked task. Pending completion and optimization are
-never bypassed. The launcher preserves session/model history, staging ownership
-and retained evidence, and requires cleanup verification in recovery. Exclusion
-earns no acceptance credit; current briefs supersede excluded-task handoffs.
-
-After explicitly reviewed rebalancing between plans, use
-`tools/write-e2e --planc --reconcile RUN --check` in the selected checkout,
-then omit `--check` to adopt the queue (use the appropriate plan selector).
-The launcher must be inactive with owned cleanup and pending Git recovery finished.
-For an unfinished optimization, committed master, queue and brief inputs are
-required. Reconciliation preserves all previously completed rows and the exact
-three-task batch, validation, session history and owned edits. It archives the
-original checkpoint and rejected handoff before adopting the new queue baseline.
-It grants no acceptance or completion: the same optimization resumes before any
-new task. Ordinary optimization handoffs still cannot change queue status/order.
-
-Each session is a new Codex `app-server` process with a fresh persistent thread,
-history-list recording and memories disabled. The shared
-[goal setup](../docs/Execution-Plans.md#execution-and-delegation) activates the
-actual goal before task work. Follow-up chat and interrupted-turn continuation
-use that same thread and consume no new launcher session. Only the latest
-standalone handoff crosses sessions. Existing CLI
-authentication, sandbox and command grants apply; missing grants or unresolved
-behavior decisions pause with a blocker. No live Codex or VM work is performed
-by the launcher's regression tests.
-
-When a task is blocked, both launchers ask in everyday language: what prevents
-progress, how it affects the work, why the agent cannot resolve it, and what
-specific decision or action the user needs to take. Questions and choices must
-also make sense without Linux or test-system knowledge. Technical commands,
-paths and error codes belong in the saved handoff. Each choice says who does
-what and what happens next; two versions of the same repair are not distinct
-choices. Access failures require checking the exact command against its grant
-before blaming host permissions or asking for administrator help.
-The launcher publishes one concrete question with two or three suggestions and
-an Other option in ONPC: Watch. The workflow waits without consuming a model
-session. Watch can attach later; the first submitted answer wins and continues
-the same task at its retained model tier. An answer grants no acceptance credit.
-If the session allowance was exhausted, answering grants one recovery session;
-automatic work remains subject to the limits afterward. `--stop` preserves the
-pending question for the next run.
-
-The shared [session renderer](../tools/launcher_render.py) applies these display
-rules to every supervised agent; launchers do not format agent events themselves.
-Launcher commands acknowledge controller admission in green, or failure in red,
-and exit immediately. ONPC: Watch owns progress, conversation, questions, controls
-and results; it can attach at any time. The [Watch guide](../vscode/onpc-watch/README.md)
-owns the interface. Startup success does not establish successful task completion.
-
-The [execution contract](../docs/Execution-Plans.md) owns task limits and workflow
-extension boundaries.
-
-The shared [detached launcher module](../tools/detached_launcher.py) owns
-workflow attachment, process supervision, fresh Codex transport, log rotation
-and startup acknowledgement for `fix-tests`, `write-e2e` and ordinary plan workflows;
-`run-tests` shares its lock
-primitives and registers test owners
-started inside an E2E or ordinary plan agent session. The
-[adapter map](../docs/Execution-Plans.md#extension-boundary) distinguishes their
-shared components and retained execution engines.
-Their model workflows use the shared
-[response recovery contract](../docs/Execution-Plans.md#common-launcher-interface)
-for rejected agent handoffs, preserving acceptance guards and existing session caps.
-All launcher-owned model sessions also use that contract's capacity recovery:
-5, 10, 20, 40 and 80 second retries, then one session-only GPT-6.1 Sol to
-GPT-6 Astra fallback at unchanged effort. Capacity attempts do not advance the
-repair/E2E model ladders or consume additional logical session slots.
-Cancellation or worker death cancels only those recorded test runs, validates
-their directory identities and waits for guarded cleanup before releasing the
-workflow lock. Already-running tests that the agent merely attaches to remain
-owned by their original caller.
-
-Private output and checkpoints use the shared storage and retention libraries
-under `output/test-runs/host/write-e2e/`. In a launcher handling multiple tasks,
-each completed task's top-pane session updates are replaced after acceptance
-and staging by `Task ID: Title (sessions=N, duration=D)`, preserving the bold
-task-label link and title from its live update and using that task's
-session count and duration (`12m` below an hour, `1h 31m` from an hour onward).
-Current-task updates keep their existing format.
-Completed optimization sessions use the same green compact summary, retaining
-their optimization batch heading and their own session count and duration.
-These compact summaries survive attachment and replace the completed task's
-retained controller output too. The final recap includes every
-task completed in that run, in order, with the existing detailed format:
-a green `Task ID complete.` line,
-followed by the number of sessions spent on that task (including earlier
-launcher runs) and the cumulative sessions actually consumed by the current
-launcher run, including earlier sessions only for the unfinished task being
-resumed. A new launcher starting a different task resets that total; unused
-session allowance is never counted. It
-saves task-session worktree changes across handoffs and stages them with the
-agent's explicit file list, including changes from the final session. Changes
-already present before the task and generated `output/` artifacts are excluded.
-The launcher saves the full summary and next-session prompt in `handoff.txt`
-without printing them. At an incomplete session boundary or safe stop, it still prints and saves
-the handoff. A new invocation after that boundary continues the latest
-handoff with fresh session and task budgets. An interrupted checkpoint
-starts a recovery session under the model policy above that rechecks evidence and cleanup,
-resolves authorized remaining work, then runs host and live VM validation in
-that session. A pass closes the task; a failure preserves evidence and hands off
-for investigation and repairs in the next session.
-Blocked checkpoints retain their pending question and pause again until answered.
-If the developer removes the unfinished current task and explicitly declares it
-under `Excluded tasks:` in the queue, restart selects the next task with a fresh
-task budget and no acceptance credit for the removed task. Retained queue order
-and completion states must be unchanged; pending acceptance/commit recovery still
-refuses exclusion. Saved evidence and partial source work remain preserved, and
-the recovery session verifies prior owned cleanup before new live work.
-The full engineering handoff remains in `handoff.txt`, without being repeated in
-the blocked display. If an interrupted session checked its own task but did not
-save a valid completion response, the launcher automatically starts a recovery
-session for that task before selecting the next one, even if the queue is empty.
-Recovery inspects the saved handoff and retained acceptance/cleanup evidence,
-reuses sufficient passing results and completes missing validation or close-out.
-If acceptance remains incomplete, it restores the task's unchecked row, brief
-and pointer before continuing. Only a validated completion response and successful
-staging permit advancement. Newly added unchecked tasks are preserved and included
-in recovery's status checks. Removed or reordered existing tasks, changes to another
-task's status and newly added completed tasks still refuse recovery.
-The launcher never assumes an interrupted live test passed.
 
 ### Aggregate execution and reconnection
 
@@ -2192,9 +1704,8 @@ Names contain the category, a stable case/VM owner key, and the VMs actually vis
 the clip, ordered by numeric IDs in `config/environment.json`, with the common
 `onpc-` prefix omitted. Each VM case attempt finishes and publishes independently,
 even if another VM is still running the same case. Integration qualifications
-use their stable check basename as the ID, including building-block qualifications
-started by `write-e2e`. Repeating that block replaces its previous recording;
-there is no separate recorder or task-specific video archive in `write-e2e`.
+use their stable check basename as the ID. Repeating that qualification replaces
+its previous recording; implementation sessions need no separate recorder.
 
 `system --list` displays persistent numeric IDs; `system --id N[,N...]` selects
 them without changing existing `--area`/`--test` or checkpoint identities.
@@ -2546,13 +2057,11 @@ required. Simplify repeated navigation and incidental assertions in completed
 and planned cases. Both layers reuse shared GUI operations and public readers; see the
 [coverage allocation and duplicate review](../docs/TestAutomation/UI-and-E2E-Coverage.md).
 
-The [2026-09-14 customer scope](../docs/TestAutomation/E2E-Building-Blocks.md) changes
-unfinished E2E plans. Preserve product regressions and the shared safety checks
-under the [test scope mandate](../docs/Mandates/Test-Scope-Mandate.md).
-Customer E2E uses real
-actions and visible results; mechanical installation/upgrade/removal retains
-its internal checks. Pending legacy E2E declarations require scoped adaptation
-with their first consumer, without weakening required product coverage.
+Customer E2E uses the [shared operations](../docs/TestAutomation/E2E-Building-Blocks.md)
+for real actions and independent public results. Mechanical installation,
+upgrade and removal retain their internal checks. Preserve product coverage
+and shared safety checks under the
+[test scope mandate](../docs/Mandates/Test-Scope-Mandate.md).
 
 | Location | Purpose | Real dependencies and isolation |
 | --- | --- | --- |
@@ -3318,7 +2827,7 @@ failure does not establish a product defect without evidence connecting it to
 the required product behavior, and it does not erase an independently valid
 feature pass. Keep unresolved safety qualification open; a feature pass does
 not qualify its harness. Before repairing an incidental dependency, apply the
-[product-focused review](../docs/TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys).
+[product-focused review](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope).
 
 Read the failed operation's retained error and independent result, not only a
 generic worker/SSH error or its last printed title. A title may precede a failed
@@ -3354,7 +2863,7 @@ the unexecuted/failed selection with its original assertions.
    before unrelated UI discovery; keep that refusal in focused safety coverage.
    Ordinary feature cases retain runtime guards without repeating unchanged
    qualification histories. Reconcile recipes and unfinished consumers under the
-   [journey review contract](../docs/TestAutomation/E2E-Execution-Contracts.md#product-focused-journeys);
+   [journey review contract](../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope);
    remove an unnecessary dependency before adding adapters, retries or timeouts.
 2. Classify the tests, their affected components/shared dependencies, runner,
    environment and safety prerequisites. Add them to the authoritative suite
@@ -3388,8 +2897,8 @@ assertions stay with the existing feedback UI owners. Their passing results
 establish app behavior under declared responses, not real service acceptance,
 email delivery or an installed desktop/GDM destination.
 
-Real sending is a separate optional integration check, outside the routine
-write-e2e queues and not a prerequisite for these component checks. Any such test must
+Real sending is a separate optional integration check and not a prerequisite
+for these component checks. Any such test must
 declare the actual service, explicit authorization and dedicated test recipient;
 never send automated customer journeys to a production support inbox or label
 a fake transport as real delivery. The scenario inventory and final audit must

@@ -2215,8 +2215,9 @@ or intervention, without waiting for the renderer or queue to exit. Temporary ca
 uses shared scratch; final recordings have no automatic age or size rotation.
 This explicit latest-only policy is separate from ordinary report retention.
 Publication logs a clickable recording path. Recording links in the Watch
-session and status views use GIO's system-default video handler on the extension
-host. The first observed error in each
+session and status views use GIO's system-default video handler for local files;
+SSH sources transfer the WebM unchanged to a VS Code video tab (see
+[Watch playback](../vscode/onpc-watch/README.md)). The first observed error in each
 attempt logs `HH:MM:SS.mmm`, fractional playback seconds and its zero-based frame
 index relative to that file's encoder start, never the system clock. Host failure
 ledgers report before cleanup; streamed guest failures use host observation time,
@@ -2236,8 +2237,11 @@ capture and media-publication failures retain their infrastructure-failure behav
 The private session bus and renderer use host GTK libraries and schemas, excluding
 inherited editor/Snap loader and GTK module overrides.
 The private renderer requires the existing GTK/Mutter/VTE development stack and
-FFmpeg, installed only through `./setup.sh`. It records at 5 fps with fast VP9
-encoders and bounded frame handoff. No audio is recorded. Cases start their own
+FFmpeg, installed only through `./setup.sh`. Desktop and headless hosts both record
+VP8 WebM with YUV420p pixels at 5 fps, using fast encoders and bounded frame
+handoff. Watch transfers the original bytes without playback transcoding.
+No audio is recorded. Existing VP9 recordings remain readable by compatible
+players until a new case execution replaces them. Cases start their own
 file timeline without keyframe preludes or full-session slicing.
 Transient GTK paint gaps retain the last safe frame and are counted separately
 from encoder overload; a sustained rendering stall fails capture.

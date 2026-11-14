@@ -437,7 +437,8 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                         { enableScripts: true, localResourceRoots: [] });
                     const nonce = randomBytes(16).toString('hex');
                     const listener = video.webview.onDidReceiveMessage(message => {
-                        if (message.type === 'playback-error') errors.report('Cannot play Watch recording', 'VS Code could not decode the transferred WebM recording.');
+                        if (message.type === 'playback-error') errors.report('Cannot play Watch recording',
+                            `VS Code could not decode the transferred WebM recording.\nMedia error: ${message.code}: ${message.detail}`);
                     });
                     video.onDidDispose(() => listener.dispose());
                     // A Blob avoids putting an entire recording into a media URL.
@@ -449,7 +450,7 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                         const video = document.querySelector('video');
                         video.addEventListener('error', () => {
                             document.getElementById('error').hidden = false;
-                            vscode.postMessage({type: 'playback-error'});
+                            vscode.postMessage({type: 'playback-error', code: video.error?.code, detail: video.error?.message});
                         });
                         const bytes = Uint8Array.from(atob('${result.data}'), character => character.charCodeAt(0));
                         const url = URL.createObjectURL(new Blob([bytes], {type: 'video/webm'}));

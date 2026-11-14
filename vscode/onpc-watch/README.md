@@ -343,9 +343,13 @@ routed only to the displayed, still-current launcher session.
 Recording links in **Launcher**, **Session**, **Status** and **Error** open through GIO using
 the desktop's default video application for local sources. SSH sources transfer
 the selected recording on demand and play it in a VS Code video tab. Playback
-converts a copy to VP8 in memory for VS Code compatibility; the original
-recording is preserved. Transfer uses the existing client-to-server SSH connection
-and does not require reverse SSH. Playback failures appear in Watch error details.
+uses the original recording unchanged: new recordings use VP8 WebM, YUV420p,
+5 fps and no audio on both desktop and headless hosts.
+Transfer uses the existing client-to-server SSH connection
+and does not require reverse SSH. Playback failures appear in Watch error details,
+including the decoder's error. Older VP9 recordings remain unchanged and may
+require the source host's desktop player; rerunning the case replaces them with
+the current format.
 Inline remote videos are limited to 64 MiB; larger recordings remain available on the
 source host. Remote error logs open as text in the editor (up to 2 MiB).
 Artifact transfer does not create local test-output copies.

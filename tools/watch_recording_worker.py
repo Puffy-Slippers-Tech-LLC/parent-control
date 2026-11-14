@@ -217,8 +217,8 @@ class Encoder:
             'ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
             '-f', 'rawvideo', '-pixel_format', 'rgba', '-video_size', f'{width}x{height}',
             '-framerate', str(fps), '-i', 'pipe:0', '-an',
-            '-c:v', 'libvpx-vp9', '-deadline', 'realtime', '-cpu-used', '8',
-            '-threads', '1', '-row-mt', '1', '-crf', '40', '-b:v', '0',
+            '-c:v', 'libvpx', '-deadline', 'realtime', '-cpu-used', '8',
+            '-threads', '1', '-crf', '40', '-b:v', '1M',
             '-g', str(fps), '-pix_fmt', 'yuv420p', str(output)],
             stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
             pass_fds=shared_owner_descriptors())

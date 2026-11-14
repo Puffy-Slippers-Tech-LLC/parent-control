@@ -29,24 +29,17 @@ from tests.integration.watch_activity import TerminalControls
 
 
 def inline_video(stream):
-    """Convert a playback copy to VS Code's supported VP8, keeping originals."""
-    import subprocess
+    """Transfer the published WebM unchanged, bounded by the bridge limit."""
     limit = 64 * 1024 * 1024
     if stream.seek(0, 2) > limit:
         raise ValueError('Recording exceeds the inline transfer limit; open it on the source host.')
     stream.seek(0)
-    try:
-        result = subprocess.run([
-            'ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0',
-            '-map', '0:v:0', '-an', '-c:v', 'libvpx', '-deadline', 'realtime',
-            '-cpu-used', '8', '-threads', '1', '-crf', '40', '-b:v', '1M',
-            '-pix_fmt', 'yuv420p', '-fs', str(limit), '-f', 'webm', 'pipe:1'],
-            stdin=stream, capture_output=True, timeout=60, check=True)
-    except (subprocess.SubprocessError, OSError) as error:
-        raise ValueError('Cannot prepare VP8 recording playback: ' + str(error)) from error
-    if not result.stdout or len(result.stdout) >= limit:
-        raise ValueError('Playback copy exceeds the inline transfer limit; open it on the source host.')
-    return dict(kind='video', data=base64.b64encode(result.stdout).decode('ascii'))
+    data = stream.read(limit + 1)
+    if not data:
+        raise ValueError('Recording is empty.')
+    if len(data) > limit:
+        raise ValueError('Recording exceeds the inline transfer limit; open it on the source host.')
+    return dict(kind='video', data=base64.b64encode(data).decode('ascii'))
 
 
 def recording_artifact(uri, anchor, host):

@@ -64,7 +64,7 @@ def arguments(argv=None):
                         help='rebuild the current source before installing and replacing '
                              'a matching online version snapshot (default: true); false keeps '
                              'an existing version snapshot without building, or creates it if missing')
-    return parser.parse_args(argv)
+    return vm_config.parse_vm_arguments(parser, argv)
 
 
 def confirm_preparation(args):

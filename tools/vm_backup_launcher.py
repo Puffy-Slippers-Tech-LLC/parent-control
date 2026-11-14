@@ -33,7 +33,7 @@ def main(action, argv=None):
         'VM name or ID, comma-separated names/IDs, all-enabled, or all (default; '
         'offline VMs/hosts are skipped). Archive copying/restoration is serial; restored VM '
         'preparation uses registry concurrency.'))
-    args = parser.parse_args(argv)
+    args = vm_config.parse_vm_arguments(parser, argv)
     try:
         _, vms = vm_config.execution(args.vm)
         for vm in vms:

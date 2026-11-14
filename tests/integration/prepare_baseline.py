@@ -1404,6 +1404,7 @@ def main(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter,
                                      epilog=help_message())
     parser.add_argument('--vm', help='required configured VM name (validated before parsing)')
+    guest_contract.vm_config.add_host_argument(parser)
     parser.add_argument("--check-tools", action="store_true", help="check dependencies only; no VM connection or writes")
     parser.add_argument("--replace-missing", action="store_true",
                         help="explicitly retire a deleted baseline and capture the prepared, powered-off guest")

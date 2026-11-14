@@ -435,6 +435,7 @@ def main(argv=None):
         argv = argv[:boundary] + ['exec']
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
+    runner.baseline.guest_contract.vm_config.add_host_argument(parser)
     parser.add_argument('--expected-uuid', required=True)
     parser.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reset',
                                           'reboot', 'send-key', 'screenshot', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',

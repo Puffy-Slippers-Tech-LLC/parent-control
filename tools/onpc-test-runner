@@ -100,7 +100,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         return ['/usr/bin/python3', '-B', str(confined_file(root, 'tools/host_disk.py'))]
     if argv[:1] == ['compute']:
         from vm_selection import vm_config
-        remaining, selector = vm_config.extract_selector(argv[1:])
+        remaining, selector = vm_config.extract_selector(vm_config.host_arguments(
+            argv[1:], path=root / 'config/environment.json'))
         if remaining not in ([], ['--exact']) or selector is None:
             raise ValueError('host-compute: requires --vm SELECTION and optional --exact')
         vm_config.execution(selector, root / 'config/environment.json')
@@ -209,6 +210,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                'to build and synchronize trusted-hard from current host sources. '
                'Guest input retires refresh eligibility; stop restores the baseline.')
     for category in (system, e2e, appsnapshot, vm):
+        vm_config.add_host_argument(category)
         category.add_argument('--vm', help='required configured VM name or ID; optional for declaration listing')
     vm.add_argument('action', choices=('status', 'xml', 'snapshots', 'start', 'stop', 'reboot',
                                       'reset', 'screenshot', 'send-key', 'recover-online', 'rename', 'rename-disk', 'exec', 'sync-fixtures',

@@ -47,7 +47,7 @@ def arguments(argv=None):
         parser.print_help(sys.stderr)
         parser.exit(2, '\033[31m\nPlease choose --mode auto or --mode manual. ' + message + '\033[0m\n')
     parser.error = error
-    return parser.parse_args(argv)
+    return vm_config.parse_vm_arguments(parser, argv)
 
 
 def prepare_hosts(args, vms, *, refresh):

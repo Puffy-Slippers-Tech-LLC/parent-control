@@ -1151,7 +1151,7 @@ def main(argv=None):
     parser = FailureParser(prog='VM disaster recovery', description=__doc__, allow_abbrev=False)
     parser.add_argument('action', choices=('backup', 'restore'))
     parser.add_argument('--vm', default='all')
-    args = parser.parse_args(argv)
+    args = vm_config.parse_vm_arguments(parser, argv)
     try:
         require(os.geteuid() == os.getegid() == 0 and int(os.environ.get('PKEXEC_UID', '0')) > 0,
                 'use-tools-backupvm-or-restorevm')

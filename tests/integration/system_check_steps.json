@@ -110,6 +110,7 @@
     "expected": "Parent authentication and approval remain usable during the failure and after recovery."
   },
   "check_fixture_e2e_installed": {
+    "execution_revision": 2,
     "summary": "Verify prepared applications support saved child policies.",
     "steps": ["Open the prepared child application catalogue.", "Save application restrictions and restore the original settings."],
     "expected": "Prepared applications are discoverable, policy saves work, and the original settings can be restored."

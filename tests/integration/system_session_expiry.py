@@ -16,7 +16,7 @@ import tempfile
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, call
+from system_assertions import accepted, account_property, account_state, account_states, call
 
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 SERVICES = ('gdm-password', 'gdm-autologin', 'login', 'sshd')
@@ -97,7 +97,7 @@ def verify_usage_reader_recovery(record):
     accounts = identities()
     child, parent = accounts['child'], accounts['parent']
     operation = ('GetTimeStatus', '(uu)', (child, 120))
-    before = {uid: account_state(uid) for uid in (child, accounts['other'])}
+    before = account_states((child, accounts['other']))
     initial = accepted(call(parent, *operation), category='usage-read:initial-query')
     guest.require(len(initial) == 4 and initial[2] == 120
                   and initial[3] == max(initial[:2]) + 120,
@@ -122,7 +122,7 @@ def verify_usage_reader_recovery(record):
         reply = call(parent, *operation)
         guest.require(reply == {'error': guest.BUS + '.Error.BackendFailure'},
                       'usage-read:outage-not-refused')
-        guest.require(all(account_state(uid) == value for uid, value in before.items()),
+        guest.require(account_states(before) == before,
                       'usage-read:outage-account-writes')
         record('onpc.usage-read.refused', 'backend-unavailable; no-balance; accounts-unchanged')
     finally:
@@ -134,7 +134,7 @@ def verify_usage_reader_recovery(record):
                   and recovered[3] == max(recovered[:2]) + 120,
                   'usage-read:recovered-estimate')
     guest.require(not mask.exists() and not mask.is_symlink()
-                  and all(account_state(uid) == value for uid, value in before.items()),
+                  and account_states(before) == before,
                   'usage-read:recovery-account-writes-or-mask')
     record('onpc.usage-read.recovered', 'identical-query-succeeded; accounts-unchanged; mask-removed')
 
@@ -422,7 +422,7 @@ def verify_zero_time_pam(record):
     account, _ = manager._account(child)
     previous = (manager._list(account, 'enabled-extensions'),
                 manager._list(account, 'disabled-extensions'))
-    before, other = account_state(child), account_state(accounts['other'])
+    before = account_states((child, accounts['other']))
     invocation = guest.run(['systemctl', 'show', guest.BROKER,
                            '--property=InvocationID', '--value'])
     try:
@@ -436,8 +436,7 @@ def verify_zero_time_pam(record):
                       and manager._list(account, 'enabled-extensions') == previous[0]
                       and manager._list(account, 'disabled-extensions') == previous[1],
                       'expiry:daily-pam-did-not-recover-extension')
-        guest.require(account_state(child) == before
-                      and account_state(accounts['other']) == other
+        guest.require(account_states(before) == before
                       and guest.run(['systemctl', 'show', guest.BROKER,
                                      '--property=InvocationID', '--value']) == invocation,
                       'expiry:daily-recovery-changed-policy-or-restarted-broker')
@@ -537,7 +536,7 @@ def verify_runtime_rollback(record):
                 self.fired = True
                 raise RuntimeError('injected extension activation failure')
 
-    before = {uid: account_state(uid) for uid in (accounts['child'], accounts['other'])}
+    before = account_states((accounts['child'], accounts['other']))
     with guest.isolated_broker_for_faults():
         if live:
             manager._set_version_check(account, False, live=True)
@@ -577,7 +576,7 @@ def verify_runtime_rollback(record):
             mode = 'live' if live else 'offline'
             record('onpc.expiry.rollback.' + mode + '.' + fault,
                    'injected; real-settings-and-runtime-rollback-verified')
-    guest.require(all(account_state(uid) == value for uid, value in before.items()),
+    guest.require(account_states(before) == before,
                   'expiry:rollback-changed-account-policy-or-grant')
 
 

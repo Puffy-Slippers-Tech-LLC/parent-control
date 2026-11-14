@@ -16,7 +16,8 @@ import sys
 import threading
 import time
 
-from owned_commands import Commands, require, CommandError as Error
+from owned_commands import (Commands, guest_step, vm_operation, cancellation_cleanup,
+                            require, CommandError as Error)
 import vm_config
 from watch_activity import observed
 
@@ -273,8 +274,9 @@ class Transport:
                             self._storage_timeout_sample(error, 'before-guest-diagnostic')
                             # One guarded, read-only exchange. Inline output stays
                             # in the existing private command artifact, off watch.
-                            self.call(['/usr/bin/python3', '-c', BOOT_STORAGE_DIAGNOSTIC],
-                                      timeout=10, attempts=1, check=False)
+                            with cancellation_cleanup():
+                                self.call(['/usr/bin/python3', '-c', BOOT_STORAGE_DIAGNOSTIC],
+                                          timeout=10, attempts=1, check=False)
                             require(self.commands.last_returncode == 0,
                                     'transport:boot-storage-diagnostic-failed')
                         except Exception:
@@ -347,12 +349,13 @@ class Transport:
             def command_output(data, stream):
                 if stream == 'stdout':
                     on_output(data)
-            result = self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
-                                       input=input, timeout=timeout, check=check, merge_stderr=False,
-                                       on_output=on_stream if on_stream is not None else
-                                       command_output if on_output is not None else None,
-                                       **({} if diagnostic_stdout is None else
-                                          {'diagnostic_stdout': diagnostic_stdout}))
+            with guest_step():
+                result = self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
+                                           input=input, timeout=timeout, check=check, merge_stderr=False,
+                                           on_output=on_stream if on_stream is not None else
+                                           command_output if on_output is not None else None,
+                                           **({} if diagnostic_stdout is None else
+                                              {'diagnostic_stdout': diagnostic_stdout}))
             outcome = 'finished' if self.commands.last_returncode == 0 else 'failed'
             return result
         finally:
@@ -584,9 +587,10 @@ class Transport:
                                    f'Guest sleep interval checkpoint {checkpoint}/4'))
             asleep()
             require(time.monotonic() < deadline, 'transport:suspend-timeout')
-            woke_at = time.monotonic()  # Consume before input, including an uncertain reply.
-            event('Waking the same child computer once')
-            domain.pMWakeup(0)
+            with vm_operation():
+                woke_at = time.monotonic()  # Consume before input, including an uncertain reply.
+                event('Waking the same child computer once')
+                domain.pMWakeup(0)
 
         program = ('import hashlib,os,pathlib,sys; '
             'assert hashlib.sha256(pathlib.Path("/proc/sys/kernel/random/boot_id").read_bytes())'

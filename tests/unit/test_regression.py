@@ -80,7 +80,7 @@ def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency,
     ('no', True, 1), ('yes', True, 1), ('unsure', True, 1), ('no', False, 1),
     ('unsure', True, 130),
 ])
-def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
+def test_repair_admission_starts_repair_before_remaining_work(
         tmp_path, monkeypatch, private_dispatch_source, impact, cleanup, failure_status):
     import test_source
     import vm_test_queue
@@ -91,13 +91,17 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
     identity = dict(digest='a' * 64, generation=0)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(identity))
     vm = SimpleNamespace(name='sole-worker', family='family', compute_unit=1)
+    companion = SimpleNamespace(name='companion', family='family', compute_unit=1)
     work = [dict(category='system', options=[], cases=[case], case=case, area=False)
             for case in ('first', 'second')]
     monkeypatch.setattr(vm_test_queue, 'repair_case_inventory',
                         lambda root, selected, control, **kwargs: [item['case'] for item in work])
-    plan = ({'concurrency': 1}, [vm], [], ['system'], [('system', [])], {'family': work})
+    plan = ({'concurrency': 2}, [vm, companion], [], ['system'], [('system', [])], {'family': work})
     events = []
     failed = False
+    together = threading.Barrier(2)
+    first_assigned = threading.Event()
+    initial_done = threading.Event()
 
     class Ready:
         def __init__(self, *args):
@@ -115,7 +119,19 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
             assert name == vm.name
         def run_ready(self, execute, *, choose, needed, completed, observed, service, keep_failed):
             assert keep_failed
-            results = {vm.name: dict(status=0, handoffs=[])}
+            results = {target.name: dict(status=0, handoffs=[]) for target in (vm, companion)}
+            def initial(target):
+                if target is companion:
+                    assert first_assigned.wait(5)
+                with test_source.reader(tmp_path):
+                    result = execute(SimpleNamespace(vm=target, receipt='owned'))
+                    observed(target, result)
+                return result
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                initial_results = [(target, pool.submit(initial, target)) for target in (vm, companion)]
+                for target, future in initial_results:
+                    results[target.name] = completed(target, future.result(timeout=10))
+            initial_done.set()
             while True:
                 if service(self, True):
                     continue
@@ -131,10 +147,19 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     def execute(worker, assignment, inherited, recovering):
         nonlocal failed
-        assert worker.vm == vm and assignment['vm'] == vm.name
+        assert assignment['vm'] == worker.vm.name
         assert not recovering
         current = assignment.get('execution', assignment['work'])
         repairing = test_source.WRITER in test_source.environment()
+        if not initial_done.is_set():
+            if current['case'] == 'first':
+                first_assigned.set()
+            together.wait(timeout=5)
+            if current['case'] == 'second':
+                assert worker.interrupt.wait(5), 'companion guest steps were not interrupted'
+                events.append(('interrupted', current['case']))
+                return dict(status=130, interrupted=True, handoffs=[], evidence=dict(
+                    assignment, passed=[], cleanup=True, diagnostic=False))
         events.append(('recheck' if repairing else 'normal', current['case']))
         status = failure_status if not failed and not repairing else 0
         failed |= bool(status)
@@ -162,8 +187,10 @@ def test_repair_admission_keeps_isolated_work_running_until_natural_drain(
     assert result['status'] == 0 and not result['suspended']
     normal = events.index(('normal', 'second'))
     repairing = events.index(('repair', 'first'))
-    assert (normal < repairing) == (impact == 'no' and cleanup)
+    assert repairing < normal
     assert events.count(('recheck', 'first')) == 1
+    assert events.count(('interrupted', 'second')) == 1
+    assert not result['pending_repairs'] and not result['unfinished']
     protection = test_source.SourceProtection(source_path)
     assert protection.owner() is None and not protection.impact_holds()
 
@@ -887,6 +914,25 @@ def test_closed_command_keeps_exact_inventory_failure_and_cleanup(report, tmp_pa
     assert report.commands == [record]
     execution.close()
     assert report.commands == [record]
+
+    # A verified interruption keeps completed accounting without inventing a
+    # failed last case merely because cancellation arrived during cleanup.
+    checkpoint_events = []
+    run.checkpoint = SimpleNamespace(event=lambda *args: checkpoint_events.append(args))
+    interrupted = regression.Category('Interrupted selection', 1, nodeids=item.nodeids,
+                                      retry_category='unit')
+    run.categories.append(interrupted)
+    attempt = regression.Execution(run, interrupted, command=argv, events=True)
+    for event in [dict(kind='collection', total=1, nodeids=list(item.nodeids)),
+                  dict(kind='finished', nodeid=item.nodeids[0]),
+                  dict(kind='vm-cleanup', passed=True, interrupted=True)]:
+        attempt.output((regression.PREFIX + json.dumps(event) + '\n').encode())
+    run.control.stop()
+    attempt.finish(130)
+    attempt.close()
+    assert interrupted.state == 'Interrupted' and interrupted.done == 1 and interrupted.failures == 0
+    assert run.checkpoint.queue_vm_cleanup and run.checkpoint.queue_vm_interrupted
+    assert not any(event[1]['kind'] == 'failure' for event in checkpoint_events)
 
 
 @pytest.mark.parametrize('output', ['valid', 'missing-marker', 'missing-file', 'invalid-file',

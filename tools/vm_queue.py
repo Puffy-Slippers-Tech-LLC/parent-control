@@ -30,6 +30,7 @@ class _Worker:
         self.receipt = receipt
         self.used = False
         self.source_refused = False
+        self.interrupt = threading.Event()
 
     @property
     def vm(self):
@@ -267,6 +268,8 @@ class Executor:
         ``completed(vm, result)`` runs on the coordinator before refill. Success
         is notified only after source and reservation teardown; the callback may
         return a replacement result to reject an attempt's acceptance.
+        An intentional interruption retains its reservation until this callback
+        verifies cleanup and returns ``cleanup_complete=True`` with status zero.
         """
         import launcher_reload
         import test_source
@@ -400,7 +403,14 @@ class Executor:
                                         or type(replacement.get('status')) is not int):
                                     raise ValueError('vm-queue: completion must return an integer-status result')
                                 if value['status'] and not replacement['status']:
-                                    raise ValueError('vm-queue: completion cannot accept a failed attempt')
+                                    if not (value['status'] == 130 and value.get('interrupted') is True
+                                            and replacement.get('interrupted') is True
+                                            and replacement.get('cleanup_complete') is True):
+                                        raise ValueError('vm-queue: completion cannot accept a failed attempt')
+                                    # An interrupted worker keeps its reservation
+                                    # until the coordinator validates cleanup and
+                                    # returns its original claim to pending.
+                                    commands[name].put('release-reservation')
                                 value = replacement
                         except Exception as error:
                             completion_failed = True

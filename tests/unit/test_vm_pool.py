@@ -262,6 +262,25 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
     assert attempts == ['first'], 'later work must not erase an unowned completion error'
     assert result['first']['status'] == 2
     assert result['first']['cleanup'] is False
+    attempts.clear()
+    def interrupted(worker):
+        attempts.append(worker.vm.name)
+        return dict(status=130, interrupted=True, handoffs=[])
+    def accept_interruption(vm, result):
+        assert vm.name in state.held, 'interrupted owner released before cleanup validation'
+        return dict(result, status=0, cleanup_complete=True)
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        result = executor.run_ready(interrupted, choose=lambda ready, active: ready[0],
+                                    needed=lambda vm: not attempts, completed=accept_interruption,
+                                    keep_failed=True)
+    assert result['first']['status'] == 0 and not state.held
+    attempts.clear()
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        result = executor.run_ready(interrupted, choose=lambda ready, active: ready[0],
+            needed=lambda vm: not attempts,
+            completed=lambda vm, result: dict(result, status=0, cleanup_complete=False), keep_failed=True)
+        assert state.held == {'first'}
+    assert result['first']['status'] == 2 and not state.held
     with pytest.raises(ValueError, match='not ready'):
         with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
             executor.run_ready(execute, choose=lambda ready, active: 'foreign', needed=lambda vm: True)

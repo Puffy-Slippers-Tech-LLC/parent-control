@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 
-from owned_commands import Commands, require
+from owned_commands import Commands, check_cancellation, require
 
 
 PORT = 5900
@@ -217,6 +217,7 @@ class Worker:
             remote.close()
 
     def poll(self):
+        check_cancellation()
         # Observe exit first, then drain packets: a fast backend may queue ready
         # and exit together. Do not race its final send against waitpid.
         status = self.child.poll()

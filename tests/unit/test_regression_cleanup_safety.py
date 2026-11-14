@@ -238,8 +238,9 @@ finally:
 
 
 @pytest.mark.parametrize('channel', ['progress', 'stdout', 'stderr', 'terminal'])
-def test_guest_command_events_arrive_before_exit_and_survive_interrupt(tmp_path, channel):
-    from owned_commands import Commands
+def test_guest_command_events_arrive_before_exit_and_survive_interrupt(tmp_path, monkeypatch, channel):
+    from owned_commands import (Commands, cancellable, guest_step, vm_operation, cancellation_cleanup,
+                                cancellation_failed, record_vm_cleanup, vm_cleanup_verified)
     marker = tmp_path / 'ready'
     script = tmp_path / 'worker.py'
     script.write_text(f'''import pathlib,sys,time
@@ -253,6 +254,8 @@ finally:
     def interrupt(data):
         calls.append(data)
         assert not marker.exists()
+        if channel == 'progress':
+            signal.raise_signal(signal.SIGTERM)
         raise KeyboardInterrupt
     commands = Commands()
     commands.directory = tmp_path
@@ -264,9 +267,68 @@ finally:
             assert stream == ('stdout' if channel == 'terminal' else channel)
             interrupt(data)
         options = {'on_output': observe, 'merge_stderr': False, 'terminal': channel == 'terminal'}
-    with pytest.raises(KeyboardInterrupt):
-        commands.run([sys.executable, str(script)], **options)
-    assert marker.read_text() == 'cleaned'
+    if channel == 'progress':
+        @cancellable
+        def deferred():
+            with pytest.raises(KeyboardInterrupt), guest_step():
+                with vm_operation():
+                    signal.raise_signal(signal.SIGINT)
+                    # A callback's VM mutation finishes before interruption.
+                    assert not marker.exists()
+                pytest.fail('cancelled guest step continued')
+            with cancellation_cleanup(), guest_step():
+                signal.raise_signal(signal.SIGINT)  # Cleanup cannot be interrupted again.
+        deferred()
+
+        @cancellable
+        def failed_cleanup():
+            from system_runner import RunLedger
+            from tools import vm_recording
+            failures = []
+            monkeypatch.setattr(vm_recording, 'report_failure', lambda: failures.append('failure'))
+            ledger = RunLedger()
+            ledger.fail_outcome('infrastructure', 'execution:interrupted')
+            assert not cancellation_failed() and not failures
+            record_vm_cleanup(True)
+            ledger.fail_outcome('collection', 'artifact:digest')
+            assert cancellation_failed() and vm_cleanup_verified() and failures == ['failure']
+        failed_cleanup()
+
+        @cancellable
+        def failed_diagnostic():
+            from vm_transport import Transport, BOOT_SHA256_PROBE
+            original = None
+            invocations = []
+            def run(argv, **kwargs):
+                nonlocal original
+                invocations.append(argv)
+                if len(invocations) == 1:
+                    original = subprocess.TimeoutExpired(argv, 30)
+                    raise original
+                signal.raise_signal(signal.SIGTERM)
+                diagnostic_commands.last_returncode = 0
+                return b'{}'
+            diagnostic_commands = SimpleNamespace(run=run, last_returncode=None)
+            transport = Transport(dict(directory=str(tmp_path), hostname='unused',
+                                       run='a' * 32, domain_uuid='b' * 32),
+                                  diagnostic_commands, guard=lambda _: None)
+            monkeypatch.setattr(transport, '_storage_timeout_sample', lambda *args: None)
+            with pytest.raises(subprocess.TimeoutExpired) as caught:
+                transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE], timeout=30)
+            assert caught.value is original and len(invocations) == 2
+        failed_diagnostic()
+
+        @cancellable
+        def execute():
+            with guest_step():
+                commands.run([sys.executable, str(script)], **options)
+        with pytest.raises(KeyboardInterrupt):
+            execute()
+        assert not marker.exists()  # Guest teardown is disposable, unlike VM cleanup.
+    else:
+        with pytest.raises(KeyboardInterrupt):
+            commands.run([sys.executable, str(script)], **options)
+        assert marker.read_text() == 'cleaned'
     artifact = 'command-0001-stderr.txt' if channel == 'stderr' else 'command-0001.txt'
     expected = b'immediate event\r\n' if channel == 'terminal' else b'immediate event\n'
     assert (tmp_path / artifact).read_bytes().startswith(expected)

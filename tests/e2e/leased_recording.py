@@ -120,9 +120,11 @@ class LeasedScenario:
                 cleanup_state = {key: 'incomplete' if key == 'lease_phase' else False
                                  for key in CLEANUP_FIELDS}
             try:
-                self.recorder.end_case(cleanup_state)
+                interrupted = isinstance(self._first_error, KeyboardInterrupt)
+                self.recorder.end_case(cleanup_state, **({'interrupted': True} if interrupted else {}))
                 self._check_identity(lease)
-                self._summary = self.recorder.validate(self.verified)
+                self._summary = self.recorder.validate(self.verified,
+                    **({'interrupted': True} if interrupted else {}))
             except BaseException as error:
                 failure = failure if failure is not None else error
                 self._first_error = self._first_error if self._first_error is not None else error

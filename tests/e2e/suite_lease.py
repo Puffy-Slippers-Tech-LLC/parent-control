@@ -10,7 +10,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import system_runner as system
-from owned_commands import Commands
+from owned_commands import Commands, cancellation_cleanup, record_vm_cleanup
 
 
 def needs_installed(case):
@@ -383,6 +383,7 @@ class Suite:
         self.lease.ledger = ledger
         return self.source, self.guestfs, self.lease
 
+    @cancellation_cleanup()
     def close(self, *, retain_installed=False):
         try:
             if self.lease is not None:
@@ -397,3 +398,5 @@ class Suite:
             finally:
                 if self.source is not None:
                     self.source.close()
+        record_vm_cleanup(self.lease is None or self.lease.ledger is None
+                          or self.lease.ledger.outcomes['cleanup']['outcome'] != 'failed')

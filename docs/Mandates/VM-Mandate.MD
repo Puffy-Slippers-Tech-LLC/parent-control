@@ -121,8 +121,9 @@ Within each test group, tests use one pending case queue per admitted family: an
 atomically claims its next case, so each case executes once per family. The same
 pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
 failed or interrupted claims retain their owner through cleanup and recovery.
-Stateful histories and system area attempts remain indivisible. Each VM runs
-one attempt at a time, retaining its own lease and journals.
+Stateful histories and system area attempts remain indivisible for scheduling,
+but guest steps inside them may be interrupted for repair, reload or cancellation.
+Each VM runs one attempt at a time, retaining its own lease and journals.
 Preparation remains per admitted VM: each free slot takes the next registered VM, and
 the preparation queue drains even after an individual VM fails.
 Baseline helper refresh runs once after preparation workers finish.
@@ -137,12 +138,13 @@ claims follow that admission. Waiters whose
 family work has drained are cancelled without waiting for the occupied VM.
 Failed test workers retain their reservations while the remaining workers finish,
 with their execution slots released. Reservation release follows joined owned
-cleanup, never a progress event or timeout. Isolated repair tickets may keep
-their owned worker serving normal family cases after validated cleanup, until
-the finite pass drains naturally. Pending, shared or uncertain failure impact
-holds new normal admission while admitted work drains; no waiting isolated
-repair may publish writer intent merely to force that drain. Required-VM
-recheck and verification keep the failed attempt's original target and borrow
+cleanup, never a progress event or timeout. Every queued repair pauses that
+coordinator's new admission and interrupts its active guest steps through the
+[owned interruption contract](../../tests/README.md#scripted-repair-loop).
+VM operations and verified cleanup finish before repair acquires its writer.
+Pending, shared or uncertain failure impact also holds admission across other
+participating workflows; an isolated decision releases only its own shared hold.
+Required-VM recheck and verification keep the failed attempt's original target and borrow
 the active repair's fenced source lease. The
 [repair contract](../../tests/README.md#scripted-repair-loop) owns durable impact
 decisions, run-wide rounds and VM-independent task charges.

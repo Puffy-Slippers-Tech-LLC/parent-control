@@ -19,7 +19,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -243,7 +242,9 @@ PHASE_PREREQUISITES = {
 require = baseline.require
 Error = baseline.CaptureError
 
-from owned_commands import Commands, CommandError
+from owned_commands import (Commands, CommandError, cancellable, cancellation_requested,
+                            cancellation_cleanup, record_vm_cleanup, record_vm_failure,
+                            CANCELLATION_CODES)
 
 
 class EvidenceCommands(Commands):
@@ -310,6 +311,8 @@ PREREQUISITE_FAILURES = frozenset(
 
 def error_category(error):
     """Return only the runner's fixed public failure categories."""
+    if isinstance(error, KeyboardInterrupt):
+        return 'execution:interrupted'
     if isinstance(error, (Error, CommandError)):
         return str(error)
     evidence = sys.modules.get('private_artifacts')
@@ -357,6 +360,8 @@ class RunLedger:
         self.outcomes = {name: {'outcome': 'not-run', 'category': None}
                          for name in OUTCOME_NAMES}
         self.first_failure_category = None
+        self.recording_failure_reported = False
+        self.non_cancellation_failure = False
 
     @contextmanager
     def measure(self, stage):
@@ -377,17 +382,26 @@ class RunLedger:
     def fail_outcome(self, name, category):
         require(name in self.outcomes, 'outcome:unknown-domain')
         require(isinstance(category, str) and category, 'outcome:invalid-category')
+        self.non_cancellation_failure |= name != 'infrastructure' or category not in CANCELLATION_CODES
+        if name != 'infrastructure' or category not in CANCELLATION_CODES:
+            record_vm_failure()
         # A later failure in the same domain must not replace its first failure.
         if self.outcomes[name]['outcome'] != 'failed':
             self.outcomes[name] = {'outcome': 'failed', 'category': category}
         if self.first_failure_category is None:
             self.first_failure_category = category
+        if (not self.recording_failure_reported
+                and (name != 'infrastructure' or category not in CANCELLATION_CODES)):
+            self.recording_failure_reported = True
             from tools.vm_recording import report_failure
             report_failure()
+        if name == 'cleanup':
+            record_vm_cleanup(False)
         log(f'outcome:domain={name} outcome=failed category={category}')
 
     def data(self):
         return {
+            'non_cancellation_failure': self.non_cancellation_failure,
             'stage_durations_seconds': {
                 name: round(self.durations[name], 6) for name in STAGE_NAMES
             },
@@ -934,6 +948,7 @@ class Lease:
 
     @observed('Validating VM ownership and baseline')
     def __enter__(self):
+        record_vm_cleanup(False)
         try:
             self.capture.directory_identity = self.capture.private_directory()
             self.compatibility_fd = baseline.compatibility_lock(self.directory)
@@ -1090,6 +1105,7 @@ class Lease:
         attach(self)
 
     @observed('Saving product logs before VM cleanup')
+    @cancellation_cleanup()
     def collect_product_logs(self):
         """Consume the live transport once, before any destructive cleanup."""
         callback = self.product_log_capture
@@ -1251,6 +1267,9 @@ class Lease:
             pending = pending if pending is not None else error
         if pending is not None:
             raise pending
+        if (self.state is not None and self.state.get('phase') == 'complete'
+                and (self.ledger is None or self.ledger.outcomes['cleanup']['outcome'] != 'failed')):
+            record_vm_cleanup(True)
 
     def recover_graphical_cleanup(self, *, recovery_instance=None):
         """Resume a recorded VNC cleanup, or verify an already restored off guest.
@@ -1421,6 +1440,7 @@ class Lease:
         finally:
             self.release()
 
+    @cancellation_cleanup()
     def __exit__(self, exc_type, exc_value, traceback):
         if (self.ledger and exc_type is not None and
                 all(self.ledger.outcomes[name]['outcome'] != 'failed'
@@ -2826,13 +2846,15 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         raise
     finally:
         original_failure = sys.exc_info()[0] is not None
+        interrupted = isinstance(sys.exception(), KeyboardInterrupt)
         collection_error = None
         try:
-            with ledger.measure('collection'):
-                lease.guard()
-                vm.call(guest_command(run, 'collect', outcome), timeout=180)
-                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
-            ledger.pass_outcome('collection')
+            if not interrupted:
+                with cancellation_cleanup(), ledger.measure('collection'):
+                    lease.guard()
+                    vm.call(guest_command(run, 'collect', outcome), timeout=180)
+                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                ledger.pass_outcome('collection')
         except BaseException as error:
             collection_error = error
         if qualification_pending:
@@ -2951,6 +2973,7 @@ def evidence(directory, manifest, lease, passed, category, selection,
     return passed, category
 
 
+@cancellable
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     argv, configured = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
@@ -2987,6 +3010,7 @@ def main(argv=None):
     selected_inputs_sha256 = None
     retention_owner = ExitStack()
     ledger = RunLedger()
+    interrupted = False
     try:
         require(sum(argument == '--id' or argument.startswith('--id=')
                     for argument in argv) <= 1, 'selection:repeated-numeric-id-option')
@@ -3084,10 +3108,6 @@ def main(argv=None):
         from system_snapshots import create_suite, run_attempts
         suite = create_suite(source, guestfs, commands)
         _, _, lease = suite.acquire(ledger)
-        # SIGTERM follows the same finally/lease cleanup as an interactive interruption.
-        def interrupted(*_):
-            raise KeyboardInterrupt
-        signal.signal(signal.SIGTERM, interrupted)
         run_attempts(suite, directory, selection, manifest, selected_inputs_sha256, ledger,
                      fresh_install=args.previous_artifacts is not None,
                      fixture_selection=(json.loads(args.fixture_selection)
@@ -3096,6 +3116,7 @@ def main(argv=None):
         passed = True
         category = 'all-checks-passed'
     except (Exception, KeyboardInterrupt) as error:
+        interrupted = isinstance(error, KeyboardInterrupt)
         # A remote pytest exits through ssh's generic CommandError boundary.
         # Retain the first classified runner failure instead of replacing it
         # with that transport wrapper in the aggregate result.
@@ -3152,18 +3173,24 @@ def main(argv=None):
             except (Exception, KeyboardInterrupt) as error:
                 # Current results must remain available, including failed cleanup.
                 record_caught_failure(ledger, error)
+                interrupted = False
                 passed = False
                 log('evidence:finalization-failed')
         try:
             retention_owner.close()
         except (Exception, KeyboardInterrupt) as error:
             record_caught_failure(ledger, error)
+            interrupted = False
             passed = False
             log('evidence:owner-finalization-failed')
         if passed and suite is not None:
             progress = getattr(suite, 'system_progress', None)
             if progress is not None:
                 progress.complete_attempt()
+    from tools.regression_events import write_event
+    write_event(sys.stdout, 'vm-cleanup', passed=ledger.outcomes['cleanup']['outcome'] == 'passed',
+                interrupted=(interrupted or passed and cancellation_requested())
+                and not ledger.non_cancellation_failure)
     return 0 if passed else 1
 
 

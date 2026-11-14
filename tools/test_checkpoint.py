@@ -903,7 +903,7 @@ class PassCheckpoint:
         return dict(impact='unsure', reason='Impact triage is missing or stale.',
                     scope=[], evidence=[], classification='uncertain')
 
-    def accept(self, assignment, evidence, status):
+    def accept(self, assignment, evidence, status, *, interrupted=False):
         partition, key = self._claimed(assignment)
         if (type(status) is not int or not isinstance(evidence, dict)
                 or any(evidence.get(field) != value for field, value in assignment.items())
@@ -912,6 +912,8 @@ class PassCheckpoint:
                 or not isinstance(evidence.get('passed'), list)):
             raise ValueError('missing, stale, mismatched or diagnostic ordinary pass evidence')
         passed = completed_cases(json.dumps(evidence['passed']))
+        if interrupted and (status != 130 or evidence.get('failed')):
+            raise ValueError('interrupted evidence cannot conceal a failure or grant an attempt pass')
         work = assignment['work']
         execution = _pass_execution(assignment)
         if not passed <= set(execution['cases']):
@@ -921,13 +923,13 @@ class PassCheckpoint:
         if not evidence['cleanup']:
             return False
         retained = self.passed(assignment['family'], work['category'])
-        if status:
+        if status and not interrupted:
             passed.discard(execution['case'])
             retained.discard(execution['case'])
             partition['completed'] = {candidate: receipt for candidate, receipt in partition['completed'].items()
                                       if receipt['work']['category'] != work['category']
                                       or execution['case'] not in receipt['passed']}
-        elif not set(execution['cases']) <= passed | retained:
+        elif not status and not set(execution['cases']) <= passed | retained:
             raise ValueError('successful ordinary pass attempt lacks teardown-complete case evidence')
         partition['passed'][work['category']] = sorted(retained | passed)
         if not status:

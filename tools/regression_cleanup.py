@@ -6,6 +6,9 @@ cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 VM-control diagnostics use a unique abstract socket, joined owner thread and
 mocked guest transport; they share no live endpoint with another bucket.
 Unknown modules remain exclusive pending review.
+Guest-step interruption reuses regression cleanup's private child, pidfd and
+temporary signal handlers. The child is reaped before exit; no new shared path,
+VM, service, bus or display is acquired. Existing compatible buckets still apply.
 
 Native copy safety owns only private pytest files and real descriptors with
 local account/root doubles. It has no subprocess, shared cache, bus or VM;

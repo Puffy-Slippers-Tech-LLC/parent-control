@@ -10,7 +10,6 @@ import importlib
 import json
 import os
 from pathlib import Path
-import signal
 import sys
 import time
 import tempfile
@@ -30,7 +29,7 @@ SUITE_INPUT_FIELDS = ('inventory_sha256', 'package_sha256',
                       'environment_id', 'baseline_sha256')
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import graphical_backend
-from owned_commands import Commands
+from owned_commands import Commands, cancellable, cancellation_requested
 import system_runner as system
 sys.path.pop(0)
 
@@ -331,8 +330,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                         return {'lease_phase': held.state['phase'], 'vm_off': True,
                                 'baseline_restored': held.state['phase'] == 'complete',
                                 'host_preserved': True, 'source_preserved': True,
-                                'owned_processes_stopped': worker.get('worker_stopped') is True
-                                    and worker.get('callback_closed') is True}
+                                'owned_processes_stopped': not context._worker_started or (
+                                    worker.get('worker_stopped') is True
+                                    and worker.get('callback_closed') is True)}
 
                     bridge = LeasedScenario(recorder, verified, cleanup=cleanup)
                     checkpoint('preparation-complete')
@@ -361,6 +361,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
     except BaseException as error:
         # Lease restoration/finalization/release may have failed after the
         # callback returned. Keep those domains instead of blaming the product.
+        report['interrupted'] = isinstance(error, KeyboardInterrupt)
         report.setdefault('failure_location', failure_location(error))
         if context is not None and context.recorder.records:
             for failure in context.recorder.records[-1]['failures']:
@@ -414,6 +415,7 @@ def emit_progress(kind, **fields):
     write_event(sys.stdout, kind, **fields)
 
 
+@cancellable
 def main(plan):
     require(os.geteuid() == os.getegid() == 0, 'execution:root-required')
     from suite_lease import needs_installed
@@ -440,9 +442,7 @@ def main(plan):
     require(Path.cwd() == ROOT == system.baseline.guest_contract.CHECKOUT,
             'execution:checkout')
     os.umask(0o077)
-    def interrupted(*_):
-        raise KeyboardInterrupt
-    previous = signal.signal(signal.SIGTERM, interrupted)
+    interrupted = False
     report = {'schema_version': 1, 'scope': plan['scope'], 'outcome': 'failed',
               'inventory_sha256': plan['inventory_sha256'],
               'ready_only': plan.get('ready_only', False),
@@ -476,6 +476,10 @@ def main(plan):
                                      **({'suite': suite} if suite is not None else {}))
                     report['attempts'].append(result)
                     collector.save_report(f'attempt-{len(report["attempts"]):06d}', result)
+                    interrupted = (result.get('interrupted', False)
+                                   and not result.get('non_cancellation_failure', False))
+                    if interrupted:
+                        break
                     if result['outcome'] != 'passed':
                         emit_progress('failure', nodeid=case['case_id'], when='call',
                                       detail='E2E scenario failed; see retained attempt evidence.')
@@ -497,19 +501,22 @@ def main(plan):
                     finally:
                         if suite.lease is not None:
                             report['baseline_verification'] = dict(suite.lease.capture.verification_totals)
-            require(report['expected_cases'] and
-                    [a['case_id'] for a in report['attempts']] == report['expected_cases'] and
-                    all(a['outcome'] == 'passed' for a in report['attempts']),
-                    'execution:incomplete-invocation')
+            if not interrupted:
+                require(report['expected_cases'] and
+                        [a['case_id'] for a in report['attempts']] == report['expected_cases'] and
+                        all(a['outcome'] == 'passed' for a in report['attempts']),
+                        'execution:incomplete-invocation')
             collector.verify([])
-            report['outcome'] = 'passed'
+            report['outcome'] = 'failed' if interrupted else 'passed'
         except BaseException:
+            interrupted = False
             report['outcome'] = 'failed'
             report['failure'] = 'execution:invocation-failed'
         finally:
             collector.save_report('invocation-terminal-candidate', report)
             collector.verify([])
     except BaseException:
+        interrupted = False
         report['outcome'] = 'failed'
         report['failure'] = 'execution:invocation-report-failed'
     finally:
@@ -517,15 +524,21 @@ def main(plan):
         try:
             publication.close()
         except BaseException:
+            interrupted = False
             report['outcome'] = 'failed'
             report['failure'] = 'execution:invocation-progress-close-failed'
         if collector is not None:
             try:
                 collector.close()
             except BaseException:
+                interrupted = False
                 report['outcome'] = 'failed'
                 report['failure'] = 'execution:invocation-close-failed'
-        signal.signal(signal.SIGTERM, previous)
+    emit_progress('vm-cleanup', interrupted=interrupted or (
+                      report['outcome'] == 'passed' and cancellation_requested()),
+                  passed=report.get('suite_cleanup', {}).get('outcome') == 'passed'
+                  and all(attempt.get('outcomes', {}).get('cleanup', {}).get('outcome') == 'passed'
+                          for attempt in report['attempts']))
     # Caller exit status and this post-close result are the terminal authority.
     print(json.dumps(report, sort_keys=True))
     return 0 if report['outcome'] == 'passed' else 1

@@ -4,6 +4,7 @@
 import json
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from functools import wraps
 import os
 from pathlib import Path
 import signal
@@ -13,6 +14,127 @@ import termios
 import time
 
 _command_observer = ContextVar('owned_command_observer', default=None)
+_cancellation = ContextVar('owned_guest_cancellation', default=None)
+CANCELLATION_CODES = frozenset(('execution:interrupted', 'worker-interrupted',
+    'e2e:worker-interrupted', 'scenario-interrupted', 'scenario-step-interrupted'))
+
+
+class GuestCancellation:
+    """Latch controller signals during VM operations; interrupt guest steps only."""
+
+    def __init__(self):
+        self.requested = False
+        self.delivered = False
+        self.active = 0
+        self.cleaning = False
+        self.cleanup_verified = False
+        self.failed = False
+
+    def check(self):
+        if self.requested and not self.delivered and not self.cleaning:
+            self.delivered = True
+            raise KeyboardInterrupt
+
+    def signal(self, *_):
+        self.requested = True
+        if self.active:
+            self.check()
+
+
+def cancellable(function):
+    """Keep the VM owner alive until its existing finally/restore path finishes."""
+    @wraps(function)
+    def invoke(*args, **kwargs):
+        cancellation = GuestCancellation()
+        token = _cancellation.set(cancellation)
+        previous = {sig: signal.signal(sig, cancellation.signal)
+                    for sig in (signal.SIGINT, signal.SIGTERM)}
+        try:
+            return function(*args, **kwargs)
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            _cancellation.reset(token)
+    return invoke
+
+
+def cancellation_requested():
+    cancellation = _cancellation.get()
+    return cancellation is not None and cancellation.requested
+
+
+def check_cancellation():
+    """Deliver a latched request between owned worker callbacks/VM operations."""
+    cancellation = _cancellation.get()
+    if cancellation is not None:
+        cancellation.check()
+
+
+def record_vm_cleanup(passed):
+    cancellation = _cancellation.get()
+    if cancellation is not None:
+        cancellation.cleanup_verified = passed
+
+
+def record_vm_failure():
+    cancellation = _cancellation.get()
+    if cancellation is not None:
+        cancellation.failed = True
+
+
+def cancellation_failed():
+    cancellation = _cancellation.get()
+    return cancellation is not None and cancellation.failed
+
+
+def vm_cleanup_verified():
+    cancellation = _cancellation.get()
+    return cancellation is not None and cancellation.cleanup_verified
+
+
+@contextmanager
+def cancellation_cleanup():
+    """Diagnostic guest calls and finalizers must not interrupt owned cleanup."""
+    cancellation = _cancellation.get()
+    previous = cancellation.cleaning if cancellation is not None else False
+    if cancellation is not None:
+        cancellation.cleaning = True
+    try:
+        yield
+    finally:
+        if cancellation is not None:
+            cancellation.cleaning = previous
+
+
+@contextmanager
+def vm_operation():
+    """Protect host VM mutations invoked by a guest command's progress callback."""
+    cancellation = _cancellation.get()
+    active = cancellation.active if cancellation is not None else 0
+    if cancellation is not None:
+        cancellation.active = 0
+    try:
+        yield
+    finally:
+        if cancellation is not None:
+            cancellation.active = active
+    if active:
+        cancellation.check()
+
+
+@contextmanager
+def guest_step():
+    """Only guest execution is disposable; host guards and VM mutations are not."""
+    cancellation = _cancellation.get()
+    if cancellation is None:
+        yield
+        return
+    cancellation.active += 1
+    try:
+        cancellation.check()
+        yield
+    finally:
+        cancellation.active -= 1
 
 
 @contextmanager
@@ -201,7 +323,11 @@ class Commands:
                 except BaseException:
                     # SIGINT gives the directly spawned command a chance to close normally.
                     # Never enumerate or signal inferred descendants.
-                    for sig, deadline in ((signal.SIGINT, 30), (signal.SIGTERM, 10), (signal.SIGKILL, 10)):
+                    cancellation = _cancellation.get()
+                    signals = (((signal.SIGKILL, 10),) if cancellation is not None
+                               and cancellation.active and cancellation.delivered else
+                               ((signal.SIGINT, 30), (signal.SIGTERM, 10), (signal.SIGKILL, 10)))
+                    for sig, deadline in signals:
                         try:
                             signal.pidfd_send_signal(pidfd, sig)
                         except ProcessLookupError:

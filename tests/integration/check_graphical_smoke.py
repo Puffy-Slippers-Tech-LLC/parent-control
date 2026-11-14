@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import re
-import signal
 import struct
 import sys
 import tempfile
@@ -22,7 +21,7 @@ from qualification_storage import allocate, session as storage_session
 from tools.vm_recording import protect_capture
 
 import graphical_backend
-from owned_commands import Commands, require
+from owned_commands import Commands, cancellable, cancellation_requested, require
 import system_runner as runner
 from vm_transport import Transport
 from watch_activity import operation as watch_operation
@@ -756,6 +755,7 @@ class Qualification:
         runner.log('graphical:finalized-with-lease-held')
 
 
+@cancellable
 def main(*, assets=None, provision_credentials=False, serial=False, install=False,
          install_refusal=False, vt6_prompt=False, vt6_auth=False, parent_setup=False,
          parent_input=False, parent_standard_input=False, parent_about=False,
@@ -2238,9 +2238,6 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if chinese_native_auth:
             result['scope'] = 'chinese-native-auth-qualification'
         started = time.monotonic()
-        def interrupted(*_):
-            raise KeyboardInterrupt
-        signal.signal(signal.SIGTERM, interrupted)
         try:
             with ledger.measure('preparation'):
                 result['inputs_sha256'] = inputs()
@@ -2960,6 +2957,12 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
             result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
             (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print(json.dumps(result, sort_keys=True))
+        from tools.regression_events import write_event
+        write_event(sys.stdout, 'vm-cleanup',
+                    passed=ledger.outcomes['cleanup']['outcome'] == 'passed',
+                    interrupted=(result.get('exception_type') == 'KeyboardInterrupt'
+                    or result['outcome'] == 'passed' and cancellation_requested())
+                    and not ledger.non_cancellation_failure)
         return 0 if result['outcome'] == 'passed' else 1
 
 

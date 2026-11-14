@@ -608,11 +608,12 @@ cleanup. [Resume and recovery](../README.md#resuming-test-execution) preserve
 original-VM uncertain ownership and independent family passing credit. Repair
 adds bounded impact triage and serialized repairs through that same coordinator;
 it owns no second family queue or VM dispatcher. Pending, shared or uncertain
-impact holds new admission across participating checkout workflows while admitted
-attempts finish cleanup. An evidenced isolated failure permits normal work to
-continue and waits for natural pass drain before exclusive source edits. Its
-original VM reservation remains owned and can serve other eligible family work
-after failed-attempt cleanup. Each repair retains its own hold; one isolated
+impact holds new admission across participating checkout workflows. Every queued
+repair interrupts its coordinator's admitted guest steps and waits for verified
+cleanup before exclusive source edits; see the
+[owned interruption contract](../README.md#scripted-repair-loop).
+An evidenced isolated failure permits unrelated workflows to continue.
+Each repair retains its own hold; one isolated
 decision cannot clear another ticket's hold. See the
 [repair loop](../README.md#scripted-repair-loop) for triage profiles, required-VM
 verification and close-out. Rounds span all selected families and host work;

@@ -619,9 +619,10 @@ invocation, including its VM startup and immutable fixture inputs. The internal
 `--resume-area-only` scope keeps the original selectors and excludes actual saved
 passes; it never grants a pass to an omitted case. Each area still starts from
 its own restored state, and guest pytest stops after the first failure and its
-teardown before controller collection and cleanup. Source admission and reload
-happen between histories or areas, so a repair queued on another VM waits for
-that admitted group and its owned cleanup. Repair verification still stops at
+teardown before controller collection and cleanup. Source admission starts each
+history or area as a unit. Repair or reload can interrupt its guest steps and
+waits for verified owned cleanup before changing source or replacing the controller.
+Repair verification still stops at
 the exact failed case/phase.
 Package preparation reuses content-qualified inputs, rebuilding when source
 changes; each next history, area or E2E case loads the current inputs instead of
@@ -662,17 +663,19 @@ relevant inputs; changed evidence invalidates `no` until retriage or an accepted
 recheck. Triage grants no passing credit.
 
 Pending triage, `yes` and `unsure` hold new normal admission across participating
-checkout workflows while admitted histories, areas and cases finish cleanup.
-An evidenced `no` clears only its own hold and allows other eligible normal work
-to continue. A nonempty repair FIFO alone never stops admission. Further failures
-receive prompt triage even while an isolated ticket waits. Each hold and normal
+checkout workflows. Within the failing coordinator, every queued repair pauses
+admission and interrupts admitted guest steps, including cases inside an area
+or lifecycle history, then joins verified cleanup before repair.
+An evidenced `no` clears only its own shared hold and allows eligible work in
+other coordinators to continue. Further failures receive prompt triage while
+the failing coordinator joins interrupted attempts. Each hold and normal
 admission change atomically through the shared source guard.
 
 Repairs remain serial in observed FIFO order and require the exclusive source
-lease. An isolated ticket waits for natural drain of the current finite pass;
-it cannot publish writer intent merely to force that drain. Its original owned
-VM can serve other eligible family work after failed-attempt cleanup. A later
-blocking failure may force an earlier drain. Recheck the FIFO head after prior
+lease. An isolated ticket also interrupts its coordinator's companion attempts;
+its isolation decision still permits unrelated checkout workflows to continue.
+Writer acquisition follows joined owned cleanup, without waiting for the rest
+of an admitted group to execute. Recheck the FIFO head after prior
 repairs through the same coordinator and original VM before another agent turn.
 At a drained boundary, stale impact from before a source change keeps admission
 on hold while that recheck runs; it does not start another impact-triage session
@@ -1066,6 +1069,18 @@ On stale ownership, `fix-tests` invokes `tools/cleanup-e2e --host-only` when no
 VM is selected, or the selected VM/queue recovery route otherwise, before
 retrying the category. Host recovery requires no VM configuration or privilege.
 Recovery still fails closed when no actionable handoff is available.
+
+Repair and reload use the same owned interruption route without cancelling the
+launcher. Guest test commands are disposable: terminate their owned SSH channel
+immediately and restore their starting snapshot instead of waiting for guest
+teardown or remaining cases. VM lifecycle/snapshot operations finish safely;
+the controller remains alive for diagnostics, restoration, host audits and lease
+release. A matching post-cleanup receipt returns unfinished work to pending.
+Verified completed cases retain credit; interrupted cases create no failure
+ticket or repair-session charge. Genuine observed failures remain failures.
+Missing or failed cleanup proof retains original-VM ownership and reports an
+infrastructure problem rather than silently requeuing unsafe work. Stateful
+histories reconstruct their prerequisites when replayed.
 
 Explicit app-snapshot prerequisite refusals pause the current `fix-tests` VM
 selection as one batch. Running VM attempts receive immediate cooperative
@@ -1787,7 +1802,9 @@ Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 pending scope and prerequisites.
 Every `tools/run-tests` category runs in a detached controller. The launcher
 returns after admission; Watch observes the progress and final verdict.
-`--reload` requests replacement at a safe boundary and returns immediately.
+`--reload` requests replacement and returns immediately. Active VM guest steps
+are interrupted through the [repair interruption route](#scripted-repair-loop);
+replacement waits for owned cleanup, not completion of the admitted case group.
 Controllers join admitted work and preserve completed cases before replacement.
 Source edits alone never trigger reload. When idle, `--reload` starts normally.
 While a run is active, repeated execution commands acknowledge that owner and

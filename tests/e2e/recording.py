@@ -80,8 +80,10 @@ class ScenarioRecorder:
                                      monotonic_seconds=self.elapsed())
         self._record['outcomes'][category] = 'failed'
         print('e2e:scenario-' + category + '-failed', file=sys.stderr, flush=True)
-        from tools.vm_recording import report_failure
-        report_failure()
+        from owned_commands import CANCELLATION_CODES
+        if category != 'infrastructure' or code not in CANCELLATION_CODES:
+            from tools.vm_recording import report_failure
+            report_failure()
 
     def checkpoint(self, event):
         """Only fixed controller events and structured records enter reports."""
@@ -353,7 +355,7 @@ class ScenarioRecorder:
             finally:
                 self._active = None
 
-    def end_case(self, cleanup):
+    def end_case(self, cleanup, *, interrupted=False):
         require(self._case is not None and self._active is None, 'recording:case-state')
         fields(cleanup, CLEANUP_FIELDS, 'recording:cleanup-fields')
         require(cleanup['lease_phase'] in (None, 'complete', 'incomplete') and all(
@@ -365,11 +367,13 @@ class ScenarioRecorder:
         if not complete:
             self._fail('cleanup', 'scenario-cleanup-incomplete')
         declared_count = sum(len(self._case['phases'][phase]) for phase in inventory.PHASES)
-        if len(self._record['steps']) != declared_count:
+        if not interrupted and len(self._record['steps']) != declared_count:
             self._fail('infrastructure', 'scenario-steps-missing')
-        if {a['kind'] for a in self._record['artifacts']} != set(self._case['expected_evidence']):
+        if not interrupted and {a['kind'] for a in self._record['artifacts']} != set(self._case['expected_evidence']):
             self._fail('collection', 'scenario-evidence-missing')
         for category in inventory.OUTCOMES:
+            if interrupted and category != 'cleanup':
+                continue
             if self._record['outcomes'][category] == 'not-run':
                 if category == 'product' and (
                     len(self._record['assertions']) != sum(len(items) for items in self._case['assertions'].values())
@@ -381,13 +385,20 @@ class ScenarioRecorder:
         self.checkpoint('case-ended')
         self._case = self._record = None
 
-    def validate(self, verified):
+    def validate(self, verified, *, interrupted=False):
         """Call after outer cleanup, while the original lease is still held."""
         require(not self._closed and self._case is None, 'recording:case-state')
         self._closed = True
         try:
             require(verified.lease.fd is not None and verified.lease.state['phase'] == 'complete',
                     'provenance:cleanup-lease-required')
+            if interrupted:
+                # Aborted work earns no acceptance. Still verify the retained
+                # bytes and preserved inputs; future steps/artifacts never ran.
+                verified.recheck_contract(self.contract)
+                self.collector.verify([artifact for record in self.records for artifact in record['artifacts']])
+                self.collector.save_report('interrupted', {'outcome': 'interrupted', 'records': self.records})
+                return None
             summary = verified.validate(self.contract, self.records, self.collector)
             self.collector.save_report('acceptance', {'summary': summary, 'records': self.records})
             # Include the report copy in preservation/collector validation too.

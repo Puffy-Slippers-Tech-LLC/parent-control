@@ -49,6 +49,14 @@ def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path)
             assert json.dumps(checkpoint.state, sort_keys=True) == original
         assert not checkpoint.accept(assignment, dict(evidence, cleanup=False), 0)
         assert checkpoint.passed('deb', 'system') == set()
+        # Preemption retains only finished cases, including the group's last
+        # case if it really finished; it never invents a failed target.
+        assert not checkpoint.accept(assignment, dict(evidence, passed=[work['cases'][-1]]),
+                                     130, interrupted=True)
+        assert checkpoint.passed('deb', 'system') == {work['cases'][-1]}
+        checkpoint.recover(assignment, cleanup=True)
+        assignment = checkpoint.claim('deb', 'two', work, {'digest': 'a' * 64, 'generation': 0})
+        evidence = pass_evidence(assignment, work['cases'])
         assert checkpoint.accept(assignment, evidence, 0)
         assert checkpoint.passed('deb', 'system') == set(work['cases'])
         assert checkpoint.passed('rpm', 'system') == set()

@@ -87,6 +87,25 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch)
         assert evidence['source'] == assignment['source'] != vm_test_queue.source_identity(tmp_path)
         assert shared.accept(assignment, evidence, 0)
         assert source.read_text() == 'incoming change'
+        shared.retry('deb', 'check_snapshot')
+        assignment = shared.claim('deb', 'one', work, vm_test_queue.source_identity(tmp_path))
+        request.write_text(json.dumps(dict(selection=['system', 'check_snapshot'],
+            passed={'system': []}, assignment=assignment, recovering=False)))
+        monkeypatch.setenv(vm_test_queue.FAMILY_WORK, str(request))
+        monkeypatch.setattr(vm_test_queue, 'reservation', lambda *args, **kwargs: nullcontext())
+        recoveries = []
+        monkeypatch.setattr(test_recovery, 'cleanup',
+                            lambda root: recoveries.append(control.stopped.is_set()) or 0)
+        monkeypatch.setattr(commands, '_main', lambda *args, **kwargs: pytest.fail('cancelled test started'))
+        control.stopped.set()
+        assert vm_test_queue.worker(['--execute', 'one', 'system', 'check_snapshot']) == 130
+        saved = test_checkpoint.Checkpoint(tmp_path, selection, resume=True, binding='one')
+        evidence = saved.state['queue_evidence']
+        assert recoveries == [False] and evidence['cleanup'] and evidence['interrupted']
+        assert evidence['assignment'] == assignment['assignment'] and not evidence['passed']
+        assert not shared.accept(assignment, evidence, 130, interrupted=True)
+        shared.recover(assignment, cleanup=True)
+        assert shared.pending('deb') == [work]
 
 
 def test_impact_triage_stays_read_only_and_bounded(tmp_path, monkeypatch):

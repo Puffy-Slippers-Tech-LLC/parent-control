@@ -704,12 +704,19 @@ class Execution:
                                         (f' ({code})' if code else ''))
                     if failures:
                         self.output_error_summary = '\n'.join(failures)[:2000]
-                        if self.recording_case and not self.recording_failed:
+                        if (self.recording_case and not self.recording_failed
+                                and not self.run.control.stopped.is_set()):
                             self.recording_event('failure')
                 elif not isinstance(result, list):
                     self.output_tail = (self.output_tail + '\n' + text)[-8000:]
-        if self.events and line.startswith(PREFIX):
+        if line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
+            if event['kind'] == 'vm-cleanup':
+                if self.run.checkpoint is not None:
+                    self.run.checkpoint.queue_vm_cleanup = event.get('passed') is True
+                    self.run.checkpoint.queue_vm_interrupted = event.get('interrupted') is True
+                return
+        if self.events and line.startswith(PREFIX):
             item = self.item
             if not self.collect:
                 from vm_recording import report_event
@@ -826,7 +833,9 @@ class Execution:
                               'Passed' if item.done == item.total else
                               'Running' if self.units else 'Failed')
                 if (run.checkpoint is not None and item.state in ('Failed', 'Interrupted')
-                        and not self.failed and self.finished and item.done == item.total):
+                        and not self.failed and self.finished and item.done == item.total
+                        and not (item.state == 'Interrupted'
+                                 and getattr(run.checkpoint, 'queue_vm_cleanup', False))):
                     # A final controller/cleanup error must be exercised again.
                     # Completing every assertion alone cannot certify cleanup.
                     run.checkpoint.event(item.retry_category,
@@ -838,9 +847,10 @@ class Execution:
             if item.state == 'Failed':
                 item.error_detail += '\nOutput: ' + str(self.raw.name)
             if self.recording_case:
-                if item.state != 'Passed' and not self.recording_failed:
+                if item.state == 'Failed' and not self.recording_failed:
                     self.recording_event('failure')
-                self.recording_event('finished')
+                if item.state != 'Interrupted':
+                    self.recording_event('finished')
                 self.recording_case = None
             self.run_times.finish()
             self.result_closed = True
@@ -1188,17 +1198,22 @@ class Run:
             self.dashboard.draw()
 
         try:
+            def started():
+                if self.checkpoint is not None and item.retry_category in ('system', 'e2e'):
+                    self.checkpoint.queue_vm_started = True
+                    self.checkpoint.queue_vm_cleanup = False
+                    self.checkpoint.queue_vm_interrupted = False
             status = self.control.run(command, cwd=self.root, env=self.command_environment(command),
                                       output=execution.output, cooperative=True,
-                                      tick=tick)
+                                      tick=tick, started=started)
             result = execution.finish(status)
             if item.retry_category == 'system' and system_check_selection(command[2:]):
                 case = system_check_selection(command[2:])
                 passed = item.state == 'Passed'
-                if self.checkpoint is not None:
+                if self.checkpoint is not None and (passed or not self.control.stopped.is_set()):
                     self.checkpoint.event('system',
                         dict(kind='finished' if passed else 'failure', nodeid=case), set())
-                if not passed:
+                if not passed and not self.control.stopped.is_set():
                     item.failed_nodeids = (case,)
             return result
         finally:
@@ -1639,6 +1654,10 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
     root = root or Path(__file__).resolve().parents[1]
     if checkpoint is not None:
         checkpoint.queue_finalized = False
+        checkpoint.queue_vm_cleanup = False
+        checkpoint.queue_vm_interrupted = False
+        checkpoint.queue_vm_started = False
+        checkpoint.queue_failures = []
     # Keep repeated interrupts cooperative through storage rotation/finalization,
     # including after the inner command controller has restored its handlers.
     with Control().installed() as storage_control:
@@ -1799,6 +1818,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
         # command finalizers. The outer retention session must also exit before
         # the worker can submit it to the pass coordinator.
         checkpoint.queue_finalized = qualified
+        checkpoint.queue_failures = list(dict.fromkeys(case for item in run.categories
+            for case in item.failed_nodeids)) if run is not None else []
     if reloading and status == RELOAD_STATUS and not control.stopped.is_set():
         raise ReloadRequested()
     return status

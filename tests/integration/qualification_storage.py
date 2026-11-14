@@ -13,7 +13,8 @@ import traceback
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools import test_retention
-from owned_commands import observe_commands
+from owned_commands import (cancellable, cancellation_requested, cancellation_failed,
+                            observe_commands, vm_cleanup_verified)
 
 _producer = ContextVar('qualification_command_producer', default=None)
 
@@ -27,6 +28,7 @@ def allocate(factory, *args, **kwargs):
     return path
 
 
+@cancellable
 def run_qualification(label, qualify, *, preflight, **session_options):
     """Run a fixture proof inside its existing retention and failure envelope.
 
@@ -44,6 +46,9 @@ def run_qualification(label, qualify, *, preflight, **session_options):
             result = qualify(directory)
             (directory / 'result.json').write_bytes(system.baseline.encode(result))
         print(label + ': passed; evidence=' + str(directory), flush=True)
+        if cancellation_requested():
+            from tools.regression_events import write_event
+            write_event(sys.stdout, 'vm-cleanup', passed=True, interrupted=True)
         return 0
     except (Exception, KeyboardInterrupt) as error:
         if directory is not None:
@@ -51,6 +56,12 @@ def run_qualification(label, qualify, *, preflight, **session_options):
         print(label + ': ' + system.error_category(error), file=sys.stderr, flush=True)
         if directory is not None:
             print(label + ': evidence=' + str(directory), file=sys.stderr, flush=True)
+        if isinstance(error, KeyboardInterrupt):
+            # The actual Lease/Suite owner supplies cleanup proof. Labels and
+            # an exception unwinding through finally cannot establish it.
+            from tools.regression_events import write_event
+            write_event(sys.stdout, 'vm-cleanup', passed=vm_cleanup_verified(),
+                        interrupted=not cancellation_failed())
         return 1
 
 

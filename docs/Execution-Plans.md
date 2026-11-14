@@ -435,12 +435,14 @@ The shared `--reload` option applies to ordinary plans and their dedicated wrapp
 `fix-tests`, `write-e2e`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
 launcher. Use the same plan/VM/scope selection as for an existing run.
 The request returns immediately; when idle the flag is ignored and ordinary startup
-applies. It does not cancel work or reset allowances. Bare `fix-tests --reload`
+applies. It preserves workflow progress and allowances. Bare `fix-tests --reload`
 requests both active repair scopes. Shared request and descriptor handling lives in
 [`launcher_reload.py`](../tools/launcher_reload.py). Internal test-frame forwarders
 stay under their existing supervisor. Controllers reload only after
-their admitted operations and cleanup finish. Ordinary plans and E2E implementation
-retain session/task checkpoints; repair coordinators drain admitted attempts and
+their owned operations and cleanup finish. VM test coordinators interrupt guest
+steps through the [owned interruption route](../tests/README.md#scripted-repair-loop)
+instead of waiting for admitted groups to finish. Ordinary plans and E2E implementation
+retain session/task checkpoints; repair coordinators join interrupted attempts and
 retain their pass, FIFO tickets and source ownership before reloading;
 translations finish and retain their current batch.
 The test scheduler stops admitting jobs, joins active work, saves completed cases
@@ -452,7 +454,8 @@ last checkpoint retained for manual recovery.
 
 Requests are asynchronous: “reload requested” confirms publication, not completed
 replacement. A worker waiting for controller reload has retained its boundary;
-the coordinator still waits for other admitted attempts and cleanup.
+the coordinator still joins other owned attempts and their cleanup. VM attempts
+use the interruption route above; other workflows retain their documented boundaries.
 Owners started before this request protocol was installed cannot consume it;
 finish or stop them through their existing interface, then start current code.
 Reload keeps activity and scratch descriptors and an existing single-VM checkout

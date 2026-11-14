@@ -63,10 +63,19 @@ def cleanup(root):
     # generate regression fixtures or reports while trying to remove leftovers.
     from regression_process import category_run
     def guard():
+        import regression_process
+        import threading
         print('Automatic recovery: checking the recorded VM and retained evidence.',
               flush=True)
         from vm_selection import arguments
-        status = category_run(root, 'system', ['check_test_recovery', *arguments()], pipe=False)
+        previous = regression_process.session_stop
+        try:
+            # This owned recovery may be restoring a snapshot. A parent STOP
+            # waits for it; it must not interrupt restoration and then retry it.
+            regression_process.session_stop = threading.Event()
+            status = category_run(root, 'system', ['check_test_recovery', *arguments()], pipe=False)
+        finally:
+            regression_process.session_stop = previous
         if status:
             raise ValueError(f'retention: automatic recovery failed (status={status}); '
                              'see diagnostics above; previous evidence preserved')

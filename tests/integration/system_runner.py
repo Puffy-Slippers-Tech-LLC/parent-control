@@ -364,15 +364,19 @@ class RunLedger:
         self.non_cancellation_failure = False
 
     @contextmanager
-    def measure(self, stage):
+    def measure(self, stage, *, operation=None):
         require(stage in self.durations, 'timing:unknown-stage')
         started = self.monotonic()
+        detail = f' operation={operation}' if operation else ''
+        log(f'timing:stage={stage}{detail} state=started')
+        outcome = 'failed'
         try:
             yield
+            outcome = 'finished'
         finally:
             duration = max(0.0, self.monotonic() - started)
             self.durations[stage] += duration
-            log(f'timing:stage={stage} duration_seconds={duration:.3f}')
+            log(f'timing:stage={stage}{detail} state={outcome} duration_seconds={duration:.3f}')
 
     def pass_outcome(self, name):
         require(name in self.outcomes, 'outcome:unknown-domain')
@@ -2555,10 +2559,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             subsets += tuple(subset for subset in (
                 'command', 'catalogue', 'whitespace', 'pattern', 'retention')
                 if subset not in subsets)
-        with ledger.measure('bootstrap'):
+        with ledger.measure('bootstrap', operation='ssh-readiness'):
             vm.probe_ready()
-            if already_installed:
+        if already_installed:
+            with ledger.measure('bootstrap', operation='startup-readiness'):
                 vm.wait_boot_complete()
+        with ledger.measure('bootstrap', operation='fixture-provisioning'):
             context = {'vm': vm, 'lease': lease, 'directory': directory}
             if preparation_observer is not None:
                 preparation_observer('before', context)
@@ -2587,10 +2593,16 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             from system_fixture_preparation import renew_after_reboot
             renew_after_reboot(fixture_context)
     run = lease.state['run']
+
+    def collect_guest(outcome, *, destination=None):
+        destination = directory / 'guest-results' if destination is None else destination
+        vm.call(guest_command(run, 'collect', outcome), timeout=180)
+        vm.copy(True, PAYLOAD + '/results/', str(destination) + '/')
+
     outcome = 'failed'
     qualification_pending = False
     try:
-        with ledger.measure('bootstrap'):
+        with ledger.measure('bootstrap', operation='input-transfer'):
             if not clean:
                 vm.ready()
             if already_installed:
@@ -2630,7 +2642,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 'selection:pam-variants-require-isolated-baseline')
         if already_installed:
             log('stage:snapshot-readiness')
-            with ledger.measure('bootstrap'):
+            with ledger.measure('bootstrap', operation='installed-verification'):
                 require_fixture_ready()
                 vm.call(guest_command(run, 'verify-installed'), timeout=660)
         elif has_previous:
@@ -2642,8 +2654,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 # boot can lose transport. Qualification still runs only after
                 # that boot, with the same installation and baseline attempt.
                 with ledger.measure('collection'):
-                    vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
-                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                    collect_guest('installed')
             log('stage:previous-package-reboot')
             with ledger.measure('reboot'):
                 vm.reboot()
@@ -2659,8 +2670,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                             if domain == 'product' else error_category(error))
                         raise
                 with ledger.measure('collection'):
-                    vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
-                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                    collect_guest('installed')
         if (not already_installed and not first_configure and pam_history is None and not trusted_fixtures
                 and (not previous_policy or install_phases)):
             log('stage:package-install')
@@ -2684,8 +2694,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     raise
             # Preserve the successful first phase if a required reboot loses transport.
             with ledger.measure('collection'):
-                vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
-                vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                collect_guest('installed')
             ledger.pass_outcome('collection')
         if reboot_phases:
             phase = reboot_phases[0]
@@ -2721,12 +2730,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     # Save the prior phase before a real reboot can lose the
                     # transport. Every variant remains one owned history.
                     with ledger.measure('collection'):
-                        vm.call(guest_command(run, 'collect', 'installed'), timeout=180)
-                        vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
                         prior = pam_history.phases[pam_history.phases.index(phase) - 1]
                         retained = directory / 'phase-results' / prior
                         retained.mkdir(parents=True, mode=0o700)
-                        vm.copy(True, PAYLOAD + '/results/', str(retained) + '/')
+                        # Capture the exact pre-reboot tree once, then merge
+                        # those bytes into the cumulative suite results locally.
+                        collect_guest('installed', destination=retained)
+                        shutil.copytree(retained, directory / 'guest-results', dirs_exist_ok=True)
                 log('stage:reboot-' + phase)
                 with ledger.measure('reboot'):
                     vm.reboot()
@@ -2887,8 +2897,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             if not interrupted:
                 with cancellation_cleanup(), ledger.measure('collection'):
                     lease.guard()
-                    vm.call(guest_command(run, 'collect', outcome), timeout=180)
-                    vm.copy(True, PAYLOAD + '/results/', str(directory / 'guest-results') + '/')
+                    collect_guest(outcome)
                 ledger.pass_outcome('collection')
         except BaseException as error:
             collection_error = error

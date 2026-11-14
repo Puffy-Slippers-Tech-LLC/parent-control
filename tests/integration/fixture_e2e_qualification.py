@@ -30,6 +30,25 @@ from tools.test_storage import authenticated_input
 from tests.fixtures import native_assets
 
 
+def verify_consumers(context, vm, setup, result, previous):
+    """Keep fixture consumers/readback independent of the catalogue UI history."""
+    system.require(setup['child_fixture'] == {'verified': len(native_assets.ASSETS),
+        'verified_files': len(native_assets.sources(alias=False)), 'child_role': 'child',
+        'independent_readback': True}, 'fixture-e2e:child-consumer-not-verified')
+    system.require(setup['activity_fixture'] == {
+        'verified_files': len(native_assets.activity_sources()),
+        'native_trust': True, 'independent_readback': True},
+        'fixture-e2e:activity-consumer-not-verified')
+    result['child_fixture'] = setup['child_fixture']
+    result['activity_fixture'] = setup['activity_fixture']
+    result['consumer_refusals'] = activity_readiness_refusals(
+        vm, context.verified, previous)
+    final = proof.audit(vm, fixture_execution.verify(
+        fixture_execution.Selection.from_record(context.fixture_selection)),
+        preparation.ACTIVITY_SUBSETS)
+    proof.verify_repeat(result['readback'], final)
+
+
 def catalogue_journey(context, progress, result, previous):
     """Finite catalogue/save checks within the existing qualified Parent envelope."""
     from accessible_ui import MATCH_RULES
@@ -83,22 +102,7 @@ def catalogue_journey(context, progress, result, previous):
         def check_settings(self, stage, observed):
             super().check_settings(stage, observed)
             if stage == 'setup-detached':
-                setup = observed['setup']
-                system.require(setup['child_fixture'] == {'verified': len(native_assets.ASSETS),
-                    'verified_files': len(native_assets.sources(alias=False)), 'child_role': 'child',
-                    'independent_readback': True}, 'fixture-e2e:child-consumer-not-verified')
-                system.require(setup['activity_fixture'] == {
-                    'verified_files': len(native_assets.activity_sources()),
-                    'native_trust': True, 'independent_readback': True},
-                    'fixture-e2e:activity-consumer-not-verified')
-                result['child_fixture'] = setup['child_fixture']
-                result['activity_fixture'] = setup['activity_fixture']
-                result['consumer_refusals'] = activity_readiness_refusals(
-                    self.transport, context.verified, previous)
-                final = proof.audit(self.transport, fixture_execution.verify(
-                    fixture_execution.Selection.from_record(context.fixture_selection)),
-                    preparation.ACTIVITY_SUBSETS)
-                proof.verify_repeat(result['readback'], final)
+                verify_consumers(context, self.transport, observed['setup'], result, previous)
                 result['assets'] = context.asset_transfer.observe(self.vm)
                 result['worker_input_released'] = True
             elif stage == 'parent-selected':
@@ -277,7 +281,11 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         lease.save('isolated')
         verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
         suite.verified = verified
-        if baseline_activity:
+        # The two attachment routes protect different restore/credential
+        # boundaries, but start with the same fresh product state. Exercise
+        # catalogue saves once; the offline route retains the complete fixture
+        # preparation and consumer checks without another graphical worker.
+        if baseline_activity and mode == 'online':
             from app_snapshot import snapshot_name
             from fixture_credentials import FixtureCredentials
             import e2e_worker
@@ -315,7 +323,12 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
                                   fixture_selection=selection.record(),
                                   asset_transfer=AssetTransfer(verified))
+        if baseline_activity:
+            context.fixture_subsets = preparation.ACTIVITY_SUBSETS
+            context.fixture_caller = preparation.ACTIVITY_CALLER
         prepared = prepare_installed_setup(context, vm, lease.guard, observer=observe)
+        if baseline_activity:
+            verify_consumers(context, vm, prepared, result, previous)
         assets_receipt = context.asset_transfer.observe(ReadOnlyObservations(vm))
         verified.fixture_prepared['controller'].require_ready(verified.fixture_prepared['receipt'])
         return assets_receipt

@@ -2,11 +2,10 @@
 from copy import deepcopy
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
-from feedback_composition import text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (app_policy_entry, desktop_entry, native_blocked_app, native_usable_app,
                             prefixed_stages, retained_parent_entry)
-from policy_edits import NativePolicyJourney, policy_edit
+from policy_edits import NativePolicyJourney
 from private_artifacts import require
 from ui_observations import SettingsObservation
 
@@ -30,14 +29,17 @@ for name, edits, usable in ROUNDS:
     group = {}
     for role, choice in edits:
         prefix = name + '-' + role.lower()
-        group.update(policy_edit(MATCH_APPS[role],
-            'match-alias-precise' if role == 'Alias' else 'match-precise', choice, prefix))
-        MATCH_CHECKS.update({prefix + '-' + suffix: (MATCH_APPS[role], MATCH_RULES[0])
-                            for suffix in ('open', 'old', 'match', 'final-match')})
+        operation = 'ui:access-' + ('alias-' if role == 'Alias' else '')
+        # The fixture starts with both precise rules. Change only access: an
+        # intervening match save could conceal an access-transition defect.
+        group.update({prefix + '-access-save': operation + choice,
+                      prefix + '-access': operation + 'row',
+                      prefix + '-final-match': 'ui:match-' +
+                          ('alias-' if role == 'Alias' else '') + 'row'})
+        MATCH_CHECKS[prefix + '-final-match'] = (MATCH_APPS[role], MATCH_RULES[0])
         ACCESS_CHECKS[prefix + '-access'] = (MATCH_APPS[role], choice)
     # Read both confirmed choices before every child visit, including the
     # unchanged Allowed entry that must not override the other launcher's block.
-    group.update(text_fragment('catalogue-clear', name + '-clear'))
     group.update({name + '-original-choice': 'ui:access-row',
                   name + '-alias-choice': 'ui:access-alias-row'})
     ACCESS_CHECKS[name + '-original-choice'] = (

@@ -86,8 +86,8 @@ Watch uses its shared
 `Output.execution_plan` property to identify execution-plan runs: Resume reruns
 their saved command with the same parameters. Other launchers, including
 `fix-tests`, `run-tests` and `sync-whatsnew`,
-receive `--resume`, which restores their saved selection. All launcher commands
-include `--branch NAME` for the displayed checkout. Stop and cancel-stop
+receive `--resume`, which restores their saved selection. Stop and cancel-stop
+include `--branch NAME` for the displayed checkout and
 use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
 flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
 from replayed parameters. The action button's hover tooltip and confirmation
@@ -95,6 +95,13 @@ dialog both show the exact public command to run. Failed actions light the foote
 with captured process output and exit status. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
+
+New runs retain the original caller parameters before host/VM resolution.
+Resume, Reload and Copy Command preserve those parameters, including VM family
+selectors and `--host`, without inserting resolved VM names or default options.
+An omitted `--branch` stays omitted, allowing the configured default branch;
+an explicitly supplied branch stays explicit.
+Older runs retain their saved resolved parameters until their next normal launch.
 
 Watch infrastructure failures show a flashing red circle with a white **!** at the bottom left,
 before **Reconnect**. Hovering highlights the icon; clicking opens the shared

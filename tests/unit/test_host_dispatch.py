@@ -97,7 +97,8 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
         assert argv[0] == 'ssh' and argv[-2] == names[controller]
         remote = shlex.split(argv[-1])
         assert remote[4:7] == [str(destination), branch, 'run-tests']
-        assert remote[7:] == ['--vm', selector, 'system']
+        assert json.loads(remote[7]) == ['--branch', branch, '--vm', selector, 'system']
+        assert remote[8:] == ['--vm', selector, 'system']
         hops.append((names[0], names[controller]))
         return SimpleNamespace(returncode=entry())
 

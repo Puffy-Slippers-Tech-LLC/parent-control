@@ -1252,7 +1252,7 @@ if __name__ == '__main__':
                 'timer-ready', 'timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete', 'timer-cleanup',
                 'reply-ready', 'reply-delayed-arm', 'reply-delayed-recovery',
                 'reply-missing-arm', 'reply-missing-wait', 'reply-missing-recovery', 'reply-complete',
-                'retry-ready', 'retry-renew-arm', 'retry-renew', 'retry-renew-check',
+                'retry-ready', 'retry-renew-arm', 'retry-renew', 'retry-renew-available', 'retry-renew-check',
                 'retry-arm', 'retry-recovery', 'retry-complete',
                 'outage-ready', 'outage-arm', 'outage-revoke', 'outage-restore',
                 'outage-recovery', 'outage-complete')

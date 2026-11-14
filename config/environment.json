@@ -18,7 +18,7 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "max_compute_unit": 8,
+      "max_compute_unit": 10,
       "disk_concurrency": 2
     }
   ],
@@ -113,6 +113,14 @@
           "compute_unit": 2,
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "103",
+          "name": "onpc-Ubuntu26.04-103",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2",
+          "owning_branch": ""
         }
       ]
     },
@@ -165,6 +173,14 @@
           "vm_tags": "heavy",
           "compute_unit": 2,
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "203",
+          "name": "onpc-Fedora44-203",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-203.qcow2",
           "owning_branch": ""
         }
       ]

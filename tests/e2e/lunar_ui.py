@@ -5,6 +5,7 @@ Electron application. Public AT-SPI content and the status-notifier/dbusmenu
 interfaces supply results and normal Quit. Process metadata only binds owners.
 """
 import hashlib
+import errno
 import os
 from pathlib import Path
 import pwd
@@ -217,7 +218,7 @@ def run(ui, operation, require, require_session):
         call('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties',
              'Set', 'ssv', ('org.a11y.Status', 'ScreenReaderEnabled', GLib.Variant('b', True)))
         ui.input_uncertain = False
-    elif operation == 'lunar-launch':
+    elif operation in ('lunar-launch', 'lunar-command-blocked'):
         ui.wait(absent, 'lunar-before-launch', prompt_in_predicate=True)
         require(original.is_file() and not original.is_symlink()
                 and original.stat().st_uid == account.pw_uid
@@ -226,6 +227,18 @@ def run(ui, operation, require, require_session):
         ui.prepare_launch_desktop()
         require(absent(), 'ui:lunar-before-launch')
         ui.input_uncertain = True
+        if operation == 'lunar-command-blocked':
+            # The kernel's permission error for this exact original AppImage
+            # is the public denial. Generic failure or service status is not.
+            try:
+                subprocess.run([str(original), '--no-sandbox'],
+                    stdin=subprocess.DEVNULL, capture_output=True, check=False, timeout=15)
+            except PermissionError as error:
+                require(error.errno in (errno.EACCES, errno.EPERM), 'ui:lunar-execution-denial')
+                ui.input_uncertain = False
+                return {'denial': ('permission-denied' if error.errno == errno.EACCES
+                                   else 'operation-not-permitted')}
+            require(False, 'ui:lunar-execution-denial')
         subprocess.run(['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
             '--service-type=exec', str(original), '--no-sandbox'],
             stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)

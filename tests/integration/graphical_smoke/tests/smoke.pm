@@ -1189,6 +1189,12 @@ sub run {
             $ready->{native_comma_path} ? 'comma' : 'space');
         return;
     }
+    if ($ready->{lunar_denial}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::lunar_denial(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{native_denial}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

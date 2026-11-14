@@ -16,7 +16,8 @@ from suite_lease import Suite
 import system_runner as system
 
 
-def qualify(directory, assets, *, launch_quit=False, tray=False):
+def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
+            fixture_selection=None):
     suite = Suite(open_source)
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -38,10 +39,23 @@ def qualify(directory, assets, *, launch_quit=False, tray=False):
                                         e2e_installed=True)
             suite.verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
             transport = suite.start_transport(directory, host_key)
+            if denial:
+                # The unrelated allowed app uses the existing native fixture
+                # provisioner; supplied vendor profiles remain read-only.
+                installed_setup.InstalledSetup(directory, suite.verified, transport).provision(
+                    lease.guard, fixture_selection=fixture_selection)
             result['profile'] = LunarProfile(transport, suite.verified).verify()
             result['target'] = suite.source.domain.name()
             result['installed_snapshot'] = lease.installed_name
-            if launch_quit or tray:
+            if denial:
+                from calendar_fixture import preset_ordinary_daytime
+                from lunar_denial import PLAN
+                from native_fixtures import fixture_actions
+                from policy_edits import AppPolicyJourney
+                result['denial'] = run_journey(directory, lease, transport, suite.verified,
+                    PLAN, {**fixture_actions(include_refusal=False),
+                           'daytime-clock': preset_ordinary_daytime}, journey_class=AppPolicyJourney)
+            elif launch_quit or tray:
                 result['launcher'] = qualify_launch_quit(directory, lease, transport, suite.verified,
                                                        tray=tray)
     finally:
@@ -53,11 +67,7 @@ def qualify(directory, assets, *, launch_quit=False, tray=False):
 def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
     """Reuse guarded normal sign-in, with no unrelated movable fixtures."""
     from dataclasses import replace
-    from types import SimpleNamespace
-    import e2e_worker
-    from fixture_credentials import FixtureCredentials
     from fresh_desktop import STANDARD_PLAN
-    from installed_journey import InstalledJourney
     from ui_observations import UiObservations
 
     initial = ('observer-ready', 'quit', 'closed', 'launch', 'opened')
@@ -92,6 +102,19 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
 
     label = 'lunar-tray' if tray else 'lunar-launch-quit'
     plan = replace(STANDARD_PLAN, stage_actions={'desktop': label})
+    return run_journey(directory, lease, transport, verified, plan, {label: exercise},
+                       expected_operations=operations)
+
+
+def run_journey(directory, lease, transport, verified, plan, actions, *, journey_class=None,
+                expected_operations=None):
+    """One qualified worker envelope for the supplied launch and denial slices."""
+    from types import SimpleNamespace
+    import e2e_worker
+    from fixture_credentials import FixtureCredentials
+    from installed_journey import InstalledJourney
+
+    label = plan.prefix
     context = SimpleNamespace(directory=directory, lease=lease, verified=verified)
     credentials = FixtureCredentials()
     credentials.provision_online(lease, transport)
@@ -100,16 +123,17 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
     def progress(stage, observed):
         steps.append(observed)
 
-    journey = InstalledJourney(context, progress, plan,
-        actions={label: exercise}, transport=transport)
+    journey = (journey_class or InstalledJourney)(context, progress, plan,
+        actions=actions, transport=transport)
 
     def validate():
         system.require(not journey.failed and [step['stage'] for step in steps] == list(plan.stages),
                        label + ':incomplete-journey')
-        results = steps[-1].get('fixture', [])
-        system.require([value.get('operation') for value in results] == operations
-                       and all(value.get('outcome') == 'passed' for value in results),
-                       label + ':missing-results')
+        if expected_operations is not None:
+            results = steps[-1].get('fixture', [])
+            system.require([value.get('operation') for value in results] == expected_operations
+                           and all(value.get('outcome') == 'passed' for value in results),
+                           label + ':missing-results')
 
     def observe(guard):
         journey.step(guard)
@@ -118,18 +142,24 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
     worker = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
         expected_inputs=verified.source_files, observe=lambda: None,
         validate=validate, guarded_observe=observe, credentials=credentials,
-        attached=True, timeout=1800)
+        attached=True, timeout=1800,
+        on_failure=lambda _category, _code: journey.collect_failure())
     validate()
     return {'steps': steps, 'worker': worker}
 
 
-def main(*, assets, launch_quit=False, tray=False):
+def main(*, assets, launch_quit=False, tray=False, denial=False, fixture_selection=None):
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
         system.require(prepare_vm.vm_config.selected().name == 'onpc-Ubuntu26.04-110',
                        'lunar-profile:target-not-qualified')
-    label = 'lunar-tray' if tray else 'lunar-launch-quit' if launch_quit else 'lunar-profile'
+    if denial:
+        from e2e_fixture_preparation import validate_input
+        fixture_selection = validate_input(fixture_selection)
+    label = ('lunar-denial' if denial else 'lunar-tray' if tray else
+             'lunar-launch-quit' if launch_quit else 'lunar-profile')
     return run_qualification(label, lambda directory: qualify(
-        directory, assets, launch_quit=launch_quit, tray=tray),
+        directory, assets, launch_quit=launch_quit, tray=tray, denial=denial,
+        fixture_selection=fixture_selection),
                              preflight=preflight)

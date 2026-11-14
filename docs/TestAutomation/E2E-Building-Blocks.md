@@ -5533,9 +5533,10 @@ that reaches each declared launcher surface without downloads or vendor
 authentication during the measured checks. Reverify after developer-supplied setup
 changes; do not build an automatic updater to resolve drift.
 
-The [original-AppImage launch/Quit binding](#lunar-original-appimage-launch-and-quit)
-is qualified. Independent app-presence readback, specific command denial and complete absence,
-separate normal Minecraft launcher entry/exit and denial, and allowed/denied
+The [original-AppImage launch/Quit binding](#lunar-original-appimage-launch-and-quit),
+independent app-presence readback and
+[Hard-blocked command denial/absence](#lunar-original-appimage-command-denial)
+are qualified. Separate normal Minecraft launcher entry/exit and denial, and allowed/denied
 normal-login access remain separate bindings. Their APP01/02/06 and UI18
 scopes do not imply one another. Apply the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
@@ -5593,6 +5594,30 @@ tray close/restore, command-denial, continuous-login, Minecraft or case-253
 acceptance. `tools/test-vm --vm NAME probe-lunar-launch-quit` retains the shared
 sequence's first failing boundary in an already owned maintenance desktop;
 it is diagnosis only and starts no guest or alternate runner.
+
+#### Lunar original-AppImage command denial
+
+APP01/02's supplied original-AppImage Hard-blocked command binding is qualified
+on Ubuntu 26.04 through `e2e --subcategory e2e-heavy --qualify-lunar-denial`.
+[`lunar_denial.PLAN`](../../tests/e2e/lunar_denial.py) and
+`onpc_app_rows::lunar_denial` reuse the guarded installed envelope, FIX05 and
+native fixture provisioning. Before customer input, the shared daytime preset
+provides daily-time headroom. Parent saves and independently reads Jordan's
+Hard choice for the supplied integrated desktop ID. Jordan then signs in normally
+with thirty daily minutes, invokes the unchanged original AppImage once, and
+receives the kernel's specific permission denial. Independent complete public
+application/tray reads require Lunar absent; unrelated native N remains usable
+through Submit/readback and normal closure.
+
+[`lunar_ui.run`](../../tests/e2e/lunar_ui.py)'s `lunar-command-blocked` operation
+retains the same original-input, active-account, prompt and complete-read guards
+as allowed launch. Only a permission error from that exact invocation supplies
+denial; generic failures, service status and process inventories do not.
+`UiObservations` validates the finite denial result before later progression.
+The supplied vendor profile remains read-only. The affected allowed
+launch/presence/Quit control, scoped host checks, collection, worker shutdown and
+owned baseline restoration passed. This does not qualify Soft approval,
+sign-in/reboot persistence, Minecraft or complete case 253.
 
 <a id="inventory-reconciliation"></a>
 
@@ -6181,7 +6206,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |
-| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 supplied-profile verification, original Lunar launch/Quit and independent owned app/tray presence are qualified on Ubuntu 26.04. Same-route policy denial, normal-login access and separate Minecraft launcher entry/exit/approval remain pending. Test app access only; no tray-feature, Settings, vendor account, download, gameplay or continuous game-specific observer requirement. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 and the stated Lunar APP01/02/06/UI18 bindings ready on Ubuntu 26.04; remaining access bindings pending. |
+| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 supplied-profile verification, original Lunar launch/Quit, independent owned app/tray presence and same-route Hard command denial/absence are qualified on Ubuntu 26.04. Normal-login access and separate Minecraft launcher entry/exit/approval remain pending. Test app access only; no tray-feature, Settings, vendor account, download, gameplay or continuous game-specific observer requirement. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 and the stated Lunar APP01/02/06/UI18 bindings ready on Ubuntu 26.04; remaining access bindings pending. |
 
 Generic Shell notifications, graphical VT6 and diagnostic-export viewers have no
 active customer requirement or acceptance credit. Chooser qualification follows

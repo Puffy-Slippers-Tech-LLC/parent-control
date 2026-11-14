@@ -790,6 +790,33 @@ sub shared_target_launchers {
     $journey->finish();
 }
 
+sub lunar_denial {
+    onpc_progress::operation('Checking that a parent block stops Lunar while other work remains usable');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'lunar:denial-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'lunar-denial', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen('saved-settings');
+    $journey->seen('apps-page');
+    onpc_text::replace_text($journey, 'catalogue-lunar', 'lunar-search');
+    $journey->seen('lunar-policy-save');
+    $journey->seen('lunar-policy-saved');
+    $journey->seen('parent-logout');
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    $journey->seen($_) for ('observer-ready', 'lunar-before', 'lunar-denied', 'lunar-absent');
+    my $allowed = $journey->scope('allowed');
+    native_usable_app($allowed, 'command', $allowed->seen('desktop'), 'other-child', 'N');
+    native_finish_app($allowed);
+    $journey->seen('child-logout');
+    $journey->finish();
+}
+
 sub native_denial {
     onpc_progress::operation('Checking the parent blocks apps before the child opens them');
     my ($exchange, $declared, $challenges) = @_;

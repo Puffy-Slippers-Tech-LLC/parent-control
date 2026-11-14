@@ -207,7 +207,7 @@ OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 LUNAR_OPERATIONS = frozenset('lunar-' + action for action in (
     'observer-ready', 'launch', 'opened', 'settings', 'settings-opened', 'quit', 'closed',
-    'snapshot'))
+    'snapshot', 'command-blocked'))
 OPERATIONS |= LUNAR_OPERATIONS
 STANDARD_OPERATIONS |= LUNAR_OPERATIONS
 WORK_OPERATIONS = frozenset('work-' + who + '-' + action
@@ -553,6 +553,8 @@ TEXT_VALUES = {
     'catalogue-name': ('parent-app-search', 'ONPC Allowed Fixture'),
     'catalogue-description': ('parent-app-search', 'Exact native catalogue fixture'),
     'catalogue-identifier': ('parent-app-search', 'com.puffyslippers.ONPCTest.A.desktop'),
+    'catalogue-lunar': ('parent-app-search',
+        'appimagekit_349c057c5506142f859a39412c2722d9-Lunar_Client.desktop'),
     'catalogue-hard': ('parent-app-search', 'com.puffyslippers.ONPCTest.H.desktop'),
     'catalogue-soft': ('parent-app-search', 'com.puffyslippers.ONPCTest.S.desktop'),
     'catalogue-game': ('parent-app-search', 'com.puffyslippers.ONPCTest.Game.desktop'),
@@ -845,6 +847,8 @@ MATCH_APPS = {role: 'parent-app-' + hashlib.sha256(
     ('com.puffyslippers.ONPCTest.' + role + '.desktop').encode()).hexdigest()[:16]
     for role in ('A', 'H', 'S', 'Alias', 'Update', 'C', 'Game')}
 MATCH_OTHER_APP = 'parent-app-' + hashlib.sha256(b'com.puffyslippers.ONPCTest.N.desktop').hexdigest()[:16]
+LUNAR_POLICY_APP = 'parent-app-' + hashlib.sha256(
+    TEXT_VALUES['catalogue-lunar'][1].encode()).hexdigest()[:16]
 SNAP_POLICY_APP = 'parent-app-' + hashlib.sha256(
     b'onpc-fixture-allowed_onpc-fixture-allowed.desktop').hexdigest()[:16]
 FLATPAK_POLICY_APP = 'parent-app-' + hashlib.sha256(
@@ -896,6 +900,8 @@ BASELINE_ACCESS_OPERATIONS = {f'access-{name}-{action}': (MATCH_APPS[role], acti
     for action in (*ACCESS_CHOICES, 'row')}
 BASELINE_ACCESS_OPERATIONS.update({f'access-snap-{action}': (SNAP_POLICY_APP, action)
                                    for action in ('allowed', 'row')})
+BASELINE_ACCESS_OPERATIONS.update({f'access-lunar-{action}': (LUNAR_POLICY_APP, action)
+                                   for action in (*ACCESS_CHOICES, 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{action}': (FLATPAK_POLICY_APP, action)
                                    for action in (*ACCESS_CHOICES, 'row')})
 BASELINE_ACCESS_OPERATIONS.update({f'access-flatpak-{name}-{action}': (FLATPAK_POLICY_APPS[role], action)
@@ -7873,7 +7879,7 @@ class AccessibleUI:
     def match_entry(self, child, app, *, editor=False, access=None):
         """Fresh complete child/page/app and transient-owner proof before input."""
         require(child in CHILD_IDENTITIES and (app in (*MATCH_APPS.values(), MATCH_OTHER_APP)
-                or app in (SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values())
+                or app in (LUNAR_POLICY_APP, SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values())
                 and access in ACCESS_CHOICES and not editor), 'ui:match-binding')
         require(access is None or (access in ACCESS_CHOICES and not editor), 'ui:access-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -7944,7 +7950,8 @@ class AccessibleUI:
 
     def read_app_access(self, child, app):
         """PARENT12 independent read; caller owns the expected saved choice."""
-        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values()),
+        require(app in (*MATCH_APPS.values(), MATCH_OTHER_APP, LUNAR_POLICY_APP,
+                        SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values()),
                 'ui:access-binding')
         def read():
             rows = self.app_rows(child)

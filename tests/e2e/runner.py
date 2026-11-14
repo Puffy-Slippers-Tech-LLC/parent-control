@@ -56,10 +56,12 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-lunar-profile', action='store_true')
     qualification.add_argument('--qualify-lunar-launch-quit', action='store_true')
     qualification.add_argument('--qualify-lunar-tray', action='store_true')
+    qualification.add_argument('--qualify-lunar-denial', action='store_true')
     args = parser.parse_args(argv)
-    if args.qualify_lunar_profile or args.qualify_lunar_launch_quit or args.qualify_lunar_tray:
+    if (args.qualify_lunar_profile or args.qualify_lunar_launch_quit or args.qualify_lunar_tray
+            or args.qualify_lunar_denial):
         if (args.list or args.scenario is not None or args.id is not None or args.ready
-                or args.fixture_selection is not None):
+                or args.fixture_selection is not None and not args.qualify_lunar_denial):
             raise ValueError('e2e:qualification-cannot-select-scenarios')
         if args.subcategory not in (None, 'e2e-heavy'):
             raise ValueError('e2e:lunar-profile-requires-heavy-subcategory')
@@ -68,10 +70,22 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
             validate_artifact_path(args.artifacts)
             if not args.artifacts.is_dir():
                 raise ValueError('e2e:missing-artifact-directory')
-        return {'mode': ('lunar-tray-qualification' if args.qualify_lunar_tray else
+        selection = None
+        if args.fixture_selection is not None:
+            if len(args.fixture_selection) > 8192:
+                raise ValueError('e2e:invalid-fixture-selection')
+            sys.path.insert(0, str(root / 'tools'))
+            try:
+                from fixture_execution import Selection
+            finally:
+                sys.path.pop(0)
+            selection = Selection.from_record(json.loads(args.fixture_selection)).record()
+        return {'mode': ('lunar-denial-qualification' if args.qualify_lunar_denial else
+                         'lunar-tray-qualification' if args.qualify_lunar_tray else
                          'lunar-launch-quit-qualification' if args.qualify_lunar_launch_quit
                          else 'lunar-profile-qualification'), 'subcategory': 'e2e-heavy',
-                **({'artifacts': str(args.artifacts)} if args.artifacts is not None else {})}
+                **({'artifacts': str(args.artifacts)} if args.artifacts is not None else {}),
+                **({'fixture_selection': selection} if selection is not None else {})}
     if (args.qualify_transfer or args.qualify_install or args.qualify_install_refusal) and (
             args.list or args.scenario is not None or args.id is not None or args.ready
             or args.subcategory is not None):
@@ -230,11 +244,13 @@ def main(argv=None):
         import qualification_storage
         with qualification_storage.session(run=requested_run, require_owner=True):
             if plan['mode'] in ('lunar-profile-qualification', 'lunar-launch-quit-qualification',
-                                'lunar-tray-qualification'):
+                                'lunar-tray-qualification', 'lunar-denial-qualification'):
                 import lunar_profile_qualification
                 return lunar_profile_qualification.main(assets=Path(plan['artifacts']),
                     launch_quit=plan['mode'] == 'lunar-launch-quit-qualification',
-                    tray=plan['mode'] == 'lunar-tray-qualification')
+                    tray=plan['mode'] == 'lunar-tray-qualification',
+                    denial=plan['mode'] == 'lunar-denial-qualification',
+                    fixture_selection=plan.get('fixture_selection'))
             if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
                                 'deliberate-installation-refusal-qualification'):
                 import check_graphical_smoke

@@ -28,6 +28,7 @@ my %values = (
     'catalogue-name' => 'ONPC Allowed Fixture',
     'catalogue-description' => 'Exact native catalogue fixture',
     'catalogue-identifier' => 'com.puffyslippers.ONPCTest.A.desktop',
+    'catalogue-lunar' => 'appimagekit_349c057c5506142f859a39412c2722d9-Lunar_Client.desktop',
     'catalogue-hard' => 'com.puffyslippers.ONPCTest.H.desktop',
     'catalogue-soft' => 'com.puffyslippers.ONPCTest.S.desktop',
     'catalogue-game' => 'com.puffyslippers.ONPCTest.Game.desktop',

@@ -72,6 +72,7 @@ OPERATION_LABELS = {
     **{'lunar-' + action: label for action, label in (
         ('observer-ready', 'Preparing public launcher observations for [Child user]'),
         ('launch', 'Opening the supplied original Lunar launcher for [Child user]'),
+        ('command-blocked', 'Checking that the parent’s block refuses the original Lunar launcher'),
         ('opened', 'Reading the usable signed-out Lunar launcher'),
         ('snapshot', 'Reading the child’s Lunar window and tray entry'),
         ('settings', 'Opening Lunar settings through its normal menu'),
@@ -1835,6 +1836,12 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if parent is not None:
             expected['management_parent'] = parent
+        if operation == 'lunar-command-blocked':
+            value = result.get('lunar')
+            require(type(value) is dict and set(value) == {'denial'}
+                    and value['denial'] in ('permission-denied', 'operation-not-permitted'),
+                    'ui:lunar-denial-response')
+            expected['lunar'] = value
         if operation in ('lunar-opened', 'lunar-snapshot'):
             value = result.get('lunar')
             require(type(value) is dict and set(value) == {'owner', 'tray', 'window'},

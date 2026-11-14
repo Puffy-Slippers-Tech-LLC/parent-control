@@ -39,6 +39,9 @@ def e2e_identities(root):
 
 
 E2E_QUALIFICATIONS = {
+    '--qualify-lunar-denial': ('check_e2e_lunar_denial',
+        'Observe Lunar command denial',
+        'tests/integration/lunar_profile_qualification.py'),
     '--qualify-lunar-tray': ('check_e2e_lunar_tray',
         'Observe Lunar running for the child',
         'tests/integration/lunar_profile_qualification.py'),

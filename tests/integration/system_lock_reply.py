@@ -347,11 +347,10 @@ def retry_history(command, value, path, accounts):
     """One real transient failure and one renewal cancelling stale retries."""
     import system_guest as guest
     from system_graphical_expiry import LIMITS, account_property, grant, wait_for, installed_manager
-    from system_extension_monitor import BrokerEvents
 
     child = accounts['child']
     installed_manager()
-    sequence = ('retry-renew-arm', 'retry-renew', 'retry-renew-check',
+    sequence = ('retry-renew-arm', 'retry-renew', 'retry-renew-available', 'retry-renew-check',
                 'retry-arm', 'retry-recovery', 'retry-complete')
     index = value['grants']
     guest.require(index < len(sequence) and command == sequence[index], 'expiry:lock-retry-order')
@@ -363,17 +362,11 @@ def retry_history(command, value, path, accounts):
     elif command == 'retry-renew':
         wait_for(lambda: any(row['event'] == 'unavailable' and row['mode'] == 'renewal'
                              for row in records()), 'expiry:lock-retry-renewal-fault', timeout=210)
-        before = BrokerEvents.read('child')
         grant(child, 1200)
-        # Commit plus current positive product calculation precedes restoration
-        # of availability. Neither alone proves cancellation or usable input.
-        # child.estimate can suppress a renewal equal to an earlier positive
-        # estimate for five minutes. The deadline diagnostic records the fresh
-        # increase from exhaustion even within that suppression window.
-        wait_for(lambda: any(row not in before and row['event'] == 'child.countdown-deadline'
-                             and row.get('fields', {}).get('remaining', 0) > 300
-                             for row in BrokerEvents.read('child')),
-                 'expiry:lock-retry-renewal-not-confirmed', timeout=30)
+        result = {'completed': True}
+    elif command == 'retry-renew-available':
+        # The controller has independently read the child's renewed allowance
+        # through the public UI API. Product logs are best-effort diagnostics.
         control('available')
         value['renew_available_at'] = time.monotonic()
         value['renew_request_count'] = len([row for row in records() if row['event'] == 'requested'])

@@ -176,7 +176,8 @@ def _system_history_command(transport, command, *, timeout=120):
                    'replacement-complete', 'crash-complete', 'stop-complete',
                    'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup',
                    'reply-complete', 'reply-missing-wait', 'retry-complete',
-                   'retry-renew', 'retry-renew-check', 'outage-revoke', 'outage-complete'):
+                   'retry-renew', 'retry-renew-available', 'retry-renew-check',
+                   'outage-revoke', 'outage-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
         return value
     if command in ('policy-renew', 'policy-allowance', 'policy-disable'):
@@ -617,8 +618,26 @@ class LockRetryJourney(BrokerStopJourney):
         guard()
         _system_history_command(journey.transport, 'retry-renew-arm')
         _system_history_command(journey.transport, 'retry-renew', timeout=260)
-        # The guest has confirmed current positive entitlement and restored
-        # availability. Real input/work must remain usable beyond the complete
+        # Confirm the child's actual calculation before restoring availability.
+        # A successful grant write or a best-effort log event cannot prove it.
+        # This is functional confirmation under a 20-minute renewal, not the
+        # later measured expiry. Reuse its shared slow-VM verification budget.
+        deadline = engineering_deadline(time.monotonic(), LOCK_VERIFICATION_SECONDS)
+        while True:
+            guard()
+            require(time.monotonic() < deadline, 'expiry:lock-retry-renewal-not-confirmed')
+            value = journey.ui.observe('child-natural-expiry-observe')['natural_expiry']
+            require(journey.ui.boot_proof == journey.boot and value['state'] == 'desktop'
+                    and value['session_sha256'] == journey.original_session,
+                    'expiry:lock-retry-renewal-session')
+            compare_app_activity(AppActivityObservation.from_value(value['activity']),
+                                 journey.activity_observations['activity-capture'])
+            require(time.monotonic() < deadline, 'expiry:lock-retry-renewal-not-confirmed')
+            if value['seconds'] > 300:
+                break
+            time.sleep(SAMPLE_INTERVAL_SECONDS)
+        _system_history_command(journey.transport, 'retry-renew-available')
+        # Real input/work must remain usable beyond the complete
         # old retry window, with no stale call recorded by the real service.
         finish = time.monotonic() + 20
         while True:

@@ -158,6 +158,7 @@ def prepare(mode, assume_yes, vm, caller):
 def main(argv=None):
     argv, vm = vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    vm_config.add_host_argument(parser)
     parser.add_argument('--mode', required=True, choices=('auto', 'manual'))
     parser.add_argument('--y', action='store_true')
     args = parser.parse_args(argv)

@@ -134,10 +134,11 @@ def follow(control, observer, guard):
 
 def main():
     import sys
-    from vm_config import extract
+    from vm_config import extract, add_host_argument
     argv, _ = extract(sys.argv[1:])
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID (validated before parsing)')
+    add_host_argument(parser)
     for name in ('control', 'display', 'uid', 'domain-id'):
         parser.add_argument('--' + name, type=int, required=True)
     for name in ('run', 'uuid', 'xml-sha256'):

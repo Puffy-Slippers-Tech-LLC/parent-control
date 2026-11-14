@@ -32,7 +32,8 @@ def command(root, argv):
         sys.path.insert(0, str(root / 'tests/integration'))
         try:
             import vm_config
-            remaining, selector = vm_config.extract_selector(argv)
+            remaining, selector = vm_config.extract_selector(vm_config.host_arguments(
+                argv, path=root / 'config/environment.json'))
             if len(remaining) != 1:
                 raise ValueError('setup-helper: VM recovery accepts only --vm')
             _, vms = vm_config.execution(selector if selector is not None else 'all',

@@ -323,7 +323,7 @@ class Feed:
                         and not info.st_mode & 0o022 and info.st_size <= 8192, 'progress-owner')
                 value = json.loads(stream.read(8193))
             if value.get('vm') != self.vm_name or not self.matches_checkout(value):
-                return None
+                raise ValueError('watch: progress belongs to another controller')
             age = time.monotonic_ns() - value['updated_ns']
             require(0 <= age < 3_000_000_000, 'progress-expired')
             progress = json.loads(progress_packet(value['progress']))
@@ -333,6 +333,8 @@ class Feed:
             from launcher_progress import watch_case_progress, watch_system_check_progress
             progress = watch_case_progress(self.root, self.vm_name, progress, reader=self.case_reader)
             progress = watch_system_check_progress(self.root, self.vm_name, progress, reader=self.case_reader)
+            from vm_controller_progress import progress as controller_progress
+            progress = controller_progress(self.root, self.vm_name, progress, reader=self.case_reader)
         return progress
 
     def poll(self, *, pixels=True):

@@ -28,6 +28,9 @@ def registered_vms(root):
     from e2e_watch_protocol import BASE
     from test_storage import watch_root
     configured = registry(Path(root) / 'config/environment.json')
+    from vm_controller_progress import registered
+    for name, vm in registered(root):
+        configured.setdefault(name, vm)
     parent = BASE / str(os.getuid())
     try:
         for path in (BASE, parent):

@@ -463,15 +463,21 @@ def resolve(name, configured):
     raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
 
+def family_selectors(document):
+    """Index family names and optional IDs from a validated registry document."""
+    return {family[field].casefold(): family
+            for family in document['families']
+            for field in ('family', 'id') if field in family}
+
+
 def execution(name=None, path=None, *, remote=None):
     """Only VMs whose own flag and host flag are true may be acquired."""
     document = read_document(path, validate_agent=False)
     _, configured = parse_configuration(document)
-    families = {family['family'].casefold(): [] for family in document['families']}
+    selectors = family_selectors(document)
+    families = {family['family']: [] for family in document['families']}
     for vm in configured.values():
-        families[vm.family.casefold()].append(vm)
-    families.update({family['id'].casefold(): families[family['family'].casefold()]
-                     for family in document['families'] if 'id' in family})
+        families[vm.family].append(vm)
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
     if name is None or name.casefold() in ('all-enabled', 'all'):
         vms = tuple(vm for vm in configured.values()
@@ -481,8 +487,8 @@ def execution(name=None, path=None, *, remote=None):
         selected = {}
         for value in name.split(','):
             value = value.casefold()
-            if value in families:
-                matches = (vm for vm in families[value]
+            if value in selectors:
+                matches = (vm for vm in families[selectors[value]['family']]
                            if not vm.owning_branch or vm.owning_branch == branch)
             else:
                 matches = (resolve(value, configured),)

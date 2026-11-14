@@ -198,11 +198,12 @@ def create(name, host_name, family_name, *, root=ROOT):
         if existing is not None:
             vm_config.require_branch(existing, vm_config.current_branch())
         host = next((h for h in document['hosts'] if h['name'] == host_name), None)
-        family = next((f for f in document['families'] if f['family'] == family_name), None)
+        family = vm_config.family_selectors(document).get(family_name.casefold())
         if host is None:
             raise ValueError(f'Unknown host: {host_name}')
         if family is None:
             raise ValueError(f'Unknown family: {family_name}')
+        family_name = family['family']
         if 'virt-manager' not in host or 'iso' not in family:
             raise ValueError('Host requires virt-manager and family requires iso configuration')
         template = root / 'config' / (host_name + '-vm-template.xml')
@@ -304,7 +305,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--name', required=True)
     parser.add_argument('--host', required=True, help='Existing host name in config/environment.json')
-    parser.add_argument('--family', required=True, help='Existing family name in config/environment.json')
+    parser.add_argument('--family', required=True,
+                        help='Existing family name or ID in config/environment.json (case-insensitive)')
     args = parser.parse_args()
     try:
         create(args.name, args.host, args.family)

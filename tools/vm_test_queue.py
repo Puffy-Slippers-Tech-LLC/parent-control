@@ -396,6 +396,31 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     worker.interrupt = interrupt_attempts
             return execute(worker, assignment, inherited, recovering)
 
+        def infrastructure_failure(assignment, result, error):
+            nonlocal suspended
+            status = result['status'] or 2
+            original_error = result.get('error')
+            if original_error and original_error != str(error):
+                error = f'{error}; original worker error: {original_error}'
+            terminal = any(ticket.get('outcome') == 'leave_failed'
+                           and ticket['assignment'] == assignment['assignment']
+                           for ticket in checkpoint.state.get('repairs', []))
+            if terminal:
+                message = (f"VM {assignment['vm']} cleanup failed after terminal repair: {error}. "
+                           'Retaining its claim and suspending for cleanup recovery.')
+                print(message, flush=True)
+                result.update(status=status, error=message, infrastructure=True)
+                suspended = True
+                return
+            ticket = checkpoint.infrastructure_failure(assignment, status)
+            message = (f"VM {assignment['vm']} infrastructure failure (status {status}): {error}. "
+                       'Retaining its claim and queuing repair; no case or cleanup credit accepted.')
+            print(message, flush=True)
+            result.update(status=status, error=message, repair_ticket=ticket['id'], infrastructure=True)
+            hold(ticket, 'untriaged')
+            failure_results[ticket['id']] = dict(result)
+            interrupt_attempts.set()
+
         def completed(vm, result):
             nonlocal changed, suspended
             with lock:
@@ -414,8 +439,11 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         checkpoint.recover(assignment, cleanup=True)
                         result = dict(result, status=0, cleanup_complete=True)
                     except ValueError as error:
-                        result = dict(result, status=2, error=str(error))
-                        suspended = True
+                        if repair_mode and not control.stopped.is_set():
+                            infrastructure_failure(assignment, result, error)
+                        else:
+                            result = dict(result, status=2, error=str(error))
+                            suspended = True
                 elif recovering:
                     if (not result['status'] and isinstance(evidence, dict)
                             and evidence.get('assignment') == assignment
@@ -423,17 +451,21 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         checkpoint.recover(assignment, cleanup=True)
                     elif not result['status']:
                         result = dict(result, status=2, error='missing original-worker cleanup result')
-                    if result['status']:
+                    if result['status'] and repair_mode and not result.get('repair_ticket'):
+                        infrastructure_failure(assignment, result,
+                            result.get('error', 'original-worker cleanup failed'))
+                    elif result['status'] and not repair_mode:
                         # Retain the claim for resume; failed recovery must not
                         # immediately select the same recovery again.
                         suspended = True
                 else:
-                    changed |= isinstance(evidence, dict) and evidence.get('diagnostic') is True
                     complete = False
                     if result['status']:
                         # Failure notification can precede the retained worker's
                         # final check-in. Save partial credit only after join.
-                        if repair_mode and result.get('repair_ticket'):
+                        if repair_mode and result.get('infrastructure'):
+                            pass  # No receipt or cleanup credit is trusted for infrastructure failures.
+                        elif repair_mode and result.get('repair_ticket'):
                             try:
                                 checkpoint.accept(assignment, evidence, result['status'])
                                 if evidence.get('cleanup') is True:
@@ -441,20 +473,28 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                             except ValueError as error:
                                 result = dict(result, error=str(error))
                                 suspended = True
-                        else:
+                        elif not result.get('prerequisite'):
                             deferred.append((assignment, evidence, result['status']))
                     else:
                         try:
                             complete = checkpoint.accept(assignment, evidence, result['status'])
                         except ValueError as error:
-                            result = dict(result, status=2, error=str(error))
+                            if repair_mode:
+                                infrastructure_failure(assignment, result, error)
+                            else:
+                                result = dict(result, status=2, error=str(error))
                     if complete:
                         accepted.append(assignment)
                         if focused:
                             focus_finished.add(vm.family)
                     elif not result['status']:
-                        result = dict(result, status=2,
-                                      error='case runner returned success without qualified completion')
+                        error = 'case runner returned success without qualified completion'
+                        if repair_mode:
+                            infrastructure_failure(assignment, result, error)
+                        else:
+                            result = dict(result, status=2, error=error)
+                    changed |= (not result.get('infrastructure') and isinstance(evidence, dict)
+                                and evidence.get('diagnostic') is True)
                 if result['status']:
                     failures.append(dict(assignment=assignment, status=result['status']))
                 if (not repair_mode and result['status'] not in (0, launcher_reload.STATUS)
@@ -479,7 +519,7 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 return
             with lock:
                 current = inflight.get(vm.name)
-                if current is None or current[1]:
+                if current is None:
                     return
                 assignment = current[0]
                 if 'prerequisite' in actions and actions['prerequisite'](vm.name, result):
@@ -490,8 +530,16 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     control.stop()
                     return
                 failed_case = result.get('failure_case')
-                ticket = checkpoint.enqueue_failure(assignment, result.get('evidence'), result['status'],
-                                                     case=failed_case)
+                if current[1]:
+                    infrastructure_failure(assignment, result,
+                        result.get('error', 'original-worker cleanup failed'))
+                    return
+                try:
+                    ticket = checkpoint.enqueue_failure(assignment, result.get('evidence'), result['status'],
+                                                         case=failed_case)
+                except ValueError as error:
+                    infrastructure_failure(assignment, result, error)
+                    return
                 # The shared gate changes while the failed operation's source
                 # reader still protects its inputs and before any refill.
                 hold(ticket, 'untriaged')
@@ -594,7 +642,9 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 elif target is not None:
                     raise ValueError('invalid bounded repair target')
                 elif cases is not None:
-                    candidates = [ticket['case'], *(attempt['execution']['case']
+                    candidates = [ticket['case'],
+                                  ticket.get('execution', ticket['work'])['case'] if ticket.get('infrastructure') else None,
+                                  *(attempt['execution']['case']
                                   for attempt in reversed(ticket.get('attempts', [])))]
                     if ticket['case']:
                         candidates.extend(case for case in cases if case.startswith(ticket['case'] + '::'))
@@ -616,6 +666,12 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 evidence = value.get('evidence') if isinstance(value, dict) else None
                 accepted_reference = checkpoint.finish_attempt(ticket['id'], reference, evidence, status,
                                                                 source=source_identity(root))
+                if not status and purpose != 'diagnostic' and not accepted_reference['accepted']:
+                    error = 'repair attempt returned success without qualified completion evidence'
+                    print(f"VM {ticket['vm'] or '[host]'}: {error}; continuing repair.", flush=True)
+                    status = 2
+                    value = dict(value if isinstance(value, dict) else {})
+                    value.update(error=error, output_tail=(value.get('output_tail', '') + '\n' + error)[-16000:])
                 return dict(value if isinstance(value, dict) else {}, status=status,
                             accepted=accepted_reference['accepted'], reference=accepted_reference)
 

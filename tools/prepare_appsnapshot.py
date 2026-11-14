@@ -19,7 +19,7 @@ from vm_pool import check_queue, reservation
 
 
 def ensure_snap_prepared(root, control, environment):
-    """Refresh only the selected Snap-incomplete baseline, under its reservation.
+    """Refresh the selected outdated or Snap-incomplete baseline under its reservation.
 
     Run before acquiring checkout activity: maintained preparation owns that
     activity and keeps all baseline/snapshot/VM ownership checks itself.
@@ -38,9 +38,13 @@ def ensure_snap_prepared(root, control, environment):
         status = cleanup(root)
     if status:
         return status
-    print('Snap enabled: preparing the selected baseline and app snapshots.', flush=True)
-    return control.run([str(root / 'tools/prepare-vm'), *vm_arguments(), '--mode', 'auto', '--y'],
-                       cwd=root, env=environment, wait_on_cancel=True)
+    print('VM readiness: baseline preparation required; automatically refreshing '
+          'the selected baseline and app snapshots before resuming tests.', flush=True)
+    status = control.run([str(root / 'tools/prepare-vm'), *vm_arguments(), '--mode', 'auto', '--y'],
+                         cwd=root, env=environment, wait_on_cancel=True)
+    print('VM readiness: ' + (f'automatic preparation failed (status {status}); see preparation output above.'
+          if status else 'automatic preparation completed; resuming tests.'), flush=True)
+    return status
 
 
 @contextmanager

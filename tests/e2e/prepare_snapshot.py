@@ -69,11 +69,13 @@ def probe(expected_uuid, *, overwrite=True, release_notes_upgrade=False):
         source, _ = open_source()
         check_identity(source, expected_uuid)
         capture = preparation_state(source, commands)
+        if capture.state['script_digest'] != capture.script_digest:
+            print('appsnapshot-preparation: baseline:preparation-outdated; '
+                  'automatic baseline preparation required', file=sys.stderr, flush=True)
+            return 8
         if (base.guest_contract.vm_config.snap_tests_enabled()
                 and not capture.state['guest'].get('snap_prepared', True)):
             return 8  # Maintained auto preparation also refreshes stale sources.
-        system.require(capture.state['script_digest'] == capture.script_digest,
-                       'baseline:preparation-outdated')
         package_format = system.package_target(capture.state['guest']).package_format
         journal = base.BASELINES / 'system-run.json'
         if os.path.lexists(journal):

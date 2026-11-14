@@ -2312,7 +2312,7 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. [Child-owned saved work](#child-owned-saved-work) adds edit/Save and usable reopened-window submission. `lunar_ui.run` adds [public Lunar Settings](#lunar-original-appimage-launch-and-quit). | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch), fixed saved-work use and supplied Lunar Settings ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | The [same-S Files qualification](#native-files-launch-and-separate-windows) adds separate-primary/secondary and unchanged-original comparisons; the [same-S desktop qualification](#native-desktop-entry-and-usable-launch) adds those comparisons after Jordan's desktop activation. `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). [Distinct-user retention](#distinct-user-retained-app-qualification) qualifies Jamie/Riley captures and original-window comparisons through Switch User. [Child-owned saved work](#child-owned-saved-work) distinguishes same-window rereads from deliberate close/reopen with saved text. No hidden process/window inspection. | [Jordan's same-S Files activity](#native-files-launch-and-separate-windows) and [desktop activity](#native-desktop-entry-and-usable-launch) on Ubuntu 26.04 ready; native primary capture/same-window comparison, stated Jamie/Riley retention and case 17 Jordan A/S Cancel retention on Ubuntu ready; fixed Jordan/Riley saved-work comparisons ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode=...)` / `AccessibleUI.game_operation('game-windowed-level'/'game-fullscreen-level')` observe the actual GTK mode and fixed level independently before the real move; qualified [windowed](#windowed-game-expiry) and [fullscreen](#fullscreen-game-expiry) compositions. The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed/fullscreen level 1 and Riley's windowed case-128 binding on Ubuntu 26.04 ready; other bindings pending |
-| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control and launcher window, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
+| APP06 | A | Read one complete, account-scoped public projection of Lunar application/tray presence and any registered launcher surface, with the recognized desktop. Absence requires both application and tray absent. Do not launch, reveal or quit anything; a registered accessibility frame supplies no native-window visibility claim. | `lunar_ui.run` adds `lunar-snapshot`; `lunar-closed` retains complete application/tray absence. `e2e --subcategory e2e-heavy --qualify-lunar-tray` qualified independent same-owner presence after normal Jordan entry/original-AppImage launch, followed by genuine Quit/complete absence on Ubuntu 26.04. No tray-feature or continuous game-specific observer is required. [Consumer gate](#lunar-client-preparation-and-observation-gate). | ready for owned Lunar application/tray presence on Ubuntu 26.04; denied and autostart bindings pending |
 
 APP01/02/03/04 and FLOW08 also include Jordan's fixed level-1
 [offline game activity](#offline-game-activity) command binding on Ubuntu 26.04.
@@ -5534,30 +5534,25 @@ authentication during the measured checks. Reverify after developer-supplied set
 changes; do not build an automatic updater to resolve drift.
 
 The [original-AppImage launch/Quit binding](#lunar-original-appimage-launch-and-quit)
-is qualified. Tray close/restore, specific command denial and complete absence,
+is qualified. Independent app-presence readback, specific command denial and complete absence,
 separate normal Minecraft launcher entry/exit and denial, and allowed/denied
-continuous login remain separate bindings. Their APP01/02/03/06, UI18 and UI22
+normal-login access remain separate bindings. Their APP01/02/06 and UI18
 scopes do not imply one another. Apply the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
 inside explicit adapters, retaining ownership, complete absence observations,
 ambiguity refusal and independent results.
 
-The continuous-login qualification must first qualify continuous external-app observation and reattachment
-across login. UI22's current `observed_text` / `start_trace` / `poll_trace` /
-`finish_trace` binding observes Parent feedback, not a Lunar login interval.
-Reuse its lifecycle/ownership principles and the existing reboot/session recorder,
-but keep the missing public projection explicitly planned. The denied-login qualification consumes
-that new binding: arm the public observation before child login submission, preserve secret filtering,
-and observe the login transition through **90 seconds after desktop readiness**.
-Qualify observer reattachment before any possible Lunar surface; a blind login
-interval cannot pass. APP06 observations must cover both tray and launcher
-surfaces, not just a final window list. A usable Lunar launcher at any
-point in a denied interval fails even if it later closes. Require the allowed
-autostart control in the same attempt, plus a specific public access denial from
-one explicit original-AppImage launch in each denied checkpoint. A hidden grid
-entry, generic startup failure or absent tray alone is insufficient. These
-bindings remain pending until they can reliably establish the observations;
-process lists, rule files and daemon logs are not customer acceptance substitutes.
+On 2026-11-13 the developer narrowed unfinished work to app allow/block
+enforcement. Use ordinary child sign-in and the shared public app reader.
+Allowed hidden autostart requires the owned Lunar application/tray result within
+the 180-second functional readiness budget. At denied checkpoints require complete
+public application/tray absence and specific public denial from one explicit
+original-AppImage command. Preserve the working allowed-startup control.
+No new continuous observer, 90-second sampling matrix, native-window hide/restore,
+Settings exercise or zero-transient-window guarantee is required. Shared watch,
+credential-recipient, ownership, prompt, incomplete-read and uncertain-input
+guards remain mandatory. A hidden grid entry, generic startup failure, absent
+tray alone, process list, rule file or daemon log cannot supply enforcement acceptance.
 
 No source extraction, direct embedded-binary/Java launch, alternative package,
 disabled autostart or post-login policy save may replace the registered route.
@@ -6186,7 +6181,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |
-| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 read-only supplied-profile verification is qualified on Ubuntu 26.04. Public launch bindings still require actual prepared AppImage, allowed autostart, complete login-interval tray/window observations, same-route denial, separate signed-out Minecraft launcher entry/exit/denial and genuine Lunar Quit. No vendor sign-in, game download or gameplay checks. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 read-only profile ready on Ubuntu 26.04; APP01/02/03/06 and UI18/22 pending. |
+| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 supplied-profile verification, original Lunar launch/Quit and independent owned app/tray presence are qualified on Ubuntu 26.04. Same-route policy denial, normal-login access and separate Minecraft launcher entry/exit/approval remain pending. Test app access only; no tray-feature, Settings, vendor account, download, gameplay or continuous game-specific observer requirement. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 and the stated Lunar APP01/02/06/UI18 bindings ready on Ubuntu 26.04; remaining access bindings pending. |
 
 Generic Shell notifications, graphical VT6 and diagnostic-export viewers have no
 active customer requirement or acceptance credit. Chooser qualification follows

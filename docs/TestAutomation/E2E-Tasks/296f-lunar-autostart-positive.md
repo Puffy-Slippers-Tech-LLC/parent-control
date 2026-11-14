@@ -1,50 +1,42 @@
-# 296f — Observe allowed Lunar autostart across login
+# 296f — Check allowed Lunar startup after sign-in
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
-Estimate: 40–60 minutes.
-
-Use the [supplied manual profile and autostart settings](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-in place. Report any launcher/profile setup gap before making setup changes.
-
-Session exception: Continuous pre-login observation touches shared recorder/secret handling and requires the retained live regression set.
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **APP06/UI22 allowed continuous login interval**. Named consumer: task **296b** and any
-complete cases released directly by this slice in the canonical queue.
+Deliver **APP06 allowed Lunar startup after ordinary child sign-in** for
+task **296b** and case 253.
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+Requires **296d** (owned public Lunar application/tray presence), **004**
+(guarded normal sign-in), and **180** (public Parent allowance preparation).
 
-- **296d** — Lunar/tray public identity and absence/presence observations.
-- **007** — LIFE02.
-- **016a** — UI22.
-- **004** — UI19/GDM05 distinct single-use authentication challenges.
-- **052c** — TIME03.
-- **180** — FLOW01 same-user entry; FLOW16 fresh/same Parent allowance setup.
+Use the [supplied manual profile and autostart settings](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+after ordinary restore; report drift before setup changes.
 
-## Implementation
+## Implementation and acceptance
 
-Compose existing Lunar/tray readers with the shared login observer. Arm before child login input and preserve sealed capture, reattachment and all samples through 90 seconds after desktop readiness.
+Set positive desktop time and allow Lunar through Parent. Sign Jordan in through
+the shared normal entry. Independently observe the same account's owned Lunar
+application/tray presence within the shared 180-second functional readiness
+budget, proving the supplied autostart route actually starts the allowed app.
+Quit normally and observe complete absence.
 
-Source gap: task 016a's UI22 is `journey_blocks.observed_text` with
-`UiObservations.start_trace` / `poll_trace` / `finish_trace`, qualified around one Parent
-feedback edit. It is not a continuous external-app login observer.
-Bind the existing recorder/boot lifecycle to public Lunar/tray samples
-across login, including reacquisition before the first possible app surface and
-the complete post-readiness interval. No login-observer callable or selector is
-registered yet. Keep this source gap explicit; final-window absence and a
-product-text trace cannot supply interval coverage. Separate normal Minecraft
-launcher entry/exit/denial remains tasks 296e/296a and the complete case. No
-vendor sign-in, game downloads, game launch or gameplay is required.
+Use ordinary session readiness and the shared app-presence reader. The supplied
+hidden autostart setting need not reveal a window. Do not test tray hide/restore,
+Settings, vendor sign-in, game contents or gameplay. Do not build a new
+continuous external-app observer or alter recorder/secret handling for this
+slice. Existing watch, fresh credential-recipient, ownership, prompt,
+complete-read and uncertain-input guards remain mandatory.
 
-## Live VM acceptance
+This qualifies a positive access control, not a continuous or zero-transient
+window guarantee. Reboot enforcement belongs to the complete case.
 
-Observe working allowed autostart continuously from before login submission. Require the actual tray/Lunar result and reject blind intervals, ambiguous ownership and missing samples. Retain all applicable recorder/secret/cleanup regressions.
-
-Planned qualification selector (not registered; implement before use):
+Implement this planned selector in the existing E2E envelope before use; it is
+not registered and needs no standalone system test:
 
 ```sh
-tools/run-tests system check_e2e_lunar_autostart_positive
+tools/run-tests --vm onpc-Ubuntu26.04-110 e2e --subcategory e2e-heavy --qualify-lunar-autostart
 ```

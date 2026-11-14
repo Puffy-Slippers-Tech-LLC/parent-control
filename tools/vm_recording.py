@@ -39,6 +39,9 @@ def e2e_identities(root):
 
 
 E2E_QUALIFICATIONS = {
+    '--qualify-lunar-tray': ('check_e2e_lunar_tray',
+        'Observe Lunar running for the child',
+        'tests/integration/lunar_profile_qualification.py'),
     '--qualify-lunar-launch-quit': ('check_e2e_lunar_launch_quit',
         'Launch Lunar and Quit through its normal controls',
         'tests/integration/lunar_profile_qualification.py'),

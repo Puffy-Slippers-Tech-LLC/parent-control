@@ -682,9 +682,9 @@ establish this coverage. Keep their existing scope and IDs unchanged.
 
 This is metadata/planning only: case 253 remains `pending`, with no executable
 binding. Tasks **295, 296c, 296d, 296, 296e, 296a, 296f, 296b and 297** separately
-cover restored-fixture validation, Lunar launch/Quit, tray controls, command
+cover restored-fixture validation, Lunar launch/Quit, public app presence, command
 denial, separate normal signed-out Minecraft launcher entry/exit and
-launch/denial, allowed and denied continuous login
+launch/denial, allowed and denied access after normal login
 observations, and the complete scenario. The developer has completed manual
 installation and profile setup for Lunar, AppImageLauncher and Minecraft on the
 guarded VM. Treat those supplied inputs as finished setup, verify them after
@@ -702,4 +702,8 @@ developer removed vendor sign-in, game downloads, Minecraft launch through Lunar
 game-menu and gameplay steps from this group and all its remaining tasks. Do not
 replace launcher results with process/rule probes or treat unavailable launcher
 inputs/provider observations as a pass.
+On 2026-11-13 the developer further limited unfinished work to app access:
+normal launch, specific denial, approval and persistence after normal sign-in or
+reboot. Tray hide/restore, Settings and a new continuous game-specific observer
+are excluded; existing public-result, input, ownership and cleanup guards remain.
 This addition does not change the current **Next task** or claim VM acceptance.

@@ -170,6 +170,11 @@ def capture(root, destination, handoff_path, output):
         # Queue results link the per-VM handoffs; reports own category logs.
         try:
             names = read(path.parent, listing=True)
+            # Preparation can fail before a category starts, leaving its log
+            # empty. The report retains that controller failure and belongs to
+            # the same guarded, bounded failure context as the category tails.
+            if 'report.md' in names:
+                save(path.parent / 'report.md')
             if 'results.json' in names:
                 results = json.loads(save(path.parent / 'results.json') or '{}')
                 if not isinstance(results, dict):

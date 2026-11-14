@@ -1,63 +1,43 @@
-# 296b — Prove the denied Lunar login interval
+# 296b — Check blocked Lunar access after sign-in
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
-Estimate: 40–60 minutes.
-
-Use the [supplied manual profile and autostart settings](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-in place. Report any launcher/profile setup gap before making setup changes.
-
-Session exception: The complete denied login interval, same-route denial control and shared recorder/secret regressions remain required.
-
-## Session boundary
-
-Add the complete denied login interval and same-route explicit denial control. Reuse 296f's observer lifecycle; transient usable surfaces must fail and case 253 stays pending.
-
-Reuse the delivered scope of tasks **296f** under the
-[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
+Estimate: 20–30 minutes.
 
 ## Scope and prerequisites
 
-Deliver **APP06/UI22 continuous login interval and Lunar autostart binding**.
+Deliver **APP01/02/06 blocked Lunar access after ordinary child sign-in** for
+case 253.
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+Requires **296f** (working allowed autostart control) and **296**
+(same original-AppImage command's specific public denial).
 
-- **296f** — APP06/UI22 allowed continuous login interval.
-- **296** — Original-AppImage same-route specific policy denial.
+Use the [supplied manual profile and autostart settings](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+after ordinary restore; report drift before setup changes.
 
-Its transitive prerequisites retain public Lunar surface identity, customer
-reboot, the UI22 observer, distinct single-use login challenges, guarded TIME03
-intervals and public Parent allowance preparation.
+## Implementation and acceptance
 
-## Implementation
+Save Lunar's declared Soft Blocked policy with desktop time available and no
+soft-app permission. Sign Jordan in through the shared normal entry.
+Require complete public Lunar application/tray absence. Invoke the same original
+AppImage command once and require specific public policy denial, then
+independently observe complete absence again. An unrelated allowed app must
+remain usable. A missing tray alone or generic startup failure cannot pass.
 
-Compose 296f's newly qualified login observer with the separately qualified
-Lunar/tray observations and existing login/reboot recorder. Arm before child login submission,
-preserve secret sealing, and observe tray and Lunar surfaces until 90 seconds
-after desktop readiness. Qualify reattachment before the first possible surface;
-no blind interval or final-window-only absence claim is acceptable. Reuse the
-shared observer, command transport and VM lease; no new capture loop or viewer.
+Reuse the allowed-startup qualification, normal session readiness, same-route
+denial and complete public app reader. The result is blocked app access after
+sign-in, not a game-specific continuous interval or zero-transient-window claim.
+Do not introduce a new observer/recorder lifecycle, a 90-second sampling matrix,
+tray hide/restore, Settings, game internals, accounts, downloads or gameplay.
 
-## Live VM acceptance
+Preserve shared watch, credential-recipient, ownership, ambiguity, prompt,
+incomplete-read and uncertain-input guards. Run affected shared safety checks;
+unchanged recorder/secret infrastructure needs no renewed qualification.
 
-On the guarded VM, qualify a complete denied login interval, with a real
-original-AppImage launch and specific public denial
-as the negative control. Missing samples, ambiguous ownership and transient usable
-surfaces must fail. Pass applicable recorder/secret/cleanup tests and the master's
-retained regressions. Reuse 296f's unchanged allowed-autostart qualification;
-repeat that live branch only when shared changes affect it. Its evidence supplies
-no saved VM state. This slice does not register or pass complete case 253.
-
-Exercise new denied-interval/incomplete-sample/reattachment refusal in focused
-harness coverage. Reuse unchanged credential-recipient, allowed observer,
-Lunar/tray qualification; do not add vendor sign-in, game launch or gameplay checks or
-repeat their full histories solely to qualify this negative observation.
-
-Implement the following planned focused qualification in the existing guarded
-envelope before use; do not add a standalone system registration for this
-E2E building block:
+Implement this planned selector in the existing E2E envelope before use; it is
+not registered and needs no standalone system test:
 
 ```sh
-tools/run-tests system check_e2e_lunar_login_observer
+tools/run-tests --vm onpc-Ubuntu26.04-110 e2e --subcategory e2e-heavy --qualify-lunar-login-denial
 ```

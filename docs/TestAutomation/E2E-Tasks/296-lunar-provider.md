@@ -1,63 +1,39 @@
 # 296 — Observe Lunar command denial
 
-Use the [shared App UI API task contract](../E2E-Execution-Contracts.md#task-brief-contract)
+Use the [shared task contract](../E2E-Execution-Contracts.md#task-brief-contract)
 and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance).
 
 Estimate: 20–30 minutes.
 
-Use the [supplied manual profile](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-in place. Report any launcher/profile setup gap before making setup changes.
-
-## Session boundary
-
-Add the original command's specific public policy denial and complete public absence result. Reuse 296c's launch/window/absence operations; tray controls, the separate Minecraft launcher and login intervals remain separate.
-
-Reuse the delivered scope of task **296c** under the
-[split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
-
 ## Scope and prerequisites
 
-Deliver **APP01/02 Lunar original-AppImage command denial and complete public absence**. First complete consumer:
-[E2E-052/case 253](../E2E-Scenario-Recipes.md#e2e-052).
+Deliver **APP01/02 original-AppImage policy denial and complete public absence**
+for task **296b** and [case 253](../E2E-Scenario-Recipes.md#e2e-052).
 
-Required tasks (queue IDs; use delivered scope, not predecessor briefs):
+Requires **296c** (normal original-AppImage launch/Quit and owned absence) and
+**079** (public saved match/access editing).
+Use the [supplied manual profile](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+after ordinary restore; report drift before setup changes.
 
-- **296c** — Original-AppImage launch, owned Lunar window and complete public absence.
-- **079** — Public saved match/access editing for the original Lunar path.
+## Implementation and acceptance
 
-Its transitive prerequisites retain verified FIX05 Lunar/AppImageLauncher/autostart/
-Minecraft launcher inputs and guarded TIME03 intervals.
+Save the declared Lunar policy through Parent. As Jordan with usable desktop
+time, invoke the same original AppImage once and require a specific public policy
+denial plus complete Lunar application/tray absence. An unrelated allowed app
+must remain usable. A hidden launcher, generic launch failure, process list or
+rule file cannot supply the denial result.
 
-## Implementation
+Reuse the delivered allowed launch/Quit binding; run an affected allowed control
+only when the shared route changes. Preserve ownership, complete-read, prompt
+and uncertain-input guards. No Settings, tray hide/restore, vendor accounts,
+downloads, game launch, game internals or gameplay checks.
 
-Add the original AppImage command's specific denial result under the
-[profile contract](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
-Reuse 296c's command launch and owned-window/complete-absence observations
-when composing the new policy branch. Task 296d's tray close/restore is needed
-by allowed autostart, not by this command-denial qualification.
-Apply the external-provider exception only in
-explicit adapters, preserving owner, ambiguity and input/result checks. Keep
-Minecraft launcher entry/exit/denial and continuous login observation in their following tasks.
-
-## Live VM acceptance
-
-In fresh guarded attempts, qualify the original-AppImage command's specific
-policy denial using the prepared rule path and complete public observations.
-Reuse unchanged allowed launch/Quit and complete-absence qualification from
-296c; rerun its affected branches when the shared adapter changes.
-Qualify the independently supplied denied entry. Focused adapter checks cover
-wrong owner, ambiguity, incomplete observations and uncertain-input refusal
-without replay; keep the same runtime guards. Do not rerun the unchanged native
-grid/command policy matrix or Lunar allowed/tray history. No process/rule probe
-may supply a customer result.
-
-Planned qualification selector (not registered; implement before use):
+Implement this planned selector in the existing E2E envelope before use; it is
+not registered and needs no standalone system test:
 
 ```sh
-tools/run-tests system check_e2e_lunar_provider
+tools/run-tests --vm onpc-Ubuntu26.04-110 e2e --subcategory e2e-heavy --qualify-lunar-denial
 ```
 
-Pass affected safety/adapter checks before the VM run. Use shared watch intent,
-observation and transport throughout; require collection and owned cleanup.
-
-APP06's login binding remains pending; this task does not pass case 253.
+Use affected shared safety checks and owned cleanup. This slice does not pass
+case 253 or qualify sign-in/reboot persistence.

@@ -72,7 +72,7 @@ use one approver change for child ownership and observe the panel after each
 language save; ordinary session-resume coverage remains in E2E-011/022.
 Notification delivery saves its final custom reminder directly; task 312 owns
 reminder editing. Lunar command denial consumes launch/absence operations;
-tray controls remain a separate autostart prerequisite.
+autostart reuses owned app-presence reads without a tray-feature qualification.
 
 All unfinished rows also follow the shared
 [supporting-operation and observation choices](E2E-Execution-Contracts.md#supporting-operations-and-observations).
@@ -86,13 +86,14 @@ These planning changes leave task status and live qualification unchanged.
 The remaining Plan A timing audit covers 289/290's small additions and original
 natural-expiry deadlines, 198/293's separate parent windows and child balances,
 295's read-only profile verification, 296c/296d/296/296e/296a's public readiness
-and single-use app actions, and 296f/296b/297's complete login observation.
+and single-use app actions, and 296f/296b/297's normal-login/reboot access results.
 Use the [finite recipe comparisons](E2E-Scenario-Recipes.md#finite-data-and-execution-budgets)
 and [timing order and calculation rules](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience).
-The planned login observer must establish readiness before the triggering input;
-reconnection speed cannot supply its missing qualification. Task 154 remains
+The unfinished launcher group uses ordinary session readiness and public app
+readers; it needs no new continuous game-specific observer. Task 154 remains
 deferred until the real mute feature returns. This audit neither implements
-pending bindings nor changes any task's acceptance, order or completion.
+pending bindings or claims completion. The 2026-11-13 developer scope revision
+removes launcher-feature checks while retaining app enforcement outcomes.
 
 The [system allocation](UI-and-E2E-Coverage.md#reuse-of-system-coverage)
 removes duplicate engineering cases, prerequisite steps and acceptance matrices
@@ -678,12 +679,12 @@ They do not qualify a route, waive acceptance or close a row.
 | [x] | 311a | Qualify the saved fullscreen reminder preference | 312a | Qualified on Ubuntu 26.04 and Fedora 44 through `check_e2e_reminder_fullscreen_preference`: Save false and independently reopen, Cancel a true draft and read saved false, exact reminder/language/request preservation, unchanged public policy/time and zero grants, with owned cleanup. Reports `20261013T201225Z-b7411901` and `20261013T201225Z-058fe498`; no notification-delivery or complete-case credit. | 20–30 |
 | [x] | 295 | Check that Jordan's game launchers are ready | 006 | FIX05 qualified on Ubuntu 26.04 through `e2e --subcategory e2e-heavy --qualify-lunar-profile`: normal installed-snapshot restore, pinned supplied Lunar/AppImageLauncher/Minecraft inputs, enabled docked/hidden settings, independent repeated readback and owned baseline restoration passed. Scoped host safety/routing checks passed. No installation, profile reconstruction or launch journey; case 253 remains pending. Subcategory e2e-heavy owns vm_tag heavy; the VM's heavy assignment is unchanged. | 20–30 |
 | [x] | 296c | Launch Lunar and Quit through its normal controls | 295, 052c | APP01/02/03/UI18 qualified on Ubuntu 26.04 through `e2e --subcategory e2e-heavy --qualify-lunar-launch-quit`: restored supplied original AppImage, normal Jordan sign-in, usable signed-out Home, independent observer entry, public Settings, genuine Quit and complete public absence. Live startup probes established the transient two-window overlap and ordinary non-secret Settings dialog; the adapter waits for one window and scopes the existing prompt guard to the owned Settings panel. Three focused host routing checks, source/traceability, collection and owned baseline restoration passed; VM off. [Qualified binding](E2E-Building-Blocks.md#lunar-original-appimage-launch-and-quit); no tray close/restore, login-interval or complete-case credit. | 20–30 |
-| [ ] | 296d | [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md) | 296c | APP06 Lunar/tray snapshot and close-to-tray/restore using the supplied manual profile | 20–30 |
+| [x] | 296d | Observe Lunar running for the child | 296c | APP06 qualified on Ubuntu 26.04 through `e2e --subcategory e2e-heavy --qualify-lunar-tray`: normal Jordan entry, original-AppImage allowed launch, independent same-owner public application/tray snapshot, genuine Quit and complete absence passed. Scoped host routing/source checks, collection and owned baseline restoration passed. Per the developer's 2026-11-13 scope revision, no tray hide/restore, Settings or continuous game-specific observer acceptance; remaining tasks and case 253 were reconciled to app access without complete-case credit. | 20–30 |
 | [ ] | 296 | [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md) | 296c, 079 | APP01/02 Lunar original-AppImage command denial and complete public absence using the supplied manual profile | 20–30 |
 | [ ] | 296e | [Open and close the Minecraft launcher](E2E-Tasks/296e-minecraft-entry-exit.md) | 295 | APP01/02/UI18 separate signed-out Minecraft launcher entry and exit using the supplied manual profile | 20–30 |
-| [ ] | 296a | [Check Minecraft launcher access after approval](E2E-Tasks/296a-minecraft-provider.md) | 296e, 079 | APP01/02/03 and UI18 separate signed-out Minecraft launcher, normal exit and specific public denial using the supplied manual profile | 20–30 |
-| [ ] | 296f | [Observe allowed Lunar autostart across login](E2E-Tasks/296f-lunar-autostart-positive.md) | 296d, 007, 016a, 004, 052c, 180 | APP06/UI22 allowed continuous login interval using the supplied manual autostart settings | 40–60 (exception) |
-| [ ] | 296b | [Prove the denied Lunar login interval](E2E-Tasks/296b-lunar-login-observer.md) | 296f, 296 | APP06/UI22 continuous login interval and Lunar autostart binding using the supplied manual profile | 40–60 (exception) |
+| [ ] | 296a | [Check Minecraft launcher access after approval](E2E-Tasks/296a-minecraft-provider.md) | 296e, 079 | APP01/02/UI18 separate signed-out Minecraft launcher allow/deny/approval and normal exit using the supplied manual profile | 20–30 |
+| [ ] | 296f | [Check allowed Lunar startup after sign-in](E2E-Tasks/296f-lunar-autostart-positive.md) | 296d, 004, 180 | APP06 owned allowed Lunar startup after normal sign-in; reuse the public app reader and supplied autostart settings | 20–30 |
+| [ ] | 296b | [Check blocked Lunar access after sign-in](E2E-Tasks/296b-lunar-login-observer.md) | 296f, 296 | APP01/02/06 same-route public denial and complete Lunar absence after normal sign-in | 20–30 |
 | [ ] | 297 | [Check launcher access after parent approvals and restarts](E2E-Tasks/297-case-253.md) | 296a, 296b, 180, 197 | Case 253; signed-out normal Minecraft and Lunar launcher access/block checks using the supplied manual profiles. No vendor sign-in, game downloads or game launch. Complete public journey pending; resume when required blocks are qualified. | 20–30 + ≤30 live (exception) |
 
 ## Fresh-install restart regression scope

@@ -187,6 +187,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     qualification.add_argument('--qualify-lunar-profile', action='store_true')
     qualification.add_argument('--qualify-lunar-launch-quit', action='store_true')
+    qualification.add_argument('--qualify-lunar-tray', action='store_true')
     appsnapshot = categories.add_parser('appsnapshot', allow_abbrev=False)
     appsnapshot.add_argument('--probe', action='store_true')
     appsnapshot.add_argument('--resume', action='store_true')
@@ -448,6 +449,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             options.append('--qualify-lunar-profile')
         if args.qualify_lunar_launch_quit:
             options.append('--qualify-lunar-launch-quit')
+        if args.qualify_lunar_tray:
+            options.append('--qualify-lunar-tray')
         if args.scenario is not None:
             options.append('--scenario=' + args.scenario)
         if args.id is not None:

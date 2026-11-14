@@ -26,9 +26,16 @@ launch, approval, denial, tray, reboot and autostart outcomes.
 
 Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
+On 2026-11-13 the developer narrowed the unfinished launcher group to app access:
+allowed launch, specific denial, approval and persistence through sign-in/reboot.
+A ready signed-out launcher or owned hidden-autostart presence is sufficient.
+Do not add launcher-feature, tray hide/restore, Settings, account, download,
+gameplay or game-internals checks, or a new continuous game-specific observer.
+Preserve public denial/absence results and shared input, ownership and cleanup guards.
+
 ## Next task
 
-Next task: **296d — [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md)**.
+Next task: **296 — [Observe Lunar command denial](E2E-Tasks/296-lunar-provider.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

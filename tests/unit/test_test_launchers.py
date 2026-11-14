@@ -3043,6 +3043,12 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert preflight(['--qualify-lunar-launch-quit'], root=ROOT, allow_missing_artifacts=True) == {
         'mode': 'lunar-launch-quit-qualification', 'subcategory': 'e2e-heavy'}
     assert commands.fixture_execution_target('e2e', ['--qualify-lunar-launch-quit']) is None
+    assert preflight(['--qualify-lunar-tray'], root=ROOT, allow_missing_artifacts=True) == {
+        'mode': 'lunar-tray-qualification', 'subcategory': 'e2e-heavy'}
+    assert commands.fixture_execution_target('e2e', ['--qualify-lunar-tray']) is None
+    from vm_recording import case_identity
+    assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-tray'}) == (
+        'check_e2e_lunar_tray', 'Observe Lunar running for the child')
     with pytest.raises(ValueError, match='requires-heavy-subcategory'):
         preflight(['--qualify-lunar-profile', '--subcategory', 'general'],
                   root=ROOT, allow_missing_artifacts=True)

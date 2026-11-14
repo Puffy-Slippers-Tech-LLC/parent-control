@@ -73,6 +73,7 @@ OPERATION_LABELS = {
         ('observer-ready', 'Preparing public launcher observations for [Child user]'),
         ('launch', 'Opening the supplied original Lunar launcher for [Child user]'),
         ('opened', 'Reading the usable signed-out Lunar launcher'),
+        ('snapshot', 'Reading the child’s Lunar window and tray entry'),
         ('settings', 'Opening Lunar settings through its normal menu'),
         ('settings-opened', 'Reading Lunar settings without changing them'),
         ('quit', 'Choosing Lunar Quit Launcher'),
@@ -1834,6 +1835,22 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if parent is not None:
             expected['management_parent'] = parent
+        if operation in ('lunar-opened', 'lunar-snapshot'):
+            value = result.get('lunar')
+            require(type(value) is dict and set(value) == {'owner', 'tray', 'window'},
+                    'ui:lunar-response')
+            owner, tray, window = value['owner'], value['tray'], value['window']
+            require(type(owner) is list and len(owner) == 3
+                    and type(owner[0]) is int and owner[0] > 0
+                    and type(owner[1]) is str and owner[1].isascii() and owner[1].isdecimal()
+                    and type(owner[2]) is int and owner[2] > 0, 'ui:lunar-response')
+            def endpoint(value):
+                return (type(value) is list and len(value) == 2
+                        and type(value[0]) is str and re.fullmatch(r':[0-9]+\.[0-9]+', value[0])
+                        and type(value[1]) is str and re.fullmatch(r'/[A-Za-z0-9_/]+', value[1]))
+            require(endpoint(tray) and (window is None or endpoint(window)), 'ui:lunar-response')
+            require(window is not None or operation == 'lunar-snapshot', 'ui:lunar-response')
+            expected['lunar'] = value
         if operation in ('child-natural-reminder-wait', 'child-reminder-history-wait'):
             value = result.get('natural_reminder')
             require(type(value) is dict and set(value) == {

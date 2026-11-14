@@ -131,7 +131,39 @@ def run(ui, operation, require, require_session):
         require(identity(app.get_process_id()) == pin, 'ui:lunar-owner-changed')
         items = tray()
         require(len(items) == 1 and items[0][1] == pin, 'ui:lunar-window-tray-owner')
-        return True
+        return {'owner': list(pin), 'tray': [items[0][0], items[0][2]],
+                'window': [frames[0].bus, frames[0].path]}
+
+    def tray_snapshot():
+        # Recognize this account's usable Shell without inventorying unrelated
+        # desktop windows or tray contents as acceptance targets.
+        require_session(unlocked=True)
+        shell, shell_pid = bus_owner('org.gnome.Shell')
+        require(Path('/proc', str(shell_pid)).stat().st_uid == account.pw_uid
+                and Path('/proc', str(shell_pid), 'exe').readlink() == Path('/usr/bin/gnome-shell'),
+                'ui:lunar-desktop-owner')
+        require(type(call(shell, '/org/gnome/Shell', 'org.freedesktop.DBus.Properties',
+                          'Get', 'ss', ('org.gnome.Shell', 'OverviewActive'))) is bool,
+                'ui:lunar-desktop-context')
+        prompt_guard()
+        items = tray()
+        if not items:
+            return None
+        owner, pin, menu = items[0]
+        apps = applications()
+        frames = []
+        for app in apps:
+            require(identity(app.get_process_id()) == pin, 'ui:lunar-window-tray-owner')
+            nodes = list(ui.nodes(app, strict=True))
+            frames.extend(node for node in nodes if node.get_role_name() in ('frame', 'dialog'))
+        if len(frames) > 1:
+            return None
+        require(tray() == items and identity(pin[0]) == pin, 'ui:lunar-owner-changed')
+        # This is a public application-presence projection. Chromium can retain
+        # a registered frame while its native window is hidden; do not claim
+        # native visibility or absence from that frame's accessibility flags.
+        return {'owner': list(pin), 'tray': [owner, menu],
+                'window': [frames[0].bus, frames[0].path] if frames else None}
 
     def absent():
         require_session(unlocked=True)
@@ -199,7 +231,9 @@ def run(ui, operation, require, require_session):
             stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
         ui.input_uncertain = False
     elif operation == 'lunar-opened':
-        ui.wait(window, 'lunar-usable', prompt_in_predicate=True)
+        return ui.wait(window, 'lunar-usable', prompt_in_predicate=True)
+    elif operation == 'lunar-snapshot':
+        return ui.wait(tray_snapshot, 'lunar-snapshot', prompt_in_predicate=True)
     elif operation == 'lunar-settings':
         ui.wait(window, 'lunar-usable', prompt_in_predicate=True)
         menu_action('Settings')

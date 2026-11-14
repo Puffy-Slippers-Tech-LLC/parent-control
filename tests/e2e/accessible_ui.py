@@ -206,7 +206,8 @@ NATIVE_APP_OPERATIONS |= frozenset('native-alias-' + suffix for suffix in (
 OPERATIONS |= NATIVE_APP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_APP_OPERATIONS
 LUNAR_OPERATIONS = frozenset('lunar-' + action for action in (
-    'observer-ready', 'launch', 'opened', 'settings', 'settings-opened', 'quit', 'closed'))
+    'observer-ready', 'launch', 'opened', 'settings', 'settings-opened', 'quit', 'closed',
+    'snapshot'))
 OPERATIONS |= LUNAR_OPERATIONS
 STANDARD_OPERATIONS |= LUNAR_OPERATIONS
 WORK_OPERATIONS = frozenset('work-' + who + '-' + action
@@ -15759,7 +15760,9 @@ class AccessibleUI:
         result = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if operation in LUNAR_OPERATIONS:
             from lunar_ui import run as lunar_operation
-            lunar_operation(self, operation, require, require_active_launch_session)
+            value = lunar_operation(self, operation, require, require_active_launch_session)
+            if value is not None:
+                result['lunar'] = value
         elif operation in WORK_OPERATIONS:
             value = self.work_document_operation(operation)
             if value is not None:

@@ -986,9 +986,11 @@ def probe_lunar_launch_quit(lease):
 
         ui = UiObservations(DiagnosticTransport())
         for action in ('observer-ready', 'quit', 'closed', 'launch', 'opened',
-                       'opened', 'settings', 'settings-opened', 'quit', 'closed'):
+                       'snapshot', 'settings', 'settings-opened', 'quit', 'closed'):
             print('lunar-probe: operation=' + action, flush=True)
-            ui.observe('lunar-' + action)
+            result = ui.observe('lunar-' + action)
+            if 'lunar' in result:
+                print('lunar-probe: snapshot=' + json.dumps(result['lunar']), flush=True)
             lease.guard()
             print('lunar-probe: passed=' + action, flush=True)
 

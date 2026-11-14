@@ -214,7 +214,14 @@ def child_session(uid, *, service='gdm-autologin'):
     guest.require(len(rows) <= 32, 'expiry:session-inventory')
     matches = []
     for row in rows:
-        session = row.split()[0]
+        fields = row.split()
+        guest.require(len(fields) >= 2 and fields[1].isdecimal(), 'expiry:session-row')
+        # Greeter and SSH sessions can end between list and show. Their
+        # properties are irrelevant here; inspect only the listed child's UID.
+        # A failed read of that child's session still fails the check.
+        if fields[1] != str(uid):
+            continue
+        session = fields[0]
         props = dict(line.split('=', 1) for line in guest.run([
             'loginctl', 'show-session', session, '-p', 'User', '-p', 'Class', '-p', 'Type',
             '-p', 'Service', '-p', 'Remote', '-p', 'Scope', '-p', 'LockedHint']).splitlines())

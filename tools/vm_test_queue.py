@@ -797,13 +797,13 @@ def execution_groups(root, argv, vms):
     groups = []
     by_key = {}
     if host_args:
-        groups.append(dict(key='host', category='host', args=host_args, vm_tag=None, vms=[]))
+        groups.append(dict(key='host', category='host', args=host_args, vm_tags=None, vms=[]))
     controls = [arg for arg in guest_args if arg in ('--stop-on-error',)
                 or arg.startswith('--resume-case=')
                 or arg in ('--resume-case-only', '--resume-area-only')]
     for category, options in selections(root, guest_args) if guest_args else []:
         spec = CATEGORIES[category]
-        children = [(None, spec.vm_tag or 'general', list(options))]
+        children = [(None, spec.vm_tags or 'general', list(options))]
         if spec.subcategories:
             if category != 'e2e':
                 raise ValueError('subcategory inventory requires a category case binding')
@@ -824,7 +824,7 @@ def execution_groups(root, argv, vms):
                         next(tokens, None)
                     elif not token.startswith('--subcategory='):
                         base.append(token)
-                children = [(child.name, child.vm_tag or spec.vm_tag or 'general',
+                children = [(child.name, child.vm_tags or spec.vm_tags or 'general',
                              [*base, '--subcategory', child.name])
                             for child in spec.subcategories if child.name in membership]
         for name, tag, args in children:
@@ -832,15 +832,15 @@ def execution_groups(root, argv, vms):
             missing = {vm.family for vm in vms} - {vm.family for vm in candidates}
             key = category + ('.' + name if name else '')
             if missing:
-                raise ValueError(f'{key}: no selected VM with vm_tag={tag} for families: '
+                raise ValueError(f'{key}: no selected VM with vm_tags={tag} for families: '
                                  + ', '.join(sorted(missing)))
             if not candidates:
-                raise ValueError(f'{key}: no selected VM with vm_tag={tag}')
+                raise ValueError(f'{key}: no selected VM with vm_tags={tag}')
             if key in by_key:
                 by_key[key]['args'].extend((category, *args))
             else:
                 group = dict(key=key, category=category, args=[*controls, category, *args],
-                             vm_tag=tag, vms=[vm.name for vm in candidates])
+                             vm_tags=tag, vms=[vm.name for vm in candidates])
                 groups.append(group)
                 by_key[key] = group
     return groups
@@ -934,7 +934,7 @@ def run(root, argv, *, reloading=False, actions=None, pass_identity=None, return
                         host_compute.save_admitted(owner_run, admitted)
                     if hasattr(sys.stdout, 'controller'):
                         sys.stdout.controller('test-group', [f'Test group: {group["key"]}'
-                            + (f' | VM tag: {group["vm_tag"]}' if group['vm_tag'] else '')])
+                            + (f' | VM tags: {group["vm_tags"]}' if group['vm_tags'] else '')])
                     group_actions = dict(actions)
                     # Category budgets settle after all its children, never
                     # after the first successful child alone.

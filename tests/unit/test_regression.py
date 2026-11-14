@@ -40,11 +40,11 @@ def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qua
                for tag in ('general', 'heavy')]
     options = ['--qualify-lunar-profile'] if qualification else []
     groups = vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers)
-    assert [(group['key'], group['vm_tag'], group['vms']) for group in groups] == (
+    assert [(group['key'], group['vm_tags'], group['vms']) for group in groups] == (
         [('e2e.general', 'general', ['general'])] if not qualification else []) + [
             ('e2e.e2e-heavy', 'heavy', ['heavy'])]
     assert groups[-1]['args'] == ['e2e', *options, '--subcategory', 'e2e-heavy']
-    with pytest.raises(ValueError, match='no selected VM with vm_tag=heavy'):
+    with pytest.raises(ValueError, match='no selected VM with vm_tags=heavy'):
         vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers[:1])
     if qualification:
         root = Path(__file__).resolve().parents[2]

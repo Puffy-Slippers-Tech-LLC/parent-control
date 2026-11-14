@@ -2962,7 +2962,7 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     preflight = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))['preflight']
     listed = preflight(['--list', '--subcategory', 'e2e-heavy'], root=ROOT)
     assert [case['coverage_id'] for case in listed['cases']] == [253]
-    assert all('vm_tag' not in case for case in listed['cases'])
+    assert all('vm_tags' not in case for case in listed['cases'])
     qualified = preflight(['--qualify-lunar-profile'], root=ROOT, allow_missing_artifacts=True)
     assert qualified == {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy'}
     assert preflight(['--qualify-lunar-launch-quit'], root=ROOT, allow_missing_artifacts=True) == {

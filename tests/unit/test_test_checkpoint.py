@@ -114,7 +114,7 @@ def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_p
     # A pre-group repair resumes its exact owner in place; it cannot adopt a
     # different selection, identity, pool or a newly split multi-group request.
     groups = [dict(key='system', category='system', args=['system', *work['options']],
-                   vm_tag='general', vms=['one'])]
+                   vm_tags='general', vms=['one'])]
     options = dict(resume=True, identity=guest_identity, scope='repair-vm',
                    ungrouped_selection=guest_selection)
     for changed in (dict(identity=dict(run='1' * 32, **{'pass': '2' * 32})),
@@ -131,11 +131,18 @@ def test_pass_scopes_preserve_independent_repair_resume_and_guard_bindings(tmp_p
     with pytest.raises(ValueError, match='unfinished owners'):
         with GroupCheckpoint(tmp_path, groups, ['one'], scope='repair-vm'):
             pass
-    for _ in range(2):
+    for iteration in range(2):
         with GroupCheckpoint(tmp_path, groups, ['one'], **options) as saved:
             assert saved.group_identity(0) == guest_identity
             assert saved.group_scope(0) == 'repair-vm'
             assert saved.state['workers'] == [['one']]
+            assert saved.state['groups'][0]['vm_tags'] == 'general'
+            if iteration == 0:
+                # Simulate a retained checkpoint from before the field rename.
+                legacy = json.loads(json.dumps(saved.state))
+                group = legacy['groups'][0]
+                group['vm_tag'] = group.pop('vm_tags')
+                saved.store.save(saved.fd, legacy)
         with PassCheckpoint.saved(tmp_path, scope='repair-vm') as guests:
             assert guests.state == guest_state
 

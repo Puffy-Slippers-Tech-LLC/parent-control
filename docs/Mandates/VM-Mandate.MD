@@ -77,8 +77,9 @@ reservations, independently of repository, branch or initiating machine.
 Test execution reserves capacity separately for each sequential category or
 subcategory. `run-tests` treats the launcher's `--vm` selection as the allowed
 superset, applies enabled/host/branch restrictions, then matches the group's
-effective `vm_tag` against each VM's effective `vm_tags` before capacity admission.
-Subcategory `vm_tag` overrides category `vm_tag`; omission inherits the category,
+effective `vm_tags` against each VM's effective `vm_tags` before capacity admission.
+Category/subcategory `vm_tags` holds one required routing token.
+Subcategory `vm_tags` overrides category `vm_tags`; omission inherits the category,
 whose default is `general`. Families require comma-separated `vm_tags`; an optional
 VM value replaces the family's tags. Matching uses exact tokens. A required family
 without a matching candidate refuses execution, never falls back or earns a pass.

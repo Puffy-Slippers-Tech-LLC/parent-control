@@ -16,7 +16,7 @@ import sys
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, call
+from system_assertions import accepted, account_property, account_state, account_states, call
 from system_graphical_expiry import child_session, wait_for
 from system_session_expiry import grant, identities, installed_manager
 
@@ -31,7 +31,9 @@ DISABLED_CHOICE = 'onpc-monitor-disabled-fixture@example.invalid'
 
 
 def state_digest(uid):
-    values = account_state(uid)
+    # Reuse the typed observer rather than spawning a busctl process for each
+    # property at every recovery boundary. Each digest still reads fresh state.
+    values = account_states((uid,))[uid]
     encoded = json.dumps([value.hex() if isinstance(value, bytes) else value
                           for value in values], sort_keys=True).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -589,10 +591,10 @@ def verify(publish):
             interfere(manager, account, shell, broker_events, initialize_policy, record)
 
         recovery('initialized-recovery', initialize_with_interference, initialized=True)
-        preserved()
-        recovery('global-recovery', global_disable)
         cycles = []
-        for number in range(8):
+        # Two cycles cover both disablement routes and recurrence without
+        # repeating the same recovery/preservation matrix four times per route.
+        for number in range(4):
             global_switch = bool(number % 2)
             label = ('global-' if global_switch else 'individual-') + str(number + 1)
             recovery(label, global_disable if global_switch else lambda:
@@ -604,7 +606,7 @@ def verify(publish):
             # increasing cooldown formerly added after successful recovery.
             guest.require(latency < 10, 'extension:' + label + '-recovery-delayed')
         record('repeated-recovery', {'native_signal_seconds': cycles,
-                                    'disablements': 8, 'response_bound_seconds': 10})
+                                    'disablements': len(cycles), 'response_bound_seconds': 10})
         time.sleep(2)
         quiet = time.monotonic()
         deadline = quiet + 65

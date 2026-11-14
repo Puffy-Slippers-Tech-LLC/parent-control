@@ -19,7 +19,7 @@ import sys
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, call
+from system_assertions import accepted, account_property, account_state, call, validation_stage
 from system_session_expiry import (
     LIMITS, REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
     verify_request_extension, verify_runtime_rollback, request_global_extension_disable,
@@ -1209,12 +1209,15 @@ def verify(record):
     guest.require(child_session(child)[0] == session, 'expiry:recovery-ended-session')
     record('onpc.expiry.live-recovery',
            'monitor-or-startup-recovery; configured-and-active; switch-and-selections-verified')
-    verify_zero_time_pam(record)
-    verify_runtime_rollback(record)
+    with validation_stage('session-validation', 'zero-time-pam'):
+        verify_zero_time_pam(record)
+    with validation_stage('session-validation', 'runtime-rollback'):
+        verify_runtime_rollback(record)
     # Keep authenticated child/kiosk requests and final recovery checks even
     # when the monitor restores the extension before approval completes.
     request_global_extension_disable(manager, account)
-    old_deadline = verify_request_extension(record)
+    with validation_stage('session-validation', 'authenticated-extension'):
+        old_deadline = verify_request_extension(record)
     wait_for_extension_recovery(manager, account, 'expiry:grant-extension-not-recovered')
     guest.require(not manager._boolean(account, 'disable-user-extensions')
                   and manager._runtime_state(account) == (True, True)
@@ -1223,11 +1226,12 @@ def verify(record):
                   'expiry:kiosk-grant-did-not-recover-extension')
     record('onpc.expiry.kiosk-grant-recovery',
            'polkit-authenticated; monitor-or-grant-recovery; configured-and-active; switch-and-selections-verified')
-    observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
-    while time.time() <= old_deadline + 0.5:
-        guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')
-        guest.require(child_session(child)[0] == session, 'expiry:extended-session-ended')
-        time.sleep(0.25)
+    with validation_stage('session-validation', 'original-grant-deadline'):
+        observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
+        while time.time() <= old_deadline + 0.5:
+            guest.require(time.monotonic() < observation_deadline, 'expiry:extension-clock-discontinuity')
+            guest.require(child_session(child)[0] == session, 'expiry:extended-session-ended')
+            time.sleep(0.25)
     guest.require(guest.run(['systemctl', 'is-active', scope]) == 'active'
                   and guest.run(['systemctl', 'show', scope, '--property=RuntimeMaxUSec', '--value'])
                       == 'infinity', 'expiry:extended-scope-not-retained')

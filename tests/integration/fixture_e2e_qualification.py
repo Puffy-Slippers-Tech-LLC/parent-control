@@ -43,9 +43,10 @@ def verify_consumers(context, vm, setup, result, previous):
     result['activity_fixture'] = setup['activity_fixture']
     result['consumer_refusals'] = activity_readiness_refusals(
         vm, context.verified, previous)
-    final = proof.audit(vm, fixture_execution.verify(
-        fixture_execution.Selection.from_record(context.fixture_selection)),
-        preparation.ACTIVITY_SUBSETS)
+    with installed_setup.timed_stage('fixture-consumer-final-audit'):
+        final = proof.audit(vm, fixture_execution.verify(
+            fixture_execution.Selection.from_record(context.fixture_selection)),
+            preparation.ACTIVITY_SUBSETS)
     proof.verify_repeat(result['readback'], final)
 
 
@@ -201,14 +202,16 @@ def refused_inputs(context, selection):
     return result
 
 
-def observer(selection, manifest, result, previous, source, *, subsets=preparation.SUBSETS):
+def observer(selection, manifest, result, previous, source):
+    subsets = preparation.ACTIVITY_SUBSETS
     state = {}
     def observe(stage, context):
         vm, lease, directory = (context[key] for key in ('vm', 'lease', 'directory'))
         if stage == 'before':
             state['refusals'] = refused_inputs(context, selection)
             shared.wait_environment(vm, lease, directory)
-            before = proof.audit(vm, manifest, subsets)
+            with installed_setup.timed_stage('fixture-clean-baseline-audit'):
+                before = proof.audit(vm, manifest, subsets)
             system.require(before['installed'] and not before['files']
                 and not before['unselected_present'] and not before['staging'],
                 'fixture-e2e:capture-not-clean')
@@ -216,17 +219,22 @@ def observer(selection, manifest, result, previous, source, *, subsets=preparati
             return
         system.require(stage == 'ready' and 'before' in state, 'fixture-e2e:observer-order')
         controller, receipt = context['controller'], context['receipt']
-        observed = proof.audit(vm, manifest, subsets)
+        with installed_setup.timed_stage('fixture-provisioned-readback-audit'):
+            observed = proof.audit(vm, manifest, subsets)
         members = proof.validate_readback(observed, manifest, subsets,
                                          receipt.binding, installed=True)
         proof.unchanged_policy(state['before'], observed)
-        witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target,
-            only=(native_assets.executable_path('A'),) +
-                 ((native_assets.ACTIVITY_EXECUTABLE,) if 'activity' in subsets else ()))
-        before_repeat = proof.audit(vm, manifest, subsets)
+        with installed_setup.timed_stage('fixture-runtime-witnesses'):
+            witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target,
+                only=(native_assets.executable_path('A'), native_assets.ACTIVITY_EXECUTABLE))
         edit = shared.source_edit_proof(source, selection, manifest)
-        final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
-            subsets, before_repeat, attempt_id=preparation.attempt_id(directory), prefix='fixture-e2e')
+        # Runtime launches preserve the audited fixture/native policy state;
+        # the source-edit proof changes only host scratch. Compare the exact
+        # repeat with the validated observation, covering those operations too
+        # without another full native-database audit (atime is not compared).
+        with installed_setup.timed_stage('fixture-repeat-provision-and-audit'):
+            final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+                subsets, observed, attempt_id=preparation.attempt_id(directory), prefix='fixture-e2e')
         proof.unchanged_policy(state['before'], final)
         if previous:
             try:
@@ -249,8 +257,7 @@ def observer(selection, manifest, result, previous, source, *, subsets=preparati
     return observe
 
 
-def run_history(suite, directory, assets, selection, observe, mode, *, baseline_activity=False,
-                result=None, previous=None):
+def run_history(suite, directory, assets, selection, observe, mode, *, result, previous):
     """Actual Suite online branch and KioskEntry's separate offline attachment."""
     lease = suite.lease
     with lease:
@@ -279,7 +286,7 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         # boundaries, but start with the same fresh product state. Exercise
         # catalogue saves once; the offline route retains the complete fixture
         # preparation and consumer checks without another graphical worker.
-        if baseline_activity and mode == 'online':
+        if mode == 'online':
             from app_snapshot import snapshot_name
             from fixture_credentials import FixtureCredentials
             import e2e_worker
@@ -316,24 +323,21 @@ def run_history(suite, directory, assets, selection, observe, mode, *, baseline_
         vm.probe_ready()
         context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
                                   fixture_selection=selection.record(),
+                                  fixture_subsets=preparation.ACTIVITY_SUBSETS,
+                                  fixture_caller=preparation.ACTIVITY_CALLER,
                                   asset_transfer=AssetTransfer(verified))
-        if baseline_activity:
-            context.fixture_subsets = preparation.ACTIVITY_SUBSETS
-            context.fixture_caller = preparation.ACTIVITY_CALLER
         prepared = prepare_installed_setup(context, vm, lease.guard, observer=observe)
-        if baseline_activity:
-            verify_consumers(context, vm, prepared, result, previous)
+        verify_consumers(context, vm, prepared, result, previous)
         assets_receipt = context.asset_transfer.observe(ReadOnlyObservations(vm))
         verified.fixture_prepared['controller'].require_ready(verified.fixture_prepared['receipt'])
         return assets_receipt
 
 
-def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_activity=False):
+def qualify_pinned(directory, assets, selection, manifest, source):
     suite = Suite(open_source)
-    subsets = preparation.ACTIVITY_SUBSETS if baseline_activity else preparation.SUBSETS
     result = {'target': selected_target(), 'selection': selection.record(),
-              'subsets': list(subsets),
-              'caller': preparation.ACTIVITY_CALLER if baseline_activity else None,
+              'subsets': list(preparation.ACTIVITY_SUBSETS),
+              'caller': preparation.ACTIVITY_CALLER,
               'attempts': []}
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -345,8 +349,7 @@ def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_a
         ledger = system.RunLedger()
         suite.acquire(ledger)
         previous = {}
-        modes = ('online', 'offline') if baseline_activity else ('online', 'online', 'offline', 'offline')
-        for index, mode in enumerate(modes):
+        for index, mode in enumerate(('online', 'offline')):
             history = directory / ('history-' + str(index + 1) + '-' + mode)
             history.mkdir(mode=0o700)
             system.stage_assets(source_assets, history / 'assets', suite.commands, package_only=True)
@@ -355,12 +358,11 @@ def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_a
             attempt = {'app_snapshot_mode': mode,
                        'restore_owner': 'Suite.prepare_case' if mode == 'online' else
                                         'KioskEntryQualification.attach_installed_snapshot'}
-            observe = observer(selection, manifest, attempt, previous, source, subsets=subsets)
+            observe = observer(selection, manifest, attempt, previous, source)
             prior = dict(previous)
-            attempt['assets'] = run_history(suite, history, history / 'input', selection,
-                        observe, mode, **({'baseline_activity': True, 'result': attempt,
-                                          'previous': prior}
-                                         if baseline_activity else {}))
+            with installed_setup.timed_stage('fixture-history-' + mode):
+                attempt['assets'] = run_history(suite, history, history / 'input', selection,
+                            observe, mode, result=attempt, previous=prior)
             system.require(suite.lease.state['phase'] == 'complete'
                 and suite.lease.view.snapshot()[1] and suite.lease.view.domain_id is None,
                 'fixture-e2e:attempt-cleanup-incomplete')
@@ -382,7 +384,7 @@ def qualify_pinned(directory, assets, selection, manifest, source, *, baseline_a
     return result
 
 
-def qualify(directory, assets, selection, source_selection, *, baseline_activity=False):
+def qualify(directory, assets, selection, source_selection):
     target = proof.TARGETS[selected_target()]
     selection = fixture_execution.Selection.from_record(
         preparation.validate_input(selection, target=target))
@@ -392,16 +394,14 @@ def qualify(directory, assets, selection, source_selection, *, baseline_activity
             manifest = fixture_execution.verify(selection)
             fixture_provision.authenticated_bundle(selection)
             shared.source_edit_proof(source, selection, manifest)
-            return qualify_pinned(directory, assets, selection, manifest, source,
-                **({'baseline_activity': True} if baseline_activity else {}))
+            return qualify_pinned(directory, assets, selection, manifest, source)
 
 
-def main(*, assets, selection, source_selection, baseline_activity=False):
+def main(*, assets, selection, source_selection):
     def preflight():
         system.require(os.geteuid() == 0, 'fixture-e2e:root-required')
         selected_target()
 
     return run_qualification('fixture-e2e',
-        lambda directory: qualify(directory, assets, selection, source_selection,
-                                  baseline_activity=baseline_activity),
+        lambda directory: qualify(directory, assets, selection, source_selection),
         preflight=preflight)

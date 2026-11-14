@@ -47,7 +47,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
 | Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
-| Connection to a restored baseline | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` | Fixture snapshot and provisioning checks share observation-only SSH bootstrap, owned start, host-key binding and guarded readiness. Callers prepare the private directory and finite selection; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
+| Connection to a restored guest | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` / `Suite.start_transport` | Fixture snapshot and provisioning checks share observation-only baseline bootstrap. Baseline and supplied-launcher checks share owned start, host-key binding and guarded readiness through `start_transport`. Callers keep the private directory, finite inputs and baseline/installed bootstrap; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
 | Real elapsed time inside an installed journey | [real_interval.py](../e2e/real_interval.py) | `interval_action(duration)` waits one finite interval; `wait_until(journey, guard, target)` reaches a caller-owned controller-monotonic target in bounded intervals under the same attempt deadline, ownership checks and watch output. Keep the original grant deadline, lead time and independent expiry/suspend-crossing assertions in the caller; elapsed time alone proves no product result. |
 | Child warnings during work or fullscreen play | [natural_reminder.py](../e2e/natural_reminder.py), [fullscreen_reminder.py](../e2e/fullscreen_reminder.py), [accessible_ui.py](../e2e/accessible_ui.py) | Reuse `NaturalReminderJourney.prepare_reminder` and `AccessibleUI.natural_reminder_wait`; finish saved-preference readback before issuing time. Callers keep their finite warning, game, policy and natural-lock assertions. Exact qualified bindings remain in the [reminder catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#reminder-controls-and-notification-qualification). |
 | Guest observations against a calendar deadline | [guest_observations.py](../e2e/guest_observations.py) `calendar_epoch_bounds` | Project the original same-boot countdown, estimate-calculation or lock-read bracket through TIME05's guest clock bracket. Callers retain clock continuity, calendar windows, precision and product deadline assertions; see [timing resilience](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience). |
@@ -1664,6 +1664,17 @@ inheriting another qualifier's checkpoint names. Capture the incoming Parent
 page and child before the explicit Screen Limits read; returning to an existing
 window must not reselect the child to repair a mismatch. Desktop identity and
 window endpoint/PID are independent preservation results.
+
+When another parent has edited the same child, a retained window can still show
+its earlier settings. Use `journey_blocks.parent_management` with explicit
+`parent`, `child` and `window='retained'` bindings and `onpc_parent::open_for_child`
+to preserve the window, select away and reload
+the named child before comparing current settings or editing. Keep the incoming
+window/page/child preservation check separate from that deliberate reload. Do
+not assert current settings on the intermediate child selection: it may already
+be selected and still show the previous values. The second-parent qualification
+and `family_routines` use this order; callers own their finite before/after
+settings and independent parent-window/session comparisons.
 
 Retained-child histories use `journey_checks.RetainedSessionJourney` with
 caller-declared `session_checks={later: earlier}` endpoints on the existing

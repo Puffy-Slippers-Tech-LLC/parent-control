@@ -14,7 +14,6 @@ from provenance import VerifiedInputs, preflight_source
 from qualification_storage import run_qualification
 from suite_lease import Suite
 import system_runner as system
-from vm_transport import Transport
 
 
 def qualify(directory, assets):
@@ -38,14 +37,7 @@ def qualify(directory, assets):
             host_key = system.bootstrap(suite.commands, lease, directory, suite.guestfs,
                                         e2e_installed=True)
             suite.verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
-            lease.start()
-            hostname = system.address(suite.source)
-            (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-            transport = Transport({'directory': str(directory), 'hostname': hostname,
-                'domain_uuid': suite.source.uuid, 'domain_id': lease.view.domain_id,
-                'run': lease.state['run']}, suite.commands,
-                guard=lambda _: lease.guard(), lease=lease)
-            transport.probe_ready()
+            transport = suite.start_transport(directory, host_key)
             result['profile'] = LunarProfile(transport, suite.verified).verify()
             result['target'] = suite.source.domain.name()
             result['installed_snapshot'] = lease.installed_name

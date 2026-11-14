@@ -310,12 +310,20 @@ class Suite:
         The caller owns the private directory, finite selection and assertions;
         this suite retains the existing lease, watch and restoration lifetime.
         """
-        from vm_transport import Transport
-
         (directory / 'input').mkdir(mode=0o700)
         (directory / 'input/selected-inputs.json').write_bytes(system.baseline.encode(selection))
         host_key = system.bootstrap(self.commands, self.lease, directory, self.guestfs,
                                     observation_only=True, environment_only=True)
+        return self.start_transport(directory, host_key)
+
+    def start_transport(self, directory, host_key):
+        """Start the owned guest and bind SSH to its already prepared identity.
+
+        Callers retain baseline/installed bootstrap and input verification;
+        the suite retains watch, transport callbacks and restoration ownership.
+        """
+        from vm_transport import Transport
+
         self.lease.start()
         hostname = system.address(self.source)
         (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')

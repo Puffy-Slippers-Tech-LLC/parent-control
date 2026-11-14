@@ -53,6 +53,9 @@ def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qua
         metadata = vm_run_times.metadata(root, 'e2e', options[0])
         assert metadata['id'] == identity[0]
         assert metadata['case_file'] == 'tests/integration/lunar_profile_qualification.py'
+        launch_quit = vm_recording.case_identity(root, 'e2e', dict(nodeid='--qualify-lunar-launch-quit'))
+        assert launch_quit[0] == 'check_e2e_lunar_launch_quit'
+        assert vm_run_times.metadata(root, 'e2e', '--qualify-lunar-launch-quit')['id'] == launch_quit[0]
 
 
 @pytest.fixture

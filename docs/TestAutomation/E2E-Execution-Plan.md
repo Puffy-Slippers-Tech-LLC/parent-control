@@ -28,7 +28,7 @@ Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **296c — [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md)**.
+Next task: **296d — [Close Lunar to its tray and restore it](E2E-Tasks/296d-lunar-tray.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

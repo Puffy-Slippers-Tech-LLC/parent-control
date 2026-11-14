@@ -54,8 +54,9 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
     qualification.add_argument('--qualify-lunar-profile', action='store_true')
+    qualification.add_argument('--qualify-lunar-launch-quit', action='store_true')
     args = parser.parse_args(argv)
-    if args.qualify_lunar_profile:
+    if args.qualify_lunar_profile or args.qualify_lunar_launch_quit:
         if (args.list or args.scenario is not None or args.id is not None or args.ready
                 or args.fixture_selection is not None):
             raise ValueError('e2e:qualification-cannot-select-scenarios')
@@ -66,7 +67,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
             validate_artifact_path(args.artifacts)
             if not args.artifacts.is_dir():
                 raise ValueError('e2e:missing-artifact-directory')
-        return {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy',
+        return {'mode': ('lunar-launch-quit-qualification' if args.qualify_lunar_launch_quit
+                         else 'lunar-profile-qualification'), 'subcategory': 'e2e-heavy',
                 **({'artifacts': str(args.artifacts)} if args.artifacts is not None else {})}
     if (args.qualify_transfer or args.qualify_install or args.qualify_install_refusal) and (
             args.list or args.scenario is not None or args.id is not None or args.ready
@@ -225,9 +227,10 @@ def main(argv=None):
         sys.path.insert(0, str(ROOT / 'tests/integration'))
         import qualification_storage
         with qualification_storage.session(run=requested_run, require_owner=True):
-            if plan['mode'] == 'lunar-profile-qualification':
+            if plan['mode'] in ('lunar-profile-qualification', 'lunar-launch-quit-qualification'):
                 import lunar_profile_qualification
-                return lunar_profile_qualification.main(assets=Path(plan['artifacts']))
+                return lunar_profile_qualification.main(assets=Path(plan['artifacts']),
+                    launch_quit=plan['mode'] == 'lunar-launch-quit-qualification')
             if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
                                 'deliberate-installation-refusal-qualification'):
                 import check_graphical_smoke

@@ -365,7 +365,7 @@ The reservation ends after that group's owned work and cleanup. Required family
 vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tag general) and e2e-heavy (vm_tag heavy).
-Lunar and Minecraft cases and --qualify-lunar-profile belong to e2e-heavy.
+Lunar and Minecraft cases, --qualify-lunar-profile and --qualify-lunar-launch-quit belong to e2e-heavy.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs
@@ -740,7 +740,8 @@ def fixture_execution_target(category, args):
     """Resolve only delivered fixture envelopes, without preparing any input."""
     if any(argument in INSPECTION_FLAGS for argument in args):
         return None
-    if category == 'e2e' and '--qualify-lunar-profile' in args:
+    if category == 'e2e' and any(option in args for option in (
+            '--qualify-lunar-profile', '--qualify-lunar-launch-quit')):
         # FIX05 reads the supplied profile; it provisions no repository fixtures.
         return None
     provisioning = (category == 'system' and len(args) == 1

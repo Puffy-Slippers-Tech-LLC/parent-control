@@ -3040,6 +3040,9 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert all('vm_tag' not in case for case in listed['cases'])
     qualified = preflight(['--qualify-lunar-profile'], root=ROOT, allow_missing_artifacts=True)
     assert qualified == {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy'}
+    assert preflight(['--qualify-lunar-launch-quit'], root=ROOT, allow_missing_artifacts=True) == {
+        'mode': 'lunar-launch-quit-qualification', 'subcategory': 'e2e-heavy'}
+    assert commands.fixture_execution_target('e2e', ['--qualify-lunar-launch-quit']) is None
     with pytest.raises(ValueError, match='requires-heavy-subcategory'):
         preflight(['--qualify-lunar-profile', '--subcategory', 'general'],
                   root=ROOT, allow_missing_artifacts=True)

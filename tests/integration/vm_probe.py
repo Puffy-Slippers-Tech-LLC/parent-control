@@ -958,6 +958,41 @@ def observe_maintenance(lease, *, check, label, intention, ui_operation, child=N
         print(label + ': observation passed', flush=True)
 
 
+def probe_lunar_launch_quit(lease):
+    """Stop at the first failed shared Lunar operation in the retained desktop."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from ui_observations import UiObservations
+    from qualification_storage import recovery_session, allocate
+    with operation('Probing Lunar launch and Quit in the child desktop'), recovery_session(
+            check='probe_lunar_launch_quit', lease=lease, live=True):
+        directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-lunar-probe-'))
+        private = directory / 'private'
+        private.mkdir(mode=0o700)
+        lease.commands.directory = private
+        print('lunar-probe: evidence=' + str(directory), flush=True)
+        transport = connect(lease)
+
+        class DiagnosticTransport:
+            commands = transport.commands
+
+            def call(self, *args, **kwargs):
+                def output(data, stream):
+                    # These argument-free Lunar operations contain no secret
+                    # input; the guest adapter already sanitizes its stderr.
+                    if stream == 'stderr':
+                        sys.stderr.buffer.write(data)
+                        sys.stderr.buffer.flush()
+                return transport.call(*args, on_stream=output, **kwargs)
+
+        ui = UiObservations(DiagnosticTransport())
+        for action in ('observer-ready', 'quit', 'closed', 'launch', 'opened',
+                       'opened', 'settings', 'settings-opened', 'quit', 'closed'):
+            print('lunar-probe: operation=' + action, flush=True)
+            ui.observe('lunar-' + action)
+            lease.guard()
+            print('lunar-probe: passed=' + action, flush=True)
+
+
 def probe_revoke_balances(lease):
     """Exercise the maintained fresh public read on the retained Parent scene."""
     observe_maintenance(lease, check='probe_revoke_balances', label='revoke-balance-probe',

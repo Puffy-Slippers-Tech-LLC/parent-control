@@ -16,7 +16,7 @@ from suite_lease import Suite
 import system_runner as system
 
 
-def qualify(directory, assets):
+def qualify(directory, assets, *, launch_quit=False):
     suite = Suite(open_source)
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -41,17 +41,82 @@ def qualify(directory, assets):
             result['profile'] = LunarProfile(transport, suite.verified).verify()
             result['target'] = suite.source.domain.name()
             result['installed_snapshot'] = lease.installed_name
+            if launch_quit:
+                result['launcher'] = qualify_launch_quit(directory, lease, transport, suite.verified)
     finally:
         suite.close()
     result['owned_baseline_restoration_verified'] = True
     return result
 
 
-def main(*, assets):
+def qualify_launch_quit(directory, lease, transport, verified):
+    """Reuse guarded normal sign-in, with no unrelated movable fixtures."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+    import e2e_worker
+    from fixture_credentials import FixtureCredentials
+    from fresh_desktop import STANDARD_PLAN
+    from installed_journey import InstalledJourney
+    from ui_observations import UiObservations
+
+    def exercise(journey, guard):
+        results = []
+        ui = UiObservations(transport)
+        ui.boot_guard = journey.boot
+        for action in ('observer-ready', 'quit', 'closed', 'launch', 'opened'):
+            guard()
+            results.append(ui.observe('lunar-' + action))
+        # A fresh consumer accepts the independently supplied usable launcher;
+        # no launch history, window cache or process result supplies readiness.
+        independent = UiObservations(transport)
+        independent.boot_guard = journey.boot
+        for action in ('opened', 'settings', 'settings-opened', 'quit', 'closed'):
+            guard()
+            results.append(independent.observe('lunar-' + action))
+        guard()
+        return results
+
+    plan = replace(STANDARD_PLAN, stage_actions={'desktop': 'lunar-launch-quit'})
+    context = SimpleNamespace(directory=directory, lease=lease, verified=verified)
+    credentials = FixtureCredentials()
+    credentials.provision_online(lease, transport)
+    steps = []
+
+    def progress(stage, observed):
+        steps.append(observed)
+
+    journey = InstalledJourney(context, progress, plan,
+        actions={'lunar-launch-quit': exercise}, transport=transport)
+
+    def validate():
+        system.require(not journey.failed and [step['stage'] for step in steps] == list(plan.stages),
+                       'lunar-launch-quit:incomplete-journey')
+        operations = ['lunar-' + action for action in (
+            'observer-ready', 'quit', 'closed', 'launch', 'opened',
+            'opened', 'settings', 'settings-opened', 'quit', 'closed')]
+        results = steps[-1].get('fixture', [])
+        system.require([value.get('operation') for value in results] == operations
+                       and all(value.get('outcome') == 'passed' for value in results),
+                       'lunar-launch-quit:missing-results')
+
+    def observe(guard):
+        journey.step(guard)
+        return len(steps) == len(plan.stages)
+
+    worker = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
+        expected_inputs=verified.source_files, observe=lambda: None,
+        validate=validate, guarded_observe=observe, credentials=credentials,
+        attached=True, timeout=1800)
+    validate()
+    return {'steps': steps, 'worker': worker}
+
+
+def main(*, assets, launch_quit=False):
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
         system.require(prepare_vm.vm_config.selected().name == 'onpc-Ubuntu26.04-110',
                        'lunar-profile:target-not-qualified')
-    return run_qualification('lunar-profile', lambda directory: qualify(directory, assets),
+    label = 'lunar-launch-quit' if launch_quit else 'lunar-profile'
+    return run_qualification(label, lambda directory: qualify(directory, assets, launch_quit=launch_quit),
                              preflight=preflight)

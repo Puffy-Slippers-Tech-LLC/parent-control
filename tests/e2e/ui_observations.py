@@ -23,7 +23,8 @@ UI_PROGRAM_SOURCES = {
     'application_ui_support': 'tests/support/application_ui.py',
     **{name: f'tests/e2e/{name}.py' for name in (
         'application_ui', 'session_control', 'public_atspi', 'block_semantics',
-        'feedback_formats', 'download_destination', 'fixture_ui')},
+        'feedback_formats', 'download_destination', 'fixture_ui',
+        'guest_files', 'lunar_profile_guest', 'lunar_ui')},
 }
 
 
@@ -68,6 +69,14 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{'lunar-' + action: label for action, label in (
+        ('observer-ready', 'Preparing public launcher observations for [Child user]'),
+        ('launch', 'Opening the supplied original Lunar launcher for [Child user]'),
+        ('opened', 'Reading the usable signed-out Lunar launcher'),
+        ('settings', 'Opening Lunar settings through its normal menu'),
+        ('settings-opened', 'Reading Lunar settings without changing them'),
+        ('quit', 'Choosing Lunar Quit Launcher'),
+        ('closed', 'Checking complete public Lunar absence for [Child user]'))},
     **{operation: 'Checking the remembered parent and the eligible replacement'
        for operation in accessible_ui.APPROVER_CHANGE_OPERATIONS},
     **{operation: 'Checking the disposable child and its own saved choices'
@@ -1160,7 +1169,8 @@ class UiObservations:
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
-        timeout = (120 if operation in accessible_ui.GDM_SESSION_OPERATIONS
+        timeout = (210 if operation in accessible_ui.LUNAR_OPERATIONS else
+                   120 if operation in accessible_ui.GDM_SESSION_OPERATIONS
                    or operation == 'gdm-station-full-desktop' else
                    390 if operation in accessible_ui.GREETER_OPERATIONS
                    or operation in accessible_ui.STATION_BRANCH_OPERATIONS else

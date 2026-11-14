@@ -452,7 +452,7 @@ def main(argv=None):
                                           'reproduce-countdown-minutes',
                                           'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
                                           'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
-                                          'reproduce-jordan-daily-access',
+                                          'reproduce-jordan-daily-access', 'probe-lunar-launch-quit',
                                           'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'probe-fullscreen-return', 'reproduce-fullscreen-request',
                                           'reproduce-rest-of-day',
                                           'reproduce-natural-access',
@@ -621,6 +621,10 @@ def main(argv=None):
                               type(cleanup_error).__name__ + '); preserve controller state',
                               file=sys.stderr, flush=True)
                 raise
+        elif args.action == 'probe-lunar-launch-quit':
+            from vm_probe import probe_lunar_launch_quit
+            resume(lease)
+            probe_lunar_launch_quit(lease)
         elif args.action == 'probe-native-desktop-new-window':
             from vm_probe import probe_native_desktop_new_window
             resume(lease)

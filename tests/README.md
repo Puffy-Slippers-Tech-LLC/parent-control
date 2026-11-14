@@ -320,7 +320,12 @@ membership before shared capacity admission. No matching VM for a required famil
 is an unschedulable selection, never a skip or a pass. The scheduler manages
 capacity, leases and workers without knowing test membership or tag inheritance.
 E2E has subcategories `general` (`vm_tags: general`) and `e2e-heavy`
-(`vm_tags: heavy`). All Lunar and Minecraft cases belong to `e2e-heavy`;
+(`vm_tags: heavy`). Both `run-tests` and `fix-tests` accept `e2e-general`
+and `e2e-heavy` as category names, with the same options as `e2e --subcategory NAME`.
+Combining a parent with its subcategory selects the complete parent once,
+regardless of order: `tools/run-tests e2e-general e2e` selects all E2E cases,
+as does `tools/fix-tests e2e e2e-general` for repair and verification.
+All Lunar and Minecraft cases belong to `e2e-heavy`;
 cases declare subcategory membership, never VM tags. FIX05 uses
 `e2e --subcategory e2e-heavy --qualify-lunar-profile` through the same routing.
 The VM registry owns the available machines and their tags.

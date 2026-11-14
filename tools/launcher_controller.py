@@ -55,7 +55,6 @@ def _early_sync(root, name, branch, arguments):
     kinds = {'fix-tests': ('fix-tests', 'fix-tests-host'),
              'run-tests': ('sessions', 'sessions-host'),
              'run-unit-tests': ('sessions-host',),
-             'write-e2e': ('write-e2e', 'plans'),
              'execute-plan': ('plans',), 'sync-whatsnew': ('sync-whatsnew',)}
     with ExitStack() as locks:
         previous_runs = []
@@ -326,11 +325,7 @@ def dispatch(entry):
             document = vm_config.read_document(path, validate_agent=False)
             owner = tool_host(root, document)
             defaults = vm_config.launcher_registry(document)
-            # Plans B/C are independent of the original write-e2e owner and its
-            # configured default checkout. Explicit branch routing still wins.
-            default_branch = (None if name == 'write-e2e' and
-                              any(flag in arguments for flag in ('--planb', '--planc'))
-                              else defaults.get(name, {}).get('default_branch'))
+            default_branch = defaults.get(name, {}).get('default_branch')
             selected = selected or default_branch
             selected = selected or _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
             pinned_branch = selected
@@ -397,8 +392,6 @@ def _entry(root, name, pinned_branch, arguments, entry):
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
         print(HOST_HELP, flush=True)
-        if name == 'write-e2e' and any(flag in arguments for flag in ('--planb', '--planc')):
-            print('--planb/--planc default to the current checkout branch; --branch overrides it.', flush=True)
     import test_source
     try:
         return entry()

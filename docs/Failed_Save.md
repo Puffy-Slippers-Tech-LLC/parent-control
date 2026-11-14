@@ -123,7 +123,7 @@ save during a short real transaction versus immediately after it closes.
 That could distinguish the store boundary, but would not itself establish a
 production serialization mechanism. Former caller-owned /tmp scripts are
 unvalidated disposable aids, not maintained prerequisites or instructions to
-the next E2E launcher.
+future E2E implementation.
 
 No product fix or production recovery protocol was accepted. Reopening this
 issue should begin from these findings and current supported sources rather

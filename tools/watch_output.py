@@ -105,7 +105,7 @@ def active_run(base, *, workflow=False, reader=None, include_idle=False):
 
 def active_launchers(root, reader, *, include_idle=False, workflows_only=False):
     """Discover live publications, optionally including retained idle runs."""
-    for kind in ('fix-tests', 'fix-tests-host', 'write-e2e', 'sync-whatsnew',
+    for kind in ('fix-tests', 'fix-tests-host', 'sync-whatsnew',
                  'plans', 'sessions-host', 'sessions'):
         if workflows_only and kind in ('sessions-host', 'sessions'):
             continue
@@ -243,8 +243,7 @@ class Output:
 
     @property
     def execution_plan(self):
-        return self.run is not None and (self.run.parent.name == 'write-e2e'
-                                        or self.run.parent.parent.name == 'plans'
+        return self.run is not None and (self.run.parent.parent.name == 'plans'
                                         or (self.run / 'plan-view.json').exists())
 
     @property

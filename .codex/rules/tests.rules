@@ -103,9 +103,7 @@ prefix_rule(
         "tools/test-vm",
         "./tools/test-vm",
         "tools/vm-pool",
-        "./tools/vm-pool",
-        "tools/write-e2e",
-        "./tools/write-e2e"
+        "./tools/vm-pool"
     ]],
     decision = "allow",
     justification = "The user preapproves direct execution of this project's tools, without repeated command approval.",

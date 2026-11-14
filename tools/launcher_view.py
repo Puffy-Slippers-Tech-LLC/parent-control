@@ -14,10 +14,7 @@ def observed_plan_totals(root, run, reader):
     try:
         projection = reader.read(run / 'plan-view.json')
     except FileNotFoundError:
-        if run.parent.name == 'write-e2e':
-            return plan_totals(root, 'docs/TestAutomation/E2E-Execution-Plan.md',
-                               queue='docs/TestAutomation/E2E-Task-Queue.md')
-        elif run.parent.parent.name == 'plans':
+        if run.parent.parent.name == 'plans':
             # Older ordinary-plan runs did not publish their master path.
             # Their retained queue still supplies totals until reattachment.
             tasks = reader.read(run / 'checkpoint.json')['queue_before']

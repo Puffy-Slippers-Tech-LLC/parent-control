@@ -160,6 +160,9 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
         summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
         if summary_label:
             text.stylize('bold', 0, summary_label.end())
+        family_progress = re.fullmatch(r'\S+ \| (?:system|e2e): \((\d+)/\d+\)', text.plain)
+        if family_progress:
+            text.stylize('green', *family_progress.span(1))
         heading = re.fullmatch(r'VM: (.+) \(([^()]*)\)', text.plain)
         if heading:
             text = text[4:]

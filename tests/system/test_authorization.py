@@ -357,78 +357,78 @@ def _deleted_target_and_approver_fail_closed(accounts, callers, disposable_ident
                                                record_testsuite_property):
     """Stale selections fail on existing bus connections and preserve survivors."""
     target, approver = (disposable_identities[key] for key in ('target', 'approver'))
-    parent = accounts['parent1']
     administrator = callers('parent1')
+    kiosk = callers('kiosk')
     original = accepted(administrator.call('GetPreferences', '(u)', (accounts['child1'],)))[0]
     accepted(administrator.call('SetParentControl', '(ubu)', (accounts['child1'], True, 0)))
     try:
-        with PersistentCaller(parent) as manager, PersistentCaller(accounts['kiosk']) as kiosk:
-            discovery_callers = (manager, kiosk)
+        # Reuse connections predating both deletions; the fixture owns cleanup.
+        discovery_callers = (administrator, kiosk)
 
-            def discovery():
-                return tuple((
-                    {row[0] for row in accepted(caller.call('ListManagedUsers'))[0]},
-                    {row[0] for row in accepted(caller.call('ListApprovers'))[0]},
-                ) for caller in discovery_callers)
+        def discovery():
+            return tuple((
+                {row[0] for row in accepted(caller.call('ListManagedUsers'))[0]},
+                {row[0] for row in accepted(caller.call('ListApprovers'))[0]},
+            ) for caller in discovery_callers)
 
-            initial = discovery()
-            guest.require(all(target in children and approver in parents
-                              for children, parents in initial),
-                          'authorization:deletion-fixtures-not-discovered')
-            # Seed a real remembered selection before its administrator disappears.
-            accepted(administrator.call('UpdateRequestPreferences', '(usdbu)',
-                                        (accounts['child1'], '300', 5.0, False, approver)))
-            saved_target = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
-            before = snapshot_accounts(accounts)
-            approver_before = account_state(approver)
-            record = Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json'
-            delete_disposable_identity(target, 'target')
-            record_testsuite_property('onpc.account-deletion', 'target:visible-in-nss-and-accountsservice')
-            # Account removal may itself clean product state. Requests must not
-            # recreate or change whatever state remains after that operation.
-            deleted_record = record.read_bytes() if record.exists() else None
-            guest.require(discovery() == tuple((children - {target}, parents)
-                                              for children, parents in initial),
-                          'authorization:deleted-target-discovery')
-            specs = (
-                ('GetPreferences', '(u)', (target,)),
-                ('ListApplications', '(u)', (target,)),
-                ('GetTimeStatus', '(uu)', (target, 0)),
-                ('CalculateRemainingTime', '(uuuu)', (target, 10, 0, 5)),
-                ('UpdateRequestPreferences', '(usdbu)', (target, '300', 5.0, False, approver)),
-                ('SetRequestMuted', '(usb)', (target, 'kiosk', True)),
-                ('SetPreferences', '(us)', (target, saved_target)),
-                ('SetParentControl', '(ubu)', (target, False, 60)),
-                ('RevokeOneTimeGrant', '(u)', (target,)),
-            )
-            for method, signature, args in specs:
-                reply = manager.call(method, signature, args)
-                guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
-                              'authorization:deleted-target:' + method)
-            reply = kiosk.call('RequestAccess', '(uuub)', (target, approver, 300, False))
+        initial = discovery()
+        guest.require(all(target in children and approver in parents
+                          for children, parents in initial),
+                      'authorization:deletion-fixtures-not-discovered')
+        # Seed a real remembered selection before its administrator disappears.
+        accepted(administrator.call('UpdateRequestPreferences', '(usdbu)',
+                                    (accounts['child1'], '300', 5.0, False, approver)))
+        saved_target = accepted(administrator.call('GetPreferences', '(u)', (target,)))[0]
+        before = snapshot_accounts(accounts)
+        approver_before = account_state(approver)
+        record = Path('/var/lib/oh-no-parent-control/preferences') / f'{target}.json'
+        delete_disposable_identity(target, 'target')
+        record_testsuite_property('onpc.account-deletion', 'target:visible-in-nss-and-accountsservice')
+        # Account removal may itself clean product state. Requests must not
+        # recreate or change whatever state remains after that operation.
+        deleted_record = record.read_bytes() if record.exists() else None
+        guest.require(discovery() == tuple((children - {target}, parents)
+                                          for children, parents in initial),
+                      'authorization:deleted-target-discovery')
+        specs = (
+            ('GetPreferences', '(u)', (target,)),
+            ('ListApplications', '(u)', (target,)),
+            ('GetTimeStatus', '(uu)', (target, 0)),
+            ('CalculateRemainingTime', '(uuuu)', (target, 10, 0, 5)),
+            ('UpdateRequestPreferences', '(usdbu)', (target, '300', 5.0, False, approver)),
+            ('SetRequestMuted', '(usb)', (target, 'kiosk', True)),
+            ('SetPreferences', '(us)', (target, saved_target)),
+            ('SetParentControl', '(ubu)', (target, False, 60)),
+            ('RevokeOneTimeGrant', '(u)', (target,)),
+        )
+        for method, signature, args in specs:
+            reply = administrator.call(method, signature, args)
             guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
-                          'authorization:deleted-target-request')
-            guest.require(account_state(approver) == approver_before,
-                          'authorization:deleted-target-approver-write')
-            delete_disposable_identity(approver, 'approver')
-            record_testsuite_property('onpc.account-deletion', 'approver:visible-in-nss-and-accountsservice')
-            guest.require(discovery() == tuple((children - {target}, parents - {approver})
-                                              for children, parents in initial),
-                          'authorization:deleted-approver-discovery')
-            for surface in ('child1', 'kiosk'):
-                reply = (callers('child1').call('RequestOwnAccess', '(uub)',
-                                               (approver, 300, False)) if surface == 'child1' else
-                         kiosk.call('RequestAccess', '(uuub)',
-                                    (accounts['child1'], approver, 300, False)))
-                guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
-                              'authorization:deleted-approver-request:' + surface)
-            guest.require(accounts_unchanged(accounts, before),
-                          'authorization:deleted-identity-survivor-write')
-            guest.require((record.read_bytes() if record.exists() else None) == deleted_record,
-                          'authorization:deleted-target-record-write')
-            record_testsuite_property('onpc.deleted-identity-requests', 'denied-state-preserved')
-            print('onpc-system: stage=deleted-identity-requests outcome=denied-state-preserved',
-                  flush=True)
+                          'authorization:deleted-target:' + method)
+        reply = kiosk.call('RequestAccess', '(uuub)', (target, approver, 300, False))
+        guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                      'authorization:deleted-target-request')
+        guest.require(account_state(approver) == approver_before,
+                      'authorization:deleted-target-approver-write')
+        delete_disposable_identity(approver, 'approver')
+        record_testsuite_property('onpc.account-deletion', 'approver:visible-in-nss-and-accountsservice')
+        guest.require(discovery() == tuple((children - {target}, parents - {approver})
+                                          for children, parents in initial),
+                      'authorization:deleted-approver-discovery')
+        for surface in ('child1', 'kiosk'):
+            reply = (callers('child1').call('RequestOwnAccess', '(uub)',
+                                           (approver, 300, False)) if surface == 'child1' else
+                     kiosk.call('RequestAccess', '(uuub)',
+                                (accounts['child1'], approver, 300, False)))
+            guest.require(reply.get('error') == guest.BUS + '.Error.InvalidRequest',
+                          'authorization:deleted-approver-request:' + surface)
+        guest.require(accounts_unchanged(accounts, before),
+                      'authorization:deleted-identity-survivor-write')
+        guest.require((record.read_bytes() if record.exists() else None) == deleted_record,
+                      'authorization:deleted-target-record-write')
+        record_testsuite_property('onpc.deleted-identity-requests', 'denied-state-preserved')
+        print('onpc-system: stage=deleted-identity-requests outcome=denied-state-preserved',
+              flush=True)
     finally:
         accepted(administrator.call('SetPreferences', '(us)', (accounts['child1'], original)))
         accepted(administrator.call('SetParentControl', '(ubu)', (accounts['child1'], False, 60)))
@@ -776,8 +776,12 @@ def _remote_accounts_are_excluded(accounts, callers, remote_directory, record_te
             ('remote-child-caller', remote['child'], 'GetOwnAccount', '()', ()),
             ('remote-admin-caller', remote['administrator'], 'ListManagedUsers', '()', ()),
         )
+        local_callers = {accounts[role]: callers(role) for role in ('child1', 'kiosk', 'parent1')}
         for boundary, caller, method, signature, args in attempts:
-            reply = call(caller, method, signature, args)
+            # Local supporting calls keep their agentless fixture connections;
+            # the two LDAP subjects retain fresh credential-checked processes.
+            reply = (local_callers[caller].call(method, signature, args)
+                     if caller in local_callers else call(caller, method, signature, args))
             record_testsuite_property('onpc.remote-denial', json.dumps({
                 'boundary': boundary, 'access_denied': reply.get('error') == DENIED,
             }, sort_keys=True))

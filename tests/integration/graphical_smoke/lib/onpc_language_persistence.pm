@@ -50,23 +50,23 @@ sub run {
     $journey->seen($_) for qw(hebrew-save riley-hebrew);
     onpc_parent::language_selection($journey, 'cancel-german');
     $journey->seen($_) for qw(cancel-german-response cancel-retained cancel-close riley-cancelled
-        jordan-restored jordan-restored-form jordan-choice jordan-close
-        jordan-casey-select jordan-casey jordan-casey-choice jordan-casey-close jordan-jamie-select
-        riley-restored riley-restored-form riley-choice riley-close
-        riley-casey-select riley-casey riley-casey-choice riley-casey-close riley-jamie-select
+        jordan-restored jordan-restored-form
+        jordan-casey-select jordan-casey jordan-jamie-select
+        riley-restored riley-restored-form
+        riley-casey-select riley-casey riley-jamie-select
         jordan-final station-cancel station-returned);
     onpc_gdm::enter_station($journey, 'renewed-');
-    $journey->seen($_) for qw(jordan-reentered jordan-reentered-choice jordan-reentered-close
-        riley-reentered-select riley-reentered riley-reentered-choice riley-reentered-close
+    $journey->seen($_) for qw(jordan-reentered
+        riley-reentered-select riley-reentered
         final-station-cancel final-station-returned);
     onpc_gdm::named_login($journey, 'child', 'child');
     onpc_request_flow::overlay_entry($journey, 'direct', 'command');
     $journey->seen($_) for qw(overlay-choice overlay-close overlay-cancel overlay-returned);
     onpc_request_flow::overlay_entry($journey, 'relaunched', 'command');
-    $journey->seen($_) for qw(relaunched-choice relaunched-close relaunched-cancel relaunched-returned child-logout);
+    $journey->seen($_) for qw(relaunched-cancel relaunched-returned child-logout);
     onpc_gdm::named_login($journey, 'renewed', 'child');
     onpc_request_flow::overlay_entry($journey, 'renewed-overlay', 'command');
-    $journey->seen($_) for qw(renewed-choice renewed-close renewed-cancel renewed-returned child-switch child-greeter);
+    $journey->seen($_) for qw(renewed-cancel renewed-returned child-switch child-greeter);
     my $returned = onpc_gdm::sign_in_challenge($journey, 'return',
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
     onpc_parent::launch($journey, $returned, 'management', 'return-desktop');

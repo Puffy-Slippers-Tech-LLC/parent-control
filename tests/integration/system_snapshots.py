@@ -128,7 +128,7 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                            if index + 1 < len(planned) else None)
         try:
             with lease:
-                with ledger.measure('preparation'):
+                with ledger.measure('preparation', operation='snapshot-readiness'):
                     if lease.__dict__.get('_fixture_provision_state') is not None:
                         from tools.fixture_provision import reset_after_restore
                         reset_after_restore(lease)
@@ -157,13 +157,15 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                             {'schema_version': 1, 'scope': 'system-installed-setup'}, root=system.ROOT)
                     else:
                         lease.prepare()
-                with ledger.measure('bootstrap'):
+                with ledger.measure('bootstrap', operation='bootstrap-payload'):
                     clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
                     options = ({'system_installed': True} if installed else
                                {'system_product_free': True}) if clean else {}
                     host_key = system.bootstrap(suite.commands, lease, attempt, suite.guestfs,
                                                 **options)
+                with ledger.measure('bootstrap', operation='guest-start'):
                     lease.start()
+                with ledger.measure('bootstrap', operation='address-discovery'):
                     hostname = system.address(source)
                 (attempt / 'known-hosts').write_text(f'{hostname} {host_key}\n')
                 config = {'directory': str(attempt), 'hostname': hostname, 'run': lease.state['run'],

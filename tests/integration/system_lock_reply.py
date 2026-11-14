@@ -367,7 +367,10 @@ def retry_history(command, value, path, accounts):
         grant(child, 1200)
         # Commit plus current positive product calculation precedes restoration
         # of availability. Neither alone proves cancellation or usable input.
-        wait_for(lambda: any(row not in before and row['event'] == 'child.estimate'
+        # child.estimate can suppress a renewal equal to an earlier positive
+        # estimate for five minutes. The deadline diagnostic records the fresh
+        # increase from exhaustion even within that suppression window.
+        wait_for(lambda: any(row not in before and row['event'] == 'child.countdown-deadline'
                              and row.get('fields', {}).get('remaining', 0) > 300
                              for row in BrokerEvents.read('child')),
                  'expiry:lock-retry-renewal-not-confirmed', timeout=30)

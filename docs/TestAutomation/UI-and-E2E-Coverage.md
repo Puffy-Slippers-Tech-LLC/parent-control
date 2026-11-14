@@ -45,20 +45,18 @@ the shared runtime ownership and input guards without testing those guards.
 The isolated child preview covers desktop/fullscreen-request countdown
 availability and refusal; Node covers production locked/greeter decisions.
 It has no owned logind/GDM session, so those results do not establish public
-locked/greeter observations. Task 052b0 qualified the
+locked/greeter observations. The qualified
 [installed observation](E2E-Building-Blocks.md#locked-and-inactive-child-countdown-qualification)
 of the retained child's panel, independently of the greeter's Shell, plus
-restoration on Ubuntu 26.04. Task 052b completed the UI obligation with accepted
-host results and a passing installed check through that same shared observation;
-no genuine lock or greeter state is manufactured in the preview.
+restoration on Ubuntu 26.04 are separate installed checks; no genuine lock or
+greeter state is manufactured in the preview.
 This allocation neither reopens completed journeys nor adds a customer scenario.
 
 The same isolated Shell owner checks the countdown explanation through
 `child-request-tooltip` on the owner-pinned shared `child-panel` client. It
 compares the public explanation's meaning and HH:MM:SS with independent
-`child-remaining-time` value reads, allowing one display tick of lag. Task 181h
-completed this local coverage; installed time accuracy and enforcement remain
-under their existing owners.
+`child-remaining-time` value reads, allowing one display tick of lag. Installed
+time accuracy and enforcement remain under their existing owners.
 
 Attachment fixtures replace only the external chooser's returned file list;
 the frontend still reads/validates files and updates its draft. Local tests do
@@ -68,9 +66,7 @@ do not prove native authentication or actual warning delivery.
 ### Feedback sending allocation
 
 The developer chose existing network-free component previews for routine
-feedback sending. Tasks **150a, 150, 151, 152, 153, 258, 262, 263, 189k, 255,
-190a, 190o, 260, 190b, 190k and 261** are explicit **UI obligation** rows,
-implemented in the existing `test_parent_feedback.py` and
+feedback sending in the existing `test_parent_feedback.py` and
 `test_error_feedback.py` owners. Reuse their fake HTTP session and real editor,
 encoding, retry and result handlers; add only missing assertions. No production
 mock switch, alternate endpoint, server, inbox or sending authorization is
@@ -110,13 +106,9 @@ outcomes in the case; the diagnostic synchronizes the check and supplies no
 installed exit or delivery credit.
 
 Retain former cases **156, 157, 213, 216, 218, 219, 220 and 221** as allocation
-references, pending with no E2E executable or installed acceptance. The launcher
-carries the explicit `UI obligation;` scope marker through host-only selection,
-prompts and completion; historical task 192 retains its exception. UI tasks
-return `live_result=not_run` after focused host acceptance and ordinary close-out.
-Installed tasks still require live acceptance, and host-only completion cannot
-clear an outstanding failure. Allocation metadata names the existing UI owner
-and remaining task without registering host tests as E2E executables.
+references, pending with no E2E executable or installed acceptance. Allocation
+metadata names the existing UI owner and remaining assertions without registering
+host tests as E2E executables. Host acceptance supplies no installed result.
 
 Mock responses must not contact the real service. They establish anonymous
 confirmation, success/clearing, retry/background completion, app-exit reset,
@@ -127,7 +119,7 @@ request-exit results remain with their existing owners.
 
 Real sending is a separate optional integration check under the
 [live-delivery contract](../../tests/README.md#coverage-maintenance-workflow),
-outside routine queue acceptance. A mock pass supplies no live-service or email
+outside routine E2E acceptance. A mock pass supplies no live-service or email
 delivery result. No sending permission or recipient profile should be requested
 for these routine UI obligations.
 
@@ -158,15 +150,15 @@ without executable assertions establishes no coverage.
 | Existing owner | Work not to duplicate | Customer journey retained |
 | --- | --- | --- |
 | [Extension recovery system coverage](../SystemDesign/Screen-Time.md#extension-recovery-verification-boundaries), system 295–301 alongside system 281/282 | Individual/global disablement, repeated interference/backoff, native extension errors/reporting, and boot/Parent/kiosk/login/unlock recovery are standalone system faults; reuse existing adapter rollback and host/private-bus guards | Existing ordinary setup, approval, countdown and retained-session journeys remain unchanged; no new E2E case or engineering prerequisite is added |
-| `test_baseline_fixtures_cleanup_safety` shared reconciliation, interrupted-placement, foreign/tampered-input and missing-baseline checks | Per-profile copies of unchanged idempotence, owned-update, retry and refusal matrices in tasks 109p/116p/126p; check only a genuinely new package, scope, confinement or ownership boundary | Real installation and restored-profile readback remain required; later Snap/Flatpak launches, enforcement and game use/expiry retain complete acceptance |
+| `test_baseline_fixtures_cleanup_safety` shared reconciliation, interrupted-placement, foreign/tampered-input and missing-baseline checks | Per-profile copies of unchanged idempotence, owned-update, retry and refusal matrices for native/Snap/Flatpak/game fixture consumers; check only a genuinely new package, scope, confinement or ownership boundary | Real installation and restored-profile readback remain required; later Snap/Flatpak launches, enforcement and game use/expiry retain complete acceptance |
 | `test_authorization.test_requester_disconnect_during_approval` (system 255) | Engineering obligation 147: both requester disconnects, cancellation/no writes, released transaction, fresh authenticated recovery and other-account isolation | Cases 171–175 still observe leaving an actual pending graphical approval and its public result |
-| `test_core.test_parent_disable_cannot_interleave_with_admitted_approval`, `test_approval_cannot_snapshot_parent_disable_bridge_or_rollback`; `test_private_dbus_service.test_request_workers_dispatch_concurrently`; system 255 | Engineering obligation 148: real threaded broker conflict, Busy/no writes, final time/policy and successful retry; private-bus worker dispatch; installed bus/agent Busy/release and authenticated recovery. No separate task 177 or repeated concurrency qualifier. | Complete graphical approvals, pending-request interruptions and independent child/parent journeys retain their public results |
+| `test_core.test_parent_disable_cannot_interleave_with_admitted_approval`, `test_approval_cannot_snapshot_parent_disable_bridge_or_rollback`; `test_private_dbus_service.test_request_workers_dispatch_concurrently`; system 255 | Engineering obligation 148: real threaded broker conflict, Busy/no writes, final time/policy and successful retry; private-bus worker dispatch; installed bus/agent Busy/release and authenticated recovery. No repeated concurrency qualifier. | Complete graphical approvals, pending-request interruptions and independent child/parent journeys retain their public results |
 | Native command, whitespace, future-pattern, missing-launcher and catalogue system tests (272, 277–280) | Backend policy/UID/path/catalogue matrices and separate qualifiers for unchanged fixture mechanics | Parent edits and saved rules, declared launch routes, use/refusal, copied-executable/shared-launcher interactions and required peer access |
-| Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier (308a/309a) repeating saved Hebrew/custom-request/approver bindings | Tasks 308/309's complete restoration histories and original-work comparisons; 308b's missing translated approval and 310a's new panel projection remain distinct |
-| Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in 123/123a qualifiers | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
+| Existing language selection and `language_persistence.PLAN` request readers | A second presentation-history qualifier repeating saved Hebrew/custom-request/approver bindings | Complete overlay/kiosk restoration and original-work comparisons; translated approval and the panel projection retain their distinct bindings |
+| Shared `PackageCommand`, match Save and Parent reopen/select operations | Complete catalogue update/remove/reinstall histories repeated in separate E2E building-block qualifications | Cases 110/111 implement missing verified fixture bindings and retain open drafts, actual package changes, Save, refreshed catalogue, retained rules and child launch results |
 | `test_removal.test_remove_reboot_reinstall` (system 6); `test_install_smoke.test_previous_package_policy_preservation` (287) | Package files/ownership/service/PAM/migration matrices, internal snapshots and duplicate lifecycle qualifiers | Case 139's continuous install/configure/use/remove/use/reinstall/retained-settings/reapply/purge/defaults history; cases 136–138's real notices, activation and usable apps |
 | Kiosk service/configuration recovery system checks; shared update-reentry building block | Reimplementation of their fault/recovery controls and unchanged qualification; update-reentry has no system registration | Actual unavailable result, restoration, genuine approval and usable return within each complete recipe |
-| Delivered native fixture and grant/use/revoke scope in the [reuse map](E2E-Building-Blocks.md#cross-plan-baseline-reuse) | Rebuilding compatible fixtures or repeating the accepted finite native history for 313a/313 | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
+| Delivered native fixture and grant/use/revoke scope in the [operation scope](E2E-Building-Blocks.md#baseline-operation-applicability) | Rebuilding compatible fixtures or repeating the accepted finite native history for another consumer | Each later journey's own approval, access, expiry/revocation and retained-work results; different durations/providers/entry modes retain their missing qualification |
 
 Obligations 147/148 remain with their executable lower-suite owners without
 separate E2E implementation tasks; this allocation claims no new pass. Other engineering
@@ -174,19 +166,16 @@ obligations retain the gaps named in their briefs. Natural expiry, suspend,
 calendar transitions, graphical authentication and retained work still need
 their full installed journeys.
 
-Task 035b adds only missing finite versioned asset/copy/Allowed-launch bindings;
+Versioned asset/copy/Allowed-launch work adds only missing finite bindings;
 case 189 owns matching denial, nonmatch use, refresh and rejected-save recovery.
 FLOW19 uses the existing setup mode and a complete saved-set comparison, while
 feature cases retain each tested policy transition's independent effects.
 Removing a precursor history does not qualify a new provider or safety binding;
 keep genuinely missing qualification explicit in its consumer.
 
-Tasks 150o/150k's duplicate Send/dismiss/exit qualifiers remain absorbed into
-former cases 220/221, now allocated to the
-[mock-sending UI owner](#feedback-sending-allocation). Task 150 owns shared
-component response/confirmation checks. The cooldown behavior and unfinished
-tasks 187a/187o/187b/187k and 218/220 are retired; stable historical cases
-176/178 remain pending and excluded with no executable or acceptance credit.
+Send/dismiss/exit and component response/confirmation checks belong to the
+[mock-sending UI owner](#feedback-sending-allocation). Cases 176/178 remain pending
+and excluded without executables because successful requests have no cooldown.
 Immediate sequential requests with fresh authentication reuse the existing
 panel-request history and broker tests, without another E2E task. Delayed-approval
 modules retain their supporting history; E2E-048 stays excluded under its separate
@@ -199,55 +188,48 @@ fresh successful approval, balance and access recovery. No lower-layer pass
 supplies those journeys, and changed provider/safety boundaries retain scoped
 qualification.
 
-Task 102's duplicate expiry/replacement qualifier is absorbed into cases
+Expiry/replacement composition belongs to cases
 23/24/126/127. Their existing natural-lock, time-denial, retained-entry and
-parameterized FLOW20 operations supply the composition; 197k and the game
-owners retain missing bindings. Every case still captures its original work,
+parameterized FLOW20 operations supply the composition; the retained-entry and game
+owners retain their distinct bindings. Every case still captures its original work,
 reaches real expiry, obtains real approval and independently observes recovery.
 No earlier qualification or lower-suite pass supplies those complete results.
 
 ## Expiry coverage allocation
 
-Customer scenarios retain their existing canonical tasks. The broker expiry
-exploration plan and optional-extension proposal have been removed. Unimplemented
-engineering extensions are merged into E2E queue tasks 172a–172h and 172j–172l, with no current
-acceptance credit. Native-isolation research and proposal-specific handover are
-retired; existing production-path assertions remain.
-This allocation preserves coverage ownership and avoids duplicate qualification
-workers or a second customer queue. Recipes own finite data and ordered results;
-task status and executable bindings are unchanged.
+Recipes own finite customer data and ordered results. The installed session
+owners below own engineering faults and recovery; reusable operations do not
+supply those results by themselves. Keep each distinct assertion with one owner
+and avoid duplicate qualification workers.
 
 | Scope | Single delivery owner | Later work must not repeat |
 | --- | --- | --- |
 | Approvals and extension-dependent timing | Existing core/adapter owners retain arithmetic, identity and failure-refusal coverage. TIME01, REQUEST08 and FLOW05 retain public observations on their declared surfaces. Current extension dependencies are documented in [Screen time](../SystemDesign/Screen-Time.md#countdown-and-expiry-enforcement) | A second timing ledger, copied status/approval journey or authentication matrix. Retiring the proposals grants no installed acceptance and removes no executable coverage. |
 | Current daily/grant/combined natural locks, denial, retained work and peer activity | Existing cases 22, 25–29; shared TIME04, lock-input and activity observations | A new baseline expiry journey or unchanged provider matrix. Existing cases receive only affected regressions after actual code changes. |
-| Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Tasks 084/085, canonical single-desktop cases 17/19. Former tasks 143–149 and cases 18/20/112–115 are removed from execution and retained only in [Two desktops](../Two_Desktops.md). | A separate migration-only copy or reconstruction of the removed two-desktop tasks. Cases 17/19 switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. |
-| Daily balance outlasting a soft-app grant | Task 182 owns positive FLOW18 preparation; task 206/case 164 owns uninterrupted expiry/no-lock/soft-access results | Task 182 must not add its optional second expiry wait. Tasks 207–212/cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |
-| Idle and suspend before/after grant expiry | Task 164/case 122; LIFE03 tasks 166a/166; tasks 167/168/cases 124/125 | Another generic idle/suspend expiry suite. LIFE03 is implemented/qualified once; complete cases retain only their unique choices, policy, work and recovery composition. |
-| Real usage-read outage/recovery | Task 172 (engineering obligation 143) under the installed session owners. Former task 171/obligation 142 is removed from execution; [Unlock desktop](../Unlock_Desktop.md) preserves that open question only. | A second identity-scoped reader-fault matrix or recreation of the removed entry-exposure qualifier. The open question is not a prerequisite for remaining session work. |
-| Expiry-specific broker/timer failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | Tasks 172a–172h and 172j–172l extend the `system_graphical_expiry` owner and system 282's shared mechanics. Foreground revocation has the distinct `session::test_foreground_revocation` binding (system 303), without replaying system 282 | System 303's foreground zero/positive daily revocation, bounded protected lock, original-work recovery and positive input passed on the session-selected Ubuntu 26.04 VM; Fedora remains unqualified. Pending approval and time-decision ordering are allocated separately below; other bindings remain planned. No customer-case credit. Reuse obligation 148’s existing concurrency assertions; no separate host preparation task or engineering suite. Tasks 169/170/173–175/178/179 retain their different residuals; task 172 owns reader faults. The former entry-exposure question is unscheduled in [Unlock desktop](../Unlock_Desktop.md). |
-| Expiry while a genuine parent approval remains pending | `system_graphical_expiry`, `natural_expiry.APPROVAL_PLAN` / `PendingApprovalJourney` and `session::test_expiry_during_pending_approval` (system 304), reusing system 282's attached worker and activity/lock/recovery mechanics | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261107T163336Z-aa8348da`: two 300-second histories with challenge readiness at least 180 seconds before original expiry, timely natural lock, protected input, cancellation without grant changes, original-work recovery and unrelated foreground input. Collection, worker shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified. No customer-case or task 171 entry-exposure credit; background protection supplies no natural-lock latency claim. |
-| Latest parent time decision versus an in-flight read and original expiry | Eight controlled commit/rollback order checks in `test_core`, deadline dispatch in `test_private_dbus_service`, and `session::test_policy_changes_before_expiry` (system 305) through `natural_expiry.PolicyOrderJourney` and `system_graphical_expiry` | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261107T234126Z-f7d43e80`: renewal, allowance and disablement each preserved original-desktop input and work past its unchanged 180-second deadline, followed by bounded restricted natural lock, both protected-input challenges, original-work recovery and peer continuity. Reuses existing Busy/conflict, stale-callback and system-282 mechanics. Collection, worker/callback shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified; no customer-case credit. |
-| Scheduled expiry work after the original child session ends | `natural_expiry.SessionReplacementJourney`, `onpc_desktop_session::session_replacement` and `session::test_session_replacement_before_expiry` (system 306), through the existing `system_graphical_expiry` fixture and attached worker | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T013846Z-afcf0b18`: changing displayed countdown text before logout, a different same-account session with positive authoritative entitlement, continuous replacement input and retained work across the unchanged 600-second original deadline, and peer input/work before and after it. Collection, worker/callback closure, owned cleanup and baseline restoration passed. This qualifies pending scheduled work, not a deliberately held asynchronous completion. Fedora remains unqualified; no customer-case credit. |
-| Broker crash before original expiry, protected outage and current-time recovery | `natural_expiry.BrokerCrashJourney`, the existing system-282 worker and `system_graphical_expiry.crash_history`; `session::test_broker_crash_before_expiry` (system 307). The product indicator's pending-lock callback boundary is covered in `tests/child/indicator_logic.test.mjs` | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T022958Z-c6ddedd9`: two identity-recorded SIGKILL faults, unchanged 180-second deadlines, foreground timely lock, both protected-input challenges, new-owner zero balance and unchanged expired grant before declared recovery time, original session/work and peer input/work. Collection, worker/callback shutdown and baseline restoration passed. This qualifies on-demand activation after a controlled outage, not automatic supervision or a deliberately held live lock callback. Fedora remains unqualified; no customer-case credit. |
-| Deliberately stopped broker across original expiry and bounded recovery | `natural_expiry.STOP_PLAN` / `BrokerStopJourney`, `onpc_desktop_session::broker_stop` and `system_graphical_expiry.stop_history`; `session::test_broker_stop_before_expiry` (system 308), reusing system-282 mechanics | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T062038Z-4e988099`: one grant-only retained-desktop history, identity-recorded clean stop before the unchanged 180-second deadline, unchanged activation mask and service-start identity through timely lock and protected input, new-owner zero balance without grant replay, original child work recovered within original expiry plus 300 seconds, and the same peer session/work/input before and after. Collection, worker closure, owned cleanup and baseline restoration passed; VM off. Fedora remains unqualified; no automatic supervision or customer-case credit. |
-| Stalled broker across original expiry and same-process recovery | `natural_expiry.BrokerStallJourney` and `system_graphical_expiry.stall_history`; `session::test_broker_stall_before_expiry` (system 309), reusing system-282's two crash-history mechanics | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T065535Z-ee8c3c20`: two real identity-recorded SIGSTOP/SIGCONT histories, original 180-second deadlines, timely foreground lock, both protected-input challenges, same-process zero balance without grant replay, original session/work recovery within expiry plus 300 seconds and foreground parent input/work. Collection, worker/callback closure, owned cleanup and baseline restoration passed; VM off. Fedora remains unqualified; no customer-case credit. |
-| Native timer owner replacement across original expiry | `natural_expiry.TimerReplacementJourney` reuses `STOP_PLAN`; `system_graphical_expiry.timer_history`; `session::test_timer_replacement_before_expiry` (system 310) | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T075926Z-16e1908b`: one identity-recorded masked timer stop through unchanged 180-second expiry, timely lock and protected input; distinct bus/process/service owner, exhausted native child estimate, zero balance and unchanged expired grant before recovery time; original child work within expiry plus 300 seconds and the same parent session/input/work before and after. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. Existing reliability and session-replacement owners retain retry, authorization and stale-work matrices; this adds no deliberately held reply. Fedora remains unqualified; no customer-case credit. |
-| Delayed acknowledgement and missing reply at the real lock boundary | `natural_expiry.REPLY_PLAN` / `LockCompletionJourney`, `system_lock_reply` and `session::test_secure_lock_completion` (system 311), reusing the existing system-282 worker, protected-input and work observations | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T215106Z-aeda37d1`: two unchanged 180-second deadlines, actual product requests and native completion, timely protection and both protected-input challenges, delayed acknowledgement only after input, actual client failure while the missing reply remained held, original child session/work after both histories, and the same parent session/input/work before and after. A public child lock-setting gate prevents the native automatic action from preempting interception; it is restored before forwarding each real request and on owned cleanup. Normal facade, lock setting and native owner restoration, collection, worker shutdown and baseline restoration passed; VM off. No lock-retry owner or cancellation of an already dispatched lock is claimed. Fedora remains unqualified; no customer-case credit. |
-| Games/fullscreen, expired app exceptions, remembered choices, repeated household routines, natural midnight/DST | Their current canonical tasks/recipes | Generic expiry, service-fault or provider qualification added before each consumer. Keep the different interaction's required public result and reuse shared mechanics. |
-| Temporary native lock unavailability and renewal cancelling stale retries | `natural_expiry.LockRetryJourney`, existing `STOP_PLAN` and `system_lock_reply.retry_history`; `session::test_transient_lock_recovery` (system 312) | Passed on session-selected `onpc-Ubuntu26.04-1` in `20261108T230422Z-b787bea6`: real refused request and successful retry, protection by the original expiry plus 15 seconds, protected input, confirmed positive renewal before availability restoration, no stale request beyond the old window, continued child input and original child/parent work. The affected delayed/missing-reply regression (system 311) passed in `20261108T232640Z-cfc49665`. Collection, worker closure, normal lock-service restoration, owned cleanup and baseline restoration passed; VM independently off. Fedora and persistent outage protection remain unqualified; no customer-case credit. |
-| Persistent lock-action outage in a surviving child desktop | `natural_expiry.LockOutageJourney`, existing `STOP_PLAN` and `system_lock_reply.outage_history`; `session::test_persistent_lock_outage` (system 313) | Characterization passed on session-selected `onpc-Ubuntu26.04-1` in `20261109T000907Z-148ad941`: the original 180-second grant crossed expiry plus 20 seconds under real lock refusals, followed by explicit revocation and another 20-second outage. Original-window Submit/readback remained usable after both boundaries, so protection is unsupported. Recovery restored lock availability, supported lock/protected input, original child work and the same parent session/input/work. Collection, worker closure, normal facade/setting/native-owner restoration and baseline restoration passed; VM independently off. Fedora remains unqualified. No protection or customer-case credit; return only with supported protection by the original deadline while ordinary work survives. |
+| Revocation at zero/positive daily time, Cancel, retained entry and peer continuity | Single-desktop cases 17/19. Cases 18/20/112–115 are unscheduled and described only in [Two desktops](../Two_Desktops.md). | A separate migration-only copy or reconstruction of the removed two-desktop tasks. Cases 17/19 switch to Parent before revocation; foreground immediate-lock acceptance belongs to the installed residual below. |
+| Daily balance outlasting a soft-app grant | FLOW18 owns positive preparation; case 164 owns uninterrupted expiry/no-lock/soft-access results | Preparation must not add a second expiry wait. Cases 165–170 reuse preparation/observation and own only their different post-expiry transitions. |
+| Idle and suspend before/after grant expiry | Case 122; LIFE03; cases 124/125 | Another generic idle/suspend expiry suite. LIFE03 is implemented/qualified once; complete cases retain only their unique choices, policy, work and recovery composition. |
+| Real usage-read outage/recovery | Engineering obligation 143 under the installed session owners. Obligation 142 is unscheduled; [Unlock desktop](../Unlock_Desktop.md) preserves that open question only. | A second identity-scoped reader-fault matrix or recreation of the removed entry-exposure qualifier. The open question is not a prerequisite for remaining session work. |
+| Expiry-specific broker/timer failure, hang, owner replacement, stale work, lock completion, foreground revocation and policy races | `system_graphical_expiry` reuses system 282's shared mechanics. Foreground revocation has the distinct `session::test_foreground_revocation` binding (system 303), without replaying system 282 | System 303's foreground zero/positive daily revocation, bounded protected lock, original-work recovery and positive input passed on the session-selected Ubuntu 26.04 VM; Fedora remains unqualified. Pending approval and time-decision ordering are allocated separately below; other bindings remain planned. No customer-case credit. Reuse obligation 148’s existing concurrency assertions. Reader faults retain their separate owner. The former entry-exposure question is unscheduled in [Unlock desktop](../Unlock_Desktop.md). |
+| Expiry while a genuine parent approval remains pending | `system_graphical_expiry`, `natural_expiry.APPROVAL_PLAN` / `PendingApprovalJourney` and `session::test_expiry_during_pending_approval` (system 304), reusing system 282's attached worker and activity/lock/recovery mechanics | Qualified on Ubuntu 26.04: two 300-second histories with challenge readiness at least 180 seconds before original expiry, timely natural lock, protected input, cancellation without grant changes, original-work recovery and unrelated foreground input. Collection, worker shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified. No customer-case or entry-exposure credit; background protection supplies no natural-lock latency claim. |
+| Latest parent time decision versus an in-flight read and original expiry | Eight controlled commit/rollback order checks in `test_core`, deadline dispatch in `test_private_dbus_service`, and `session::test_policy_changes_before_expiry` (system 305) through `natural_expiry.PolicyOrderJourney` and `system_graphical_expiry` | Qualified on Ubuntu 26.04: renewal, allowance and disablement each preserved original-desktop input and work past its unchanged 180-second deadline, followed by bounded restricted natural lock, both protected-input challenges, original-work recovery and peer continuity. Reuses existing Busy/conflict, stale-callback and system-282 mechanics. Collection, worker/callback shutdown, owned cleanup and baseline restoration passed. Fedora remains unqualified; no customer-case credit. |
+| Scheduled expiry work after the original child session ends | `natural_expiry.SessionReplacementJourney`, `onpc_desktop_session::session_replacement` and `session::test_session_replacement_before_expiry` (system 306), through the existing `system_graphical_expiry` fixture and attached worker | Qualified on Ubuntu 26.04: changing displayed countdown text before logout, a different same-account session with positive authoritative entitlement, continuous replacement input and retained work across the unchanged 600-second original deadline, and peer input/work before and after it. Collection, worker/callback closure, owned cleanup and baseline restoration passed. This qualifies pending scheduled work, not a deliberately held asynchronous completion. Fedora remains unqualified; no customer-case credit. |
+| Broker crash before original expiry, protected outage and current-time recovery | `natural_expiry.BrokerCrashJourney`, the existing system-282 worker and `system_graphical_expiry.crash_history`; `session::test_broker_crash_before_expiry` (system 307). The product indicator's pending-lock callback boundary is covered in `tests/child/indicator_logic.test.mjs` | Qualified on Ubuntu 26.04: two identity-recorded SIGKILL faults, unchanged 180-second deadlines, foreground timely lock, both protected-input challenges, new-owner zero balance and unchanged expired grant before declared recovery time, original session/work and peer input/work. Collection, worker/callback shutdown and baseline restoration passed. This qualifies on-demand activation after a controlled outage, not automatic supervision or a deliberately held live lock callback. Fedora remains unqualified; no customer-case credit. |
+| Deliberately stopped broker across original expiry and bounded recovery | `natural_expiry.STOP_PLAN` / `BrokerStopJourney`, `onpc_desktop_session::broker_stop` and `system_graphical_expiry.stop_history`; `session::test_broker_stop_before_expiry` (system 308), reusing system-282 mechanics | Qualified on Ubuntu 26.04: one grant-only retained-desktop history, identity-recorded clean stop before the unchanged 180-second deadline, unchanged activation mask and service-start identity through timely lock and protected input, new-owner zero balance without grant replay, original child work recovered within original expiry plus 300 seconds, and the same peer session/work/input before and after. Collection, worker closure, owned cleanup and baseline restoration passed; VM off. Fedora remains unqualified; no automatic supervision or customer-case credit. |
+| Stalled broker across original expiry and same-process recovery | `natural_expiry.BrokerStallJourney` and `system_graphical_expiry.stall_history`; `session::test_broker_stall_before_expiry` (system 309), reusing system-282's two crash-history mechanics | Qualified on Ubuntu 26.04: two real identity-recorded SIGSTOP/SIGCONT histories, original 180-second deadlines, timely foreground lock, both protected-input challenges, same-process zero balance without grant replay, original session/work recovery within expiry plus 300 seconds and foreground parent input/work. Collection, worker/callback closure, owned cleanup and baseline restoration passed; VM off. Fedora remains unqualified; no customer-case credit. |
+| Native timer owner replacement across original expiry | `natural_expiry.TimerReplacementJourney` reuses `STOP_PLAN`; `system_graphical_expiry.timer_history`; `session::test_timer_replacement_before_expiry` (system 310) | Qualified on Ubuntu 26.04: one identity-recorded masked timer stop through unchanged 180-second expiry, timely lock and protected input; distinct bus/process/service owner, exhausted native child estimate, zero balance and unchanged expired grant before recovery time; original child work within expiry plus 300 seconds and the same parent session/input/work before and after. Collection, worker shutdown, owned cleanup and baseline restoration passed; VM off. Existing reliability and session-replacement owners retain retry, authorization and stale-work matrices; this adds no deliberately held reply. Fedora remains unqualified; no customer-case credit. |
+| Delayed acknowledgement and missing reply at the real lock boundary | `natural_expiry.REPLY_PLAN` / `LockCompletionJourney`, `system_lock_reply` and `session::test_secure_lock_completion` (system 311), reusing the existing system-282 worker, protected-input and work observations | Qualified on Ubuntu 26.04: two unchanged 180-second deadlines, actual product requests and native completion, timely protection and both protected-input challenges, delayed acknowledgement only after input, actual client failure while the missing reply remained held, original child session/work after both histories, and the same parent session/input/work before and after. A public child lock-setting gate prevents the native automatic action from preempting interception; it is restored before forwarding each real request and on owned cleanup. Normal facade, lock setting and native owner restoration, collection, worker shutdown and baseline restoration passed; VM off. No lock-retry owner or cancellation of an already dispatched lock is claimed. Fedora remains unqualified; no customer-case credit. |
+| Games/fullscreen, expired app exceptions, remembered choices, repeated household routines, natural midnight/DST | Their current recipes | Generic expiry, service-fault or provider qualification added before each consumer. Keep the different interaction's required public result and reuse shared mechanics. |
+| Temporary native lock unavailability and renewal cancelling stale retries | `natural_expiry.LockRetryJourney`, existing `STOP_PLAN` and `system_lock_reply.retry_history`; `session::test_transient_lock_recovery` (system 312) | Qualified on Ubuntu 26.04: real refused request and successful retry, protection by the original expiry plus 15 seconds, protected input, confirmed positive renewal before availability restoration, no stale request beyond the old window, continued child input and original child/parent work. The affected delayed/missing-reply regression (system 311) is qualified on Ubuntu 26.04. Collection, worker closure, normal lock-service restoration, owned cleanup and baseline restoration passed; VM independently off. Fedora and persistent outage protection remain unqualified; no customer-case credit. |
+| Persistent lock-action outage in a surviving child desktop | `natural_expiry.LockOutageJourney`, existing `STOP_PLAN` and `system_lock_reply.outage_history`; `session::test_persistent_lock_outage` (system 313) | Characterized on Ubuntu 26.04: the original 180-second grant crossed expiry plus 20 seconds under real lock refusals, followed by explicit revocation and another 20-second outage. Original-window Submit/readback remained usable after both boundaries, so protection is unsupported. Recovery restored lock availability, supported lock/protected input, original child work and the same parent session/input/work. Collection, worker closure, normal facade/setting/native-owner restoration and baseline restoration passed; VM independently off. Fedora remains unqualified. No protection or customer-case credit; return only with supported protection by the original deadline while ordinary work survives. |
 
 Work implementing a pending full scenario must use its stable case ID,
-recipe and canonical task; register and accept that case rather than an alias.
-Close that row as part of the actual delivery, so it cannot be scheduled later
-as duplicate implementation. When a later selected task encounters an already
-accepted exact scope, reconcile its remaining work and reuse that completion
-without rechecking old reports or rerunning it solely for a different label.
+recipe; register and accept that case rather than an alias. Reuse completed
+exact scope without rechecking old reports or repeating it for a different label.
 Partial operations and native probes do not close a complete customer case.
 Different account/provider/input bindings or code changes require only their
 affected qualification/regressions; no saved guest state transfers between runs.
-Required task prerequisites and supported-route gates still apply. For example,
+Required capabilities and supported-route gates still apply. For example,
 LIFE03 qualification is reused, but cases 124/125 each perform their own real
 suspend/wake and observe their own deadline, access and retained-work results.
 Cases 165–170 likewise each cross their original grant deadline before their
@@ -256,9 +238,8 @@ distinct action; case 164's pass supplies no state or expiry result to them.
 For mixed journeys, retain the minimum ordered observations needed to prove
 the distinct interaction, not a second generic expiry matrix. A native game
 retained across lock, app-policy restoration after unlock, or natural midnight
-is not supplied by a generic desktop lock pass. Current rows remain unchecked
-until their remaining outcomes actually pass. Existing checked rows stay done.
-This allocation does not advance or reorder the E2E queue.
+is not supplied by a generic desktop lock pass. An implementation or registration
+supplies no acceptance until its required outcomes pass.
 
 Source destinations for any future engineering extensions are
 [installed graphical expiry](../../tests/integration/system_graphical_expiry.py),
@@ -272,17 +253,20 @@ completion or acceptance claim.
 
 ### Expiry engineering contract
 
-Tasks 172a–172h and 172j–172l own only uncovered expiry effects at the existing installed
-session owner. Delivered panel-independent timed locking, fresh protected-input
+The installed session owner covers distinct expiry effects. Delivered
+panel-independent timed locking, fresh protected-input
 challenges, original-work recovery and foreground peer observations stay done;
 reuse those mechanics without rerunning unchanged qualification. Customer cases,
 reader faults and ordinary concurrency keep their owners above. The removed
 entry-exposure question stays only in [Unlock desktop](../Unlock_Desktop.md);
-these expiry tasks must not restore it as a prerequisite.
+expiry work must not restore it as a prerequisite.
 Planned bindings are not executable selectors; register the actual affected
-selection before execution. This planning merge changes no scenario IDs or status.
+selection before execution. Qualification changes neither scenario IDs nor
+customer acceptance.
 
-Every installed task requires Ubuntu 26.04 and Fedora 44. Follow the VM mandate’s
+Expiry engineering qualification requires Ubuntu 26.04 and Fedora 44. A narrowed
+diagnostic run establishes only its selected target, not the complete acceptance
+scope. Follow the VM mandate’s
 [timing rules](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) and
 [shared observer budgets](../../tests/support/README.md). Retain TIME04’s sample
 upper end plus 15 seconds and the existing engineering timed-lock bound. Declare
@@ -300,7 +284,7 @@ Restore only owned processes, sessions, grants, limits and fault state under the
 existing cleanup contract. No second ledger, provider matrix, fault framework,
 production hook, supervision policy or scheduler is introduced.
 
-Task 172k may repair transient public lock-action retry within the existing
+Transient public lock-action retry belongs within the existing
 owned enforcement callback and timer, as required by repeated exhaustion
 enforcement. This is not a separate expiry scheduler or fallback lock policy.
 Keep one finite-timeout lock request in flight, bound every retry by the
@@ -309,20 +293,21 @@ deadline, entitlement and session before each attempt. Cancel pending work on
 secure lock, renewal, disablement, owner invalidation, session departure or
 disposal. Retry spacing is an implementation choice within that bound; late
 recovery cannot retroactively pass protection. Persistent unavailability keeps
-172l's characterization-only scope. These settled results need no new behavior
+the characterization-only scope in the allocation above. These settled results need no new behavior
 choice; production edits retain the applicable code-review and validation mandates.
 
 Current production behavior is tested first. Missing supported fault ownership
 blocks a task. A production mismatch follows
 [failure handling](../../tests/README.md#handling-test-failures); record expected
 versus actual behavior and the return condition without weakening assertions.
-Task 172l may document an unsupported secure-lock boundary after actual attempts,
+A persistent-outage characterization may document an unsupported secure-lock
+boundary after actual attempts,
 but that is no passing protection result. No proposal-specific replacement or
-extension-disabled acceptance gate is imported into these current-path tasks.
+extension-disabled acceptance gate is imported into current-path checks.
 
 ## Complete scenario-family review
 
-Apply the [shared Snap acceptance boundary](E2E-Execution-Instructions.md#snap-acceptance-boundary)
+Apply the [shared Snap acceptance boundary](../Snap_Limitation.md#e2e-scope-decision)
 to every family. Allowed Snap use remains in scope; denial/closure cases
 88/90/94/95/96/97/239/242 remain pending and deferred without executables or
 acceptance credit. Generic application effects in other families use their

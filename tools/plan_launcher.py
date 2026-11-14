@@ -2,7 +2,7 @@
 
 PlanWorkflow supplies model, acceptance and close-out policy. Markdown selection,
 checkpoint recovery, task budgets, sessions, supervision and presentation stay
-shared. E2E and repair keep their specialized state machines on these primitives.
+shared. Test repair composes the shared launcher primitives with its own engine.
 """
 
 import argparse
@@ -816,7 +816,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     # Hash optional native sources without importing their runtime dependencies.
     'agent_adapter.py', 'agent_codex.py', 'agent_claude.py', 'agent_claude_bridge.py',
     'backend_reviewer.toml', 'plan_monitor.toml', 'plan_worker.toml',
-    'write_e2e_adviser.toml', 'sync_whatsnew_translator.toml',
+    'sync_whatsnew_translator.toml',
     'launcher_reload.py',
     'launcher_view.py', 'launcher_display.py', 'launcher_progress.py',
     'launcher_session.py', 'launcher_chat.py', 'launcher_render.py', 'watch_output.py',

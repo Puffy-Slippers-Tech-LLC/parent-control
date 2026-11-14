@@ -91,8 +91,7 @@ An empty provider tree after a desktop/greeter handoff can come from a closed
 accessibility-bus connection. Inspect the existing query error and connection
 lifetime before changing readiness waits. `PublicAtspi.call` discards a closed
 connection and its cached identities, then raises the original error; only the
-next bounded read may reconnect. Never replay input. Task 083's controlled
-disconnect established this failure mode. Maintenance greeter reads now use
+next bounded read may reconnect. Never replay input. Maintenance greeter reads now use
 the same `UiObservations` reader without source-rewriting trace instrumentation;
 normal query notes, operation timings and retained command errors remain.
 
@@ -129,8 +128,8 @@ lock state before input and independently requires the same active locked
 session afterward, preserving other desktops. It never authenticates, unlocks
 or relocks. `child-retained-locked` independently reads a sanitized logind
 session identity from GDM; the denial journey compares it before and after the
-two restriction/return routes. Both bindings passed Task 043a's configured-zero
-Ubuntu/Fedora qualification; see the [exact scope and reports](../../docs/TestAutomation/E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification).
+two restriction/return routes. Both bindings are qualified for configured-zero
+Ubuntu/Fedora entry; see the [exact scope](../../docs/TestAutomation/E2E-Building-Blocks.md#retained-child-time-restriction-and-greeter-return-qualification).
 `InstalledJourney` records these as `system:` stages. A subsequent GDM/app
 observation supplies the required public result. No Quick Settings, confirmation
 dialog or fallback after uncertain submission is involved.
@@ -640,7 +639,7 @@ Python helper dependencies are discovered automatically from declared entry poin
 and frozen for the invocation. Each installed-app case restores that
 snapshot without installing; package-lifecycle cases and product-free harness
 checks use baseline according to the enforced
-[case snapshot contract](../../docs/TestAutomation/E2E-Building-Blocks.md#parent-login-and-time-scenarios).
+[case entry declarations](../../docs/TestAutomation/E2E-Building-Blocks.md#add-a-consumer).
 A missing version snapshot at a restore boundary fails without reinstalling.
 For online cases the off callback restores the clean baseline; worker startup
 then resumes the saved memory instead of booting. Each attempt stages a fresh
@@ -672,7 +671,7 @@ The current ready set comes from `tools/run-tests e2e --vm NAME --list` and
 `scenarios.json`, with totals in [generated coverage](../../docs/Test-Coverage.md);
 do not maintain a second list here. Retained bindings do not
 qualify their provider routes or certify a current installed pass. Implement
-work in the [execution plan's fixed task order](../../docs/TestAutomation/E2E-Execution-Plan.md).
+work in the [implementation workflow](#verify-edits).
 
 E2E-004/app-grid composes the shared installed setup, standard-user login,
 app-grid search and ordered screen evidence. The
@@ -713,9 +712,7 @@ separate assertions. The shared command launcher closes Overview before input.
 Ordinary Parent feature cases, including About, use this same block with the
 management-window expectation. Only explicit app-grid discovery cases use
 search and open, under the [launch mandate](../../docs/Mandates/UI-Automation-Mandate.MD).
-The fresh standard denial and Parent management bindings passed complete cases
-6 and 151 in run `20260922T220454Z-80a92d46` (outside runner retention),
-including collection and cleanup. Case 151 reads the installed product's About
+Case 151 reads the installed product's About
 information through the Application UI API and returns to unchanged
 child/settings. It requires no external license viewer. Other entry
 bindings and provider workflows retain their catalogue qualification limits.
@@ -724,10 +721,8 @@ E2E-042/command-help is implemented by `command_help.PLAN` and
 both installed `--help` commands and both manuals through the guarded VM SSH
 transport. Each command independently validates its own bounded output. One
 final desktop observation completes the case; no per-command desktop roundtrip
-or Terminal is needed. The earlier stream route with per-command desktop checks
-passed complete case 193, including collection and cleanup, in run
-`20260922T225544Z-f49bdf46` (subject to runner retention). That historical run
-does not qualify the shortened composition.
+or Terminal is needed. Changed compositions require their own affected live
+qualification.
 The public `tools/run-tests e2e --vm NAME` route selects the ready set; a ready-suite pass
 is partial coverage while variants remain pending.
 
@@ -754,8 +749,6 @@ The inventory has 241 cases: 240 customer cases and one harness case. Retired
 E2E IDs 140–150 remain engineering system-test obligations outside this UI
 inventory. Displaced backend assertions remain under the [engineering
 reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
-Completed inventory-test compatibility work is recorded as task 192 in the
-[canonical queue](../../docs/TestAutomation/E2E-Task-Queue.md#ordered-task-queue).
 
 Run the canonical smoke with `tools/run-tests e2e --vm NAME --id '1'` using verified
 build artifacts. Its callback reuses the qualified serial worker and
@@ -1070,6 +1063,75 @@ controller qualification formerly assigned to E2E-034; current readiness is
 listed above.
 
 ## Verify edits
+
+Implement a case or a related change in a normal coding session. Use
+`tools/execute-plan PATH` with the [ordinary plan format](../../docs/Execution-Plans.md#plan-format)
+for a substantial batch. Installed briefs declare `Acceptance: installed`,
+canonical `Targets:` and exact selectors/results; host UI work declares
+`Acceptance: host`. These choices do not change the acceptance rules below.
+
+1. Identify the customer goal and finite inputs in the
+   [recipe](../../docs/TestAutomation/E2E-Scenario-Recipes.md), existing inventory
+   binding and [coverage allocation](../../docs/TestAutomation/UI-and-E2E-Coverage.md).
+   Apply the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD#result-oriented-test-scope)
+   to prerequisites as well as case steps. Local widget matrices belong in host
+   UI tests; fault injection and internal probes belong in engineering tests.
+2. Inspect the [shared operations](../../docs/TestAutomation/E2E-Building-Blocks.md)
+   and [support guide](../support/README.md). Cases own finite data, ordering and
+   assertions; shared libraries own input, observation, transport and recovery.
+   Reuse exact unchanged qualified bindings. Implement only the missing operation,
+   provider or safety boundary needed by the named consumer; no qualification
+   wrapper is required merely for a different composition of existing operations.
+3. Before live execution, complete the changed boundary's
+   [composition preflight](../../docs/TestAutomation/E2E-Building-Blocks.md#composition-preflight)
+   and the lowest effective affected host checks under
+   [test maintenance](../README.md#all-established-regressions). Existing shared
+   safety regressions remain required when their protected boundary changes.
+   Apply [parallelism review](../README.md#host-test-parallelism-review) to
+   resource-affecting test changes and
+   [slow-VM timing](../../docs/Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience)
+   to the complete preparation, interaction, observation and cleanup path.
+4. Qualify new or changed provider/safety bindings in their fixed guarded live
+   slice, including independent entry and owned cleanup. Keep dangerous-input
+   refusal matrices in focused shared safety coverage. Qualification proves only
+   its exact target, provider/version/locale, inputs and outcomes; host checks
+   cannot qualify an installed binding, and a slice cannot pass a complete case.
+5. Register a complete case in the existing inventory/worker path. Set its
+   variant to `ready` with its executable binding and null `pending_reason`
+   once it can run; registration itself supplies no acceptance. Run the exact
+   `tools/run-tests e2e --id 'CASE'` on the required targets under
+   [installed preparation](#run-e2e-scenarios) and the
+   [VM mandate](../../docs/Mandates/VM-Mandate.MD). An explicit `--vm NAME`
+   narrows the result to that target. Fresh declared state, independent public
+   results, reconciliation, collection and owned cleanup are all required.
+6. For a failure, preserve expected versus actual behavior under
+   [failure handling](../README.md#handling-test-failures). Repair proven
+   mechanical defects without weakening assertions; use
+   [live diagnosis](../README.md#live-diagnosis-before-another-repair-attempt)
+   when the cause remains unclear. Internal probes and experiments never replace
+   clean acceptance.
+7. Update the changed recipe and catalogue's current callable, qualified scope
+   and remaining limitation. Preserve scenario IDs and suite allocation.
+   Run `tools/generate_test_coverage.sh` after every successfully implemented
+   scenario and after inventory/collection changes. Check changed Markdown with
+   `tools/read-only links` and inventory registration with
+   `tools/run-tests e2e --list`. Report actual results and remaining limitations.
+
+Use the existing guarded envelope and argument-free
+`tests/integration/check_[a-z][a-z0-9_]*.py` route for a missing fixed
+qualification, invoked as `tools/run-tests system --vm NAME CHECK`.
+A building-block qualification is not automatically a standalone system-test
+registration; apply the
+[assertion ownership boundary](../../docs/TestAutomation/UI-and-E2E-Coverage.md#reuse-of-system-coverage).
+Engineering obligations use their existing installed-system selectors and
+fault/recovery assertions; local UI obligations use their existing host UI owners.
+Neither supplies customer E2E acceptance.
+
+Completion requires the current work's checks and owned cleanup. A completed
+prerequisite needs no replay or archival proof. Shared changes receive affected
+checks in the current work. Keep a short result/handoff; runner reports and
+recordings remain bounded disposable diagnostics. Do not create task histories,
+proof bundles or evidence-renewal work.
 
 ### Asset transfer qualification
 
@@ -1777,7 +1839,7 @@ through `exec`; this route
 supplies no acceptance credit. Finish with the owned `stop` before clean case
 acceptance.
 
-`tools/test-vm --vm NAME reproduce-retained-entry` retains Task 044's actual
+`tools/test-vm --vm NAME reproduce-retained-entry` retains the
 two-child activity and Parent return history at `riley-restricted-curtain`,
 after the independently verified locked-child entry guard and before any
 curtain observation or reveal. It uses `RetainedEntryJourney` / `PLAN` in the
@@ -1853,7 +1915,7 @@ probes. `probe-panel-request` repeats only the read-only panel preflight in that
 retained session. The same VM-bound fixtures, recipient guards and maintenance ownership
 apply; it supplies no acceptance credit. Finish with `tools/test-vm --vm NAME stop`.
 
-`tools/test-vm --vm NAME reproduce-fullscreen-request` reuses task 129a's
+`tools/test-vm --vm NAME reproduce-fullscreen-request` reuses
 `fullscreen_request.PLAN` through Jordan's daily allowance, fresh child entry
 and one real fullscreen game move. It stops before `first-request-panel`,
 records the shared `overlay-panel-ready` read in `boundary-observation.json`
@@ -1894,7 +1956,7 @@ guest through guarded `exec`, then finish with `tools/test-vm stop`. This suppli
 diagnostic evidence only. Missing named package inputs use the printed
 `tools/run-tests artifacts prepare --for-vm --vm NAME --output PATH` command.
 
-`tools/test-vm --vm NAME reproduce-retained-app-visits` retains Task 047a's
+`tools/test-vm --vm NAME reproduce-retained-app-visits` retains the
 shared Parent activity capture and Riley login at `riley-activity-command`.
 It exercises the current guarded native command once and retains its result
 and private command evidence for probes in Riley's actual session. Verified
@@ -1922,7 +1984,7 @@ The case's qualified fixture profile, owned maintenance envelope and input guard
 active. It supplies no acceptance credit; finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
-`tools/test-vm --vm NAME reproduce-native-desktop-new-window` reuses 036h's
+`tools/test-vm --vm NAME reproduce-native-desktop-new-window` reuses
 `native_desktop_new_window.PLAN` through its trusted S placement and original
 submitted draft. It stops at `first-second-icon`, records the actual guarded
 icon observation and retains Jordan's original S window for `exec` probes.
@@ -1932,7 +1994,7 @@ diagnostics use the same maintenance envelope and supply no acceptance credit;
 finish with `tools/test-vm --vm NAME stop` before clean qualification.
 
 Snap enforcement diagnosis is deferred by developer decision on 2026-11-05.
-The [shared Snap boundary](../../docs/TestAutomation/E2E-Execution-Instructions.md#snap-acceptance-boundary)
+The [Snap scope decision](../../docs/Snap_Limitation.md#e2e-scope-decision)
 excludes this reproduction from ordinary E2E tasks and regression gates. Consult
 [Snap limitations](../../docs/Snap_Limitation.md) instead of rediscovering the
 known failure or requesting another product decision. Use this diagnostic only
@@ -2067,9 +2129,8 @@ qualification; repository-owned UI always requires public automation IDs.
 
 Case 1 retains its `AccessibleUI`/`UiObservations` checkpoints, intended-account
 prompt, Escape return, real serial command/logout and fresh graphical return.
-Task 003a must qualify ordinary GDM account/recipient resolution before task 001r
-reruns that complete case. Its ready inventory binding does not qualify current
-provider discovery. Account selection uses the scoped GDM adapter with observed
+Ordinary GDM account/recipient resolution requires its own scoped qualification.
+The ready inventory binding does not qualify provider discovery. Account selection uses the scoped GDM adapter with observed
 focus/result, never list-position-derived key counts. No graphical password is
 submitted by case 1.
 

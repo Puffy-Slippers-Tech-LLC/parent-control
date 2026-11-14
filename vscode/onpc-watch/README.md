@@ -256,7 +256,7 @@ changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extens
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
-For every execution-plan launcher, including `write-e2e`, every view
+For every execution-plan launcher, every view
 starts with **Total Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels
 scroll the summary horizontally instead of wrapping it. A divider

@@ -52,10 +52,6 @@
     {
       "name": "run-tests",
       "default_branch": "main"
-    },
-    {
-      "name": "write-e2e",
-      "default_branch": "worktree"
     }
   ],
   "families": [

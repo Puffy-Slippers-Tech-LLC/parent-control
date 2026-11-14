@@ -39,6 +39,9 @@ def e2e_identities(root):
 
 
 E2E_QUALIFICATIONS = {
+    '--qualify-lunar-autostart': ('check_e2e_lunar_autostart',
+        'Check allowed Lunar startup after sign-in',
+        'tests/integration/lunar_profile_qualification.py'),
     '--qualify-minecraft-access': ('check_e2e_minecraft_access',
         'Check Minecraft launcher access after approval',
         'tests/integration/lunar_profile_qualification.py'),

@@ -17,7 +17,7 @@ import system_runner as system
 
 
 def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
-            minecraft=False, minecraft_access=False, fixture_selection=None):
+            minecraft=False, minecraft_access=False, autostart=False, fixture_selection=None):
     suite = Suite(open_source)
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -47,7 +47,13 @@ def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
             result['profile'] = LunarProfile(transport, suite.verified).verify()
             result['target'] = suite.source.domain.name()
             result['installed_snapshot'] = lease.installed_name
-            if denial or minecraft_access:
+            if autostart:
+                from calendar_fixture import preset_ordinary_daytime
+                from lunar_autostart import PLAN
+                from policy_edits import AppPolicyJourney
+                result['autostart'] = run_journey(directory, lease, transport, suite.verified,
+                    PLAN, {'daytime-clock': preset_ordinary_daytime}, journey_class=AppPolicyJourney)
+            elif denial or minecraft_access:
                 from calendar_fixture import preset_ordinary_daytime
                 from native_fixtures import fixture_actions
                 if minecraft_access:
@@ -182,7 +188,7 @@ def run_journey(directory, lease, transport, verified, plan, actions, *, journey
 
 
 def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False,
-         minecraft_access=False, fixture_selection=None):
+         minecraft_access=False, autostart=False, fixture_selection=None):
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
@@ -191,11 +197,12 @@ def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False
     if denial or minecraft_access:
         from e2e_fixture_preparation import validate_input
         fixture_selection = validate_input(fixture_selection)
-    label = ('minecraft-access' if minecraft_access else
+    label = ('lunar-autostart' if autostart else 'minecraft-access' if minecraft_access else
              'minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else 'lunar-tray' if tray else
              'lunar-launch-quit' if launch_quit else 'lunar-profile')
     return run_qualification(label, lambda directory: qualify(
         directory, assets, launch_quit=launch_quit, tray=tray, denial=denial,
         minecraft=minecraft, minecraft_access=minecraft_access,
+        autostart=autostart,
         fixture_selection=fixture_selection),
                              preflight=preflight)

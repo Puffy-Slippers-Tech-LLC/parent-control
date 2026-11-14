@@ -837,6 +837,27 @@ sub minecraft_access {
     $journey->finish();
 }
 
+sub lunar_autostart {
+    onpc_progress::operation('Checking that allowed Lunar starts when Jordan signs in');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'lunar:autostart-arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'lunar-autostart', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    onpc_text::replace_text($journey, 'catalogue-lunar', 'lunar-search');
+    $journey->seen($_) for qw(lunar-policy-save lunar-policy-saved parent-logout);
+    onpc_desktop_session::enter_desktop(
+        $journey, 'gdm', 'other-child', 'fresh', 'success', 'child-entry');
+    # No launch input: the supplied login-autostart route must supply presence.
+    $journey->seen($_) for qw(observer-ready autostart-present quit closed child-logout);
+    $journey->finish();
+}
+
 sub lunar_denial {
     onpc_progress::operation('Checking that a parent block stops Lunar while other work remains usable');
     my ($exchange, $declared, $challenges) = @_;

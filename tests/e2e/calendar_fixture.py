@@ -52,7 +52,7 @@ def preset_ordinary_daytime(journey, guard):
     """Start a declared non-calendar journey at noon, independent of host time."""
     return _preset_ordinary(journey, guard, ORDINARY_DAYTIME,
                             ('homework-game', 'game-permission', 'riley-game-permission',
-                             'family-routines', 'lunar-denial', 'minecraft-access'))
+                             'family-routines', 'lunar-denial', 'lunar-autostart', 'minecraft-access'))
 
 
 def _preset_ordinary(journey, guard, program, prefixes):

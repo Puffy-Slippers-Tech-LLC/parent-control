@@ -1195,6 +1195,12 @@ sub run {
         onpc_app_rows::minecraft_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
+    if ($ready->{lunar_autostart}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::lunar_autostart(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        return;
+    }
     if ($ready->{lunar_denial}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

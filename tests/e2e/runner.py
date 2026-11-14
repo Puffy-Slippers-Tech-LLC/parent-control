@@ -56,13 +56,14 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-lunar-profile', action='store_true')
     qualification.add_argument('--qualify-lunar-launch-quit', action='store_true')
     qualification.add_argument('--qualify-lunar-tray', action='store_true')
+    qualification.add_argument('--qualify-lunar-autostart', action='store_true')
     qualification.add_argument('--qualify-lunar-denial', action='store_true')
     qualification.add_argument('--qualify-minecraft-entry-exit', action='store_true')
     qualification.add_argument('--qualify-minecraft-access', action='store_true')
     args = parser.parse_args(argv)
     if (args.qualify_lunar_profile or args.qualify_lunar_launch_quit or args.qualify_lunar_tray
             or args.qualify_lunar_denial or args.qualify_minecraft_entry_exit
-            or args.qualify_minecraft_access):
+            or args.qualify_minecraft_access or args.qualify_lunar_autostart):
         if (args.list or args.scenario is not None or args.id is not None or args.ready
                 or args.fixture_selection is not None and not (
                     args.qualify_lunar_denial or args.qualify_minecraft_access)):
@@ -84,7 +85,8 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
             finally:
                 sys.path.pop(0)
             selection = Selection.from_record(json.loads(args.fixture_selection)).record()
-        return {'mode': ('minecraft-access-qualification' if args.qualify_minecraft_access else
+        return {'mode': ('lunar-autostart-qualification' if args.qualify_lunar_autostart else
+                         'minecraft-access-qualification' if args.qualify_minecraft_access else
                          'minecraft-entry-exit-qualification' if args.qualify_minecraft_entry_exit else
                          'lunar-denial-qualification' if args.qualify_lunar_denial else
                          'lunar-tray-qualification' if args.qualify_lunar_tray else
@@ -250,12 +252,14 @@ def main(argv=None):
         import qualification_storage
         with qualification_storage.session(run=requested_run, require_owner=True):
             if plan['mode'] in ('lunar-profile-qualification', 'lunar-launch-quit-qualification',
-                                'lunar-tray-qualification', 'lunar-denial-qualification',
+                                'lunar-tray-qualification', 'lunar-autostart-qualification',
+                                'lunar-denial-qualification',
                                 'minecraft-entry-exit-qualification', 'minecraft-access-qualification'):
                 import lunar_profile_qualification
                 return lunar_profile_qualification.main(assets=Path(plan['artifacts']),
                     launch_quit=plan['mode'] == 'lunar-launch-quit-qualification',
                     tray=plan['mode'] == 'lunar-tray-qualification',
+                    autostart=plan['mode'] == 'lunar-autostart-qualification',
                     denial=plan['mode'] == 'lunar-denial-qualification',
                     minecraft=plan['mode'] == 'minecraft-entry-exit-qualification',
                     minecraft_access=plan['mode'] == 'minecraft-access-qualification',

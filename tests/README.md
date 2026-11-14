@@ -314,13 +314,13 @@ or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
 `run-tests` expands categories into ordered subcategories and executes groups
 sequentially. The original `--vm` selection is an allowed superset. Test inventory
-owns `vm_tag` inheritance; VM configuration owns required family `vm_tags` and
+owns `vm_tags` inheritance; VM configuration owns required family `vm_tags` and
 optional replacing VM overrides. The runner filters each group by exact tag
 membership before shared capacity admission. No matching VM for a required family
 is an unschedulable selection, never a skip or a pass. The scheduler manages
 capacity, leases and workers without knowing test membership or tag inheritance.
-E2E has subcategories `general` (`vm_tag: general`) and `e2e-heavy`
-(`vm_tag: heavy`). All Lunar and Minecraft cases belong to `e2e-heavy`;
+E2E has subcategories `general` (`vm_tags: general`) and `e2e-heavy`
+(`vm_tags: heavy`). All Lunar and Minecraft cases belong to `e2e-heavy`;
 cases declare subcategory membership, never VM tags. FIX05 uses
 `e2e --subcategory e2e-heavy --qualify-lunar-profile` through the same routing.
 The VM registry owns the available machines and their tags.

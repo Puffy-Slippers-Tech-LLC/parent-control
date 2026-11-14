@@ -4902,7 +4902,7 @@ download, integrate or reconstruct it. Report any actual launcher/profile setup
 gap to the developer before implementing setup changes. Do not resume dependency
 acquisition or profile-reconstruction research for inputs already present.
 All Lunar/Minecraft cases and focused qualifications use category `e2e`,
-subcategory `e2e-heavy`. That subcategory declares `vm_tag: heavy`; individual
+subcategory `e2e-heavy`. That subcategory declares `vm_tags: heavy`; individual
 cases declare only subcategory membership. Preserve the VM registry's tags.
 The developer's revised scope checks the launchers themselves:
 use Lunar's guest mode and the separate Minecraft launcher's usable signed-out

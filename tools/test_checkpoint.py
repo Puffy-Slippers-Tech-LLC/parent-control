@@ -256,14 +256,18 @@ class GroupCheckpoint:
             raise ValueError('invalid sequential test group checkpoint')
         keys = set()
         for group, workers, outcome in zip(state['groups'], state['workers'], state['outcomes'], strict=True):
-            if (not isinstance(group, dict) or set(group) != {'key', 'category', 'args', 'vm_tag', 'vms'}
+            # Accept the former field name without discarding retained admissions
+            # or case credit. Subsequent saves use the canonical plural name.
+            if isinstance(group, dict) and 'vm_tag' in group and 'vm_tags' not in group:
+                group['vm_tags'] = group.pop('vm_tag')
+            if (not isinstance(group, dict) or set(group) != {'key', 'category', 'args', 'vm_tags', 'vms'}
                     or not isinstance(group['key'], str) or group['key'] in keys
                     or not re.fullmatch(r'[a-z0-9.-]+', group['key'])
                     or not isinstance(group['category'], str)
                     or not isinstance(group['args'], list)
                     or any(not isinstance(arg, str) for arg in group['args'])
-                    or group['vm_tag'] is not None and (not isinstance(group['vm_tag'], str)
-                        or not re.fullmatch(r'[a-z0-9-]+', group['vm_tag']))
+                    or group['vm_tags'] is not None and (not isinstance(group['vm_tags'], str)
+                        or not re.fullmatch(r'[a-z0-9-]+', group['vm_tags']))
                     or not isinstance(group['vms'], list)
                     or any(not isinstance(name, str) or name not in state['pool'] for name in group['vms'])
                     or workers is not None and (not isinstance(workers, list)

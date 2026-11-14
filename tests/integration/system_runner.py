@@ -2305,7 +2305,7 @@ def capture_session_screen(lease, output):
         raise
 
 
-def run_pytest(vm, run, phase, selection):
+def run_pytest(vm, run, phase, selection, *, on_output=None):
     """Forward only registered test events; raw SSH output stays private."""
     from system_progress import Progress
     previous = getattr(vm.commands, 'progress', None)
@@ -2324,7 +2324,8 @@ def run_pytest(vm, run, phase, selection):
     from vm_transport import package_operation
     try:
         with package_operation(vm, 'Guest package lifecycle: ' + phase) if package_history else nullcontext():
-            return vm.call(pytest_command(run, phase, selection), timeout=timeout)
+            return vm.call(pytest_command(run, phase, selection), timeout=timeout,
+                           **({} if on_output is None else {'on_output': on_output}))
     finally:
         vm.product_logs_per_case = vm.commands.last_returncode in (0, 1)
         vm.commands.progress.close()
@@ -2409,6 +2410,40 @@ def prepare_extension_parent(vm, lease, directory, ledger, fixture_context, fixt
     result = prepare_parent_desktop(output, lease, vm, ledger,
         expected_inputs=verified.source_files, progress=progress, context=context)
     (output / 'result.json').write_bytes(baseline.encode(result))
+
+
+def extension_parent_preparation(vm, run, lease, directory, ledger,
+                                fixture_context, fixture_selection):
+    """Defer parent entry until the selected case finishes its child histories."""
+    pending = b''
+    requested = False
+
+    def on_output(data):
+        nonlocal pending, requested
+        pending += data
+        while b'\n' in pending:
+            line, pending = pending.split(b'\n', 1)
+            if line != b'ONPC-EXTENSION-PARENT-PREPARE':
+                continue
+            require(not requested, 'extension-parent:duplicate-preparation-request')
+            requested = True
+            previous_progress = vm.commands.progress
+            vm.commands.progress = None
+            try:
+                # Nested commands retain the same VM owner. Their output must
+                # not enter the suspended pytest progress parser.
+                from owned_commands import vm_operation
+                with vm_operation():
+                    prepare_extension_parent(vm, lease, directory, ledger,
+                                             fixture_context, fixture_selection)
+                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
+                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_monitor.py',
+                             'parent-ready'], timeout=120)
+            finally:
+                vm.commands.progress = previous_progress
+        require(len(pending) <= 1024 * 1024, 'extension-parent:preparation-output-bound')
+
+    return on_output
 
 
 def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixture_selection):
@@ -2749,11 +2784,6 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 log('stage:extension-monitor-reboot')
                 with ledger.measure('reboot'):
                     reboot()
-                if any(item.case_id == 'test_child_extension_monitor_native_recovery'
-                       for item in selection.executions):
-                    with ledger.measure('test'):
-                        prepare_extension_parent(vm, lease, directory, ledger,
-                                                 fixture_context, fixture_selection)
             if phase == 'extension-login':
                 if already_installed:
                     require_fixture_ready()
@@ -2791,7 +2821,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 try:
                     if already_installed:
                         require_fixture_ready()
-                    run_pytest(vm, run, phase, selection)
+                    parent_preparation = (extension_parent_preparation(
+                        vm, run, lease, directory, ledger, fixture_context, fixture_selection)
+                        if phase == 'extension' and any(
+                            item.case_id == 'test_child_extension_monitor_native_recovery'
+                            for item in selection.executions) else None)
+                    run_pytest(vm, run, phase, selection, on_output=parent_preparation)
                     if phase == ENFORCEMENT_STARTUP_PHASE:
                         sys.path.insert(0, str(ROOT / 'tests/e2e'))
                         from startup_observations import ENFORCEMENT, parse_enforcement

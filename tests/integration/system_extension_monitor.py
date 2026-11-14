@@ -25,6 +25,7 @@ SHELL = 'org.gnome.Shell'
 INTERFACE = 'org.gnome.Shell.Extensions'
 PATH = '/org/gnome/Shell'
 FIXTURE = guest.PAYLOAD / 'results' / 'extension-prepared.json'
+PARENT_READY = FIXTURE.with_name('extension-parent-ready.json')
 ENABLED_CHOICE = 'onpc-monitor-enabled-fixture@example.invalid'
 DISABLED_CHOICE = 'onpc-monitor-disabled-fixture@example.invalid'
 
@@ -56,6 +57,10 @@ def prepare():
     accepted(call(accounts['parent'], 'SetParentControl', '(ubu)',
                   (accounts['child'], False, 1440)))
     manager._set_boolean(child, 'disable-user-extensions', False)
+    # Complete this activation prerequisite before the live persistence fault.
+    # Otherwise the unwritable dconf directory rejects the version switch before
+    # native enablement can exercise runtime/durable-settings verification.
+    manager._set_boolean(child, 'disable-extension-version-validation', True)
     enabled = manager._list(child, 'enabled-extensions')
     disabled = manager._list(child, 'disabled-extensions')
     guest.require(not {ENABLED_CHOICE, DISABLED_CHOICE}.intersection(enabled + disabled),
@@ -76,6 +81,65 @@ def prepare():
         json.dump({'run': marker['run'],
                    'boot': Path('/proc/sys/kernel/random/boot_id').read_text(),
                    'other_accounts': others, 'other_child_choices': other_choices}, stream)
+
+
+def renew_child_desktop():
+    """Restore the next stage's fresh autologin desktop without changing policy."""
+    guest.guard()
+    child = identities()['child']
+    guest.require(account_property(child, 'org.freedesktop.Accounts.User',
+                                   'AutomaticLogin') is True,
+                  'extension:stage-autologin-not-prepared')
+    previous = child_session(child)
+    if previous is not None:
+        session, _ = previous
+        result = json.loads(guest.run([
+            '/usr/bin/python3', '-I', str(guest.PAYLOAD / 'session-control'),
+            'maintenance-logout', str(child), session], timeout=90))
+        guest.require(result.get('outcome') == 'passed' and child_session(child) is None,
+                      'extension:stage-logout-not-observed')
+    # This shared route refuses any other user desktop before restarting GDM.
+    guest.prepare_activation_greeter()
+    current = wait_for(lambda: child_session(child), 'extension:stage-child-session')
+    guest.require(previous is None or current[0] != previous[0],
+                  'extension:stage-child-session-not-renewed')
+
+    def unlocked():
+        observed = child_session(child)
+        return (observed is not None and observed[0] == current[0]
+                and observed[1]['LockedHint'] == 'no')
+
+    wait_for(unlocked, 'extension:stage-child-session-locked')
+
+
+def request_parent_desktop():
+    """Pause pytest until its host owner completes guarded parent entry."""
+    marker = guest.guard()
+    guest.require(not PARENT_READY.exists() and not PARENT_READY.is_symlink(),
+                  'extension:parent-preparation-collision')
+    print('\nONPC-EXTENSION-PARENT-PREPARE\n', end='', flush=True)
+    wait_for(PARENT_READY.exists, 'extension:parent-preparation-timeout', timeout=660)
+    info = PARENT_READY.lstat()
+    guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0
+                  and info.st_nlink == 1 and stat.S_IMODE(info.st_mode) == 0o600
+                  and info.st_size <= 1024,
+                  'extension:parent-preparation-owner')
+    guest.require(json.loads(PARENT_READY.read_text()) == {
+        'run': marker['run'], 'boot': Path('/proc/sys/kernel/random/boot_id').read_text()},
+        'extension:parent-preparation-identity')
+
+
+def parent_desktop_ready():
+    """Acknowledge only after the host's attached worker has finished cleanup."""
+    marker = guest.guard()
+    guest.require(not PARENT_READY.exists() and not PARENT_READY.is_symlink(),
+                  'extension:parent-preparation-collision')
+    pending = PARENT_READY.with_suffix('.pending')
+    with pending.open('x') as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump({'run': marker['run'],
+                   'boot': Path('/proc/sys/kernel/random/boot_id').read_text()}, stream)
+    pending.rename(PARENT_READY)
 
 
 class Shell:
@@ -371,7 +435,8 @@ def verify(publish):
         publish('onpc.extension.' + name, json.dumps(value, sort_keys=True))
     accounts = identities()
     child = accounts['child']
-    session, _props = wait_for(lambda: child_session(child), 'extension:child-session')
+    session, props = wait_for(lambda: child_session(child), 'extension:child-session')
+    guest.require(props['LockedHint'] == 'no', 'extension:initial-child-session-locked')
     manager = installed_manager()
     account, _ = manager._account(child)
     wait_for(lambda: manager._shell_is_available(account), 'extension:shell-unavailable')
@@ -1260,5 +1325,8 @@ def verify_failure_reporting(publish):
 
 
 if __name__ == '__main__':
-    guest.require(sys.argv[1:] == ['prepare'], 'extension:arguments')
-    prepare()
+    guest.require(sys.argv[1:] in (['prepare'], ['parent-ready']), 'extension:arguments')
+    if sys.argv[1] == 'prepare':
+        prepare()
+    else:
+        parent_desktop_ready()

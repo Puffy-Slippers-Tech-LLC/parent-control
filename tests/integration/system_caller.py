@@ -265,7 +265,7 @@ class TextAgent:
 class PersistentCaller:
     """Keep a guarded real caller alive; signal only its recorded pidfd."""
 
-    def __init__(self, uid):
+    def __init__(self, uid, *, allow_root=False):
         guest.guard()
         self.child = subprocess.Popen(
             ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],
@@ -280,7 +280,7 @@ class PersistentCaller:
             raise
         self.pending = b''
         try:
-            self.send({'uid': uid, 'stream': True})
+            self.send({'uid': uid, 'stream': True, 'allow_root': allow_root})
             ready = self.receive()
             guest.require(ready.get('uid') == uid and
                           isinstance(ready.get('name'), str) and ready['name'].startswith(':'),

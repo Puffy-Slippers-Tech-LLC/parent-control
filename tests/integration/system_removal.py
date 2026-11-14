@@ -21,7 +21,7 @@ import threading
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, call, session_limits
+from system_assertions import accepted, account_property, account_state, account_states, call, session_limits
 from system_caller import PersistentCaller
 from system_enforcement import native_paths, observe_launch, provision_native
 
@@ -51,12 +51,12 @@ def boot():
 
 def account_digest(uid, *, include_preferences=True):
     """Witness full retained state, or native policy independently of purge data."""
-    return _account_digest(account_state(uid), include_preferences=include_preferences)
+    return _account_digest(account_states((uid,))[uid], include_preferences=include_preferences)
 
 
 def account_digests(uid):
     """Derive both removal/purge witnesses from one fresh native observation."""
-    state = account_state(uid)
+    state = account_states((uid,))[uid]
     return (_account_digest(state, include_preferences=True),
             _account_digest(state, include_preferences=False))
 

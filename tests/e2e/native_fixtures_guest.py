@@ -379,9 +379,15 @@ def product_tree(g, path, parent):
 
 
 def execute(action, expected, profile='native'):
-    require(action in ('read', 'refuse'))
+    require(action in ('read', 'verify', 'refuse'))
     require(profile in ('native', 'native-selected', 'game', 'riley-game', 'chinese', 'riley-grid',
                         'baseline-child-selected', 'activity', 'activity-selected'))
+    if action == 'verify':
+        # Keep both complete, independent file/session reads. They need no
+        # intervening controller action or second SSH/bootstrap process.
+        value = execute('read', expected, profile)
+        require(execute('read', expected, profile) == value)
+        return {'readback': value, 'independent_readback': True}
     if profile == 'activity-selected':
         require(action == 'read')
         return selected_activity_readback(expected)

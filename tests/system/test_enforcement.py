@@ -89,12 +89,15 @@ def _native_probe_systemd_lifecycle(record_testsuite_property):
 
 def _native_future_pattern_is_uid_scoped(record_testsuite_property):
     """Keep pattern growth and missing-launcher persistence in one finite case."""
-    run_checks(record_testsuite_property, (
-        ('future-pattern', lambda record: native_policy_transition(
-            provision_native('pattern'), record, variant='pattern')),
-        ('missing-launcher', lambda record: native_policy_transition(
-            provision_native('retention'), record, variant='retention')),
-    ))
+    from system_caller import PersistentCaller
+    accounts = provision_native('pattern')
+    with PersistentCaller(accounts['parent']) as caller:
+        run_checks(record_testsuite_property, (
+            ('future-pattern', lambda record: native_policy_transition(
+                accounts, record, variant='pattern', caller=caller)),
+            ('missing-launcher', lambda record: native_policy_transition(
+                provision_native('retention'), record, variant='retention', caller=caller)),
+        ))
 
 
 def _kiosk_expiry_installed_runtime(record_testsuite_property):

@@ -294,27 +294,15 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
                 **{stage: operation + 'files-' + name + '-' + action for stage, action in (
                     ('files', 'launch'), ('opened', 'opened'),
                     ('submit', 'submit'), ('submitted', 'submitted'))}}
-    if kind == 'flatpak':
+    if kind in ('snap', 'flatpak'):
         require((route == 'command' or instance == 'primary') and (child == 'other-child'
                 or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')
                 and type(desktop_observation) is bool and instance in ('primary', 'secondary')
-                and (instance == 'primary' or role == 'S'), 'journey:flatpak-binding')
+                and (instance == 'primary' or role == 'S'), 'journey:' + kind + '-binding')
         name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]
         name += '-second' if instance == 'secondary' else ''
-        return {stage: 'ui:' + ('overlay-' if child == 'child' else '') + 'flatpak-' + name + '-' + action for stage, action in (
-            *((('desktop', 'desktop'),) if desktop_observation else ()),
-            *((('command', 'command-launch'),) if route == 'command' else (
-                ('search-ready', 'search-ready'), ('search-focused', 'search-focused'),
-                ('search-entered', 'search-entered'), ('app-grid', 'grid'))), ('opened', 'opened'),
-            ('submit', 'submit'), ('submitted', 'submitted'))}
-    if kind == 'snap':
-        require((route == 'command' or instance == 'primary') and (child == 'other-child'
-                or child == 'child' and role == 'A' and instance == 'primary') and role in ('A', 'H', 'S')
-                and instance in ('primary', 'secondary') and (instance == 'primary' or role == 'S'),
-                'journey:snap-binding')
-        name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]
-        name += '-second' if instance == 'secondary' else ''
-        return {stage: 'ui:' + ('overlay-' if child == 'child' else '') + 'snap-' + name + '-' + action for stage, action in (
+        operation = 'ui:' + ('overlay-' if child == 'child' else '') + kind + '-' + name + '-'
+        return {stage: operation + action for stage, action in (
             *((('desktop', 'desktop'),) if desktop_observation else ()),
             *((('command', 'command-launch'),) if route == 'command' else (
                 ('search-ready', 'search-ready'), ('search-focused', 'search-focused'),

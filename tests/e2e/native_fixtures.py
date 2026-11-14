@@ -142,7 +142,7 @@ class NativeFixtures:
                                     'native-selected' if selection is not None and self.profile == 'native'
                                     else self.profile),
                                    json.dumps(expected, sort_keys=True)],
-                                  input=guest_source(), timeout=90)
+                                  input=guest_source(), timeout=180 if action == 'verify' else 90)
         require(type(raw) is bytes and 0 < len(raw) <= 8192, 'native:response-bound')
         value = json.loads(raw)
         require(type(value) is dict and raw == (json.dumps(value, sort_keys=True) + '\n').encode(),
@@ -150,6 +150,11 @@ class NativeFixtures:
         self.verified.recheck()
         if selection is not None:
             prepared['controller'].require_ready(prepared['receipt'])
+        if action == 'verify':
+            require(set(value) == {'readback', 'independent_readback'}
+                    and value['independent_readback'] is True and type(value['readback']) is dict,
+                    'native:independent-readback')
+            return value['readback']
         return value
 
     def refuse(self):
@@ -168,12 +173,11 @@ class NativeFixtures:
                        'Verifying declared offline game files and launcher for [Child user]'
                        if self.profile == 'game' else
                        'Verifying declared native launchers for [Child user]'):
-            value = self.command('read')
+            value = self.command('verify')
             if self.profile == 'activity':
                 require(set(value) == {'files', 'native_trust'}
                         and set(value['files']) == set(activity_sources())
                         and value['native_trust'] is True, 'native:activity-receipt')
-                require(self.command('read') == value, 'native:independent-readback')
                 self.receipt = value
                 self.failed = False
                 return {'verified_files': len(value['files']), 'native_trust': True,
@@ -187,7 +191,6 @@ class NativeFixtures:
                         'native:chinese-receipt')
                 validate_receipt({key: item for key, item in value.items()
                                   if key != 'unchanged_state'})
-                require(self.command('read') == value, 'native:independent-readback')
                 self.receipt = value
                 self.failed = False
                 return {**value, 'independent_readback': True}
@@ -205,7 +208,6 @@ class NativeFixtures:
                     and set(value['files']) == set(names)
                     and value['launchers'] == launchers,
                     'native:receipt')
-            require(self.command('read') == value, 'native:independent-readback')
             self.receipt = value
         self.failed = False
         return {'verified': len(launchers), 'verified_files': len(value['files']),

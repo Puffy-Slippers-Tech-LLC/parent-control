@@ -2592,7 +2592,22 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             vm.wait_boot_complete()
             from system_fixture_preparation import renew_after_reboot
             renew_after_reboot(fixture_context)
+
     run = lease.state['run']
+
+    def prepare_reboot(script, operation, *, timeout=300):
+        # Each history keeps its own fixture and real reboot; share only the
+        # command/readiness mechanics and their normal stage timing.
+        if already_installed:
+            require_fixture_ready()
+        log('stage:' + operation + '-fixture')
+        with ledger.measure('test', operation=operation + '-fixture'):
+            vm.call(['env', f'ONPC_EXPECTED_RUN={run}',
+                     'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
+                     PAYLOAD + '/' + script, 'prepare'], timeout=timeout)
+        log('stage:' + operation + '-reboot')
+        with ledger.measure('reboot', operation=operation):
+            reboot()
 
     def collect_guest(outcome, *, destination=None):
         destination = directory / 'guest-results' if destination is None else destination
@@ -2647,7 +2662,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 vm.call(guest_command(run, 'verify-installed'), timeout=660)
         elif has_previous:
             log('stage:package-install')
-            with ledger.measure('install'):
+            with ledger.measure('install', operation='previous-package'):
                 vm.call(guest_command(run, 'install-previous'), timeout=2400)
             if trusted_fixtures:
                 # Preserve the verified old installation before its required
@@ -2656,11 +2671,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('collection'):
                     collect_guest('installed')
             log('stage:previous-package-reboot')
-            with ledger.measure('reboot'):
+            with ledger.measure('reboot', operation='previous-package'):
                 vm.reboot()
             if previous_policy:
                 log('stage:pytest-previous-policy')
-                with ledger.measure('test'):
+                with ledger.measure('test', operation='pytest-previous-policy'):
                     try:
                         run_pytest(vm, run, 'previous-policy', selection)
                     except CommandError as error:
@@ -2674,16 +2689,16 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if (not already_installed and not first_configure and pam_history is None and not trusted_fixtures
                 and (not previous_policy or install_phases)):
             log('stage:package-install')
-            with ledger.measure('install'):
+            with ledger.measure('install', operation='upgrade' if has_previous else 'install'):
                 vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
         if install_phases:
             phase = install_phases[0]
             # Observe fresh installation before deliberate account metadata
             # changes establish their retained reboot oracle.
-            with ledger.measure('test'):
+            with ledger.measure('test', operation='kiosk-activation-' + phase):
                 run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
             log('stage:pytest-' + phase)
-            with ledger.measure('test'):
+            with ledger.measure('test', operation='pytest-' + phase):
                 try:
                     run_pytest(vm, run, phase, selection)
                 except CommandError as error:
@@ -2699,10 +2714,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if reboot_phases:
             phase = reboot_phases[0]
             log('stage:reboot-requested')
-            with ledger.measure('reboot'):
+            with ledger.measure('reboot', operation=phase):
                 vm.reboot()
             log('stage:pytest-' + phase)
-            with ledger.measure('test'):
+            with ledger.measure('test', operation='pytest-' + phase):
                 try:
                     run_pytest(vm, run, phase, selection)
                 except CommandError as error:
@@ -2711,7 +2726,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
                                         else error_category(error))
                     raise
-            with ledger.measure('test'):
+            with ledger.measure('test', operation='kiosk-activation-' + phase):
                 run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
         recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                 for phase in history.phases)
@@ -2738,27 +2753,18 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         collect_guest('installed', destination=retained)
                         shutil.copytree(retained, directory / 'guest-results', dirs_exist_ok=True)
                 log('stage:reboot-' + phase)
-                with ledger.measure('reboot'):
+                with ledger.measure('reboot', operation=phase):
                     vm.reboot()
             if phase == 'authorization' and any(item.case_id == KIOSK_AGENT_CASE
                                                for item in selection.executions):
                 require_fixture_ready()
                 log('stage:kiosk-agent')
-                with ledger.measure('test'):
+                with ledger.measure('test', operation='kiosk-agent'):
                     observe_kiosk_agent(vm, lease, directory, ledger,
                                         fixture_context, fixture_selection)
             if phase == 'session' and graphical_expiry:
-                if already_installed:
-                    require_fixture_ready()
-                log('stage:graphical-expiry-fixture')
-                with ledger.measure('test'):
-                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
-                             '/usr/bin/python3', '-B', PAYLOAD + '/system_graphical_expiry.py',
-                             'prepare'], timeout=300)
-                log('stage:graphical-expiry-reboot')
-                with ledger.measure('reboot'):
-                    reboot()
-                with ledger.measure('test'):
+                prepare_reboot('system_graphical_expiry.py', 'graphical-expiry')
+                with ledger.measure('test', operation='graphical-expiry'):
                     observe_graphical_expiry(vm, lease, directory, ledger,
                                              fixture_context, fixture_selection,
                         foreground_revoke=any(item.case_id == FOREGROUND_REVOKE_CASE
@@ -2784,50 +2790,23 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         lock_outage=any(item.case_id == LOCK_OUTAGE_CASE
                                                 for item in selection.executions))
             if phase == 'extension':
-                if already_installed:
-                    require_fixture_ready()
-                log('stage:extension-monitor-fixture')
-                with ledger.measure('test'):
-                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
-                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_monitor.py',
-                             'prepare'], timeout=300)
-                log('stage:extension-monitor-reboot')
-                with ledger.measure('reboot'):
-                    reboot()
+                prepare_reboot('system_extension_monitor.py', 'extension-monitor')
             if phase == 'extension-login':
-                if already_installed:
-                    require_fixture_ready()
-                elif not reboot_phases:
+                if not already_installed and not reboot_phases:
                     # Its isolated fresh-install attempt has no package test
                     # phases; finish the product's initial reboot before using
                     # broker controls to prepare the fresh-login fixture.
                     log('stage:extension-login-installed-reboot')
-                    with ledger.measure('reboot'):
+                    with ledger.measure('reboot', operation='extension-login-installed'):
                         reboot()
-                log('stage:extension-login-fixture')
-                with ledger.measure('test'):
-                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
-                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_login.py',
-                             'prepare'], timeout=300)
-                log('stage:extension-login-reboot')
-                with ledger.measure('reboot'):
-                    reboot()
-                with ledger.measure('test'):
+                prepare_reboot('system_extension_login.py', 'extension-login')
+                with ledger.measure('test', operation='extension-login'):
                     observe_extension_login(vm, lease, directory, ledger,
                                             fixture_context, fixture_selection)
             if phase == 'startup':
-                if already_installed:
-                    require_fixture_ready()
-                log('stage:extension-startup-fixture')
-                with ledger.measure('test'):
-                    vm.call(['env', f'ONPC_EXPECTED_RUN={run}', 'PYTHONDONTWRITEBYTECODE=1',
-                             '/usr/bin/python3', '-B', PAYLOAD + '/system_extension_startup.py',
-                             'prepare'], timeout=720)
-                log('stage:extension-startup-reboot')
-                with ledger.measure('reboot'):
-                    reboot()
+                prepare_reboot('system_extension_startup.py', 'extension-startup', timeout=720)
             log('stage:pytest-' + phase)
-            with ledger.measure('test'):
+            with ledger.measure('test', operation='pytest-' + phase):
                 try:
                     if already_installed:
                         require_fixture_ready()

@@ -1657,7 +1657,8 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
                              for asset in native_fixtures.LAUNCHERS]}
     transport = SimpleNamespace(config={'run': 'owned-attempt'}, guard=Mock(), call=Mock(
         side_effect=[(json.dumps(value, sort_keys=True) + '\n').encode()
-                     for value in ({'wrong_entry_refused': True}, receipt, receipt)]))
+                     for value in ({'wrong_entry_refused': True},
+                                   {'readback': receipt, 'independent_readback': True})]))
     if ssh_status != 'missing':
         transport.commands = SimpleNamespace(last_returncode=ssh_status)
     monkeypatch.setattr(vm_probe, 'connect', Mock(return_value=transport))
@@ -1693,8 +1694,8 @@ def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cl
         assert journey.actions[plan.stage_actions['desktop']](journey, fixture_guard) == {
             'verified': len(native_fixtures.LAUNCHERS), 'verified_files': len(names),
             'independent_readback': True}
-        assert verified.recheck.call_count == 6
-        assert [call.args[0][3] for call in transport.call.call_args_list] == ['refuse', 'read', 'read']
+        assert verified.recheck.call_count == 4
+        assert [call.args[0][3] for call in transport.call.call_args_list] == ['refuse', 'verify']
         (directory / (boundary + '.request.json')).write_text(json.dumps(
             {'stage': boundary, 'screenshot': None}))
         def guard_probe():

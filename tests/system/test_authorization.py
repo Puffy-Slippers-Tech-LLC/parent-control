@@ -107,7 +107,8 @@ def callers(accounts):
 
         def get(role):
             if role not in connections:
-                connections[role] = stack.enter_context(PersistentCaller(accounts[role]))
+                connections[role] = stack.enter_context(PersistentCaller(
+                    0 if role == 'root' else accounts[role], allow_root=role == 'root'))
             return connections[role]
 
         yield get
@@ -424,9 +425,10 @@ def _deleted_target_and_approver_fail_closed(accounts, callers, disposable_ident
 
 
 def _root_method_permissions_and_approver_exclusion(accounts, callers):
-    """All root cells share one guarded case; every call verifies bus UID 0."""
+    """All root cells share one credential-verified, fixed-UID bus connection."""
     target = accounts['child1']
     manager = callers('parent1')
+    root = callers('root')
     original = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
     others = snapshot_accounts(accounts, (key for key in ROLES if key != 'child1'))
     try:
@@ -440,7 +442,7 @@ def _root_method_permissions_and_approver_exclusion(accounts, callers):
             elif method == 'SetParentControl':
                 args = (target, True, 37)
             before = account_state(target) if method == 'SetParentControl' or not allowed else None
-            reply = call(0, method, signature, args, allow_root=True)
+            reply = root.call(method, signature, args)
             if allowed:
                 result = accepted(reply)
                 if method in ('ListManagedUsers', 'ListApprovers'):
@@ -473,8 +475,7 @@ def _root_method_permissions_and_approver_exclusion(accounts, callers):
             guest.require(account_state(target) == before,
                           'authorization:root-approver-denial-write')
         for component in ('child', 'kiosk', 'broker'):
-            reply = call(0, 'LogEvent', '(sss)', (component, 'INFO', LOG_EVENT),
-                         allow_root=True)
+            reply = root.call('LogEvent', '(sss)', (component, 'INFO', LOG_EVENT))
             guest.require(reply.get('error') == DENIED, 'authorization:root-log-impersonation')
         # Every operation above targets child1. One fresh comparison protects
         # all other accounts without rereading them after each read-only call.

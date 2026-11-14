@@ -10,7 +10,7 @@ import stat
 import sys
 
 import system_guest as guest
-from system_assertions import account_state
+from system_assertions import account_state, account_states
 from system_kiosk_confinement import (ACCOUNT, SERVICES, graphical_session,
                                       process_identity, user_command, user_unit)
 
@@ -77,7 +77,9 @@ def stop_agent(account, original):
 
 
 def peers(value):
-    return {name: digest(account_state(pwd.getpwnam(name).pw_uid)) for name in value['peers']}
+    identities = {name: pwd.getpwnam(name).pw_uid for name in value['peers']}
+    states = account_states(identities.values())
+    return {name: digest(states[uid]) for name, uid in identities.items()}
 
 
 def begin():

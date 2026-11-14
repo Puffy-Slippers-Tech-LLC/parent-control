@@ -1,6 +1,7 @@
 """Run established suites, with a quiet dashboard and durable streaming report."""
 
 from dataclasses import dataclass, fields, replace
+from contextlib import ExitStack
 import codecs
 from datetime import datetime, timezone
 import html
@@ -16,6 +17,7 @@ import uuid
 from regression_events import PREFIX, completed_cases
 from launcher_progress import format_duration
 from regression_process import Control
+from vm_controller_progress import publishing as controller_progress
 import test_launcher as host
 from regression_schedule import Job, run_jobs
 from regression_inputs import identity as source_identity
@@ -408,11 +410,13 @@ class Dashboard:
 class Report:
     def __init__(self, root):
         self.root = root
+        self.observation = ExitStack()
         self.retention_session = None
         self.commands = []
         try:
             self.initialize(root)
         except BaseException:
+            self.observation.close()
             if getattr(self, 'stream', None) is not None:
                 self.stream.close()
             self.release_session(*sys.exc_info())
@@ -596,7 +600,10 @@ class Report:
                 if not self.stream.closed:
                     self.checkpoint(force=True)
             finally:
-                self.stream.close()
+                try:
+                    self.stream.close()
+                finally:
+                    self.observation.close()
         except BaseException:
             self.release_session(*sys.exc_info())
             raise
@@ -959,6 +966,8 @@ class Run:
         self.inputs = None
         self.admission = Admission(observe=self.observe_resources)
         self.vm_extras = []
+        if self.includes_vm:
+            self.report.observation.enter_context(controller_progress(root, report.directory))
 
     def prepare_vm_selections(self):
         from test_commands import execution_selections

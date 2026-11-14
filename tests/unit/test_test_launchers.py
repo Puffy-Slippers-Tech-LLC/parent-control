@@ -2959,6 +2959,18 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
 
     heavy, _ = commands.plan(ROOT, 'e2e', ['--list', '--subcategory', 'e2e-heavy'])
     assert '--subcategory' in heavy[0]
+    assert commands.selections(ROOT, ['e2e-general', '--list']) == [
+        ('e2e', ['--subcategory', 'general', '--list'])]
+    assert commands.repair_inventory(ROOT, ['e2e-general'])['e2e']['args'] == [
+        '--subcategory', 'general']
+    for request in (['e2e-general', 'e2e'], ['e2e', 'e2e-general'],
+                    ['e2e-heavy', 'e2e-general']):
+        assert commands.selections(ROOT, request) == [('e2e', [])]
+        assert commands.repair_inventory(ROOT, request)['e2e']['args'] == []
+        assert not commands.host_only_request(request)
+    assert not commands.host_only_request(['unit', '-q', 'e2e-general'])
+    assert not commands.host_only_request(['host', 'e2e-general'])
+    assert commands.includes_host_request(ROOT, ['host', 'e2e-general'])
     preflight = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))['preflight']
     listed = preflight(['--list', '--subcategory', 'e2e-heavy'], root=ROOT)
     assert [case['coverage_id'] for case in listed['cases']] == [253]

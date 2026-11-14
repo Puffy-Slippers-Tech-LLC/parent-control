@@ -148,6 +148,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
 def main(argv=None):
     argv, _ = extract(list(sys.argv[1:] if argv is None else argv), required=True)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    from vm_selection import vm_config
+    vm_config.add_host_argument(parser)
     parser.add_argument('--candidate')
     parser.add_argument('--output')
     parser.add_argument('--upgrade-inputs', action='store_true')

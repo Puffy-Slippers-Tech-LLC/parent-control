@@ -39,6 +39,7 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     argv, configured = vm_config.extract(argv, required=False, path=root / 'config/environment.json')
     parser = ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
+    vm_config.add_host_argument(parser)
     parser.add_argument('--list', action='store_true')
     parser.add_argument('--subcategory', help='select one registered E2E subcategory')
     selectors = parser.add_mutually_exclusive_group()

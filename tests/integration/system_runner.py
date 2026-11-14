@@ -3014,6 +3014,7 @@ def main(argv=None):
     argv, configured = baseline.guest_contract.vm_config.extract(argv, required='--list' not in argv)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--vm', help='required configured VM name or ID; optional for --list')
+    baseline.guest_contract.vm_config.add_host_argument(parser)
     parser.add_argument('--artifacts', type=Path, help='Verified package and fixture artifact directory')
     parser.add_argument('--previous-artifacts', type=Path,
                         help='verified prior package to install and reboot before upgrade or fixture qualification')

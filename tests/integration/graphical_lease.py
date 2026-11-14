@@ -365,7 +365,7 @@ def main(argv=None):
     parser.add_argument('--socket', type=Path, required=True)
     parser.add_argument('--run', required=True)
     parser.add_argument('action', choices=('on', 'off', 'status'))
-    args = parser.parse_args(argv)
+    args = vm_config.parse_vm_arguments(parser, argv, single=True)
     try:
         vm_config.select(args.vm)
         return callback(args.socket, args.run, args.action)

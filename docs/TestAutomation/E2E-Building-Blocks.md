@@ -5621,8 +5621,6 @@ sign-in/reboot persistence, Minecraft or complete case 253.
 
 <a id="inventory-reconciliation"></a>
 
-<a id="inventory-reconciliation"></a>
-
 ### Engineering coverage boundary
 
 The UI inventory contains the harness qualification and customer journeys.

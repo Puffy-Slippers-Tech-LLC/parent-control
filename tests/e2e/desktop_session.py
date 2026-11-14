@@ -257,7 +257,9 @@ def run_attached(directory, lease, transport, ledger, plan, *, expected_inputs,
         directory, lease, ledger, expected_inputs=expected_inputs,
         observe=lambda: None, guarded_observe=step, validate=validate,
         credentials=credentials, attached=stop_before is None,
-        maintenance=stop_before is not None, timeout=timeout)
+        maintenance=stop_before is not None, timeout=timeout,
+        on_failure=lambda _category, code: (
+            journey.collect_failure() if code != 'worker-interrupted' else None))
     require(worker['outcome'] == ('passed' if stop_before is None else 'scene-retained')
             and worker['scene_retained'] is True
             and worker['worker_stopped'] is True and worker['callback_closed'] is True,

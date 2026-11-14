@@ -108,44 +108,21 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
 
 def run_journey(directory, lease, transport, verified, plan, actions, *, journey_class=None,
                 expected_operations=None):
-    """One qualified worker envelope for the supplied launch and denial slices."""
-    from types import SimpleNamespace
-    import e2e_worker
-    from fixture_credentials import FixtureCredentials
+    """Keep Lunar's finite results inside the shared attached-worker envelope."""
+    from desktop_session import run_attached
     from installed_journey import InstalledJourney
 
-    label = plan.prefix
-    context = SimpleNamespace(directory=directory, lease=lease, verified=verified)
-    credentials = FixtureCredentials()
-    credentials.provision_online(lease, transport)
-    steps = []
-
     def progress(stage, observed):
-        steps.append(observed)
-
-    journey = (journey_class or InstalledJourney)(context, progress, plan,
-        actions=actions, transport=transport)
-
-    def validate():
-        system.require(not journey.failed and [step['stage'] for step in steps] == list(plan.stages),
-                       label + ':incomplete-journey')
-        if expected_operations is not None:
-            results = steps[-1].get('fixture', [])
+        if expected_operations is not None and stage == plan.stages[-1]:
+            results = observed.get('fixture', [])
             system.require([value.get('operation') for value in results] == expected_operations
                            and all(value.get('outcome') == 'passed' for value in results),
-                           label + ':missing-results')
+                           plan.prefix + ':missing-results')
 
-    def observe(guard):
-        journey.step(guard)
-        return len(steps) == len(plan.stages)
-
-    worker = e2e_worker.run_distribution(directory, lease, system.RunLedger(),
-        expected_inputs=verified.source_files, observe=lambda: None,
-        validate=validate, guarded_observe=observe, credentials=credentials,
-        attached=True, timeout=1800,
-        on_failure=lambda _category, _code: journey.collect_failure())
-    validate()
-    return {'steps': steps, 'worker': worker}
+    worker = run_attached(directory, lease, transport, system.RunLedger(), plan,
+        expected_inputs=verified.source_files, progress=progress, actions=actions,
+        journey_type=journey_class or InstalledJourney, verified=verified, timeout=1800)
+    return {'steps': worker['controller_observations'], 'worker': worker}
 
 
 def main(*, assets, launch_quit=False, tray=False, denial=False, fixture_selection=None):

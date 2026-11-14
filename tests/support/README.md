@@ -46,7 +46,7 @@ shared allocation helpers, never a producer-selected `/tmp` or custom root.
 | Catalog scope and screenshot metadata | [installed_catalog.py](installed_catalog.py), [screens.py](screens.py) | Temporary real catalog discovery; synthetic PNG headers for metadata validation, not pixel acceptance. |
 | Child indicator unit adapter | [indicator.mjs](../child/support/indicator.mjs) | Fresh Node VM context and explicit platform doubles; nested-Shell tests retain real lifecycle/input coverage. |
 | External desktop input delivery | [mutter_input.py](../ui/mutter_input.py) | Supporting desktop/provider operations retain their qualified input transport and owned session cleanup. Product panel and GTK controls use the Application UI API facade. |
-| Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. This seam claims neither worker-module completion nor customer-journey acceptance. |
+| Desktop input inside an installed check | [desktop_session.py](../e2e/desktop_session.py) `run_attached` | Reuse the caller's held running VNC lease and guarded transport with an existing journey plan. Credentials are verified read-only before input; the worker closes at the completed controller-stage boundary while the caller retains its session, watch and restoration. Pass the existing fixture context for activity/retained-work operations. Attach before any engineering password mutation; never reset credentials or session state to repair an observed history. Worker failures collect the journey's bounded private diagnostics before restoration. This seam claims neither worker-module completion nor customer-journey acceptance. |
 | Connection to a restored guest | [suite_lease.py](../e2e/suite_lease.py) `Suite.baseline_transport` / `Suite.start_transport` | Fixture snapshot and provisioning checks share observation-only baseline bootstrap. Baseline and supplied-launcher checks share owned start, host-key binding and guarded readiness through `start_transport`. Callers keep the private directory, finite inputs and baseline/installed bootstrap; the existing suite owns watch, lease and restoration. Connecting neither installs the product nor provisions fixtures; later operations retain their own guards. |
 | Real elapsed time inside an installed journey | [real_interval.py](../e2e/real_interval.py) | `interval_action(duration)` waits one finite interval; `wait_until(journey, guard, target)` reaches a caller-owned controller-monotonic target in bounded intervals under the same attempt deadline, ownership checks and watch output. Keep the original grant deadline, lead time and independent expiry/suspend-crossing assertions in the caller; elapsed time alone proves no product result. |
 | Child warnings during work or fullscreen play | [natural_reminder.py](../e2e/natural_reminder.py), [fullscreen_reminder.py](../e2e/fullscreen_reminder.py), [accessible_ui.py](../e2e/accessible_ui.py) | Reuse `NaturalReminderJourney.prepare_reminder` and `AccessibleUI.natural_reminder_wait`; finish saved-preference readback before issuing time. Callers keep their finite warning, game, policy and natural-lock assertions. Exact qualified bindings remain in the [reminder catalogue](../../docs/TestAutomation/E2E-Building-Blocks.md#reminder-controls-and-notification-qualification). |
@@ -394,6 +394,12 @@ Installed graphical qualifications inherit snapshot context preparation from
 Journey factories select their finite plan and inputs; they do not repeat the
 snapshot-name calculation. Product-free lifecycle qualifications retain their
 separate setup and installation histories.
+
+Qualifications starting in an already running guest use `desktop_session.run_attached`,
+as in [Lunar qualification](../integration/lunar_profile_qualification.py), rather
+than rebuilding credentials, stage completion and worker cleanup around
+`e2e_worker.run_distribution`. Keep finite operation/result checks in the caller's
+progress callback; it runs before the stage reply permits further input.
 
 Offline system qualifications and customer journeys share
 `vm_internet.internet_result(transport)` for bounded TCP/UDP DNS observations,
@@ -2016,6 +2022,14 @@ Chinese MATE in the kiosk uses the super-user explanation, not its same-user
 or multiple-identity explanations. Preserve that distinction and refusal before
 secret input. A fixture copied from the adapter's oracle cannot detect a shared
 wrong expectation.
+
+For external app startup, a retiring splash and the usable window may briefly
+coexist. Reacquire read-only within the existing functional deadline until one
+complete owned surface is ready; ambiguity never authorizes input. An ordinary
+non-secret dialog may need an explicit prompt-guard exception, scoped to its
+owned surface and public controls, while password and unknown-prompt refusals
+remain active. The [Lunar adapter](../e2e/lunar_ui.py) demonstrates both boundaries;
+diagnose the actual provider state before changing selectors or adding retries.
 
 Import fixtures explicitly instead of loading every helper as a global plugin.
 Include dependency fixtures in the consumer too; aliases can disambiguate names.

@@ -7,8 +7,10 @@ from contextvars import ContextVar
 from functools import wraps
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
+import sys
 import tempfile
 import termios
 import time
@@ -219,6 +221,8 @@ class Commands:
         self.sequence += 1
         sequence = self.sequence
         output_failed = False
+        failure_kind = None
+        guest_failure = None
 
         def forward(data, stream):
             nonlocal output_failed
@@ -320,7 +324,11 @@ class Commands:
                                 break
                             if time.monotonic() - started >= timeout:
                                 raise subprocess.TimeoutExpired(args, timeout)
-                except BaseException:
+                except BaseException as error:
+                    failure_kind = ('controller-timeout' if isinstance(error, subprocess.TimeoutExpired)
+                                    and error.cmd == args else
+                                    'interrupted' if isinstance(error, KeyboardInterrupt) else
+                                    'observer-failed')
                     # SIGINT gives the directly spawned command a chance to close normally.
                     # Never enumerate or signal inferred descendants.
                     cancellation = _cancellation.get()
@@ -358,13 +366,44 @@ class Commands:
                         with path.open('xb') as stream:
                             stream.write(error_bytes)
                         path.chmod(0o600)
+                self.last_returncode = child.returncode
+                if Path(args[0]).name == 'ssh' and (failure_kind or child.returncode != 0):
+                    # OpenSSH returns the remote exit status, or 255 for an SSH
+                    # error (which can also be a remote exit). Never call every
+                    # nonzero exit a connection failure or infer a timeout from
+                    # elapsed time. Raw output/tracebacks remain private.
+                    kind = failure_kind or ('ssh-or-remote-error' if child.returncode == 255 else
+                                            'remote-exit' if child.returncode is not None
+                                            and child.returncode > 0 else 'ssh-signal')
+                    if kind == 'remote-exit':
+                        # GuestError's contract permits fixed categories only.
+                        # Accept only its terminal exception line, not arbitrary
+                        # stderr, tracebacks, command arguments or product data.
+                        diagnostic = raw if merge_stderr or terminal else error_bytes
+                        lines = diagnostic[-4096:].splitlines()
+                        match = re.fullmatch(rb'(?:system_guest\.)?GuestError: '
+                                             rb'([a-z][a-z0-9:-]{0,159})',
+                                             lines[-1] if lines else b'')
+                        if match:
+                            guest_failure = match[1].decode('ascii')
+                    detail = dict(sequence=sequence, kind=kind, exit_status=child.returncode,
+                                  timeout_seconds=timeout, guest_failure=guest_failure)
+                    if self.directory:
+                        detail['stdout_artifact'] = str(self.directory / f'command-{sequence:04d}.txt')
+                        if error_bytes:
+                            detail['stderr_artifact'] = str(self.directory / f'command-{sequence:04d}-stderr.txt')
+                    print('ssh-command-failure: ' + json.dumps(detail, sort_keys=True),
+                          file=sys.stderr, flush=True)
+                # Record the command's result before callbacks can fail while
+                # consuming its final output. Their errors remain independent.
                 forward(raw[offset:], 'stdout')
                 forward(error_bytes[error_offset:], 'stderr')
-                self.last_returncode = child.returncode
                 if self.progress is not None and not progress_failed and len(raw) > offset:
                     self.progress(raw[offset:])
             self.last_returncode = child.returncode
-            require(not check or child.returncode == 0, 'command:failed:' + Path(args[0]).name)
+            require(not check or child.returncode == 0,
+                    'command:remote-failed:' + guest_failure if guest_failure else
+                    'command:failed:' + Path(args[0]).name)
             return raw
 
     def info(self, path, active=False):

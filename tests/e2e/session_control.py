@@ -25,10 +25,12 @@ BINDINGS = {role + '-' + action: (role, action)
             for action in ('switch-user', 'logout', 'lock', 'return-greeter')}
 BINDINGS.update({'child-switch-user': ('child', 'switch-user'),
                  'child-logout': ('child', 'logout'),
+                 'child-prepare-greeter': ('child', 'prepare-greeter'),
                  'parent-command-context': ('parent', 'command-context'),
                  'parent-command-refused': ('parent', 'command-refused'),
                  'parent-continuous-activity': ('parent', 'continuous-activity')})
 LABELS = {'switch-user': 'Switching to the greeter',
+          'prepare-greeter': 'Preparing the fixture greeter entry',
           'logout': 'Logging out the fixture desktop', 'lock': 'Locking the fixture desktop',
           'return-greeter': 'Returning from the locked fixture session to the greeter'}
 LABELS.update({'command-context': 'Verifying the administrator package command context',
@@ -554,7 +556,6 @@ def execute(binding, *, diagnostic=False):
             return {'operation': binding, 'outcome': 'passed',
                     'interface': 'system session', 'wrong_entry_refused': True}
         require(False, 'wrong-entry-accepted')
-    locked = action == 'return-greeter'
     switch_diagnostic = binding == 'parent-switch-user'
     last_scans = None
     trace_count = 0
@@ -571,6 +572,18 @@ def execute(binding, *, diagnostic=False):
 
     current = sessions(diagnostic=logout_trace if diagnostic else
                        'source' if switch_diagnostic else None)
+    if action == 'prepare-greeter':
+        # Setup grants can leave the seeded desktop unlocked. Select its
+        # navigation route before input; later expiry checks still require
+        # return-greeter's already-locked source and never add another Lock.
+        if any(local_graphical(item) and item['Active'] == 'yes'
+               and item['Class'] == 'greeter' for item in current.values()):
+            action = 'return-greeter'
+        else:
+            source_identity(current, account.pw_uid)
+            action = ('return-greeter' if screen_saver_active(account.pw_uid)
+                      else 'switch-user')
+    locked = action == 'return-greeter'
     if locked and any(local_graphical(item) and item['Active'] == 'yes'
                       and item['Class'] == 'greeter' for item in current.values()):
         # Natural expiry can already have returned to GDM. Confirm the same

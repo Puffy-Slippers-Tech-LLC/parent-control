@@ -104,7 +104,7 @@ class NaturalExpiryJourney(DailyTimeProfileJourney):
 # The installed system-282 owner supplies one live lease and its prepared
 # activity fixture. This is its engineering history, not another E2E journey.
 SYSTEM_SCREENS = {
-    'return-greeter': 'system:child-return-greeter',
+    'return-greeter': 'system:child-prepare-greeter',
     **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
     **native_activity_entry('activity', child='child'),
     'natural-expiry': 'ui:child-natural-expiry-engineering-observe',
@@ -701,7 +701,7 @@ class LockCompletionJourney(BrokerStopJourney):
 
 
 REVOKE_SCREENS = {
-    'return-greeter': 'system:child-return-greeter',
+    'return-greeter': SYSTEM_SCREENS['return-greeter'],
     **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
     **native_activity_entry('activity', child='child'),
     'revoke-zero': 'ui:child-natural-expiry-observe',
@@ -853,7 +853,7 @@ class PolicyOrderJourney(SystemGraphicalExpiryJourney):
 
 
 REPLACEMENT_SCREENS = {
-    'return-greeter': 'system:child-return-greeter',
+    'return-greeter': SYSTEM_SCREENS['return-greeter'],
     **prefixed_stages('initial', desktop_entry('child', source='gdm', entry='retained')),
     **native_activity_entry('activity', child='child'),
     'original-timer': 'ui:child-countdown-present',

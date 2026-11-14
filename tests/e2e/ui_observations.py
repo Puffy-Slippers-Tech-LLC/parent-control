@@ -461,8 +461,6 @@ OPERATION_LABELS.update({operation: 'Checking declared baseline native access an
                          for operation in accessible_ui.BASELINE_NATIVE_BINDINGS})
 OPERATION_LABELS.update({operation: 'Using and independently reading the Parent native activity'
                          for operation in accessible_ui.PARENT_NATIVE_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Setting and reading doubled synthetic editor text'
-                         for operation in accessible_ui.DUPLICATE_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Applying and independently reading synthetic range formatting'
                          for operation in accessible_ui.FORMAT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading feedback block meaning and associated synthetic text'
@@ -477,8 +475,6 @@ OPERATION_LABELS.update({operation: 'Qualifying exact UTF-16 boundary drafts wit
                          for operation in accessible_ui.LENGTH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Appending and reading one declared Unicode scalar'
                          for operation in accessible_ui.SCALAR_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Finishing and reading a declared synthetic fixture'
-                         for operation in accessible_ui.SUFFIX_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Returning to an existing window and reading its retained public state'
                          for operation in accessible_ui.WINDOW_SWITCH_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading the existing Parent window, child, page and saved settings'
@@ -3089,8 +3085,7 @@ class UiObservations:
             require((state.draft, state.validation, state.send_enabled)
                     == (projection, validation, True), 'ui:length-response')
             expected['feedback_state'] = result['feedback_state']
-        text_operations = {**accessible_ui.TEXT_OPERATIONS, **accessible_ui.DUPLICATE_OPERATIONS,
-                           **accessible_ui.SCALAR_OPERATIONS, **accessible_ui.SUFFIX_OPERATIONS}
+        text_operations = {**accessible_ui.TEXT_OPERATIONS, **accessible_ui.SCALAR_OPERATIONS}
         if operation in text_operations and operation.endswith('-read'):
             binding, _ = text_operations[operation]
             projection = {'binding': binding, 'exact': True,

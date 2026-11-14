@@ -85,14 +85,10 @@ def observer(selection, manifest, result):
         witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target,
                                            only=(native_assets.executable_path('A'),))
         before_repeat = proof.audit(vm, manifest, shared_preparation.SUBSETS)
-        system.require(fixture_execution.verify(selection) == manifest,
-                       'fixture-transfer:selected-input-changed')
-        repeated = controller.provision(selection, shared_preparation.SUBSETS,
-                                       attempt_id=shared_preparation.attempt_id(directory))
-        controller.require_ready(repeated)
-        system.require(repeated == receipt, 'fixture-transfer:version-switched')
-        final = proof.audit(vm, manifest, shared_preparation.SUBSETS)
-        proof.verify_repeat(before_repeat, final)
+        final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+            shared_preparation.SUBSETS, before_repeat,
+            attempt_id=shared_preparation.attempt_id(directory),
+            prefix='fixture-transfer')
         proof.unchanged_policy(state['before'], final)
         controller.require_ready(receipt)
         result.update(binding=receipt.binding, readback=final, refusals=state['refusals'],

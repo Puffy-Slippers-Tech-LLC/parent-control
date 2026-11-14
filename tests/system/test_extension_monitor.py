@@ -1,6 +1,7 @@
 """Native GNOME monitor recovery in the guarded installed guest."""
 
 import pytest
+from system_assertions import validation_stage
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -20,8 +21,7 @@ def test_child_extension_monitor_native_recovery(record_testsuite_property, capf
             ('failure-reporting-and-bus-loss', verify_failure_reporting),
             ('parent-controls-recovery', verify_parent),
             ('kiosk-approval-recovery', verify_kiosk)):
-        print(f'onpc-system: stage=extension-validation validation={stage} state=started', flush=True)
-        try:
+        with validation_stage('extension-validation', stage):
             if stage in ('failure-reporting-and-bus-loss', 'parent-controls-recovery'):
                 renew_child_desktop()
             if stage == 'parent-controls-recovery':
@@ -29,10 +29,6 @@ def test_child_extension_monitor_native_recovery(record_testsuite_property, capf
                 with capfd.disabled():
                     request_parent_desktop()
             check(record_testsuite_property)
-        except Exception as error:
-            error.add_note('extension-validation: ' + stage)
-            raise
-        print(f'onpc-system: stage=extension-validation validation={stage} state=passed', flush=True)
 
 
 def test_child_extension_login_unlock_recovery(record_testsuite_property):

@@ -249,7 +249,7 @@ def test_format_adapter_reads_real_public_ranges(launch_ui):
     assert ui.run('format-reopen', '')['formatting'] == result
 
 
-def test_duplicate_adapter_builds_exact_formatting_fixture_by_application_ui(launch_ui):
+def test_adapter_builds_exact_formatting_fixture_by_application_ui(launch_ui):
     # Editing stays in the existing preview on this test's private bus.
     from gi.repository import Atspi, GLib
     from tests.e2e import accessible_ui as module

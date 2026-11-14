@@ -323,10 +323,12 @@ class Executor:
                 try:
                     self._check(vm)
                     if receipt is None:
+                        # Preserve admission loss as _NoWork; a paused idle
+                        # probe is not a cancelled test attempt.
                         receipt = reservation_stack.enter_context(reservation(
-                            vm.name, stopped=lambda: self._abort(vm), bind=False, wait=False))
+                            vm.name, stopped=lambda: self._check(vm), bind=False, wait=False))
                     try:
-                        with test_source.reader(self.root, stopped=lambda: self._abort(vm), wait=False):
+                        with test_source.reader(self.root, stopped=lambda: self._check(vm), wait=False):
                             self._check(vm)
                             worker = _Worker(self, vm, receipt)
                             events.put(('ready', vm.name, None))

@@ -81,10 +81,17 @@ def test_executor_ready_attempts_choose_only_available_and_retain_failed_owner(e
     completed = []
     readers = set()
     choices = []
+    paused = threading.Event()
+    probe_cancelled = threading.Event()
 
     @contextmanager
     def reader(root, **kwargs):
         name = state.local.name
+        if name == 'first' and not probe_cancelled.is_set():
+            paused.set()
+            probe_cancelled.set()
+            kwargs['stopped']()
+            pytest.fail('revoked probe admission did not stop the source read')
         readers.add(name)
         try:
             yield
@@ -110,10 +117,11 @@ def test_executor_ready_attempts_choose_only_available_and_retain_failed_owner(e
 
     with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
         results = executor.run_ready(execute, choose=choose,
-                                     needed=lambda vm: vm.name not in completed)
+            needed=lambda vm: vm.name not in completed and not (vm.name == 'first' and paused.is_set()),
+            service=lambda controller, drained: paused.clear() if drained and completed else None)
         assert state.held == {'second'}
     assert completed == ['second', 'first']
-    assert set(choices[0][0]) == {'first', 'second'}
+    assert choices[0][0] == ('second',) and probe_cancelled.is_set()
     assert results['second']['status'] == 2 and results['first']['status'] == 0
     assert not state.held and not readers
 

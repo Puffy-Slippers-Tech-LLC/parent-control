@@ -547,7 +547,9 @@ class Viewer:
                                       if clean(line).startswith('Status: ')), '')
                         if repair_state.get('pending') is not None:
                             status = 'Committing Fix'
-                        elif phase in ('Rechecking failed case', 'Verifying repair', 'Collecting diagnostic evidence'):
+                        elif phase == 'Rechecking failed case':
+                            status = 'Rechecking Case'
+                        elif phase in ('Verifying repair', 'Collecting diagnostic evidence'):
                             status = 'Verifying'
                         elif phase == 'Checking failure impact' and session.active:
                             status = 'Checking Impact'
@@ -664,9 +666,10 @@ class Viewer:
                                  'Repair pending — waiting for independent tests to finish')
             elif status_value == 'Checking Impact':
                 status_detail = 'Checking whether the failure affects other tests'
+            elif status_value == 'Rechecking Case':
+                status_detail = 'Rechecking the failed case before repair'
             elif status_value == 'Verifying':
                 status_detail = {
-                    'Rechecking failed case': 'Rechecking the failed case before repair',
                     'Collecting diagnostic evidence': 'Collecting diagnostic evidence',
                 }.get(phase, 'Verifying the repaired case')
             elif status_value == 'Committing Fix':

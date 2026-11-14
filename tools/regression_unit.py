@@ -18,6 +18,9 @@ package operation or Store connection. Existing overlap remains safe.
 Pass coordination checks use pytest-private checkpoint/source locks and
 process-local VM/controller doubles. Ready-executor checks use joined threads,
 private Events and reservation doubles; no live VM or shared checkout is used.
+Subcategory routing uses process-local inventory and worker doubles only;
+simulated dispatch drops inherited live reservation metadata within each test.
+The existing unit classifications remain compatible, with no cleanup/UI entry.
 Repair preemption reuses two bounded, joined threads and a private barrier in
 that check. Guest cancellation reuses an owned, reaped pytest-private child and
 process-local signal handlers; it acquires no VM, service, display or shared state.

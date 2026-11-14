@@ -2714,8 +2714,12 @@ def test_retention_permission_failure_identifies_allocation_without_starting_tes
     import regression
     import test_retention
     import vm_selection
+    import host_compute
 
     import test_activity
+    # This simulated worker owns no part of the enclosing launcher's live pool.
+    for name in (host_compute.VARIABLE, host_compute.TOKENS):
+        monkeypatch.delenv(name, raising=False)
     # Exercise the worker's retention gate directly. Public VM selections now
     # enter the queue coordinator, which needs a complete checkout inventory.
     monkeypatch.setenv(vm_selection.WORKER, '1')
@@ -3027,6 +3031,21 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     with pytest.raises(ValueError, match='selection:pending'):
         commands.plan(ROOT, 'e2e', ['--id=66', '--artifacts=/tmp/onpc-future'])
     password.assert_called_once_with()
+
+    heavy, _ = commands.plan(ROOT, 'e2e', ['--list', '--subcategory', 'e2e-heavy'])
+    assert '--subcategory' in heavy[0]
+    preflight = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))['preflight']
+    listed = preflight(['--list', '--subcategory', 'e2e-heavy'], root=ROOT)
+    assert [case['coverage_id'] for case in listed['cases']] == [253]
+    assert all('vm_tag' not in case for case in listed['cases'])
+    qualified = preflight(['--qualify-lunar-profile'], root=ROOT, allow_missing_artifacts=True)
+    assert qualified == {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy'}
+    with pytest.raises(ValueError, match='requires-heavy-subcategory'):
+        preflight(['--qualify-lunar-profile', '--subcategory', 'general'],
+                  root=ROOT, allow_missing_artifacts=True)
+    with pytest.raises(ValueError, match='cannot-select-scenarios'):
+        preflight(['--qualify-lunar-profile', '--id', '253'], root=ROOT,
+                  allow_missing_artifacts=True)
 
 
 def test_privileged_parent_symlink_is_rejected(checkout):

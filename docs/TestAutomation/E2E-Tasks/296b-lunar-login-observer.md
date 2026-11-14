@@ -5,6 +5,9 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Estimate: 40–60 minutes.
 
+Use the [supplied manual profile and autostart settings](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+in place. Report any launcher/profile setup gap before making setup changes.
+
 Session exception: The complete denied login interval, same-route denial control and shared recorder/secret regressions remain required.
 
 ## Session boundary
@@ -23,15 +26,15 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **296f** — APP06/UI22 allowed continuous login interval.
 - **296** — Original-AppImage same-route specific policy denial.
 
-Its transitive prerequisites retain public Minecraft surface identity, customer
+Its transitive prerequisites retain public Lunar surface identity, customer
 reboot, the UI22 observer, distinct single-use login challenges, guarded TIME03
 intervals and public Parent allowance preparation.
 
 ## Implementation
 
 Compose 296f's newly qualified login observer with the separately qualified
-Lunar/tray and Minecraft observations and existing login/reboot recorder. Arm before child login submission,
-preserve secret sealing, and observe tray, Lunar and game surfaces until 90 seconds
+Lunar/tray observations and existing login/reboot recorder. Arm before child login submission,
+preserve secret sealing, and observe tray and Lunar surfaces until 90 seconds
 after desktop readiness. Qualify reattachment before the first possible surface;
 no blind interval or final-window-only absence claim is acceptable. Reuse the
 shared observer, command transport and VM lease; no new capture loop or viewer.
@@ -48,10 +51,12 @@ no saved VM state. This slice does not register or pass complete case 253.
 
 Exercise new denied-interval/incomplete-sample/reattachment refusal in focused
 harness coverage. Reuse unchanged credential-recipient, allowed observer,
-Lunar/tray and Minecraft-entry qualification; do not add local-world play or
+Lunar/tray qualification; do not add vendor sign-in, game launch or gameplay checks or
 repeat their full histories solely to qualify this negative observation.
 
-Implement and register the following planned fixed qualification before use:
+Implement the following planned focused qualification in the existing guarded
+envelope before use; do not add a standalone system registration for this
+E2E building block:
 
 ```sh
 tools/run-tests system check_e2e_lunar_login_observer

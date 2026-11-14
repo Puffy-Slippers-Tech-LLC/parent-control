@@ -320,10 +320,11 @@ optional replacing VM overrides. The runner filters each group by exact tag
 membership before shared capacity admission. No matching VM for a required family
 is an unschedulable selection, never a skip or a pass. The scheduler manages
 capacity, leases and workers without knowing test membership or tag inheritance.
-E2E currently has one explicit subcategory, `general`, with `vm_tag: general`;
-every current scenario declares that membership. `--subcategory general` narrows
-E2E explicitly; there is no heavy test subcategory yet. The VM registry owns
-the available machines and their tags.
+E2E has subcategories `general` (`vm_tag: general`) and `e2e-heavy`
+(`vm_tag: heavy`). All Lunar and Minecraft cases belong to `e2e-heavy`;
+cases declare subcategory membership, never VM tags. FIX05 uses
+`e2e --subcategory e2e-heavy --qualify-lunar-profile` through the same routing.
+The VM registry owns the available machines and their tags.
 
 Within each group the ordinary `execute_pass` coordinator owns one FIFO per
 family. Ready VMs pull one item at a time; there are no advance shards.

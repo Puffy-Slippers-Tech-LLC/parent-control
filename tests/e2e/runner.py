@@ -53,7 +53,21 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
+    qualification.add_argument('--qualify-lunar-profile', action='store_true')
     args = parser.parse_args(argv)
+    if args.qualify_lunar_profile:
+        if (args.list or args.scenario is not None or args.id is not None or args.ready
+                or args.fixture_selection is not None):
+            raise ValueError('e2e:qualification-cannot-select-scenarios')
+        if args.subcategory not in (None, 'e2e-heavy'):
+            raise ValueError('e2e:lunar-profile-requires-heavy-subcategory')
+        password_config.read_password()
+        if args.artifacts is not None or not allow_missing_artifacts:
+            validate_artifact_path(args.artifacts)
+            if not args.artifacts.is_dir():
+                raise ValueError('e2e:missing-artifact-directory')
+        return {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy',
+                **({'artifacts': str(args.artifacts)} if args.artifacts is not None else {})}
     if (args.qualify_transfer or args.qualify_install or args.qualify_install_refusal) and (
             args.list or args.scenario is not None or args.id is not None or args.ready
             or args.subcategory is not None):
@@ -211,6 +225,9 @@ def main(argv=None):
         sys.path.insert(0, str(ROOT / 'tests/integration'))
         import qualification_storage
         with qualification_storage.session(run=requested_run, require_owner=True):
+            if plan['mode'] == 'lunar-profile-qualification':
+                import lunar_profile_qualification
+                return lunar_profile_qualification.main(assets=Path(plan['artifacts']))
             if plan['mode'] in ('asset-transfer-qualification', 'authenticated-installation-qualification',
                                 'deliberate-installation-refusal-qualification'):
                 import check_graphical_smoke

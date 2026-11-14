@@ -11,16 +11,24 @@ This plan owns only its queue, task briefs and next-task pointer.
 [Plan B](E2E-Execution-PlanB.md) and [Plan C](E2E-Execution-PlanC.md)
 run independently through the same launcher.
 
-Remaining game, retained-work and second-parent journeys and the Lunar/Minecraft
-group stay here. Remaining-time reminder qualification and its complete scenario
-belong to [Plan C](E2E-Execution-PlanC.md); its fullscreen prerequisite is already
-delivered and does not wait for this plan's later gameplay work.
+The remaining active work is the Lunar/Minecraft launcher group. Remaining-time
+reminder qualification and its complete scenario belong to
+[Plan C](E2E-Execution-PlanC.md); its fullscreen prerequisite is already delivered
+and does not depend on this plan's launcher work.
+
+The developer has finished manual Lunar/Minecraft installation and profile setup.
+All remaining tasks use those supplied inputs after ordinary restore under the
+[read-only profile contract](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
+Report any actual launcher/profile setup gap before implementing setup changes;
+do not automate installation, downloads, integration or profile reconstruction.
+Task 295 qualifies read-only verification. Later tasks retain their parent/child
+launch, approval, denial, tray, reboot and autostart outcomes.
 
 Task queue: [Plan A ordered checklist](E2E-Task-Queue.md).
 
 ## Next task
 
-Next task: **295 — [Validate the manually prepared Lunar VM profile](E2E-Tasks/295-lunar-preparation.md)**.
+Next task: **296c — [Launch Lunar and Quit through its normal controls](E2E-Tasks/296c-lunar-launch-quit.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

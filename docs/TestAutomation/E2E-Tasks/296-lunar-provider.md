@@ -5,9 +5,12 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Estimate: 20–30 minutes.
 
+Use the [supplied manual profile](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+in place. Report any launcher/profile setup gap before making setup changes.
+
 ## Session boundary
 
-Add the original command's specific public policy denial and complete public absence result. Reuse 296c's launch/window/absence operations; tray controls, Minecraft and login intervals remain separate.
+Add the original command's specific public policy denial and complete public absence result. Reuse 296c's launch/window/absence operations; tray controls, the separate Minecraft launcher and login intervals remain separate.
 
 Reuse the delivered scope of task **296c** under the
 [split-task contract](../E2E-Execution-Contracts.md#task-size-and-order).
@@ -23,7 +26,7 @@ Required tasks (queue IDs; use delivered scope, not predecessor briefs):
 - **079** — Public saved match/access editing for the original Lunar path.
 
 Its transitive prerequisites retain verified FIX05 Lunar/AppImageLauncher/autostart/
-Minecraft assets and guarded TIME03 intervals.
+Minecraft launcher inputs and guarded TIME03 intervals.
 
 ## Implementation
 
@@ -34,7 +37,7 @@ when composing the new policy branch. Task 296d's tray close/restore is needed
 by allowed autostart, not by this command-denial qualification.
 Apply the external-provider exception only in
 explicit adapters, preserving owner, ambiguity and input/result checks. Keep
-Minecraft gameplay and continuous login observation in their following tasks.
+Minecraft launcher entry/exit/denial and continuous login observation in their following tasks.
 
 ## Live VM acceptance
 
@@ -57,4 +60,4 @@ tools/run-tests system check_e2e_lunar_provider
 Pass affected safety/adapter checks before the VM run. Use shared watch intent,
 observation and transport throughout; require collection and owned cleanup.
 
-APP06's game and login bindings remain pending; this task does not pass case 253.
+APP06's login binding remains pending; this task does not pass case 253.

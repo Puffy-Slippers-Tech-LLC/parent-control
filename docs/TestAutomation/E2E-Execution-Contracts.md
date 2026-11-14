@@ -21,7 +21,7 @@ prerequisites, implementation and acceptance alongside these applicable owners:
 | VM timing, including unfinished and deferred consumers | [Timing and slow-VM resilience](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience) and [pre-test clock preparation](E2E-Scenario-Recipes.md#pre-test-clock-preparation). Apply them during composition preflight to setup, authentication, transitions, observations and recovery; each recipe retains only its finite inputs and product timing assertions. |
 | Existing system coverage | Apply [assertion-level reuse](UI-and-E2E-Coverage.md#reuse-of-system-coverage) to the case, its steps and acceptance. Remove duplicate engineering work; preserve the complete customer journey and its independent public outcomes. |
 | UI work | [Application UI API](Application-UI-API.md), [UI mandate](../Mandates/UI-Automation-Mandate.MD) and [UI/E2E allocation](UI-and-E2E-Coverage.md). All existing and new product reads/actions use the shared UI/E2E facade with scoped stable IDs and canonical values. Keep authentication, file choosers and supporting tools in their external adapters; supporting system operations use shared commands/APIs. |
-| Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Deliberate package/account/file mutations under test remain in the journey. |
+| Reusable guest inputs | [Baseline lifetime](../Mandates/VM-Mandate.MD#vm-host-setup-and-baseline). Add declared fixtures/dependencies to idempotent baseline preparation; attempts and app-snapshot preparation verify them. Lunar/Minecraft is the developer-supplied [manual profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate): verify it in place, with no automated installation or reconstruction. Deliberate package/account/file mutations under test remain in the journey. |
 | Host checks | Apply the [test scope mandate](../Mandates/Test-Scope-Mandate.md) before adding infrastructure coverage; then use [suite selection](../../tests/README.md#all-established-regressions) and [parallelism review](../../tests/README.md#host-test-parallelism-review). Use selected `tools/run-tests unit`/`ui` scopes. Direct launchers remain available for narrow diagnosis. |
 | Storage or cleanup changes | [Storage mandate](../Mandates/Test-Storage-Mandate.md) and the affected ownership/cleanup regressions. Use shared allocation and recorded identities. |
 | Local UI obligation | [UI acceptance](#ui-acceptance). Keep component checks in their host UI owner; they supply no installed qualification or customer acceptance. |
@@ -683,17 +683,23 @@ establish this coverage. Keep their existing scope and IDs unchanged.
 This is metadata/planning only: case 253 remains `pending`, with no executable
 binding. Tasks **295, 296c, 296d, 296, 296e, 296a, 296f, 296b and 297** separately
 cover restored-fixture validation, Lunar launch/Quit, tray controls, command
-denial, Minecraft entry/exit, local play, allowed and denied continuous login
-observations, and the complete scenario. Manual installation/configuration of Lunar,
-AppImageLauncher and Minecraft on the guarded VM is an allowed future
-prerequisite, not permission for installation on this development host or an
-in-journey setup fallback. The [fixture contract](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-requires reproducibility after the ordinary runner restore; an ad-hoc working
-VM or a disabled autostart cannot qualify the negative case.
+denial, separate normal signed-out Minecraft launcher entry/exit and
+launch/denial, allowed and denied continuous login
+observations, and the complete scenario. The developer has completed manual
+installation and profile setup for Lunar, AppImageLauncher and Minecraft on the
+guarded VM. Treat those supplied inputs as finished setup, verify them after
+ordinary restore, and report any actual setup gap before implementing changes.
+No automatic installation, download, integration or profile reconstruction is
+part of this group. The [fixture contract](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+still requires restored readback; a disabled autostart cannot qualify the negative case.
 
 The case must distinguish a still-active **time-only** grant from explicit
 soft-app approval, preserve the active-grant session contract, and observe both
 the tray/autostart result and a real same-route launch denial. Its included-app
-control must actually reach usable Minecraft. Do not replace these results with
-process/rule probes or treat unavailable assets/provider observations as a pass.
+controls must reach Lunar's usable guest mode and the separate Minecraft
+launcher's usable signed-out surface; no online account is required. The
+developer removed vendor sign-in, game downloads, Minecraft launch through Lunar,
+game-menu and gameplay steps from this group and all its remaining tasks. Do not
+replace launcher results with process/rule probes or treat unavailable launcher
+inputs/provider observations as a pass.
 This addition does not change the current **Next task** or claim VM acceptance.

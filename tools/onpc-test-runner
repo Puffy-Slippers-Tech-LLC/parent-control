@@ -185,6 +185,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-transfer', action='store_true')
     qualification.add_argument('--qualify-install', action='store_true')
     qualification.add_argument('--qualify-install-refusal', action='store_true')
+    qualification.add_argument('--qualify-lunar-profile', action='store_true')
     appsnapshot = categories.add_parser('appsnapshot', allow_abbrev=False)
     appsnapshot.add_argument('--probe', action='store_true')
     appsnapshot.add_argument('--resume', action='store_true')
@@ -442,6 +443,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
             options.append('--qualify-install')
         if args.qualify_install_refusal:
             options.append('--qualify-install-refusal')
+        if args.qualify_lunar_profile:
+            options.append('--qualify-lunar-profile')
         if args.scenario is not None:
             options.append('--scenario=' + args.scenario)
         if args.id is not None:
@@ -646,6 +649,9 @@ def _run(root, argv, caller):
         environment[vm_config.VARIABLE] = configured.name
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
+        from host_compute import TOKENS
+        if TOKENS in os.environ:
+            environment[TOKENS] = os.environ[TOKENS]
         with module['Control']().installed(pipe=True) as control:
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
@@ -684,6 +690,9 @@ def _run(root, argv, caller):
         environment[vm_config.VARIABLE] = configured.name
     if vm_pool.VARIABLE in os.environ:
         environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
+    from host_compute import TOKENS
+    if TOKENS in os.environ:
+        environment[TOKENS] = os.environ[TOKENS]
     if argv[0] in ('system', 'e2e') and '--list' in argv:
         from test_storage import scratch_descriptors
         return subprocess.run(command, cwd=root, env=environment, user=caller.pw_uid,

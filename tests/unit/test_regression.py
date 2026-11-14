@@ -24,10 +24,44 @@ import test_commands
 from system_progress import Progress
 
 
+@pytest.mark.parametrize('qualification', [False, True])
+def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qualification):
+    import runpy
+    import vm_test_queue
+    import vm_recording
+    import vm_run_times
+
+    selected = ({'subcategory': 'e2e-heavy'} if qualification else
+                {'cases': [{'subcategory': 'general'}, {'subcategory': 'e2e-heavy'}]})
+    monkeypatch.setattr(test_commands, 'validate_one', lambda *args: None)
+    monkeypatch.setattr(runpy, 'run_path', lambda path: {
+        'preflight': lambda *args, **kwargs: selected})
+    workers = [SimpleNamespace(name=tag, family='one-family', vm_tags={tag})
+               for tag in ('general', 'heavy')]
+    options = ['--qualify-lunar-profile'] if qualification else []
+    groups = vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers)
+    assert [(group['key'], group['vm_tag'], group['vms']) for group in groups] == (
+        [('e2e.general', 'general', ['general'])] if not qualification else []) + [
+            ('e2e.e2e-heavy', 'heavy', ['heavy'])]
+    assert groups[-1]['args'] == ['e2e', *options, '--subcategory', 'e2e-heavy']
+    with pytest.raises(ValueError, match='no selected VM with vm_tag=heavy'):
+        vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers[:1])
+    if qualification:
+        root = Path(__file__).resolve().parents[2]
+        identity = vm_recording.case_identity(root, 'e2e', dict(nodeid=options[0]))
+        assert identity[0] == 'check_e2e_lunar_profile'
+        metadata = vm_run_times.metadata(root, 'e2e', options[0])
+        assert metadata['id'] == identity[0]
+        assert metadata['case_file'] == 'tests/integration/lunar_profile_qualification.py'
+
+
 @pytest.fixture
 def private_dispatch_source(monkeypatch):
     import test_source
+    import host_compute
     # Synthetic checkouts own private leases, never the outer runner's lease.
+    for name in (host_compute.VARIABLE, host_compute.TOKENS):
+        monkeypatch.delenv(name, raising=False)
     for name in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS,
                  test_source.STARTUP_READER, test_source.STARTUP_WRITER):
         monkeypatch.delenv(name, raising=False)

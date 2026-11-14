@@ -5,6 +5,9 @@ and [capability acceptance](../E2E-Execution-Contracts.md#capability-acceptance)
 
 Estimate: 20–30 minutes.
 
+Use the [supplied manual profile](../E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
+in place. Report any launcher/profile setup gap before making setup changes.
+
 ## Scope and prerequisites
 
 Deliver **APP06 Lunar/tray snapshot and close-to-tray/restore**. Named consumer: task **296f** and any

@@ -810,8 +810,9 @@ def execution_groups(root, argv, vms):
             import runpy
             runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
             selected = runner['preflight'](list(options), root=root, allow_missing_artifacts=True)
-            if 'cases' in selected:
-                membership = {case['subcategory'] for case in selected['cases']}
+            if 'cases' in selected or 'subcategory' in selected:
+                membership = ({case['subcategory'] for case in selected['cases']}
+                              if 'cases' in selected else {selected['subcategory']})
                 if not membership <= {child.name for child in spec.subcategories}:
                     raise ValueError('E2E case belongs to an unregistered test subcategory')
                 # An exact selector can name a case from a later group. Do not

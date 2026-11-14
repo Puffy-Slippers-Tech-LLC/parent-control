@@ -2312,7 +2312,7 @@ Await fresh public results within deadlines, accounting for observation latency.
 | APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. [Child-owned saved work](#child-owned-saved-work) adds edit/Save and usable reopened-window submission. | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) and fixed saved-work use ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | The [same-S Files qualification](#native-files-launch-and-separate-windows) adds separate-primary/secondary and unchanged-original comparisons; the [same-S desktop qualification](#native-desktop-entry-and-usable-launch) adds those comparisons after Jordan's desktop activation. `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). [Distinct-user retention](#distinct-user-retained-app-qualification) qualifies Jamie/Riley captures and original-window comparisons through Switch User. [Child-owned saved work](#child-owned-saved-work) distinguishes same-window rereads from deliberate close/reopen with saved text. No hidden process/window inspection. | [Jordan's same-S Files activity](#native-files-launch-and-separate-windows) and [desktop activity](#native-desktop-entry-and-usable-launch) on Ubuntu 26.04 ready; native primary capture/same-window comparison, stated Jamie/Riley retention and case 17 Jordan A/S Cancel retention on Ubuntu ready; fixed Jordan/Riley saved-work comparisons ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode=...)` / `AccessibleUI.game_operation('game-windowed-level'/'game-fullscreen-level')` observe the actual GTK mode and fixed level independently before the real move; qualified [windowed](#windowed-game-expiry) and [fullscreen](#fullscreen-game-expiry) compositions. The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed/fullscreen level 1 and Riley's windowed case-128 binding on Ubuntu 26.04 ready; other bindings pending |
-| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control, Lunar window and Minecraft activity, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray, Minecraft activity and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
+| APP06 | A | Read one complete, account-scoped public projection of Lunar's tray/background control and launcher window, with the recognized surrounding desktop. Presence/absence is explicit input; do not launch, reveal or quit anything. | No callable yet. The [Lunar profile slices](#lunar-client-preparation-and-observation-gate) separately qualify Lunar/tray and login observations, including absence and incomplete/wrong-owner refusal. UI22 composes repeated observations across the declared login interval; one final absent window cannot establish blocked autostart. [Consumer gate](#lunar-client-preparation-and-observation-gate). | pending |
 
 APP01/02/03/04 and FLOW08 also include Jordan's fixed level-1
 [offline game activity](#offline-game-activity) command binding on Ubuntu 26.04.
@@ -3946,7 +3946,7 @@ authentication outcome or app behavior being tested.
 | FIX03 | A | Prepare only a declared multiple/no-child/no-approver/locked-approver profile; do not generalize FIX02 into arbitrary mutation. | `EmptyAccountFixture.prepare` / `e2e_dynamic_account.prepare_empty` changes canonical child roles while preserving identities, administrators and station. `kiosk_no_child.PLAN` / `onpc_kiosk_no_child::run` and `check_e2e_kiosk_no_child` require exact empty children, explanation, disabled Request/duration/soft/approver controls and absent prompt. `kiosk_no_child.CASE_PLAN` / `onpc_no_child::run` adds normal Cancel/GDM return. Other finite profiles are specified below; outer restoration owns undo. | ready; multiple/no-child/no-approver/locked-approver profiles |
 | FIX01 | A | Create one eligible account at the declared durable checkpoint while Parent stays open. Customer acceptance requires later visible discovery/selection. | `DynamicAccountFixture.create` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
 | FIX02 | A | Make the exact two canonical eligible child fixtures ineligible at the declared checkpoint before Parent launches; preserve the request station. Unexpected account sets refuse. | `EmptyAccountFixture.prepare` in [account_fixture.py](../../tests/e2e/account_fixture.py). | ready |
-| FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | No callable yet. The real Lunar profile qualification binds versions/digests, original AppImage and launcher/autostart routes, local world, credential references and ordinary restore/provisioning ownership. Refuse missing/drifted assets; never synthesize a denial. [Profile contract](#lunar-client-preparation-and-observation-gate). | pending |
+| FIX05 | A | Validate the one declared, manually prepared Lunar/AppImageLauncher/Minecraft launcher profile after the normal installed-snapshot restore and before the attempt. Read-only setup verification, not installation, policy configuration or customer acceptance. | `lunar_profile.LunarProfile.verify` with finite identities in `lunar_profile_guest`; `e2e --subcategory e2e-heavy --qualify-lunar-profile` qualified the supplied profile on Ubuntu 26.04 after normal installed-snapshot restore, independent repeated readback and owned baseline restoration. Binds versions/digests, the original AppImage and launcher/autostart routes, docked/hidden settings, the separate normal Minecraft launcher and restored input ownership through shared guarded reads. No automated installation, profile reconstruction, vendor sign-in, game download or gameplay. Report missing/drifted required inputs before setup changes; never synthesize a denial. Launch/Quit, tray, denial and continuous-login bindings remain separate pending work. [Profile contract](#lunar-client-preparation-and-observation-gate). | ready; read-only supplied profile on Ubuntu 26.04 |
 
 ### Verified upgrade asset transfer
 
@@ -5498,31 +5498,43 @@ IDs and executable status. The Lunar gate below supplements E2E-052's recipe.
 ### Lunar Client preparation and observation gate
 
 Case 253 is a planned real-application regression, not an extension of the native
-fixture's qualified scope. Its reusable prerequisites must be declared and
-reconciled by baseline preparation before the attempt: install a pinned Lunar Client AppImage and AppImageLauncher,
-integrate the original AppImage through the provider's normal route, enable
-Lunar's child-login autostart and tray behavior, and prepare Minecraft with a
-legitimately usable test account, downloaded runtime/assets and a disposable local
-world. Record versions/digests, the exact integrated launcher, original AppImage
+fixture's qualified scope. The developer has manually prepared its pinned Lunar
+Client AppImage, AppImageLauncher integration, child-login autostart/tray settings
+and separate Minecraft launcher. This real-app profile is supplied baseline
+data; test automation verifies it after ordinary restore and does not install,
+download, integrate or reconstruct it. Report any actual launcher/profile setup
+gap to the developer before implementing setup changes. Do not resume dependency
+acquisition or profile-reconstruction research for inputs already present.
+All Lunar/Minecraft cases and focused qualifications use category `e2e`,
+subcategory `e2e-heavy`. That subcategory declares `vm_tag: heavy`; individual
+cases declare only subcategory membership. Preserve the VM registry's tags.
+The developer's revised scope checks the launchers themselves:
+use Lunar's guest mode and the separate Minecraft launcher's usable signed-out
+surface, with no online account required. Vendor sign-in, account
+creation, game downloads, launching Minecraft through Lunar, game menus and
+gameplay are outside this group, including all remaining tasks and case 253.
+Record the separate Minecraft launcher and policy target, versions/digests,
+the exact integrated launcher, original AppImage
 path (including spaces), same-directory version pattern, autostart entry and
-provider versions as private fixture inputs. No real child's name/path or account
-credentials belong in scenario metadata, ordinary logs or screenshots. Use the
-existing secret API for any required authentication; no new account purchase or
-external account creation is implied.
+provider versions as private fixture inputs. No real child's name/path or vendor
+credentials belong in scenario metadata, ordinary logs or screenshots. The
+existing secret API still owns OS authentication; vendor credentials are not inputs.
 
-The real Lunar profile qualification/FIX05 must first establish how these inputs are present **after** the
-runner's ordinary installed-snapshot restore. Use the authorized baseline route
-and its finite idempotent inventory; do not add alternate snapshots, skip
-restoration or rely on earlier manual VM state. FIX04 transfers attempt inputs;
+The real Lunar profile qualification/FIX05 must verify these supplied inputs **after** the
+runner's ordinary installed-snapshot restore. Do not add alternate snapshots,
+skip restoration or substitute earlier observations for restored readback. FIX04 transfers attempt inputs;
 FIX05 verifies this real-app profile and FIX06 verifies repository-owned fixtures.
 This prerequisite does not grant FIX05 an installer or
-unattended vendor sign-in. Missing integration, invalid sign-in, mandatory update,
-network dependence or unavailable assets blocks this profile until resolved in
-preparation. Pin a profile that runs the declared local activity without downloads
-or authentication during the measured launch checks; requalify after drift.
+unattended vendor sign-in. Missing integration, mandatory launcher updates or
+unavailable required launcher inputs must be reported before setup changes;
+never repair them silently or count their refusal as an enforcement pass.
+Empty vendor account stores and absent game assets do not block it. Pin a profile
+that reaches each declared launcher surface without downloads or vendor
+authentication during the measured checks. Reverify after developer-supplied setup
+changes; do not build an automatic updater to resolve drift.
 
 Qualify original-AppImage launch/Quit, tray close/restore, specific command
-denial and complete absence, Minecraft entry/exit and local-world activity,
+denial and complete absence, separate normal Minecraft launcher entry/exit and denial,
 and allowed/denied continuous login as separate bindings. Their APP01/02/03/06,
 UI18 and UI22 scopes do not imply one another. Apply the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
@@ -5537,8 +5549,8 @@ but keep the missing public projection explicitly planned. The denied-login qual
 that new binding: arm the public observation before child login submission, preserve secret filtering,
 and observe the login transition through **90 seconds after desktop readiness**.
 Qualify observer reattachment before any possible Lunar surface; a blind login
-interval cannot pass. APP06 observations must cover both tray and app/game
-surfaces, not just a final window list. A usable Lunar/Minecraft surface at any
+interval cannot pass. APP06 observations must cover both tray and launcher
+surfaces, not just a final window list. A usable Lunar launcher at any
 point in a denied interval fails even if it later closes. Require the allowed
 autostart control in the same attempt, plus a specific public access denial from
 one explicit original-AppImage launch in each denied checkpoint. A hidden grid
@@ -5548,10 +5560,12 @@ process lists, rule files and daemon logs are not customer acceptance substitute
 
 No source extraction, direct embedded-binary/Java launch, alternative package,
 disabled autostart or post-login policy save may replace the registered route.
+The separate Minecraft check uses its declared normal launcher; it does not
+invoke Lunar's embedded Java executable or start the game.
 The real AppImageLauncher route is the regression target; its read/copy/execute
 mechanics belong to engineering coverage. Future version matching and other-user
 isolation retain their existing owners. This planned profile changes no product
-dependency, activation or migration, and no VM preparation has been performed.
+dependency, activation or migration.
 
 <a id="inventory-reconciliation"></a>
 
@@ -6140,7 +6154,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |
-| Lunar/AppImageLauncher/tray/Minecraft | No qualified binding. Require actual prepared AppImage, allowed autostart, complete login-interval tray/window observations, same-route denial, local-world action and genuine Quit. [Gate](#lunar-client-preparation-and-observation-gate). | APP01/02/03/06, UI18/22 and FIX05 pending. |
+| Lunar/AppImageLauncher/tray/Minecraft launcher | FIX05 read-only supplied-profile verification is qualified on Ubuntu 26.04. Public launch bindings still require actual prepared AppImage, allowed autostart, complete login-interval tray/window observations, same-route denial, separate signed-out Minecraft launcher entry/exit/denial and genuine Lunar Quit. No vendor sign-in, game download or gameplay checks. [Gate](#lunar-client-preparation-and-observation-gate). | FIX05 read-only profile ready on Ubuntu 26.04; APP01/02/03/06 and UI18/22 pending. |
 
 Generic Shell notifications, graphical VT6 and diagnostic-export viewers have no
 active customer requirement or acceptance credit. Chooser qualification follows

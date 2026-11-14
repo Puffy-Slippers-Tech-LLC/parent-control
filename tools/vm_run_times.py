@@ -81,6 +81,13 @@ def metadata(root, category, nodeid):
                 break
         if source is None:
             return None
+    elif category == 'e2e' and nodeid.startswith('--qualify-'):
+        if __package__:
+            from .vm_recording import E2E_QUALIFICATIONS
+        else:
+            from vm_recording import E2E_QUALIFICATIONS
+        source = root / E2E_QUALIFICATIONS[nodeid][2]
+        description = ast.get_docstring(ast.parse(source.read_text())) or ''
     elif category == 'e2e':
         document = json.loads((root / 'tests/e2e/scenarios.json').read_text())
         scenario_id, variant_id = nodeid.split('/', 1)

@@ -415,7 +415,7 @@ def test_unattended_dispatcher_leaves_checkout_build_cleanable(checkout, safety_
     for name in ('onpc-test-runner', 'regression_process.py', 'test_launcher.py', 'test_activity.py',
                  'test_retention.py', 'test_io.py', 'test_input_transfer.py', 'test_storage.py',
                  'evidence_capture.py', 'evidence_identity.py', 'launcher_control.py', 'launcher_reload.py',
-                 'dev_checkout.py', 'install_test_runner.py', 'vm_pool.py'):
+                 'dev_checkout.py', 'install_test_runner.py', 'vm_pool.py', 'host_compute.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
     for relative in ('setup.sh', 'Makefile', 'config/com.puffyslippers.onpc.development.policy'):
         target = checkout / relative

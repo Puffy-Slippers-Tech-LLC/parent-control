@@ -11,7 +11,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
-from guest_files import identity, read_regular, require
+from guest_files import directory, identity, read_regular, require
 if __name__ == '__main__':
     from native_assets import (ASSETS, LAUNCHERS, GUI_FILES, PREFIX, desktop_entry, desktop_id, sources,
         riley_grid_sources, ACTIVITY_EXECUTABLE, ACTIVITY_PREFIX, activity_sources,
@@ -29,40 +29,6 @@ import session_control
 LIMIT = 2 * 1024 * 1024
 # Supported Ubuntu package trust dumps exceed 32 MiB; match fixture provisioning.
 NATIVE_OUTPUT_LIMIT = 64 * 1024 * 1024
-ROOT_DIRECTORY = Path('/')
-
-
-@contextmanager
-def directory(path, child):
-    """Pin every ancestor, refuse links/writable or foreign parents, preserve existing dirs."""
-    require(path.is_absolute() and '..' not in path.parts and path.is_relative_to(ROOT_DIRECTORY))
-    with ExitStack() as stack:
-        fd = os.open(ROOT_DIRECTORY, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        stack.callback(os.close, fd)
-        root_info = os.fstat(fd)
-        require(root_info.st_uid in (0, child.pw_uid) and not root_info.st_mode & 0o022)
-        chain = []
-        for part in path.relative_to(ROOT_DIRECTORY).parts:
-            next_fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-            stack.callback(os.close, next_fd)
-            info = os.fstat(next_fd)
-            require(stat.S_ISDIR(info.st_mode) and info.st_uid in (0, child.pw_uid)
-                    and not info.st_mode & 0o022)
-            chain.append((fd, part, next_fd, (info.st_dev, info.st_ino, info.st_uid, info.st_gid, info.st_mode)))
-            fd = next_fd
-        def guard():
-            current_root = ROOT_DIRECTORY.lstat()
-            require((current_root.st_dev, current_root.st_ino, current_root.st_mode,
-                     current_root.st_uid, current_root.st_gid) ==
-                    (root_info.st_dev, root_info.st_ino, root_info.st_mode,
-                     root_info.st_uid, root_info.st_gid))
-            for parent, name, pinned, expected in chain:
-                for current in (os.fstat(pinned), os.stat(name, dir_fd=parent, follow_symlinks=False)):
-                    require((current.st_dev, current.st_ino, current.st_uid, current.st_gid,
-                             current.st_mode) == expected)
-        guard()
-        yield fd, guard
-        guard()
 
 
 def destinations(child):

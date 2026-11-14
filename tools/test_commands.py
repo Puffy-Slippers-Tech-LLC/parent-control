@@ -67,7 +67,8 @@ CATEGORIES = {
     'package-notice': CategorySpec('host-native APT/dpkg notice lifecycle in private chroots; Ubuntu/Debian hosts only'),
     'system': CategorySpec('installed lifecycle, security and registered standalone checks; separate 287/288 upgrades by default; --id N[,N...] or --area/--test focuses selection; optional --artifacts; --previous-artifacts, --list', scope='vm'),
     'e2e': CategorySpec('all runnable E2E cases by default; --subcategory NAME; --id N[,N...] selects exact coverage IDs; --list; optional --artifacts (otherwise built automatically)', scope='vm',
-                        subcategories=(SubcategorySpec('general', vm_tag='general'),)),
+                        subcategories=(SubcategorySpec('general', vm_tag='general'),
+                                       SubcategorySpec('e2e-heavy', vm_tag='heavy'))),
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
@@ -363,7 +364,8 @@ capacity admission reserves a fixed random subset, balancing compute across fami
 The reservation ends after that group's owned work and cleanup. Required family
 vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
-E2E currently has only --subcategory general, with vm_tag general.
+E2E has --subcategory general (vm_tag general) and e2e-heavy (vm_tag heavy).
+Lunar and Minecraft cases and --qualify-lunar-profile belong to e2e-heavy.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs
@@ -737,6 +739,9 @@ def prepare_qualification_artifacts(root, category, args, *, run):
 def fixture_execution_target(category, args):
     """Resolve only delivered fixture envelopes, without preparing any input."""
     if any(argument in INSPECTION_FLAGS for argument in args):
+        return None
+    if category == 'e2e' and '--qualify-lunar-profile' in args:
+        # FIX05 reads the supplied profile; it provisions no repository fixtures.
         return None
     provisioning = (category == 'system' and len(args) == 1
                     and args[0].removesuffix('.py') == 'check_fixture_provisioning')

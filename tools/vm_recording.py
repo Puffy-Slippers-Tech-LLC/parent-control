@@ -38,6 +38,13 @@ def e2e_identities(root):
             for scenario in document['scenarios'] for variant in scenario['variants']}
 
 
+E2E_QUALIFICATIONS = {
+    '--qualify-lunar-profile': ('check_e2e_lunar_profile',
+        "Check that the child's game launchers are ready",
+        'tests/integration/lunar_profile_qualification.py'),
+}
+
+
 def case_identity(root, category, event):
     """Resolve public IDs without changing existing pytest/checkpoint nodeids."""
     nodeid = event.get('nodeid')
@@ -54,6 +61,8 @@ def case_identity(root, category, event):
             sys.path.pop(0)
         return (identity.numeric_id, identity.title) if identity else None
     if category == 'e2e':
+        if nodeid in E2E_QUALIFICATIONS:
+            return E2E_QUALIFICATIONS[nodeid][:2]
         return e2e_identities(root).get(nodeid)
     return None
 

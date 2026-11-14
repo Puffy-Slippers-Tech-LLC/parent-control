@@ -1501,39 +1501,43 @@
                     canvas.setAttribute('aria-hidden', 'true');
                 }
                 group.title = `${name}: last minute, fixed 0–100% scale. History stays in memory only.` +
-                    (name === 'VM RAM' ? ' Current working set of all libvirt QEMU VMs: charged memory minus inactive file cache, including guest RAM and QEMU/kernel overhead. Decimal GB; graph shows percentage of host RAM. Excludes swap. For capacity planning, reserve full configured guest RAM plus overhead per VM.' : '') +
+                    (name === 'VM/Host RAM' ? ' Purple: current working set of all libvirt QEMU VMs (charged memory minus inactive file cache), including guest RAM and QEMU/kernel overhead. Teal: total host RAM usage (MemTotal minus MemAvailable). Values are VM/host usage in decimal GB; both lines show percentage of total host RAM. Excludes swap. For capacity planning, reserve full configured guest RAM plus overhead per VM.' : '') +
                     (name === 'Disk' ? ' Busiest physical disk (iostat %util); NVMe busy time is not throughput saturation.' : '');
                 group.querySelector('strong').textContent = `${name}:`;
                 group.querySelector('.percentage').textContent = data.text;
-                drawChart(group.querySelector('canvas'), data.segments, colors[index % colors.length]);
+                drawChart(group.querySelector('canvas'), data.segments, colors[index % colors.length], data.host_segments);
             });
             for (const group of groups.slice(host.charts.length)) group.remove();
         }
         layoutResources();
     }
 
-    function drawChart(canvas, segments, color) {
-            const context = canvas.getContext('2d');
-            const { width, height } = canvas;
-            context.clearRect(0, 0, width, height);
-            context.fillStyle = `rgba(${color}, .08)`;
-            context.fillRect(0, 0, width, height);
-            for (const segment of segments) {
+    function drawChart(canvas, segments, color, hostSegments = []) {
+        const context = canvas.getContext('2d');
+        const { width, height } = canvas;
+        context.clearRect(0, 0, width, height);
+        context.fillStyle = `rgba(${color}, .08)`;
+        context.fillRect(0, 0, width, height);
+        for (const [history, lineColor, fill] of [[segments, color, true], [hostSegments, '38, 190, 170', false]]) {
+            for (const segment of history) {
                 const points = segment.map(([x, y]) => [2 + x * (width - 4), 2 + y * (height - 4)]);
-                context.beginPath();
-                context.moveTo(points[0][0], height - 2);
-                for (const point of points) context.lineTo(...point);
-                context.lineTo(points[points.length - 1][0], height - 2);
-                context.closePath();
-                context.fillStyle = `rgba(${color}, .3)`;
-                context.fill();
+                if (fill) {
+                    context.beginPath();
+                    context.moveTo(points[0][0], height - 2);
+                    for (const point of points) context.lineTo(...point);
+                    context.lineTo(points[points.length - 1][0], height - 2);
+                    context.closePath();
+                    context.fillStyle = `rgba(${color}, .3)`;
+                    context.fill();
+                }
                 context.beginPath();
                 context.moveTo(...points[0]);
                 for (const point of points.slice(1)) context.lineTo(...point);
-                context.strokeStyle = `rgb(${color})`;
+                context.strokeStyle = `rgb(${lineColor})`;
                 context.lineWidth = 2;
                 context.stroke();
             }
+        }
     }
 
     function runTimes(rows) {

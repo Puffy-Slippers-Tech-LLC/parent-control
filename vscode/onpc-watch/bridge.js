@@ -87,9 +87,11 @@ function validate(snapshot) {
     const rows = value => Array.isArray(value) && value.every(row => Array.isArray(row) && row.every(
         part => part && typeof part.text === 'string' && (part.link == null ||
             (typeof part.link === 'string' && part.link.length <= 8192))));
-    const chart = value => value && Array.isArray(value.segments) && value.segments.every(segment =>
+    const segments = value => Array.isArray(value) && value.every(segment =>
         Array.isArray(segment) && segment.length && segment.every(point => Array.isArray(point) &&
             point.length === 2 && point.every(Number.isFinite)));
+    const chart = value => value && segments(value.segments) &&
+        (value.host_segments === undefined || segments(value.host_segments));
     if (snapshot?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; update the adapter (protocol 1 required).');
     if (snapshot.run_times !== undefined && (!Array.isArray(snapshot.run_times) || snapshot.run_times.some(row =>
         !row || !['system', 'integration', 'e2e'].includes(row.category) ||

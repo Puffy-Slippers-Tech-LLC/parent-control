@@ -463,7 +463,7 @@ and viewers retain their last received contents while disconnected, with actions
 disabled. Fresh snapshots update them after reconnection.
 
 The footer also shows hosts in `config/environment.json` order. Each host has a
-server icon and hostname before its CPU, VM RAM and Disk readings and small
+server icon and hostname before its CPU, VM/Host RAM and Disk readings and small
 filled history graphs. When the hosts do not fit side by side, they stack with
 one complete host per row. Extremely narrow views can scroll the readings horizontally.
 Host configuration is read when Watch opens or reconnects, independently of viewer
@@ -477,7 +477,14 @@ reconnecting its reader starts fresh; pauses leave gaps rather than joined curve
 The last graph remains visible during retries; its sampling history starts fresh
 when the replacement reader responds.
 
-**VM RAM** sums the current working set (`memory.current` minus
+**VM/Host RAM** shows VM RAM / total host RAM usage in decimal GB, rounded to
+one decimal place (for example, **12.3/24.5 GB**). The purple line shows VM RAM;
+the teal line shows total host usage, both as percentages of total host RAM on
+the same graph. Host usage is `MemTotal` minus `MemAvailable`, including all
+host processes and VM usage while excluding available reclaimable memory.
+Either unavailable reading shows **—** independently.
+
+VM RAM sums the current working set (`memory.current` minus
 `memory.stat`'s `inactive_file`, floored at zero per scope) for all system
 libvirt QEMU VM scopes on that host, including VMs outside the configured test
 inventory. It includes resident guest RAM (including shared-memory backing),
@@ -485,8 +492,7 @@ QEMU overhead, helper processes, charged kernel memory and active file cache,
 without counting descendant groups twice. Reclaimable inactive disk cache is
 excluded. This is current occupancy, not a reservation: for parallel capacity,
 budget full configured guest RAM plus overhead per VM and leave host headroom.
-It shows decimal GB rounded to one
-decimal place; the graph uses the percentage of total host RAM. Swap is excluded. With no
+Swap is excluded from both readings. With no
 VM scopes it shows zero; unavailable accounting shows **—**. Stopping VMs removes
 their scopes from the total. The change in overall host memory use can differ
 because reclaimable cache may remain and other host activity continues.

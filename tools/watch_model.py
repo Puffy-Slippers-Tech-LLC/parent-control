@@ -96,8 +96,8 @@ class ResourceUsage:
             return self.label
         interval = now - self.last if self.last is not None else 0
         self.last = now
-        cpu = memory = disk = None
-        vm_bytes = None
+        cpu = memory = disk = host_memory = None
+        vm_bytes = host_bytes = total_bytes = None
         try:
             # Guest counters are already included in user/nice; count them once.
             ticks = list(map(int, (self.proc / 'stat').read_text().splitlines()[0].split()[1:9]))
@@ -113,8 +113,17 @@ class ResourceUsage:
             values = {key: int(value.split()[0]) for key, value in
                       (row.split(':', 1) for row in (self.proc / 'meminfo').read_text().splitlines())}
             if values['MemTotal'] > 0:
+                total_bytes = values['MemTotal'] * 1024
+                available = values['MemAvailable'] * 1024
+                if 0 <= available <= total_bytes:
+                    host_bytes = total_bytes - available
+                    host_memory = 100 * host_bytes / total_bytes
+        except (OSError, ValueError, IndexError, KeyError):
+            pass
+        try:
+            if total_bytes is not None:
                 vm_bytes = self.vm_ram()
-                memory = 100 * vm_bytes / (values['MemTotal'] * 1024)
+                memory = 100 * vm_bytes / total_bytes
         except (OSError, ValueError, IndexError, KeyError):
             pass
         try:
@@ -139,9 +148,9 @@ class ResourceUsage:
             self.previous_disks = None
         def percentage(value):
             return f'{max(0, min(100, value)):3.0f}%' if value is not None else '   —'
-        self.history.append((now, cpu, memory, disk))
-        self.charts = []
-        for index, (name, value) in enumerate(zip(('CPU', 'VM RAM', 'Disk'), (cpu, memory, disk)), 1):
+        self.history.append((now, cpu, memory, disk, host_memory))
+
+        def history_segments(index):
             segments, segment, previous = [], [], None
             for sample in self.history:
                 stamp, reading = sample[0], sample[index]
@@ -156,10 +165,19 @@ class ResourceUsage:
                 previous = stamp
             if segment:
                 segments.append(segment)
+            return segments
+
+        self.charts = []
+        for index, (name, value) in enumerate(zip(('CPU', 'VM/Host RAM', 'Disk'), (cpu, memory, disk)), 1):
             text = percentage(value)
-            if name == 'VM RAM' and value is not None:
-                text = f'{vm_bytes / 1e9:.1f} GB'
-            self.charts.append(dict(label=name, text=text, segments=segments))
+            if name == 'VM/Host RAM':
+                vm_text = f'{vm_bytes / 1e9:.1f}' if vm_bytes is not None else '—'
+                host_text = f'{host_bytes / 1e9:.1f}' if host_bytes is not None else '—'
+                text = f'{vm_text}/{host_text} GB'
+            chart = dict(label=name, text=text, segments=history_segments(index))
+            if name == 'VM/Host RAM':
+                chart['host_segments'] = history_segments(4)
+            self.charts.append(chart)
         self.label = ' | '.join(f'{chart["label"]}: {chart["text"]}' for chart in self.charts)
         return self.label
 

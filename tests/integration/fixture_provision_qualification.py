@@ -71,7 +71,7 @@ def expected_admissions(members, accounts, os_id):
         return {}
     by_path = {m['destination']: m for m in members.values()}
     executables = [by_path[native_assets.executable_path(role)]['sha256']
-                   for role in ('A', 'H', 'S', 'N')]
+                   for role, *_ in native_assets.ASSETS]
     executables.append(by_path[native_assets.PREFIX + '/' + native_assets.NEXT_VERSION]['sha256'])
     runtime_paths = {path for source, (path, _) in
                      native_assets.source_destinations(accounts['other']['home']).items()

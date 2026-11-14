@@ -158,6 +158,16 @@
           "host": "myserver",
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44-202.qcow2",
           "owning_branch": ""
+        },
+        {
+          "id": "210",
+          "name": "onpc-Fedora44-210",
+          "enabled": "true",
+          "host": "myserver",
+          "vm_tags": "heavy",
+          "compute_unit": 2,
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2",
+          "owning_branch": ""
         }
       ]
     },

@@ -790,6 +790,53 @@ sub shared_target_launchers {
     $journey->finish();
 }
 
+sub minecraft_access {
+    onpc_progress::operation('Checking Minecraft access before and after parent approval');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'minecraft-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    require onpc_window;
+    require onpc_request_flow;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'minecraft-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page);
+    onpc_text::replace_text($journey, 'catalogue-minecraft', 'minecraft-search');
+    $journey->seen($_) for qw(allowed-save allowed-row parent-switch parent-greeter);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'initial');
+    $journey->seen('observer-ready');
+    for my $name ('initial-work', 'allowed', 'denied-work', 'approved') {
+        my $slice = $journey->scope($name);
+        if ($name =~ /work\z/) {
+            native_usable_app($slice, 'command', $slice->seen('desktop'), 'other-child', 'N');
+            native_finish_app($slice);
+            next;
+        }
+        if ($name eq 'approved') {
+            $slice->{overlay_request} = ['other-child', 'parent', 900, 1];
+            onpc_request_flow::overlay_entry($slice, 'request', 'command');
+            onpc_request_flow::prepare($slice, 'new', 'open', 'observed',
+                'existing-fixture-child', 'fixture-parent', 900, 1, 'overlay');
+            onpc_request_flow::overlay_approve($slice, 'automatic');
+        }
+        $slice->seen($_) for qw(launch opened);
+        onpc_window::close($slice, 'minecraft', $slice->seen('minecraft-close-ready'));
+        if ($name eq 'allowed') {
+            onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',
+                                               'success', 'parent-return', 'other-child');
+            $journey->seen($_) for qw(soft-save soft-row);
+            onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained',
+                                               'success', 'child-return', 'parent');
+            $journey->seen($_) for qw(denied denied-absent);
+        }
+    }
+    $journey->seen('child-logout');
+    $journey->finish();
+}
+
 sub lunar_denial {
     onpc_progress::operation('Checking that a parent block stops Lunar while other work remains usable');
     my ($exchange, $declared, $challenges) = @_;

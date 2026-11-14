@@ -245,6 +245,29 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
                                        else 'overlay-shell-approval')]])
 
 
+@pytest.mark.parametrize('fault', ['none', 'scope', 'child', 'duration', 'replay'])
+def test_minecraft_approval_keeps_its_exact_recipient_and_single_use(fault):
+    result = run_password_guard(r'''
+my ($fault) = @ARGV;
+my $journey = bless {prefix => 'minecraft-access-approved', stage_prefix => 'approved-',
+    review => 0, overlay_request => ['other-child', 'parent', 900, 1]}, 'onpc_journey';
+$journey->{stage_prefix} = 'wrong-' if $fault eq 'scope';
+$journey->{overlay_request}[0] = 'child' if $fault eq 'child';
+$journey->{overlay_request}[2] = 75 if $fault eq 'duration';
+my $ok = eval {
+    onpc_password::enter_overlay_shell_password($journey);
+    onpc_password::enter_overlay_shell_password($journey) if $fault eq 'replay';
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    assert value['events'] == ([] if fault in ('scope', 'child', 'duration') else [
+        ['proof', 'approved-approval-qualified'], ['proof', 'approved-approval-rechecked'],
+        ['delivery', 'parent', 'approved-overlay-shell-approval']])
+
+
 @pytest.mark.parametrize('surface,fault', [
     ('overlay', 'none'), ('kiosk', 'none'), ('kiosk', 'child'),
     ('overlay', 'scope'), ('kiosk', 'parent'), ('overlay', 'replay')])

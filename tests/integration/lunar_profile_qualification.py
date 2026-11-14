@@ -17,7 +17,7 @@ import system_runner as system
 
 
 def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
-            minecraft=False, fixture_selection=None):
+            minecraft=False, minecraft_access=False, fixture_selection=None):
     suite = Suite(open_source)
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -39,7 +39,7 @@ def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
                                         e2e_installed=True)
             suite.verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
             transport = suite.start_transport(directory, host_key)
-            if denial:
+            if denial or minecraft_access:
                 # The unrelated allowed app uses the existing native fixture
                 # provisioner; supplied vendor profiles remain read-only.
                 installed_setup.InstalledSetup(directory, suite.verified, transport).provision(
@@ -47,14 +47,17 @@ def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
             result['profile'] = LunarProfile(transport, suite.verified).verify()
             result['target'] = suite.source.domain.name()
             result['installed_snapshot'] = lease.installed_name
-            if denial:
+            if denial or minecraft_access:
                 from calendar_fixture import preset_ordinary_daytime
-                from lunar_denial import PLAN
                 from native_fixtures import fixture_actions
-                from policy_edits import AppPolicyJourney
+                if minecraft_access:
+                    from minecraft_access import PLAN, MinecraftAccessJourney as Journey
+                else:
+                    from lunar_denial import PLAN
+                    from policy_edits import AppPolicyJourney as Journey
                 result['denial'] = run_journey(directory, lease, transport, suite.verified,
                     PLAN, {**fixture_actions(include_refusal=False),
-                           'daytime-clock': preset_ordinary_daytime}, journey_class=AppPolicyJourney)
+                           'daytime-clock': preset_ordinary_daytime}, journey_class=Journey)
             elif minecraft:
                 result['launcher'] = qualify_minecraft_entry_exit(
                     directory, lease, transport, suite.verified)
@@ -179,19 +182,20 @@ def run_journey(directory, lease, transport, verified, plan, actions, *, journey
 
 
 def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False,
-         fixture_selection=None):
+         minecraft_access=False, fixture_selection=None):
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
         system.require(prepare_vm.vm_config.selected().name == 'onpc-Ubuntu26.04-110',
                        'lunar-profile:target-not-qualified')
-    if denial:
+    if denial or minecraft_access:
         from e2e_fixture_preparation import validate_input
         fixture_selection = validate_input(fixture_selection)
-    label = ('minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else 'lunar-tray' if tray else
+    label = ('minecraft-access' if minecraft_access else
+             'minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else 'lunar-tray' if tray else
              'lunar-launch-quit' if launch_quit else 'lunar-profile')
     return run_qualification(label, lambda directory: qualify(
         directory, assets, launch_quit=launch_quit, tray=tray, denial=denial,
-        minecraft=minecraft,
+        minecraft=minecraft, minecraft_access=minecraft_access,
         fixture_selection=fixture_selection),
                              preflight=preflight)

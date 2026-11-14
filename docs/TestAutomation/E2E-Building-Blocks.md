@@ -5649,6 +5649,24 @@ absence passed. Scoped host routing/source checks, collection, worker shutdown
 and owned baseline restoration passed; the VM was powered off. This supplies no
 denial, Soft approval, reboot-persistence or complete case-253 acceptance.
 
+#### Minecraft launcher access and approval
+
+`minecraft_access.PLAN` / `MinecraftAccessJourney` and
+`onpc_app_rows::minecraft_access` compose the shared Parent policy, desktop entry,
+launcher entry/exit and overlay approval operations. APP01/02/UI18 is qualified
+on Ubuntu 26.04 through
+`e2e --subcategory e2e-heavy --qualify-minecraft-access`.
+
+With positive daily time, Parent saves Allowed and Jordan opens the supplied
+signed-out launcher, then closes it normally. Parent's saved Soft block produces
+the specific Flatpak administrator-policy denial from the same command and
+complete public launcher absence. Unrelated allowed N remains usable before
+and after the block. Real parent approval including soft apps restores launcher
+entry; normal closure again requires complete public absence. The binding
+retains the supplied read-only profile, shared ownership/complete-read guards,
+fresh credential proofs and single-use input. Reboot persistence and complete
+case 253 remain separate.
+
 <a id="inventory-reconciliation"></a>
 
 ### Engineering coverage boundary

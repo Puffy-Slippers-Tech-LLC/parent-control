@@ -35,7 +35,7 @@ Preserve public denial/absence results and shared input, ownership and cleanup g
 
 ## Next task
 
-Next task: **296a — [Check Minecraft launcher access after approval](E2E-Tasks/296a-minecraft-provider.md)**.
+Next task: **296f — [Check allowed Lunar startup after sign-in](E2E-Tasks/296f-lunar-autostart-positive.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

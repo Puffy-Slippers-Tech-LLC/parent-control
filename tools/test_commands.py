@@ -365,7 +365,7 @@ The reservation ends after that group's owned work and cleanup. Required family
 vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tag general) and e2e-heavy (vm_tag heavy).
-Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-tray, --qualify-lunar-denial and --qualify-minecraft-entry-exit belong to e2e-heavy.
+Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-tray, --qualify-lunar-denial, --qualify-minecraft-entry-exit and --qualify-minecraft-access belong to e2e-heavy.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs

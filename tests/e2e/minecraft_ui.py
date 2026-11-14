@@ -116,15 +116,24 @@ def run(ui, operation, require, require_session):
                                         GLib.Variant('b', True))),
             None, Gio.DBusCallFlags.NO_AUTO_START, 5000, None)
         ui.input_uncertain = False
-    elif operation == 'minecraft-launch':
+    elif operation in ('minecraft-launch', 'minecraft-command-blocked'):
         ui.wait(absent, 'minecraft-before-launch', prompt_in_predicate=True)
         ui.prepare_launch_desktop()
         require(absent(), 'ui:minecraft-before-launch')
         ui.input_uncertain = True
-        subprocess.run(['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+        blocked = operation == 'minecraft-command-blocked'
+        result = subprocess.run(['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
+            *(['--wait', '--pipe'] if blocked else []),
             '--service-type=exec', '/usr/bin/flatpak', 'run', '--branch=stable',
             '--arch=x86_64', '--command=minecraft', MINECRAFT],
-            stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=15)
+            stdin=subprocess.DEVNULL, capture_output=True, check=not blocked, timeout=15)
+        if blocked:
+            denial = ('Running app/' + MINECRAFT + '/x86_64/stable is not allowed '
+                      'by the policy set by your administrator').encode()
+            require(result.returncode == 1 and len(result.stdout) + len(result.stderr) <= 65536
+                    and denial in result.stderr, 'ui:minecraft-execution-denial')
+            ui.input_uncertain = False
+            return {'denial': 'administrator-policy'}
         ui.input_uncertain = False
     elif operation in ('minecraft-opened', 'minecraft-close-ready'):
         return ui.wait(lambda: window(closing=operation == 'minecraft-close-ready'),

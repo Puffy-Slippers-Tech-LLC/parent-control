@@ -39,6 +39,9 @@ def e2e_identities(root):
 
 
 E2E_QUALIFICATIONS = {
+    '--qualify-minecraft-access': ('check_e2e_minecraft_access',
+        'Check Minecraft launcher access after approval',
+        'tests/integration/lunar_profile_qualification.py'),
     '--qualify-minecraft-entry-exit': ('check_e2e_minecraft_entry_exit',
         'Open and close the Minecraft launcher',
         'tests/integration/lunar_profile_qualification.py'),

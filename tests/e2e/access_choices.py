@@ -1,6 +1,6 @@
 """Public access-choice qualification and reusable exact row comparisons."""
 from accessible_ui import (ACCESS_CHOICES, MATCH_APP, MATCH_APPS, LUNAR_POLICY_APP,
-                           SNAP_POLICY_APP, FLATPAK_POLICY_APPS)
+                           MINECRAFT_POLICY_APP, SNAP_POLICY_APP, FLATPAK_POLICY_APPS)
 from installed_journey import JourneyPlan
 from match_rules import MatchRuleJourney
 from journey_blocks import fresh_desktop, parent_management
@@ -14,7 +14,7 @@ class AccessChoiceJourney(MatchRuleJourney):
         self.access_checks = dict(plan.access_checks)
         require(all(stage in plan.screen_tags and (choice in ACCESS_CHOICES or
                     type(choice) is tuple and len(choice) == 2
-                    and choice[0] in (*MATCH_APPS.values(), LUNAR_POLICY_APP,
+                    and choice[0] in (*MATCH_APPS.values(), LUNAR_POLICY_APP, MINECRAFT_POLICY_APP,
                                      SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values())
                     and choice[1] in ACCESS_CHOICES)
                     for stage, choice in self.access_checks.items()), 'access:comparison-plan')

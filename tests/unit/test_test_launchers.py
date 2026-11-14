@@ -3051,6 +3051,8 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert commands.fixture_execution_target('e2e', ['--qualify-minecraft-entry-exit']) is None
     assert preflight(['--qualify-lunar-denial'], root=ROOT, allow_missing_artifacts=True) == {
         'mode': 'lunar-denial-qualification', 'subcategory': 'e2e-heavy'}
+    assert preflight(['--qualify-minecraft-access'], root=ROOT, allow_missing_artifacts=True) == {
+        'mode': 'minecraft-access-qualification', 'subcategory': 'e2e-heavy'}
     from vm_recording import case_identity
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-minecraft-entry-exit'}) == (
         'check_e2e_minecraft_entry_exit', 'Open and close the Minecraft launcher')
@@ -3059,6 +3061,8 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-denial'}) == (
         'check_e2e_lunar_denial', 'Observe Lunar command denial')
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
+    assert '--qualify-minecraft-access' in dispatcher['selection'](
+        ROOT, ['e2e', '--qualify-minecraft-access', *VM_ARGS], allow_missing_artifacts=True)
     assert '--qualify-minecraft-entry-exit' in dispatcher['selection'](
         ROOT, ['e2e', '--qualify-minecraft-entry-exit', *VM_ARGS], allow_missing_artifacts=True)
     assert '--qualify-lunar-denial' in dispatcher['selection'](

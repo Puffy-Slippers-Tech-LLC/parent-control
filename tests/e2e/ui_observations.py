@@ -72,6 +72,7 @@ OPERATION_LABELS = {
     **{'minecraft-' + action: label for action, label in (
         ('observer-ready', 'Preparing public Minecraft launcher observations for [Child user]'),
         ('launch', 'Opening the supplied separate Minecraft launcher for [Child user]'),
+        ('command-blocked', 'Checking that the parent’s block refuses Minecraft'),
         ('opened', 'Reading the usable signed-out Minecraft launcher'),
         ('close-ready', 'Checking the Minecraft window before normal closure'),
         ('closed', 'Checking complete public Minecraft launcher absence'))},
@@ -1859,6 +1860,10 @@ class UiObservations:
                                              'locale': 'en-US', 'keyboard': [['xkb', 'us']]},
                     'ui:minecraft-response')
             expected['minecraft'] = value
+        if operation == 'minecraft-command-blocked':
+            require(result.get('minecraft') == {'denial': 'administrator-policy'},
+                    'ui:minecraft-denial-response')
+            expected['minecraft'] = result['minecraft']
         if operation == 'lunar-command-blocked':
             value = result.get('lunar')
             require(type(value) is dict and set(value) == {'denial'}

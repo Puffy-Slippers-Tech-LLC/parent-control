@@ -239,21 +239,27 @@ def png(pixels, width, height, stride, *, rgba=False, red_first=False):
 
 def launcher_arguments(record, kind, *, branch, execution_plan=False):
     """Share the displayed action's arguments with its actual invocation."""
-    if kind == 'resume' and not execution_plan:
+    if kind == 'resume' and not execution_plan and 'requested_argv' not in record:
         return ['--branch', branch, '--resume']
-    argv = record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop') else record['argv']
+    argv = (record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop')
+            else record['argv'] if kind == 'add-session'
+            else record.get('requested_argv', record['argv']))
     # Replace lifecycle switches; never replay a destructive reset.
     tokens = iter(argv)
     argv = []
     for arg in tokens:
+        if arg == '--':
+            argv.extend((arg, *tokens))
+            break
         if arg == '--add-session':
             next(tokens, None)
         elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
             argv.append(arg)
-    argv = ['--branch', branch, *argv]
+    if kind in ('stop', 'cancel-stop', 'add-session') or 'requested_argv' not in record:
+        argv = ['--branch', branch, *argv]
     if kind == 'add-session':
         return ['--add-session', '5', *argv]
-    return argv if kind == 'resume' else [f'--{kind}', *argv]
+    return argv if kind == 'resume' and execution_plan else [f'--{kind}', *argv]
 
 
 class Viewer:
@@ -333,7 +339,7 @@ class Viewer:
                 if (not any(candidate == run for candidate, _name in active_launchers(output.root, JsonReader()))
                         or allowance_key is None):
                     raise ValueError('No active session allowance; refresh before trying again.')
-            name, argv = record.get('launcher'), record.get('argv')
+            name, argv = record.get('launcher'), record.get('requested_argv', record.get('argv'))
             if action['kind'] in ('stop', 'cancel-stop'):
                 argv = record.get('stop_argv', argv)
             if (not isinstance(name, str) or not re.fullmatch(r'[\w.-]{1,100}', name)
@@ -717,10 +723,11 @@ class Viewer:
             try:
                 record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
                 sections[-1]['launcher_controls'] = record.get('run') == output.run.name and isinstance(record.get('argv'), list)
-                name, argv = record.get('launcher'), record.get('argv')
+                name, argv = record.get('launcher'), record.get('requested_argv', record.get('argv'))
                 if (sections[-1]['launcher_controls'] and isinstance(name, str)
                         and isinstance(argv, list) and all(isinstance(arg, str) for arg in argv)):
-                    sections[-1]['launcher_command'] = shlex.join([f'tools/{name}', '--branch', branch, *argv])
+                    sections[-1]['launcher_command'] = shlex.join([f'tools/{name}',
+                        *([] if 'requested_argv' in record else ['--branch', branch]), *argv])
                     kind = 'cancel-stop' if status == 'Stop Requested' else 'stop' if active or session.active else 'resume'
                     sections[-1]['launcher_action_command'] = shlex.join([f'tools/{name}',
                         *launcher_arguments(record, kind, branch=branch, execution_plan=output.execution_plan)])

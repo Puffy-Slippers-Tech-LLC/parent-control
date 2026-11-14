@@ -588,9 +588,75 @@ def extract_selector(argv):
     return remaining, names[0] if names else None
 
 
+HOST_HELP = ('--host NAME optionally limits the VM selection to that configured host '
+             '(e.g. myserver or local); omitted: no host filter. Single-VM tools still '
+             'require --vm. This does not change controller placement.')
+
+
+def host_arguments(argv, *, single=False, path=None):
+    """Intersect VM targets with one host, preserving opaque command arguments.
+
+    Single-target maintenance resolves metadata only: observations and owned
+    recovery must remain possible after availability or branch flags change.
+    Its existing caller remains responsible for admission and ownership checks.
+    """
+    remaining, hosts = [], []
+    tokens = iter(argv)
+    for token in tokens:
+        if token == '--':
+            remaining.extend((token, *tokens))
+            break
+        if token == '--host':
+            hosts.append(next(tokens, None))
+        elif token.startswith('--host='):
+            hosts.append(token.partition('=')[2])
+        else:
+            remaining.append(token)
+    if not hosts:
+        return remaining
+    if len(hosts) != 1:
+        raise ValueError('vm-config:duplicate --host')
+    host = hosts[0]
+    if not host or host.startswith('-'):
+        raise ValueError('vm-config: --host requires a value')
+    controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
+    if any(option in controls for option in ('--help', '-h')):
+        return remaining
+    if '--host-only' in controls:
+        raise ValueError('vm-config: --host cannot be combined with --host-only')
+    if host not in host_registry(read_document(path, validate_agent=False)):
+        raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
+    insertion = next((index for index, value in enumerate(controls)
+                      if value == '--vm' or value.startswith('--vm=')), None)
+    remaining, selector = extract_selector(remaining)
+    vms = (load(selector, path, local=False),) if single else execution(selector, path)[1]
+    names = [vm.name for vm in vms if vm.host.name == host]
+    if not names:
+        raise ValueError(f'vm-config:no selected VMs on host {host}')
+    boundary = remaining.index('--') if '--' in remaining else len(remaining)
+    # Keep an explicit selector in place, before argparse REMAINDER commands
+    # and after any subcommand that owns the --vm option.
+    insertion = boundary if insertion is None else insertion
+    return [*remaining[:insertion], '--vm', ','.join(names), *remaining[insertion:]]
+
+
+def add_host_argument(parser):
+    parser.add_argument('--host', metavar='NAME', help=HOST_HELP)
+
+
+def parse_vm_arguments(parser, argv=None, *, single=False):
+    """Use the same host filter for argparse-based VM tools and their help."""
+    add_host_argument(parser)
+    try:
+        argv = host_arguments(sys.argv[1:] if argv is None else argv, single=single)
+    except ValueError as error:
+        parser.error(str(error))
+    return parser.parse_args(argv)
+
+
 def extract(argv, *, required=True, path=None, local=None):
     """Consume one --vm name or ID and bind its canonical name."""
-    remaining, name = extract_selector(argv)
+    remaining, name = extract_selector(host_arguments(argv, single=True, path=path))
     controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
     if name is None and (not required or any(value in ('--help', '-h') for value in controls)):
         return remaining, None

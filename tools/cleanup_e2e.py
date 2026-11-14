@@ -32,7 +32,7 @@ def main(argv=None):
                           help='preserve and transfer one published batch-owned input to its explicit VM')
     recovery.add_argument('--transfer-batch-appsnapshot', metavar='ALLOCATION',
                           help='transfer one evidenced standalone snapshot package allocation by basename')
-    args = parser.parse_args(argv)
+    args = vm_config.parse_vm_arguments(parser, argv)
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')

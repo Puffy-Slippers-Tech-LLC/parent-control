@@ -49,6 +49,18 @@ and cleanup.
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
 | `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |
 
+Every tool accepting `--vm` also accepts optional `--host NAME` (or
+`--host=NAME`) through the shared filter in
+[`vm_config.py`](../../tests/integration/vm_config.py). The filter intersects the
+VM selection with that exact configured host and forwards canonical VM names;
+it does not change controller placement. Queue tools may use `--host` without
+`--vm` to narrow their default queue. Single-VM tools still require `--vm` and
+refuse a host mismatch, without widening their target or changing observation
+and owned-recovery admission rules. Unknown hosts, duplicate/missing host values
+and empty intersections refuse before work. `--host` conflicts with
+`cleanup-e2e --host-only`. Arguments after `--` belong to the invoked command and
+are never interpreted as host or VM filters.
+
 Duplicate aliases execute once, in first-selected order; invalid selectors fail
 before work starts. Every `--vm` and Make `VM=` name/ID resolves from the current
 JSON on invocation. Names are case-sensitive; IDs are unique positive decimal

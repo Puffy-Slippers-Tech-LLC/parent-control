@@ -154,7 +154,8 @@ def main(argv=None):
         epilog='Requires an owned running app-snapshot maintenance VM. '
                'Never boots, restores or adopts a VM.')
     parser.add_argument('--vm', required=True, help='one registered VM name or ID')
-    args = parser.parse_args(argv)
+    from vm_selection import parse_vm_arguments
+    args = parse_vm_arguments(parser, argv, single=True)
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')

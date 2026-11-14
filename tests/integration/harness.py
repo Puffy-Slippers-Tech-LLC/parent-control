@@ -388,17 +388,21 @@ def destroy(args) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
+    import vm_config
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     run_parser = subparsers.add_parser("run", help="run checks and the real installer in the VM")
     run_parser.add_argument("--vm", dest='name', required=True)
+    vm_config.add_host_argument(run_parser)
     run_parser.set_defaults(function=run_tests)
     collect_parser = subparsers.add_parser("collect", help="retrieve redacted VM artifacts")
     collect_parser.add_argument("--vm", dest='name', required=True)
+    vm_config.add_host_argument(collect_parser)
     collect_parser.add_argument("--output")
     collect_parser.set_defaults(function=collect)
     destroy_parser = subparsers.add_parser("destroy", help="destroy only a verified H-50 VM")
     destroy_parser.add_argument("--vm", dest='name', required=True)
+    vm_config.add_host_argument(destroy_parser)
     destroy_parser.add_argument("--confirm", required=True)
     destroy_parser.set_defaults(function=destroy)
     return parser
@@ -406,8 +410,9 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        args = _parser().parse_args(argv)
         import vm_config
+        args = _parser().parse_args(vm_config.host_arguments(
+            sys.argv[1:] if argv is None else argv, single=True))
         vm_config.select(args.name)
         args.function(args)
     except (HarnessError, ValueError, OSError, subprocess.SubprocessError) as error:

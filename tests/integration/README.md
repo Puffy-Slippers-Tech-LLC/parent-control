@@ -306,6 +306,16 @@ line. These exchanges are nested within stage totals. Directory uploads prepare
 their destination and extract the archive in one guarded SSH exchange, retaining
 the transfer deadline and stopping before extraction if preparation fails.
 
+The shared command layer emits `ssh-command-failure:` JSON for nonzero SSH
+exits, controller deadlines and interrupted exchanges, including commands run
+with `check=False`. It records the command sequence, exit status, configured
+deadline and failure kind. A remote nonzero exit is distinct from a controller
+timeout; status 255 remains ambiguous between an SSH error and a remote exit.
+Recognized terminal `system_guest.GuestError` categories are included and
+preserved in checked-command exceptions. Other stderr stays private, with the
+existing stdout/stderr artifact paths included when retained. An elapsed time
+or `command:failed:ssh` alone never proves a connection timeout.
+
 ```sh
 tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
 tools/run-tests system --vm 'onpc-Fedora44' check_fixture_e2e_installed

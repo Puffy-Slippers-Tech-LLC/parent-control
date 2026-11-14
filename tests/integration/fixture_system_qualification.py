@@ -155,14 +155,9 @@ def observer(selection, manifest, result, previous=None, source_allocation=None,
         edit = source_edit_proof(source_allocation, selection, manifest)
         # Reuse the exact original record. Source edits cannot cause a new
         # selection or silently replace nonempty execution-owned inputs.
-        system.require(fixture_execution.verify(selection) == manifest,
-                       'fixture-system:selected-input-changed')
-        repeated = controller.provision(selection, preparation.SUBSETS,
-                                        attempt_id=preparation.attempt_id(directory))
-        controller.require_ready(repeated)
-        system.require(repeated == receipt, 'fixture-system:version-switched')
-        final = proof.audit(vm, manifest, preparation.SUBSETS)
-        proof.verify_repeat(before_repeat, final)
+        final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+            preparation.SUBSETS, before_repeat, attempt_id=preparation.attempt_id(directory),
+            prefix='fixture-system')
         proof.unchanged_policy(state['before'], final)
         if previous:
             try:

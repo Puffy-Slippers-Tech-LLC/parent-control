@@ -188,7 +188,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
         import vm_config
         report['evidence_directory'] = str(collector.path)
         checkpoint('preparation-started')
-        with ledger.measure('preparation'):
+        with ledger.measure('preparation', operation='prerequisites'):
             # Keep retained worker PNGs inside the existing guarded export
             # scope, including when the caller has configured another TMPDIR.
             from tools.test_retention import allocate
@@ -207,6 +207,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 credential_preflight(commands)
                 if suite is not None:
                     suite.credentials_checked = True
+        with ledger.measure('preparation', operation='asset-staging'):
             staged = directory / 'assets'
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
@@ -238,6 +239,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             staged.chmod(0o700)
             source_check = preflight_source(staged, root=root, upgrade=upgrade_consumer,
                 **({'package_only': True} if package_only else {}))
+        with ledger.measure('preparation', operation='helper-staging'):
             # bootstrap binds the guest's observation marker to this exact
             # selected input document. Stage it before acquiring the VM; a
             # ready callback cannot substitute for this preparation input.
@@ -262,6 +264,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     stream.flush()
                     os.fsync(stream.fileno())
             print('e2e:bootstrap-inputs-staged', file=sys.stderr, flush=True)
+        with ledger.measure('preparation', operation='lease-acquisition'):
             if suite is None:
                 host_before = system.host_fingerprint(commands)
                 source, guestfs = open_source()
@@ -272,7 +275,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 source, guestfs, lease = suite.acquire(ledger)
         with lease:
             try:
-                with ledger.measure('preparation'):
+                with ledger.measure('preparation', operation='snapshot-readiness'):
                     if suite is None:
                         lease.prepare()
                     else:
@@ -290,12 +293,14 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                                                        and needs_installed(suite.next_case))
                         else:
                             suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
+                with ledger.measure('bootstrap', operation='bootstrap-payload'):
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
                         observation_only=not installed_consumer,
                         **({'e2e_installed': True} if package_only and installed_consumer else {}),
                         **({'e2e_product_free': True} if product_free_consumer or recorded_serial_consumer else {}))
                     lease.guard(off=True)
                     lease.save('isolated')
+                with ledger.measure('preparation', operation='provenance'):
                     verified = VerifiedInputs(lease=lease, assets=staged, root=root,
                                               upgrade=upgrade_consumer,
                                               plan={**plan, 'cases': [case]},

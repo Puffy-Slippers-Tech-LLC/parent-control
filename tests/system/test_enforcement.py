@@ -7,6 +7,7 @@ from system_enforcement import (
     native_policy_transition, native_probe_lifecycle, native_probe_storage_lifecycle,
     observe_catalog, partial_termination_retry, provision_catalog, provision_native,
 )
+from system_assertions import validation_stage
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -24,15 +25,10 @@ def test_partial_app_termination_retry(record_testsuite_property):
 def run_checks(record, checks):
     """Keep each finite check's evidence and original failure within its group."""
     for stage, check in checks:
-        print(f'onpc-system: stage=enforcement-check check={stage} state=started', flush=True)
         def observed(key, value):
             record(f'{key}.{stage}', value)
-        try:
+        with validation_stage('enforcement-check', stage):
             check(observed)
-        except Exception as error:
-            error.add_note('enforcement-check: ' + stage)
-            raise
-        print(f'onpc-system: stage=enforcement-check check={stage} state=passed', flush=True)
 
 
 def test_kiosk_execution_confinement(record_testsuite_property):

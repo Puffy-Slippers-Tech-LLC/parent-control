@@ -109,14 +109,9 @@ def observer(selection, manifest, result, previous, source):
                                            only=(native_assets.executable_path('A'),))
         before_repeat = proof.audit(vm, manifest, preparation.SUBSETS)
         edit = shared.source_edit_proof(source, selection, manifest)
-        system.require(fixture_execution.verify(selection) == manifest,
-                       'fixture-e2e-product-free:selected-input-changed')
-        repeated = controller.provision(selection, preparation.SUBSETS,
-                                       attempt_id=preparation.attempt_id(directory))
-        controller.require_ready(repeated)
-        system.require(repeated == receipt, 'fixture-e2e-product-free:version-switched')
-        final = proof.audit(vm, manifest, preparation.SUBSETS)
-        proof.verify_repeat(before_repeat, final)
+        final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+            preparation.SUBSETS, before_repeat, attempt_id=preparation.attempt_id(directory),
+            prefix='fixture-e2e-product-free')
         proof.unchanged_policy(state['before'], final)
         refuse_previous(previous, result)
         controller.require_ready(receipt)

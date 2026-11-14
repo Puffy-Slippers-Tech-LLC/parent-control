@@ -4,11 +4,35 @@ Raw account data stays in memory or private runner artifacts. Refusals use
 fixed categories so pytest cannot expose backend replies in diagnostics.
 """
 
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import time
 
 import system_guest as guest
+
+
+@contextmanager
+def validation_stage(stage, name):
+    """Time a finite installed validation without another observer or artifact.
+
+    Nested durations are inclusive, so callers must not sum parent and child
+    stages. Fixed scenario names keep account values and exception text private.
+    """
+    started = time.monotonic()
+    print(f'onpc-system: stage={stage} validation={name} state=started', flush=True)
+    state = 'failed'
+    try:
+        yield
+        state = 'passed'
+    except BaseException as error:
+        error.add_note(stage + ': ' + name)
+        raise
+    finally:
+        elapsed = time.monotonic() - started
+        print(f'onpc-system: stage={stage} validation={name} state={state} '
+              f'duration_seconds={elapsed:.3f} timing=inclusive', flush=True)
 
 
 def verify_package_readiness(installed_readiness):

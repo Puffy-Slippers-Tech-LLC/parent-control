@@ -4,7 +4,7 @@ from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
 from private_artifacts import require
 from ui_observations import FeedbackStateObservation
-from accessible_ui import REJECTION_CASES, TEXT_OPERATIONS, REJECTION_FORMATS, DUPLICATE_OPERATIONS
+from accessible_ui import REJECTION_CASES, TEXT_OPERATIONS, REJECTION_FORMATS
 
 
 def text_stages(binding):
@@ -17,9 +17,7 @@ STAGES = (
     *text_stages('reply-malformed'), 'rejection-malformed-send', 'rejection-malformed-read',
     *text_stages('reply-clear'), *text_stages('body-hidden-base'),
     'rejection-hidden-focus', 'rejection-hidden-caret', 'rejection-hidden-input-read',
-    'rejection-hidden-send', 'rejection-hidden-read', *text_stages('body-complex-75'),
-    *(stage for stage, (binding, _) in DUPLICATE_OPERATIONS.items()
-      if binding.startswith('body-complex')),
+    'rejection-hidden-send', 'rejection-hidden-read', *text_stages('body-complex'),
     *(f'rejection-format-{kind}-{action}' for kind in REJECTION_FORMATS for action in ('focus', 'apply')),
     'rejection-complex-send', 'rejection-complex-read', 'rejection-close',
     'rejection-wrong-entry', 'rejection-reopen', 'rejection-reopened-send', 'rejection-reopened-read',

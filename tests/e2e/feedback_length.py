@@ -1,7 +1,6 @@
 """UTF-16 boundary qualification; valid drafts never reach Send."""
 
-from accessible_ui import (LENGTH_OBSERVATIONS, REJECTION_CASES, TEXT_REPETITIONS,
-                           DUPLICATE_OPERATIONS)
+from accessible_ui import LENGTH_OBSERVATIONS, REJECTION_CASES
 from feedback_rejection import text_stages
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, parent_management
@@ -10,14 +9,7 @@ from ui_observations import FeedbackStateObservation
 
 
 def input_stages(family, units):
-    binding = f'body-{family}-{units}'
-    source = binding + '-base' if family == 'mixed' else binding
-    seed, *copies = TEXT_REPETITIONS[source]
-    return (*text_stages(seed),
-            *(stage for stage, (target, _) in DUPLICATE_OPERATIONS.items() if target in copies),
-            *(f'text-suffix-{source}-{action}' for action in ('focus', 'caret', 'read')),
-            *((f'text-scalar-{binding}-{action}' for action in ('focus', 'caret', 'read'))
-              if family == 'mixed' else ()))
+    return text_stages(f'body-{family}-{units}')
 
 
 def length_boundary(family):

@@ -84,6 +84,21 @@ COMPLETE = (*PHASES, 'vm')
 HELP_ARGV = (['--help'], ['-h'])
 INSPECTION_FLAGS = ('--help', '-h', '--list', '--collect-only')
 
+
+def subcategory_aliases(inventory=None):
+    """Public shorthand names derive from the owning category's metadata."""
+    children = ({name: spec.get('subcategories', {}) for name, spec in inventory.items()}
+                if inventory is not None else
+                {name: [child.name for child in spec.subcategories]
+                 for name, spec in CATEGORIES.items()})
+    return {(child if child.startswith(name + '-') else name + '-' + child): (name, child)
+            for name, names in children.items() for child in names}
+
+
+def expand_subcategory(argv):
+    alias = subcategory_aliases().get(argv[0]) if argv else None
+    return [alias[0], '--subcategory', alias[1], *argv[1:]] if alias else list(argv)
+
 # Final ordered smoke dispatches deriving from KioskEntryQualification. Keep
 # this finite: a new wrapper or a product-free branch gains no fixture grant.
 # The composition regression independently resolves inheritance and overrides.
@@ -172,6 +187,8 @@ def suite_inventory(categories=(), *, inventory=None):
     if not categories:
         return inventory
     selected = set()
+    narrowed = {}
+    aliases = subcategory_aliases(inventory)
     for argument in categories:
         for category in argument.split():
             if category in ('all', 'all-verify'):
@@ -184,11 +201,26 @@ def suite_inventory(categories=(), *, inventory=None):
                 selected.add(category)
             elif category == 'publish':
                 selected.update(name for name in PUBLISH_CATEGORIES if name in inventory)
+            elif category in aliases:
+                name, child = aliases[category]
+                narrowed.setdefault(name, set()).add(child)
             else:
                 raise ValueError(f'unknown or unsupported inventory category: {category}')
-    if not selected:
+    if not selected and not narrowed:
         raise ValueError('no categories selected')
-    return {name: spec for name, spec in inventory.items() if name in selected}
+    result = {}
+    for name, spec in inventory.items():
+        if name in selected:
+            result[name] = spec
+        elif name in narrowed:
+            children = narrowed[name]
+            if children == set(spec['subcategories']):
+                result[name] = spec
+            elif len(children) == 1:
+                result[name] = dict(spec, args=[*spec['args'], '--subcategory', next(iter(children))])
+            else:
+                raise ValueError(f'combine subcategories by selecting their parent: {name}')
+    return result
 
 
 def inventory_scope(name, spec):
@@ -365,6 +397,8 @@ The reservation ends after that group's owned work and cleanup. Required family
 vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
+Both launchers also accept e2e-general and e2e-heavy as category names.
+Combining a parent category with its subcategory selects the complete parent once.
 Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-tray, --qualify-lunar-autostart, --qualify-lunar-denial, --qualify-lunar-login-denial, --qualify-minecraft-entry-exit and --qualify-minecraft-access belong to e2e-heavy.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
@@ -515,6 +549,20 @@ def phase_arguments(argv):
 
 
 def selections(root, argv):
+    groups = _selections(root, argv)
+    # A complete parent includes every narrower selection of the same leaf.
+    complete = {kind for kind, args in groups if not args and CATEGORIES[kind].subcategories} if not any(
+        option in INSPECTION_FLAGS for _, args in groups for option in args) else set()
+    result = []
+    for kind, args in groups:
+        if kind in complete:
+            args = []
+        if (kind, args) not in result:
+            result.append((kind, args))
+    return result
+
+
+def _selections(root, argv):
     """Split validated category/argument groups without consuming option values.
 
     Prefer a valid single selection (notably ``static all`` and ``unit -k
@@ -524,6 +572,14 @@ def selections(root, argv):
     from vm_selection import extract_execution as extract
     argv, _ = extract(argv, required=False)
     argv, _ = execution_arguments(argv)
+    names = set(CATEGORIES) | set(subcategory_aliases())
+    if any(arg in subcategory_aliases() for arg in argv) and all(arg in names for arg in argv):
+        groups = [(kind, list(spec['args']))
+                  for kind, spec in suite_inventory(argv).items()]
+        for kind, args in groups:
+            validate_one(root, [kind, *args])
+        return groups
+    argv = expand_subcategory(argv)
     phases = phase_arguments(argv)
     if phases is not None:
         return [(kind, []) for kind in phases['phases']]
@@ -533,7 +589,7 @@ def selections(root, argv):
     except ValueError as error:
         if argv[0] not in AGGREGATES:
             for index in range(1, len(argv)):
-                if argv[index] not in CATEGORIES or argv[index] in AGGREGATES:
+                if argv[index] not in names or argv[index] in AGGREGATES:
                     continue
                 try:
                     validate_one(root, argv[:index])
@@ -1237,6 +1293,8 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
                                        **({'checkpoint': checkpoint} if checkpoint else {}),
                                        **({'stop_on_error': True} if stop_on_error else {}))
         category, args = argv[0], argv[1:]
+        if category in subcategory_aliases():
+            category, *args = expand_subcategory(argv)
         if category in AGGREGATES:
             aggregate_arguments(category, args)
             from regression import main as regression_main
@@ -1359,6 +1417,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
 
 
 def validate_one(root, argv):
+    argv = expand_subcategory(argv)
     category, args = argv[0], argv[1:]
     if category in AGGREGATES:
         aggregate_arguments(category, args)
@@ -1401,13 +1460,19 @@ def host_only_request(argv):
     args = [arg for arg in args if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
+    aliases = subcategory_aliases()
+    if all(arg in CATEGORIES or arg in aliases for arg in args) and any(arg in aliases for arg in args):
+        return all(inventory_scope(name, spec) == 'host'
+                   for name, spec in suite_inventory(args).items())
     category = args[0]
     if args[:3] == ['artifacts', 'prepare', '--for-vm']:
         return False
     if category in COMPLETE:
-        phases = [argument for argument in args if argument in COMPLETE]
+        phases = [aliases.get(argument, (argument,))[0] for argument in args
+                  if argument in COMPLETE or argument in aliases]
         return bool(phases) and all(phase == 'host' for phase in phases)
-    if category in CATEGORIES and any(argument in CATEGORIES and CATEGORIES[argument].scope == 'vm'
+    if category in CATEGORIES and any(argument in aliases or
+                                      argument in CATEGORIES and CATEGORIES[argument].scope == 'vm'
                                       for argument in args[1:]):
         # A valid focused host selection may contain a category word as an
         # option value. Otherwise a mixed category request owns the VM scope.
@@ -1428,6 +1493,10 @@ def includes_host_request(root, argv):
     phases = phase_arguments(args)
     if phases is not None:
         return 'host' in phases['phases']
+    aliases = subcategory_aliases()
+    if any(arg in aliases for arg in args) and all(arg in CATEGORIES or arg in aliases for arg in args):
+        return any(inventory_scope(name, spec) == 'host'
+                   for name, spec in suite_inventory(args).items())
     if not any(arg in CATEGORIES and CATEGORIES[arg].scope == 'host' for arg in args[1:]):
         return False
     return any(CATEGORIES[kind].scope == 'host' for kind, _ in selections(root, args))

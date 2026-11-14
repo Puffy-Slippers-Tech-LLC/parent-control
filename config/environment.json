@@ -1,6 +1,6 @@
 {
   "agent": "codex",
-  "snap_tests_enabled": false,
+  "snap_tests_enabled": true,
   "hosts": [
     {
       "name": "local",
@@ -57,6 +57,7 @@
   "families": [
     {
       "family": "ubuntu26.04-x86_64",
+      "id": "u2604",
       "vm_tags": "general",
       "compute_unit": 1,
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",
@@ -117,6 +118,7 @@
     },
     {
       "family": "fedora44-x86_64",
+      "id": "f44",
       "vm_tags": "general",
       "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-44-*.x86_64.iso",
@@ -169,6 +171,7 @@
     },
     {
       "family": "fedora45-x86_64",
+      "id": "f45",
       "vm_tags": "general",
       "compute_unit": 1,
       "iso": "Fedora-Workstation-Live-45-*.x86_64.iso",

@@ -10,14 +10,14 @@ import test_activity
 import test_retention
 import test_source
 from test_recovery import cleanup, cleanup_host
-from vm_selection import select, vm_config, BATCH
+from vm_selection import select, vm_config, BATCH, SELECTOR_HELP
 from vm_pool import Busy, reservation, check_queue
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     scope = parser.add_mutually_exclusive_group()
-    scope.add_argument('--vm', help='VM name/ID, comma-separated list, all-enabled (default), or all; cleanup remains serial')
+    scope.add_argument('--vm', help=SELECTOR_HELP + '; cleanup remains serial')
     scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
     parser.add_argument('--vm-only', action='store_true',
                         help='recover explicit --vm selection without host retention cleanup')
@@ -32,7 +32,8 @@ def main(argv=None):
                           help='preserve and transfer one published batch-owned input to its explicit VM')
     recovery.add_argument('--transfer-batch-appsnapshot', metavar='ALLOCATION',
                           help='transfer one evidenced standalone snapshot package allocation by basename')
-    args = vm_config.parse_vm_arguments(parser, argv)
+    original_args = list(sys.argv[1:] if argv is None else argv)
+    args = vm_config.parse_vm_arguments(parser, original_args)
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
@@ -56,10 +57,16 @@ def main(argv=None):
         snapshot = args.transfer_batch_appsnapshot
         transferring = bool(args.transfer_batch_input or snapshot)
         if args.discard_unpublished_input or transferring:
-            if args.host_only or args.discard_completed or not args.vm:
+            _, original_selector = vm_config.extract_selector(original_args)
+            if args.host_only or args.discard_completed or not original_selector:
                 raise ValueError('input recovery requires only one explicit VM and input selector')
+            # Host filtering canonicalizes queue selectors. Check the original
+            # aliases first so families/all cannot implicitly choose a recipient.
+            configured = vm_config.registry()
+            for value in original_selector.split(','):
+                vm_config.resolve(value, configured)
             _, vms = vm_config.execution(args.vm)
-            if len(vms) != 1 or args.vm in ('all', 'all-enabled'):
+            if len(vms) != 1:
                 raise ValueError('unpublished input recovery requires one explicit VM')
             if snapshot:
                 if not re.fullmatch(r'onpc-test-artifacts-[A-Za-z0-9_-]+', snapshot):

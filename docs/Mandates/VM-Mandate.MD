@@ -29,7 +29,7 @@ owns transport availability and the tracked/private configuration boundary.
 
 Each VM may specify `owning_branch`: omitted or `""` allows any branch; a nonempty
 value reserves that VM for the exact Git branch name in the invoking checkout
-(including linked worktrees). Automatic queues and `all` omit branch mismatches;
+(including linked worktrees). Automatic queues, family selectors and `all` omit branch mismatches;
 explicit names/IDs refuse them before checkout. Detached HEAD or unavailable Git
 can use only unrestricted VMs. Branch restrictions also apply to new shared-pool
 reservations, regardless of `enabled`. Existing reservations may finish their
@@ -40,7 +40,7 @@ and cleanup.
 
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
-| `tools/run-tests`, `tools/fix-tests` | Name/ID, comma-separated list, `all-enabled`, `all` | Enabled queue for VM work | Host compute cap |
+| `tools/run-tests`, `tools/fix-tests` | VM name/ID or family name/ID, comma-separated mixture, `all-enabled`, `all` | Enabled queue for VM work | Host compute cap |
 | `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Host compute cap; isolated workers |
 | `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Host compute cap; isolated workers |
 | `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses host compute admission |
@@ -48,10 +48,10 @@ and cleanup.
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
 | `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |
 
-Every tool accepting `--vm` also accepts optional `--host NAME` (or
-`--host=NAME`) through the shared filter in
+Every tool accepting `--vm` also accepts optional `--host NAME[,NAME...]` (or
+`--host=NAME[,NAME...]`) through the shared filter in
 [`vm_config.py`](../../tests/integration/vm_config.py). The filter intersects the
-VM selection with that exact configured host and forwards canonical VM names;
+VM selection with those exact configured hosts and forwards canonical VM names;
 it does not change controller placement. Queue tools may use `--host` without
 `--vm` to narrow their default queue. Single-VM tools still require `--vm` and
 refuse a host mismatch, without widening their target or changing observation
@@ -60,9 +60,16 @@ and empty intersections refuse before work. `--host` conflicts with
 `cleanup-e2e --host-only`. Arguments after `--` belong to the invoked command and
 are never interpreted as host or VM filters.
 
-Duplicate aliases execute once, in first-selected order; invalid selectors fail
-before work starts. Every `--vm` and Make `VM=` name/ID resolves from the current
-JSON on invocation. Names are case-sensitive; IDs are unique positive decimal
+Queue selectors expand each family name or ID to all its eligible VMs. VM IDs/names
+and family IDs/names may be mixed in one comma-separated `--vm` value, forming a union. Duplicate aliases
+and overlapping families execute each VM once, in first-selected order; invalid
+selectors fail before work starts. VM IDs, VM names, family IDs and family names share one unique
+case-insensitive namespace in the registry, including offline entries and empty families. Names and
+family IDs/names cannot use the reserved selectors `all` or `all-enabled`; family IDs/names cannot
+start with a hyphen or contain commas or surrounding whitespace.
+Every `--vm` and Make `VM=` name/ID resolves from the current
+JSON on invocation. All `--vm` values match case-insensitively; canonical configured
+names are retained for execution. VM IDs are unique positive decimal
 strings or integers. Renumbering requires no tools refresh or baseline replacement.
 Controllers retain canonical names for leases, UUID pins and active-run ownership,
 never a saved ID mapping. Queue selectors do not imply that every Make entry

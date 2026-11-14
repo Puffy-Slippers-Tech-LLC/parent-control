@@ -187,7 +187,9 @@ Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` form (for example
 `fedora45-x86_64`), an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
-first VM is created. Every family also requires `vm_tags`, a nonempty
+first VM is created. An optional string `id` is a short family selector alias:
+`U2604` for `ubuntu26.04-x86_64`, `F44` for `fedora44-x86_64`, and `F45` for
+`fedora45-x86_64`. Every family also requires `vm_tags`, a nonempty
 comma-separated string of unique tag tokens (currently `"general"`). A VM may
 declare `vm_tags` to replace its family's set; omission inherits it.
 Tags route tests and do not change guest baseline identity.
@@ -197,6 +199,10 @@ The parsed target must match the verified guest release before package
 preparation/installation. Only `x86_64` is currently supported. Format alone never
 selects a package for a different target. Fixture directory composition follows the
 [fixture contract](../support/README.md#frozen-native-fixture-bundles).
+VM names, VM IDs, family names and family IDs must be unique across all four kinds
+of selector, ignoring case, even when an ID and name belong to the same VM or family.
+Family selectors cannot start with a hyphen or contain commas or surrounding whitespace;
+VM names and family IDs/names cannot be `all` or `all-enabled` in any case.
 Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
 `disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup
 and ordering values; they encode no family, package or fixture behavior.
@@ -206,7 +212,11 @@ including with `all`; an explicit mismatched name/ID refuses checkout. Detached
 HEAD can use only unrestricted entries. Linked worktrees use their own branch.
 Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
-`--vm` accepts names/IDs, lists, `all-enabled`, or `all`, defaulting to enabled
+`--vm` accepts VM names/IDs, family names/IDs, comma-separated mixtures, `all-enabled`, or `all`.
+Every value matches case-insensitively and resolves to canonical configured VM names.
+Family selectors expand to eligible members; the union includes each VM only once.
+Optional `--host` accepts one configured host or a comma-separated list and
+intersects that union with the selected hosts. Selection defaults to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
 always requiring both VM and host enabled. The host's `max_compute_unit`
 limits the total reserved VM compute across launchers. Tests admit each sequential
@@ -218,7 +228,7 @@ launcher-lifetime reservations. The
 [capacity contract](../../docs/Mandates/VM-Mandate.MD#target-selection) owns
 rounding, failure diagnostics, lifetime and the independent admission guard.
 Maintenance still requires one explicit
-selector, matching a configured name exactly, including case.
+selector, matching a configured VM name or ID case-insensitively.
 Workers inherit validated selections; there is no
 ambient environment override for public commands. Each VM has its own exclusive
 lease and retention journal. The guest hostname is the lowercase form of that name

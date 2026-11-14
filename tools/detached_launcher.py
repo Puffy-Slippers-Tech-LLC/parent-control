@@ -142,6 +142,39 @@ def record_exception(run, context, error, **identity):
 def owner_record(run, **fields):
     """Publish one clock origin per backend spawn, shared by all observers."""
     from vm_pool import VARIABLE
+    from launcher_controller import public_arguments
+    requested_argv = public_arguments(fields.get('launcher'))
+    selection, overrides = [], {}
+    tokens = iter(requested_argv or ())
+    for token in tokens:
+        if token == '--':
+            break
+        option = token.split('=', 1)[0]
+        if option in ('--branch', '--tasks'):
+            overrides[option] = ([token, next(tokens, '')] if token == option else [token])
+        else:
+            selection.append(token)
+    if '--resume' in selection:
+        # Resume inherits omitted parameters; keep that original selection for
+        # subsequent Reload too. Compatible repeats do not change selection.
+        previous = current_run(run.parent)
+        if previous is not None:
+            record = json.loads((run.parent / 'current.json').read_text())
+            requested_argv = record.get('requested_argv')
+            if requested_argv is not None and overrides:
+                tokens = iter(requested_argv)
+                requested_argv = [arg for values in overrides.values() for arg in values]
+                for token in tokens:
+                    if token == '--':
+                        requested_argv.extend((token, *tokens))
+                        break
+                    option = token.split('=', 1)[0]
+                    if option in overrides and token == option:
+                        next(tokens, None)
+                    elif option not in overrides:
+                        requested_argv.append(token)
+    if requested_argv is not None:
+        fields['requested_argv'] = requested_argv
     if VARIABLE in os.environ:
         fields['vm_checkout'] = os.environ[VARIABLE]
     return dict(fields, run=run.name, started_at=time.time(), started_monotonic=time.monotonic())

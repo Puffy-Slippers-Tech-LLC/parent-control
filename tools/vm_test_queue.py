@@ -326,7 +326,8 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     works = value.get('failure_works', [value['failure_work']] if value.get('failure_work') else [])
                     if repair_mode and works:
                         for work in works:
-                            ticket = checkpoint.host_failure(work, source_identity(root), status, case=work['case'])
+                            ticket = checkpoint.host_failure(work, source_identity(root), status,
+                                case=work['case'], cleanup=host_cleanup_complete)
                             failure_results[ticket['id']] = value
                             hold(ticket, 'untriaged')
                     else:

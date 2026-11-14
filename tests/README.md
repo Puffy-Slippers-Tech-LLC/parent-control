@@ -675,8 +675,13 @@ Repairs remain serial in observed FIFO order and require the exclusive source
 lease. An isolated ticket also interrupts its coordinator's companion attempts;
 its isolation decision still permits unrelated checkout workflows to continue.
 Writer acquisition follows joined owned cleanup, without waiting for the rest
-of an admitted group to execute. Recheck the FIFO head after prior
-repairs through the same coordinator and original VM before another agent turn.
+of an admitted group to execute. A complete retained failure starts repair
+directly when its recorded source/input identity is unchanged. Live VM failures
+retain their original worker reservation, preserving baseline continuity.
+Recheck the FIFO head through the same coordinator and original VM before an
+agent turn only when inputs changed or the failure result is incomplete
+(including interruption, unfinished cleanup or unknown baseline continuity
+after coordinator restart).
 At a drained boundary, stale impact from before a source change keeps admission
 on hold while that recheck runs; it does not start another impact-triage session
 ahead of the recheck. An accepted recheck settles the ticket without an agent.

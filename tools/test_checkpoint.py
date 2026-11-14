@@ -729,7 +729,7 @@ class PassCheckpoint:
         return _copy([ticket for ticket in self.state.get('repairs', [])
                       if ticket.get('outcome') not in ('resolved', 'leave_failed')])
 
-    def host_failure(self, work, source, status, *, case=None):
+    def host_failure(self, work, source, status, *, case=None, cleanup=True):
         """Record one bounded host operation without inventing VM ownership."""
         _pass_work(work)
         _impact_source(source)
@@ -739,7 +739,7 @@ class PassCheckpoint:
                       run=self.state['run'], **{'pass': self.state['pass']},
                       selection=_copy(self.selection), family='', vm='', work=_copy(work),
                       assignment=uuid.uuid4().hex, attempt=uuid.uuid4().hex,
-                      source=_copy(source), case=case, status=status, cleanup=True)
+                      source=_copy(source), case=case, status=status, cleanup=cleanup)
         candidate = _copy(self.state)
         candidate.setdefault('repairs', []).append(ticket)
         self.validate(candidate)

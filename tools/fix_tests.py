@@ -1340,8 +1340,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             return dict(outcome='resolved', attempt=accepted, repair_ref=str(run / 'checkpoint.json'),
                         source_changed=True)
 
+        # Reuse a complete failure while its inputs are still current. A live
+        # VM failure keeps its original worker reservation through this drained
+        # boundary, so its baseline cannot change underneath us. After resume,
+        # the in-memory result is absent and baseline continuity is unknown.
         # Never replace a retained response or diagnostic with a no-edit pass.
-        if entry is None:
+        if entry is None and (ticket.get('source') != source_identity(root)
+                or ticket.get('cleanup') is not True or ticket.get('status') in (None, 0, 130)
+                or ticket['vm'] and execution.failure is None):
             progress(category, 'Rechecking failed case')
             value = execution.attempt('recheck')
             if value['accepted']:

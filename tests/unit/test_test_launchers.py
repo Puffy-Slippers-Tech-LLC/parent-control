@@ -260,6 +260,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
     monkeypatch.setattr(fix_tests, 'record_usage', lambda *args, **kwargs: None)
     order = control.order
     ticket = dict(id='a' * 32, transaction='b' * 32, attempt='c' * 32,
+                  source=vm_test_queue.source_identity(tmp_path), status=1, cleanup=True,
                   work=dict(category='unit', options=['original-selector'], cases=['exact'],
                             case='exact', area=False), case='exact', vm='',
                   impact=dict(decision=dict(classification='test_issue', reason='Only this test input.')))
@@ -341,7 +342,7 @@ def test_public_repair_composes_triage_verification_and_closeout(
     assert json.loads(base64.b64decode(raw['response'])) == control.response
     assert isolated_source.owner() == str(run)
     assert isolated_source.generation() == 1
-    assert order == ['triage', 'recheck', 'repair']
+    assert order == ['triage', 'repair']
 
     # Interpreter replacement retains the writer but must apply the new code's
     # validators to the exact response before an attempt or Git close-out.
@@ -356,7 +357,7 @@ def test_public_repair_composes_triage_verification_and_closeout(
         validate(value)
     monkeypatch.setattr(fix_tests, 'validate_result', current_validate)
     assert control.worker(reloading=True) == 0
-    assert order == ['triage', 'recheck', 'repair', 'current validation', 'verification', 'closeout']
+    assert order == ['triage', 'repair', 'current validation', 'verification', 'closeout']
     saved = control.saved()
     assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
     assert TaskBudget(run).read()['completed'] == 1
@@ -420,6 +421,7 @@ def test_public_repair_keeps_dirty_suspension_owned_on_resume(
     from launcher_runtime import TaskBudget
 
     control = _controlled_public_repair
+    control.ticket['cleanup'] = False
     control.response.update(status='stalled', summary='Cannot repair this input.', verification_case=None)
     # A final tier's stalled turn is terminal rather than another escalation.
     monkeypatch.setattr(fix_tests, 'next_tier', lambda model, effort, **kwargs: (model, effort))
@@ -542,7 +544,7 @@ def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monk
     assert admitted[0]['categories'] == ['unit'] and admitted[0]['resume'] is True
 
 
-def test_coordinator_host_continues_after_isolated_failure(tmp_path, monkeypatch, isolated_source):
+def test_coordinator_host_pauses_for_isolated_failure(tmp_path, monkeypatch, isolated_source):
     import threading
     import vm_test_queue
 
@@ -576,7 +578,7 @@ def test_coordinator_host_continues_after_isolated_failure(tmp_path, monkeypatch
                                   evidence=['Other inputs unchanged.'], classification='test_issue'))
     def repair(ticket, execution):
         assert execution.drained
-        assert events[-1] == ('static',), 'isolated repair ran before pending normal work'
+        assert events[-1] == 'triage', 'normal work ran before the queued repair'
         result = execution.attempt('recheck')
         assert result['accepted']
         return dict(outcome='resolved', attempt=result['reference'])
@@ -585,7 +587,7 @@ def test_coordinator_host_continues_after_isolated_failure(tmp_path, monkeypatch
         SimpleNamespace(stopped=threading.Event()), Mock(), host=host,
         actions=dict(triage=triage, repair=repair, settle_task=settled.append))
     assert outcome['status'] == 0 and not outcome['suspended']
-    assert events == [('static', 'unit'), 'triage', ('static',), 'bounded recheck', ('unit',)]
+    assert events == [('static', 'unit'), 'triage', 'bounded recheck', ('static', 'unit')]
     assert sorted(settled) == ['static', 'unit']
     assert inventories == [(original, None)]
     with isolated_source.state():

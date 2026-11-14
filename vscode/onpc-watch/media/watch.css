@@ -136,7 +136,7 @@ nav button { flex-shrink: 0; }
     pointer-events: none;
 }
 .launcher-status.finished, .launcher-status.closing-task { color: #008000; }
-.launcher-status.stop-requested { color: #ffa500; }
+.launcher-status.stop-requested, .session-model { color: #af6a00; }
 .launcher-status.failed { color: var(--vscode-errorForeground, #f14c4c); }
 .run-view-control {
     position: relative; display: flex; flex: 0 0 auto; align-items: center; margin-left: auto; padding: 4px 8px;
@@ -266,7 +266,6 @@ nav button { flex-shrink: 0; }
 .session-toggle:disabled { opacity: .5; cursor: default; }
 .session-model {
     min-width: 0; overflow-wrap: anywhere;
-    color: #af6a00;
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 .session-error { color: var(--vscode-errorForeground); padding: 0 8px; }

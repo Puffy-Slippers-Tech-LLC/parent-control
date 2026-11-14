@@ -13,7 +13,7 @@ def launcher_status_color(status):
     """One palette for launcher titles and both content status fields."""
     if status in ('Repair Pending', 'Repairing', 'Verifying', 'Checking Impact',
                   'Reload Requested', 'Stop Requested', 'Stopping'):
-        return '#ffa500'
+        return '#af6a00'
     if status in ('finished', 'Finished', 'Committing Fix', 'Closing Task'):
         return '#008000'
     if status in ('failed', 'Failed', 'stopped', 'Stopped', 'Waiting for input'):

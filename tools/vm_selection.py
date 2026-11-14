@@ -19,7 +19,8 @@ read_document = vm_config.read_document
 VARIABLE = vm_config.VARIABLE
 BATCH = 'ONPC_TEST_VM_BATCH'
 WORKER = 'ONPC_TEST_VM_WORKER'
-SELECTOR_HELP = ('VM name or ID, comma-separated names/IDs, all-enabled (default), '
+SELECTOR_HELP = ('VM name/ID or family name/ID (case-insensitive), comma-separated mixtures (union, without duplicates), '
+                 'all-enabled (default), '
                  'or all; offline VMs/hosts are always skipped; owning_branch restrictions always apply; '
                  'host max_compute_unit limits reserved VM compute')
 HOST_HELP = vm_config.HOST_HELP

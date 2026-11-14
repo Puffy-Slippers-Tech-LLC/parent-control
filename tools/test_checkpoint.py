@@ -1218,11 +1218,8 @@ def compatible_vm(selector, previous):
     from vm_selection import vm_config
     if previous is None:
         return False
-    configured = vm_config.registry()
     def names(value):
-        if value in ('all', 'all-enabled'):
-            return {vm.name for vm in vm_config.execution(value)[1]}
-        return {vm_config.resolve(token, configured).name for token in value.split(',')}
+        return {vm.name for vm in vm_config.execution(value)[1]}
     try:
         return names(selector) == names(previous)
     except ValueError:

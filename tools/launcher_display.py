@@ -11,7 +11,7 @@ from launcher_session import clock_duration
 
 def launcher_status_color(status):
     """One palette for launcher titles and both content status fields."""
-    if status in ('Repair Pending', 'Repairing', 'Verifying', 'Checking Impact',
+    if status in ('Repair Pending', 'Repairing', 'Rechecking Case', 'Verifying', 'Checking Impact',
                   'Reload Requested', 'Stop Requested', 'Stopping'):
         return '#af6a00'
     if status in ('finished', 'Finished', 'Committing Fix', 'Closing Task'):

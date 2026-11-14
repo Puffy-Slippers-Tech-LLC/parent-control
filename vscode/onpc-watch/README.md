@@ -210,8 +210,10 @@ Each enabled stop, resume, reload or cancel-stop button asks for confirmation us
 VS Code's built-in modal warning dialog. Its button colors follow the host theme;
 the public extension API does not expose a destructive/red button style.
 The title switches to the recorded final status when the launcher exits.
-While `fix-tests` is active, its title shows **Repairing** during repair sessions
-and **Verifying** while checking the repair. After verification, it shows
+While `fix-tests` is active, its title shows **Rechecking Case** when rerunning a
+failed case before repair, **Repairing** during repair sessions and **Verifying**
+while checking the repair. These three statuses use the same orange color.
+After verification, it shows
 **Committing Fix** in green during commit, push and propagation. A live session
 takes precedence over a previously recorded final result. After Git close-out,
 the launcher returns to running tests without retaining the repair's verification status.

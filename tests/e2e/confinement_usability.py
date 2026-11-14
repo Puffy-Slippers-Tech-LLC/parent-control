@@ -34,7 +34,8 @@ SCREENS.update({
     **ENTRIES['approved-parent'],
     **prefixed_stages('approved-supplied', retained_parent_entry(
         source='same-user', desktop_observation=False)),
-    'approved-balance': 'ui:time-explanation-reach-read',
+    # Reload through the public selector; retained Parent may still show G=0.
+    'approved-balance': 'ui:time-explanation-refresh-read',
     'approved-switch': 'system:parent-switch-user', 'approved-greeter': 'ui:gdm-returned',
     **prefixed_stages('reentry', prepared_request(
         prefix='open', entry='new', initial='selected', compact=True, **CHOICES)),

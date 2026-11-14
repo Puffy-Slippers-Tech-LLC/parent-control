@@ -29,7 +29,8 @@ PLAN = replace(MATE_PLAN, prefix='kiosk-approval', worker_mode='kiosk_approval',
 GRANT_SCREENS = {
     **prefixed_stages('return', desktop_entry('parent', source='gdm', entry='retained')),
     **prefixed_stages('supplied', retained_parent_entry(source='same-user')),
-    'approved-balance': 'ui:time-explanation-reach-read',
+    # Reload through the public selector; retained Parent may still show G=0.
+    'approved-balance': 'ui:time-explanation-refresh-read',
 }
 QUALIFICATION_PLAN = replace(PLAN,
     screen_tags={**PLAN.screen_tags, **GRANT_SCREENS},

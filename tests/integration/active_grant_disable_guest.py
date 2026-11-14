@@ -235,9 +235,9 @@ def qualify():
     extension_logger.setLevel(logging.INFO)
     set_live = dependencies.extensions._set_live
 
-    def observe_live(account, enabled):
+    def observe_live(account, enabled, **options):
         try:
-            return set_live(account, enabled)
+            return set_live(account, enabled, **options)
         except Exception:
             if enabled:
                 # Reuse the bounded, read-only settings observer for enable

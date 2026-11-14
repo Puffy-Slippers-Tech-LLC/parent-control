@@ -5536,9 +5536,10 @@ changes; do not build an automatic updater to resolve drift.
 The [original-AppImage launch/Quit binding](#lunar-original-appimage-launch-and-quit),
 independent app-presence readback and
 [Hard-blocked command denial/absence](#lunar-original-appimage-command-denial)
-are qualified, as is [allowed normal-sign-in autostart](#allowed-lunar-startup-after-sign-in).
-Separate normal Minecraft launcher entry/exit and denial, and blocked
-normal-login access remain separate bindings. Their APP01/02/06 and UI18
+are qualified, as are [allowed normal-sign-in autostart](#allowed-lunar-startup-after-sign-in)
+and [ungranted Soft denial after sign-in](#blocked-lunar-access-after-sign-in).
+Separate normal Minecraft launcher entry/exit and denial have their own bindings
+below. Their APP01/02/06 and UI18
 scopes do not imply one another. Apply the
 [provider exception](../Mandates/UI-Automation-Mandate.MD#target-identity-and-provider-exception)
 inside explicit adapters, retaining ownership, complete absence observations,
@@ -5614,8 +5615,29 @@ application/tray absence also passed.
 Scoped host selection, privilege, lease and source checks, collection, worker
 shutdown and owned baseline restoration passed; the VM was powered off. The
 supplied profile and shared observer/secret handling are unchanged. This qualifies
-the positive access control only; blocked sign-in, reboot persistence and complete
-case 253 remain separate.
+the positive access control only; the blocked sign-in binding below, reboot
+persistence and complete case 253 remain separate.
+
+#### Blocked Lunar access after sign-in
+
+APP01/02/06's ungranted Soft binding is qualified on Ubuntu 26.04 through
+`e2e --subcategory e2e-heavy --qualify-lunar-login-denial`.
+[`lunar_denial.LOGIN_PLAN`](../../tests/e2e/lunar_denial.py) reuses
+`onpc_app_rows::lunar_denial` and its qualified public reader/command binding.
+After ordinary installed-snapshot restore and read-only FIX05 verification,
+Parent saves and independently reads Jordan's thirty-minute daily allowance,
+zero one-time grant and Soft Blocked Lunar choice. Parent logs out; Jordan signs
+in normally through the shared entry and credential guards. Complete public
+application/tray absence, one unchanged original-AppImage command's specific
+permission denial, independent complete absence afterward, and unrelated native
+N Submit/readback and normal closure passed. No policy save follows child entry.
+
+Scoped host selection, privilege, lease and source checks and owned cleanup
+passed; the VM was powered off. The test host's helper was refreshed through
+setup after rejecting the new option before VM access. The supplied profile,
+allowed-autostart control and shared observation/secret handling remain unchanged.
+This qualifies normal sign-in denial only; active time-only grants, reboot
+persistence and complete case 253 retain their separate acceptance.
 
 #### Lunar original-AppImage command denial
 

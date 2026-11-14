@@ -35,7 +35,7 @@ Preserve public denial/absence results and shared input, ownership and cleanup g
 
 ## Next task
 
-Next task: **296b — [Check blocked Lunar access after sign-in](E2E-Tasks/296b-lunar-login-observer.md)**.
+Next task: **297 — [Check launcher access after parent approvals and restarts](E2E-Tasks/297-case-253.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

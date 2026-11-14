@@ -3054,9 +3054,13 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert commands.fixture_execution_target('e2e', ['--qualify-minecraft-entry-exit']) is None
     assert preflight(['--qualify-lunar-denial'], root=ROOT, allow_missing_artifacts=True) == {
         'mode': 'lunar-denial-qualification', 'subcategory': 'e2e-heavy'}
+    assert preflight(['--qualify-lunar-login-denial'], root=ROOT, allow_missing_artifacts=True) == {
+        'mode': 'lunar-login-denial-qualification', 'subcategory': 'e2e-heavy'}
     assert preflight(['--qualify-minecraft-access'], root=ROOT, allow_missing_artifacts=True) == {
         'mode': 'minecraft-access-qualification', 'subcategory': 'e2e-heavy'}
     from vm_recording import case_identity
+    assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-login-denial'}) == (
+        'check_e2e_lunar_login_denial', 'Check blocked Lunar access after sign-in')
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-autostart'}) == (
         'check_e2e_lunar_autostart', 'Check allowed Lunar startup after sign-in')
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-minecraft-entry-exit'}) == (
@@ -3066,6 +3070,8 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-denial'}) == (
         'check_e2e_lunar_denial', 'Observe Lunar command denial')
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
+    assert '--qualify-lunar-login-denial' in dispatcher['selection'](
+        ROOT, ['e2e', '--qualify-lunar-login-denial', *VM_ARGS], allow_missing_artifacts=True)
     assert '--qualify-lunar-autostart' in dispatcher['selection'](
         ROOT, ['e2e', '--qualify-lunar-autostart', *VM_ARGS], allow_missing_artifacts=True)
     assert '--qualify-minecraft-access' in dispatcher['selection'](

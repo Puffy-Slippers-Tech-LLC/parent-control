@@ -1,4 +1,5 @@
-"""Original Lunar command denial with independently usable allowed work."""
+"""Hard and ungranted Soft Lunar denial after ordinary child sign-in."""
+from dataclasses import replace
 from accessible_ui import LUNAR_POLICY_APP, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan
 from journey_blocks import (app_policy_entry, desktop_entry, native_usable_app,
@@ -43,4 +44,12 @@ PLAN = JourneyPlan(
     invocations=tuple(stage for stage in ENTRY if ENTRY[stage].startswith('ui:')),
     challenges={'child-entry': ('other-child', 'child-entry-standard-recipient-qualified',
                                'child-entry-standard-recipient-rechecked')},
+)
+
+# The same normal-login history and public absence/command results exercise
+# the ungranted Soft binding. Keep the qualified Hard control unchanged.
+LOGIN_PLAN = replace(
+    PLAN,
+    screen_tags={**SCREENS, 'lunar-policy-save': 'ui:access-lunar-conditional'},
+    access_checks={'lunar-policy-saved': (LUNAR_POLICY_APP, 'conditional')},
 )

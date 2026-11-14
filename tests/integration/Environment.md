@@ -11,8 +11,10 @@ another baseline, download a new image, or create a replacement domain.
 
 Run `tools/newvm --name NAME --host HOST --family FAMILY` from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
-already exist in `config/environment.json`. Provisioning may target a disabled
-host, since it creates an offline VM rather than scheduling tests. SSH hosts use
+already exist in `config/environment.json`. FAMILY accepts a family name or ID,
+case-insensitively (for example, `u2604` selects `ubuntu26.04-x86_64` with the
+current registry). Provisioning may target a disabled host, since it creates an
+offline VM rather than scheduling tests. SSH hosts use
 their configured alias and port with noninteractive SSH; no remote validation
 is implied by the presence of a template.
 

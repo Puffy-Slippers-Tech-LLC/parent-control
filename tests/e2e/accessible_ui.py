@@ -210,6 +210,10 @@ LUNAR_OPERATIONS = frozenset('lunar-' + action for action in (
     'snapshot', 'command-blocked'))
 OPERATIONS |= LUNAR_OPERATIONS
 STANDARD_OPERATIONS |= LUNAR_OPERATIONS
+MINECRAFT_OPERATIONS = frozenset('minecraft-' + action for action in (
+    'observer-ready', 'launch', 'opened', 'close-ready', 'closed'))
+OPERATIONS |= MINECRAFT_OPERATIONS
+STANDARD_OPERATIONS |= MINECRAFT_OPERATIONS
 WORK_OPERATIONS = frozenset('work-' + who + '-' + action
     for who in ('jordan', 'riley')
     for action in ('open', 'opened', 'edit', 'save', 'saved', 'activity', 'submit', 'resubmit', 'submitted', 'close', 'closed'))
@@ -15770,6 +15774,11 @@ class AccessibleUI:
             value = lunar_operation(self, operation, require, require_active_launch_session)
             if value is not None:
                 result['lunar'] = value
+        elif operation in MINECRAFT_OPERATIONS:
+            from minecraft_ui import run as minecraft_operation
+            value = minecraft_operation(self, operation, require, require_active_launch_session)
+            if value is not None:
+                result['minecraft'] = value
         elif operation in WORK_OPERATIONS:
             value = self.work_document_operation(operation)
             if value is not None:

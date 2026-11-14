@@ -1360,6 +1360,12 @@ sub run {
         onpc_shell_search::run(\&exchange);
         return;
     }
+    if ($ready->{minecraft_entry_exit}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_fresh_desktop::minecraft_entry_exit(\&exchange);
+        return;
+    }
     if ($ready->{fresh_parent_desktop} || $ready->{fresh_standard_desktop}
         || $ready->{keyring_standard_desktop}) {
         console('sut')->disable();

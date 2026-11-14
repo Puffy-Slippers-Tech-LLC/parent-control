@@ -17,7 +17,7 @@ import system_runner as system
 
 
 def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
-            fixture_selection=None):
+            minecraft=False, fixture_selection=None):
     suite = Suite(open_source)
     private = directory / 'private'
     private.mkdir(mode=0o700)
@@ -55,6 +55,9 @@ def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
                 result['denial'] = run_journey(directory, lease, transport, suite.verified,
                     PLAN, {**fixture_actions(include_refusal=False),
                            'daytime-clock': preset_ordinary_daytime}, journey_class=AppPolicyJourney)
+            elif minecraft:
+                result['launcher'] = qualify_minecraft_entry_exit(
+                    directory, lease, transport, suite.verified)
             elif launch_quit or tray:
                 result['launcher'] = qualify_launch_quit(directory, lease, transport, suite.verified,
                                                        tray=tray)
@@ -106,6 +109,56 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
                        expected_operations=operations)
 
 
+def qualify_minecraft_entry_exit(directory, lease, transport, verified):
+    """Open the supplied separate launcher and hand it to a fresh observer."""
+    from dataclasses import replace
+    from fresh_desktop import STANDARD_PLAN
+    from installed_journey import InstalledJourney
+    from ui_observations import UiObservations
+
+    operations = ['minecraft-' + action for action in (
+        'observer-ready', 'closed', 'launch', 'opened', 'opened')]
+
+    def exercise(journey, guard):
+        results = []
+        ui = UiObservations(transport)
+        ui.boot_guard = journey.boot
+        for action in operations[:4]:
+            guard()
+            results.append(ui.observe(action))
+        independent = UiObservations(transport)
+        independent.boot_guard = journey.boot
+        for action in operations[4:]:
+            guard()
+            value = independent.observe(action)
+            if action == 'minecraft-opened':
+                system.require(value['minecraft'] == results[-1]['minecraft'],
+                               'minecraft-entry-exit:launcher-replaced')
+            results.append(value)
+        guard()
+        return results
+
+    label = 'minecraft-entry-exit'
+    screens = {**STANDARD_PLAN.screen_tags,
+               'minecraft-close-ready': 'ui:minecraft-close-ready',
+               'minecraft-closed': 'ui:minecraft-closed'}
+    plan = replace(STANDARD_PLAN, worker_mode='minecraft_entry_exit', screen_tags=screens,
+                   phases={**STANDARD_PLAN.phases, 'minecraft-close-ready': 'step-1',
+                           'minecraft-closed': 'step-1'}, stage_actions={'desktop': label})
+    # Compare the fresh close recipient with the independently accepted window
+    # before the controller releases the worker's single Alt-F4 input.
+    class MinecraftJourney(InstalledJourney):
+        def check_settings(self, stage, observed):
+            super().check_settings(stage, observed)
+            if stage == 'minecraft-close-ready':
+                opened = next(step for step in self.steps if step['stage'] == 'desktop')
+                system.require(observed['ui']['minecraft'] == opened['fixture'][-1]['minecraft'],
+                               'minecraft-entry-exit:close-owner-changed')
+
+    return run_journey(directory, lease, transport, verified, plan, {label: exercise},
+                       expected_operations=operations, journey_class=MinecraftJourney)
+
+
 def run_journey(directory, lease, transport, verified, plan, actions, *, journey_class=None,
                 expected_operations=None):
     """Keep Lunar's finite results inside the shared attached-worker envelope."""
@@ -113,7 +166,7 @@ def run_journey(directory, lease, transport, verified, plan, actions, *, journey
     from installed_journey import InstalledJourney
 
     def progress(stage, observed):
-        if expected_operations is not None and stage == plan.stages[-1]:
+        if expected_operations is not None and stage in plan.stage_actions:
             results = observed.get('fixture', [])
             system.require([value.get('operation') for value in results] == expected_operations
                            and all(value.get('outcome') == 'passed' for value in results),
@@ -125,7 +178,8 @@ def run_journey(directory, lease, transport, verified, plan, actions, *, journey
     return {'steps': worker['controller_observations'], 'worker': worker}
 
 
-def main(*, assets, launch_quit=False, tray=False, denial=False, fixture_selection=None):
+def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False,
+         fixture_selection=None):
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
@@ -134,9 +188,10 @@ def main(*, assets, launch_quit=False, tray=False, denial=False, fixture_selecti
     if denial:
         from e2e_fixture_preparation import validate_input
         fixture_selection = validate_input(fixture_selection)
-    label = ('lunar-denial' if denial else 'lunar-tray' if tray else
+    label = ('minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else 'lunar-tray' if tray else
              'lunar-launch-quit' if launch_quit else 'lunar-profile')
     return run_qualification(label, lambda directory: qualify(
         directory, assets, launch_quit=launch_quit, tray=tray, denial=denial,
+        minecraft=minecraft,
         fixture_selection=fixture_selection),
                              preflight=preflight)

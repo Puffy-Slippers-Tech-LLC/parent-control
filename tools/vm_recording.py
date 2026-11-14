@@ -39,6 +39,9 @@ def e2e_identities(root):
 
 
 E2E_QUALIFICATIONS = {
+    '--qualify-minecraft-entry-exit': ('check_e2e_minecraft_entry_exit',
+        'Open and close the Minecraft launcher',
+        'tests/integration/lunar_profile_qualification.py'),
     '--qualify-lunar-denial': ('check_e2e_lunar_denial',
         'Observe Lunar command denial',
         'tests/integration/lunar_profile_qualification.py'),

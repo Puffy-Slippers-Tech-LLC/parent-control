@@ -24,7 +24,7 @@ UI_PROGRAM_SOURCES = {
     **{name: f'tests/e2e/{name}.py' for name in (
         'application_ui', 'session_control', 'public_atspi', 'block_semantics',
         'feedback_formats', 'download_destination', 'fixture_ui',
-        'guest_files', 'lunar_profile_guest', 'lunar_ui')},
+        'guest_files', 'lunar_profile_guest', 'lunar_ui', 'minecraft_ui')},
 }
 
 
@@ -69,6 +69,12 @@ RESPONSE_BYTE_LIMITS = {
 # Fixed public descriptions only; never forward account labels, query text or
 # credentials from the observed desktop. New operations must declare prose here.
 OPERATION_LABELS = {
+    **{'minecraft-' + action: label for action, label in (
+        ('observer-ready', 'Preparing public Minecraft launcher observations for [Child user]'),
+        ('launch', 'Opening the supplied separate Minecraft launcher for [Child user]'),
+        ('opened', 'Reading the usable signed-out Minecraft launcher'),
+        ('close-ready', 'Checking the Minecraft window before normal closure'),
+        ('closed', 'Checking complete public Minecraft launcher absence'))},
     **{'lunar-' + action: label for action, label in (
         ('observer-ready', 'Preparing public launcher observations for [Child user]'),
         ('launch', 'Opening the supplied original Lunar launcher for [Child user]'),
@@ -1171,7 +1177,8 @@ class UiObservations:
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.
         # Kiosk waits only for the public form, with transport margin.
-        timeout = (210 if operation in accessible_ui.LUNAR_OPERATIONS else
+        timeout = (210 if operation in accessible_ui.LUNAR_OPERATIONS
+                   or operation in accessible_ui.MINECRAFT_OPERATIONS else
                    120 if operation in accessible_ui.GDM_SESSION_OPERATIONS
                    or operation == 'gdm-station-full-desktop' else
                    390 if operation in accessible_ui.GREETER_OPERATIONS
@@ -1836,6 +1843,22 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if parent is not None:
             expected['management_parent'] = parent
+        if operation in ('minecraft-opened', 'minecraft-close-ready'):
+            value = result.get('minecraft')
+            require(type(value) is dict and set(value) == {'owner', 'window', 'provider'},
+                    'ui:minecraft-response')
+            owner, window = value['owner'], value['window']
+            require(type(owner) is list and len(owner) == 3
+                    and type(owner[0]) is int and owner[0] > 0
+                    and all(type(item) is str and item.isascii() and item.isdecimal()
+                            for item in owner[1:])
+                    and type(window) is list and len(window) == 2
+                    and type(window[0]) is str and re.fullmatch(r':[0-9]+\.[0-9]+', window[0])
+                    and type(window[1]) is str and re.fullmatch(r'/[A-Za-z0-9_/]+', window[1])
+                    and value['provider'] == {'version': '3.43.21', 'flatpak': '1.16.6',
+                                             'locale': 'en-US', 'keyboard': [['xkb', 'us']]},
+                    'ui:minecraft-response')
+            expected['minecraft'] = value
         if operation == 'lunar-command-blocked':
             value = result.get('lunar')
             require(type(value) is dict and set(value) == {'denial'}

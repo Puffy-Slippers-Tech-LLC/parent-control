@@ -5,7 +5,7 @@ use onpc_progress ();
 use testapi ();
 
 # UI18: consume the registered surface proof before its normal close operation.
-# Product closes use the App UI API; the external license viewer retains Alt-F4.
+# Product closes use the App UI API; external windows retain guarded Alt-F4.
 # The result checkpoint independently checks absence and the underlying surface.
 sub close {
     onpc_progress::operation('Closing the current window');
@@ -13,6 +13,7 @@ sub close {
     $invocation //= '';
     my %stages = (
         license => ['license', 'license-closed'],
+        minecraft => ['minecraft-close-ready', 'minecraft-closed'],
         about => ['about-returned', 'parent-returned'],
         'station-about' => ['about-close-ready', 'about-closed'],
         'overlay-about' => ['about-close-ready', 'about-closed'],
@@ -30,7 +31,7 @@ sub close {
     $before = $invocation . $before;
     $after = $invocation . $after;
     $journey->consume_observation($before, $proof);
-    testapi::send_key('alt-f4') if $window eq 'license';
+    testapi::send_key('alt-f4') if $window eq 'license' || $window eq 'minecraft';
     return $journey->seen($after);
 }
 

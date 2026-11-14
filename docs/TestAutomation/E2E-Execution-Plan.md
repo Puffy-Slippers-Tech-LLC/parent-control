@@ -35,7 +35,7 @@ Preserve public denial/absence results and shared input, ownership and cleanup g
 
 ## Next task
 
-Next task: **296e — [Open and close the Minecraft launcher](E2E-Tasks/296e-minecraft-entry-exit.md)**.
+Next task: **296a — [Check Minecraft launcher access after approval](E2E-Tasks/296a-minecraft-provider.md)**.
 
 The pointer always names this queue's first unchecked active row. Close only
 that row after its acceptance and owned cleanup. Completed work stays complete;

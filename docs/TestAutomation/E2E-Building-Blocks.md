@@ -5619,6 +5619,36 @@ launch/presence/Quit control, scoped host checks, collection, worker shutdown an
 owned baseline restoration passed. This does not qualify Soft approval,
 sign-in/reboot persistence, Minecraft or complete case 253.
 
+#### Separate Minecraft launcher entry and exit
+
+`minecraft_ui.run`, dispatched by `AccessibleUI` and `UiObservations`, implements
+the supplied system Flatpak `com.mojang.Minecraft` command and signed-out CEF
+surface for APP01/02/UI18. This binding is qualified on Ubuntu 26.04 through
+`e2e --subcategory e2e-heavy --qualify-minecraft-entry-exit`.
+`lunar_profile_qualification.qualify_minecraft_entry_exit` reuses normal Jordan
+sign-in, restored FIX05 verification and the shared attached-worker envelope.
+
+The observed launcher 3.43.21/Flatpak 1.16.6 binding uses public English semantics:
+the `Minecraft Launcher` document, `SIGN IN`, `English - United States` and
+version text. Its AT-SPI application is named `Chromium`; public controls expose
+no usable automation IDs. Live Flatpak instance/deployment metadata binds the
+proxied owner independently of that generic name. No process result proves
+access. A fresh observer accepts the same ready launcher without launch history.
+
+The document exposes no normal close control. `onpc_window::close` consumes a
+fresh same-owner active-window proof before one ordinary Alt-F4; a separate
+complete public application read must prove absence. Unknown prompts, password
+controls, wrong owners, ambiguous windows, incomplete reads and uncertain input
+refuse. Readiness has 180 seconds plus transport margin; the keyboard binding
+is US and the provider language is English. No sign-in, settings, download,
+gameplay or vendor-profile changes are part of this route.
+
+Normal Jordan sign-in after ordinary installed-snapshot restore, FIX05, allowed
+command entry, independent observer entry, normal closure and complete public
+absence passed. Scoped host routing/source checks, collection, worker shutdown
+and owned baseline restoration passed; the VM was powered off. This supplies no
+denial, Soft approval, reboot-persistence or complete case-253 acceptance.
+
 <a id="inventory-reconciliation"></a>
 
 ### Engineering coverage boundary

@@ -290,8 +290,16 @@ exclusively at runtime so incomplete checkouts fail safely. Validate partition
 coverage and compatible overlap for the changed scope using the maintained
 launcher, without expanding validation to unrelated host categories.
 
-Each VM executes one attempt at a time. VM tests default to every
-VM in `config/environment.json` whose `enabled` equals the string `"true"`.
+Each VM executes one attempt at a time. VM starts also check available memory
+and current CPU, memory and I/O pressure.
+Swap traffic blocks system/E2E starts when memory stalls reach 0.5%; swap traffic
+alone with lower memory pressure does not block an otherwise admitted attempt.
+The host-wide compute reservation remains the capacity limit. Controller-side
+resource waits retain a Watch tile and show their reason before guest observation
+starts, using the live controller report. Closed reports cannot keep tiles active.
+
+VM tests default to every VM in `config/environment.json` whose `enabled` equals
+the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
 Each host's positive numeric `max_compute_unit` limits reserved guest compute.
@@ -400,7 +408,8 @@ case execution and cleanup checks remain required.
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
 Package builds, guest product transactions, snapshot creation/restoration and
-VM disaster-recovery copies run one at a time across users and checkouts.
+VM disaster-recovery copies share each host's configured `disk_concurrency`
+across users and checkouts (default 1).
 This limit applies separately to each physical host; different hosts do not
 throttle each other. Admission lives on the host performing the disk operation.
 Other work retains its existing parallel scheduling and resource admission.

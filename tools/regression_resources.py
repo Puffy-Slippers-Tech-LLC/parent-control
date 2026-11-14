@@ -32,6 +32,7 @@ IO_PRESSURE_LOW = 5
 # Artifact and VM launches keep the original conservative I/O admission limit.
 EXCLUSIVE_IO_PRESSURE_HIGH = 2
 SWAP_IN_LIMIT = 1024 ** 2  # Bytes/second; cold page reads below this are tolerated.
+MEMORY_PRESSURE_LOW = .5  # Percent stalled; existing healthy recovery boundary.
 
 
 @dataclass(frozen=True)
@@ -289,7 +290,7 @@ class Admission:
             return
         sample = self.sample
         high = sample.cpu_pressure >= 10 or sample.memory_pressure >= 1 or sample.swapping
-        low = sample.cpu_pressure < 5 and sample.memory_pressure < .5 and not sample.swapping
+        low = sample.cpu_pressure < 5 and sample.memory_pressure < MEMORY_PRESSURE_LOW and not sample.swapping
         if high:
             self.open = False
             self.healthy_since = None
@@ -366,7 +367,14 @@ class Admission:
                     else IO_PRESSURE_HIGH)
         io_sensitive = candidate in BUILD_KINDS | {'system', 'e2e'} or any(
             kind in BUILD_KINDS for kind in active)
-        for limited, resource in ((sample.swapping, 'swap activity'),
+        # VM attempts already hold host-wide compute admission. Swap traffic
+        # alone can be cold-page readback or background reclaim with ample RAM
+        # and negligible stalls. Pause VM starts when it also leaves the healthy
+        # memory-pressure range, before the independent 1% hard pressure gate.
+        # Keep host-work swap policy unchanged.
+        swap_limited = sample.swapping and (candidate not in ('system', 'e2e')
+                                            or sample.memory_pressure >= MEMORY_PRESSURE_LOW)
+        for limited, resource in ((swap_limited, 'swap activity'),
                                   (sample.memory_pressure >= 1, 'memory pressure'),
                                   (io_sensitive and sample.io_pressure >= io_limit, 'I/O pressure'),
                                   (sample.cpu_pressure >= 10, 'CPU pressure'),

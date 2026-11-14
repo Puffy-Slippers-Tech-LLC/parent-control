@@ -837,6 +837,121 @@ sub minecraft_access {
     $journey->finish();
 }
 
+sub lunar_access {
+    onpc_progress::operation('Checking Jordan’s launcher access through parent approvals and restarts');
+    my ($exchange, $declared, $challenges) = @_;
+    die 'lunar-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
+        && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
+    require onpc_window;
+    require onpc_request_flow;
+    require onpc_allowance_selection;
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'lunar-access', review => 0);
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    my $enter = sub {
+        my ($prefix, $account, $entry) = @_;
+        onpc_desktop_session::enter_desktop($journey, 'gdm', $account, $entry, 'success', $prefix);
+    };
+    my $leave = sub {
+        my ($prefix) = @_;
+        my $section = $journey->scope($prefix);
+        onpc_desktop_session::switch_user($section, $section->seen('desktop'));
+    };
+    my $visit = sub {
+        my ($prefix, $entry) = @_;
+        $leave->("$prefix-child-leave");
+        $enter->("$prefix-parent", 'parent', $entry);
+        my $view = $journey->scope("$prefix-view");
+        $view->seen($_) for $entry eq 'fresh' ? qw(parent-command parent-window) : ();
+        $view->consume_observation('parent-selected', onpc_parent::select_child($view, 'existing',
+            $view->seen('child-picker-opened'), 'child-picker-opened',
+            'child-choice-highlighted', 'parent-selected'));
+    };
+    my $return = sub {
+        my ($prefix) = @_;
+        $leave->("$prefix-parent-leave");
+        $enter->("$prefix-child", 'other-child', 'retained');
+    };
+    my $choices = sub {
+        my ($prefix) = @_;
+        for my $app ('lunar', 'minecraft') {
+            onpc_text::replace_text($journey, "catalogue-$app", "$prefix-$app-search");
+            $journey->seen("$prefix-$app-$_") for qw(save row);
+        }
+        onpc_text::replace_text($journey, 'catalogue-clear', "$prefix-clear");
+        $journey->seen("$prefix-policy");
+    };
+    my $hidden = sub {
+        my ($prefix) = @_;
+        $journey->seen("$prefix-$_") for qw(observer-ready present quit closed);
+    };
+    my $launchers = sub {
+        my ($prefix) = @_;
+        $journey->seen("$prefix-lunar-$_") for qw(launch opened quit closed);
+        my $minecraft = $journey->scope("$prefix-minecraft");
+        $minecraft->seen($_) for qw(launch opened);
+        onpc_window::close($minecraft, 'minecraft', $minecraft->seen('minecraft-close-ready'));
+    };
+    my $blocked = sub {
+        my ($prefix) = @_;
+        $journey->seen("$prefix-$_") for qw(observer-ready lunar-before lunar-denied lunar-absent
+            minecraft-denied minecraft-absent);
+        my $work = $journey->scope("$prefix-work");
+        native_usable_app($work, 'command', $work->seen('desktop'), 'other-child', 'N');
+        native_finish_app($work);
+    };
+    my $approval = sub {
+        my ($prefix, $soft) = @_;
+        my $request = $journey->scope($prefix);
+        $request->{overlay_request} = ['other-child', 'parent', 900, $soft];
+        onpc_request_flow::overlay_entry($request, 'request', 'command');
+        onpc_request_flow::prepare($request, 'new', 'open', 'observed',
+            'existing-fixture-child', 'fixture-parent', 900, $soft, 'overlay');
+        onpc_request_flow::overlay_approve($request, 'automatic');
+    };
+    my $reboot = sub {
+        my ($prefix) = @_;
+        $journey->seen("$prefix-$_") for qw(reboot greeter);
+        $enter->("$prefix-login", 'other-child', 'fresh');
+    };
+    onpc_gdm::reattach_functional();
+    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
+        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->seen($_) for qw(saved-settings apps-page screen-page);
+    onpc_allowance_selection::select($journey, 'daily', [120], 'confirm');
+    $journey->seen($_) for qw(daily-settings allowed-apps);
+    $choices->('allowed');
+    $journey->seen('parent-logout');
+    $enter->('initial-child', 'other-child', 'fresh');
+    $hidden->('initial-hidden');
+    $journey->seen('minecraft-observer');
+    $launchers->('allowed');
+    $reboot->('allowed');
+    $hidden->('allowed-hidden');
+    $visit->('soft', 'fresh');
+    $journey->seen('soft-apps');
+    $choices->('soft');
+    $return->('soft');
+    $blocked->('ungranted');
+    for my $prefix ('time-only', 'replacement') {
+        $approval->($prefix, 0);
+        $visit->("$prefix-before", 'retained');
+        $journey->seen("$prefix-before-policy");
+        $return->("$prefix-before");
+        $reboot->($prefix);
+        $blocked->($prefix);
+        $visit->("$prefix-after", 'fresh');
+        $journey->seen("$prefix-after-policy");
+        $return->("$prefix-after");
+        if ($prefix eq 'time-only') {
+            $approval->('included', 1);
+            $launchers->('included');
+        }
+    }
+    $journey->seen('child-logout');
+    $journey->finish();
+}
+
 sub lunar_autostart {
     onpc_progress::operation('Checking that allowed Lunar starts when Jordan signs in');
     my ($exchange, $declared, $challenges) = @_;

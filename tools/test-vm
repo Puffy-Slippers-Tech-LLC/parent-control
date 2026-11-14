@@ -15,13 +15,16 @@ MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 def baseline_restoration(args, configured):
     """Freeze the diagnostic's selected fixtures for its exact VM and lifetime."""
+    preparing_lunar = args == ['prepare-lunar-access']
+    if preparing_lunar:
+        args = ['reproduce-lunar-access']
     actions = ('reproduce-rest-of-day', 'reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-baseline-restoration', 'reproduce-natural-access', 'reproduce-natural-expiry', 'reproduce-natural-reminder',
                'reproduce-countdown-grant', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-activity', 'reproduce-overlay-return',
                'reproduce-system-graphical-expiry', 'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout',
                'reproduce-match-editor', 'reproduce-policy-legend', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                'reproduce-panel-request', 'reproduce-app-restart-choices', 'reproduce-reboot-context',
                'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
-               'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request')
+               'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-lunar-access')
     if not args or args[0] not in actions:
         return None
     targets = vm_config.fixture_targets()
@@ -36,17 +39,44 @@ def baseline_restoration(args, configured):
     check('/usr/local/libexec/onpc-test-runner')
     with reservation(configured.name):
         store = Store(directory('state') / ('retention-baseline-restoration-' + configured.name))
-        with store.session():
+        prepared_run = None
+        if args == ['reproduce-lunar-access'] and not preparing_lunar:
+            # Preparation and its consumer share one retained input lifetime.
+            # A new empty run could otherwise evict the bundle just verified by
+            # prepare-lunar-access. The shared session still audits ownership.
+            with store.opened() as fd:
+                state = store.read(fd)
+            if state is not None:
+                prepared_run = state['run']
+        with store.session(run=prepared_run):
             if args[0] in ('reproduce-rest-of-day', 'reproduce-ineligible-approver', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-suspend-active-grant', 'reproduce-suspend-expired-grant', 'reproduce-overlay-return', 'reproduce-system-graphical-expiry', 'reproduce-natural-expiry', 'reproduce-natural-reminder',
                            'reproduce-native-denial', 'reproduce-native-files', 'reproduce-native-desktop', 'reproduce-native-desktop-new-window', 'reproduce-grant-logout', 'reproduce-match-editor', 'reproduce-policy-legend',
                            'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case', 'reproduce-panel-request',
                            'reproduce-app-restart-choices', 'reproduce-reboot-context',
                            'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access', 'reproduce-expired-sign-out',
-                           'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request'):
+                           'reproduce-daily-soft-balance', 'reproduce-versioned-appimage-assets', 'reproduce-fullscreen-return', 'reproduce-fullscreen-request', 'reproduce-lunar-access'):
                 from test_storage import named_input
                 assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+                if preparing_lunar:
+                    from regression_process import Control
+                    from test_commands import allocate_artifact_output
+                    from test_launcher import environment
+                    from test_source import reader
+                    from vm_artifacts import prepare as prepare_artifacts
+                    root = Path(__file__).resolve().parents[1]
+                    with reader(root), Control().installed(pipe=False) as control:
+                        exists = assets.is_dir()
+                        status = prepare_artifacts(root, control, environment(root),
+                            candidate=assets if exists else None,
+                            output=assets if exists else allocate_artifact_output(str(assets)))
+                    return status
                 if not assets.is_dir():
                     import shlex
+                    if args[0] == 'reproduce-lunar-access':
+                        print('lunar-access: stop owned maintenance, then run ' + shlex.join([
+                            'tools/test-vm', '--vm', configured.name, 'prepare-lunar-access']) +
+                            ' before restoring the maintenance snapshot', file=sys.stderr, flush=True)
+                        return 2
                     print(args[0] + ': prepare the required input with ' + shlex.join([
                         'tools/run-tests', 'artifacts', 'prepare', '--for-vm', '--vm', configured.name,
                         '--output', str(assets)]), file=sys.stderr, flush=True)
@@ -166,6 +196,12 @@ if __name__ == '__main__':
             if input_fd is not None:
                 os.close(input_fd)
             sys.exit(status)
+        if args[:1] == ['artifacts']:
+            # Host dispatch above selects the VM's host; the existing reader
+            # owns path, caller, file identity and bounded-output validation.
+            if args[1:2] not in (['list'], ['stat'], ['read'], ['tail']):
+                raise ValueError('artifacts requires list, stat, read or tail')
+            launch('/usr/local/libexec/onpc-test-artifacts', args[1:])
         status = baseline_restoration(args, configured)
         if status is None:
             status = fixture_maintenance(args, configured)

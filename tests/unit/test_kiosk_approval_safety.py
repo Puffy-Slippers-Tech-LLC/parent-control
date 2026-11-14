@@ -34,6 +34,22 @@ def test_overlay_input_uses_the_current_child_binding(tmp_path):
     assert json.loads((tmp_path / 'second-approval.input.json').read_text())['child'] == 'child'
 
 
+@pytest.mark.parametrize('operation,accepted', [
+    ('standard-desktop-identity', True), ('standard-logout', False)])
+def test_customer_reboot_requires_a_desktop_identity_guard(operation, accepted):
+    from installed_journey import JourneyPlan
+    arguments = dict(prefix='reboot-guard', worker_mode='reboot_guard',
+        screen_tags={'reboot': 'system:' + operation, 'returned': 'ui:gdm-list'},
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                'reboot': 'step-1', 'returned': 'step-1'},
+        reboot_transition=('reboot', 'returned'))
+    if accepted:
+        assert JourneyPlan(**arguments).reboot_transitions == (('reboot', 'returned'),)
+    else:
+        with pytest.raises(EvidenceError, match='reboot-guard:reboot-plan'):
+            JourneyPlan(**arguments)
+
+
 def test_second_parent_challenge_requires_its_own_two_fresh_checks():
     ui = ui_observations.UiObservations(None)
     ui.observe = Mock(return_value={'recipient': True})
@@ -266,6 +282,32 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     assert value['events'] == ([] if fault in ('scope', 'child', 'duration') else [
         ['proof', 'approved-approval-qualified'], ['proof', 'approved-approval-rechecked'],
         ['delivery', 'parent', 'approved-overlay-shell-approval']])
+
+
+@pytest.mark.parametrize('fault', ['none', 'scope', 'replay'])
+def test_lunar_approvals_keep_separate_scoped_secret_receipts(fault):
+    result = run_password_guard(r'''
+my ($fault) = @ARGV;
+my $ok = eval {
+    for my $row ('time-only', 'included', 'replacement') {
+        my $journey = bless {prefix => "lunar-access-$row", stage_prefix => "$row-",
+            review => 0, overlay_request => ['other-child', 'parent', 900,
+                $row eq 'included' ? 1 : 0]}, 'onpc_journey';
+        $journey->{stage_prefix} = 'included-' if $fault eq 'scope';
+        onpc_password::enter_overlay_shell_password($journey);
+        onpc_password::enter_overlay_shell_password($journey) if $fault eq 'replay';
+    }
+    1;
+};
+print encode_json({ok => $ok ? 1 : 0, events => \@events});
+''', fault)
+    value = json.loads(result.stdout)
+    assert value['ok'] == (fault == 'none')
+    rows = [] if fault == 'scope' else (['time-only'] if fault == 'replay'
+                                      else ['time-only', 'included', 'replacement'])
+    assert value['events'] == [event for row in rows for event in (
+        ['proof', row + '-approval-qualified'], ['proof', row + '-approval-rechecked'],
+        ['delivery', 'parent', row + '-overlay-shell-approval'])]
 
 
 @pytest.mark.parametrize('surface,fault', [

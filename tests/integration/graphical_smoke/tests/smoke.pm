@@ -48,6 +48,7 @@ use onpc_restricted_station ();
 use onpc_request_exit ();
 use onpc_parent_toggle ();
 use onpc_allowance_presets ();
+use onpc_allowance_selection ();
 use onpc_allowance ();
 use onpc_allowance_boundaries ();
 use onpc_allowance_case ();
@@ -1187,6 +1188,12 @@ sub run {
         exchange('setup-detached', undef);
         onpc_app_rows::native_space_path(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
             $ready->{native_comma_path} ? 'comma' : 'space');
+        return;
+    }
+    if ($ready->{lunar_access}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_app_rows::lunar_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{minecraft_access}) {

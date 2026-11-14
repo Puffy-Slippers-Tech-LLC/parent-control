@@ -680,13 +680,13 @@ AppImageLauncher login-autostart route. E2E-019's native launches,
 E2E-022's reboot persistence and E2E-041/case 189's version patterns do not
 establish this coverage. Keep their existing scope and IDs unchanged.
 
-This is metadata/planning only: case 253 remains `pending`, with no executable
-binding. Tasks **295, 296c, 296d, 296, 296e, 296a, 296f, 296b and 297** separately
-cover restored-fixture validation, Lunar launch/Quit, public app presence, command
-denial, separate normal signed-out Minecraft launcher entry/exit and
-launch/denial, allowed and denied access after normal login
-observations, and the complete scenario. The developer has completed manual
-installation and profile setup for Lunar, AppImageLauncher and Minecraft on the
+Case 253 is registered through `tests/e2e/lunar_access_case.py` and
+`onpc_app_rows::lunar_access`. The shared bindings cover restored-fixture
+validation, Lunar launch/Quit,
+public app presence, command denial, separate normal signed-out Minecraft
+launcher entry/exit, approval and access after normal login or reboot.
+The developer has completed manual installation and profile setup for Lunar,
+AppImageLauncher and Minecraft on the
 guarded VM. Treat those supplied inputs as finished setup, verify them after
 ordinary restore, and report any actual setup gap before implementing changes.
 No automatic installation, download, integration or profile reconstruction is
@@ -706,4 +706,5 @@ On 2026-11-13 the developer further limited unfinished work to app access:
 normal launch, specific denial, approval and persistence after normal sign-in or
 reboot. Tray hide/restore, Settings and a new continuous game-specific observer
 are excluded; existing public-result, input, ownership and cleanup guards remain.
-This addition does not change the current **Next task** or claim VM acceptance.
+Its exact five access histories remain in the recipe; standalone binding
+qualifications do not replace the complete scenario's acceptance.

@@ -152,6 +152,16 @@ sub minecraft_access_request {
         && join(',', @{$journey->{overlay_request}}) eq 'other-child,parent,900,1';
 }
 
+sub lunar_access_request {
+    my ($journey) = @_;
+    return 0 unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    my ($row) = ($journey->{prefix} // '') =~ /\Alunar-access-(time-only|included|replacement)\z/;
+    return defined($row) && ($journey->{stage_prefix} // '') eq "$row-"
+        && ref($journey->{overlay_request}) eq 'ARRAY'
+        && join(',', @{$journey->{overlay_request}}) eq
+            'other-child,parent,900,' . ($row eq 'included' ? '1' : '0');
+}
+
 sub game_permission_request {
     my ($journey, $surface) = @_;
     return 0 unless @_ == 2 && ref($journey) eq 'onpc_journey'
@@ -408,10 +418,11 @@ sub enter_overlay_shell_password {
             && join(',', @{$journey->{overlay_request}}) eq 'child,parent,75,0';
         my $game_permission = game_permission_request($journey, 'overlay');
         my $minecraft_access = minecraft_access_request($journey);
+        my $lunar_access = lunar_access_request($journey);
         my $homework = homework_request($journey, 'overlay');
         my $family = family_request($journey, 'overlay');
         my $composed = (($journey->{prefix} // '') eq 'overlay-approval-return'
-            || $delayed || $panel || $lock_recovery || $temporary_access || $offline || $game || $game_permission || $minecraft_access || $homework || $family) && !$reject;
+            || $delayed || $panel || $lock_recovery || $temporary_access || $offline || $game || $game_permission || $minecraft_access || $lunar_access || $homework || $family) && !$reject;
         my $role = 'parent';
         if ($composed) {
             my $binding = $journey->{overlay_request};
@@ -424,7 +435,7 @@ sub enter_overlay_shell_password {
         }
         die 'secret:challenge' if $baseline && (($journey->{stage_prefix} // '') ne
             'overlay-' . ($reject ? 'rejection' : 'approval') . '-');
-        my $id = ($baseline || $delayed || $temporary_access || $offline || $game_permission || $minecraft_access || $homework || $family ? $journey->{stage_prefix} : '')
+        my $id = ($baseline || $delayed || $temporary_access || $offline || $game_permission || $minecraft_access || $lunar_access || $homework || $family ? $journey->{stage_prefix} : '')
             . 'overlay-shell-' . ($reject ? 'rejection' : 'approval');
         die 'secret:challenge' unless (@_ == 1 || $reject) && ref($journey) eq 'onpc_journey'
             && $prefix =~ /\A[a-z][a-z0-9-]*\z/

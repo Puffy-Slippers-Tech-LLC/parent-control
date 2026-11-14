@@ -292,17 +292,21 @@ def named_input_slot(path):
         from .test_retention import directory as open_directory
     else:
         from test_retention import directory as open_directory
+    available = None
     for generation in range(32):
         candidate = path if generation == 0 else path.with_name(path.name + f'-{generation}')
         try:
             fd = open_directory(candidate)
         except FileNotFoundError:
-            return candidate
+            available = available or candidate
+            continue
         try:
             if os.listdir(fd):
                 return candidate
         finally:
             os.close(fd)
+    if available is not None:
+        return available
     raise ValueError('named input has too many empty reservations')
 
 

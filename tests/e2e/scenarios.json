@@ -3659,7 +3659,7 @@
         "rationale": "One complete app-access regression: allowed startup, ungranted denial, active time-only reboot denial, explicit soft approval and replacement exclusion. Generic native routes, wildcard updates and general lifecycle persistence retain their existing owners. Launcher features, gameplay and a new continuous game-specific observer are outside scope."
       },
       "variants": [
-        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "pending", "pending_reason": "The supplied-profile and original Lunar launch/Quit bindings are qualified on Ubuntu 26.04. Remaining launcher access/denial, normal-login/reboot bindings and the complete installed journey remain pending. Test app access only; launcher features, gameplay and a new continuous observer are outside scope. Task 297 and its prerequisites in docs/TestAutomation/E2E-Task-Queue.md own the remaining work.", "executable": null}
+        {"coverage_id": 253, "id": "appimagelauncher-login-autostart", "owner": "application-access", "parameters": {"route": "appimagelauncher-login-autostart"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/lunar_access_case.py", "test_id": "appimagelauncher-login-autostart"}}
       ]
     }
   ]

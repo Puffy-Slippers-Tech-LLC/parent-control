@@ -103,7 +103,7 @@ def run(ui, operation, require, require_session):
 
     if operation == 'minecraft-observer-ready':
         ui.handle_system_prompt()
-        ui.enable_screen_reader()
+        ui.enable_provider_accessibility()
     elif operation in ('minecraft-launch', 'minecraft-command-blocked'):
         ui.wait(absent, 'minecraft-before-launch', prompt_in_predicate=True)
         ui.prepare_launch_desktop()
@@ -124,6 +124,13 @@ def run(ui, operation, require, require_session):
             return {'denial': 'administrator-policy'}
         ui.input_uncertain = False
     elif operation in ('minecraft-opened', 'minecraft-close-ready'):
+        if operation == 'minecraft-close-ready':
+            ui.handle_system_prompt()
+            # IsEnabled exposes CEF's tree, but its current window state also
+            # needs libatspi's ordinary desktop client initialized. Keep the
+            # independent public owner, prompt and live ACTIVE checks below.
+            require(ui.api.native.get_desktop(0) is not None,
+                    'ui:minecraft-provider-desktop')
         return ui.wait(lambda: window(closing=operation == 'minecraft-close-ready'),
                        'minecraft-usable', prompt_in_predicate=True)
     elif operation == 'minecraft-closed':

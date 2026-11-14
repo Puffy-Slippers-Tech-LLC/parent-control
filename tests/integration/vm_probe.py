@@ -958,6 +958,27 @@ def observe_maintenance(lease, *, check, label, intention, ui_operation, child=N
         print(label + ': observation passed', flush=True)
 
 
+def reproduce_lunar_access(lease, fixture_selection):
+    """Retain case 253's child return before the replacement-grant reboot."""
+    sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
+    from lunar_access_case import LunarAccessJourney, PLAN
+    from tools.test_storage import named_input
+    selection = installed_reproduction_selection(lease, fixture_selection)
+    assets = named_input(vm_source=True, package_source=True, fixture_source=True)
+    system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
+    return reproduce_denial(lease, LunarAccessJourney, PLAN,
+        'replacement-before-child-desktop', 'lunar-access', assets=assets,
+        boundary_operation='standard-desktop', fixture_selection=selection, timeout=1800)
+
+
+def probe_minecraft_close(lease):
+    """Read the shared close guard in the retained child desktop."""
+    return observe_maintenance(lease, check='probe_minecraft_close',
+        label='minecraft-close-probe',
+        intention='Reading Minecraft close readiness in the retained child desktop',
+        ui_operation='minecraft-close-ready')
+
+
 def probe_lunar_launch_quit(lease):
     """Stop at the first failed shared Lunar operation in the retained desktop."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
@@ -1991,6 +2012,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             from native_temporary_access import TemporaryAccessJourney as NativeDesktopAccessJourney, DESKTOP_PLAN as NATIVE_DESKTOP_ACCESS_PLAN
         from app_restart_expired import AppRestartExpiredJourney, SIGN_OUT_PLAN
         from daily_soft_expiry import DailySoftExpiryJourney, PLAN as DAILY_SOFT_PLAN
+        from lunar_access_case import LunarAccessJourney, PLAN as LUNAR_ACCESS_PLAN
         if surface == 'versioned-appimage-assets':
             from versioned_appimage_assets import VersionedAppImageAssetsJourney, PLAN as VERSIONED_ASSETS_PLAN
         remove_selected = (surface == 'remove-selected'
@@ -2106,7 +2128,11 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         versioned_assets = (surface == 'versioned-appimage-assets'
             and journey_type is VersionedAppImageAssetsJourney and plan is VERSIONED_ASSETS_PLAN
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
-        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or natural_reminder or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets)
+        lunar_access = (surface == 'lunar-access'
+            and journey_type is LunarAccessJourney and plan is LUNAR_ACCESS_PLAN
+            and boundary == 'replacement-before-child-desktop'
+            and boundary_operation == 'standard-desktop')
+        system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or natural_reminder or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets or lunar_access)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')
     system.require(type(timeout) is int and timeout in (900, 1800), 'diagnosis:timeout')
@@ -2149,7 +2175,7 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if selected_setup:
             from e2e_fixture_preparation import ACTIVITY_CALLER, ACTIVITY_SUBSETS
             context.fixture_selection = fixture_selection
-            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'policy-legend', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access', 'native-desktop-access') else ACTIVITY_SUBSETS
+            context.fixture_subsets = ('native',) if surface in ('ineligible-approver', 'remove-selected', 'remove-last-child', 'native-denial', 'native-files', 'native-desktop-new-window', 'versioned-appimage-assets', 'grant-logout', 'match-editor', 'policy-legend', 'flatpak-grid', 'flatpak-temporary-access', 'native-temporary-access', 'native-desktop-access', 'lunar-access') else ACTIVITY_SUBSETS
             context.fixture_caller = ({'ineligible-approver': None, 'remove-selected': None, 'remove-last-child': None, 'native-denial': None, 'flatpak-grid': None,
                                        'native-files': None,
                                        'native-desktop': 'E2E-019/native-desktop-allowed-enabled',
@@ -2261,6 +2287,8 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
                     observed['spare_approver'] = self.actions['prepare-spare-approver'](self, guard)
                 if surface == 'rest-of-day':
                     observed['fixture'] = self.actions['calendar-window'](self, guard)
+                if surface == 'lunar-access':
+                    observed['fixture'] = self.actions['launcher-prepare'](self, guard)
                 self.steps.append(observed)
                 self.progress(stage, observed)
                 pending = directory / 'setup-detached.reply.tmp'
@@ -2280,6 +2308,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
         if surface == 'flatpak-temporary-access':
             from flatpak_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False)
+        if surface == 'lunar-access':
+            from lunar_access_case import prepare
+            from native_fixtures import fixture_actions
+            actions = {**fixture_actions(include_refusal=False), 'launcher-prepare': prepare}
         if surface == 'fullscreen-request':
             from native_fixtures import fixture_actions
             actions = fixture_actions(include_refusal=False, profile='game')

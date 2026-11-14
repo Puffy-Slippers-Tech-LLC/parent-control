@@ -239,7 +239,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                       'reproduce-countdown-minutes',
                                       'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
                                       'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
-                                      'reproduce-jordan-daily-access', 'probe-lunar-launch-quit',
+                                      'reproduce-jordan-daily-access', 'probe-lunar-launch-quit', 'reproduce-lunar-access', 'probe-minecraft-close',
                                       'reproduce-natural-expiry', 'reproduce-natural-reminder', 'reproduce-fullscreen-return', 'probe-fullscreen-return', 'reproduce-fullscreen-request',
                                       'reproduce-rest-of-day',
                                       'reproduce-natural-access',
@@ -300,7 +300,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                            'reproduce-match-editor', 'reproduce-policy-legend', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                            'reproduce-panel-request', 'reproduce-app-restart-choices',
                            'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
-                           'reproduce-expired-sign-out', 'reproduce-daily-soft-balance')) != (args.fixture_selection is not None):
+                           'reproduce-expired-sign-out', 'reproduce-daily-soft-balance', 'reproduce-lunar-access')) != (args.fixture_selection is not None):
             raise ValueError('test-runner:fixture-sync-requires-selection')
         fixture_options = []
         if args.fixture_maintenance or args.action in ('sync-fixtures', 'reproduce-baseline-restoration', 'reproduce-remove-selected', 'reproduce-remove-last-child', 'reproduce-ineligible-approver',
@@ -312,7 +312,7 @@ def selection(root, argv, *, allow_missing_artifacts=False):
                                                       'reproduce-match-editor', 'reproduce-policy-legend', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                                                       'reproduce-panel-request', 'reproduce-app-restart-choices',
                                                       'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
-                                                      'reproduce-expired-sign-out', 'reproduce-daily-soft-balance'):
+                                                      'reproduce-expired-sign-out', 'reproduce-daily-soft-balance', 'reproduce-lunar-access'):
             targets = vm_config.fixture_targets(root / 'config/environment.json')
             if configured.name not in targets:
                 raise ValueError('test-runner:fixture-target-not-qualified')

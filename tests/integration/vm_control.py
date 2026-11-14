@@ -452,7 +452,7 @@ def main(argv=None):
                                           'reproduce-countdown-minutes',
                                           'reproduce-pending-overlay-lock', 'probe-pending-overlay-lock',
                                           'reproduce-pending-overlay-switch', 'probe-pending-overlay-switch',
-                                          'reproduce-jordan-daily-access', 'probe-lunar-launch-quit',
+                                          'reproduce-jordan-daily-access', 'probe-lunar-launch-quit', 'reproduce-lunar-access', 'probe-minecraft-close',
                                           'reproduce-natural-expiry', 'reproduce-fullscreen-return', 'probe-fullscreen-return', 'reproduce-fullscreen-request',
                                           'reproduce-rest-of-day',
                                           'reproduce-natural-access',
@@ -512,7 +512,7 @@ def main(argv=None):
                                        'reproduce-match-editor', 'reproduce-policy-legend', 'reproduce-app-rule-return', 'reproduce-revocation-return', 'reproduce-overlay-lock-case',
                                        'reproduce-panel-request', 'reproduce-app-restart-choices',
                                        'reproduce-reboot-context', 'reproduce-flatpak-grid', 'reproduce-flatpak-temporary-access', 'reproduce-native-temporary-access', 'reproduce-native-desktop-access',
-                                       'reproduce-expired-sign-out', 'reproduce-daily-soft-balance'))
+                                       'reproduce-expired-sign-out', 'reproduce-daily-soft-balance', 'reproduce-lunar-access'))
                        == (args.fixture_selection is not None),
                        'vm-control:arguments')
         if args.new_name is not None:
@@ -621,6 +621,14 @@ def main(argv=None):
                               type(cleanup_error).__name__ + '); preserve controller state',
                               file=sys.stderr, flush=True)
                 raise
+        elif args.action == 'reproduce-lunar-access':
+            from vm_probe import reproduce_lunar_access
+            resume(lease)
+            reproduce_lunar_access(lease, fixture_selection)
+        elif args.action == 'probe-minecraft-close':
+            from vm_probe import probe_minecraft_close
+            resume(lease)
+            probe_minecraft_close(lease)
         elif args.action == 'probe-lunar-launch-quit':
             from vm_probe import probe_lunar_launch_quit
             resume(lease)

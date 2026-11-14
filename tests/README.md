@@ -2674,6 +2674,12 @@ pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts stat '<report-directory
 pkexec --keep-cwd /usr/local/libexec/onpc-test-artifacts export '<report-directory>/results/recording.webm'
 ```
 
+For evidence on a configured VM's host, use
+`tools/test-vm --vm NAME artifacts list '<report-directory>'`, then the same
+`read`, `tail` or `stat` action and arguments. This read-only bridge routes to
+that host's existing artifact reader with its caller, path and identity guards;
+it does not start or acquire the guest.
+
 `read` also accepts `--offset` for paging through large files. `list` returns
 JSON names; `stat` returns JSON type, size, mode, and modification time. `export`
 prints an `output/test-runs/host/exports/onpc-artifact-export-*/<original-name>`

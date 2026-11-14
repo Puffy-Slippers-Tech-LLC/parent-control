@@ -5497,7 +5497,7 @@ IDs and executable status. The Lunar gate below supplements E2E-052's recipe.
 
 ### Lunar Client preparation and observation gate
 
-Case 253 is a planned real-application regression, not an extension of the native
+Case 253 is a real-application regression, not an extension of the native
 fixture's qualified scope. The developer has manually prepared its pinned Lunar
 Client AppImage, AppImageLauncher integration, child-login autostart/tray settings
 and separate Minecraft launcher. This real-app profile is supplied baseline
@@ -5692,6 +5692,14 @@ command entry, independent observer entry, normal closure and complete public
 absence passed. Scoped host routing/source checks, collection, worker shutdown
 and owned baseline restoration passed; the VM was powered off. This supplies no
 denial, Soft approval, reboot-persistence or complete case-253 acceptance.
+
+The launcher readers enable `org.a11y.Status.IsEnabled` without starting the
+screen reader. Minecraft's close reader also initializes libatspi's ordinary
+desktop client before checking the live ACTIVE state. Both retain prompt,
+owner, complete-tree, signed-out and keyboard guards. A registry change during
+app discovery discards the entire observation through the shared incomplete-read
+wait; only a subsequent complete read can establish presence or absence, within
+the original deadline and without replaying input.
 
 #### Minecraft launcher access and approval
 

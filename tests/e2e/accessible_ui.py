@@ -8381,7 +8381,7 @@ class AccessibleUI:
         require(not any(self.showing(node) and public_automation_id(node) in forbidden
                         for node in nodes), 'ui:help-product-window')
 
-    def enable_screen_reader(self):
+    def enable_provider_accessibility(self):
         """Enable ordinary provider accessibility after the caller's prompt guard."""
         from gi.repository import Gio, GLib
 
@@ -8389,20 +8389,27 @@ class AccessibleUI:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self.input_uncertain = True
         bus.call_sync('org.a11y.Bus', '/org/a11y/bus', 'org.freedesktop.DBus.Properties',
-            'Set', GLib.Variant('(ssv)', ('org.a11y.Status', 'ScreenReaderEnabled',
+            'Set', GLib.Variant('(ssv)', ('org.a11y.Status', 'IsEnabled',
                                         GLib.Variant('b', True))),
             None, Gio.DBusCallFlags.NO_AUTO_START, 5000, None)
         self.input_uncertain = False
 
     def desktop_applications(self):
         """Read the complete bounded registry; provider owners select their apps."""
-        root = self.api.get_desktop(0)
-        require(root is not None, 'ui:incomplete-tree')
-        count = root.get_child_count()
-        require(0 <= count <= 64, 'ui:incomplete-tree')
-        apps = [root.get_child_at_index(index) for index in range(count)]
-        require(all(app is not None for app in apps), 'ui:incomplete-tree')
-        return apps
+        try:
+            root = self.api.get_desktop(0)
+            require(root is not None, 'ui:incomplete-tree')
+            count = root.get_child_count()
+            require(0 <= count <= 64, 'ui:incomplete-tree')
+            apps = [root.get_child_at_index(index) for index in range(count)]
+            require(all(app is not None for app in apps), 'ui:incomplete-tree')
+            return apps
+        except getattr(self.api, 'read_errors', ()) as error:
+            # Registration can change between ChildCount and GetChildren.
+            # Discard the whole read; the existing wait retries observation
+            # within its original deadline, without repeating any input.
+            self.invalidate_observation()
+            raise UiError('ui:incomplete-tree') from error
 
     def prepare_launch_desktop(self):
         """Leave Shell's overview once and independently observe its closure.

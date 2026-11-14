@@ -2595,10 +2595,10 @@ and retain the independent owner/window binding on both parents' returns.
 
 ### E2E-052
 
-**Implementation:** pending metadata only; no executable binding or installed
-qualification. **Lunar Client login autostart cannot bypass an ungranted soft
-block.** Case 253, route `appimagelauncher-login-autostart`; one independent
-1800-second customer attempt.
+**Implementation:** `tests/e2e/lunar_access_case.py` / `onpc_app_rows::lunar_access`;
+complete public access history. **Lunar Client login autostart cannot bypass an
+ungranted soft block.** Case 253, route `appimagelauncher-login-autostart`;
+one independent 1800-second customer attempt.
 
 Use Jamie/Jordan fixture roles and the
 [manually supplied launcher profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)

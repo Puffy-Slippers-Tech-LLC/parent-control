@@ -868,6 +868,7 @@ sub shell_approve {
                 && $exit eq 'automatic'
             || onpc_password::game_permission_request($journey, 'overlay') && $exit eq 'automatic'
             || onpc_password::minecraft_access_request($journey) && $exit eq 'automatic'
+            || onpc_password::lunar_access_request($journey) && $exit eq 'automatic'
             || ($journey->{prefix} // '') =~ /\Adelayed-approval-(?:first|second)\z/
                 && ref($journey->{overlay_request}) eq 'ARRAY' && $exit eq 'automatic'
             || onpc_password::homework_request($journey, 'overlay') && $exit eq 'automatic'

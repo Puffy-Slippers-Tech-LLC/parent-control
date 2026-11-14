@@ -210,7 +210,7 @@ def run(ui, operation, require, require_session):
         # Activate the provider's ordinary accessibility service before reading
         # Chromium's document. This changes no launcher or product setting.
         prompt_guard()
-        ui.enable_screen_reader()
+        ui.enable_provider_accessibility()
     elif operation in ('lunar-launch', 'lunar-command-blocked'):
         ui.wait(absent, 'lunar-before-launch', prompt_in_predicate=True)
         require(original.is_file() and not original.is_symlink()

@@ -2939,10 +2939,10 @@ rejection. They leave that result visible. The caller owns dialog return,
 wrong-entry checks and repeated rejection, so qualification and customer cases
 reuse identical input/result mechanics without inheriting each other's recipe.
 
-UI16 uses the guarded synthetic-text construction below, followed for mixed
-input by
-`onpc_text::append_scalar` / `AccessibleUI.scalar_text_operation`: exact ASCII
-source and public caret proofs precede ordinary numeric Unicode input.
+UI16 replaces each finite ASCII or mixed body through the canonical text setter
+once, then independently reads its exact public value. The setter retains fresh
+recipient, ownership and uncertain-input guards. Scalar insertion is qualified
+separately by `onpc_text::append_scalar` / `AccessibleUI.scalar_text_operation`.
 `feedback_plain_text` proves normal public attributes over the entire body.
 At 5,000 units, `LENGTH_OBSERVATIONS` independently confirms enabled Send and
 no validation message; the invalid-only guard must refuse that valid draft.
@@ -2957,34 +2957,19 @@ and uncertain input; none may reach Send.
 No valid report is submitted; complete case
 153 has separate [composition acceptance](#complete-local-validation).
 
-#### Synthetic text duplication
+#### Synthetic text fixtures
 
-UI16 also has a shared `onpc_text::duplicate_text(journey, binding)` composite
-for large declared nonsecret fixtures. `TEXT_DUPLICATIONS` maps each result to
-its exact source. `AccessibleUI.duplicate_text_operation` checks that source,
-selects the insertion point through `feedback-editor-selection` and inserts
-the declared text through `feedback-editor-insert`, excluding the implicit
-terminal paragraph newline. `TEXT_DUPLICATION_SEPARATORS` declares the exact join;
-public readback must match `source + separator + source`. Any failure stops
-before further input, without falling back to typing the full document.
-No helper application, clipboard service, DOM assignment or private draft read
-is involved. Shared UI/E2E operations use the same packaged editor adapter.
+`onpc_text::replace_text` and `AccessibleUI.text_operation` share one finite
+replacement/readback route for ordinary text, the four UTF-16 boundaries and
+the 1,200-line excessive-formatting fixture. The latter retains its exact
+2,399-character body and formatting/rejection assertions. Intermediate seeds,
+doubling and suffix insertion add no product boundary and are omitted.
 
-The rejection consumer sets the declared 75-line seed through the API, then
-doubles to 150, 300, 600 and 1,200 lines.
-This preserves the 2,399-character final fixture and all rejection assertions.
-`check_e2e_feedback_rejection` qualifies exact construction and its rejection
-consumer. New bindings
-must declare exact source/result projections and receive consumer qualification.
-
-The four UTF-16 boundary inputs use `TEXT_REPETITIONS`: a 312-character seed,
-four API insertions to 4,992 characters, and a 6–9-character suffix through
-`onpc_text::repeat_text` / `AccessibleUI.suffix_text_operation`. The host UI test
-uses these same public operations. Each source and doubled result is checked
-before continuing; exact final ASCII/emoji text and UTF-16 boundaries remain
-mandatory. `check_e2e_feedback_length` qualifies the four constructions, exact
-ASCII/emoji boundaries, valid-input refusal, invalid-only rejection and independent
-reopen. This is scoped qualification, not complete case 153 acceptance.
+The host UI checks use these same public operations. Exact final ASCII/emoji
+text, formatting, valid-input refusal, invalid-only rejection and independent
+reopen remain mandatory. Installed validation of the simplified construction
+belongs to `check_e2e_feedback_length` and `check_e2e_feedback_rejection`; this
+code-only change supplies no new installed qualification or case 153 acceptance.
 
 ### Additional public surfaces
 

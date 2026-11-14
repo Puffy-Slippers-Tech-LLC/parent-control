@@ -225,14 +225,8 @@ def observer(selection, manifest, result, previous, source, *, subsets=preparati
                  ((native_assets.ACTIVITY_EXECUTABLE,) if 'activity' in subsets else ()))
         before_repeat = proof.audit(vm, manifest, subsets)
         edit = shared.source_edit_proof(source, selection, manifest)
-        system.require(fixture_execution.verify(selection) == manifest,
-                       'fixture-e2e:selected-input-changed')
-        repeated = controller.provision(selection, subsets,
-                                         attempt_id=preparation.attempt_id(directory))
-        controller.require_ready(repeated)
-        system.require(repeated == receipt, 'fixture-e2e:version-switched')
-        final = proof.audit(vm, manifest, subsets)
-        proof.verify_repeat(before_repeat, final)
+        final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+            subsets, before_repeat, attempt_id=preparation.attempt_id(directory), prefix='fixture-e2e')
         proof.unchanged_policy(state['before'], final)
         if previous:
             try:

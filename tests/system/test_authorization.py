@@ -12,7 +12,7 @@ import pytest
 import system_guest as guest
 from system_caller import FixturePassword, PersistentCaller, TextAgent
 from system_assertions import (batch, call, accepted, account_property, account_properties,
-                               account_state, account_states)
+                               account_state, account_states, validation_stage)
 from system_accounts import create_disposable_identity, delete_disposable_identity
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
@@ -194,66 +194,55 @@ def denied(reply, boundary):
 ])
 def test_method_role_matrix(accounts, callers, methods, request, record_testsuite_property):
     """One finite authorization history owns its shared live-broker setup."""
-    with _authorization_stage('role-permissions'):
+    with validation_stage('authorization-validation', 'role-permissions'):
         _method_role_matrix(accounts, callers, methods)
-    with _authorization_stage('account-isolation-and-discovery'):
+    with validation_stage('authorization-validation', 'account-isolation-and-discovery'):
         _cross_child_targets_fail_closed(accounts, callers, (
             ('GetPreferences', 'child1'), ('GetPreferences', 'child2'),
             ('GetTimeStatus', 'child1'), ('CalculateRemainingTime', 'child1'),
             ('UpdateRequestPreferences', 'child1'), ('UpdateRequestPreferences', 'child2'),
             ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1'),
         ))
-    with _authorization_stage('deleted-target-and-approver'):
+    with validation_stage('authorization-validation', 'deleted-target-and-approver'):
         identities = _disposable_identities(accounts, callers, record_testsuite_property)
         _deleted_target_and_approver_fail_closed(
             accounts, callers, identities, record_testsuite_property)
-    with _authorization_stage('root-permissions'):
+    with validation_stage('authorization-validation', 'root-permissions'):
         _root_method_permissions_and_approver_exclusion(accounts, callers)
-    with _authorization_stage('identity-eligibility-and-icons'):
+    with validation_stage('authorization-validation', 'identity-eligibility-and-icons'):
         _ineligible_callers_cannot_use_broker(accounts, callers, ('noninteractive', 'system'))
-    with _authorization_stage('administrator-eligibility-predicates'):
+    with validation_stage('authorization-validation', 'administrator-eligibility-predicates'):
         _administrator_eligibility_predicates(accounts, callers, record_testsuite_property)
-    with _authorization_stage('remote-accounts'):
+    with validation_stage('authorization-validation', 'remote-accounts'):
         with _remote_directory() as remote:
             _remote_accounts_are_excluded(accounts, callers, remote, record_testsuite_property)
-    with _authorization_stage('management-isolation-and-role-revalidation'):
+    with validation_stage('authorization-validation', 'management-isolation-and-role-revalidation'):
         _management_changes_preserve_other_accounts(accounts, callers)
 
     # Keep real credential installation at its former first authentication case,
     # after the earlier agentless and independent-eligibility observations.
-    with _authorization_stage('requester-disconnect'):
+    with validation_stage('authorization-validation', 'requester-disconnect'):
         passwords = request.getfixturevalue('passwords')
         diagnostics = request.getfixturevalue('authentication_diagnostics')
         _requester_disconnect_during_approval(
             accounts, callers, passwords, diagnostics, record_testsuite_property)
-    with _authorization_stage('authenticated-target-deletion'):
+    with validation_stage('authorization-validation', 'authenticated-target-deletion'):
         _authenticated_request_rejects_deleted_target(
             accounts, callers, passwords, diagnostics, record_testsuite_property)
     for surface, mutations in (
             ('child1', ('child-role', 'approver-role')),
             ('kiosk', ('child-role', 'preferences'))):
-        with _authorization_stage('authenticated-live-state-' + surface):
+        with validation_stage('authorization-validation', 'authenticated-live-state-' + surface):
             _authenticated_request_revalidation(
                 accounts, callers, passwords, surface, mutations, diagnostics)
     for surface in ('child1', 'kiosk'):
-        with _authorization_stage('locked-approver-' + surface):
+        with validation_stage('authorization-validation', 'locked-approver-' + surface):
             _request_rejects_locked_approver_during_authentication(
                 accounts, callers, passwords, surface, diagnostics)
     for surface in ('child1', 'kiosk'):
-        with _authorization_stage('selected-parent-authentication-' + surface):
+        with validation_stage('authorization-validation', 'selected-parent-authentication-' + surface):
             _real_selected_parent_authentication(
                 accounts, callers, passwords, surface, diagnostics)
-
-
-@contextmanager
-def _authorization_stage(name):
-    print(f'onpc-system: stage=authorization-validation validation={name} state=started', flush=True)
-    try:
-        yield
-    except Exception as error:
-        error.add_note('authorization-validation: ' + name)
-        raise
-    print(f'onpc-system: stage=authorization-validation validation={name} state=passed', flush=True)
 
 
 def _method_role_matrix(accounts, callers, methods):

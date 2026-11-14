@@ -293,8 +293,7 @@ sub length_boundary {
         && defined($family) && ($family eq 'ascii' || $family eq 'mixed');
     for my $units (5000, 5001) {
         my $binding = "body-$family-$units";
-        onpc_text::replace_text($journey, $binding . ($family eq 'mixed' ? '-base' : ''));
-        onpc_text::append_scalar($journey, $binding) if $family eq 'mixed';
+        onpc_text::replace_text($journey, $binding);
         rejection_observe($journey, $_) for ($units == 5000
             ? ("length-$family-valid", "length-$family-refusal")
             : ("rejection-$family-send", "rejection-$family-read"));
@@ -338,9 +337,7 @@ sub input_hidden {
 sub input_complex {
     onpc_progress::operation('Building and formatting the fixed excessive formatting document');
     my ($journey) = @_;
-    onpc_text::replace_text($journey, 'body-complex-75');
-    onpc_text::duplicate_text($journey, $_) for (
-        'body-complex-150', 'body-complex-300', 'body-complex-600', 'body-complex');
+    onpc_text::replace_text($journey, 'body-complex');
     for my $kind ('bold', 'italic', 'underline', 'strike') {
         rejection_observe($journey, "rejection-format-$kind-focus");
         rejection_observe($journey, "rejection-format-$kind-apply");

@@ -37,8 +37,8 @@ my %values = (
     'catalogue-absent' => 'ONPC Absent Catalogue Fixture 077b', 'catalogue-clear' => '',
     'body-ascii-5000' => 'x' x 5000,
     'body-ascii-5001' => 'x' x 5001,
-    'body-mixed-5000-base' => 'x' x 4998,
-    'body-mixed-5001-base' => 'x' x 4999,
+    'body-mixed-5000' => ('x' x 4998) . chr(0x1f600),
+    'body-mixed-5001' => ('x' x 4999) . chr(0x1f600),
     'kiosk-fraction' => '1.25',
     'chinese-kiosk-fraction' => '1.25',
     'jordan-kiosk-fraction' => '1.25',
@@ -55,7 +55,6 @@ my %values = (
     'body-whitespace' => '   ',
     'body-hidden-base' => 'ab',
     'body-complex' => join("\n", ('x') x 1200),
-    'body-complex-75' => join("\n", ('x') x 75),
     'reply-first' => 'first@example.invalid',
     'reply-second' => 'second@example.invalid', 'reply-clear' => '',
     'reply-malformed' => 'invalid-reply',
@@ -68,16 +67,9 @@ my %values = (
     'daily-invalid-negative' => '-1', 'daily-invalid-fraction' => '0.5',
     'daily-invalid-maximum' => '1440', 'daily-invalid-over' => '1441',
 );
-my %repetitions;
 for my $key (grep { /^kiosk-invalid-/ } keys %values) {
     (my $overlay = $key) =~ s/^kiosk-/overlay-/;
     $values{$overlay} = $values{$key};
-}
-for my $binding ('body-ascii-5000', 'body-ascii-5001',
-                 'body-mixed-5000-base', 'body-mixed-5001-base') {
-    my @chain = ("$binding-seed", map { "$binding-double-$_" } 1..4);
-    $values{$chain[0]} = substr($values{$binding}, 0, int(length($values{$binding}) / 16));
-    $repetitions{$binding} = \@chain;
 }
 
 # UI16: the shared observer qualifies each logical recipient, applies the
@@ -89,10 +81,6 @@ sub replace_text {
         && defined($binding) && exists($values{$binding});
     $prefix //= "text-$binding";
     die 'text:prefix' unless $prefix =~ /\A[a-z][a-z0-9-]*\z/;
-    if (exists($repetitions{$binding})) {
-        die 'text:repeat-prefix' unless $prefix eq "text-$binding";
-        return repeat_text($journey, $binding);
-    }
     if ($binding =~ /^reply-/) {
         $journey->consume_observation("$prefix-anchor", $journey->seen("$prefix-anchor"));
     }
@@ -117,40 +105,12 @@ sub observed_custom_edits {
     return $journey->consume_observation($stage, $result);
 }
 
-sub repeat_text {
-    onpc_progress::operation('Composing declared text through shared API stages');
-    my ($journey, $binding) = @_;
-    die 'text:repeat-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && defined($binding) && exists($repetitions{$binding});
-    my ($seed, @copies) = @{$repetitions{$binding}};
-    replace_text($journey, $seed);
-    duplicate_text($journey, $_) for @copies;
-    my $prefix = "text-suffix-$binding";
-    for my $phase ('focus', 'caret', 'read') {
-        $journey->consume_observation("$prefix-$phase", $journey->seen("$prefix-$phase"));
-    }
-}
-
-# Shared UI16 composite: exact synthetic source, one canonical text setter,
-# then the independently observed doubled result. No input retries.
-sub duplicate_text {
-    onpc_progress::operation('Setting and independently reading one declared text composition');
-    my ($journey, $binding) = @_;
-    die 'text:duplicate-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && defined($binding) && ($binding =~ /\Abody-complex(?:-(?:150|300|600))?\z/
-            || $binding =~ /\Abody-(?:ascii-500[01]|mixed-500[01]-base)-double-[1-4]\z/);
-    my $prefix = "text-duplicate-$binding";
-    for my $phase ('focus', 'select', 'selected', 'read') {
-        $journey->consume_observation("$prefix-$phase", $journey->seen("$prefix-$phase"));
-    }
-}
-
 # UI16 finite non-BMP append through the public text API after exact source.
 sub append_scalar {
     onpc_progress::operation('Setting declared Unicode text through the Application UI API');
     my ($journey, $binding) = @_;
     die 'text:scalar-binding' unless @_ == 2 && ref($journey) eq 'onpc_journey'
-        && defined($binding) && $binding =~ /\A(?:body-mixed-500[01]|body-smoke)\z/;
+        && defined($binding) && $binding eq 'body-smoke';
     my $prefix = "text-scalar-$binding";
     for my $phase ('focus', 'caret', 'read') {
         $journey->consume_observation("$prefix-$phase", $journey->seen("$prefix-$phase"));

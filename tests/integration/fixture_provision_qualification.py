@@ -197,6 +197,19 @@ def verify_repeat(before, after):
     system.require(before == after, 'fixture-provisioning:repeat-wrote-state')
 
 
+def repeat_provision(transport, controller, receipt, selection, manifest, subsets, before, *,
+                     attempt_id, prefix):
+    """Repeat the exact bound selection and independently prove no guest writes."""
+    system.require(fixture_execution.verify(selection) == manifest,
+                   prefix + ':selected-input-changed')
+    repeated = controller.provision(selection, subsets, attempt_id=attempt_id)
+    controller.require_ready(repeated)
+    system.require(repeated == receipt, prefix + ':version-switched')
+    after = audit(transport, manifest, subsets)
+    verify_repeat(before, after)
+    return after
+
+
 class RecordingBoundary:
     """Observe the real shared SSH boundary, without replacing any guest action."""
     def __init__(self, transport):
@@ -319,9 +332,14 @@ if fedora:
  check=command(['/usr/sbin/fagenrules','--check'])
  label_paths={path_for(data['members'][key]) for key in files if key!='@trust'}|set(admissions)
  if trust.exists():label_paths.add(str(trust))
- for path in sorted(label_paths):
+ label_paths=sorted(label_paths)
+ # The public CLI accepts multiple paths. Load the policy once per audit,
+ # retaining one independently expected context for every selected path.
+ contexts=command(['/usr/sbin/matchpathcon','-n',*label_paths]).splitlines() if label_paths else []
+ assert len(contexts)==len(label_paths),'audit-label-inventory'
+ for path,expected in zip(label_paths,contexts):
   labels[path]={'actual':os.getxattr(path,'security.selinux',follow_symlinks=False).rstrip(b'\0').decode(),
-                'expected':command(['/usr/sbin/matchpathcon','-n',path]).strip()}
+                'expected':expected.strip()}
 print(json.dumps({'accounts':accounts,'files':files,'unselected_present':sorted(unselected),
  'boot_sha256':hashlib.sha256(boot).hexdigest(),'vm_uuid':pathlib.Path('/sys/class/dmi/id/product_uuid').read_text().strip().lower(),
  'run':marker['run'],'native_rows':native_rows,'native_gid':grp.getgrnam('fapolicyd').gr_gid,

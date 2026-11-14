@@ -575,8 +575,8 @@ TEXT_VALUES = {
     'catalogue-clear': ('parent-app-search', ''),
     **{f'body-ascii-{units}': ('feedback-editor-input', 'x' * units)
        for units in (5000, 5001)},
-    **{f'body-mixed-{units}' + suffix: ('feedback-editor-input', 'x' * (units - 2) + emoji)
-       for units in (5000, 5001) for suffix, emoji in (('', '\U0001f600'), ('-base', ''))},
+    **{f'body-mixed-{units}': ('feedback-editor-input', 'x' * (units - 2) + '\U0001f600')
+       for units in (5000, 5001)},
     **{'kiosk-invalid-' + key: ('kiosk-custom-duration', value)
        for key, value in KIOSK_INVALID_VALUES.items()},
     **{'overlay-invalid-' + key: ('kiosk-custom-duration', value)
@@ -602,45 +602,9 @@ TEXT_VALUES = {
 }
 TEXT_VALUES.update({'daily-invalid-' + key: ('parent-custom-daily-limit', value)
                     for key, value in INVALID.items()})
-TEXT_VALUES.update({'body-complex-' + str(lines): ('feedback-editor-input', '\n'.join(['x'] * lines))
-                    for lines in (75, 150, 300, 600)})
-# UI16's reusable, finite copy/append/paste route. Every source and result has
-# an exact declared public projection; no clipboard daemon or external GUI.
-TEXT_DUPLICATIONS = {
-    'body-complex-150': 'body-complex-75',
-    'body-complex-300': 'body-complex-150',
-    'body-complex-600': 'body-complex-300',
-    'body-complex': 'body-complex-600',
-}
-TEXT_DUPLICATION_SEPARATORS = dict.fromkeys(TEXT_DUPLICATIONS, '\n')
-# Four independently built boundary fixtures: 312 typed characters -> 4,992
-# through four copies, then only 6–9 typed characters. Keep every intermediate
-# source/result finite and exact so a failed paste never triggers input replay.
-TEXT_REPETITIONS = {}
-TEXT_SUFFIXES = {}
-for _binding in ('body-ascii-5000', 'body-ascii-5001',
-                 'body-mixed-5000-base', 'body-mixed-5001-base'):
-    _identity, _value = TEXT_VALUES[_binding]
-    _chain = (_binding + '-seed', *(_binding + '-double-' + str(i) for i in range(1, 5)))
-    for _i, _part in enumerate(_chain):
-        TEXT_VALUES[_part] = (_identity, _value[:len(_value) // 16] * (2 ** _i))
-        if _i:
-            TEXT_DUPLICATIONS[_part] = _chain[_i - 1]
-            TEXT_DUPLICATION_SEPARATORS[_part] = ''
-    TEXT_REPETITIONS[_binding] = _chain
-    TEXT_SUFFIXES[_binding] = (_chain[-1], _value[len(TEXT_VALUES[_chain[-1]][1]):])
-SUFFIX_OPERATIONS = {f'text-suffix-{binding}-{action}': (binding, action)
-                     for binding in TEXT_SUFFIXES for action in ('focus', 'caret', 'read')}
-OPERATIONS |= frozenset(SUFFIX_OPERATIONS)
-DUPLICATE_OPERATIONS = {
-    'text-duplicate-' + binding + '-' + action: (binding, action)
-    for binding in TEXT_DUPLICATIONS
-    for action in ('focus', 'select', 'selected', 'read')
-}
-OPERATIONS |= frozenset(DUPLICATE_OPERATIONS)
-TEXT_SCALARS = {f'body-mixed-{units}': (f'body-mixed-{units}-base', '1f600')
-                for units in (5000, 5001)}
-TEXT_SCALARS['body-smoke'] = ('body-first', '1f600')
+# Boundary fixtures use one canonical text replacement and independent readback.
+# Scalar insertion remains a separate editor capability qualification.
+TEXT_SCALARS = {'body-smoke': ('body-first', '1f600')}
 SCALAR_OPERATIONS = {f'text-scalar-{binding}-{action}': (binding, action)
                      for binding in TEXT_SCALARS for action in ('focus', 'caret', 'read')}
 OPERATIONS |= frozenset(SCALAR_OPERATIONS)
@@ -5520,35 +5484,12 @@ class AccessibleUI:
             return self.wait(ready, 'text-exact-value')
         return None
 
-    def duplicate_text_operation(self, operation):
-        """Retain finite composition inputs using one complete API text edit."""
-        require(operation in DUPLICATE_OPERATIONS, 'ui:duplicate-operation')
-        binding, action = DUPLICATE_OPERATIONS[operation]
-        source = TEXT_DUPLICATIONS[binding]
-        identity, value = TEXT_VALUES[source]
-        separator = TEXT_DUPLICATION_SEPARATORS[binding]
-        require(TEXT_VALUES[binding] == (identity, value + separator + value),
-                'ui:duplicate-binding')
-        if action == 'read':
-            return self.text_operation('text-' + binding + '-read')
-        self.read_synthetic_text(source)
-        if action == 'selected':
-            self.set_text(identity, TEXT_VALUES[binding][1])
-        return None
-
     def scalar_text_operation(self, operation):
         """Prove the exact source before inserting a Unicode scalar through the API."""
         require(operation in SCALAR_OPERATIONS, 'ui:scalar-operation')
         binding, action = SCALAR_OPERATIONS[operation]
         source, codepoint = TEXT_SCALARS[binding]
         return self.append_text_operation(binding, action, source, chr(int(codepoint, 16)))
-
-    def suffix_text_operation(self, operation):
-        """Prove the exact source before inserting its finite remaining suffix."""
-        require(operation in SUFFIX_OPERATIONS, 'ui:suffix-operation')
-        binding, action = SUFFIX_OPERATIONS[operation]
-        source, suffix = TEXT_SUFFIXES[binding]
-        return self.append_text_operation(binding, action, source, suffix)
 
     def append_text_operation(self, binding, action, source, suffix):
         identity, value = TEXT_VALUES[source]
@@ -16457,16 +16398,8 @@ class AccessibleUI:
             text = self.text_operation(operation, child=child)
             if text is not None:
                 result['text'] = text
-        elif operation in DUPLICATE_OPERATIONS:
-            text = self.duplicate_text_operation(operation)
-            if text is not None:
-                result['text'] = text
         elif operation in SCALAR_OPERATIONS:
             text = self.scalar_text_operation(operation)
-            if text is not None:
-                result['text'] = text
-        elif operation in SUFFIX_OPERATIONS:
-            text = self.suffix_text_operation(operation)
             if text is not None:
                 result['text'] = text
         elif operation in LENGTH_OPERATIONS:

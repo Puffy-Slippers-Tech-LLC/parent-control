@@ -804,13 +804,14 @@ def run_worker(root, request_file, request, paths):
                     try:
                         capture(root, context, path, '')
                         handoff['context'] = json.loads(input_bytes(context)[0])
-                    except (OSError, ValueError, subprocess.TimeoutExpired):
-                        pass  # The original report and streamed output remain.
+                    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                        handoff['context_error'] = type(error).__name__ + ': ' + str(error)[:2000]
                     def fits():
                         return len(json.dumps(dict(response,
                             handoffs=[*response['handoffs'], handoff])).encode()) <= 12 * 1024 * 1024
                     if not fits():
                         handoff['context'] = None
+                        handoff['context_error'] = 'bounded remote response exceeded its size limit'
                     if fits():
                         response['handoffs'].append(handoff)
                     else:

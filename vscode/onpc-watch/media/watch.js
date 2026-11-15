@@ -42,6 +42,8 @@
     const actions = new Map();
     const expandedRunTimes = new Set();
     const selectedRunTimes = new Set();
+    let runTimeQuery = '';
+    let runTimeRows = [];
     const cloudPath = 'M6 15a4 4 0 1 1 .2-8A5 5 0 0 1 15.5 8H16a3.5 3.5 0 0 1 0 7Z';
     const cloudOfflinePath = `${cloudPath} M2 2l16 16`;
 
@@ -850,6 +852,7 @@
 
     function select(scope, selected) {
         if (selected !== 'run-time') {
+            grid.querySelector('.run-time-search')?.remove();
             grid.querySelector('.run-times')?.remove();
             grid.classList.remove('runtime-body');
         }
@@ -1541,9 +1544,24 @@
     }
 
     function runTimes(rows) {
+        runTimeRows = rows;
         grid.classList.add('runtime-body');
         grid.querySelector('.empty')?.remove();
-        const signature = JSON.stringify(rows);
+        if (!grid.querySelector('.run-time-search')) {
+            const search = document.createElement('input');
+            search.type = 'search';
+            search.className = 'run-time-search';
+            search.placeholder = 'Search case ID, title, VM name, description or category';
+            search.setAttribute('aria-label', search.placeholder);
+            search.value = runTimeQuery;
+            search.oninput = () => {
+                runTimeQuery = search.value;
+                runTimes(runTimeRows);
+            };
+            grid.prepend(search);
+        }
+        const query = runTimeQuery.trim().toLowerCase();
+        const signature = JSON.stringify([rows, query]);
         let table = grid.querySelector('.run-times');
         if (table?.dataset.signature === signature) return;
         table?.remove();
@@ -1595,9 +1613,12 @@
         for (const variants of groups.values()) {
             variants.sort((a, b) => b.seconds - a.seconds || a.vm.localeCompare(b.vm));
         }
-        const ordered = [...groups.entries()].sort((a, b) =>
+        const ordered = [...groups.entries()].filter(([, variants]) => variants.some(row =>
+            [row.id, row.title, row.vm, row.description, row.category].some(value =>
+                String(value ?? '').toLowerCase().includes(query)))).sort((a, b) =>
             b[1][0].seconds - a[1][0].seconds || a[1][0].title.localeCompare(b[1][0].title));
-        for (const key of selectedRunTimes) if (!groups.has(key)) selectedRunTimes.delete(key);
+        const visibleKeys = new Set(ordered.map(([key]) => key));
+        for (const key of selectedRunTimes) if (!visibleKeys.has(key)) selectedRunTimes.delete(key);
         const controls = table.createTHead().insertRow(0).insertCell();
         controls.colSpan = 6;
         const deleteButton = (label, action) => {
@@ -1628,17 +1649,17 @@
         const eligible = key => groups.get(key).every(row => row.deletable);
         for (const key of selectedRunTimes) if (!eligible(key)) selectedRunTimes.delete(key);
         const updateSelection = () => {
-            const keys = [...groups.keys()].filter(eligible);
+            const keys = [...visibleKeys].filter(eligible);
             selectAll.disabled = !keys.length;
             selectAll.checked = keys.length > 0 && keys.every(key => selectedRunTimes.has(key));
             selectAll.indeterminate = selectedRunTimes.size > 0 && !selectAll.checked;
             for (const [key, checkbox] of checkboxes) checkbox.checked = selectedRunTimes.has(key);
             bulkDelete.disabled = !selectedRunTimes.size;
-            footer.textContent = `${selectedRunTimes.size} of ${groups.size} rows selected`;
+            footer.textContent = `${selectedRunTimes.size} of ${visibleKeys.size} rows selected`;
         };
         selectAll.onchange = () => {
             selectedRunTimes.clear();
-            if (selectAll.checked) for (const key of groups.keys()) if (eligible(key)) selectedRunTimes.add(key);
+            if (selectAll.checked) for (const key of visibleKeys) if (eligible(key)) selectedRunTimes.add(key);
             updateSelection();
         };
         for (const [key, variants] of ordered) {
@@ -1752,6 +1773,11 @@
             remove.disabled = !eligible(key);
             tr.insertCell().append(remove);
         }
+        if (!ordered.length) {
+            const empty = body.insertRow().insertCell();
+            empty.colSpan = 6;
+            empty.textContent = query ? 'No matching run time rows.' : 'No run time rows available.';
+        }
         updateSelection();
         grid.append(table);
     }
@@ -1799,6 +1825,7 @@
             runTimes(snapshot.run_times || []);
             return;
         }
+        grid.querySelector('.run-time-search')?.remove();
         grid.querySelector('.run-times')?.remove();
         grid.classList.remove('runtime-body');
         if (!shown.length) {

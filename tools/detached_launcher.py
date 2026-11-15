@@ -441,7 +441,25 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                     atomic(run / 'nested.json', [])
                     (run / 'nested-closed').unlink(missing_ok=True)
 
-        command = command.revised(interactive=True)
+        thread_id = command.request.thread_id
+        if command.request.continuation_key is not None:
+            from plan_evidence import _read
+            try:
+                retained = json.loads(_read(run / 'agent-thread.json'))
+            except FileNotFoundError:
+                retained = None
+            if retained is not None and not isinstance(retained, dict):
+                raise ValueError('invalid retained agent conversation record')
+            if retained is not None and retained.get('key') == command.request.continuation_key:
+                if (retained.get('root') != str(root.resolve())
+                        or retained.get('agent') != command.adapter.name
+                        or not isinstance(retained.get('thread_id'), str)
+                        or not retained['thread_id'] or len(retained['thread_id']) > 128):
+                    raise ValueError('invalid retained agent conversation identity')
+                if thread_id is not None and retained['thread_id'] != thread_id:
+                    raise ValueError('retained agent conversation changed')
+                thread_id = retained['thread_id']
+        command = command.revised(interactive=True, thread_id=thread_id)
         conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
                                   session_state=session_state)
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None

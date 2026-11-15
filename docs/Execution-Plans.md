@@ -114,8 +114,10 @@ the same setup requirement. Activation failure stops the session through its
 existing blocker/error route instead of falling back to advisory prompt text.
 Activation happens inside the assigned turn: setting an active goal on an idle
 thread can start an automatic turn before the launcher supplies its task.
-History-list recording and memories remain disabled; sessions still start with
-fresh context and do not resume previous conversations. Complete the goal when
+History-list recording and memories remain disabled. Ordinary plan sessions start
+with fresh context. The [test repair loop](../tests/README.md#scripted-repair-loop)
+resumes its active unresolved issue's native conversation across diagnostic and
+repair turns, starting fresh context when a distinct issue is exposed. Complete the goal when
 the bounded assignment has been verified, before its final handoff.
 
 Read repository instructions, the master, the selected brief and only applicable
@@ -400,11 +402,12 @@ returns to its coordinator after owned cleanup. The latest rejected response and
 exact guard failure remain in the run allocation and corrective prompt. Recovery
 keeps the task's handoff and counters. Ordinary plans use current queue and brief
 definitions, while specialized launchers retain their own baseline policy. Ordinary plans use the
-separate three-session coordinator repair allowance above; `fix-tests`
-retains its existing session allowance. Recovery grants no completion
+separate three-session coordinator repair allowance above; `fix-tests` corrects
+the handoff in its current issue conversation and bounds repeated rejection
+through its [effort ladder](../tests/README.md#scripted-repair-loop). Recovery grants no completion
 credit, promotion or allowance reset.
 Stop/cancellation remain effective between attempts. Repeated rejection ends at
-the applicable session cap with a resumable checkpoint and diagnostic handoff.
+the applicable recovery boundary with a resumable checkpoint and diagnostic handoff.
 An explicit `--reload` requests fresh launcher code in an active run. Saved source
 edits alone never trigger interpreter replacement. The ordinary-plan controller
 reloads at the next session boundary with the result and handoff retained,

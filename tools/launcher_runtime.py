@@ -80,7 +80,7 @@ def retain_result_rejection(run, error, *, label, checkpoint=None):
     """Keep the latest rejected response in the existing bounded run allocation.
 
     Callers finish owned cleanup before invoking this, keep their original task
-    and acceptance baseline, and spend their normal session budget on correction.
+    and acceptance baseline, and apply their workflow's bounded recovery policy.
     Never call this for provider refusals, execution failures or Git close-out.
     A checkpointed workflow records recovery before retaining its source response;
     interruption during retention can still use that exact source in the old run.
@@ -103,8 +103,8 @@ def retain_result_rejection(run, error, *, label, checkpoint=None):
     launcher.atomic(run / 'result-rejection.json', record)
     if checkpoint is not None:
         launcher.atomic(run / 'checkpoint.json', checkpoint)
-    print(f'{label}: response rejected: {error}. Returning to the coordinator within '
-          'the existing session limit; no task accepted.', flush=True)
+    print(f'{label}: response rejected: {error}. Returning to the coordinator; '
+          'no task accepted.', flush=True)
     return record
 
 
@@ -112,7 +112,8 @@ def result_recovery_instructions(recovery, *, allowance='existing task/case sess
     if not recovery:
         return ''
     return ('\nThe controller rejected the preceding response. Correct this handoff before '
-            f'advancing; this session consumes the {allowance}.\n'
+            + (f'advancing; this session consumes the {allowance}.\n' if allowance else
+               'advancing in this conversation without another session charge.\n')
             + json.dumps(recovery, ensure_ascii=False) + '\n'
             'Inspect the retained response and current files. Preserve the original task, '
             'queue baseline, acceptance targets, unrelated work and valid evidence. '

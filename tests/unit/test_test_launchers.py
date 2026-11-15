@@ -136,6 +136,27 @@ def test_impact_triage_stays_read_only_and_bounded(tmp_path, monkeypatch):
         fix_tests.impact_command(tmp_path, selection=agent_adapter.AgentSelection('claude', tmp_path))
     assert len(prepared) == 1
 
+    # A continuation keeps its native identity and can raise effort without
+    # resuming a different conversation or accepting a helper's completion.
+    native = agent_codex.CodexProtocol(replace(request, interactive=True,
+        thread_id='retained-thread', effort='xhigh'))
+    native.start()
+    native.outgoing.clear()
+    list(native.event({'id': 1, 'result': {}}))
+    packets = [json.loads(line) for line in native.outgoing.splitlines()]
+    assert packets[-1]['method'] == 'thread/resume'
+    assert packets[-1]['params']['threadId'] == 'retained-thread'
+    assert packets[-1]['params']['sandbox'] == 'read-only'
+    native.outgoing.clear()
+    assert list(native.event({'id': 2, 'result': {'thread': {'id': 'retained-thread'}}}))[0].kind == 'ready'
+    native.start_turn('Interpret the exact failed attempt.')
+    packet = json.loads(native.outgoing)
+    assert packet['method'] == 'turn/start'
+    assert packet['params']['threadId'] == 'retained-thread'
+    assert packet['params']['effort'] == 'xhigh'
+    assert not list(native.event({'method': 'turn/completed', 'params': {
+        'threadId': 'another-thread', 'turn': {'status': 'completed'}}}))
+
     # Native supervision receives an agent operation (including capacity
     # recovery), while low unit-repair defaults cannot change triage's profile.
     import launcher_chat
@@ -172,6 +193,31 @@ def test_impact_triage_stays_read_only_and_bounded(tmp_path, monkeypatch):
                                              evidence=evidence, shared_inputs={'fixture': 'current'})[1]
     assert fix_tests.impact_context(ticket, failure)[0]['evidence_limits']['unavailable']
 
+    # A copied remote source path is only a label, never permission to read
+    # a controller-local file at that path. Bind the copy to its wrapper attempt.
+    import repair_evidence
+    import test_storage
+    monkeypatch.setattr(test_storage, 'storage_root', lambda _: tmp_path)
+    directory = tmp_path / 'output/test-runs/host/allocations/remote'
+    directory.mkdir(parents=True)
+    wrapper = directory / ('vm-remote-' + 'a' * 32 + '-0.json')
+    secret = tmp_path / 'output/test-runs/privileged/allocations/onpc-system-same/private/command-0001.txt'
+    secret.parent.mkdir(parents=True)
+    secret.write_text('must never be captured')
+    binding = dict(file=wrapper.stem + '-context.json', host='remote', vm='vm',
+                   attempt='a' * 32, source={'digest': 'b' * 64, 'generation': 1})
+    wrapper.write_text(json.dumps(dict(evidence_context=binding)))
+    wrapper.with_name(binding['file']).write_text(json.dumps(dict(schema_version=1,
+        files=[dict(source=str(secret), tail='remote failed command')], read_failures=[])))
+    captured = tmp_path / 'capture.json'
+    repair_evidence.capture(tmp_path, captured, wrapper,
+                            'ssh-command-failure: ' + json.dumps(dict(stdout_artifact=str(secret))))
+    snapshot = json.loads(captured.read_text())
+    copied = next(item for item in snapshot['files'] if item['source'] == str(secret))
+    assert copied['tail'] == 'remote failed command' and copied['host'] == 'remote'
+    assert 'must never be captured' not in captured.read_text()
+    assert snapshot['remote_bindings'] == [binding]
+
 
 def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_path, monkeypatch):
     import fix_tests
@@ -188,10 +234,6 @@ def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_p
                     scope=['private input'], evidence=['The independent input is unchanged.'],
                     classification='test_issue')
     calls = []
-    charges = []
-    def charge(value):
-        charges.append(value['id'])
-        return len(charges)
     def session(kind, phase, metadata, **options):
         calls.append((kind, metadata, options))
         (tmp_path / 'agent-result.json').write_text(json.dumps(decision))
@@ -199,7 +241,7 @@ def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_p
     def triage(value):
         return fix_tests.triage_failure(tmp_path, tmp_path, value,
                                         {'error': 'failed input', 'output_tail': 'original worker startup error'},
-                                        session=session, charge=charge)
+                                        session=session)
 
     envelope = triage(ticket)
     assert envelope['decision'] == decision
@@ -207,24 +249,25 @@ def test_impact_triage_reuses_only_current_evidence_without_spending_again(tmp_p
     assert context['actual']['text'] == 'failed input'
     assert context['output']['text'] == 'original worker startup error'
     assert calls[0][0] == 'impact-triage'
-    assert calls[0][1]['repair_session'] == 1
+    assert calls[0][1]['repair_session'] == 0
     assert calls[0][2] == dict(agent_model='native-high', agent_effort='high')
     ticket['impact'] = dict(envelope, ticket=ticket['id'], attempt=ticket['attempt'])
     assert triage(ticket) == envelope
-    assert len(charges) == 1
+    assert len(calls) == 1
     source.update(digest='b' * 64, generation=1)
     decision = dict(decision, impact='unsure')
     refreshed = triage(ticket)
     assert refreshed['source'] == source
     assert refreshed['evidence_digest'] != envelope['evidence_digest']
     assert refreshed['decision']['impact'] == 'unsure'
-    assert len(charges) == 2
+    assert len(calls) == 2
     decision = {'impact': 'no'}  # A missing scoped witness never opens admission.
     assert triage(ticket)['decision']['impact'] == 'unsure'
 
 
 @pytest.fixture
 def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
+    import hashlib
     import fix_tests
     import fix_tests_git
     import launcher_git
@@ -244,7 +287,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
     selection = AgentSelection('codex', tmp_path)
     dependency = tmp_path / 'validation-input.py'
     dependency.write_text('original')
-    control = SimpleNamespace(run=run, order=[], ticket=None,
+    control = SimpleNamespace(run=run, order=[], turns=[], ticket=None,
         response=dict(status='test_fixed', summary='Corrected the private input.',
                       stage_paths=[dependency.name], verification_case='exact', blocker=None))
     def snapshot(_):
@@ -259,7 +302,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
     monkeypatch.setattr(launcher_git, 'git_output', lambda *args: SimpleNamespace(stdout='same-head'))
     monkeypatch.setattr(fix_tests_git, 'git_output', lambda *args: SimpleNamespace(stdout=''))
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(
-        digest=('a' if dependency.read_text() == 'original' else 'b') * 64,
+        digest=hashlib.sha256(dependency.read_bytes()).hexdigest(),
         generation=isolated_source.generation()))
     monkeypatch.setattr(fix_tests, 'record_usage', lambda *args, **kwargs: None)
     order = control.order
@@ -269,8 +312,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
                             case='exact', area=False), case='exact', vm='',
                   impact=dict(decision=dict(classification='test_issue', reason='Only this test input.')))
     control.ticket = ticket
-    def triage(root, directory, value, result, *, session, charge):
-        assert charge(value) == 1
+    def triage(root, directory, value, result, *, session):
         order.append('triage')
         return dict(decision=ticket['impact']['decision'])
     monkeypatch.setattr(fix_tests, 'triage_failure', triage)
@@ -278,7 +320,12 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
         def __init__(self, command, **kwargs):
             assert 'agent' in command
             order.append('repair')
-            dependency.write_text('changed validation dependency')
+            control.turns.append(dict(json.loads(command[-1]), effort=command[-2]))
+            assert len(control.turns) <= getattr(control, 'turn_limit', 20), 'unbounded response recovery'
+            if getattr(control, 'responses', None):
+                control.response = control.responses.pop(0)
+            dependency.write_text('changed validation dependency ' + str(
+                len(control.turns) if getattr(control, 'edit_each_turn', False) else 0))
             (run / 'agent-result.json').write_text(json.dumps(control.response))
         def __enter__(self):
             return self
@@ -314,6 +361,17 @@ def test_public_repair_composes_triage_verification_and_closeout(
 
     control = _controlled_public_repair
     run, order, ticket = control.run, control.order, control.ticket
+    fixed = dict(control.response)
+    diagnostic = dict(fixed, status='diagnostic_ready', summary='Observe the failing operation.')
+    next_issue = dict(fixed, status='new_issue', next_issue=dict(attempt=f'{4:032x}',
+        passed_point='Original assertion', observation='Latest attempt reached the later assertion.',
+        failure='The later assertion now fails; preserve its expected behavior.'))
+    control.edit_each_turn = True
+    control.responses = [diagnostic,
+        dict(diagnostic, diagnostic_assessment='inconclusive'),
+        dict(fixed, diagnostic_assessment='inconclusive'), fixed,
+        next_issue, next_issue, fixed]
+    attempts = []
     resumed = False
     class Execution:
         drained = True
@@ -324,9 +382,12 @@ def test_public_repair_composes_triage_verification_and_closeout(
             order.append(purpose)
             assert test_source.environment().get(test_source.WRITER) == str(run)
             assert purpose == 'recheck' or target == 'exact'
-            accepted = purpose == 'verification'
-            return dict(status=0 if accepted else 1, accepted=accepted,
-                        reference=dict(source=vm_test_queue.source_identity(tmp_path), accepted=accepted))
+            attempts.append(purpose)
+            accepted = purpose == 'verification' and attempts.count('verification') == 3
+            return dict(status=0 if accepted or len(attempts) == 1 else 1,
+                        accepted=accepted, observed=True,
+                        reference=dict(source=vm_test_queue.source_identity(tmp_path), accepted=accepted,
+                                       purpose=purpose, attempt=f'{len(attempts):032x}'))
     def execute(root, args, *, actions, **kwargs):
         assert args == (['--resume'] if resumed else []) + ['unit', 'original-selector']
         assert actions['admit_task']('unit')
@@ -356,12 +417,29 @@ def test_public_repair_composes_triage_verification_and_closeout(
     validate = fix_tests.validate_result
     def current_validate(value):
         assert value == control.response
-        assert control.saved()['session_counts'] == {key: 2}
+        assert control.saved()['session_counts'] == {key: control.turns[-1]['repair_session']}
         order.append('current validation')
         validate(value)
     monkeypatch.setattr(fix_tests, 'validate_result', current_validate)
-    assert control.worker(reloading=True) == 0
-    assert order == ['triage', 'repair', 'current validation', 'verification', 'closeout']
+    for _ in range(12):
+        try:
+            assert control.worker(reloading=True) == 0
+        except fix_tests.ControllerReload:
+            monkeypatch.setattr(test_source, '_generations', {})
+            continue
+        break
+    else:
+        pytest.fail('repair did not finish across source reloads')
+    assert attempts == ['diagnostic', 'diagnostic', 'verification', 'verification', 'verification']
+    assert order[-1] == 'closeout' and order.count('closeout') == 1
+    assert order.count('repair') == 7
+    # The escalation following two observations survives replay of the older,
+    # lower-tier response after its source edit reloads the controller.
+    assert control.turns[3]['effort'] == 'high'
+    assert len({turn['conversation_key'] for turn in control.turns[:5]}) == 1
+    assert control.turns[5]['conversation_key'] != control.turns[4]['conversation_key']
+    assert control.turns[6]['conversation_key'] == control.turns[5]['conversation_key']
+    assert [turn['repair_session'] for turn in control.turns] == [1, 1, 1, 1, 1, 2, 2]
     saved = control.saved()
     assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
     assert TaskBudget(run).read()['completed'] == 1
@@ -426,8 +504,9 @@ def test_public_repair_keeps_dirty_suspension_owned_on_resume(
 
     control = _controlled_public_repair
     control.ticket['cleanup'] = False
-    control.response.update(status='stalled', summary='Cannot repair this input.', verification_case=None)
-    # A final tier's stalled turn is terminal rather than another escalation.
+    control.response.update(status='invalid-result', summary='Cannot repair this input.', verification_case=None)
+    # Repeated rejection at the final tier must stop with the same ownership
+    # guarantees as a stalled repair, without admitting a no-edit recheck.
     monkeypatch.setattr(fix_tests, 'next_tier', lambda model, effort, **kwargs: (model, effort))
     resumed = False
     class Execution:
@@ -453,13 +532,15 @@ def test_public_repair_keeps_dirty_suspension_owned_on_resume(
 
     resumed = True
     monkeypatch.setattr(test_source, '_generations', {})
+    control.turn_limit = len(control.turns) + 2
     assert control.worker(reloading=True) == 1
     # A further resume still owns the edited ticket, even if a no-edit recheck
     # could now pass. It may seek a repair, but cannot settle or release it.
+    control.turn_limit = len(control.turns) + 2
     assert control.worker(reloading=True) == 1
     saved = control.saved()
     entry = saved['repairs']['["unit", "exact", ""]']
-    assert entry['terminal_failure'].startswith('repair stalled:')
+    assert entry['terminal_failure'].startswith('repair response repeatedly rejected:')
     assert saved['active_ticket'] == control.ticket['id']
     assert saved.get('pending') is None
     assert isolated_source.owner() == str(control.run)

@@ -298,7 +298,8 @@ def _build(output, output_fd, original, *, target, root, fixture_path, publicati
     store = fixture_producer.Store()
     with store.queued_producer(transaction_id=transaction,
                                compatibility_key='native-runtime-' + target,
-                               build_key='frozen-native-runtime-v1') as producer:
+                               build_key='frozen-native-runtime-v1',
+                               recover_pending=True) as producer:
         source = producer.allocate('sources')
         records, environment_record = freeze(root, source, target, fixture_path=fixture_path)
         workspace = producer.allocate('build')

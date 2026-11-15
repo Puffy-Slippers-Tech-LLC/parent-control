@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+from contextlib import nullcontext
 
 # Workers use isolated Python; restore only this checkout's sibling modules.
 if __name__ == '__main__':
@@ -808,13 +809,16 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                 if kind == 'leave_failed' and (impacts.get(ticket['id']) != 'no' or protection.owner() is not None):
                     kind = 'suspended'
                     reason = 'failed repair retains shared impact or an unfinished writer'
-                # Hold a reader through final validation and release the hold
-                # under the same gate. Wait for transient source contention
-                # after close-out rather than suspending an accepted repair.
+                # Suspension only records unfinished ownership; it must not
+                # request a reader while that repair retains its writer/fence.
+                # Finished repairs hold a reader through final validation and
+                # release the impact hold under the same gate.
                 # VM qualification belongs to its captured inputs; host
                 # qualification still checks the live source after admission.
-                with test_source.reader(root, stopped=control.stopped.is_set,
-                                        impact_ticket=impact_key(ticket)):
+                settlement = (nullcontext() if kind == 'suspended' else
+                    test_source.reader(root, stopped=control.stopped.is_set,
+                                       impact_ticket=impact_key(ticket)))
+                with settlement:
                     if kind == 'resolved' and (protection.owner() is not None
                             or not isinstance(outcome.get('attempt'), dict)
                             or not ticket['vm'] and outcome['attempt']['source'] != source_identity(root)):

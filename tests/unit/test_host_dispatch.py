@@ -11,6 +11,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -111,12 +112,26 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
     assert all(source == names[0] for source, _target in hops)
 
 
-def test_source_transfer_uses_controller_working_bytes_without_touching_host_checkout(tmp_path):
+def test_source_transfer_uses_controller_working_bytes_without_touching_host_checkout(tmp_path, monkeypatch):
     from test_storage import scratch_descriptors
     from tools.vm_source_snapshot import receive_transfer, transfer_archive
     controller = tmp_path / 'controller'
     controller.mkdir()
     (controller / 'tools').mkdir()
+    (controller / 'config').mkdir()
+    document = dict(agent='codex', hosts=[dict(name='fixture-host', transport='local',
+        enabled='true', max_compute_unit=1)], branches=[dict(name='controller',
+        host='fixture-host', repo_root=str(controller))], families=[dict(
+        family='ubuntu26.04-x86_64', package_format='deb', vm_tags='general',
+        fixture_path='common/ubuntu/common', vms=[dict(name='Fixture-Guest', id='1',
+        enabled='true', host='fixture-host', disk_anchor=str(tmp_path / 'guest.qcow2'))])])
+    (controller / 'config/environment.json').write_text(json.dumps(document))
+    allocator_marker = tmp_path / 'allocator-loaded'
+    allocator = controller / 'tools/test_storage.py'
+    allocator.write_text('from pathlib import Path\n'
+        'ROOT = Path(__file__).resolve().parents[1]\n'
+        'BASE = ROOT / "output/test-runs"\n'
+        f'Path({str(allocator_marker)!r}).write_text(str(ROOT))\n')
     (controller / 'Makefile').write_text("package-source-files:\n\t@printf '%s\\n' payload.txt\n")
     (controller / '.gitignore').write_text('output/\nnode_modules/\n')
     (controller / 'payload.txt').write_text('committed controller source\n')
@@ -160,6 +175,106 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
     assert (received / 'tests/system/pytest.ini').read_text() == '[pytest]\n'
     assert git('show', 'HEAD:payload.txt').stdout == b'committed controller source\n'
     assert (own_checkout / 'payload.txt').read_text() == 'VM host source stays independent\n'
+
+    # Normal assignments keep the accepted closure while the original checkout
+    # contains unverified repair edits. Local replay also loads its allocator
+    # from that closure, before it can inspect a request or touch a VM/helper.
+    import host_compute
+    import test_source
+    for name in (host_compute.VARIABLE, host_compute.TOKENS):
+        monkeypatch.delenv(name, raising=False)
+    for name in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS,
+                 test_source.STARTUP_READER, test_source.STARTUP_WRITER):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(test_source, '_local', threading.local())
+    monkeypatch.setattr(test_source, '_generations', {})
+    monkeypatch.setattr(vm_config, 'current_branch', lambda: 'controller')
+    run = subprocess.run
+    def bounded(*args, **kwargs):
+        kwargs.setdefault('timeout', 10)
+        return run(*args, **kwargs)
+    monkeypatch.setattr(subprocess, 'run', bounded)
+    import launcher_reload
+    checkpoint = tmp_path / 'frozen.json'
+    binding = dict(scope='repair-vm', identity={'pass': 'a' * 32})
+    with pytest.raises(launcher_reload.ReloadRequested), remote_sources.FrozenSources(
+            controller, checkpoint=checkpoint, binding=binding) as frozen:
+        captured = frozen.directory
+        baseline = dict(frozen.source)
+        (controller / 'payload.txt').write_text('unverified repair source\n')
+        allocator.write_text('raise RuntimeError("unverified live allocator executed")\n')
+        def live_reader(*args, **kwargs):
+            pytest.fail('ordinary frozen dispatch reacquired the live source reader')
+        monkeypatch.setattr('test_source.reader', live_reader)
+        with frozen.use():
+            assert remote_sources.current_sources(controller) is frozen
+            with frozen.use(live=True):
+                assert remote_sources.current_sources(controller) is None
+            assert remote_sources.current_sources(controller) is frozen
+        with remote_sources.capsule(controller, frozen.host,
+                [str(controller / 'tools/test-vm')], {}, sources=frozen) as (command, payload, request):
+            assert command[0] == '/usr/bin/python3'
+            assert command[-1] == str(frozen.directory)
+            assert request['source_identity'] == baseline
+            header_size = int.from_bytes(payload.read(8), 'big')
+            header = json.loads(payload.read(header_size))
+            second = tmp_path / 'frozen-dispatch'
+            receive_transfer(io.BytesIO(payload.read(header['size'])), second, header['manifest'])
+            assert (second / 'payload.txt').read_text() == 'uncommitted controller change\n'
+            result = subprocess.run(command, input=b'\0' * 8, cwd=controller,
+                env=environment, capture_output=True, timeout=10, check=False,
+                pass_fds=scratch_descriptors())
+            assert result.returncode != 0
+            assert b'invalid request header' in result.stderr
+            assert b'unverified live allocator executed' not in result.stderr
+            assert allocator_marker.read_text() == str(frozen.directory)
+
+        # The ordinary local route keeps the nonce-qualified completion protocol
+        # rather than accepting an exit status or a stale controller checkpoint.
+        received = dict(evidence={'source': baseline}, handoffs=[])
+        class Reply:
+            def run(self, command, *, input_stream, output, **kwargs):
+                size = int.from_bytes(input_stream.read(8), 'big')
+                request = json.loads(input_stream.read(size))
+                prefix = b'\0' + (remote_sources.RESULT + request['receipt'] + ' ').encode()
+                output(b'ordinary output\n' + prefix + json.dumps(
+                    dict(kind='result', value=received)).encode() + b'\0')
+                return 0
+        output = []
+        route = remote_sources.RemoteVM(controller, host=frozen.host, sources=frozen)
+        assert route.run(Reply(), [str(controller / 'tools/test-vm')],
+                         env={}, output=output.append) == 0
+        assert route.result == received
+        assert b''.join(output) == b'ordinary output\n'
+        raise launcher_reload.ReloadRequested()
+
+    assert checkpoint.exists() and captured.exists()
+    repair = tmp_path / 'repair'
+    repair.mkdir(mode=0o700)
+    gate = test_source.RepairGate(repair, root=controller)
+    assert gate.try_acquire()
+    try:
+        # A real edit-triggered reload retains the live writer. Reopening must
+        # neither recapture its unverified bytes nor wait for that writer.
+        script = '''import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from remote_sources import FrozenSources
+with FrozenSources(Path(sys.argv[2]), checkpoint=Path(sys.argv[3]),
+                   binding=json.loads(sys.argv[4])) as reopened:
+    print(json.dumps(dict(directory=str(reopened.directory), source=reopened.source,
+        payload=(reopened.directory / 'payload.txt').read_text())))
+'''
+        restored = subprocess.run([sys.executable, '-IBu', '-c', script,
+            str(Path(remote_sources.__file__).parent), str(controller), str(checkpoint), json.dumps(binding)],
+            env=dict(os.environ), capture_output=True, text=True, timeout=10, check=True,
+            pass_fds=scratch_descriptors())
+        assert json.loads(restored.stdout) == dict(directory=str(captured), source=baseline,
+                                                 payload='uncommitted controller change\n')
+    finally:
+        gate.release()
+    assert not checkpoint.exists() and not captured.exists()
+
 
 
 def test_guest_options_are_not_interpreted_as_host_artifact_inputs(tmp_path, monkeypatch):

@@ -157,12 +157,16 @@ claims follow that admission. Waiters whose
 family work has drained are cancelled without waiting for the occupied VM.
 Failed test workers retain their reservations while the remaining workers finish,
 with their execution slots released. Reservation release follows joined owned
-cleanup, never a progress event or timeout. Every queued repair pauses that
-coordinator's new admission and interrupts its active guest steps through the
+cleanup, never a progress event or timeout. Companion attempts in a repair group
+use a complete captured source closure and continue executing/admitting during
+triage. An isolated result preserves that flow during serial repair and bounded
+verification on the original failed VM. Shared or uncertain impact pauses and
+interrupts companion work through the
 [owned interruption contract](../../tests/README.md#scripted-repair-loop).
-VM operations and verified cleanup finish before repair acquires its writer.
-Pending, shared or uncertain failure impact also holds admission across other
-participating workflows; an isolated decision releases only its own shared hold.
+The failed VM's cleanup joins before repair; shared/uncertain repairs also join
+companion cleanup. Pending, shared or uncertain impact holds live-checkout
+admission across other participating workflows; an isolated decision releases
+its own shared hold. Captured companion inputs never load unverified edits.
 Required-VM recheck and verification keep the failed attempt's original target and borrow
 the active repair's fenced source lease. The
 [repair contract](../../tests/README.md#scripted-repair-loop) owns durable impact

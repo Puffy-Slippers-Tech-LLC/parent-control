@@ -557,7 +557,8 @@ or `pipeline-v1` rounds and budgets, refuse before copying or execution; they
 cannot be adopted by renaming their format. Bounded ordinary worker checkpoints
 retain their existing version `1` admission format. Native checkpoint and
 ownership validation still applies. Missing or stale impact decisions keep
-normal admission on hold.
+live-checkout admission on hold; the repair coordinator's captured companion
+inputs may continue while triage is pending under the repair policy below.
 There is no compatibility path that starts a second historical scheduler.
 Finish unfinished repair and Git transactions using their original supported
 implementation before switching. The existing explicit `--reset` contract is
@@ -639,9 +640,15 @@ history or area as a unit. Repair or reload can interrupt its guest steps and
 waits for verified owned cleanup before changing source or replacing the controller.
 Repair verification still stops at
 the exact failed case/phase.
-Package preparation reuses content-qualified inputs, rebuilding when source
-changes; each next history, area or E2E case loads the current inputs instead of
-retaining a whole category's frozen inputs.
+Package preparation reuses content-qualified inputs. Ordinary VM work in a
+repair group uses one complete captured source closure, including package inputs,
+so companions never load edits from an active repair. Bounded repair attempts use
+the writer's current inputs. Fresh groups capture current accepted inputs;
+controller reload reopens the same pinned capture and ordinary inventory under
+its inherited scratch lease. Saved case passes remain complete. A cold resume
+without that lease finishes any retained writer before admitting live inputs.
+Changed case membership invalidates captured isolation and uses the native
+drained inventory reconciliation before qualifying a current replacement case.
 
 The dashboard shows logical case progress by family and category in the current
 pass, one run-wide round/pass, and VM assignments, attempts and resource waits.
@@ -677,20 +684,24 @@ Pending, missing, malformed, stale, interrupted or unavailable triage remains
 relevant inputs; changed evidence invalidates `no` until retriage or an accepted
 recheck. Triage grants no passing credit.
 
-Pending triage, `yes` and `unsure` hold new normal admission across participating
-checkout workflows. Within the failing coordinator, every queued repair pauses
-admission and interrupts admitted guest steps, including cases inside an area
-or lifecycle history, then joins verified cleanup before repair.
-An evidenced `no` clears only its own shared hold and allows eligible work in
-other coordinators to continue. Further failures receive prompt triage while
-the failing coordinator joins interrupted attempts. Each hold and normal
-admission change atomically through the shared source guard.
+Pending triage holds live-checkout admission across participating workflows.
+Within the failing coordinator, companion VMs continue executing and admitting
+work from the group's captured inputs while read-only triage runs asynchronously.
+An evidenced `no` preserves that flow during repair and exact-case verification;
+only the failed VM stays reserved. `yes` or `unsure` pauses new admission and
+interrupts admitted guest steps, including cases inside an area or lifecycle
+history, then joins verified cleanup before repair. A `no` also clears its shared
+hold so eligible other coordinators may continue. Each hold and normal admission
+change atomically through the shared source guard.
 
 Repairs remain serial in observed FIFO order and require the exclusive source
-lease. An isolated ticket also interrupts its coordinator's companion attempts;
-its isolation decision still permits unrelated checkout workflows to continue.
-Writer acquisition follows joined owned cleanup, without waiting for the rest
-of an admitted group to execute. A complete retained failure starts repair
+lease. An isolated repair runs alongside detached companion attempts, with an
+execution slot retained for its verification. Incoming case receipts and repair
+settlement share the coordinator lock and union unique passing case identities;
+settlement never replaces progress with a pre-repair snapshot. Thus ten companion
+passes plus one verified repair add eleven to the preceding completed count.
+Writer acquisition follows the failed VM's joined owned cleanup; shared/uncertain
+repairs additionally join interrupted companions. A complete retained failure starts repair
 directly when its recorded source/input identity is unchanged. Live VM failures
 retain their original worker reservation, preserving baseline continuity.
 Recheck the FIFO head through the same coordinator and original VM before an

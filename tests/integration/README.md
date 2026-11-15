@@ -652,6 +652,10 @@ pending and is never selected. Other pending/retired system IDs and pending E2E
 variants remain excluded by their inventories; package-format-specific histories
 retain their target filtering.
 
+For a focused queue attempt, resume selection is applied before package input
+preparation. A standalone check or upgrade history omits the unused
+current-package suite's bundle and retains its own normal input preparation.
+
 System standalone checks run through the guarded per-check launcher, including
 named input preparation and fixture selection. The coordinator never calls
 script bodies directly. The [binding inventory](system_checks.py) registers tests

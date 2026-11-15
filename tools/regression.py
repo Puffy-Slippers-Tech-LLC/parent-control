@@ -1505,6 +1505,11 @@ class Run:
         ready = self.discover_vm(system, graphical)
         if self.control.stopped.is_set():
             return
+        # A queued standalone check or upgrade history does not consume the
+        # current-package suite's bundle. Apply its existing resume selection
+        # before preparing inputs, rather than only when executing that suite.
+        if system is not None and self.resume_category(system, 'system'):
+            system = None
         if system is None and not ready and not self.vm_extras:
             # Successful collection is not customer coverage. No executable
             # consumer needs package inputs or privileged VM prerequisites.

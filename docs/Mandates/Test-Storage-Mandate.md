@@ -136,7 +136,10 @@ This forwarding includes the fixture producer lease in fresh interpreters.
 The producer context closes its own lease without unlocking descendants. A live
 descendant or interrupted deletion leaves the same reservation occupied;
 `Store.recover(transaction_id)` retries only that recorded cleanup after the
-last lease closes. New production refuses until cleanup settles. Cleanup audits
+last lease closes. Queued native builds request exact recovery of the recorded
+unfinished transaction under the build gate before reserving a new slot. They
+do not adopt its output; live descendants and unsafe identities still refuse.
+New production refuses until cleanup settles. Cleanup audits
 every registered allocation's allocator-relative identity, owner, mode and mount
 before deleting any tree, preserving unknown and replaced paths. The lifetime
 record, `producer.json`, is outside those trees and carries the frozen unfinished

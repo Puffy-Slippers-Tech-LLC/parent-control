@@ -105,8 +105,8 @@ def _json_pairs(pairs):
 class Store:
     """Shared host authority for one unfinished fixture slot.
 
-    There is deliberately no caller-selected storage path and no implicit
-    recovery. A failed transaction must be retried by its exact transaction ID.
+    There is no caller-selected storage path. Direct production refuses an
+    unfinished slot; queued builders may opt into exact recorded recovery.
     """
 
     def __init__(self):
@@ -259,16 +259,26 @@ class Store:
                 return self._read(fd)
 
     @contextmanager
-    def queued_producer(self, *, transaction_id, compatibility_key, build_key):
+    def queued_producer(self, *, transaction_id, compatibility_key, build_key,
+                        recover_pending=False):
         """Wait for another build, including its cleanup, before reserving.
 
         Keep admission separate from the descendant lease: cleanup must acquire
-        that lease again after closing the producer's reference. Pending or
-        orphaned transactions still require exact recovery, never adoption.
+        that lease again after closing the producer's reference. A builder may
+        request exact recovery of the recorded unfinished transaction before
+        reserving; active descendants and unsafe allocations still refuse.
         """
+        _require(_token(transaction_id), 'transaction ID must be UUID32')
+        _require(_key(compatibility_key) and _key(build_key), 'invalid build keys')
         with self._store.opened() as fd:
             self._root(fd)
             with self._store.locked(fd, 'build.lock'):
+                if recover_pending:
+                    existing = self.snapshot()
+                    if existing is not None:
+                        transaction = existing['slot']['transaction_id']
+                        print('fixture-producer: recovering transaction=' + transaction, flush=True)
+                        self.recover(transaction)
                 with self.producer(transaction_id=transaction_id,
                                    compatibility_key=compatibility_key,
                                    build_key=build_key) as producer:

@@ -135,18 +135,24 @@ Producer registration, inherited compiler/container leases and exact cleanup
 remain with the [storage owner](../../docs/Mandates/Test-Storage-Mandate.md#required-shared-allocation-routes).
 Concurrent native builds use `Store.queued_producer()` to wait on a shared build
 gate through producer cleanup. The separate nonblocking descendant lease and
-exact recovery requirements remain in force; waiting never adopts unfinished work.
+exact recovery requirements remain in force. Before reserving a slot, native
+builds retry cleanup of the exact recorded unfinished transaction under that
+gate, without adopting its output. Active descendants and unsafe allocations
+still refuse; no agent or nested test launcher is needed for ordinary recovery.
 An isolated [container helper](../../tools/fixture_container.py) compacts only
 the inherited leases and uses Podman's standard `--preserve-fds` route. Build
 admission uses the artifact category's two CPU slots, 4 GiB and I/O limits.
 Final source, output and both compiler scratch sizes are logged and bounded by
 128 MiB; this is final allocation accounting, not a measured peak or byte quota.
 
-If an interrupted producer leaves an unfinished slot, read its exact
+For standalone recovery of an interrupted producer, read its exact
 `transaction_id` from `output/test-runs/host/fixtures/producer.json`, then run
 `tools/run-tests fixtures recover TRANSACTION`. This calls the existing
 `Store.recover()` guard: active descendants, changed identities and unknown
-allocations still refuse. It touches no VM or completed execution input.
+allocations still refuse. Use the original producer's host and storage namespace;
+transferred runs have a separate namespace from the server checkout's own
+fixtures. The next transferred native build performs recovery in that original
+namespace automatically. Recovery touches no VM or completed execution input.
 
 Schema 1 contains `fixture-manifest.json`, deterministic `payload.tar` and
 `complete.json`. Build identity hashes source, target, toolchain and dependency

@@ -1137,6 +1137,14 @@ receive no passing credit. An unsuccessful refresh or a repeated refusal for the
 same VM and expected inputs stops with the request retained for recovery. Later
 product or fixture changes can trigger another refresh within the same run.
 
+Worker execution errors during a bounded recheck, diagnostic run or verification
+return failed attempt results to repair policy, including source-transfer
+validation errors before dispatch. They retain the exception diagnostics and
+original VM reservation without granting cleanup or passing credit. An
+unsuccessful recheck supplies its bounded diagnostics to the repair session;
+it does not suspend the coordinator merely because no runner handoff was produced.
+Source-lease contention, cancellation and reload retain their control paths.
+
 Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
 not agent conversation history. Existing test evidence remains under the runner's
 retention policy. Watch shows the report and `Failure handoff:` paths
@@ -1145,7 +1153,7 @@ the full investigation prompt is saved in machine-readable `failure.json` with
 stable retry category and case IDs. `fix-tests` reads that saved prompt directly,
 so terminal output omits the long manual-session prompt. For a manual handoff,
 ask the new session to read the indicated `failure.json` and follow its `prompt`.
-A missing or malformed handoff, agent
+A missing or malformed handoff without a retained failure ticket, agent
 crash or unmapped infrastructure failure stops with evidence.
 
 `agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,

@@ -1195,7 +1195,7 @@ class UiObservations:
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
                 and self.accessibility_trace is None):
-            if operation == 'desktop':
+            if operation in ('desktop', 'gdm-station-list'):
                 # Retained command logs can rotate before a repair session.
                 # Keep static source sites and matched public policy action IDs
                 # in the category log; never forward dialog text or raw stderr.
@@ -1209,12 +1209,59 @@ class UiObservations:
                 except BaseException:
                     sites = []
                     policies = []
+                    refusal = None
+                    query_kind = None
+                    station_rows = None
+                    provider_observation = None
                     if len(errors) <= 65536:
                         for line in errors.splitlines():
+                            # Exact fixed guards only; UiError messages elsewhere
+                            # can contain observed values and must stay private.
+                            if line in (
+                                    b'ui:timeout:gdm-account-list',
+                                    b'ui:timeout:gdm-account-id',
+                                    b'ui:timeout:gdm-account-focus',
+                                    b'ui:timeout:gdm-provider-owner',
+                                    b'ui:timeout:greeter-identity',
+                                    b'ui:gdm-focus-unavailable',
+                                    b'ui:gdm-focus-refused',
+                                    b'ui:gdm-stale-focus',
+                                    b'ui:gdm-account-cardinality',
+                                    b'ui:gdm-account-unavailable',
+                                    b'ui:gdm-list-prompt-overlap',
+                                    b'ui:incomplete-tree',
+                                    b'ui:gdm-stale-tree'):
+                                refusal = line.decode('ascii')
                             try:
                                 value = json.loads(line)
                             except (ValueError, UnicodeError, RecursionError):
                                 continue
+                            if (operation == 'gdm-station-list' and type(value) is dict
+                                    and value.get('event') == 'gdm-provider-observation'):
+                                tree = value.get('tree')
+                                flags = ('shell_service', 'accessibility_enabled',
+                                         'registry_owner_changed')
+                                counts = ('nodes', 'applications', 'shell_applications',
+                                          'rooted_shell_applications')
+                                if (set(value) == {'event', 'tree', *flags}
+                                        and all(value[key] is None or type(value[key]) is bool
+                                                for key in flags)
+                                        and (tree is None or type(tree) is dict
+                                             and set(tree) == set(counts)
+                                             and all(type(tree[key]) is int
+                                                     and 0 <= tree[key] <= 6000
+                                                     for key in counts))):
+                                    provider_observation = {key: value[key] for key in ('tree', *flags)}
+                            if (operation == 'gdm-station-list' and type(value) is dict
+                                    and value.get('event') == 'gdm-account-observation'):
+                                matches = value.get('matches')
+                                station = matches.get('station') if type(matches) is dict else None
+                                if type(station) is dict and all(
+                                        type(station.get(key)) is int
+                                        and 0 <= station[key] <= 100000
+                                        for key in ('matching_nodes', 'matching_rows')):
+                                    station_rows = {key: station[key] for key in (
+                                        'matching_nodes', 'matching_rows')}
                             if (type(value) is dict and
                                     value.get('event') == 'desktop-prompt-diagnostic'):
                                 actions = value.get('policy_actions')
@@ -1228,6 +1275,12 @@ class UiObservations:
                             if (type(value) is not dict or
                                     value.get('event') != 'ui-adapter-failure'):
                                 continue
+                            if value.get('query_failure_kind') in (
+                                    'other-query-error', 'unknown-object', 'unknown-method',
+                                    'unknown-interface', 'owner-missing', 'service-missing',
+                                    'no-reply', 'timeout', 'disconnected', 'access-denied',
+                                    'connection-closed', 'cancelled'):
+                                query_kind = value['query_failure_kind']
                             locations = value.get('locations')
                             if type(locations) is list and len(locations) <= 12:
                                 sites = [{'module': site['module'], 'line': site['line']}
@@ -1236,10 +1289,18 @@ class UiObservations:
                                         'accessible_ui', 'public_atspi', 'fixture_ui')
                                     and type(site.get('line')) is int
                                     and 0 < site['line'] <= 100000]
-                    print('e2e:desktop-failure-sites=' + json.dumps(sites, sort_keys=True),
-                          file=sys.stderr, flush=True)
-                    print('e2e:desktop-prompt-policy=' + json.dumps(policies),
-                          file=sys.stderr, flush=True)
+                    if operation == 'desktop':
+                        print('e2e:desktop-failure-sites=' + json.dumps(sites, sort_keys=True),
+                              file=sys.stderr, flush=True)
+                        print('e2e:desktop-prompt-policy=' + json.dumps(policies),
+                              file=sys.stderr, flush=True)
+                    else:
+                        print('e2e:gdm-station-list-failure=' + json.dumps({
+                            'sites': sites, 'refusal': refusal,
+                            'query_failure_kind': query_kind,
+                            'station_rows': station_rows,
+                            'provider_observation': provider_observation}, sort_keys=True),
+                            file=sys.stderr, flush=True)
                     raise
             return self.transport.call(argv, input=input, timeout=timeout), []
         commands = self.transport.commands
@@ -1714,7 +1775,7 @@ class UiObservations:
                         and state[1] in ('No submitted draft', *accessible_ui.work_saved_texts(who)),
                         'ui:work-text')
                 program = 'WORK_DOCUMENT_STATE = ' + repr(state) + '\n' + program
-        if operation == 'gdm-returned':
+        if operation in accessible_ui.GREETER_RETURN_READS:
             # Keep privilege/session reacquisition inside the existing guarded
             # guest command, with one deadline and no retry of input operations.
             program = 'GREETER_RETURN_PROGRAM = ' + repr(program) + '\n' + program

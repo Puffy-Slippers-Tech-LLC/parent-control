@@ -26,17 +26,51 @@ WORKER = '/usr/libexec/gdm-session-worker'
 WARNING = b'# onpc service-variation observation only\naccount optional pam_warn.so\n'
 ROUTING_VARIATIONS = ('normal', 'alternate-session', 'empty-fields', 'alternate-transport')
 
-# GDM resolves this caller through the greeter user's service manager, as in
-# session_control.submit. SelectSession is explicit and does not save defaults.
+# GDM resolves a caller outside a login session through its greeter UID.
+# SelectSession is explicit and does not save defaults.
 # No prompt is answered; a challenge is an unsupported passwordless route.
 PEER_SELECTION = r'''
 import json
 import re
+import sys
+
+print('GdmPeer: python-started', file=sys.stderr, flush=True)
+phase = 'load-gdm'
+def failed(kind, error, traceback):
+    # Raw errors stay in the existing private command artifact. Only fixed
+    # phases, exception classes and bounded numeric GLib codes cross SSH.
+    sys.__excepthook__(kind, error, traceback)
+    category = {AttributeError: 'attribute-error', TypeError: 'type-error',
+                ValueError: 'value-error', ImportError: 'import-error',
+                ModuleNotFoundError: 'module-not-found'}.get(kind, 'exception')
+    glib = globals().get('GLib')
+    if glib is not None and isinstance(error, glib.Error):
+        category = {'g-dbus-error-quark': 'dbus', 'g-io-error-quark': 'io',
+                    'g-invoke-error-quark': 'invoke'}.get(error.domain, 'glib')
+        if type(error.code) is int and 0 <= error.code <= 65535:
+            category += '-code-' + str(error.code)
+        # GDM's OpenSession refusals share AccessDenied. Distinguish its
+        # fixed English reasons without forwarding arbitrary error messages.
+        reason = {
+            'No session available': 'no-session',
+            'Can only be called before user is logged in': 'session-running',
+            'Caller not GDM': 'caller-not-gdm',
+            'Unable to open private communication channel': 'no-private-channel',
+        }.get(error.message.removeprefix('GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: '))
+        if reason is not None:
+            category += ':' + reason
+    print('GuestError: gdm-variation:peer-' + phase + ':' + category,
+          file=sys.stderr, flush=True)
+sys.excepthook = failed
+
 import gi
 gi.require_version('Gdm', '1.0')
 from gi.repository import Gdm, GLib
+phase = 'client'
 client = Gdm.Client.new()
+phase = 'greeter-connection'
 greeter = client.get_greeter_sync(None)
+phase = 'verifier-connection'
 verifier = client.get_user_verifier_sync(None)
 loop = GLib.MainLoop()
 result = {'selected_session': 'oh-no-parent-control', 'selection_acknowledged': False}
@@ -44,19 +78,25 @@ def finish(outcome):
     result['result'] = outcome
     loop.quit()
 def opened(_greeter, service, session_id):
+    global phase
     if service != 'gdm-password' or not isinstance(session_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', session_id):
         finish('unexpected-service')
         return
     result['opened_session'] = session_id
+    phase = 'start-session'
     greeter.call_start_session_when_ready_sync(service, True, None)
     finish('session-start-requested')
+phase = 'bind-signals'
 verifier.connect('info-query', lambda *_: finish('unexpected-prompt'))
 verifier.connect('secret-info-query', lambda *_: finish('unexpected-prompt'))
 verifier.connect('verification-failed', lambda *_: finish('verification-failed'))
 greeter.connect('session-opened', opened)
+phase = 'select-session'
 greeter.call_select_session_sync('oh-no-parent-control', None)
 result['selection_acknowledged'] = True
+phase = 'begin-verification'
 verifier.call_begin_verification_for_user_sync('gdm-password', 'oh-no-parent-control', None)
+phase = 'observe-result'
 GLib.timeout_add_seconds(90, lambda: finish('timeout'))
 if 'result' not in result:
     loop.run()
@@ -292,9 +332,10 @@ def observe_attempt(guest, state):
 
 def peer_selection(guest):
     """Use the sole active local greeter, outside the remote SSH session."""
-    from system_kiosk_confinement import user_command
+    from owned_commands import CommandError
     deadline = time.monotonic() + 75
     while True:
+        guest.guard()
         found = []
         for line in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines():
             fields = line.split()
@@ -304,13 +345,15 @@ def peer_selection(guest):
             if fields[3] != 'seat0':
                 continue
             raw = guest.run(['loginctl', 'show-session', fields[0], '--no-pager',
-                '-p', 'User', '-p', 'Class', '-p', 'Type', '-p', 'Seat', '-p', 'Remote', '-p', 'Active'])
+                '-p', 'User', '-p', 'Class', '-p', 'Type', '-p', 'Seat', '-p', 'Remote',
+                '-p', 'Active', '-p', 'State'])
             props = dict(row.split('=', 1) for row in raw.splitlines())
             if props.get('Active') == 'yes' and props.get('Seat') == 'seat0':
                 require(props.get('Class') == 'greeter' and props.get('Remote') == 'no'
                         and props.get('Type') == 'wayland' and props.get('User', '').isdecimal(),
                         'greeter-owner')
-                found.append((fields[0], pwd.getpwuid(int(props['User']))))
+                if props.get('State') == 'active':
+                    found.append((fields[0], pwd.getpwuid(int(props['User']))))
         require(len(found) <= 1, 'greeter-identity')
         if found:
             break
@@ -318,26 +361,71 @@ def peer_selection(guest):
         time.sleep(.2)
     require(found[0][1].pw_uid > 0, 'greeter-identity')
     account = found[0][1]
-    # Validate the public user-manager connection before submitting one action.
-    # GDM can register the greeter before its runtime directory and bus exist.
-    runtime = Path('/run/user') / str(account.pw_uid)
-    while True:
-        try:
-            runtime_info = runtime.lstat()
-            require(stat.S_ISDIR(runtime_info.st_mode)
-                    and runtime_info.st_uid == account.pw_uid, 'greeter-bus')
-            bus_info = (runtime / 'bus').lstat()
-        except FileNotFoundError:
-            require(time.monotonic() < deadline, 'greeter-bus-timeout')
-            time.sleep(.2)
-            continue
-        require(stat.S_ISSOCK(bus_info.st_mode)
-                and bus_info.st_uid == account.pw_uid, 'greeter-bus')
-        break
+    # Readiness is not permission to adopt a replaced or switched greeter.
+    raw = guest.run(['loginctl', 'show-session', found[0][0], '--no-pager',
+        '-p', 'User', '-p', 'Class', '-p', 'Type', '-p', 'Seat', '-p', 'Remote',
+        '-p', 'Active', '-p', 'State'])
+    require(dict(row.split('=', 1) for row in raw.splitlines()) == {
+        'User': str(account.pw_uid), 'Class': 'greeter', 'Type': 'wayland',
+        'Seat': 'seat0', 'Remote': 'no', 'Active': 'yes', 'State': 'active'},
+        'greeter-owner-changed')
     guest.guard()
-    raw = user_command(account, ['/usr/bin/systemd-run', '--user', '--quiet', '--collect',
-        '--wait', '--pipe', '--service-type=exec', '/usr/bin/python3', '-I', '-'],
-        input=PEER_SELECTION.encode(), timeout=110)
+    errors = bytearray()
+    peer_started = False
+
+    def retain_error(data, stream):
+        nonlocal peer_started
+        if stream == 'stderr':
+            errors[:] = (errors + data)[-4096:]
+            peer_started |= b'GdmPeer: python-started\n' in errors
+
+    try:
+        # Gdm.Client opens its channel through the system bus. A transient
+        # system service keeps the peer outside SSH's logind session without
+        # depending on the greeter's session bus, which can refuse connections
+        # after a display-manager restart. Drop the same credentials/groups
+        # before Python starts; GDM still validates the actual caller's UID.
+        # The service expires even if the waiting transport is interrupted.
+        raw = guest.commands.run(['/usr/bin/systemd-run', '--system', '--quiet', '--collect',
+            '--wait', '--pipe', '--service-type=exec', '--property=RuntimeMaxSec=110',
+            '/usr/bin/setpriv', '--reuid', str(account.pw_uid), '--regid', str(account.pw_gid),
+            '--clear-groups', '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', 'LANG=C', 'LC_ALL=C',
+            '/usr/bin/python3', '-I', '-'], input=PEER_SELECTION.encode(), timeout=110,
+            merge_stderr=False, on_output=retain_error)
+    except CommandError as error:
+        category = 'gdm-variation:peer-command-failed'
+        status = guest.commands.last_returncode
+        if type(status) is int and -64 <= status <= 255:
+            category += ':exit-' + str(status)
+        # The last retry returned only exit-1, without a Python exception.
+        # Keep launch errors attributable in the bounded SSH event too. These
+        # are fixed observations, never arbitrary command output or a verdict.
+        category += ':python-started' if peer_started else ':python-unobserved'
+        for message, code in (
+                (b'setpriv: ', 'setpriv'),
+                (b'Failed to connect to bus', 'bus-connect'),
+                (b'Failed to start transient', 'transient-start'),
+                (b'Failed to execute', 'execute')):
+            if message in errors:
+                category += ':' + code
+                break
+        for message, code in (
+                (b'Permission denied', 'permission-denied'),
+                (b'Access denied', 'access-denied'),
+                (b'No such file or directory', 'not-found'),
+                (b'Connection refused', 'connection-refused'),
+                (b'No medium found', 'no-medium')):
+            if message in errors:
+                category += ':' + code
+                break
+        raise RuntimeError(category) from error
+    finally:
+        # Preserve a child Python failure instead of reducing it to setpriv's
+        # exit status. This also catches exceptions raised in GLib callbacks.
+        failures = re.findall(rb'^GuestError: (gdm-variation:peer-[a-z0-9:-]{1,100})$',
+                              errors, re.MULTILINE)
+        if failures:
+            raise RuntimeError(failures[0].decode('ascii'))
     require(len(raw) <= 4096, 'peer-response-bound')
     result = json.loads(raw)
     outcome = result.get('result')
@@ -351,6 +439,7 @@ def peer_selection(guest):
 
 
 def attempt(token, *, routing_variation=None):
+    """Prepare one owned attempt; routing selection follows public readiness."""
     require(routing_variation is None or routing_variation in ROUTING_VARIATIONS, 'routing-variation')
     guest, marker, receipt = guest_context(token, routing=routing_variation is not None)
     account = pwd.getpwnam(ACCOUNT)
@@ -376,6 +465,7 @@ def attempt(token, *, routing_variation=None):
         from system_kiosk_admission import routing_variations
         require(state['routing_original'] == DEDICATED and not state['automatic_original'],
                 'routing-baseline')
+        state['routing_variation'] = routing_variation
         state['routing_input'] = list(routing_variations()[routing_variation])
         ordinary = pwd.getpwnam('onpc-parent-jamie')
         require(ordinary.pw_uid > 0 and ordinary.pw_uid != account.pw_uid, 'ordinary-identity')
@@ -410,13 +500,7 @@ def attempt(token, *, routing_variation=None):
             save(receipt, state)
             guest.guard()
             guest.run(['systemctl', 'restart', 'display-manager.service'], timeout=60)
-            # Vary one input only, after startup and before explicit selection.
             require(api.routing(user) == DEDICATED, 'routing-baseline-changed')
-            try:
-                api.set_routing(user, state['routing_input'])
-            finally:
-                state['routing_expected'] = api.routing(user)
-                save(receipt, state)
         latest = json.loads(guest.run(['journalctl', '--no-pager', '--lines=1', '--output=json',
             '--boot=' + state['boot'].strip().replace('-', '')]))
         cursor = latest.get('__CURSOR')
@@ -429,34 +513,67 @@ def attempt(token, *, routing_variation=None):
         if routing_variation is None:
             guest.run(['systemctl', 'restart', 'display-manager.service'], timeout=60)
             return observe_attempt(guest, state)
-        require(api.routing(user) == state['routing_input'], 'routing-input-changed')
-        selected = peer_selection(guest)
-        state['independent_selection'] = selected
-        save(receipt, state)
-        result = observe_attempt(guest, state)
-        messages = [row['MESSAGE'] for row in journal(guest, state)
-                    if type(row.get('MESSAGE')) is str
-                    and row['MESSAGE'].startswith(('onpc.pam kiosk routing stage=account ',
-                                                   'onpc.pam kiosk identity stage=account '))]
-        expected = 'onpc.pam kiosk routing stage=account outcome=denied recovery=restored reason=routing'
-        allowed = 'onpc.pam kiosk identity stage=account outcome=allowed reason=none'
-        require(messages == [expected] if result['result'] == 'account-refused' else
-                messages == [allowed], 'routing-admission-witness')
-        # Only this witnessed product repair may change the expected cleanup
-        # value; an unexplained or foreign routing change is never adopted.
-        current = api.routing(user)
-        require(current == DEDICATED if result['result'] == 'account-refused' else
-                current in (state['routing_input'], DEDICATED), 'routing-product-recovery')
-        state['routing_expected'] = current
-        save(receipt, state)
-        result.update(variation=routing_variation, independent_selection=selected,
-            routing_input=state['routing_input'], admission_witness=messages,
-            routing_repaired=result['result'] == 'account-refused')
-        return result
+        # logind becoming active does not mean the replacement greeter has
+        # registered with GDM. The controller observes its usable public list
+        # before resuming this receipt for one selection.
+        return {'prepared': True}
     except BaseException:
         # The host always runs guarded restore, including on a failed attempt.
         # Preserve the receipt and original error; never repeat uncertain input.
         raise
+
+
+def routing_attempt(token, variation):
+    """Resume the prepared routing attempt after its fresh public greeter read."""
+    require(variation in ROUTING_VARIATIONS, 'routing-variation')
+    guest, marker, receipt = guest_context(token, routing=True)
+    state = load(receipt, marker, token)
+    account = pwd.getpwnam(ACCOUNT)
+    require(account.pw_uid == state['uid'] and account.pw_uid > 0
+            and account.pw_shell == '/usr/sbin/nologin', 'station-replaced')
+    require(state.get('routing_variation') == variation and not state['restored']
+            and not state.get('selection_attempted')
+            and state['service'] == 'gdm-password', 'routing-attempt-state')
+    api = accounts()
+    user = state['user']
+    require(snapshot(Path(state['config'])) == state['config_expected']
+            and snapshot(Path(state['pam'])) == state['pam_expected']
+            and api.automatic() == state['automatic_expected'], 'configuration-changed')
+    require(api.routing(user) == state['routing_expected'] == DEDICATED,
+            'routing-baseline-changed')
+    require(not station_sessions(guest, account.pw_uid), 'station-already-active')
+    state['selection_attempted'] = True
+    save(receipt, state)  # Refuse replay even if the selection reply is lost.
+    # Vary one input only, after public startup readiness and before selection.
+    try:
+        api.set_routing(user, state['routing_input'])
+    finally:
+        state['routing_expected'] = api.routing(user)
+        save(receipt, state)
+    require(state['routing_expected'] == state['routing_input'], 'routing-input-changed')
+    selected = peer_selection(guest)
+    state['independent_selection'] = selected
+    save(receipt, state)
+    result = observe_attempt(guest, state)
+    messages = [row['MESSAGE'] for row in journal(guest, state)
+                if type(row.get('MESSAGE')) is str
+                and row['MESSAGE'].startswith(('onpc.pam kiosk routing stage=account ',
+                                               'onpc.pam kiosk identity stage=account '))]
+    expected = 'onpc.pam kiosk routing stage=account outcome=denied recovery=restored reason=routing'
+    allowed = 'onpc.pam kiosk identity stage=account outcome=allowed reason=none'
+    require(messages == [expected] if result['result'] == 'account-refused' else
+            messages == [allowed], 'routing-admission-witness')
+    # Only this witnessed product repair may change the expected cleanup
+    # value; an unexplained or foreign routing change is never adopted.
+    current = api.routing(user)
+    require(current == DEDICATED if result['result'] == 'account-refused' else
+            current in (state['routing_input'], DEDICATED), 'routing-product-recovery')
+    state['routing_expected'] = current
+    save(receipt, state)
+    result.update(variation=variation, independent_selection=selected,
+        routing_input=state['routing_input'], admission_witness=messages,
+        routing_repaired=result['result'] == 'account-refused')
+    return result
 
 
 def execution(token, *, routing=False):
@@ -725,11 +842,21 @@ def qualify_routing(transport, lease, *, expectation='execution'):
         ui = UiObservations(transport)
         ui.boot_guard = hashlib.sha256(transport.call(
             ['cat', '/proc/sys/kernel/random/boot_id'], timeout=15)).hexdigest()
-        baseline = ui.observe('gdm-station-list')
+        ui.observe('gdm-station-returned')
         token = secrets.token_hex(16)
         result = None
         try:
             with watch_activity.operation('Qualifying dedicated GDM selection: ' + variation):
+                prepared = remote('routing-prepare-' + variation, token)
+                require(prepared == {'prepared': True}, 'routing-preparation-response')
+                # Preparation restarts GDM. Its new greeter must register and
+                # expose a usable account list before the peer can end it.
+                # Starting from logind alone can make GDM replace that still
+                # unregistered greeter and steal the station's foreground VT.
+                boot_guard = ui.boot_guard
+                ui = UiObservations(transport)
+                ui.boot_guard = boot_guard
+                baseline = ui.observe('gdm-station-returned')
                 result = remote('routing-' + variation, token)
             if result['result'] == 'session-created':
                 ui = UiObservations(transport)
@@ -757,7 +884,7 @@ def qualify_routing(transport, lease, *, expectation='execution'):
     ui = UiObservations(transport)
     ui.boot_guard = hashlib.sha256(transport.call(
         ['cat', '/proc/sys/kernel/random/boot_id'], timeout=15)).hexdigest()
-    baseline = ui.observe('gdm-station-list')
+    baseline = ui.observe('gdm-station-returned')
     try:
         with watch_activity.operation('Qualifying actual installed routing-discovery loss'):
             discovery = remote('routing-outage-positive' if expectation == 'execution' else
@@ -829,6 +956,9 @@ if __name__ == '__main__':
             'routing-outage-positive': lambda token: outage(token, positive=True),
             'routing-outage-restore': lambda token: outage(token, restore_only=True)}
         operations.update({'routing-' + variation:
+            lambda token, variation=variation: routing_attempt(token, variation)
+            for variation in ROUTING_VARIATIONS})
+        operations.update({'routing-prepare-' + variation:
             lambda token, variation=variation: attempt(token, routing_variation=variation)
             for variation in ROUTING_VARIATIONS})
         require(len(sys.argv) == 3 and sys.argv[1] in operations, 'arguments')
@@ -837,12 +967,26 @@ if __name__ == '__main__':
         # Fixed categories only. Raw PAM/journal/account/config data is private.
         code = str(error) if type(error) is RuntimeError and str(error).startswith(
             'gdm-variation:') else 'gdm-variation:operation-failed'
+        failure = code
         if code == 'gdm-variation:operation-failed':
             import traceback
-            location = traceback.extract_tb(error.__traceback__)[-1]
+            frames = traceback.extract_tb(error.__traceback__)
+            location = frames[-1]
+            # An imported command wrapper's raise line does not identify the
+            # failed operation. Retain this streamed program's nearest caller.
+            caller = next((frame for frame in reversed(frames)
+                           if frame.filename == __file__), location)
+            failure += ':line-' + str(caller.lineno)
             code += ':' + type(error).__name__ + ':' + location.name + ':' + str(location.lineno)
             if type(error).__name__ in ('CommandError', 'GuestError') and re.fullmatch(
                     r'[a-zA-Z0-9:_-]{1,200}', str(error)):
                 code += ':' + str(error)
+                failure += ':' + str(error)
         print(code, file=sys.stderr)
+        # Commands retains only a terminal GuestError category in the bounded
+        # SSH failure event. Keep the detailed diagnostic private, but expose
+        # this helper's fixed guard or failing source line to remote repairs.
+        if not re.fullmatch(r'gdm-variation:[a-z0-9:-]{1,140}', failure):
+            failure = 'gdm-variation:operation-failed'
+        print('GuestError: ' + failure, file=sys.stderr)
         sys.exit(1)

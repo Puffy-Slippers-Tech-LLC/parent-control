@@ -247,6 +247,28 @@ class Shell:
             self.bus.close_sync(None)
 
 
+def wait_for_shell_bus(account, manager, wait):
+    """Connect after login without mistaking a stale socket for a ready bus."""
+    from gi.repository import Gio, GLib
+
+    def connect():
+        address = manager.session_bus_address(account.pw_uid)
+        if address is None:
+            return False
+        try:
+            return Shell(account, address, track_owner=True)
+        except GLib.Error as error:
+            # The maintained transport maps missing and refused/closed
+            # connections to these typed startup outcomes. Authentication,
+            # ownership and all other failures must still stop the test.
+            if any(error.matches(Gio.io_error_quark(), code) for code in (
+                    Gio.IOErrorEnum.NOT_FOUND, Gio.IOErrorEnum.CLOSED)):
+                return False
+            raise
+
+    return wait(connect, 'user-bus-not-ready')
+
+
 def invocation():
     guest.require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active',
                   'extension:broker-inactive')
@@ -708,24 +730,8 @@ def verify_lifecycle(publish):
                         timeout=min(timeout, remaining))
 
     def observe():
-        from gi.repository import Gio, GLib
-        def connect():
-            address = manager.session_bus_address(child)
-            if address is None:
-                return False
-            try:
-                observer = Shell(account, address, track_owner=True)
-            except GLib.Error as error:
-                # A normal fresh login can still have the stopped daemon's
-                # socket path. The maintained transport reports absence and
-                # refused/closed connections as these typed startup outcomes.
-                if any(error.matches(Gio.io_error_quark(), code) for code in (
-                        Gio.IOErrorEnum.NOT_FOUND, Gio.IOErrorEnum.CLOSED)):
-                    return False
-                raise
-            observers.append(observer)
-            return observer
-        observer = wait(connect, 'user-bus-not-ready')
+        observer = wait_for_shell_bus(account, manager, wait)
+        observers.append(observer)
         wait(lambda: observer.owner(SHELL), 'shell-unavailable')
         def ready():
             try:
@@ -1046,9 +1052,9 @@ def verify_failure_reporting(publish):
 
     def observe():
         wait(lambda: child_session(child), 'child-session')
-        wait(lambda: manager._shell_is_available(account), 'shell-unavailable')
-        observer = Shell(account, manager.session_bus_address(child), track_owner=True)
+        observer = wait_for_shell_bus(account, manager, wait)
         observers.append(observer)
+        wait(lambda: observer.owner(SHELL), 'shell-unavailable')
         def ready():
             try:
                 return observer.info()

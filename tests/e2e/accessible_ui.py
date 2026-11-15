@@ -79,6 +79,9 @@ OPERATIONS = frozenset({
     'gdm-station-returned', 'kiosk-request-form', 'kiosk-request-cancel',
     'kiosk-request-escape-ready', 'station-entry-branch', 'station-default-entry',
 })
+# Only observations without focus, navigation or credential input may be
+# restarted under a newly bound greeter account after a GDM replacement.
+GREETER_RETURN_READS = frozenset({'gdm-returned', 'gdm-station-returned'})
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'fresh-standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-entered', 'standard-parent-unavailable',
     'keyring-cancel-standard',
@@ -9794,17 +9797,28 @@ class AccessibleUI:
         It is not a generic name/role selector: the standalone process is bound
         to the sole active local greeter account before this tree is read.
         """
+        last_tree = None
+
         def owner():
+            nonlocal last_tree
             desktop = self.api.get_desktop(0)
             require(desktop is not None, 'ui:incomplete-tree')
-            snapshot = {}
+            snapshot, facts = {}, {}
             nodes = list(self.nodes(desktop, strict=True, protect_text=protect_text,
-                                    snapshot=snapshot))
+                                    snapshot=snapshot, facts=facts))
             owners = [node for node in nodes
                       if node.get_parent() == desktop
                       and node.get_role_name() == 'application'
                       and self.gdm_semantic_name(node).casefold()
                       in GDM_SEMANTIC_APPLICATION_NAMES]
+            # Counts from this complete read distinguish an empty registry,
+            # an unregistered Shell and a Shell with a mismatched parent.
+            # Only counts are retained; labels and bus identities stay private.
+            applications = [item for item in facts.values() if item['role'] == 'application']
+            last_tree = {'nodes': len(nodes), 'applications': len(applications),
+                'shell_applications': sum(type(item['name']) is str and
+                    ' '.join(item['name'].split()).casefold() in GDM_SEMANTIC_APPLICATION_NAMES
+                    for item in applications), 'rooted_shell_applications': len(owners)}
             require(len(owners) <= 1, 'ui:gdm-provider-owner')
             if not owners:
                 return None
@@ -9818,7 +9832,40 @@ class AccessibleUI:
 
         # The greeter session and bus can precede Shell's public application.
         # Absence permits another read, never input or a replacement owner.
-        return self.wait(owner, 'gdm-provider-owner')
+        try:
+            return self.wait(owner, 'gdm-provider-owner')
+        except UiError as error:
+            if str(error) == 'ui:timeout:gdm-provider-owner':
+                observation = {'event': 'gdm-provider-observation', 'tree': last_tree,
+                    'shell_service': None, 'accessibility_enabled': None,
+                    'registry_owner_changed': None}
+                # Failure-only public reads, each bounded independently. They
+                # neither activate Shell nor reset/adopt a replacement registry.
+                for key, arguments, replies in (
+                        ('shell_service', ['--dest', 'org.freedesktop.DBus',
+                            '--object-path', '/org/freedesktop/DBus', '--method',
+                            'org.freedesktop.DBus.NameHasOwner', 'org.gnome.Shell'],
+                            {'(true,)': True, '(false,)': False}),
+                        ('accessibility_enabled', ['--dest', 'org.a11y.Bus',
+                            '--object-path', '/org/a11y/status', '--method',
+                            'org.freedesktop.DBus.Properties.Get', 'org.a11y.Status', 'IsEnabled'],
+                            {'(<true>,)': True, '(<false>,)': False})):
+                    try:
+                        reply = subprocess.run(['/usr/bin/gdbus', 'call', '--session',
+                            *arguments], stdin=subprocess.DEVNULL, capture_output=True,
+                            text=True, check=True, timeout=2)
+                        observation[key] = replies.get(reply.stdout.strip())
+                    except Exception:
+                        pass
+                try:
+                    if getattr(self.api, '__name__', '') == 'public_atspi':
+                        current = self.api.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                            'org.freedesktop.DBus', 'GetNameOwner', 's', ('org.a11y.atspi.Registry',))
+                        observation['registry_owner_changed'] = current != self.api._registry_owner
+                except Exception:
+                    pass  # Diagnostics cannot replace the original refusal.
+                print(json.dumps(observation, sort_keys=True), file=sys.stderr, flush=True)
+            raise
 
     def gdm_semantic_account_rows(self, owner, nodes, names):
         """Resolve exact account labels to their GDM button ancestors."""
@@ -10021,7 +10068,7 @@ class AccessibleUI:
 
     def kiosk_gdm_returned(self):
         """Observe the exited station's usable greeter and absent owned UI."""
-        self.gdm_semantic_rows((KIOSK,))
+        self.gdm_nonsecret_account(KIOSK)
         nodes = list(self.nodes(strict=True))
         require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
                                   for node in nodes), 'ui:gdm-stale-tree')
@@ -17322,7 +17369,8 @@ def wait_for_greeter_return(program):
     account. Its result is accepted only while the same logind session and owned
     socket remain current. No input or credential operation uses this retry path.
     """
-    require(os.geteuid() == 0 and sys.argv[1] == 'gdm-returned', 'ui:greeter-read-binding')
+    require(os.geteuid() == 0 and sys.argv[1] in GREETER_RETURN_READS,
+            'ui:greeter-read-binding')
     # Preserve the existing 300s identity + 20s socket + 45s UI allowance,
     # while making every discovery/read consume the same finite budget.
     deadline = time.monotonic() + 365
@@ -17409,11 +17457,11 @@ def main():
                 'ui:boot-identity')
         boot = hashlib.sha256(raw).hexdigest()
         require(not expected or expected == boot, 'ui:boot-changed')
-    if sys.argv[1] == 'gdm-returned' and 'GREETER_RETURN_PROGRAM' in globals():
+    if sys.argv[1] in GREETER_RETURN_READS and 'GREETER_RETURN_PROGRAM' in globals():
         wait_for_greeter_return(GREETER_RETURN_PROGRAM)
         return
     if 'GREETER_RETURN_BINDING' in globals():
-        require(sys.argv[1] == 'gdm-returned', 'ui:greeter-read-binding')
+        require(sys.argv[1] in GREETER_RETURN_READS, 'ui:greeter-read-binding')
         require(greeter_return_binding(time.monotonic() + 5) == GREETER_RETURN_BINDING,
                 'ui:greeter-binding-changed')
     greeter = sys.argv[1] in GREETER_OPERATIONS
@@ -17800,7 +17848,7 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         exit_code = 1
-        if 'GREETER_RETURN_BINDING' in globals() and sys.argv[1] == 'gdm-returned':
+        if 'GREETER_RETURN_BINDING' in globals() and sys.argv[1] in GREETER_RETURN_READS:
             from gi.repository import GLib
             if (isinstance(error, GLib.Error) or isinstance(error, UiError) and (
                     str(error).startswith('ui:timeout:') or str(error) in (

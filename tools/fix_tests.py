@@ -1372,11 +1372,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         # boundary, so its baseline cannot change underneath us. After resume,
         # the in-memory result is absent and baseline continuity is unknown.
         # Never replace a retained response or diagnostic with a no-edit pass.
+        recheck = None
         if entry is None and (ticket.get('source') != source_identity(root)
                 or ticket.get('cleanup') is not True or ticket.get('status') in (None, 0, 130)
                 or ticket['vm'] and execution.failure is None):
             progress(category, 'Rechecking failed case')
             value = execution.attempt('recheck')
+            recheck = value
             if value['accepted']:
                 commits.state.pop('queued_failure', None)
                 commits.state.pop('writer_inputs', None)
@@ -1420,6 +1422,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             except (OSError, ValueError):
                 continue
         prompt = failure.get('prompt', 'Investigate the failed operation using the retained attempt evidence.')
+        if recheck is not None:
+            prompt += ('\nLatest unsuccessful recheck (no qualified pass): '
+                       + json.dumps({field: recheck.get(field) for field in ('status', 'error', 'reference')},
+                                    sort_keys=True)
+                       + '\n' + str(recheck.get('output_tail', ''))[-16000:])
+            # Source edits reload this controller. Keep the observation in the
+            # existing failure record for subsequent repair sessions as well.
+            failure = dict(failure, prompt=prompt)
         # Scheduling history is not investigation context. The agent needs the
         # failed operation and selectors; the latest retry outcome is added by
         # repair_owned, without repeating every prior attempt and its metadata.

@@ -1450,11 +1450,24 @@ def _execute_group(root, plan, *, reloading=False, actions=None, pass_identity=N
                     publish_frames()
                 try:
                     result = execute_worker(worker, assignment, inherited, recovering)
-                except (ValueError, OSError):
+                except (ValueError, OSError) as error:
+                    if isinstance(error, test_source.SourceBusy):
+                        raise
+                    from detached_launcher import record_exception
+                    reporter = (actions or {}).get('error', lambda context, error, **identity:
+                        record_exception(directory, context, error, **identity))
+                    details = reporter('VM case execution', error,
+                        vm=vm.name, case=assignment.get('execution', assignment['work'])['case'],
+                        attempt=assignment['attempt'])
                     with output_lock:
                         frames[vm.name] = ['Failed (worker error)']
                         publish_frames()
-                    raise
+                    # Ordinary dispatch already turns worker exceptions into
+                    # failed results. Bounded rechecks/verification use this
+                    # same path so a transfer failure reaches repair policy
+                    # instead of escaping and suspending the coordinator.
+                    result = dict(status=2, handoffs=[], evidence=None, **details,
+                                  output_tail=details.get('traceback', str(error))[-16000:])
                 status = result['status']
                 state = {0: 'Finished', 130: 'Stopped',
                          launcher_reload.STATUS: 'Reload pending'}.get(status, f'Failed (exit {status})')

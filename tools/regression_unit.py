@@ -239,6 +239,10 @@ TARGET_BATCH_SECONDS = 90
 # vm_control_cleanup_safety retains module-local guest doubles and private lease
 # files. Its live-probe check uses a unique abstract socket and drains its thread
 # before releasing the lease; no libvirt or shared endpoint is accessed.
+# regression/vm_pool repair-concurrency checks use private source gates and
+# joined in-process workers. host_dispatch freezes private Git repositories and
+# runs bounded local bootstrap preflights; none accesses VMs, shared sockets or
+# mutable host caches. Their existing compatible classifications still apply.
 
 ESTIMATES = {
     **CLEANUP_ESTIMATES,

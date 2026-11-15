@@ -566,10 +566,13 @@ def request_snapshot_refresh(commits, vm, result):
         return False
     with lock(commits.run / 'appsnapshot-refresh-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
-        state = commits.state.setdefault('snapshot_refresh', dict(pending=[], refreshed=[]))
-        state['pending'] = sorted(set(state['pending']) | {
-            json.dumps([vm, scope, identity]) for scope, identity in hints})
-        commits.save()
+        from test_source import _read
+        path = commits.run / 'snapshot-refresh.json'
+        pending = _read(path, [])
+        # Companion callbacks must not rewrite the repair's live checkpoint.
+        # Merge this durable mailbox only after every owned worker has joined.
+        atomic(path, sorted(set(pending) | {
+            json.dumps([vm, scope, identity]) for scope, identity in hints}))
     return True
 
 
@@ -579,6 +582,16 @@ def refresh_snapshots(root, run, owner, model, effort, commits):
     import test_source
     from regression_process import Control
     from vm_selection import BATCH, execution_binding
+    from test_source import _read
+    with lock(run / 'appsnapshot-refresh-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        path = run / 'snapshot-refresh.json'
+        requested = _read(path, [])
+        if requested:
+            state = commits.state.setdefault('snapshot_refresh', dict(pending=[], refreshed=[]))
+            state['pending'] = sorted(set(state['pending']) | set(requested))
+            commits.save()
+            path.unlink()
     state = commits.state.get('snapshot_refresh', {})
     pending = state.get('pending', [])
     if not pending:
@@ -843,6 +856,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                     reloading=False, repair_gate=None, startup=None):
     """Compose repair actions with the shared finite-pass coordinator."""
     import test_source
+    import threading
     from test_source import RepairGate
     from fix_tests_git import RepairCommits
     from launcher_runtime import SessionAllowance
@@ -886,6 +900,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     reload_request = ReloadRequest(run)
     current_ticket = None
     generation_changed = False
+    progress_lock = threading.RLock()
 
     def retain_runtime(*, continuation=None):
         commits.state['session_counts'] = {commits.key(key): value for key, value in case_sessions.items()}
@@ -907,12 +922,14 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
     def round_changed(number):
         nonlocal round_number
         round_number = number
-        publish_progress(run, 'round', [f'Round {number}/{rounds}', 'Status: Running'])
+        with progress_lock:
+            publish_progress(run, 'round', [f'Round {number}/{rounds}', 'Status: Running'])
 
     def progress(category, status, *, model=None, effort=None):
         nonlocal active_task
-        publish_repair_status(run, round_number, category, categories, status,
-                              model=model, effort=effort, completed=0)
+        with progress_lock:
+            publish_repair_status(run, round_number, category, categories, status,
+                                  model=model, effort=effort, completed=0)
         active_task = f'{round_number}:{category}'
         # A category can contain several independent repairs. Retain the error
         # through investigation, verification and Git close-out, then clear it
@@ -1326,8 +1343,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             resume_tests(category)
             return dict(outcome='resolved', attempt=accepted, repair_ref=str(run / 'checkpoint.json'),
                         source_changed=True)
-        # The coordinator invokes this only at a finite drained boundary.
-        repair_gate.acquire(ready=lambda: execution.drained)
+        # Detached companion inputs do not read this mutable checkout. The
+        # original failed VM is joined/reserved before the coordinator calls us.
+        repair_gate.acquire()
         commits.state['active_ticket'] = ticket['id']
         commits.state.setdefault('queued_failure', dict(category=category, failure=dict(
             prompt=RECOVERY_PROMPT,
@@ -1562,11 +1580,16 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                          for kind, counts in categories.items())
         if value['host_categories']:
             lines.append(f'Host categories: ({len(value["host_completed"])}/{len(value["host_categories"])})')
-        publish_progress(run, 'pass', lines)
+        with progress_lock:
+            publish_progress(run, 'pass', lines)
 
     def resume_prerequisite():
         check_controller()
-        status = refresh_snapshots(root, run, owner, model, effort, commits)
+        if repair_gate.fd is not None:
+            with repair_gate.source():
+                status = refresh_snapshots(root, run, owner, model, effort, commits)
+        else:
+            status = refresh_snapshots(root, run, owner, model, effort, commits)
         check_controller()
         return status
 
@@ -1668,7 +1691,7 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         if previous is not None:
             guard_repair_scheduling_run(previous)
         if resume and previous is not None:
-            for filename in ('checkpoint.json', 'limits.json'):
+            for filename in ('checkpoint.json', 'limits.json', 'snapshot-refresh.json'):
                 path = previous / filename
                 if path.exists():
                     retained[filename] = read_failure(path)

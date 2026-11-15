@@ -255,12 +255,14 @@ def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None, compute=Tr
 def reservation(name, *, stopped=None, bind=True, wait=True):
     """Caller-side lifetime: keep checkout across builds, failures and probing."""
     from vm_selection import vm_config
-    configured = vm_config.load(name)
     from host_dispatch import tool_host
+    from remote_sources import RemoteVM, current_sources
     root = Path(__file__).resolve().parents[1]
+    sources = current_sources(root)
+    configured = (vm_config.load(name, path=sources.directory / 'config/environment.json')
+                  if sources is not None else vm_config.load(name))
     route = None
-    if configured.host.name != tool_host(root).name:
-        from remote_sources import RemoteVM
+    if sources is not None or configured.host.name != tool_host(root).name:
         route = RemoteVM(root, configured)
     enclosing = remote()
     if enclosing is not None and enclosing.vm.name != configured.name:
@@ -269,7 +271,7 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
     if held is None:
         vm_config.require_online(configured)
     if held is None and configured.owning_branch:
-        vm_config.require_branch(configured, vm_config.current_branch())
+        vm_config.require_branch(configured, sources.branch if sources is not None else vm_config.current_branch())
     def cancelled():
         return stopped is not None and (stopped() if callable(stopped) else stopped.is_set())
     if cancelled():

@@ -100,7 +100,7 @@ phase = 'observe-result'
 GLib.timeout_add_seconds(90, lambda: finish('timeout'))
 if 'result' not in result:
     loop.run()
-print(json.dumps(result, sort_keys=True))
+print('GdmPeer: result ' + json.dumps(result, sort_keys=True), flush=True)
 '''
 
 
@@ -372,6 +372,9 @@ def peer_selection(guest):
     guest.guard()
     errors = bytearray()
     peer_started = False
+    unit = 'onpc-gdm-peer-' + secrets.token_hex(16) + '.service'
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip().replace('-', '')
+    status = None
 
     def retain_error(data, stream):
         nonlocal peer_started
@@ -385,16 +388,40 @@ def peer_selection(guest):
         # depending on the greeter's session bus, which can refuse connections
         # after a display-manager restart. Drop the same credentials/groups
         # before Python starts; GDM still validates the actual caller's UID.
+        # Do not pass Commands' temporary output files through --pipe: Fedora's
+        # SELinux policy refuses PID 1 write access to their user_tmp_t label.
+        # Journal streams keep those descriptors inside the command harness.
         # The service expires even if the waiting transport is interrupted.
-        raw = guest.commands.run(['/usr/bin/systemd-run', '--system', '--quiet', '--collect',
-            '--wait', '--pipe', '--service-type=exec', '--property=RuntimeMaxSec=110',
+        guest.commands.run(['/usr/bin/systemd-run', '--system', '--quiet', '--collect',
+            '--wait', '--unit=' + unit, '--description=ONPC GDM peer qualification',
+            '--expand-environment=no', '--service-type=exec', '--property=RuntimeMaxSec=110',
+            '--property=StandardInput=null', '--property=StandardOutput=journal',
+            '--property=StandardError=journal',
             '/usr/bin/setpriv', '--reuid', str(account.pw_uid), '--regid', str(account.pw_gid),
             '--clear-groups', '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', 'LANG=C', 'LC_ALL=C',
-            '/usr/bin/python3', '-I', '-'], input=PEER_SELECTION.encode(), timeout=110,
+            '/usr/bin/python3', '-I', '-c', PEER_SELECTION], timeout=110, check=False,
             merge_stderr=False, on_output=retain_error)
+        status = guest.commands.last_returncode
+        guest.run(['journalctl', '--sync'], timeout=15)
+        raw = guest.run(['journalctl', '--no-pager', '--boot=' + boot, '--unit=' + unit,
+                         '--output=json', '--lines=128'], timeout=15)
+        require(len(raw) <= 65536, 'peer-journal-bound')
+        rows = [json.loads(line) for line in raw.splitlines()]
+        require(len(rows) < 128 and all(row.get('_BOOT_ID') == boot for row in rows),
+                'peer-journal-window')
+        messages = [row['MESSAGE'] for row in rows if row.get('_SYSTEMD_UNIT') == unit
+                    and type(row.get('MESSAGE')) is str]
+        retain_error(('\n'.join(messages) + '\n').encode(), 'stderr')
+        if status != 0:
+            raise CommandError('command:failed:systemd-run')
+        replies = [message.removeprefix('GdmPeer: result ') for message in messages
+                   if message.startswith('GdmPeer: result ')]
+        require(len(replies) == 1, 'peer-response-count')
+        raw = replies[0]
     except CommandError as error:
         category = 'gdm-variation:peer-command-failed'
-        status = guest.commands.last_returncode
+        if status is None:
+            status = guest.commands.last_returncode
         if type(status) is int and -64 <= status <= 255:
             category += ':exit-' + str(status)
         # The last retry returned only exit-1, without a Python exception.

@@ -2,7 +2,7 @@
 from tests.support.vm_registry import vm_name
 
 import io
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
@@ -169,6 +169,8 @@ def test_repair_admission_starts_repair_before_remaining_work(
                 initial_results = [(target, pool.submit(initial, target)) for target in (vm, companion)]
                 for target, future in initial_results:
                     results[target.name] = completed(target, future.result(timeout=10))
+                    if target is vm:
+                        service(self, False)
             initial_done.set()
             while True:
                 if service(self, True):
@@ -193,13 +195,13 @@ def test_repair_admission_starts_repair_before_remaining_work(
             if current['case'] == 'first':
                 first_assigned.set()
             together.wait(timeout=5)
-            if current['case'] == 'second':
+            if current['case'] == 'second' and impact != 'no':
                 assert worker.interrupt.wait(5), 'companion guest steps were not interrupted'
                 events.append(('interrupted', current['case']))
                 return dict(status=130, interrupted=True, handoffs=[], evidence=dict(
                     assignment, passed=[], cleanup=True, diagnostic=False))
         events.append(('recheck' if repairing else 'normal', current['case']))
-        status = failure_status if not failed and not repairing else 0
+        status = failure_status if current['case'] == 'first' and not failed and not repairing else 0
         failed |= bool(status)
         if not cleanup:
             if repairing and not unqualified_recheck:
@@ -240,12 +242,141 @@ def test_repair_admission_starts_repair_before_remaining_work(
     assert result['status'] == 0 and not result['suspended']
     normal = events.index(('normal', 'second'))
     repairing = events.index(('repair', 'first'))
-    assert repairing < normal
+    assert (repairing < normal) if impact != 'no' else (normal < repairing)
     assert events.count(('recheck', 'first')) == (1 if cleanup else 2)
-    assert events.count(('interrupted', 'second')) == 1
+    assert events.count(('interrupted', 'second')) == (impact != 'no')
     assert not result['pending_repairs'] and not result['unfinished']
     protection = test_source.SourceProtection(source_path)
     assert protection.owner() is None and not protection.impact_holds()
+
+
+@pytest.mark.parametrize('reload_after_edit', [False, True])
+def test_isolated_repair_keeps_companions_admitting_and_unions_pass_credit(
+        tmp_path, monkeypatch, private_dispatch_source, reload_after_edit):
+    import launcher_reload
+    import test_source
+    import vm_pool
+    import vm_test_queue
+    from vm_selection import vm_config
+    from test_checkpoint import PassCheckpoint
+
+    mutable = tmp_path / 'mutable'
+    frozen = tmp_path / 'frozen'
+    mutable.mkdir(mode=0o700)
+    frozen.mkdir(mode=0o700)
+    monkeypatch.setattr(test_source, 'source_directory',
+                        lambda root, **kwargs: frozen if root == frozen else mutable)
+    protection = test_source.SourceProtection(mutable)
+    source = dict(digest='a' * 64, generation=0)
+    monkeypatch.setattr(vm_test_queue, 'source_identity', lambda _: dict(
+        source, generation=protection.generation()))
+    sources = SimpleNamespace(source=source, lease_root=frozen, use=lambda **kwargs: nullcontext())
+    host = vm_config.HostConfig(max_compute_unit=2)
+    vms = [vm_config.VMConfig(name, tmp_path / name, enabled=True, family='family', host=host)
+           for name in ('first', 'second')]
+    monkeypatch.setattr(vm_config, 'load', lambda name: next(vm for vm in vms if vm.name == name))
+    held = set()
+
+    @contextmanager
+    def reserve(name, **kwargs):
+        assert name not in held
+        held.add(name)
+        try:
+            yield 'owned-' + name
+        finally:
+            held.remove(name)
+
+    monkeypatch.setattr(vm_pool, 'reservation', reserve)
+    cases = ['before-1', 'before-2', 'failed', *[f'triage-{i}' for i in range(3)],
+             *[f'next-{i}' for i in range(10)]]
+    work = [dict(category='system', options=[], cases=[case], case=case, area=False) for case in cases]
+    monkeypatch.setattr(vm_test_queue, 'repair_case_inventory', lambda *args, **kwargs: cases)
+    plan = ({'concurrency': 2}, vms, [], ['system'], [('system', [])], {'family': work})
+    assessed, repairing, five, ten = (threading.Event() for _ in range(4))
+    triage_started, triage_passed = threading.Event(), threading.Event()
+    during_triage = []
+    ordinary, counts = [], []
+    reloaded = False
+
+    def execute(worker, assignment, inherited, recovering):
+        assert not recovering and not worker.interrupt.is_set()
+        case = assignment.get('execution', assignment['work'])['case']
+        bounded = test_source.WRITER in test_source.environment()
+        if bounded:
+            assert case == 'failed' and repairing.is_set()
+            assert five.is_set()
+            assert ten.wait(5), 'companions stopped admitting during verification'
+        elif case == 'failed':
+            return dict(status=1, handoffs=[], evidence=dict(
+                assignment, passed=[], failed=[case], cleanup=True, diagnostic=False))
+        elif case.startswith('triage-'):
+            assert triage_started.wait(5)
+            assert not assessed.is_set(), 'admission waited for the triage result'
+            during_triage.append(case)
+            if len(during_triage) == 3:
+                triage_passed.set()
+        elif case.startswith('next-'):
+            assert assessed.wait(5) and repairing.wait(5)
+            ordinary.append(case)
+            if len(ordinary) >= 5:
+                five.set()
+            if len(ordinary) == 10:
+                ten.set()
+        return dict(status=0, handoffs=[], evidence=dict(
+            assignment, passed=[case], cleanup=True, diagnostic=False))
+
+    def triage(ticket, result):
+        triage_started.set()
+        assert triage_passed.wait(5), 'companions stopped admitting during triage'
+        assessed.set()
+        return dict(source=source, evidence_digest='b' * 64, decision=dict(
+            impact='no', reason='Private failed case.', scope=['failed'],
+            evidence=['Companion inputs are independent.'], classification='test_issue'))
+
+    def repair(ticket, execution):
+        nonlocal reloaded
+        gate = test_source.RepairGate(tmp_path, root=tmp_path)
+        assert gate.try_acquire(), 'detached companions retained a live checkout reader'
+        retaining = False
+        try:
+            repairing.set()
+            assert five.wait(5), 'companions stopped admitting during repair'
+            if reload_after_edit and not reloaded:
+                retaining = reloaded = True
+                with protection.state():
+                    protection.finish(gate.owner, changed=True, unfinished=True)
+                raise launcher_reload.ReloadRequested()
+            value = execution.attempt('verification')
+            assert value['accepted']
+            return dict(outcome='resolved', attempt=value['reference'],
+                        repair_ref=str(tmp_path / 'closed'), source_changed=True)
+        finally:
+            gate.release(unfinished=retaining)
+
+    actions = dict(triage=triage, repair=repair,
+                   progress=lambda value: counts.append(value['families']['family']['system']['completed']))
+    if reload_after_edit:
+        with pytest.raises(launcher_reload.ReloadRequested):
+            vm_test_queue.execute_pass(tmp_path, plan, Control(), execute, sources=sources, actions=actions)
+        assert protection.owner() == str(tmp_path)
+        # Fresh imports retain the writer/capture and journal, not the old
+        # process's remembered source generation or in-memory impact map.
+        monkeypatch.setattr(test_source, '_generations', {})
+        resumed = list(plan)
+        resumed[3] = ['--resume', 'system']
+        plan = tuple(resumed)
+    result = vm_test_queue.execute_pass(tmp_path, plan, Control(), execute, sources=sources, actions=actions)
+    assert result['status'] == 0 and not result['pending_repairs'] and not result['unfinished']
+    assert len(ordinary) == len(set(ordinary)) == 10
+    assert len(during_triage) == len(set(during_triage)) == 3
+    assert counts == sorted(counts) and counts[-1] == 2 + 3 + 5 + 5 + 1
+    with PassCheckpoint.saved(tmp_path) as saved:
+        assert saved.passed('family', 'system') == set(cases)
+    assert not held and protection.owner() is None and not protection.impact_holds()
+    resumed = list(plan)
+    resumed[3] = ['--resume', 'system']
+    assert vm_test_queue.execute_pass(tmp_path, tuple(resumed), Control(),
+        lambda *args: pytest.fail('resume repeated a completed case'), sources=sources)['status'] == 0
 
 
 def test_snapshot_prerequisite_pause_resumes_same_pass_without_repair_or_task_charge(

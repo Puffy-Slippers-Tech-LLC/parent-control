@@ -295,6 +295,32 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
     assert not state.held
 
 
+def test_executor_reconciles_joined_receipts_when_service_requests_reload(executor_pool):
+    import launcher_reload
+    import vm_queue
+
+    state = executor_pool
+    started, finish = threading.Event(), threading.Event()
+    completed = []
+
+    def execute(worker):
+        started.set()
+        assert finish.wait(5)
+        return dict(status=0, handoffs=['joined receipt'])
+
+    def service(controller, drained):
+        if started.is_set():
+            finish.set()
+            raise launcher_reload.ReloadRequested()
+
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        with pytest.raises(launcher_reload.ReloadRequested):
+            executor.run_ready(execute, choose=lambda ready, active: ready[0], needed=lambda vm: True,
+                service=service, completed=lambda vm, result: completed.append(result))
+    assert completed == [dict(status=0, handoffs=['joined receipt'])]
+    assert not state.held and executor._active == 0
+
+
 def test_executor_ready_busy_vm_has_no_source_and_late_checkin_cannot_pass(executor_pool, monkeypatch):
     import test_source
     import vm_queue

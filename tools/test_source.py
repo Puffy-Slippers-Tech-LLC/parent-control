@@ -402,6 +402,13 @@ class RepairGate:
     @contextmanager
     def reload_source(self, *, root=None):
         """Retain the same source identity while replacing the interpreter."""
+        if self.fd is None:
+            # Reload only bootstraps the controller. Normal admission would
+            # wait on the very impact tickets that controller must process.
+            with startup(root or self.root, ['--resume'], repair=True, fresh=True,
+                         stopped=lambda: self.stopped() or (self.run / 'cancel').exists()):
+                yield int(environment()[VARIABLE])
+            return
         with self.source(reloading=True) as source:
             yield self.fd if self.fd is not None else source
 
@@ -583,7 +590,7 @@ def protected(function):
 
 
 @contextmanager
-def startup(root, argv, *, repair=False, wait=True, fresh=False):
+def startup(root, argv, *, repair=False, wait=True, fresh=False, stopped=lambda: False):
     """Control/recovery stays available while fresh execution imports fence."""
     controls = ('--help', '-h', '--list', '--stop', '--reset', '--reload')
     if any(flag in argv for flag in controls):
@@ -607,6 +614,9 @@ def startup(root, argv, *, repair=False, wait=True, fresh=False):
             # the previous writer may finish while this process waits.
             with _lock(protection.directory / 'repair-owner') as fd:
                 while True:
+                    if stopped():
+                        from detached_launcher import Stopped
+                        raise Stopped()
                     with protection.state():
                         owner = protection.owner()
                         try:
@@ -625,7 +635,7 @@ def startup(root, argv, *, repair=False, wait=True, fresh=False):
                 finally:
                     forget(fd)
             return
-        with reader(root, wait=wait, fresh=fresh):
+        with reader(root, wait=wait, fresh=fresh, stopped=stopped):
             yield
     finally:
         for name, value in previous.items():

@@ -743,6 +743,9 @@ digest to the controller's recorded completion commit. Resume settles that
 ticket without repeating its accepted verification.
 If diagnostic storage fails, the traceback and storage failure remain in the
 launcher output, and the original execution verdict is preserved.
+Suspended repair settlement records its unfinished ticket without requesting a
+source reader or releasing its writer fence and impact hold. Finished settlement
+still requires reader admission and final qualification checks.
 [`test_source.py`](../tools/test_source.py) owns checkout admission holds,
 reader/writer leases, durable fences and source generation; it owns no case FIFO
 or completion ledger. Workers and propagation resolvers retain source descriptors

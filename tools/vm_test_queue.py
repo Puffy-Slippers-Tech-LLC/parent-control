@@ -269,7 +269,26 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     and not (repair_mode and any(ticket['family'] == family and ticket['work'] == work
                         and ticket.get('outcome') != 'resolved'
                         for ticket in checkpoint.state.get('repairs', [])))]
+        def requeue_interruptions(executor=None):
+            if 'retry_interrupted' not in actions:
+                return
+            def ready(ticket):
+                if not actions['retry_interrupted'](ticket) or protection.owner() is not None:
+                    return False
+                # A crash must retain a recoverable ticket, not an orphan hold.
+                release(ticket)
+                return True
+            for ticket in checkpoint.repair_tickets():
+                if checkpoint.requeue_interruption(ticket['id'], ready=ready):
+                    if (executor is not None and ticket['vm'] in reserved_tickets
+                            and not any(other['vm'] == ticket['vm'] for other in checkpoint.repair_tickets())):
+                        executor.release(ticket['vm'])
+                        reserved_tickets.discard(ticket['vm'])
+                    print(f"Returning interrupted case to normal scheduling: {ticket['vm']} {ticket['case']}",
+                          flush=True)
+
         if repair_mode:
+            requeue_interruptions()
             for ticket in checkpoint.repair_tickets():
                 hold(ticket, 'untriaged')
                 prior = _repair_impact(ticket)
@@ -737,6 +756,8 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                         # The durable prerequisite mailbox now owns recovery;
                         # retain this ticket/writer without spending more turns.
                 return
+            if future is None and drained:
+                requeue_interruptions(executor)
             for queued in checkpoint.repair_tickets() if future is None else []:
                 ticket = queued
                 if ticket['vm'] and ticket['vm'] not in reserved_tickets:

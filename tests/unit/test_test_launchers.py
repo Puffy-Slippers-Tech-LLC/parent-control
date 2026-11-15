@@ -287,7 +287,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
     selection = AgentSelection('codex', tmp_path)
     dependency = tmp_path / 'validation-input.py'
     dependency.write_text('original')
-    control = SimpleNamespace(run=run, order=[], turns=[], ticket=None,
+    control = SimpleNamespace(run=run, order=[], turns=[], prompts=[], ticket=None,
         response=dict(status='test_fixed', summary='Corrected the private input.',
                       stage_paths=[dependency.name], verification_case='exact', blocker=None))
     def snapshot(_):
@@ -320,6 +320,7 @@ def _controlled_public_repair(tmp_path, monkeypatch, isolated_source):
         def __init__(self, command, **kwargs):
             assert 'agent' in command
             order.append('repair')
+            control.prompts.append((run / 'prompt.txt').read_text())
             control.turns.append(dict(json.loads(command[-1]), effort=command[-2]))
             assert len(control.turns) <= getattr(control, 'turn_limit', 20), 'unbounded response recovery'
             if getattr(control, 'responses', None):
@@ -362,12 +363,19 @@ def test_public_repair_composes_triage_verification_and_closeout(
     control = _controlled_public_repair
     run, order, ticket = control.run, control.order, control.ticket
     fixed = dict(control.response)
+    blocked = dict(fixed, status='blocked', summary='Confirm this private case decision.',
+        blocker=dict(explanation='The private test needs its scoped developer answer.',
+                     question='Confirm the current case decision?', options=['Proceed', 'Leave failed']))
+    def answer(root, question, *args, **kwargs):
+        assert question == blocked['blocker']
+        return dict(question=question['question'], answer='CURRENT_CASE_DECISION')
+    monkeypatch.setattr(fix_tests, 'wait_for_answer', answer)
     diagnostic = dict(fixed, status='diagnostic_ready', summary='Observe the failing operation.')
     next_issue = dict(fixed, status='new_issue', next_issue=dict(attempt=f'{4:032x}',
         passed_point='Original assertion', observation='Latest attempt reached the later assertion.',
         failure='The later assertion now fails; preserve its expected behavior.'))
     control.edit_each_turn = True
-    control.responses = [diagnostic,
+    control.responses = [blocked, diagnostic,
         dict(diagnostic, diagnostic_assessment='inconclusive'),
         dict(fixed, diagnostic_assessment='inconclusive'), fixed,
         next_issue, next_issue, fixed]
@@ -432,16 +440,20 @@ def test_public_repair_composes_triage_verification_and_closeout(
         pytest.fail('repair did not finish across source reloads')
     assert attempts == ['diagnostic', 'diagnostic', 'verification', 'verification', 'verification']
     assert order[-1] == 'closeout' and order.count('closeout') == 1
-    assert order.count('repair') == 7
+    assert order.count('repair') == 8
+    assert 'CURRENT_CASE_DECISION' in control.prompts[1]
+    assert 'CURRENT_CASE_DECISION' not in control.prompts[-2]
+    assert 'CURRENT_CASE_DECISION' not in control.prompts[-1]
     # The escalation following two observations survives replay of the older,
     # lower-tier response after its source edit reloads the controller.
-    assert control.turns[3]['effort'] == 'high'
-    assert len({turn['conversation_key'] for turn in control.turns[:5]}) == 1
-    assert control.turns[5]['conversation_key'] != control.turns[4]['conversation_key']
-    assert control.turns[6]['conversation_key'] == control.turns[5]['conversation_key']
-    assert [turn['repair_session'] for turn in control.turns] == [1, 1, 1, 1, 1, 2, 2]
+    assert control.turns[4]['effort'] == 'high'
+    assert len({turn['conversation_key'] for turn in control.turns[:6]}) == 1
+    assert control.turns[6]['conversation_key'] != control.turns[5]['conversation_key']
+    assert control.turns[7]['conversation_key'] == control.turns[6]['conversation_key']
+    assert [turn['repair_session'] for turn in control.turns] == [1, 1, 1, 1, 1, 1, 2, 2]
     saved = control.saved()
     assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
+    assert 'answers' not in saved['controller_restart']['runtime']
     assert TaskBudget(run).read()['completed'] == 1
 
     # Git completion and coordinator settlement are separate transactions.
@@ -1315,6 +1327,7 @@ def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isola
     from concurrent.futures import ThreadPoolExecutor
     import threading
     import test_source
+    import detached_launcher
     from test_storage import scratch_descriptors
     from watch_recording_worker import shared_owner_descriptors
 
@@ -1324,6 +1337,14 @@ def test_checkout_source_forwards_only_the_calling_workers_lease(tmp_path, isola
             overlap.wait()
             assert test_source.descriptors() == (descriptor,)
             assert test_source.environment() == {test_source.VARIABLE: str(descriptor)}
+            command_env = detached_launcher.agent_environment(dict(
+                test_source.environment(), ONPC_TEST_SOURCE_WRITER='repair-owner',
+                ONPC_TEST_SOURCE_IMPORT_FD=str(descriptor), ONPC_REPAIR_STARTUP_FD=str(descriptor),
+                ONPC_REPAIR_WRITER_FD=str(descriptor), PATH='/native/bin'))
+            # Native execution may close all inherited FDs. No source authority
+            # label survives, while the real caller still owns its held lease.
+            assert command_env == {'PATH': '/native/bin'}
+            isolated_source.validate(descriptor, held=True)
             assert set(shared_owner_descriptors()) == set(scratch_descriptors()) - {descriptor}
             overlap.wait()
             return descriptor

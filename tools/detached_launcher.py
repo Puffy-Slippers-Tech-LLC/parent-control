@@ -262,6 +262,14 @@ def agent_command(root, model, effort, run=None, *, schema=None, permissions='wo
         selection=selection, logical_tier=logical_tier), environment())
 
 
+def agent_environment(environment):
+    # Native command tools close inherited descriptors. The supervisor retains
+    # the leases; command processes must not advertise unusable source handles.
+    from test_source import VARIABLE, WRITER, IMPORTS, STARTUP_READER, STARTUP_WRITER
+    return {name: value for name, value in environment.items()
+            if name not in (VARIABLE, WRITER, IMPORTS, STARTUP_READER, STARTUP_WRITER)}
+
+
 def descriptive_output(run):
     """Publish a bounded copy of this session's prose in its owned allocation."""
     from launcher_progress import read_progress
@@ -467,6 +475,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     child_env = dict(command.environment) if kind == 'agent' else environment()
     from test_source import environment as source_environment
     child_env.update(source_environment())
+    if kind == 'agent':
+        child_env = agent_environment(child_env)
     if nested:
         child_env[WORKFLOW_DIRECTORY] = str(run)
     if kind != 'agent':

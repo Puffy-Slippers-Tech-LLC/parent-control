@@ -47,11 +47,7 @@
   "launchers": [
     {
       "name": "fix-tests",
-      "default_branch": "main"
-    },
-    {
-      "name": "run-tests",
-      "default_branch": "main"
+      "default_branch": "test"
     }
   ],
   "families": [

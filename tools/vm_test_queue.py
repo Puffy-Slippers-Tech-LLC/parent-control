@@ -695,8 +695,16 @@ def execute_pass(root, plan, control, execute, *, host=None, actions=None,
                     status = 2
                     value = dict(value if isinstance(value, dict) else {})
                     value.update(error=error, output_tail=(value.get('output_tail', '') + '\n' + error)[-16000:])
+                observed = (isinstance(evidence, dict) and status not in (130, None)
+                    and evidence.get('cleanup') is True and evidence.get('interrupted') is not True
+                    and all(evidence.get(key) == expected for key, expected in assignment.items())
+                    and reference['source'] == source_identity(root)
+                    and (work['case'] is None or any(
+                        isinstance(evidence.get(key), list) and work['case'] in evidence[key]
+                        for key in ('passed', 'failed'))))
                 return dict(value if isinstance(value, dict) else {}, status=status,
-                            accepted=accepted_reference['accepted'], reference=accepted_reference)
+                            accepted=accepted_reference['accepted'], reference=accepted_reference,
+                            observed=observed)
 
         def service(executor, drained):
             nonlocal repaired_source_changed, suspended, limited, active_repair, active_triage
@@ -1264,6 +1272,7 @@ def _execute_group(root, plan, *, reloading=False, actions=None, pass_identity=N
             if assignment is not None:
                 work = assignment['execution']
                 result['evidence'] = dict(assignment, passed=sorted(saved.passed(work['category']) & set(work['cases'])),
+                    failed=getattr(saved, 'queue_failures', []),
                     cleanup=bool(getattr(saved, 'queue_finalized', False)),
                     diagnostic=assignment['source'] != source_identity(root))
             elif status:
@@ -1399,12 +1408,18 @@ def _execute_group(root, plan, *, reloading=False, actions=None, pass_identity=N
                         handoff = dict(received['failure'])
                         path = directory / (vm.name + '-remote-' + attempt + '-' + str(index) + '.json')
                         context = received.get('context')
+                        if received.get('context_error'):
+                            handoff['evidence_error'] = dict(host=received['host'],
+                                                            error=received['context_error'])
                         prefix = ('This failure ran on VM host ' + received['host'] +
                                   '; original artifact paths below belong to that host. ')
                         if context is not None:
                             context_path = path.with_name(path.stem + '-context.json')
                             context_path.write_text(json.dumps(context))
                             context_path.chmod(0o600)
+                            handoff['evidence_context'] = dict(file=context_path.name,
+                                host=received['host'], vm=vm.name, attempt=attempt,
+                                source=assignment['source'])
                             prefix += 'Read the retained bounded failure context at ' + str(context_path) + '. '
                         handoff['prompt'] = prefix + '\n' + handoff['prompt']
                         path.write_text(json.dumps(handoff))

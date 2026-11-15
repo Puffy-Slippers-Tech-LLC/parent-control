@@ -1,4 +1,4 @@
-"""Scripted test orchestration. Each repair is a fresh Codex process and thread.
+"""Scripted test orchestration. Each unresolved issue keeps one agent thread.
 
 Only the worker owns loop state. Observers may disappear at any time. A small
 subprocess supervisor retains the owner lock and watches its parent's pipe, so
@@ -243,12 +243,12 @@ def impact_prompt(context):
         + json.dumps(context, sort_keys=True, ensure_ascii=True) + '\n')
 
 
-def triage_failure(root, run, ticket, result, *, session, charge):
+def triage_failure(root, run, ticket, result, *, session):
     """Judge one failure under the coordinator's protected source lease.
 
     The coordinator owns tickets, holds and decision persistence. This action
     owns only bounded diagnostic context and the supervised read-only session.
-    ``charge`` durably spends the existing case allowance before agent launch.
+    Impact classification is scheduling work, outside the repair allowance.
     """
     from plan_evidence import _read
     from repair_evidence import capture, read_failure
@@ -281,15 +281,19 @@ def triage_failure(root, run, ticket, result, *, session, charge):
         handoffs = result.get('handoffs', [])
         if isinstance(handoffs, list) and handoffs and isinstance(handoffs[0], str):
             try:
-                failure = read_failure(handoffs[0])
-                if not isinstance(failure, dict):
+                loaded = read_failure(handoffs[0])
+                if not isinstance(loaded, dict):
                     raise ValueError('invalid failure context')
+                failure = loaded
                 destination = run / ('failure-evidence-' + identity + '.json')
                 capture(root, destination, handoffs[0], str(result.get('output_tail', '')))
                 evidence = json.loads(_read(destination))
+                atomic(destination, dict(evidence, ticket=identity, attempt=ticket['attempt'],
+                                         source=ticket['source'], vm=ticket['vm']))
             except (OSError, ValueError, subprocess.SubprocessError) as error:
-                failure = dict(prompt='Failure context could not be read.',
-                               actual=type(error).__name__)
+                evidence = dict(output_tail=str(result.get('output_tail', ''))[-16000:],
+                    read_failures=[dict(source=handoffs[0], error=type(error).__name__,
+                                        detail=str(error)[:2000])])
         elif isinstance(result.get('error'), str):
             failure['actual'] = result['error']
         context, _ = impact_context(ticket, failure, evidence=evidence)
@@ -312,15 +316,14 @@ def triage_failure(root, run, ticket, result, *, session, charge):
 
     unsure = dict(impact='unsure', reason='Impact triage did not return a valid current decision.',
                   scope=[], evidence=[], classification='uncertain')
-    selection = resolve_selection(root)  # Refuse an unqualified adapter before charging.
+    selection = resolve_selection(root)
     command = impact_command(root, run, selection=selection)
     model, effort = command.request.model, command.request.effort
-    count = charge(ticket)
     (run / 'prompt.txt').write_text(impact_prompt(context), encoding='utf-8')
     (run / 'agent-result.json').write_text('')
     metadata = dict(repair_id=ticket['transaction'], attempt=ticket['attempt'],
                     failure=dict(category=ticket['work']['category'], case=ticket['case'] or '', vm=ticket['vm']),
-                    repair_session=count, session_id=uuid.uuid4().hex)
+                    repair_session=0, session_id=uuid.uuid4().hex)
     status = session('impact-triage', 'impact triage', metadata,
                      agent_model=model, agent_effort=effort)
     if status:
@@ -401,6 +404,18 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'When useful evidence is missing, bounded instrumentation is allowed before a '
             'proven fix: return diagnostic_ready with hypothesis, changed paths, expected '
             'observations, evidence location and interpretation. A diagnostic pass is not a fix. '
+            'The launcher returns diagnostic and failed verification results to this same '
+            'conversation. Continue diagnosing and correcting the same unresolved cause here. '
+            'If a corrective fix demonstrably passed the earlier failure point and a distinct '
+            'issue appeared, return new_issue with next_issue: attempt (the latest verification '
+            'attempt ID), passed_point, observation (concrete evidence of passage, with artifact '
+            'location), and failure (a self-contained description of the new issue and expected '
+            'behavior). A changed error string, an earlier preparation failure or missing '
+            'evidence does not establish passage. This starts fresh context, never grants a pass. '
+            'Otherwise next_issue is null. '
+            'After a diagnostic run, set diagnostic_assessment to progress, inconclusive, '
+            'or unavailable (the question was not observed, including access/preparation '
+            'failure); otherwise null. Explain what was learned or ruled out in summary. '
             'Use stalled only when no useful authorized next step remains.\n'
             'Reserve blocked for a developer decision, missing authority or a prerequisite '
             'unrepairable through authorized routes. Uncertain preparation diagnosis alone is '
@@ -411,7 +426,8 @@ def repair_prompt(prompt, *, app_issue=None, developer_answers=(), blocker_summa
             'question (max 240 characters), and 2–3 distinct actionable options (max 300 each), '
             'recommended first. Explain the practical problem, why you cannot resolve it and '
             'who must do what. Keep technical details in summary. Otherwise blocker is null.\n'
-            'Return the required JSON: status, summary, stage_paths, verification_case, blocker. '
+            'Return the required JSON: status, summary, stage_paths, verification_case, blocker, '
+            'next_issue, diagnostic_assessment. '
             'Summary must concisely cover cause, new evidence, changed paths, unresolved '
             'hypotheses and required verification. stage_paths lists only explicit checkout-relative '
             'files owned by this repair, including diagnostic edits/deletions; [] for no edits. '
@@ -428,22 +444,46 @@ def repair_observation(previous):
     from launcher_render import clean
     from regression_process import FRAME_PREFIX
     evidence = previous.get('evidence') or {}
+    location = previous.get('evidence_path')
+    if location:
+        from repair_evidence import read_failure
+        try:
+            snapshot = read_failure(location)
+            if not isinstance(snapshot, dict) or snapshot.get('reference') != evidence.get('reference'):
+                raise ValueError('snapshot belongs to another attempt')
+        except (OSError, ValueError) as error:
+            location = 'Unavailable: ' + type(error).__name__ + ': ' + str(error)[:1000]
     lines = [line for line in clean(evidence.get('output_tail', '')).splitlines()
              if line.strip() and not line.lstrip().startswith(
                  (FRAME_PREFIX, '├─', '└─', '│', 'Overall -'))]
     return ('\nLatest launcher execution: ' + json.dumps(dict(
-                status=evidence.get('status'), passed=previous.get('verification')))
+                status=evidence.get('status'), passed=previous.get('verification'),
+                reference=evidence.get('reference'), observed=evidence.get('observed'),
+                capture_error=evidence.get('capture_error')))
             + '\nNon-dashboard output excerpt (last 3000 characters):\n' + '\n'.join(lines)[-3000:]
-            + '\nEvidence: ' + str(previous.get('evidence_path') or evidence.get('reference'))
+            + '\nEvidence: ' + str(location or evidence.get('reference'))
             + '\nInterpret this outcome before proposing another correction.\n')
 
 
 def validate_result(result):
     if (not isinstance(result, dict)
-            or set(result) - {'status', 'summary', 'blocker', 'stage_paths', 'verification_case'}
-            or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain', 'stalled', 'diagnostic_ready')
+            or set(result) - {'status', 'summary', 'blocker', 'stage_paths', 'verification_case',
+                             'next_issue', 'diagnostic_assessment'}
+            or result.get('status') not in ('test_fixed', 'fixed', 'blocked', 'app_issue', 'uncertain', 'stalled', 'diagnostic_ready', 'new_issue')
             or not isinstance(result.get('summary'), str) or not result['summary'].strip()):
         raise ValueError('repair agent did not return a valid result object')
+    issue = result.get('next_issue')
+    if result['status'] == 'new_issue':
+        if (not isinstance(issue, dict)
+                or set(issue) != {'attempt', 'passed_point', 'observation', 'failure'}
+                or any(not isinstance(value, str) or not value.strip() or len(value) > 4000
+                       for value in issue.values())
+                or not re.fullmatch(r'[0-9a-f]{32}', issue['attempt'])):
+            raise ValueError('new_issue requires a bounded, attempt-bound passage observation')
+    elif issue is not None:
+        raise ValueError('only new_issue may replace the repair context')
+    if result.get('diagnostic_assessment') not in (None, 'progress', 'inconclusive', 'unavailable'):
+        raise ValueError('invalid diagnostic assessment')
     paths = result.get('stage_paths', [])
     if (not isinstance(paths, list) or any(
             not isinstance(path, str) or not path or '\x00' in path
@@ -768,6 +808,9 @@ def supervise(root, run, owner, kind, category, model, effort, test_args='[]'):
                         effort=command.request.effort, speed='standard', agent=command.adapter.name,
                         logical_tier=command.request.logical_tier)
         metadata.setdefault('session_id', uuid.uuid4().hex)
+        if kind != 'impact-triage' and metadata.get('conversation_key'):
+            command = command.revised(continuation_key=metadata['conversation_key'],
+                                      thread_id=metadata.get('thread_id'))
         reported = False
 
         def on_usage(usage):
@@ -891,6 +934,11 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.state.pop('session_limits', None)
     case_sessions = {tuple(json.loads(key)): value for key, value in
                      (commits.state.get('session_counts', {}) if reloading or same_run else {}).items()}
+    # Old counts charged triage and every diagnostic turn. They are not counts
+    # of issue conversations and cannot consume the new allowance.
+    if commits.state.get('session_policy') != 'issue-conversations':
+        case_sessions.clear()
+        commits.state['session_policy'] = 'issue-conversations'
     case_results = {tuple(json.loads(key)): value for key, value in runtime.get('results', {}).items()}
     case_tiers = {tuple(json.loads(key)): tuple(value) for key, value in runtime.get('tiers', {}).items()}
     developer_answers = runtime.get('answers', [])
@@ -998,28 +1046,22 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.state['writer_inputs'] = current
         commits.save()
 
-    def charge(ticket):
-        target = (ticket['work']['category'], ticket['case'] or '', ticket['vm'])
-        key = commits.key(target)
-        count = case_sessions.get(target, 0)
-        limit = allowance.publish(key, count, commits.state.get('session_limits', {}).get(key, MAX_REPAIR_SESSIONS))
-        if count >= limit:
-            raise ValueError('impact triage session allowance exhausted; repair intervention is required')
-        case_sessions[target] = count + 1
-        commits.state['session_counts'] = {commits.key(item): value for item, value in case_sessions.items()}
-        commits.state['agent_selection'] = resolve_selection(root).record()
-        commits.save()
-        return count + 1
-
     def triage(ticket, result):
         progress(ticket['work']['category'], 'Checking failure impact')
-        return triage_failure(root, run, ticket, result, session=execute, charge=charge)
+        commits.state['agent_selection'] = resolve_selection(root).record()
+        commits.save()
+        return triage_failure(root, run, ticket, result, session=execute)
 
     def repair_owned(prompt, *, failure_key, previous=None):
         nonlocal verifying_fix, restart_continuation, repair_context
         new_repair = commits.key(failure_key) not in commits.state['repairs']
         commits.begin(failure_key, inventory[failure_key[0]]['args'])
         entry = commits.state['repairs'][commits.key(failure_key)]
+        if entry.get('conversation') is not None:
+            case_sessions[failure_key] = max(case_sessions.get(failure_key, 0),
+                                             entry['conversation']['number'])
+        if entry.get('issue_prompt'):
+            prompt = entry['issue_prompt']
         if new_repair:
             entry['session_start'] = case_sessions.get(failure_key, 0)
             commits.save()
@@ -1207,7 +1249,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 repair_id, attempt = metadata['repair_id'], metadata['attempt']
                 phase = replay['phase']
                 classification = replay['classification']
-                case_tiers[failure_key] = (replay['model'], replay['effort'])
+                # A response may already have raised the next turn's tier
+                # before its edits required this reload. Replay cannot undo it.
+                case_tiers.setdefault(failure_key, (replay['model'], replay['effort']))
                 progress(category, 'validating retained response', model=replay['model'], effort=replay['effort'])
                 replay = None  # Validation itself spends no model session.
             else:
@@ -1217,8 +1261,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 pull_at_boundary(root, run, commits.state)
                 publish_source()
                 check_controller()
-                check_budget()
-                sessions = case_sessions.get(failure_key, 0) + 1
+                continuing = entry.get('conversation') is not None
+                if not continuing:
+                    check_budget()
+                    sessions = case_sessions.get(failure_key, 0) + 1
+                    entry['conversation'] = dict(key=uuid.uuid4().hex, number=sessions)
+                else:
+                    sessions = entry['conversation']['number']
                 session_limit = case_limit()
                 agent_model, agent_effort = case_tiers.setdefault(failure_key, initial)
                 selection = resolve_selection(root)
@@ -1232,22 +1281,35 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 phase = 'repair review' if classification else 'classify and repair'
                 print(f'\nfix-tests: {phase} ({agent_model}, {agent_effort}); '
                       f'case session {sessions}/{session_limit}', flush=True)
-                (run / 'prompt.txt').write_text(
-                    repair_prompt(prompt + f'\nThis is case session {sessions}/{session_limit}; '
-                                  f'{session_limit - sessions} further agent sessions remain. '
-                                  'A diagnostic execution after the last session can retain evidence, '
-                                  'but cannot start another interpretation session in this run.\n',
+                if continuing and entry['conversation'].get('turns', 0):
+                    turn_prompt = ('Continue this same unresolved issue. Diagnostics, unsuccessful fixes, '
+                                'and their interpretation stay in this conversation.\n'
+                                + repair_observation(commits.state.get('repair_actions', {}).get(
+                                    current_ticket['id'], {}))
+                                + '\nCurrent assessment: ' + classification
+                                + '\nDeveloper answers: ' + json.dumps(developer_answers[-1:])
+                                + ('\nTwo completed experiments were inconclusive. Reassess the '
+                                   'competing explanations and choose a discriminating experiment '
+                                   'before adding more instrumentation.' if entry.get('reassessment_due') else '')
+                                + '\n' + (blocker_summary or ''))
+                else:
+                    turn_prompt = repair_prompt(prompt + f'\nThis is case conversation {sessions}/{session_limit}. '
+                                  'Further diagnostic and repair turns for this issue do not spend '
+                                  'another session. Return stalled when no useful authorized step remains.\n',
                                   app_issue=classification, developer_answers=developer_answers,
                                   blocker_summary=blocker_summary,
                                   has_case=bool(target['case'] or entry.get('attempted_case')))
-                    + result_recovery_instructions(result_recovery), encoding='utf-8')
+                (run / 'prompt.txt').write_text(turn_prompt
+                    + result_recovery_instructions(result_recovery, allowance=None), encoding='utf-8')
                 # An agent crash cannot reuse an earlier reply.
                 (run / 'agent-result.json').write_text('')
                 case_sessions[failure_key] = sessions
                 case_limit()
                 metadata = dict(repair_id=repair_id, attempt=attempt, round=round_number,
                                 repair_session=sessions, failure=target,
-                                session_id=uuid.uuid4().hex)
+                                session_id=entry['conversation']['key'],
+                                conversation_key=entry['conversation']['key'],
+                                thread_id=entry['conversation'].get('thread_id'), turn_id=uuid.uuid4().hex)
                 commits.state['session_counts'] = {
                     commits.key(key): value for key, value in case_sessions.items()}
                 commits.state['agent_selection'] = selection.record()
@@ -1256,6 +1318,16 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 before = worktree_snapshot(root)
                 status = execute('agent', phase, metadata,
                                  agent_model=agent_model, agent_effort=agent_effort)
+                from repair_evidence import read_failure
+                try:
+                    conversation = read_failure(run / 'agent-thread.json')
+                except FileNotFoundError:
+                    conversation = {}
+                if conversation.get('key') == entry['conversation']['key']:
+                    entry['conversation']['thread_id'] = conversation['thread_id']
+                if status == 0 or entry['conversation'].get('thread_id'):
+                    entry['conversation']['turns'] = entry['conversation'].get('turns', 0) + 1
+                entry.pop('reassessment_due', None)
                 commits.capture_session(failure_key, before, selection=selection)
                 if status == 0:
                     from plan_evidence import _read
@@ -1281,13 +1353,30 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 result = read_session_result(run)
                 def validate(value):
                     validate_result(value)
+                    if value['status'] == 'new_issue':
+                        observed = commits.state.get('repair_actions', {}).get(current_ticket['id'], {})
+                        evidence = observed.get('evidence') or {}
+                        reference = evidence.get('reference') or {}
+                        if (observed.get('status') not in ('fixed', 'test_fixed')
+                                or observed.get('verification') is not False
+                                or evidence.get('observed') is not True
+                                or evidence.get('status') in (None, 0, 130)
+                                or reference.get('purpose') != 'verification'
+                                or value['next_issue']['attempt'] != reference.get('attempt')):
+                            raise ValueError('new_issue must refer to the latest unsuccessful fix verification')
                     commits.validate_paths(failure_key, value)
                 validate_session_result(result, validate)
             except SessionResultRejected as error:
+                repeated = result_recovery is not None
                 result_recovery = retain_result_rejection(run, error, label='fix-tests')
                 check_controller()
                 entry.pop('pending_response', None)
                 commits.save()
+                # Give one corrective turn, then use the existing finite tier
+                # ladder. Malformed handoffs cannot create an unlimited loop
+                # now that continuation turns spend no new conversation slot.
+                if repeated and not escalate('repeated_response_rejection'):
+                    fail_case('repair response repeatedly rejected: ' + str(error))
                 continue
             result_recovery = None
             commits.record(failure_key, result)
@@ -1295,20 +1384,54 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             entry.pop('pending_response', None)
             commits.save()
             case_results[failure_key] = result
+            observed = commits.state.get('repair_actions', {}).get(current_ticket['id'], {})
+            observed_attempt = (observed.get('evidence', {}).get('reference') or {}).get('attempt')
+            if (observed.get('status') == 'diagnostic_ready' and observed_attempt
+                    and entry.get('assessed_diagnostic') != observed_attempt):
+                entry['assessed_diagnostic'] = observed_attempt
+                if (observed.get('evidence', {}).get('observed') is True
+                        and result.get('diagnostic_assessment') == 'inconclusive'):
+                    entry['inconclusive_diagnostics'] = entry.get('inconclusive_diagnostics', 0) + 1
+                elif result.get('diagnostic_assessment') == 'progress':
+                    entry['inconclusive_diagnostics'] = 0
+                if entry.get('inconclusive_diagnostics', 0) >= 2:
+                    escalate('two_observed_inconclusive_diagnostics')
+                    entry['inconclusive_diagnostics'] = 0
+                    entry['reassessment_due'] = True
+                commits.save()
             record_usage(run, dict(metadata, phase=phase, result=result['status']),
                          event='result_replay' if replaying else 'result')
             if result['status'] == 'blocked':
-                if check_budget():
-                    continue
                 answer_blocker(result, metadata, uuid.uuid4().hex)
+                continue
+            if result['status'] == 'new_issue':
+                issue = result['next_issue']
+                # A context boundary has no completion or Git authority. Keep
+                # all owned edits and the exact pending verification target.
+                prompt = ('Repair this newly exposed issue within the original selection:\n'
+                          + issue['failure'] + '\nPrevious failure point passed: '
+                          + issue['passed_point'] + '\nPassage observation: ' + issue['observation']
+                          + repair_observation(commits.state['repair_actions'][current_ticket['id']])
+                          + '\nOriginal selectors: ' + json.dumps(current_ticket['work'], sort_keys=True))
+                entry['issue_prompt'] = failure_prompt = prompt
+                entry.pop('conversation', None)
+                entry.pop('inconclusive_diagnostics', None)
+                entry.pop('validated_response', None)
+                # Consume the observation which opened this context. It cannot
+                # justify another reset until a new corrective attempt runs.
+                commits.state['repair_actions'].pop(current_ticket['id'], None)
+                classification = 'New issue; independently assess the current failure.'
+                initial = initial_model(model, effort or repair_tiers(category)[1][1], category=category)
+                case_tiers[failure_key] = initial
+                previous = None
+                repair_context = restart_continuation = None
+                retain_runtime()
                 continue
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
                 initial_classification = not classification and result['status'] != 'stalled'
                 classification = result['status'] + ': ' + result['summary']
                 raised = escalate(result['status'], classification_only=initial_classification)
                 if raised or initial_classification:
-                    continue
-                if check_budget():
                     continue
                 retain_stop('stalled')
                 fail_case('repair stalled: ' + result['summary'])
@@ -1435,7 +1558,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         # repair_owned, without repeating every prior attempt and its metadata.
         identity = {field: ticket[field] for field in ('id', 'case', 'vm', 'work')}
         prompt += ('\nOriginal failure ticket: ' + json.dumps(identity, sort_keys=True)
-                   + '\nBounded impact context: ' + str(run / ('impact-context-' + ticket['id'] + '.json')))
+                   + '\nBounded impact context: ' + str(run / ('impact-context-' + ticket['id'] + '.json'))
+                   + '\nRetained original failure details (prefer this over transient artifact paths): '
+                   + str(run / ('failure-evidence-' + ticket['id'] + '.json')))
         commits.state['queued_failure'] = dict(category=category, failure=failure)
         commits.save()
         progress(category, 'Repairing failed case')
@@ -1516,16 +1641,32 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             latest_attempt = value['reference']
             result['verification'] = bool(value['accepted']) if not diagnostic else None
             result['evidence'] = dict(status=value['status'], reference=value['reference'],
+                                      observed=value.get('observed', False),
                                       output_tail=value.get('output_tail', '')[-16000:])
+            # Capture while the execution still owns its artifacts, before any
+            # retry can rotate them. Retain original and latest separately.
+            from repair_evidence import capture
+            path = run / ('latest-evidence-' + ticket['id'] + '.json')
+            try:
+                handoffs = value.get('handoffs') or []
+                if handoffs:
+                    capture(root, path, handoffs[0], value.get('output_tail', ''))
+                    snapshot = read_failure(path)
+                else:
+                    snapshot = dict(schema_version=1, files=[], read_failures=[
+                        dict(error='attempt returned no failure handoff')],
+                        output_tail=value.get('output_tail', '')[-16000:])
+                atomic(path, dict(snapshot, reference=value['reference'], vm=ticket['vm'],
+                                 ticket=ticket['id'], status=value['status']))
+                result['evidence_path'] = str(path)
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                result['evidence']['capture_error'] = type(error).__name__ + ': ' + str(error)[:2000]
             event = 'diagnostic_execution' if diagnostic else 'verification'
             record_usage(run, dict(repair_id=result['repair_id'], attempt=result['attempt'],
                 failure=result['failure'], passed=None if diagnostic else value['accepted'],
                 outcome='passed' if value['accepted'] else 'unknown_or_not_executed',
                 evidence=result['evidence']), event=event)
             if diagnostic:
-                path = run / ('diagnostic-' + ticket['id'] + '.json')
-                atomic(path, result['evidence'])
-                result['evidence_path'] = str(path)
                 panel(dict(status='Diagnostic case passed; awaiting interpretation' if not value['status']
                            else 'Investigating'))
             elif value['accepted']:
@@ -1670,7 +1811,13 @@ def resume_failure_context(previous, run, values):
             return {key: rewrite(item) for key, item in value.items()}
         if isinstance(value, list):
             return [rewrite(item) for item in value]
-        return marker.sub(reference, value) if isinstance(value, str) else value
+        if isinstance(value, str):
+            value = marker.sub(reference, value)
+            # Rebind only the fixed diagnostic names copied by the resume owner.
+            return re.sub(re.escape(str(previous)) +
+                r'/((?:impact-context|failure-evidence|diagnostic|latest-evidence)-[0-9a-f]{32}\.json)',
+                lambda match: str(run / match[1]), value)
+        return value
 
     return rewrite(values), snapshots
 
@@ -1701,14 +1848,14 @@ def _select(root, *, stop=False, model=None, effort=None, categories=(), rounds=
         if previous is not None:
             guard_repair_scheduling_run(previous)
         if resume and previous is not None:
-            for filename in ('checkpoint.json', 'limits.json', 'snapshot-refresh.json'):
+            for filename in ('checkpoint.json', 'limits.json', 'snapshot-refresh.json', 'agent-thread.json'):
                 path = previous / filename
                 if path.exists():
                     retained[filename] = read_failure(path)
             # These are bounded current diagnostic inputs, not conversations or
             # historical proof. They bind accepted triage to the original ticket.
             for path in previous.iterdir():
-                if re.fullmatch(r'(?:impact-context|failure-evidence|diagnostic)-[0-9a-f]{32}\.json', path.name):
+                if re.fullmatch(r'(?:impact-context|failure-evidence|diagnostic|latest-evidence)-[0-9a-f]{32}\.json', path.name):
                     retained[path.name] = read_failure(path)
             state = retained.get('checkpoint.json', {})
             from fix_tests_git import RepairCommits

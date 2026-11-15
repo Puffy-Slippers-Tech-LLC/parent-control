@@ -53,6 +53,7 @@ def capture(root, destination, handoff_path, output):
     files, failures, seen = [], [], set()
     remaining = MAX_BYTES
     raw_directories = set()
+    remote_bindings = []
     privileged_refused = False
 
     def source(value):
@@ -100,7 +101,8 @@ def capture(root, destination, handoff_path, output):
                                     capture_output=True, timeout=20, check=False)
             if result.returncode:
                 privileged_refused = True
-                raise ValueError('artifact reader refused')
+                detail = result.stderr.decode('utf-8', errors='replace')[-1000:]
+                raise ValueError(f'artifact reader exited {result.returncode}: {detail}')
             if listing:
                 names = json.loads(result.stdout)
                 if not isinstance(names, list) or any(type(name) is not str for name in names):
@@ -111,13 +113,13 @@ def capture(root, destination, handoff_path, output):
     def save(path):
         nonlocal remaining
         path = source(path)
-        if path in seen or len(seen) >= MAX_FILES or remaining <= 0:
+        if path in seen or len(seen) >= MAX_FILES or len(files) >= MAX_FILES or remaining <= 0:
             return None
         seen.add(path)
         try:
             content = read(path)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-            failures.append({'source': str(path), 'error': type(error).__name__})
+            failures.append({'source': str(path), 'error': type(error).__name__, 'detail': str(error)[:2000]})
             return None
         encoded = content.encode('utf-8')
         limit = min(FILE_BYTES, remaining)
@@ -129,12 +131,39 @@ def capture(root, destination, handoff_path, output):
         return content
 
     def attempts(content):
+        def artifact(value):
+            try:
+                return source(value)
+            except ValueError as error:
+                failures.append(dict(source=str(value)[:2000], error=str(error)))
+                return None
+
         for line in content.splitlines():
+            if line.startswith('ssh-command-failure: '):
+                try:
+                    record = json.loads(line.removeprefix('ssh-command-failure: '))
+                    for field in ('stderr_artifact', 'stdout_artifact'):
+                        if isinstance(record.get(field), str):
+                            path = source(record[field])
+                            raw = path.parent.parent
+                            if (path.parent.name == 'private'
+                                    and raw.parent == storage / 'privileged/allocations'
+                                    and re.fullmatch(r'onpc-(?:system|graphical-smoke)-[A-Za-z0-9_-]+', raw.name)
+                                    and re.fullmatch(r'command-[0-9]+(?:-stderr)?\.txt', path.name)):
+                                raw_directories.add(raw)
+                                # Preserve the failed operation before generic
+                                # report, cleanup and product-log tails.
+                                save(path)
+                except (ValueError, TypeError, AttributeError) as error:
+                    failures.append(dict(source='ssh-command-failure', error=str(error)[:2000]))
+                    continue
             # System preparation can fail before any case result exists. Its
             # runner still finalizes this evidence marker after owned cleanup.
             match = re.fullmatch(r'check-system: \[evidence:(.+)\]', line)
             if match:
-                path = source(match[1])
+                path = artifact(match[1])
+                if path is None:
+                    continue
                 raw = path.parent
                 if (path.name == 'evidence'
                         and raw.parent == storage / 'privileged/allocations'
@@ -146,14 +175,18 @@ def capture(root, destination, handoff_path, output):
                 continue
             if not isinstance(value, dict):
                 continue
+            if isinstance(value.get('raw_directory'), str) and value.get('status') != 'passed':
+                path = artifact(value['raw_directory'])
+                if path is not None and path.parent == storage / 'privileged/allocations':
+                    raw_directories.add(path)
             records = value.get('attempts', [])
             if not isinstance(records, list):
                 continue
             for attempt in records:
                 if (isinstance(attempt, dict) and attempt.get('outcome') != 'passed'
                         and isinstance(attempt.get('raw_directory'), str)):
-                    path = source(attempt['raw_directory'])
-                    if path.parent == storage / 'privileged/allocations':
+                    path = artifact(attempt['raw_directory'])
+                    if path is not None and path.parent == storage / 'privileged/allocations':
                         raw_directories.add(path)
 
     try:
@@ -167,6 +200,55 @@ def capture(root, destination, handoff_path, output):
             continue
         reports.add(path.parent)
         save(path)
+        try:
+            handoff = read_failure(path)
+            binding = handoff.get('evidence_context')
+            remote = ('evidence_context' in handoff or 'evidence_error' in handoff
+                      or re.fullmatch(r'.+-remote-[0-9a-f]{32}-[0-9]+\.json', path.name))
+            if isinstance(handoff.get('evidence_error'), dict):
+                failures.append(dict(source=str(path), **handoff['evidence_error']))
+            if not remote:
+                if path == pending[0]:
+                    attempts(output)
+                for detail in handoff.get('error_details') or []:
+                    if isinstance(detail, dict) and isinstance(detail.get('detail'), str):
+                        attempts(detail['detail'])
+            # Typed sibling only: remote source labels are display text and
+            # must never become reads against the controller's filesystem.
+            if binding is not None:
+                expected = path.stem + '-context.json'
+                if (not isinstance(binding, dict) or binding.get('file') != expected
+                        or not isinstance(binding.get('host'), str)
+                        or not isinstance(binding.get('vm'), str)
+                        or not re.fullmatch(r'[0-9a-f]{32}', str(binding.get('attempt', '')))
+                        or not isinstance(binding.get('source'), dict)):
+                    raise ValueError('invalid remote evidence binding')
+                if not re.fullmatch(re.escape(binding['vm'] + '-remote-' + binding['attempt'])
+                                    + r'-[0-9]+\.json', path.name):
+                    raise ValueError('remote evidence belongs to another attempt')
+                snapshot = read_failure(source(path.with_name(expected)))
+                if not isinstance(snapshot, dict) or snapshot.get('schema_version') != 1:
+                    raise ValueError('invalid remote evidence context')
+                remote_bindings.append(binding)
+                for item in snapshot.get('files', [])[:MAX_FILES]:
+                    if (not isinstance(item, dict) or not isinstance(item.get('tail'), str)
+                            or not isinstance(item.get('source'), str)):
+                        raise ValueError('invalid remote evidence file')
+                    if len(files) >= MAX_FILES or remaining <= 0:
+                        break
+                    encoded = item['tail'].encode('utf-8')
+                    limit = min(FILE_BYTES, remaining)
+                    tail = encoded[-limit:].decode('utf-8', errors='ignore')
+                    remaining -= len(tail.encode('utf-8'))
+                    files.append(dict(source=item['source'], host=binding['host'], tail=tail,
+                        tail_limit_bytes=limit, may_be_truncated=item.get('may_be_truncated', True)
+                        or len(encoded) > limit))
+                failures.extend(dict(item, host=binding['host'])
+                    for item in snapshot.get('read_failures', [])[:MAX_FILES] if isinstance(item, dict))
+                if snapshot.get('limit_reached'):
+                    failures.append(dict(source=expected, error='remote context reached its size limit'))
+        except (OSError, ValueError, TypeError, AttributeError) as error:
+            failures.append(dict(source=str(path), error=type(error).__name__, detail=str(error)[:2000]))
         # Queue results link the per-VM handoffs; reports own category logs.
         try:
             names = read(path.parent, listing=True)
@@ -253,8 +335,10 @@ def capture(root, destination, handoff_path, output):
             failures.append({'source': str(private), 'error': type(error).__name__})
 
     atomic(destination, {'schema_version': 1, 'output_tail': output,
-                         'files': files, 'read_failures': failures,
+                         'files': files, 'read_failures': failures[:MAX_FILES],
+                         'omitted_read_failures': max(0, len(failures) - MAX_FILES),
+                         'remote_bindings': remote_bindings,
                          'bounded_tails': True,
-                         'limit_reached': remaining <= 0 or len(seen) >= MAX_FILES})
+                         'limit_reached': remaining <= 0 or len(files) >= MAX_FILES or len(seen) >= MAX_FILES})
     Path(destination).chmod(0o600)
     return str(destination)

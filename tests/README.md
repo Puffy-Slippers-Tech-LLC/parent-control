@@ -588,8 +588,8 @@ diagnostic execution still runs only once per diagnostic outcome.
 Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
 or with `--vm NAME` for one registered VM, to start or attach to the scripted
 repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
-arguments, until its selected work settles. After bounded impact triage, a fresh repair session receives
-that run's generated investigation prompt, applies a repair, exits, and the
+arguments, until its selected work settles. After bounded impact triage, a repair conversation receives
+that run's generated investigation prompt and returns a diagnostic or corrective change. The
 script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry that exact case
 under its original selectors and on its failing VM, retaining required lifecycle
 predecessors only. Repair and verification stop at that case; later lifecycle
@@ -869,17 +869,15 @@ equivalent native high effort; current workflow qualification remains required,
 and this mapping neither enables an unqualified adapter nor switches providers.
 Capacity recovery preserves that tier. Triage takes a source reader lease that
 its own admission hold cannot block; an active source writer still fences it.
-Its classification counts once against the existing per-case session allowance,
-including unit failures. Accepted retained triage costs no extra session on
-resume, and repair reuses that classification for the same evidence.
+Impact triage never consumes the per-case repair session allowance, including
+unit failures. Repair reuses its classification for the same evidence.
 Proven mechanical repairs retain **GPT-6.1 Sol Medium**, or
 **GPT-6.1 Sol Low** for unit failures.
 App issues, uncertainty and unresolved security, concurrency, ownership or
-difficult diagnosis end that session without edits and transfer to a fresh
-**GPT-6.1 Sol High** session to recheck and repair, or **GPT-6.1 Sol Medium**
+difficult diagnosis raise the next turn in the same conversation to
+**GPT-6.1 Sol High** to recheck and repair, or **GPT-6.1 Sol Medium**
 for unit failures. This raises reasoning effort
-at the judgment boundary without paying for an additional adviser and a second
-implementation context. Ordinary delegation stays disabled; the shared mandatory
+at the judgment boundary while preserving the investigation. Ordinary delegation stays disabled; the shared mandatory
 [backend review](../docs/Execution-Plans.md#execution-and-delegation) remains
 required only for core backend changes. The impact session supplies classification
 without a duplicate session for the same evidence.
@@ -891,15 +889,38 @@ ladder. Unit failures use a ladder one tier lower throughout:
 **GPT-6.1 Sol Low → Medium → High → xHigh**, stopping at xHigh.
 The runner-reported failure category selects the ladder, including unit failures
 within mixed selections, expanded aggregates and aggregate verification.
-The latest evidence and that case's previous repair summary accompany
-each fresh session. Selected tiers survive blocker answers and returns to an
-unresolved case; neither a blocker nor a diagnostic experiment is a failed repair.
+Diagnostics, interpretation, improved instrumentation and fixes that fail for the
+same reason stay in the same native agent conversation. The supervisor may restart
+its process between test executions; it resumes the recorded thread, including
+across controller reloads. It supplies the latest bounded observation without
+replaying a transcript. Selected tiers survive blocker answers and returns to an
+unresolved issue; neither a blocker nor a diagnostic experiment is a failed repair.
+After two completed, observed experiments assessed as inconclusive, the next turn
+reassesses competing explanations at the next available tier in that conversation.
+Unavailable evidence or access/preparation failures do not consume that diagnostic
+streak; an evidenced useful finding resets it. This assessment grants no pass.
 A newly exposed case receives high-effort impact triage, then the applicable
 repair tier, even in the same category.
+Within one case, an agent may return `new_issue` only after a corrective attempt
+has demonstrably passed the previous failure point and exposed a distinct issue.
+Its `next_issue` names the latest verification attempt, passed point, concrete
+passage observation and self-contained new failure. The launcher requires that
+exact completed case observation (or qualified command result for non-case leaves)
+before opening a fresh conversation. A changed
+message alone, an interrupted run or an earlier preparation failure is insufficient.
+The agent assesses passage; this context decision never establishes test completion.
+Owned edits, original selectors and the full-case verification requirement remain.
+That verification observation is consumed when the new context opens; another
+context reset requires a new corrective attempt.
 Before a repair or diagnostic retry, the launcher copies bounded private failure
-context into `failure-evidence-*.json` beside its control files. These snapshots
+context into `failure-evidence-*.json` (original) and `latest-evidence-*.json`
+(latest attempt) beside its control files. These snapshots
 include the runner handoff, per-VM report logs and recent failed-attempt command
 output/error tails, read through the scoped artifact reader when privileged.
+Remote handoffs carry a typed sibling context binding for host, VM, attempt and
+source; the repair run copies that bounded context before the allocation rotates.
+Remote source paths remain labels, never local read targets. Structured failed
+command events prioritize their exact streams over recent cleanup output.
 They survive ordinary execution-journal rotation for the repair run's lifetime;
 missing/refused reads and size limits remain explicit. Bulk captures retain their
 normal retention policy. A snapshot is investigation evidence, never a pass.
@@ -936,14 +957,20 @@ its original position. The repair targets one reported case at a time and
 reruns the original category selectors. A passing category clears its repair
 handoffs.
 
-Each case initially has **five agent sessions per launcher run**, including
-classification, escalated repair and answered-blocker continuations. Counts survive
+Each case initially has **five fresh repair conversations per launcher run**.
+Impact triage is separate. Diagnostic, repair, escalation, response recovery and
+answered-blocker turns for the same unresolved issue consume no additional session.
+Malformed responses receive a correction turn in the same conversation. Repeated
+rejection raises the next turn through the existing effort ladder and suspends
+edited work if rejection persists at the highest tier. This bounds handoff repair
+without limiting useful diagnostic or corrective experiments.
+Counts survive
 switching cases and later verification rounds; another case or VM has its own
 budget. Non-case failures and legacy handoffs without case IDs share a category
 infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
-after the fifth session still finish, and a pass is accepted. If further repair
-is needed, a fresh session pauses for developer intervention before any more
-repair work. An explicit answer can grant five further sessions; a timeout or
+after the fifth conversation still finish, and a pass is accepted. That conversation
+can continue working on its unresolved issue. Only opening another fresh context
+pauses for developer intervention. An explicit answer can grant five further sessions; a timeout or
 the choice to leave the case failed logs the failure and continues the queue.
 `repair-stop.json` retains that case's identity, count, latest failure prompt and
 last agent result, even if another case was repaired in between. An entire category
@@ -967,8 +994,11 @@ restores the latest selection, completed categories, current round and pending
 runner checkpoint. Explicit categories retain their original selectors. Without
 `--resume`, a new run starts from its first category with empty repair, queue,
 pending close-out and pass state. Explicit resume retains charged task admissions;
-the existing fresh-run case-session renewal policy remains unchanged. Neither
-path loads old repair conversations; new verification rounds still
+fresh-run budgets renew except for a retained unresolved conversation, whose
+identity and consumed slot survive. Explicit resume restores only that active
+conversation; new issues start without solved issues' histories. Legacy per-turn
+counts reset once when adopting conversation accounting; legacy responses remain
+valid but cannot recover an unrecorded native thread. New verification rounds still
 execute the complete requested selection. After a repair within verification,
 the next clean pass clears previous category completions before queuing work;
 an interruption can resume only that pass's completions.
@@ -1088,12 +1118,14 @@ privacy, assertions and validation guards. This outcome claims no repair.
 The launcher owns exactly one rerun of the original authorized selectors per
 diagnostic outcome; agents cannot supply commands, run tests or nested launchers.
 It retains a bounded output snapshot and runner handoff in private
-`diagnostic-*.json` files, then supplies the observations to a fresh session at
-the same tier and under the same case/VM budget, even when the category passed.
-An intervening failure in another case or preparation is handled separately;
-the original diagnostic handoff remains pending until its case returns or the
-category passes. The fifth session's diagnostic run still finishes, but further
-interpretation fails that case at the budget boundary and continues the queue. `stalled` means no
+`latest-evidence-*.json` files, then supplies the observations to the same conversation,
+even when the diagnostic case passed. The agent reports whether its question made
+progress, remained inconclusive or was unavailable; the retained thread keeps its
+observations and ruled-out explanations together.
+An intervening preparation failure does not establish that the original failure
+point was passed; keep that investigation in the same conversation. The fifth
+conversation's diagnostic runs and interpretation can
+continue without another session charge. `stalled` means no
 useful authorized next step exists, rather than an experiment awaiting execution.
 
 ONPC: Watch can attach to the current output at any time.
@@ -1195,20 +1227,21 @@ to answer. The prompt waits 30 minutes when opened from 08:00 through 22:59
 in the development computer's local time, and 10 minutes otherwise. A timeout
 fails the case with reason **waiting for input** and continues independent work;
 it never selects an answer. Reattachment and controller reload preserve the
-original deadline. No repairs to that case start while waiting. After an answer, a fresh
-session receives the failure evidence, latest repair handoff and developer
-instructions, rechecks prerequisites, and continues the same repair phase.
+original deadline. No repairs to that case start while waiting. After an answer,
+the same conversation receives the latest observation and developer instructions,
+rechecks prerequisites, and continues the same repair phase without another session charge.
 Decisions remain available to later repairs in the run within their stated scope.
 Ctrl+C or `--stop` cancels a paused run without answering.
 
-The session allowance limits agent sessions, not launcher-owned test execution.
-A repair returned by the fifth session still receives its exact-case verification;
-only a subsequent need for another agent session reaches the allowance check.
+The session allowance limits fresh issue conversations. Launcher-owned test
+execution and further turns on the same unresolved issue do not spend it.
+A repair returned by the fifth conversation still receives its exact-case
+verification; opening a sixth conversation reaches the allowance check.
 An agent's `fixed` result is a claim, not passing test credit.
 
-Exhausting a case's session allowance opens a fresh intervention session with a
+Exhausting a case's fresh-conversation allowance opens an intervention prompt with a
 short explanation and the same timed question. Continuing explicitly grants
-five more repair sessions; leaving the case failed continues the queue. The
+five more repair conversations; leaving the case failed continues the queue. The
 daytime/nighttime deadline and `+10m` extension use the same question mechanism.
 An unanswered timeout fails and logs the case, then continues independent work.
 Watch shows the flashing **Waiting for session intervention** text, countdown

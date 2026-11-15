@@ -372,6 +372,13 @@ nav button { flex-shrink: 0; }
 #runs[data-layout="vertical"] { row-gap: 0; }
 #runs:not([data-layout="vertical"]) > .run-divider { display: none; }
 #grid.runtime-body { display: block; }
+.run-time-search {
+    display: block; box-sizing: border-box; width: 100%; margin-bottom: 8px; padding: 6px 8px;
+    border: 1px solid var(--vscode-input-border, var(--watch-border)); border-radius: 3px;
+    background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit;
+}
+.run-time-search::placeholder { color: var(--vscode-input-placeholderForeground); }
+.run-time-search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .run-times { width: 100%; border-collapse: collapse; user-select: text; }
 .run-times th, .run-times td {
     text-align: left; vertical-align: top; padding: 8px;

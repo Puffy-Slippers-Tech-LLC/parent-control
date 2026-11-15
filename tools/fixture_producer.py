@@ -295,7 +295,12 @@ class Store:
             try:
                 with self._store.locked(fd, 'gate.lock'):
                     existing = self._read(fd)
-                    _require(existing is None, 'unfinished slot exists; exact recover(transaction_id) required')
+                    if existing is not None:
+                        slot = existing['slot']
+                        raise ValueError('fixture producer: unfinished slot exists; '
+                                         'exact recover(transaction_id) required; '
+                                         'transaction=' + slot['transaction_id'] +
+                                         '; state=' + slot['state'])
                     self._unknown(fd)
                     state = dict(schema=SCHEMA, checkout=checkout, root_identity=_identity(fd, self.path),
                                  slot=dict(slot_id=uuid.uuid4().hex, transaction_id=transaction_id,

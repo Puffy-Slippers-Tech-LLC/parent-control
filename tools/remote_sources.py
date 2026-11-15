@@ -1,12 +1,15 @@
 """Transfer controller source through SSH into owned, disposable disk scratch."""
 
 import inspect
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -16,7 +19,250 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from host_dispatch import ssh_command, ssh_environment
 
 
-def _receive(anchor):
+_sources = ContextVar('vm_frozen_sources', default=None)
+
+
+def current_sources(root):
+    """Return this thread's ordinary capture for the selected controller."""
+    sources = _sources.get()
+    if sources is not None and (sources.root != Path(root) or sources._temporary is None):
+        raise ValueError('remote source: frozen capture belongs to another or closed controller')
+    return sources
+
+
+class FrozenSources:
+    """One accepted source closure shared by a finite ordinary VM pass.
+
+    Capturing is the only operation that reads the working checkout. Each
+    dispatch opens its own streams, so concurrent transfers never share seek
+    positions or retain the live checkout's source reader.
+    """
+
+    def __init__(self, root, *, checkpoint=None, binding=None):
+        self.root = Path(root)
+        self.checkpoint = Path(checkpoint) if checkpoint is not None else None
+        if self.checkpoint is not None and not isinstance(binding, dict):
+            raise ValueError('frozen sources: retained capture requires an exact binding')
+        self.binding = json.loads(json.dumps(binding))
+        self._temporary = None
+        self._reference = None
+
+    @staticmethod
+    def _identity(path, *, directory=False, private=True):
+        info = path.stat(follow_symlinks=False)
+        if (path.resolve(strict=True) != path or info.st_uid != os.geteuid()
+                or not (stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))
+                or not directory and info.st_nlink != 1
+                or private and stat.S_IMODE(info.st_mode) != (0o700 if directory else 0o600)):
+            raise ValueError('frozen sources: unsafe capture identity')
+        identity = [info.st_dev, info.st_ino, info.st_uid, info.st_mode]
+        return identity if directory else [*identity, info.st_nlink, info.st_size,
+                                           info.st_mtime_ns, info.st_ctime_ns]
+
+    @classmethod
+    def _bytes(cls, path, *, maximum=None, private=True):
+        before = cls._identity(path, private=private)
+        if maximum is not None and before[5] > maximum:
+            raise ValueError('frozen sources: oversized capture metadata')
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as stream:
+            content = stream.read() if maximum is None else stream.read(maximum + 1)
+        if (before != cls._identity(path, private=private)
+                or maximum is not None and len(content) > maximum):
+            raise ValueError('frozen sources: capture changed while reading')
+        return content
+
+    @staticmethod
+    def _write(path, value, *, maximum):
+        payload = json.dumps(value, separators=(',', ':')).encode()
+        if len(payload) > maximum:
+            raise ValueError('frozen sources: oversized capture metadata')
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    @classmethod
+    def _owned_scratch(cls, storage):
+        """Require the original allocator lease, including after same-run exec."""
+        from test_storage import scratch_descriptors
+        if not storage.name.startswith('vm-frozen-') or storage.parent.name != 'tmp':
+            raise ValueError('frozen sources: capture is outside owned scratch')
+        owner = storage.parent.parent / 'owner'
+        identity = cls._identity(owner)
+        for descriptor in scratch_descriptors():
+            info = os.fstat(descriptor)
+            if (info.st_dev, info.st_ino) == tuple(identity[:2]):
+                return dict(path=str(owner), identity=identity)
+        raise ValueError('frozen sources: original scratch lease was not inherited')
+
+    def _retain(self):
+        identities = {name: self._identity(path, directory=name in ('storage', 'source'))
+                      for name, path in (('storage', self._temporary), ('source', self.directory),
+                                         ('archive', self.archive_path), ('git', self.git_path))}
+        record = dict(version=1, root=str(self.root), binding=self.binding,
+            owner=self._owned_scratch(self._temporary), identities=identities,
+            source=self.source, document=self.document, branch=self.branch, host=self.host.name,
+            bootstrap=self.bootstrap, manifest=self.manifest, git=self.git)
+        metadata = self._temporary / 'capture.json'
+        self._write(metadata, record, maximum=4 * 1024 * 1024)
+        self._identity(self.checkpoint.parent, directory=True)
+        reference = dict(version=1, root=str(self.root), binding=self.binding,
+            path=str(self._temporary), metadata=self._identity(metadata),
+            sha256=hashlib.sha256(self._bytes(metadata, maximum=4 * 1024 * 1024)).hexdigest())
+        self._write(self.checkpoint, reference, maximum=65536)
+        self._reference = self._identity(self.checkpoint)
+
+    def _restore(self):
+        """Reopen accepted bytes before inspecting a retained live repair writer."""
+        from vm_selection import vm_config
+        reference_identity = self._identity(self.checkpoint)
+        reference = json.loads(self._bytes(self.checkpoint, maximum=65536))
+        if (set(reference) != {'version', 'root', 'binding', 'path', 'metadata', 'sha256'}
+                or reference['version'] != 1 or reference['root'] != str(self.root)
+                or reference['binding'] != self.binding):
+            raise ValueError('frozen sources: retained capture binding differs')
+        storage = Path(reference['path'])
+        owner = self._owned_scratch(storage)
+        metadata = storage / 'capture.json'
+        content = self._bytes(metadata, maximum=4 * 1024 * 1024)
+        if (reference['metadata'] != self._identity(metadata)
+                or reference['sha256'] != hashlib.sha256(content).hexdigest()):
+            raise ValueError('frozen sources: retained metadata changed')
+        record = json.loads(content)
+        if (set(record) != {'version', 'root', 'binding', 'owner', 'identities', 'source',
+                           'document', 'branch', 'host', 'bootstrap', 'manifest', 'git'}
+                or record['version'] != 1 or record['root'] != str(self.root)
+                or record['binding'] != self.binding or record['owner'] != owner):
+            raise ValueError('frozen sources: retained capture ownership differs')
+        directory, archive, packed = storage / 'source', storage / 'source.tar.gz', storage / 'source.pack'
+        identities = {name: self._identity(path, directory=name in ('storage', 'source'))
+                      for name, path in (('storage', storage), ('source', directory),
+                                         ('archive', archive), ('git', packed))}
+        if record['identities'] != identities:
+            raise ValueError('frozen sources: retained source files were replaced or changed')
+        source = record['source']
+        if (not isinstance(source, dict) or set(source) != {'digest', 'generation'}
+                or not isinstance(source['digest'], str) or len(source['digest']) != 64
+                or any(char not in '0123456789abcdef' for char in source['digest'])
+                or type(source['generation']) is not int or source['generation'] < 0
+                or not isinstance(record['bootstrap'], str) or not record['bootstrap']
+                or not isinstance(record['manifest'], dict) or not record['manifest']):
+            raise ValueError('frozen sources: invalid retained source metadata')
+        for name, entry in record['manifest'].items():
+            relative = Path(name)
+            if relative.is_absolute() or '..' in relative.parts or relative.as_posix() != name:
+                raise ValueError('frozen sources: invalid retained input path')
+            path = directory / relative
+            data = self._bytes(path, private=False)
+            if (len(data) != entry['size'] or stat.S_IMODE(path.stat().st_mode) != entry['mode']
+                    or hashlib.sha256(data).hexdigest() != entry['sha256']):
+                raise ValueError('frozen sources: retained input bytes changed')
+        for parent, directories, files in os.walk(directory, followlinks=False):
+            relative = Path(parent).relative_to(directory)
+            if relative == Path('.'):
+                directories[:] = [name for name in directories if name not in ('.git', 'output')]
+            for name in (*directories, *files):
+                if (Path(parent) / name).is_symlink():
+                    raise ValueError('frozen sources: linked retained input')
+            if any((relative / name).as_posix() not in record['manifest'] for name in files):
+                raise ValueError('frozen sources: unexpected retained source input')
+        document = json.loads((directory / 'config/environment.json').read_bytes())
+        if document != record['document']:
+            raise ValueError('frozen sources: retained registry changed')
+        host = vm_config.host_registry(document)[record['host']]
+        branch = vm_config.branch_registry(document).get(record['branch'])
+        if branch is None or branch['host'] != host.name or branch['repo_root'] != str(self.root):
+            raise ValueError('frozen sources: retained controller placement differs')
+        self.directory = self.lease_root = directory
+        self.archive_path, self.git_path = archive, packed
+        self.source, self.document, self.branch, self.host = source, document, record['branch'], host
+        self.bootstrap, self.manifest, self.git = record['bootstrap'], record['manifest'], record['git']
+        if reference_identity != self._identity(self.checkpoint):
+            raise ValueError('frozen sources: retained capture reference changed')
+        self._temporary, self._storage_identity = storage, identities['storage']
+        self._reference = reference_identity
+
+    def __enter__(self):
+        import test_source
+        from host_dispatch import tool_host
+        from test_storage import scratch_directory
+        from vm_selection import vm_config
+        from vm_test_queue import source_identity
+        from tools.vm_source_snapshot import transfer_archive, transfer_git, receive_transfer
+
+        if self._temporary is not None:
+            raise ValueError('frozen sources: capture is already active')
+        if self.checkpoint is not None and os.path.lexists(self.checkpoint):
+            self._identity(self.checkpoint.parent, directory=True)
+            self._restore()
+            return self
+        storage = Path(tempfile.mkdtemp(prefix='vm-frozen-', dir=scratch_directory()))
+        self._temporary = storage
+        self._storage_identity = self._identity(storage, directory=True)
+        try:
+            self.directory = self.lease_root = storage / 'source'
+            self.archive_path, self.git_path = storage / 'source.tar.gz', storage / 'source.pack'
+            # A resumed queue may retain impact holds without an active writer.
+            # Bootstrap can read behind those holds, but unverified writer bytes
+            # must never become ordinary test inputs.
+            with test_source.startup(self.root, ['--resume'], repair=True):
+                protection = test_source.SourceProtection(test_source.source_directory(self.root))
+                if protection.owner() is not None:
+                    raise test_source.SourceBusy('frozen sources: finish retained repair before capturing ordinary inputs')
+                self.source = source_identity(self.root)
+                self.document = vm_config.read_document(self.root / 'config/environment.json', validate_agent=False)
+                self.branch = vm_config.current_branch()
+                self.host = tool_host(self.root, self.document)
+                self.bootstrap = (inspect.getsource(receive_transfer) + '\n' + inspect.getsource(_receive)
+                                  + '\nimport sys\nsys.exit(_receive(sys.argv[1], '
+                                  'sys.argv[2] if len(sys.argv) > 2 else None))\n')
+                with self.archive_path.open('xb') as archive, self.git_path.open('xb') as packed:
+                    os.fchmod(archive.fileno(), 0o600)
+                    os.fchmod(packed.fileno(), 0o600)
+                    self.manifest = transfer_archive(self.root, archive)
+                    self.git = transfer_git(self.root, packed)
+                if self.source != source_identity(self.root) or self.branch != vm_config.current_branch():
+                    raise ValueError('frozen sources: source changed during capture')
+            with self.archive_path.open('rb') as archive:
+                receive_transfer(archive, self.directory, self.manifest)
+            _restore_git(self.directory, self.git, self.git_path, self.branch)
+            if self.checkpoint is not None:
+                self._retain()
+            return self
+        except BaseException:
+            self.__exit__(None, None, None)
+            raise
+
+    def __exit__(self, error_type, *_):
+        import launcher_reload
+        storage, self._temporary = self._temporary, None
+        if storage is None:
+            return
+        if (self.checkpoint is not None and error_type is not None
+                and issubclass(error_type, launcher_reload.ReloadRequested)):
+            return
+        if self._identity(storage, directory=True) != self._storage_identity:
+            raise ValueError('frozen sources: refusing cleanup of replaced capture')
+        if self._reference is not None and self._identity(self.checkpoint) != self._reference:
+            raise ValueError('frozen sources: refusing cleanup of replaced capture reference')
+        shutil.rmtree(storage)
+        if self._reference is not None:
+            self.checkpoint.unlink()
+
+    @contextmanager
+    def use(self, *, live=False):
+        if self._temporary is None:
+            raise ValueError('frozen sources: capture is closed')
+        token = _sources.set(None if live else self)
+        try:
+            yield
+        finally:
+            _sources.reset(token)
+
+
+def _receive(anchor, allocation_source=None):
     """Self-contained remote bootstrap; the receiver is supplied by the caller."""
     import json
     import os
@@ -29,11 +275,25 @@ def _receive(anchor):
     root = Path(anchor)
     if not root.is_absolute() or root.resolve(strict=True) != root:
         raise ValueError('remote source: invalid storage checkout')
-    # Only allocation uses the host's installed checkout. The VM command below
-    # starts a fresh interpreter exclusively from the transferred controller
-    # source. It imports no VM implementation from the host's own checkout.
-    sys.path.insert(0, str(root / 'tools'))
+    # SSH starts without the sender's local descriptor aliases. A local replay
+    # uses this same bootstrap and must establish independent owners as well.
+    for name in ('ONPC_TEST_SOURCE_FD', 'ONPC_TEST_SOURCE_WRITER',
+                 'ONPC_TEST_SOURCE_IMPORT_FD', 'ONPC_REPAIR_STARTUP_FD',
+                 'ONPC_REPAIR_WRITER_FD', 'ONPC_TEST_ACTIVITY_FD',
+                 'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_TEST_COMPATIBILITY_FD',
+                 'ONPC_TEST_RETENTION', 'ONPC_TEST_RETENTION_FD'):
+        os.environ.pop(name, None)
+    # Remote allocation uses the host's installed storage implementation. Local
+    # replay must use the frozen allocator too: its live anchor may be undergoing
+    # repair. Only the storage location is rebound to the ordinary host anchor.
+    allocator = root if allocation_source is None else Path(allocation_source)
+    if not allocator.is_absolute() or allocator.resolve(strict=True) != allocator:
+        raise ValueError('remote source: invalid allocation source')
+    sys.path.insert(0, str(allocator / 'tools'))
     import test_storage
+    if allocation_source is not None:
+        test_storage.BASE = root / test_storage.BASE.relative_to(test_storage.ROOT)
+        test_storage.ROOT = root
 
     incoming = os.fdopen(0, 'rb', buffering=0, closefd=False)
     def receive(size):
@@ -178,7 +438,7 @@ sys.exit(worker(Path(sys.argv[1])))
 RESULT = 'ONPC_REMOTE_RESULT '
 
 
-def artifact_inputs(root, command, files):
+def artifact_inputs(root, command, files, *, sources=None):
     """Find explicit artifact selectors, including a queued family assignment."""
     selectors = list(command[:command.index('--')] if '--' in command else command)
     for encoded in files.values():
@@ -195,11 +455,32 @@ def artifact_inputs(root, command, files):
             path = selectors[index + 1]
         candidate = Path(path)
         candidate = candidate if candidate.is_absolute() else Path(root) / candidate
+        if sources is not None and candidate.is_relative_to(root):
+            relative = candidate.relative_to(root)
+            # Generated explicit bundles are immutable runtime inputs rather
+            # than source. Everything else under the checkout comes only from
+            # the captured closure, including absence/deletions.
+            if not relative.is_relative_to('output') and not relative.is_relative_to('artifacts'):
+                candidate = sources.directory / relative
         if not candidate.exists():
             continue  # It may name an existing VM-host allocation on a later step.
         if candidate.resolve() != candidate or not candidate.is_dir():
             raise ValueError('remote source: artifact input must be an unlinked directory')
-        verify_artifacts(candidate)
+        if sources is None:
+            verify_artifacts(candidate)
+        else:
+            # Verification must not import a helper that the repair is editing.
+            # This fresh interpreter loads only the captured implementation.
+            from test_storage import scratch_descriptors
+            checked = subprocess.run(['/usr/bin/python3', '-IBu', '-c',
+                'import sys; from pathlib import Path; '
+                'sys.path.insert(0, str(Path.cwd() / "tools")); '
+                'from remote_sources import verify_artifacts; '
+                'verify_artifacts(Path(sys.argv[1]))', str(candidate)],
+                cwd=sources.directory, capture_output=True, text=True, check=False,
+                pass_fds=scratch_descriptors())
+            if checked.returncode:
+                raise ValueError('remote source: frozen artifact verification failed: ' + checked.stderr.strip())
         result[str(path)] = candidate
     return result
 
@@ -222,7 +503,7 @@ def verify_artifacts(path):
 
 @contextmanager
 def capsule(root, host, command, environment, *, mode='operation', cooperative=False,
-            execution=None, cwd=None, separate_stderr=False, stdin_file=None):
+            execution=None, cwd=None, separate_stderr=False, stdin_file=None, sources=None):
     """Capture before dispatch; keep source ownership only while reading it."""
     import test_source
     from vm_selection import vm_config
@@ -230,16 +511,26 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
     from tools.vm_source_snapshot import transfer_archive, transfer_git, tree_paths, receive_transfer, input_bytes
     from contextlib import ExitStack
     from vm_test_queue import source_identity
+    from host_dispatch import tool_host
 
     root = Path(root)
-    document = vm_config.read_document(root / 'config/environment.json', validate_agent=False)
+    sources = _sources.get() if sources is None else sources
+    if sources is not None and (sources.root != root or sources._temporary is None):
+        raise ValueError('remote source: frozen capture belongs to another or closed controller')
+    document = (sources.document if sources is not None else
+                vm_config.read_document(root / 'config/environment.json', validate_agent=False))
     anchor = next((item['repo_root'] for item in vm_config.branch_registry(document).values()
                    if item['host'] == host.name), None)
     if anchor is None:
         raise ValueError(f'no configured storage checkout on {host.name}')
-    bootstrap = (inspect.getsource(receive_transfer) + '\n' + inspect.getsource(_receive)
+    bootstrap = (sources.bootstrap if sources is not None else
+                 inspect.getsource(receive_transfer) + '\n' + inspect.getsource(_receive)
                  + '\nimport sys\nsys.exit(_receive(sys.argv[1]))\n')
-    ssh = ssh_command(host, ['/usr/bin/python3', '-IBu', '-c', bootstrap, anchor])
+    worker_command = ['/usr/bin/python3', '-IBu', '-c', bootstrap, anchor]
+    local = host.name == (sources.host if sources is not None else tool_host(root, document)).name
+    if local and sources is not None:
+        worker_command.append(str(sources.directory))
+    ssh = worker_command if local else ssh_command(host, worker_command)
     with ExitStack() as inputs, tempfile.TemporaryFile(dir=scratch_directory()) as archive, \
             tempfile.TemporaryFile(dir=scratch_directory()) as payload, \
             tempfile.TemporaryFile(dir=scratch_directory()) as guest_input, \
@@ -253,10 +544,17 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
         # available behind impact holds so shutdown can acquire/release its VM.
         # Never wait for a source writer here; queue owners can retry without
         # retaining a VM or an execution slot.
-        with (test_source.startup(root, ['--resume'], repair=True, wait=False)
+        with (nullcontext() if sources is not None else
+              test_source.startup(root, ['--resume'], repair=True, wait=False)
               if mode == 'pool' else test_source.reader(root)):
-            manifest = transfer_archive(root, archive)
-            git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
+            if sources is None:
+                manifest = transfer_archive(root, archive)
+                git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
+            else:
+                archive = inputs.enter_context(sources.archive_path.open('rb'))
+                git_pack = inputs.enter_context(sources.git_path.open('rb'))
+                manifest = sources.manifest
+                git_snapshot = sources.git if mode != 'pool' else None
             files = {}
             # A family assignment is small controller-owned input, never an
             # ambient descriptor or a request for another controller's files.
@@ -268,7 +566,7 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 data, _ = input_bytes(path)
                 files[work] = base64.b64encode(data).decode('ascii')
             bundles, bundle_streams = [], []
-            for original, path in artifact_inputs(root, command, files).items():
+            for original, path in artifact_inputs(root, command, files, sources=sources).items():
                 from test_retention import MAX_RETAINED_BYTES
                 used = sum(entry['size'] for bundle in bundles for entry in bundle['manifest'].values())
                 if used + sum(item.stat(follow_symlinks=False).st_size for item in tree_paths(path)) > MAX_RETAINED_BYTES:
@@ -283,20 +581,24 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                                     size=stream.tell(), manifest=bundle_manifest))
                 bundle_streams.append(stream)
                 stream.seek(0)
-            request = dict(mode=mode, receipt=uuid.uuid4().hex, host=host.name, branch=vm_config.current_branch(),
-                controller_root=str(root), source_identity=source_identity(root),
+            archive.seek(0, os.SEEK_END)
+            git_pack.seek(0, os.SEEK_END)
+            request = dict(mode=mode, receipt=uuid.uuid4().hex, host=host.name,
+                branch=sources.branch if sources is not None else vm_config.current_branch(),
+                controller_root=str(root), source_identity=sources.source if sources is not None else source_identity(root),
                 command=list(map(str, command)),
                 environment={key: value for key, value in environment.items() if key != 'SSH_AUTH_SOCK'},
                 cooperative=cooperative, execution=execution or {}, cwd=str(cwd or root),
                 stdin_size=guest_input.tell() if stdin_file is not None else None,
                 separate_stderr=separate_stderr, files=files, manifest=manifest, size=archive.tell())
-            request.update(git=git_snapshot, git_size=git_pack.tell(), bundles=bundles)
+            request.update(git=git_snapshot, git_size=git_pack.tell() if mode != 'pool' else 0, bundles=bundles)
             header = json.dumps(request).encode()
             payload.write(len(header).to_bytes(8, 'big') + header)
             archive.seek(0)
             shutil.copyfileobj(archive, payload)
-            git_pack.seek(0)
-            shutil.copyfileobj(git_pack, payload)
+            if mode != 'pool':
+                git_pack.seek(0)
+                shutil.copyfileobj(git_pack, payload)
             # ExitStack owns these finite bundle streams through transmission.
             for stream in bundle_streams:
                 shutil.copyfileobj(stream, payload)
@@ -356,13 +658,17 @@ def restore_git(root, request):
     origin = vm_config.remote_origin()
     if origin is None or vm_config.execution_host() != request['host']:
         raise ValueError('remote source: destination identity changed')
-    subprocess.run(['git', 'init', '--quiet', '-b', origin['branch']], cwd=root, check=True)
-    with open(request['git_pack'], 'rb') as packed:
+    _restore_git(root, request['git'], request['git_pack'], origin['branch'])
+
+
+def _restore_git(root, snapshot, git_pack, branch):
+    """Give a detached source closure its own finite Git discovery boundary."""
+    subprocess.run(['git', 'init', '--quiet', '-b', branch], cwd=root, check=True)
+    with open(git_pack, 'rb') as packed:
         subprocess.run(['git', 'index-pack', '--stdin'], cwd=root, stdin=packed,
                        stdout=subprocess.DEVNULL, check=True)
-    snapshot = request['git']
     (root / '.git/shallow').write_text('\n'.join(snapshot['commits']) + '\n')
-    subprocess.run(['git', 'update-ref', 'refs/heads/' + origin['branch'], snapshot['head']],
+    subprocess.run(['git', 'update-ref', 'refs/heads/' + branch, snapshot['head']],
                    cwd=root, check=True)
     for name, revision in snapshot['tags'].items():
         subprocess.run(['git', 'update-ref', 'refs/tags/' + name, revision], cwd=root, check=True)
@@ -535,8 +841,9 @@ def run_worker(root, request_file, request, paths):
 
 
 class RemoteVM:
-    def __init__(self, root, vm=None, *, host=None):
+    def __init__(self, root, vm=None, *, host=None, sources=None):
         self.root, self.vm = Path(root), vm
+        self.sources = sources
         self.host = vm.host if vm is not None else host
         if self.host is None:
             raise ValueError('remote source: a destination host is required')
@@ -545,7 +852,8 @@ class RemoteVM:
     def pool_process(self, command, environment):
         """Return a live SSH keeper with the ordinary pool receipt/EOF contract."""
         from test_storage import scratch_descriptors
-        with capsule(self.root, self.host, command, environment, mode='pool') as (ssh, payload, _):
+        with capsule(self.root, self.host, command, environment, mode='pool',
+                     sources=self.sources) as (ssh, payload, _):
             child = subprocess.Popen(ssh, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      env=ssh_environment(environment),
                                      pass_fds=scratch_descriptors())
@@ -611,7 +919,8 @@ class RemoteVM:
                              and timeout is None and not owned_group))
         with capsule(self.root, self.host, command, env, cooperative=cooperative, mode=mode,
                      execution=execution, cwd=cwd, stdin_file=stdin_file,
-                     separate_stderr=stderr_output is not None) as (ssh, payload, request):
+                     separate_stderr=stderr_output is not None,
+                     sources=self.sources) as (ssh, payload, request):
             prefix = b'\0' + (RESULT + request['receipt'] + ' ').encode()
             status = control.run(ssh, cwd=self.root, env=ssh_environment(env), output=emit,
                                  cooperative=True, input_stream=payload,

@@ -1,7 +1,7 @@
 """Shared rolling VM scheduler and isolated preparation workers."""
 
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 from pathlib import Path
 import os
 import queue
@@ -46,7 +46,8 @@ class _Worker:
         with ExitStack() as operation:
             try:
                 operation.enter_context(test_source.reader(
-                    executor.root, stopped=lambda: executor._abort(self.vm, recovery=recovery), wait=False))
+                    executor.root if recovery or executor.sources is None else executor.sources.lease_root,
+                    stopped=lambda: executor._abort(self.vm, recovery=recovery), wait=False))
             except Stopped:
                 executor._check(self.vm, recovery=recovery)
                 raise
@@ -59,8 +60,11 @@ class _Worker:
                 raise
             executor._check(self.vm, recovery=recovery)
             with executor._capacity:
-                if executor._full(self.vm):
-                    raise _CapacityWait()
+                while executor._full(self.vm):
+                    if not recovery:
+                        raise _CapacityWait()
+                    executor._check(self.vm, recovery=True)
+                    executor._capacity.wait(.1)
                 executor._active += 1
                 from host_compute import units
                 executor._host_active[self.vm.host.name] += units(self.vm.compute_unit)
@@ -78,10 +82,11 @@ class Executor:
     their operation capacity is already available to the remaining workers.
     """
 
-    def __init__(self, root, vms, concurrency, stopped):
+    def __init__(self, root, vms, concurrency, stopped, *, sources=None):
         from vm_selection import vm_config
         from vm_pool import check_queue
         self.root = Path(root)
+        self.sources = sources
         self.vms = tuple(vms)
         if not self.vms or type(concurrency) is not int or concurrency < 1:
             raise ValueError('vm-queue: a nonempty VM pool and positive concurrency are required')
@@ -263,8 +268,9 @@ class Executor:
         operation stays on its owning thread, including source lease teardown.
         ``observed`` records failures before their source reader exits. In repair
         mode retained reservations may serve more normal work and bounded nested
-        attempts. ``service(controller, drained)`` runs between admissions; it
-        must request nested attempts only at a drained boundary.
+        attempts. ``service(controller, drained)`` runs between admissions.
+        Detached ordinary inputs allow a background repair on a reserved VM;
+        live-source attempts still require a drained boundary.
         ``completed(vm, result)`` runs on the coordinator before refill. Success
         is notified only after source and reservation teardown; the callback may
         return a replacement result to reject an attempt's acceptance.
@@ -284,6 +290,10 @@ class Executor:
         results = {vm.name: dict(status=0, handoffs=[]) for vm in self.vms}
 
         def worker_loop(vm):
+            with self.sources.use() if self.sources is not None else nullcontext():
+                return commands_loop(vm)
+
+        def commands_loop(vm):
             inbox = commands[vm.name]
             retained = False
             reservation_stack = ExitStack()
@@ -309,7 +319,8 @@ class Executor:
                         if callback is None:
                             result.set_result(None)
                             continue
-                        with test_source.borrowed(self.root, environment):
+                        with (self.sources.use(live=True) if self.sources is not None else nullcontext()), \
+                                test_source.borrowed(self.root, environment):
                             worker = _Worker(self, vm, receipt)
                             with worker.operation(recovery=True):
                                 value = callback(worker)
@@ -328,7 +339,8 @@ class Executor:
                         receipt = reservation_stack.enter_context(reservation(
                             vm.name, stopped=lambda: self._check(vm), bind=False, wait=False))
                     try:
-                        with test_source.reader(self.root, stopped=lambda: self._check(vm), wait=False):
+                        with test_source.reader(self.root if self.sources is None else self.sources.lease_root,
+                                                stopped=lambda: self._check(vm), wait=False):
                             self._check(vm)
                             worker = _Worker(self, vm, receipt)
                             events.put(('ready', vm.name, None))
@@ -391,8 +403,11 @@ class Executor:
         active, retired = set(), set()
         targets = {vm.name: vm for vm in self.vms}
 
-        def receive():
-            kind, name, value = events.get()
+        def receive(*, timeout=None):
+            try:
+                kind, name, value = events.get(timeout=timeout)
+            except queue.Empty:
+                return None, None
             if kind in ('done', 'terminal'):
                 active.discard(name)
                 if value is not None:
@@ -429,6 +444,21 @@ class Executor:
             return kind, name
 
         class Controller:
+            background = None
+
+            @property
+            def active(inner):
+                return bool(active)
+
+            def start(inner, callback):
+                if inner.background is not None:
+                    raise ValueError('vm-queue: a repair is already active')
+                inner.background = repairs.submit(callback)
+                return inner.background
+
+            def joined(inner):
+                inner.background = None
+
             def reserve(inner, name):
                 if name not in commands or name in retired or name in active:
                     raise ValueError('vm-queue: recovery target is unavailable')
@@ -437,9 +467,9 @@ class Executor:
                 return result.result()
 
             def attempt(inner, name, callback):
-                if active:
+                if active and self.sources is None:
                     raise ValueError('vm-queue: repair attempts require a drained boundary')
-                if name not in commands or name in retired:
+                if name not in commands or name in retired or name in active:
                     raise ValueError('vm-queue: repair target is unavailable')
                 environment = test_source.environment()
                 if test_source.WRITER not in environment:
@@ -453,6 +483,7 @@ class Executor:
                     commands[name].put('release-reservation')
 
         controller = Controller()
+        repairs = ThreadPoolExecutor(max_workers=1)
 
         try:
             while True:
@@ -460,10 +491,13 @@ class Executor:
                     if service(controller, not active):
                         continue
                 candidates = [vm for vm in self.vms if vm.name not in active | retired and needed(vm)]
-                if not candidates and not active:
+                if not candidates and not active and controller.background is None:
                     break
+                if not candidates and not active:
+                    self._closing.wait(.05)
+                    continue
                 if len(active) >= self.limit or not candidates:
-                    receive()
+                    receive(timeout=.1)
                     continue
                 for vm in candidates:
                     commands[vm.name].put('probe')
@@ -511,6 +545,15 @@ class Executor:
                         continue
                     self._closing.wait(.1)
         finally:
+            # A repair may still be using the original worker's inbox. Join it
+            # before closing workers or releasing their reservations/sources.
+            repairs.shutdown(wait=True)
+            # Reload/cancellation can unwind service while detached companions
+            # are still finishing. Reconcile their joined receipts before the
+            # checkpoint owner exits; otherwise completed cases become stale
+            # claims and would be needlessly replayed on resume.
+            while active:
+                receive()
             for inbox in commands.values():
                 inbox.put('close')
         return results

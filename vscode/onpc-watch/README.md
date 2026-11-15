@@ -380,6 +380,13 @@ into one row per case. **Case ID / Title** uses `[category] ID: Title` and shows
 a **+** when multiple VMs exist.
 Click it to expand a tree of `VM name | Run Time | ▶` children; **-** collapses it.
 Children sort by their raw duration, longest first, before display rounding.
+
+The search box above the table filters immediately by case ID, case title, VM
+name, description or category, using case-insensitive partial matching. Clearing
+it restores all rows. A match on any VM keeps the complete case row and its VM
+children. Selection and bulk deletion apply only to visible case rows; filtering
+clears selections that become hidden.
+
 The folded recording button and the row's **VM name** and **Run Time** columns
 use the slowest child. Cases also sort by that child's raw duration, longest first.
 Durations use seconds below one minute (`20s`) and rounded whole minutes otherwise

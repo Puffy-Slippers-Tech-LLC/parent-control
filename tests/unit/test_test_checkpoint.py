@@ -54,6 +54,15 @@ def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path)
         assert not checkpoint.accept(assignment, dict(evidence, passed=[work['cases'][-1]]),
                                      130, interrupted=True)
         assert checkpoint.passed('deb', 'system') == {work['cases'][-1]}
+        cancelled = checkpoint.enqueue_failure(assignment, dict(evidence, cleanup=False), 130)
+        assert not checkpoint.requeue_interruption(cancelled['id'])
+        # Older coordinators queued interrupted attempts without recording a
+        # distinct failure classification. Resume returns those to normal work.
+        checkpoint.state['repairs'][-1].pop('failure_observed')
+        assert checkpoint.requeue_interruption(cancelled['id'])
+        assert not checkpoint.repair_tickets()
+        assert checkpoint.claims() == [assignment]
+        assert checkpoint.passed('deb', 'system') == {work['cases'][-1]}
         checkpoint.recover(assignment, cleanup=True)
         assignment = checkpoint.claim('deb', 'two', work, {'digest': 'a' * 64, 'generation': 0})
         evidence = pass_evidence(assignment, work['cases'])
@@ -198,6 +207,7 @@ def test_pass_failure_fifo_keeps_exact_attempts_without_accepting_them(tmp_path)
             checkpoint.enqueue_failure(assignment, evidence, 1, case='authorization::unselected')
         assert json.dumps(checkpoint.state, sort_keys=True) == original
         ticket = checkpoint.enqueue_failure(assignment, evidence, 1)
+        assert not checkpoint.requeue_interruption(ticket['id'])
         assert checkpoint.enqueue_failure(assignment, evidence, 1) == ticket
         for execution in (dict(first, cases=[], case=None, area=False),
                           dict(first, case=None, area=False)):

@@ -158,7 +158,7 @@ def _repair_tickets(state):
     for ticket in tickets:
         if (not isinstance(ticket, dict) or not required <= ticket.keys()
                 or set(ticket) - required - {'execution', 'impact', 'attempts', 'outcome', 'repair_ref', 'resolution',
-                                             'infrastructure'}):
+                                             'infrastructure', 'failure_observed'}):
             raise ValueError('invalid ordinary pass repair ticket')
         for field in ('id', 'transaction', 'assignment', 'attempt'):
             if not isinstance(ticket[field], str) or not re.fullmatch(r'[0-9a-f]{32}', ticket[field]):
@@ -185,6 +185,8 @@ def _repair_tickets(state):
             raise ValueError('invalid ordinary pass repair assignment')
         execution = _pass_execution(ticket)
         infrastructure = ticket.get('infrastructure', False)
+        if 'failure_observed' in ticket and ticket['failure_observed'] is not True:
+            raise ValueError('invalid observed repair failure marker')
         if ('infrastructure' in ticket and infrastructure is not True
                 or infrastructure and (host or ticket['case'] is not None or ticket['cleanup'])):
             raise ValueError('invalid infrastructure repair failure')
@@ -738,6 +740,26 @@ class PassCheckpoint:
         return _copy([ticket for ticket in self.state.get('repairs', [])
                       if ticket.get('outcome') not in ('resolved', 'leave_failed')])
 
+    def requeue_interruption(self, ticket_id, *, ready=lambda ticket: True):
+        """Recover old cancellation tickets without accepting a case result.
+
+        Keep an uncertain original claim for normal worker cleanup. Once joined,
+        that worker returns the work to its family's ordinary pending queue.
+        The repair owner must first exclude retained edits and Git close-out.
+        """
+        ticket = self._repair_ticket(ticket_id)
+        if (not ticket['vm'] or ticket['status'] != 130 or ticket.get('infrastructure')
+                or ticket.get('failure_observed') is True
+                or ticket.get('outcome') not in (None, 'suspended') or ticket.get('repair_ref')
+                or any(attempt['purpose'] != 'recheck' or attempt['status'] not in (None, 130)
+                       for attempt in ticket.get('attempts', []))):
+            return False
+        if not ready(_copy(ticket)):
+            return False
+        self.state['repairs'].remove(ticket)
+        self.save()
+        return True
+
     def host_failure(self, work, source, status, *, case=None, cleanup=True):
         """Record one bounded host operation without inventing VM ownership."""
         _pass_work(work)
@@ -886,7 +908,7 @@ class PassCheckpoint:
                   'assignment', 'attempt', 'source', 'execution')
         ticket = {field: _copy(assignment[field]) for field in fields if field in assignment}
         ticket.update(id=uuid.uuid4().hex, transaction=uuid.uuid4().hex, case=case,
-                      status=status, cleanup=cleanup)
+                      status=status, cleanup=cleanup, failure_observed=True)
         if infrastructure:
             ticket['infrastructure'] = True
         candidate = _copy(self.state)

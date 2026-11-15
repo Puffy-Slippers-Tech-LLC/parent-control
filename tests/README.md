@@ -684,6 +684,15 @@ Pending, missing, malformed, stale, interrupted or unavailable triage remains
 relevant inputs; changed evidence invalidates `no` until retriage or an accepted
 recheck. Triage grants no passing credit.
 
+Interrupted attempts without a reported failure return to normal scheduling,
+not the repair FIFO. Retain their original VM claims until owned cleanup joins;
+then available VMs pull their unfinished work from the ordinary family queues
+in parallel, under the existing capacity and lifecycle rules. Completed case
+passes remain complete. Cancellation grants no pass and starts no impact triage,
+repair conversation or serial pre-repair recheck. Resume also returns older
+cancellation-only tickets to this route, preserving any retained repair edits,
+Git close-out, actual failures and completed repairs.
+
 Pending triage holds live-checkout admission across participating workflows.
 Within the failing coordinator, companion VMs continue executing and admitting
 work from the group's captured inputs while read-only triage runs asynchronously.

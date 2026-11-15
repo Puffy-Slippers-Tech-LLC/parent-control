@@ -1021,6 +1021,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
     def release_repair(*, changed=False):
         if not commits.state['repairs'] and commits.state.get('pending') is None:
+            if repair_gate.fd is None and repair_gate.protection.owner() is not None:
+                repair_gate.try_acquire()
             commits.state.pop('queued_failure', None)
             allowance.clear()
             commits.save()
@@ -1744,13 +1746,25 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         check_controller()
         return status
 
+    def retry_interrupted(ticket):
+        target = (ticket['work']['category'], ticket['case'] or '', ticket['vm'])
+        if (commits.key(target) in commits.state['repairs']
+                or ticket['id'] in commits.state.get('repair_actions', {})):
+            return False
+        release_repair()
+        return True
+
     def pass_request(names, *, resume, pass_identity, admit_task, settle_task):
         check_controller()
+        # Retained no-edit rechecks must not prevent the group from capturing
+        # coherent inputs for ordinary parallel work after resume.
+        release_repair()
         args = [value for name in names for value in (name, *inventory[name]['args'])]
         if resume:
             args.insert(0, '--resume')
         outcome = execute_pass(root, args, reloading=reloading,
             actions=dict(triage=triage, repair=repair_ticket,
+                         retry_interrupted=retry_interrupted,
                          error=lambda context, error, **identity:
                              detached_launcher.record_exception(run, context, error, **identity),
                          admit_task=admit_task, settle_task=settle_task, progress=pass_progress,

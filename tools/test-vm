@@ -213,4 +213,4 @@ if __name__ == '__main__':
             os.close(input_fd)
         launch('/usr/local/libexec/onpc-test-runner', ['vm', '--vm', configured.name, *args])
     except (ValueError, OSError) as error:
-        sys.exit('test-vm: ' + (str(error) if isinstance(error, ValueError) else 'refresh test tools with setup'))
+        sys.exit('test-vm: ' + str(error))

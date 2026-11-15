@@ -98,6 +98,8 @@ class SessionRequest:
     interactive: bool = False
     selection: AgentSelection | None = None
     logical_tier: str | None = None
+    continuation_key: str | None = None
+    thread_id: str | None = None
 
 
 class AgentAdapter(Protocol):
@@ -144,7 +146,7 @@ class BatchPresentation(Protocol):
 
 
 class SessionProtocol(Protocol):
-    """One fresh interactive session; no process, mailbox or filesystem writes.
+    """One interactive conversation; no process, mailbox or filesystem writes.
 
     The supervisor drains outgoing bytes and feeds stdout chunks. Events are
     consumed in order before polling input/acceptance. Completion requires a

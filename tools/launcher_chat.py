@@ -196,6 +196,7 @@ class AppSession:
         self.effort = command.request.effort
         self.agent = command.adapter.name
         self.logical_tier = command.request.logical_tier
+        self.continuation_key = command.request.continuation_key
         self.prompt = (run / 'prompt.txt').read_text()
         self.protocol = command.protocol
         if self.protocol is None:
@@ -371,6 +372,15 @@ class AppSession:
     def event(self, event):
         kind, data = event.kind, event.data
         if kind == 'ready':
+            if self.continuation_key is not None:
+                thread_id = data.get('thread_id')
+                if not isinstance(thread_id, str) or not thread_id or len(thread_id) > 128:
+                    raise ValueError('agent did not identify its resumable conversation')
+                # Persist before starting work, so controller reload and capacity
+                # recovery return to this exact conversation without transcript copying.
+                launcher.atomic(self.run / 'agent-thread.json', dict(
+                    key=self.continuation_key, thread_id=thread_id,
+                    root=str(self.root.resolve()), agent=self.agent))
             self.start_turn(self.prompt)
         elif kind == 'retry_input':
             self.messages.insert(0, data['text'])

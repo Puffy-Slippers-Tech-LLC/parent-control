@@ -16,7 +16,7 @@ SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions tha
                 'Keep refactoring within the task’s scope.')
 
 GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
-Codex goal state. If absent, call create_goal with objective:
+Codex goal state. If absent or complete, call create_goal with objective:
 {SESSION_GOAL}
 Verify that this exact goal is active. Literal /goal prompt text or following the
 objective as advice is insufficient. If goal activation fails, stop and report
@@ -29,7 +29,8 @@ monitors, advisers and reviewers.
 
 """
 
-SUBAGENT_CONTEXT_INSTRUCTIONS = """Every launcher session starts with fresh context.
+SUBAGENT_CONTEXT_INSTRUCTIONS = """Each new task starts with fresh context; a repair
+may resume the same conversation while its issue remains unresolved.
 On every spawn_agent call, explicitly set fork_turns="none".
 Never omit fork_turns or use "all". Give every helper a self-contained assignment
 with its exact scope, paths, relevant instructions, current evidence and disjoint
@@ -65,6 +66,11 @@ ROLES = {
     'translator': ('whatsnew_translator', 'sync_whatsnew_translator.toml',
         'Read-only latest-release translator/reviewer'),
 }
+
+
+def session_instructions(request):
+    return (GOAL_INSTRUCTIONS + request.instructions + SUBAGENT_CONTEXT_INSTRUCTIONS
+            + BACKEND_REVIEW_INSTRUCTIONS)
 
 
 class CodexAdapter:
@@ -225,8 +231,7 @@ class CodexAdapter:
         setting('features.multi_agent', delegation.enabled)
         setting('features.multi_agent_v2', False)
         setting('agents.enabled', delegation.enabled)
-        setting('developer_instructions', GOAL_INSTRUCTIONS + request.instructions
-                + SUBAGENT_CONTEXT_INSTRUCTIONS + BACKEND_REVIEW_INSTRUCTIONS)
+        setting('developer_instructions', session_instructions(request))
         setting('agents.max_concurrent_threads_per_session', delegation.max_concurrent)
         setting('agents.max_depth', delegation.max_depth)
         if delegation.model is not None:
@@ -385,7 +390,8 @@ class CodexProtocol:
     def start_turn(self, text):
         self.completed = False
         self.rpc('turn/start', {'threadId': self.thread,
-                 'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema})
+                 'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema,
+                 'model': self.request.model, 'effort': self.request.effort})
 
     def steer(self, text):
         self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
@@ -425,13 +431,20 @@ class CodexProtocol:
             result = packet['result']
             if method == 'initialize':
                 self.encode({'method': 'initialized', 'params': {}})
-                self.rpc('thread/start', {'model': self.request.model, 'cwd': str(self.request.root),
+                params = {'model': self.request.model, 'cwd': str(self.request.root),
                          'approvalPolicy': 'never',
-                         'sandbox': 'read-only' if self.request.permissions == 'read_only' else 'workspace-write',
-                         'ephemeral': False})
-            elif method == 'thread/start':
+                         'developerInstructions': session_instructions(self.request),
+                         'sandbox': 'read-only' if self.request.permissions == 'read_only' else 'workspace-write'}
+                if self.request.thread_id is None:
+                    self.rpc('thread/start', dict(params, ephemeral=False))
+                else:
+                    self.rpc('thread/resume', dict(params, threadId=self.request.thread_id,
+                                                   excludeTurns=True))
+            elif method in ('thread/start', 'thread/resume'):
                 self.thread = result['thread']['id']
-                yield SessionEvent('ready', {})
+                if self.request.thread_id is not None and self.thread != self.request.thread_id:
+                    raise ValueError('resumed agent thread identity changed')
+                yield SessionEvent('ready', {'thread_id': self.thread})
             elif method == 'turn/start':
                 if not self.completed:
                     self.turn = result['turn']['id']

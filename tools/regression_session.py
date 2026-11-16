@@ -24,7 +24,7 @@ import test_launcher
 
 _startup = threading.RLock()
 
-from detached_launcher import FRAME_DIRECTORY, lock, busy
+from detached_launcher import FRAME_DIRECTORY, atomic, lock, busy
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -42,6 +42,10 @@ class SessionOutput:
     def frame(self, lines):
         if lines == self.last_frame:
             return
+        # A final frame can be cleared before the observer's next poll. Keep
+        # the latest nonempty publication at the producer, where none are lost.
+        if lines:
+            atomic(self.run / 'test-frame.json', lines)
         temporary = self.run / 'frame.tmp'
         temporary.write_text(json.dumps(lines))
         temporary.replace(self.run / 'frame.json')
@@ -258,6 +262,7 @@ def follow(run, stream=None):
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     reader = JsonReader()
     forwarded = None
+    forwarded_totals = None
     try:
         with lock(run / 'owner') as owner, ExitStack() as files:
             try:
@@ -272,13 +277,15 @@ def follow(run, stream=None):
                         lines = snapshot(run / 'frame.json', reader=reader)
                         if steps is not None and (steps, lines) != forwarded:
                             atomic(destination / 'frame.json', lines)
-                            # Keep the controller's overall totals through repair.
-                            # Agent-launched tests use WORKFLOW_DIRECTORY and may
-                            # select just one case; only the controller's direct
-                            # runner uses FRAME_DIRECTORY.
-                            if lines and os.environ.get(FRAME_DIRECTORY):
-                                atomic(destination / 'test-frame.json', lines)
                             forwarded = (steps, lines)
+                        # Only the direct runner owns overall repair totals.
+                        # Read its retained publication independently of live
+                        # frames, which may already have been cleared.
+                        if os.environ.get(FRAME_DIRECTORY):
+                            totals = snapshot(run / 'test-frame.json', reader=reader) or lines
+                            if totals and totals != forwarded_totals:
+                                atomic(destination / 'test-frame.json', totals)
+                                forwarded_totals = totals
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
                 data = b''

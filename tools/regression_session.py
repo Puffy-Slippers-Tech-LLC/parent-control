@@ -482,7 +482,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
                     raise ValueError('case retry requires one category')
                 checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
             before_run(root, argv, categories=categories)
-        with recording(root, enabled=BATCH not in os.environ
+        with recording(root, enabled='--record' in argv and BATCH not in os.environ
                        and not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
                            **({'reloading': True} if continuing else {}))

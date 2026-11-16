@@ -383,7 +383,7 @@ def run(root, argv, *, reloading=False, return_outcome=False):
                 if hasattr(sys.stdout, 'controller'):
                     sys.stdout.controller('test-group', [f'Test group: {group["key"]}'])
                 from vm_recording import recording
-                with recording(root, enabled=bool(admitted), run=owner) as media:
+                with recording(root, enabled='--record' in argv and bool(admitted), run=owner) as media:
                     args = list(group['args'])
                     if '--resume' in argv and '--resume' not in args:
                         args.insert(0, '--resume')

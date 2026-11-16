@@ -223,6 +223,12 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 options=inventory[pending[0]]['args'], command=command,
                 detail='The selected runner command failed before a case result was available. '
                        'Inspect the current launcher output for the original error.')
+        # Validation clears the result store's failure pointer. Keep the last
+        # failure visible to observers throughout repair and after completion.
+        try:
+            launcher.atomic(run / 'repair-failure.json', failure)
+        except (OSError, ValueError):
+            pass  # Optional Watch metadata cannot prevent repair.
         progress(run, number, rounds,
                  f"Repairing {failure['category']} {failure.get('case', '')} {failure.get('vm', '')}".strip())
         (run / 'prompt.txt').write_text(repair_prompt(root, failure), encoding='utf-8')

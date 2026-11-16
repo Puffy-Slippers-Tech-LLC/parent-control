@@ -515,20 +515,23 @@
             session: section.entry.session, question: section.entry.session_question || '', text });
     }
 
-    function sessionPanel(body) {
-        const session = element('div', 'session-view', body);
-        session.hidden = true;
-        const output = element('pre', 'run-status session-output', session);
-        const activity = element('pre', 'session-activity', session);
-        activity.hidden = true;
-        const composer = element('div', 'session-composer', session);
+    function sessionPrompt(parent, text) {
+        const readOnly = text !== undefined;
+        const composer = element('div', 'session-composer', parent);
         const prompt = element('div', 'session-prompt', composer);
         const marker = element('span', 'session-prompt-marker', prompt);
         marker.textContent = '›';
         marker.setAttribute('aria-hidden', 'true');
-        const input = element('textarea', '', prompt);
-        input.rows = 1;
+        const input = element(readOnly ? 'div' : 'textarea', 'session-prompt-text', prompt);
         input.setAttribute('aria-label', 'Session chat');
+        if (readOnly) {
+            input.textContent = text;
+            input.setAttribute('role', 'textbox');
+            input.setAttribute('aria-readonly', 'true');
+            input.setAttribute('aria-multiline', 'true');
+            return { composer, input };
+        }
+        input.rows = 1;
         const fitInput = () => {
             if (!input.clientWidth) return;
             input.style.height = 'auto';
@@ -542,13 +545,24 @@
             requestAnimationFrame(() => { if (input.isConnected) fitInput(); });
         });
         inputObserver.observe(input);
+        return { composer, input, fitInput, inputObserver };
+    }
+
+    function sessionPanel(body) {
+        const session = element('div', 'session-view', body);
+        session.hidden = true;
+        const output = element('div', 'run-status session-output', session);
+        const activity = element('pre', 'session-activity', session);
+        activity.hidden = true;
+        const chat = sessionPrompt(session);
+        const { input } = chat;
         const error = element('div', 'session-error', session);
         error.setAttribute('role', 'status');
         const footer = element('div', 'session-footer', session);
         const model = element('span', 'session-model', footer);
         const simplified = element('label', 'session-simplified', footer);
         simplified.append('Simplified ');
-        const section = { session, output, activity, composer, input, error, model, fitInput, inputObserver };
+        const section = { session, output, activity, ...chat, error, model };
         section.toggle = element('button', 'session-toggle', simplified);
         section.toggle.type = 'button';
         section.toggle.setAttribute('role', 'switch');
@@ -566,21 +580,43 @@
     }
 
     function transcriptRows(output, rows) {
+        // Project the retained terminal prompt blocks into the same chatbox
+        // used for input. Both Session and Status display this shared body.
+        const blocks = [];
+        for (let index = 0; index < rows.length; index++) {
+            const row = rows[index];
+            if (row.map(part => part.text).join('') !== '• You') {
+                blocks.push(row);
+                continue;
+            }
+            const lines = [];
+            while (index + 1 < rows.length) {
+                const text = rows[index + 1].map(part => part.text).join('');
+                if (text.trim() && !text.startsWith('  ')) break;
+                lines.push(text.startsWith('  ') ? text.slice(2) : text);
+                index++;
+            }
+            while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+            blocks.push({ prompt: lines.join('\n') });
+        }
         // Streaming usually changes only the final row.
         if (!output.children.length) output.textContent = '';
-        rows.forEach((row, index) => {
+        blocks.forEach((row, index) => {
             const signature = JSON.stringify(row);
             const previous = output.children[index];
             if (previous?.rowSignature === signature) return;
-            const line = document.createElement('div');
+            const line = Object.hasOwn(row, 'prompt') ?
+                sessionPrompt(document.createDocumentFragment(), row.prompt).composer : document.createElement('div');
             line.rowSignature = signature;
-            if (!row.length) line.textContent = '\u00a0';
-            for (const part of row) runSpan(line, part);
+            if (Array.isArray(row)) {
+                if (!row.length) line.textContent = '\u00a0';
+                for (const part of row) runSpan(line, part);
+            }
             if (previous) previous.replaceWith(line);
             else output.append(line);
         });
-        while (output.children.length > rows.length) output.lastElementChild.remove();
-        if (!rows.length) output.textContent = '';
+        while (output.children.length > blocks.length) output.lastElementChild.remove();
+        if (!blocks.length) output.textContent = '';
     }
 
     function launcherRows(output, entry) {

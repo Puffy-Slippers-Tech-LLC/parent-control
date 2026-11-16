@@ -337,7 +337,9 @@ model/effort footer, including the Simplified toggle. The footer uses the
 recorded session model and effort. Watch actions
 use the destination launcher's shared agent environment preparation, so observing
 or stopping a run does not require a coding CLI. The transcript includes
-sent prompts and agent messages. Agent prose streams while it is being written;
+sent prompts and agent messages. Sent prompts reuse the chatbox appearance inline,
+as read-only text without a You label or footer, in both Session and Status.
+Agent prose streams while it is being written;
 the completed message replaces its provisional text, including any corrections.
 Only completed messages enter the saved transcript. Launcher status metadata and
 structured workflow results wait for completion before being interpreted.

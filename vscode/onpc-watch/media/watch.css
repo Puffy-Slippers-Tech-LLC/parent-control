@@ -328,6 +328,11 @@ nav button { flex-shrink: 0; }
 }
 .pane-toolbar > strong { flex: 1; align-self: center; padding: 8px; }
 .pane-toolbar { min-height: 45px; }
+#viewer-header { flex-wrap: wrap; }
+#watch-controls {
+    display: flex; flex: 0 0 auto; align-items: center; gap: 12px; padding: 4px 8px;
+}
+#watch-controls label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 #viewers { flex: 1; min-width: 0; align-items: center; gap: 4px; padding: 8px; }
 .tile-layout {
     display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 0 4px;

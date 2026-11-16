@@ -399,6 +399,12 @@ class Session:
                 raise
 
     def start(self):
+        import watch_control
+        if not all(watch_control.settings().values()):
+            raise ValueError('--record requires --watch-ssh on and --watch-view on')
+        policy = watch_control.environment().get(watch_control.VARIABLE)
+        if policy:
+            watch_control.initialize(Path(policy).parent, record=True)
         from test_storage import runtime_directory, scratch_directory
         from watch_recording_worker import (launch_command, launch_environment, process_identity,
                                             shared_owner_descriptors)

@@ -19,6 +19,8 @@ import threading
 import time
 import uuid
 
+from tools import watch_control
+
 _instance = None
 _attempted = False
 _attempted_vm = None
@@ -93,6 +95,7 @@ class Transcript:
         self.offset = 0
         self.operations = {}
         self.intent = ('', 0)
+        self.generation = 0
 
     def begin(self, label, *, priority=1):
         token = object()
@@ -110,6 +113,8 @@ class Transcript:
 
     def append(self, text):
         with self.lock:
+            if not watch_control.enabled('ssh'):
+                return
             combined = self.text + clean(text)
             self.offset += max(0, len(combined) - 8000)
             self.text = combined[-8000:]
@@ -148,12 +153,24 @@ class Publication:
     def serve_peer(self, peer):
         # Authenticate before sending any transcript. Never read a request.
         uid = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
-        if uid == self.uid:
+        if uid == self.uid and watch_control.enabled('ssh'):
             peer.setblocking(False)
             peer.send(self.transcript.packet(self.registry.run))
 
     def serve(self):
+        enabled = True
         while not self.stop.is_set():
+            if not watch_control.enabled('ssh'):
+                if enabled:
+                    with self.transcript.lock:
+                        self.transcript.generation += 1
+                        self.transcript.sequence += 1
+                        self.transcript.text = ''
+                        self.transcript.offset = 0
+                    enabled = False
+                self.stop.wait(.25)
+                continue
+            enabled = True
             try:
                 peer, _ = self.registry.server.accept()
                 with peer:
@@ -169,6 +186,8 @@ class Publication:
 
 def current():
     global _instance, _attempted, _attempted_vm
+    if not watch_control.enabled('ssh'):
+        return None
     uid = os.environ.get('PKEXEC_UID', '')
     if os.geteuid() == 0 and uid.isdecimal() and int(uid) > 0:
         from vm_config import selected
@@ -257,11 +276,16 @@ class Command:
         self.pending = {'stdout': b'', 'stderr': b''}
         self.controls = {stream: TerminalControls() for stream in self.pending}
         self.dropping = set()
+        self.generation = transcript.generation
         transcript.append('\n' + label + '\n')
         if not visible:
             transcript.append('[private command data omitted]\n')
 
     def output(self, data, stream):
+        self.synchronize()
+        if not watch_control.enabled('ssh'):
+            self.reset()
+            return
         if not self.visible:
             return
         pending = self.pending[stream] + self.controls[stream].feed(data)
@@ -281,6 +305,10 @@ class Command:
             self.transcript.append('[oversized output line omitted]\n')
 
     def finish(self, status):
+        self.synchronize()
+        if not watch_control.enabled('ssh'):
+            self.transcript.end(self.token)
+            return
         for stream, data in self.pending.items():
             if data:
                 self.controls[stream] = TerminalControls()
@@ -288,10 +316,44 @@ class Command:
         self.transcript.append(f'[exit {status}]\n')
         self.transcript.end(self.token)
 
+    def reset(self):
+        self.pending = {'stdout': b'', 'stderr': b''}
+        self.controls = {stream: TerminalControls() for stream in self.pending}
+        self.dropping.clear()
 
-def command(args, selection=None):
+    def synchronize(self):
+        if self.generation != self.transcript.generation:
+            self.reset()
+            self.generation = self.transcript.generation
+
+
+def active_command(args, selection=None):
     transcript = current()
     if transcript is None:
         return None
     label, visible = selection or ('Host $ ' + Path(args[0]).name, False)
     return Command(transcript, label, visible)
+
+
+class DeferredCommand:
+    """An off-start command may begin observation at its next enabled output."""
+
+    def __init__(self, args, selection):
+        self.args, self.selection = args, selection
+        self.command = None
+
+    def output(self, data, stream):
+        if self.command is None and watch_control.enabled('ssh'):
+            self.command = active_command(self.args, self.selection)
+        if self.command is not None:
+            self.command.output(data, stream)
+
+    def finish(self, status):
+        if self.command is not None:
+            self.command.finish(status)
+
+
+def command(args, selection=None):
+    if not watch_control.enabled('ssh'):
+        return DeferredCommand(args, selection)
+    return active_command(args, selection)

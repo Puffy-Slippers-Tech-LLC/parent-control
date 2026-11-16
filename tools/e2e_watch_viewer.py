@@ -97,7 +97,9 @@ class AsyncFeed:
                 except queue.Empty:
                     continue
                 frame = self.feed.poll(pixels=pixels)
-                progress, activity = self.feed.progress(), self.feed.activity()
+                watch_ssh = self.feed.watch_ssh
+                progress = self.feed.progress() if watch_ssh else None
+                activity = self.feed.activity() if watch_ssh else None
                 # Keep an unread changed frame when the next poll has no update.
                 try:
                     previous = self.updates.get_nowait()
@@ -156,9 +158,20 @@ class Feed:
         self.activity_buffer = ''
         self.activity_offset = 0
         self.activity_sequence = 0
+        self.watch_ssh = True
+        self.default_watch_ssh = True
+
+    def clear_activity(self):
+        self.activity_value = None
+        self.activity_offsets.clear()
+        self.activity_buffer = ''
+        self.activity_offset = 0
+        self.activity_sequence += 1
 
     def activity(self):
         """Authenticated output-only snapshots, independent of QEMU frames."""
+        if not self.watch_ssh:
+            return None
         now = time.monotonic()
         if now < self.next_activity:
             return self.activity_value
@@ -310,6 +323,8 @@ class Feed:
 
     def progress(self):
         """Read only the root-owned, bounded, fresh invocation heartbeat."""
+        if not self.watch_ssh:
+            return None
         directory = BASE / str(os.getuid())
         try:
             for path in (BASE, directory):
@@ -340,6 +355,9 @@ class Feed:
         now = time.monotonic()
         try:
             if self.memory is None:
+                if self.watch_ssh and not self.default_watch_ssh:
+                    self.clear_activity()
+                self.watch_ssh = self.default_watch_ssh
                 if now < self.next_connect:
                     return None
                 self.next_connect = now + 1
@@ -361,6 +379,10 @@ class Feed:
             if meta['state'] == 'stopped' or time.monotonic_ns() - meta['updated_ns'] > 3_000_000_000:
                 self.close()
                 return 'waiting'
+            watch_ssh = meta['watch_ssh']
+            if self.watch_ssh and not watch_ssh:
+                self.clear_activity()
+            self.watch_ssh = watch_ssh
             self.last_frame = now
             self.sequence = sequence
             return frame
@@ -510,6 +532,10 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
                                (self.metadata and self.metadata.get('lease_locked', True)))
             if not render:
                 return
+            if self.metadata.get('watch_ssh') is False and self.activity_identity is not None:
+                self.writer.feed(b'', reset=True)
+                self.activity_identity = None
+                self.activity_end = 0
             if activity is not None:
                 identity = (activity['run'], activity['sequence'])
                 if identity != self.activity_identity:
@@ -523,7 +549,8 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
                     self.writer.feed(text.encode('utf-8'), reset=reset)
                     self.activity_identity = identity
                     self.activity_end = end
-            if not self.metadata or self.metadata.get('state') != 'live':
+            if (not self.metadata or self.metadata.get('state') != 'live'
+                    or self.metadata.get('watch_view') is False):
                 self.screen.clear()
             elif frame is not None:
                 self.screen.update(frame)

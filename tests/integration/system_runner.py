@@ -166,6 +166,7 @@ KIOSK_ACTIVATION_HOST_INPUTS = (
     'tests/integration/system_runner.py', 'tests/integration/system_case_ids.py',
     'tests/integration/system_snapshots.py',
     'tests/integration/vm_transport.py', 'tests/integration/watch_activity.py',
+    'tools/watch_control.py',
     'tests/e2e/kiosk_entry.py', 'tests/e2e/ui_observations.py',
     'tests/e2e/private_artifacts.py',
     'tests/e2e/accessible_ui.py', 'tests/e2e/application_ui.py',

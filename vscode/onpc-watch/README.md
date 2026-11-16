@@ -395,6 +395,21 @@ panel's current order, following changes on each refresh. Worktrees without a di
 shown on the left. Start tests through the usual launchers.
 The Reconnect button restarts this tab's source connections.
 
+The **View** and **SSH** switches immediately left of the right panel's layout
+buttons start off. Each click applies the corresponding `--watch-view on|off` or
+`--watch-ssh on|off` option to every currently running `run-tests` and `fix-tests`
+launcher across the connected sources, including runners grouped under another
+workflow. No confirmation dialog or controller restart is needed. The switches
+keep their state across reconnects and hidden tabs; future launchers keep their
+own startup settings until another click.
+
+With **View** off, image areas show **View disabled**. With global **SSH** off,
+VM command output is hidden and each tile's SSH switch is disabled. A tile that
+was on stays on; enabling global SSH restores its saved visibility preference.
+Launcher progress, sessions, errors and controls remain available. Recording
+guards and unavailable sources can refuse a change; Watch reports the failure
+and restores the toolbar switch instead of claiming every launcher changed.
+
 The fixed **Run Time** tab follows **VM Viewer**. It loads logged VM case durations only
 while selected, refreshes the data once per minute, and unloads its body when
 another tab is selected. Selecting it again loads fresh data immediately. The selectable,
@@ -623,7 +638,17 @@ unreachable servers. Readers connect asynchronously at startup; Watch does not
 wait for SSH handshakes or offline hosts before opening. Healthy connections reuse
 persistent SSH readers; no separate
 SSH ping processes are started. Host resource readers are polled once per second,
-and SSH keepalives request a response after one second without received data
+but skip counter reads while all active controlled runs on that host have
+`--watch-ssh off`. New `run-tests` and `fix-tests` runs start with both
+`--watch-ssh off` and `--watch-view off`. Use the corresponding `on` option to
+enable command observation or VM display capture, and `off` to stop it during
+the same live run. Omitted options preserve that run's current choices.
+Disabling observation clears its retained VM display or command text; launcher
+progress, agent sessions, controls and errors remain available. Adapters and
+running controllers must use current code; unusable live controls refuse global
+changes before dispatch.
+
+SSH keepalives request a response after one second without received data
 (three missed responses close the connection). Pending snapshot requests also
 have a ten-second deadline. Status detection is therefore bounded by connection
 and request timeouts rather than guaranteed to change within one second. Hidden

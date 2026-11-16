@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import os
 import selectors
+import select
 import signal
 import subprocess
 import sys
@@ -125,13 +126,53 @@ class Control:
         self.pipe = pipe
         previous = {sig: signal.signal(sig, self.interrupt)
                     for sig in (signal.SIGINT, signal.SIGTERM)}
-        if pipe:
-            def listen():
-                os.read(sys.stdin.fileno(), 1)
-                self.stop()
-            threading.Thread(target=listen, daemon=True).start()
         try:
-            yield self
+            if not pipe:
+                yield self
+                return
+            import watch_control
+            initial = watch_control.settings() if watch_control.environment() else {}
+            listener = None
+            with watch_control.receiving(initial, active=lambda: listener is not None and listener.is_alive()) as policy:
+                closed = threading.Event()
+                def listen():
+                    pending = b''
+                    while not closed.is_set():
+                        try:
+                            if not select.select([sys.stdin.fileno()], [], [], .25)[0]:
+                                continue
+                            data = os.read(sys.stdin.fileno(), 1024)
+                        except (OSError, ValueError):
+                            self.stop()
+                            return
+                        if not data:
+                            self.stop()
+                            return
+                        pending += data
+                        if not (watch_control.FRAME.startswith(pending)
+                                or pending.startswith(watch_control.FRAME)):
+                            self.stop()
+                            return
+                        while b'\n' in pending:
+                            line, pending = pending.split(b'\n', 1)
+                            try:
+                                if len(line) > 256 or not line.startswith(watch_control.FRAME):
+                                    raise ValueError('invalid control frame')
+                                value = watch_control.validate(json.loads(line[len(watch_control.FRAME):]))
+                                watch_control.update(policy, value)
+                            except (ValueError, OSError, TypeError):
+                                self.stop()
+                                return
+                        if len(pending) > 256:
+                            self.stop()
+                            return
+                listener = threading.Thread(target=listen, daemon=True)
+                listener.start()
+                try:
+                    yield self
+                finally:
+                    closed.set()
+                    listener.join(timeout=1)
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
@@ -197,6 +238,9 @@ class Control:
         kwargs.setdefault('pass_fds', (*test_activity.descriptors(), *scratch_descriptors()))
         kwargs['pass_fds'] = tuple(dict.fromkeys((*kwargs['pass_fds'], *test_source.descriptors())))
         env = dict(env)
+        import watch_control
+        for name, value in watch_control.environment().items():
+            env.setdefault(name, value)
         for name in (test_source.VARIABLE, test_source.WRITER):
             env.pop(name, None)
         env.update(test_source.environment())
@@ -265,6 +309,8 @@ class Control:
         retirement = None
         timed_out = forced = child_exited = False
         reaped = False
+        last_watch = None
+        next_watch = 0
 
         def signal_group(sig):
             # start_new_session made this explicitly spawned child its group
@@ -295,6 +341,19 @@ class Control:
                     started()  # The child has inherited any caller-owned startup leases.
                 while poller.get_map() or (not bounded_group and child.poll() is None):
                     now = time.monotonic()
+                    if cooperative and not sent and uploaded.is_set() and now >= next_watch:
+                        next_watch = now + .25
+                        try:
+                            value = watch_control.settings()
+                            if value != last_watch:
+                                child.stdin.write(watch_control.FRAME + json.dumps(value).encode() + b'\n')
+                                child.stdin.flush()
+                                last_watch = value
+                        except BrokenPipeError:
+                            pass
+                        except (OSError, ValueError) as error:
+                            output_error = error
+                            self.stop()
                     if self.stopped.is_set() and not sent and uploaded.is_set():
                         sent = True
                         if cooperative:
@@ -449,6 +508,8 @@ def host_run(root, category, argv, *, pipe=True):
         if category == 'ui':
             import test_retention
             env.update(test_retention.environment())
+            from watch_control import environment as watch_environment
+            env.update(watch_environment())
         timeout = host.pytest_timeout(argv, category)
         # Unit/component workers have no default execution deadline, but their
         # cancellation and leaked output pipes must still settle in bounded time.

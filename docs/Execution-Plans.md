@@ -282,6 +282,27 @@ The shared detached-controller environment also pins internal `run-tests` calls
 to that controller's root, including inventory discovery before a repair
 invocation exists. Explicit `--branch` still overrides this internal default.
 
+`run-tests` and `fix-tests` accept `--watch-ssh on|off` and
+`--watch-view on|off`. Both default to off for a new independent run, including
+a fresh resume. On attachment, only explicitly supplied settings change; an
+ordinary attachment or controller reload preserves the live settings. Use the
+same branch, scope and VM selection as the active owner. Changes travel through
+the existing cooperative worker channels and apply during execution without a
+reload, test interruption or safe-boundary wait. Small bounded control polling
+remains active while collection is off. Internal test and repair workers inherit
+their controlling launcher's live policy, including across host dispatch.
+
+SSH controls Watch's filtered command transcript, VM intention/progress and
+optional resource sampling. It does not suppress actual test SSH commands,
+assertion inputs, normal runner progress or failure diagnostics. View controls
+the copied QEMU display listener, host UI capture services and downstream image
+processing/transfer. Disabling a feed stops its producer work rather than
+hiding its presentation. Standalone VM tools retain their existing observation.
+`--record` requires both Watch settings on; a recording-enabled controller
+rejects attempts to disable either. Watch can operate without recording.
+Older controllers must finish or restart under current code before accepting
+live Watch controls; attaching cannot retrofit already-running processes.
+
 ```sh
 tools/execute-plan 'docs/Example.md' --check
 tools/execute-plan 'docs/Example.md' --tasks 2

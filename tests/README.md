@@ -743,6 +743,11 @@ are interrupted through the [repair interruption route](#scripted-repair-loop);
 replacement waits for owned cleanup, not completion of the admitted case group.
 Controllers join admitted work and preserve completed cases before replacement.
 Source edits alone never trigger reload. When idle, `--reload` starts normally.
+`--watch-ssh on|off` and `--watch-view on|off` change actual Watch collection
+while the selected owner continues running. New independent runs default to
+both off; omitted options on attachment or reload leave the current settings
+unchanged. The [common launcher contract](../docs/Execution-Plans.md#common-launcher-interface)
+owns inheritance, recording requirements and the distinction from test output.
 While a run is active, repeated execution commands acknowledge that owner and
 ignore new categories. Test invocations inside plan agents, repair supervisors
 and Make recipes continue to wait for the completed test verdict.
@@ -1075,7 +1080,8 @@ Run Time resolves current descriptions when reading logged cases, so metadata
 updates also apply to older timings without rewriting execution history.
 
 `tools/run-tests` and `tools/fix-tests` do not record by default. Add the
-value-free `--record` flag to record VM-scoped categories, including system and
+value-free `--record` flag together with `--watch-ssh on --watch-view on` to
+record VM-scoped categories, including system and
 E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output

@@ -93,6 +93,16 @@ function validate(snapshot) {
     const chart = value => value && segments(value.segments) &&
         (value.host_segments === undefined || segments(value.host_segments));
     if (snapshot?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; update the adapter (protocol 1 required).');
+    if (typeof snapshot.watch_ssh !== 'boolean') {
+        throw new Error('Invalid Watch SSH policy.');
+    }
+    if (!Array.isArray(snapshot.watch_launchers) ||
+            !unique(snapshot.watch_launchers) || snapshot.watch_launchers.some(run => !run ||
+                !identifier(run.id) || !identifier(run.run) ||
+                !['run-tests', 'fix-tests'].includes(run.launcher) || typeof run.watch_controls !== 'boolean' ||
+                (run.watch_controls && (typeof run.watch_ssh !== 'boolean' || typeof run.watch_view !== 'boolean')))) {
+        throw new Error('Invalid live Watch launchers.');
+    }
     if (snapshot.run_times !== undefined && (!Array.isArray(snapshot.run_times) || snapshot.run_times.some(row =>
         !row || !['system', 'integration', 'e2e'].includes(row.category) ||
         !(Number.isInteger(row.id) && row.id > 0 || typeof row.id === 'string') ||
@@ -422,7 +432,13 @@ class Bridge {
             if (this.sources.includes(source)) continue;
             if (Date.now() < (source.nextSampleAt || 0)) continue;
             source.nextSampleAt = Date.now() + 1000;
-            try { source.tick({}); }
+            const mainSources = this.sources.filter(main => main.config.transport === source.config.transport &&
+                (source.config.transport === 'local' || main.config.host === source.config.host));
+            // A first main snapshot establishes policy before any counters are
+            // sampled. Hosts without a main adapter retain standalone behavior.
+            const enabled = !mainSources.length || mainSources.some(main => main.snapshot &&
+                main.snapshot.watch_ssh);
+            try { source.tick({ enabled }); }
             catch (error) { source.fail(error.message); }
         }
         for (const source of this.sources) {
@@ -434,6 +450,7 @@ class Bridge {
             const entry = source.snapshot?.entries.find(entry => key(source.config.id, entry.id) === request.selected);
             try {
                 source.tick({ scope: scope?.source === source ? scope.id : 'all',
+                    resources: this.resourceSources.includes(source),
                     selected: scope && scope.source !== source ? '__hidden__' :
                         entry?.id || (['all', 'run-time'].includes(request.selected) ? request.selected : '__hidden__'),
                     ...(source.snapshot?.capabilities.session_roots === true ?
@@ -507,6 +524,9 @@ class Bridge {
                 const route = key(id, checkout.id);
                 this.roots.set(route, { source, id: checkout.id });
                 checkouts.push({ ...checkout, id: route, label: labelSources ? `[${label}] ${checkout.label}` : checkout.label });
+            }
+            for (const run of value?.watch_launchers || []) {
+                this.roots.set(key(id, run.id), { source, id: run.id });
             }
             for (const run of value?.runs || []) {
                 const route = key(id, run.id);
@@ -619,24 +639,57 @@ class Bridge {
         return { result: await source.artifact(route.uri), remote: source.config.transport === 'ssh' };
     }
 
-    async launcherCommand(root, run, kind) {
+    async launcherCommand(root, run, kind, value) {
         const route = this.roots.get(root);
-        const current = route?.source.snapshot?.runs.find(item => item.id === route.id);
-        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(kind) ||
-                !(kind === 'close' ? current?.launcher_close && !current.active : current?.launcher_controls) || current.run !== run ||
+        const watch = ['watch-view', 'watch-ssh'].includes(kind);
+        const snapshot = route?.source.snapshot;
+        const current = (watch ? snapshot?.watch_launchers : snapshot?.runs)?.find(item => item.id === route.id);
+        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close', 'watch-view', 'watch-ssh'].includes(kind) ||
+                !(watch ? current?.watch_controls && current.active !== false :
+                    kind === 'close' ? current?.launcher_close && !current.active : current?.launcher_controls) || current.run !== run ||
+                (watch && !['on', 'off'].includes(value)) ||
                 (kind === 'add-session' && !current.launcher_add_session_command) ||
                 (kind === 'reload' && !current.launcher_reload_command) ||
                 (kind === 'kill' && !current.launcher_kill)) {
             throw new Error('Launcher changed; refresh before trying again.');
         }
-        const result = await route.source.launcherCommand({ root: route.id, run, kind });
+        const result = await route.source.launcherCommand({ root: route.id, run, kind, ...(watch ? { value } : {}) });
         if (result.ok !== true) throw new Error(result.error || 'Launcher command unavailable.');
         if (typeof result.root !== 'string' || typeof result.run !== 'string' ||
                 typeof result.launcher !== 'string' || !/^[\w.-]{1,100}$/.test(result.launcher) ||
+                (watch && !['run-tests', 'fix-tests'].includes(result.launcher)) ||
                 !Array.isArray(result.argv) || result.argv.some(arg => typeof arg !== 'string' || arg.includes('\0'))) {
             throw new Error('Invalid launcher command.');
         }
         return { ...result, source: route.source.config };
+    }
+
+    async watchCommands(kind, value) {
+        if (!['watch-view', 'watch-ssh'].includes(kind) || !['on', 'off'].includes(value)) {
+            throw new Error('Invalid Watch control.');
+        }
+        const groups = [];
+        for (const source of this.sources) {
+            if (source.status !== 'Connected') {
+                throw new Error(`${source.config.label} is disconnected; reconnect before changing all running launchers.`);
+            }
+            const runs = source.snapshot.watch_launchers;
+            const unavailable = runs.find(run => !run.watch_controls);
+            if (unavailable) {
+                throw new Error(`${unavailable.launcher} on ${source.config.label} has no live Watch controls; restart it under current code.`);
+            }
+            if (!runs.length) continue;
+            for (const run of runs) this.roots.set(key(source.config.id, run.id), { source, id: run.id });
+            groups.push({ source, runs });
+        }
+        // Preflight every target before dispatch. One adapter resolves requests
+        // in order; independent hosts need not wait for each other.
+        return (await Promise.all(groups.map(async ({ source, runs }) => {
+            const commands = [];
+            for (const run of runs) commands.push(await this.launcherCommand(
+                key(source.config.id, run.id), run.run, kind, value));
+            return commands;
+        }))).flat();
     }
 
     async deleteRunTimes(tokens) {

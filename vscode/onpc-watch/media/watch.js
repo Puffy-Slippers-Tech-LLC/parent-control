@@ -21,11 +21,13 @@
     const runs = document.getElementById('runs');
     const layout = document.getElementById('watch');
     const divider = document.getElementById('divider');
+    const saved = vscode.getState();
     const cards = new Map();
-    const sshVisible = new Set();
+    const sshVisible = new Set(saved?.sshVisible || []);
+    const watchSettings = { view: false, ssh: false };
+    const watchButtons = new Map(['view', 'ssh'].map(kind => [kind, document.getElementById(`watch-${kind}`)]));
     const sections = new Map();
     let maximizedRun;
-    const saved = vscode.getState();
     let state = { scope: 'all', selected: saved?.selected || 'all' };
     let tileLayout;
     let runTileLayout;
@@ -624,8 +626,29 @@
     }
 
     function persist() {
-        vscode.setState({ ...state, split, tileLayout, runTileLayout, manualTiles, minimized: [...minimized] });
+        vscode.setState({ ...state, split, tileLayout, runTileLayout, manualTiles,
+            minimized: [...minimized], sshVisible: [...sshVisible] });
     }
+
+    function collectionSettings(values) {
+        for (const [kind, button] of watchButtons) {
+            if (typeof values[kind] === 'boolean') watchSettings[kind] = values[kind];
+            button.setAttribute('aria-checked', String(watchSettings[kind]));
+            button.disabled = values.pending === true;
+            button.title = `${kind === 'view' ? 'View' : 'SSH'} ${watchSettings[kind] ? 'on' : 'off'} for all running launchers`;
+        }
+        for (const [id, view] of cards) {
+            if (!watchSettings.view) void screen(view, null);
+            view.activity.hidden = !watchSettings.ssh || !sshVisible.has(id);
+            if (!watchSettings.ssh) view.activity.textContent = '';
+            if (view.sshToggle) view.sshToggle.disabled = !watchSettings.ssh;
+        }
+    }
+    for (const [kind, button] of watchButtons) button.addEventListener('click', () => {
+        const enabled = !watchSettings[kind];
+        collectionSettings({ [kind]: enabled, pending: true });
+        vscode.postMessage({ type: 'watchToggle', kind, enabled });
+    });
 
     // Both panes use the same controls and grid engine. Pane owners supply only
     // selection state and, for resizable launcher rows, optional track sizes.
@@ -980,12 +1003,12 @@
             }
         });
         const waiting = element('p', 'waiting', display);
-        waiting.textContent = 'Waiting for display';
+        waiting.textContent = watchSettings.view ? 'Waiting for display' : 'View disabled';
         const activity = element('pre', 'activity', content);
         activity.setAttribute('aria-label', 'Filtered VM command output');
         const footer = element('div', 'card-footer', body);
         const status = element('div', 'status', footer);
-        let memory;
+        let memory, sshToggle;
         if (entry.kind === 'vm') {
             memory = element('span', 'resource vm-memory', footer);
             memory.title = 'Host RAM occupied by the VM process (RSS), in decimal GB. Last minute; scale includes configured guest RAM and QEMU overhead.';
@@ -995,25 +1018,30 @@
             graph.width = 140;
             graph.height = 44;
             graph.setAttribute('aria-hidden', 'true');
-            activity.hidden = !sshVisible.has(entry.id);
+            activity.hidden = !watchSettings.ssh || !sshVisible.has(entry.id);
             const ssh = element('label', 'ssh-control', footer);
             ssh.append('SSH ');
-            const toggle = element('button', 'session-toggle', ssh);
+            const toggle = sshToggle = element('button', 'session-toggle', ssh);
             toggle.type = 'button';
             toggle.setAttribute('role', 'switch');
             toggle.setAttribute('aria-label', 'SSH');
-            toggle.setAttribute('aria-checked', String(!activity.hidden));
+            toggle.setAttribute('aria-checked', String(sshVisible.has(entry.id)));
+            toggle.disabled = !watchSettings.ssh;
             toggle.addEventListener('click', () => {
-                activity.hidden = !activity.hidden;
-                toggle.setAttribute('aria-checked', String(!activity.hidden));
-                if (activity.hidden) sshVisible.delete(entry.id);
+                if (!watchSettings.ssh) return;
+                const enabled = !sshVisible.has(entry.id);
+                activity.hidden = !enabled;
+                toggle.setAttribute('aria-checked', String(enabled));
+                if (!enabled) sshVisible.delete(entry.id);
                 else {
                     sshVisible.add(entry.id);
                     activity.scrollTop = activity.scrollHeight;
                 }
+                persist();
             });
         }
-        return { body, title, heading, step, canvas, waiting, activity, status, memory, screenshot, maximize, maximizeShape };
+        return { body, title, heading, step, canvas, waiting, activity, status, memory, sshToggle,
+            screenshot, maximize, maximizeShape };
     }
 
     function image(url) {
@@ -1026,10 +1054,12 @@
     }
 
     async function screen(view, data) {
+        if (!watchSettings.view) data = null;
         if (data === undefined) return;
+        const generation = view.screenGeneration = (view.screenGeneration || 0) + 1;
         view.canvas.hidden = !data;
         view.waiting.hidden = Boolean(data);
-        view.waiting.textContent = 'Waiting for display';
+        view.waiting.textContent = watchSettings.view ? 'Waiting for display' : 'View disabled';
         if (!data) {
             view.frame = undefined;
             view.frameUrl = undefined;
@@ -1044,6 +1074,7 @@
             const [frame, cursor] = await Promise.all([
                 desktop, data.cursor ? image(data.cursor.image) : undefined
             ]);
+            if (generation !== view.screenGeneration || !watchSettings.view) return;
             view.frame = frame;
             view.frameUrl = data.image ?? view.frameUrl;
             // Assigning either dimension resets the backing buffer and context.
@@ -1055,6 +1086,7 @@
             if (cursor) context.drawImage(cursor, data.cursor.x, data.cursor.y);
             view.screenshot.disabled = !view.canvas.width || !view.canvas.height;
         } catch (error) {
+            if (generation !== view.screenGeneration || !watchSettings.view) return;
             view.frame = view.frameUrl = undefined;
             // A corrupt source frame must not discard healthy viewers or run state.
             view.canvas.width = view.canvas.height = 0;
@@ -1856,7 +1888,9 @@
                 drawChart(view.memory.querySelector('canvas'), entry.memory?.segments || [], '153, 102, 217');
             }
             if (view.status.textContent !== entry.status) view.status.textContent = entry.status;
-            const text = terminal(entry.activity);
+            if (view.sshToggle) view.sshToggle.disabled = !watchSettings.ssh;
+            view.activity.hidden = !watchSettings.ssh || !sshVisible.has(entry.id);
+            const text = watchSettings.ssh ? terminal(entry.activity) : '';
             if (view.activity.textContent !== text) {
                 const follow = view.activity.scrollHeight - view.activity.clientHeight - view.activity.scrollTop < 24;
                 view.activity.textContent = text;
@@ -1877,7 +1911,9 @@
                 section.copyFeedbackTimer = setTimeout(() => section.heading.classList.remove('command-copied'), 1500);
             }
         }
-        if (event.data.type === 'snapshot') {
+        if (event.data.type === 'watchSettings') {
+            collectionSettings(event.data);
+        } else if (event.data.type === 'snapshot') {
             pending = pending.then(() => render(event.data)).catch(error => {
                 message(error.message);
                 reportError(error);

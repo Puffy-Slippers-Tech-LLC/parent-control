@@ -86,7 +86,7 @@ class PassCheckpoint:
             raise
 
     def _open(self):
-        from test_results import ResultStore, VARIABLE, REPAIR_QUEUE
+        from test_results import ResultStore, VARIABLE
         from vm_case_queue import work_key
         ensure_directory(self.store.path)
         self.fd = self.resources.enter_context(self.store.opened())
@@ -119,17 +119,6 @@ class PassCheckpoint:
                 for work in items:
                     if not work['cases'] and self.results.complete(work['category'], family, work['options']):
                         completed.add(work_key(work))
-                if not os.environ.get(REPAIR_QUEUE):
-                    for record in self.results.failures():
-                        if (record['family'] in (family, 'command') and not record['case']
-                                and not record.get('work') and any(
-                                    work['category'] == record['category']
-                                    and work['options'] == record.get('options') for work in items)):
-                            # Validate the enclosing operation through real work;
-                            # keep its durable case results until replaced.
-                            passed[record['category']] = []
-                            completed.difference_update(work_key(work) for work in items
-                                if work['category'] == record['category'])
             self.state['families'][family] = dict(items={work_key(work): work for work in items},
                                                   passed=passed, claims={}, completed=sorted(completed))
         self.save()

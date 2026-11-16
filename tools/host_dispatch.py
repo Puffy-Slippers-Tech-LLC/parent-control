@@ -64,6 +64,29 @@ def ssh_environment(environment):
     return result
 
 
+def artifact_reader(root, vm, argv):
+    """Read on the artifact host without capturing or admitting checkout source."""
+    if argv[:1] not in (['list'], ['stat'], ['read'], ['tail']):
+        raise ValueError('artifacts requires list, stat, read or tail')
+    from vm_selection import vm_config
+    document = vm_config.read_document(Path(root) / 'config/environment.json', validate_agent=False)
+    if vm.host.name == tool_host(root, document).name:
+        return None
+    anchor = next((item['repo_root'] for item in vm_config.branch_registry(document).values()
+                   if item['host'] == vm.host.name), None)
+    if anchor is None:
+        raise ValueError(f'no configured storage checkout on {vm.host.name}')
+    # The installed reader authenticates the SSH account and confines every path.
+    # Descriptor aliases and source fences belong to execution, not inspection.
+    command = ssh_command(vm.host, ['/usr/bin/env', '-C', anchor,
+        '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+        '/usr/local/libexec/onpc-test-artifacts', *argv])
+    try:
+        return subprocess.run(command, cwd=root, check=False, timeout=60).returncode
+    except subprocess.TimeoutExpired as error:
+        raise ValueError('artifact reader timed out on ' + vm.host.name) from error
+
+
 def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
     """Run a public VM tool on its host using this checkout's working source.
 

@@ -184,7 +184,13 @@ if __name__ == '__main__':
                 and args[:1] not in (['status'], ['xml'], ['snapshots'], ['screenshot'],
                                     ['probe'], ['stop'], ['recover-online'])):
             vm_config.require_branch(configured, vm_config.current_branch())
-        from host_dispatch import vm_tool
+        from host_dispatch import artifact_reader, vm_tool
+        if args[:1] == ['artifacts']:
+            root = Path(__file__).resolve().parents[1]
+            status = artifact_reader(root, configured, args[1:])
+            if status is not None:
+                sys.exit(status)
+            launch('/usr/local/libexec/onpc-test-artifacts', args[1:])
         args, input_fd = input_arguments(args)
         from contextlib import nullcontext
         guest_stdin = bool(args[:1] == ['exec'] and vm_config.guest_command_arguments(args[1:])[2])
@@ -196,12 +202,6 @@ if __name__ == '__main__':
             if input_fd is not None:
                 os.close(input_fd)
             sys.exit(status)
-        if args[:1] == ['artifacts']:
-            # Host dispatch above selects the VM's host; the existing reader
-            # owns path, caller, file identity and bounded-output validation.
-            if args[1:2] not in (['list'], ['stat'], ['read'], ['tail']):
-                raise ValueError('artifacts requires list, stat, read or tail')
-            launch('/usr/local/libexec/onpc-test-artifacts', args[1:])
         status = baseline_restoration(args, configured)
         if status is None:
             status = fixture_maintenance(args, configured)

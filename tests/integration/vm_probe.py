@@ -1302,11 +1302,11 @@ def reproduce_versioned_appimage_assets(lease, fixture_selection):
 
 
 def probe_native_desktop_new_window(lease):
-    """Recheck the same guarded icon boundary in the retained child desktop."""
+    """Observe both app windows and retained work without replaying a launch."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from ui_observations import UiObservations, AppActivityObservation, compare_app_activity
     from qualification_storage import recovery_session, allocate
-    with operation('Checking the exact desktop icon while the child keeps original work'), recovery_session(
+    with operation('Checking the second app window while the child keeps original work'), recovery_session(
             check='probe_native_desktop_new_window', lease=lease, live=True):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-native-desktop-new-window-probe-'))
         private = directory / 'private'
@@ -1315,18 +1315,18 @@ def probe_native_desktop_new_window(lease):
         print('native-desktop-new-window-probe: evidence=' + str(directory), flush=True)
         ui = UiObservations(connect(lease))
         before = ui.observe('native-soft-primary-activity')
-        icon = ui.observe('native-soft-desktop-icon')
+        opened = ui.observe('native-soft-secondary-opened')
         after = ui.observe('native-soft-primary-activity')
         compare_app_activity(AppActivityObservation.from_value(after['activity']),
                              AppActivityObservation.from_value(before['activity']))
         (directory / 'observed.json').write_text(json.dumps(
-            {'before': before, 'icon': icon, 'after': after}))
+            {'before': before, 'opened': opened, 'after': after}))
         lease.guard()
         print('native-desktop-new-window-probe: observation passed', flush=True)
 
 
 def reproduce_native_desktop_new_window(lease, fixture_selection):
-    """Retain 036h's original S work at the exact second-window icon boundary."""
+    """Retain original S work after the public second-window launch."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from installed_journey import InstalledJourney
     from native_desktop_new_window import PLAN
@@ -1335,12 +1335,12 @@ def reproduce_native_desktop_new_window(lease, fixture_selection):
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, InstalledJourney, PLAN,
-        'first-second-icon', 'native-desktop-new-window', assets=assets,
-        boundary_operation='native-soft-desktop-icon', fixture_selection=selection, timeout=1800)
+        'first-second-launch', 'native-desktop-new-window', assets=assets,
+        boundary_operation='native-soft-desktop-launch', fixture_selection=selection, timeout=1800)
 
 
 def reproduce_native_desktop(lease, fixture_selection):
-    """Retain case 68's Jordan selection after the actual Parent policy saves."""
+    """Retain case 68's Jordan launch after the actual Parent policy saves."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from app_launch import DESKTOP_PLAN
     from policy_edits import AppPolicyJourney
@@ -1349,8 +1349,8 @@ def reproduce_native_desktop(lease, fixture_selection):
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, AppPolicyJourney, DESKTOP_PLAN,
-        'jordan-use-selected', 'native-desktop', assets=assets,
-        boundary_operation='native-desktop-selected', fixture_selection=selection, timeout=1800)
+        'jordan-use-launch', 'native-desktop', assets=assets,
+        boundary_operation='native-desktop-launch', fixture_selection=selection, timeout=1800)
 
 
 def reproduce_native_files(lease, fixture_selection):
@@ -2073,10 +2073,10 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and boundary == 'first-dismiss' and boundary_operation == 'native-files-allowed-dismiss')
         native_desktop = (surface == 'native-desktop'
             and journey_type is AppPolicyJourney and plan is DESKTOP_PLAN
-            and boundary == 'jordan-use-selected' and boundary_operation == 'native-desktop-selected')
+            and boundary == 'jordan-use-launch' and boundary_operation == 'native-desktop-launch')
         native_desktop_new_window = (surface == 'native-desktop-new-window'
             and journey_type is InstalledJourney and plan is NATIVE_DESKTOP_NEW_WINDOW_PLAN
-            and boundary == 'first-second-icon' and boundary_operation == 'native-soft-desktop-icon')
+            and boundary == 'first-second-launch' and boundary_operation == 'native-soft-desktop-launch')
         grant_logout = (surface == 'grant-logout'
             and journey_type is GrantAccessJourney and plan is GRANT_ACCESS_PLAN
             and boundary == 'grant-logout-logout' and boundary_operation == 'system:standard-logout')

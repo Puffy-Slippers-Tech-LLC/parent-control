@@ -447,7 +447,7 @@ OPERATION_LABELS.update({operation: 'Replacing and reading a declared nonsecret 
                          for operation in accessible_ui.TEXT_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Checking native app launch and ordinary draft submission: ' + operation
                          for operation in accessible_ui.NATIVE_APP_OPERATIONS})
-OPERATION_LABELS.update({operation: 'Selecting the child\'s exact desktop app icon'
+OPERATION_LABELS.update({operation: 'Launching the child\'s declared desktop entry'
                          for operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS})
 OPERATION_LABELS.update({operation: 'Reading or using the child\'s distinct S window'
                          for operation in accessible_ui.NATIVE_WINDOW_BINDINGS})
@@ -2436,10 +2436,6 @@ class UiObservations:
             expected['game_mode'] = {'mode': 'fullscreen' if operation == 'game-fullscreen-level'
                                      else 'windowed', 'level': 1}
         policy_bindings = {**accessible_ui.BASELINE_NATIVE_BINDINGS, **accessible_ui.NATIVE_DENIAL_BINDINGS}
-        if operation in accessible_ui.NATIVE_DESKTOP_OPERATIONS and not operation.endswith(('-selected', '-denied')):
-            expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
-            require(type(result.get('selected')) is bool, 'ui:native-desktop-selection-response')
-            expected['selected'] = result['selected']
         if operation in accessible_ui.NATIVE_WINDOW_BINDINGS:
             instance, action = accessible_ui.NATIVE_WINDOW_BINDINGS[operation]
             if action in ('opened', 'submitted'):

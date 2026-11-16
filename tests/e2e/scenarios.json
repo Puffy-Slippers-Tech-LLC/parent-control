@@ -496,10 +496,10 @@
           "transport": ["gdm-observation"]
         },
         "full_combinations": [],
-        "rationale": "One canonical runner smoke covers functional GDM selection, prompt/list exclusion, dismissal and graphical return, real serial command, boot continuity, credential/asset forwarding and final controller evidence. It supersedes E2E-034/serial-controller without dropping its assertions or duplicating ordinary execution. No customer coverage is claimed."
+        "rationale": "Retired from customer E2E scheduling: this product-free transport qualification tests the runner. Existing focused engineering coverage retains selection/verdict, credential and destructive-cleanup safeguards; the graphical qualification remains available for diagnostics. Stable IDs are preserved without customer coverage or acceptance credit."
       },
       "variants": [
-        {"coverage_id": 1, "id": "gdm-observation", "owner": "graphical-harness", "parameters": {"transport": "gdm-observation"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/controller_qualification.py", "test_id": "gdm-observation"}}
+        {"coverage_id": 1, "id": "gdm-observation", "owner": "graphical-harness", "parameters": {"transport": "gdm-observation"}, "status": "pending", "pending_reason": "Retired from E2E execution: product-free runner transport is not a product feature. Focused engineering safety coverage remains; do not reimplement this UI qualification as customer coverage.", "executable": null}
       ]
     },
     {
@@ -3573,7 +3573,7 @@
         "visible": [
           {"id": "chinese-assets-verified", "step_id": "step-1", "description": "Chinese baseline assets independently verify without mutation."},
           {"id": "chinese-account-confirmed", "step_id": "step-1", "description": "Jordan's declared desktop language is read back independently."},
-          {"id": "renewed-chinese-desktop", "step_id": "step-1", "description": "A renewed Jordan desktop presents Chinese."},
+          {"id": "renewed-chinese-desktop", "step_id": "step-1", "description": "Jordan's renewed session uses the declared Chinese locale that seeds the product's initial language; Shell translation and font rendering are not acceptance targets."},
           {"id": "latest-install-version-notice-same-boot", "step_id": "step-1", "description": "The latest package completes with its installed version and genuine reboot notice on the unchanged boot."},
           {"id": "independent-install-reread", "step_id": "step-1", "description": "A separate read confirms installation and preserved state."},
           {"id": "first-chinese-restart-notice", "step_id": "step-1", "description": "The first kiosk notice and buttons are Chinese before any language handler."},

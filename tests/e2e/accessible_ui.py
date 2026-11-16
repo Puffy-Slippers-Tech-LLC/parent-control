@@ -251,22 +251,21 @@ GAME_OPERATIONS = frozenset('game-' + action for action in (
     'fullscreen-secondary-command-blocked', 'continue', 'continued-activity'))
 OPERATIONS |= GAME_OPERATIONS
 STANDARD_OPERATIONS |= GAME_OPERATIONS
-NATIVE_DESKTOP_OPERATIONS = frozenset((
-    'native-desktop-icon', 'native-desktop-icon-refusals', 'native-desktop-selected'))
+NATIVE_DESKTOP_OPERATIONS = frozenset(('native-desktop-launch',))
 OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_DESKTOP_OPERATIONS
 RILEY_NATIVE_DESKTOP_OPERATIONS = frozenset('overlay-' + operation
-    for operation in NATIVE_DESKTOP_OPERATIONS if operation != 'native-desktop-icon-refusals')
+    for operation in NATIVE_DESKTOP_OPERATIONS)
 NATIVE_DESKTOP_OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
 OPERATIONS |= RILEY_NATIVE_DESKTOP_OPERATIONS
-NATIVE_DESKTOP_SOFT_OPERATIONS = frozenset(('native-soft-desktop-icon', 'native-soft-desktop-selected'))
+NATIVE_DESKTOP_SOFT_OPERATIONS = frozenset(('native-soft-desktop-launch',))
 NATIVE_DESKTOP_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
 OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
 STANDARD_OPERATIONS |= NATIVE_DESKTOP_SOFT_OPERATIONS
 NATIVE_DESKTOP_POLICY_BINDINGS = {
     'native-desktop-' + name + '-' + action: (role, action)
     for name, role in (('hard', 'H'), ('soft', 'S'))
-    for action in ('icon', 'selected', 'denied')
+    for action in ('launch', 'denied')
 }
 NATIVE_DESKTOP_OPERATIONS |= NATIVE_DESKTOP_POLICY_BINDINGS.keys()
 OPERATIONS |= NATIVE_DESKTOP_POLICY_BINDINGS.keys()
@@ -8565,7 +8564,7 @@ class AccessibleUI:
 
     def shell_desktop_observation(self, *, no_prompt=False, language='en'):
         """One complete Shell desktop read, shared by entry and TIME01."""
-        require(language in ('en', 'zh-Hans'), 'ui:desktop-language-binding')
+        require(language in ('en', 'zh-Hans', None), 'ui:desktop-language-binding')
         root = self.api.get_desktop(0)
         require(root is not None, 'ui:incomplete-tree')
         capture = getattr(self, 'retained_unlock_diagnostic_active', False)
@@ -8602,8 +8601,9 @@ class AccessibleUI:
         if not owners:
             return None
         panels = [node for node in self.snapshot_scope(nodes, snapshot, owners[0])
-                  if facts[node]['role'] == 'toggle button' and facts[node]['name'] ==
-                  ('Activities' if language == 'en' else '活动')
+                  if facts[node]['role'] == 'toggle button' and facts[node]['name'] in
+                  ({'Activities', '活动'} if language is None else
+                   {'Activities' if language == 'en' else '活动'})
                   and self.showing(node)
                   and self.has_state(node, self.api.StateType.SENSITIVE)]
         require(len(panels) <= 1, 'ui:shell-desktop-ambiguous')
@@ -14078,68 +14078,6 @@ class AccessibleUI:
         self.wait(focused, 'parent-result-focus')
         self.input_uncertain = False
 
-    def native_desktop_snapshot(self, *, child=EXISTING_CHILD, product=NATIVE_PRODUCT, duplicate_owner=False):
-        """DING's public icon name, scoped to its session-bus owner and child.
-
-        DING's Gtk.Box icons have no public IDs or activation action. Its
-        supported keyboard route is focus, Ctrl+A selection, then Enter. This
-        finite binding requires the fixture to be the only ordinary icon.
-        No geometry, file-manager preparation or alternate launch route.
-        """
-        from gi.repository import Gio, GLib
-        require(child in (EXISTING_CHILD, CHILD) and (product == NATIVE_PRODUCT
-                or child == EXISTING_CHILD and product in (NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT, 'ONPC Nonmatching Fixture')),
-                'ui:native-desktop-binding')
-        require_active_launch_session(unlocked=True)
-        require(os.getuid() == os.geteuid() == pwd.getpwnam(
-            CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
-        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        def call(method, signature, values):
-            return connection.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
-                'org.freedesktop.DBus', method, GLib.Variant(signature, values), None,
-                Gio.DBusCallFlags.NO_AUTO_START, 2000, None).unpack()[0]
-        owner = call('GetNameOwner', '(s)', ('com.rastersoft.ding',))
-        pid = call('GetConnectionUnixProcessID', '(s)', (owner,))
-        process = Path('/proc/' + str(pid))
-        require(process.stat().st_uid == os.getuid()
-                and (process / 'exe').readlink() == Path('/usr/bin/gjs').resolve(strict=True)
-                and b'/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js'
-                in (process / 'cmdline').read_bytes().split(b'\0'), 'ui:native-desktop-owner')
-        nodes, edges, _ids, facts = self.read_snapshot()
-        applications = [node for node in nodes if facts[node]['role'] == 'application'
-                        and node.get_process_id() == pid]
-        if duplicate_owner:
-            applications = applications * 2
-        require(len(applications) <= 1, 'ui:native-desktop-ambiguous-owner')
-        if not applications:
-            return None
-        scoped = self.snapshot_scope(nodes, edges, applications[0])
-        self.handle_system_prompt(observation=(nodes, edges, facts))
-        names = (product + ' Application', product + ' Application Selected')
-        icons = [node for node in scoped if facts[node]['name'] in names
-                 and facts[node]['showing'] and node.get_component_iface() is not None]
-        require(len(icons) <= 1, 'ui:native-desktop-ambiguous-icon')
-        if not icons:
-            require(product in (NATIVE_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT), 'ui:native-desktop-wrong-icon')
-            return None
-        target = icons[0]
-        # Ctrl+A selects ordinary files, excluding DING's Home/Trash shortcuts.
-        # Refuse other entries before selection; never launch a broad selection.
-        ordinary = [node for node in scoped if facts[node]['showing']
-                    and self.has_state(node, self.api.StateType.FOCUSABLE)
-                    and facts[node]['name'] not in ('Home Folder', 'Trash Folder')]
-        require(ordinary == [target], 'ui:native-desktop-extra-icons')
-        # DING's Enter opens the sole selected file, rather than merely the
-        # focused box. Refuse any other selection before authorizing keyboard input.
-        selected = [node for node in scoped if facts[node]['showing']
-                    and facts[node]['name'].endswith(' Selected')
-                    and self.has_state(node, self.api.StateType.FOCUSABLE)]
-        is_selected = facts[target]['name'] == names[1]
-        require(selected == ([target] if is_selected else []), 'ui:native-desktop-selection')
-        require(call('GetNameOwner', '(s)', ('com.rastersoft.ding',)) == owner,
-                'ui:native-desktop-owner-changed')
-        return target, pid, is_selected
-
     def native_desktop_operation(self, operation):
         require(operation in NATIVE_DESKTOP_OPERATIONS, 'ui:native-desktop-operation')
         child = CHILD if operation in RILEY_NATIVE_DESKTOP_OPERATIONS else EXISTING_CHILD
@@ -14157,16 +14095,8 @@ class AccessibleUI:
             self.wait(denied, 'native-desktop-denied', prompt_in_predicate=True)
             self.standard_shell_desktop(no_prompt=True)
             return None
-        operation = operation.removeprefix('overlay-')
-        def snapshot(**arguments):
-            return self.native_desktop_snapshot(child=child,
-                **({'product': NATIVE_HARD_PRODUCT if policy[0] == 'H' else NATIVE_SOFT_PRODUCT}
-                   if policy else {'product': NATIVE_SOFT_PRODUCT} if separate else {}), **arguments)
         require(not self.input_uncertain, 'ui:uncertain-input')
         def closed():
-            # Unrelated providers can exit between enumeration and GetItems.
-            # Reacquire the complete read, preserving a real window's refusal;
-            # focus and keyboard input remain outside this read-only wait.
             require(self.native_app_closed('secondary' if separate or policy else 'primary',
                     desktop=False, complete_absence=True),
                     'ui:native-window-exists')
@@ -14177,57 +14107,42 @@ class AccessibleUI:
                 self.native_app_snapshot('ONPC fixture draft', child=EXISTING_CHILD)
             return True
         self.wait(closed, 'native-desktop-preflight', prompt_in_predicate=True)
-        if operation.endswith('-selected'):
-            def selected():
-                current = snapshot()
-                return current and current[2] and self.has_state(current[0], self.api.StateType.FOCUSED)
-            self.wait(selected, 'native-desktop-selected', prompt_in_predicate=True)
-            return None
         self.prepare_launch_desktop()
-        target, pid, _selected = self.wait(snapshot,
-            'native-desktop-icon', prompt_in_predicate=True)
-        if operation == 'native-desktop-icon-refusals':
-            for arguments, expected in (
-                    ({'product': 'ONPC Nonmatching Fixture'}, 'ui:native-desktop-wrong-icon'),
-                    ({'duplicate_owner': True}, 'ui:native-desktop-ambiguous-owner')):
-                try:
-                    snapshot(**arguments)
-                except UiError as error:
-                    require(str(error) == expected, 'ui:native-desktop-wrong-refusal')
-                else:
-                    require(False, 'ui:native-desktop-refusal-missing')
-        self.invalidate_observation()
-        current = snapshot()
-        require(current is not None and current[:2] == (target, pid),
-                'ui:native-desktop-icon-changed')
-        self.input_uncertain = True
-        require(target.get_component_iface().grab_focus(), 'ui:native-desktop-focus-refused')
-        def focused():
-            current = snapshot()
-            require(current is not None and current[:2] == (target, pid),
-                    'ui:native-desktop-icon-changed')
-            return current if self.has_state(current[0], self.api.StateType.FOCUSED) else None
-        current = self.wait(focused, 'native-desktop-focused', prompt_in_predicate=True)
-        self.input_uncertain = False
-        from gi.repository import Gio
-        environment = dict(item.split(b'=', 1) for item in
-            Path('/proc/' + str(pid) + '/environ').read_bytes().split(b'\0') if b'=' in item)
-        locale = (environment.get(b'LC_ALL') or environment.get(b'LC_MESSAGES')
-                  or environment.get(b'LANG') or b'C').decode('ascii')
-        # DING ships inside Ubuntu's desktop-icons package; the running source
-        # identity above is checked independently of this diagnostic tuple.
-        package = subprocess.run(['/usr/bin/dpkg-query', '--search',
-            '/usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js'],
-            stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True, timeout=5)
-        lines = package.stdout.strip().splitlines()
-        require(len(lines) == 1 and lines[0].endswith(': /usr/share/gnome-shell/extensions/'
-                'ding@rastersoft.com/app/ding.js'), 'ui:native-desktop-package')
-        provider = validate_shell_metadata({
-            'version': subprocess.check_output(['/usr/bin/dpkg-query', '--show', '--showformat=${Version}',
-                lines[0].split(': ', 1)[0]], text=True, timeout=5).strip(),
-            'locale': locale, 'keyboard': [list(source) for source in Gio.Settings.new(
-                'org.gnome.desktop.input-sources').get_value('sources').unpack()]})
-        return {'provider': provider, 'selected': current[2]}
+        # Desktop icons are an optional desktop feature. Exercise the same
+        # desktop entry through GIO, then independently observe app use/denial.
+        from gi.repository import GioUnix, GLib
+        from guest_files import directory, identity, read_regular
+        account = pwd.getpwnam(CHILD_ACCOUNTS[child])
+        require(os.getuid() == os.geteuid() == account.pw_uid, 'ui:native-desktop-account')
+        role = policy[0] if policy else 'S' if separate else 'A'
+        name = 'com.puffyslippers.ONPCTest.' + role + '.desktop'
+        home = Path(account.pw_dir)
+        with directory(home / 'Desktop', account) as (fd, guard), directory(
+                home / '.local/share/applications', account) as (source_fd, source_guard):
+            data, before = read_regular(fd, name, owner=account.pw_uid, mode=0o755, limit=4096)
+            source, _ = read_regular(source_fd, name, owner=account.pw_uid, mode=0o644, limit=4096)
+            require(data == source, 'ui:native-desktop-entry')
+            app = GioUnix.DesktopAppInfo.new_from_filename(str(home / 'Desktop' / name))
+            expected = [NATIVE_EXECUTABLES[role]] + (
+                ['--instance', 'secondary'] if role in ('H', 'S') else [])
+            require(app is not None and GLib.shell_parse_argv(app.get_commandline())[1] == expected,
+                    'ui:native-desktop-target')
+            require_active_launch_session(unlocked=True)
+            source_guard()
+            guard()
+            require(identity(os.stat(name, dir_fd=fd, follow_symlinks=False)) == identity(before),
+                    'ui:native-desktop-entry-changed')
+            self.input_uncertain = True
+            try:
+                require(app.launch_uris_as_manager([], None,
+                    GLib.SpawnFlags.STDOUT_TO_DEV_NULL | GLib.SpawnFlags.STDERR_TO_DEV_NULL),
+                    'ui:native-desktop-launch')
+            except GLib.Error as error:
+                require(any(error.matches(GLib.spawn_error_quark(), code)
+                            for code in (GLib.SpawnError.ACCES, GLib.SpawnError.PERM)),
+                        'ui:native-desktop-launch')
+            source_guard()
+            guard()
 
     def native_files_snapshot(self, role, *, child=EXISTING_CHILD, active=True):
         """FILE04/07: exact directory, selection and live Files owner; no geometry."""
@@ -16084,11 +15999,11 @@ class AccessibleUI:
             result['provider'] = self.shell_provider_metadata()
         elif operation == 'chinese-standard-desktop':
             require_active_launch_session()
-            self.standard_shell_desktop(no_prompt=True, language='zh-Hans')
-            # Use the very same scoped Shell owner for provenance; English
-            # search discovery cannot establish this Chinese desktop.
+            # Session locale seeds the product's initial language. Shell's
+            # own translation is incidental to that product behavior.
+            self.standard_shell_desktop(no_prompt=True, language=None)
             owner, _, _ = self.wait(lambda: self.shell_desktop_observation(
-                no_prompt=True, language='zh-Hans'), 'chinese-shell-owner', prompt_in_predicate=True)
+                no_prompt=True, language=None), 'chinese-shell-owner', prompt_in_predicate=True)
             result['provider'] = self._shell_provider_metadata(owner)
         elif operation == 'keyring-cancel-standard':
             self.cancel_keyring_prompt()

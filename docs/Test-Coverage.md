@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">154</span>/<span style="color: gray">44</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6834</span>/<span style="color: gray">44</span>/6878** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">153</span>/<span style="color: gray">45</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6833</span>/<span style="color: gray">45</span>/6878** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -25,7 +25,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
 | customer-journey | <span style="color: green">153</span>/<span style="color: gray">44</span>/197 |
-| runner-smoke | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 |
+| runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 
@@ -35,7 +35,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 
 | ID | Scenario | Variant | Status |
 | ---: | --- | --- | --- |
-| [1](#scenario-1) | Fresh boot and graphical/observation transport | `E2E-001/gdm-observation` | ready |
 | [2](#scenario-2) | Install the app and begin managing a child | `E2E-002/clean` | ready |
 | [3](#scenario-3) | Parent discovery and navigation (children: existing and new) | `E2E-003/existing-and-new` | ready |
 | [4](#scenario-4) | Parent discovery and navigation (children: none) | `E2E-003/none` | ready |
@@ -189,6 +188,7 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [264](#scenario-264) | A child's saved request presets and units survive editing and return | `E2E-063/saved-presets` | ready |
 | [265](#scenario-265) | Riley reads upgrade notes and returns to the same request | `E2E-064/kiosk` | ready |
 | [266](#scenario-266) | Each child receives their saved warnings before time runs out | `E2E-065/warnings-play-renewal-reboot` | ready |
+| <span style="color: gray">[1](#scenario-1)</span> | <span style="color: gray">Fresh boot and graphical/observation transport</span> | <span style="color: gray">`E2E-001/gdm-observation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
@@ -233,20 +233,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[230](#scenario-230)</span> | <span style="color: gray">Approve after the displayed estimate has aged (balance: grant dominant; surface: kiosk)</span> | <span style="color: gray">`E2E-048/grant-dominant-kiosk`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[239](#scenario-239)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap grid; surface: child overlay)</span> | <span style="color: gray">`E2E-049/snap-grid-child-overlay`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[242](#scenario-242)</span> | <span style="color: gray">Change temporary app permission on every supported launch route (route: snap command; surface: kiosk)</span> | <span style="color: gray">`E2E-049/snap-command-kiosk`</span> | <span style="color: gray">pending</span> |
-
-### Scenario 1
-
-**Fresh boot and graphical/observation transport**
-
-Case: `E2E-001/gdm-observation` · Category: runner-smoke · Status: **ready**
-
-Variant: transport: gdm observation
-
-**Steps:**
-
-- Recognize real GDM on a fresh product-free boot through the qualified provider adapter, select the intended account, verify its focus and press Enter. Independently verify the intended recipient and focused password field with the account list hidden, then dismiss with Escape. No graphical password is submitted.
-- Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
-- Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown.
 
 ### Scenario 2
 
@@ -2422,6 +2408,26 @@ Variant: history: warnings play renewal reboot
 **Steps:**
 
 - Read both children's defaults and save German for Riley and English for Jordan. With zero daily time approve four minutes, use Riley's app and observe the natural one-minute and fifteen-second default warnings and lock. Save a literal fifteen-second warning and compare it across language changes. Renew ten minutes for visible Critical fullscreen delivery, then renew for suppressed High delivery of the same saved row. Keep each warning's identity through natural locking. Save Jordan's empty list, reboot normally, read both retained choices and renew Riley's time for custom delivery. Compare both independent policies and finish at sign-in.
+
+<div style="color: gray">
+
+### Scenario 1
+
+**Fresh boot and graphical/observation transport**
+
+Case: `E2E-001/gdm-observation` · Category: runner-smoke · Status: **pending**
+
+Variant: transport: gdm observation
+
+**Steps:**
+
+- Recognize real GDM on a fresh product-free boot through the qualified provider adapter, select the intended account, verify its focus and press Enter. Independently verify the intended recipient and focused password field with the account list hidden, then dismiss with Escape. No graphical password is submitted.
+- Select the supported serial console, verify the real fixture login prompt and disabled echo, authenticate through the secret-safe API, require actual harmless command output, and perform real logout.
+- Select graphics after serial logout, independently acknowledge the session-free greeter and fresh public account-list UI, and reconcile ordered functional UI checkpoints and the command result before accepting shutdown.
+
+Pending: Retired from E2E execution: product-free runner transport is not a product feature. Focused engineering safety coverage remains; do not reimplement this UI qualification as customer coverage.
+
+</div>
 
 <div style="color: gray">
 

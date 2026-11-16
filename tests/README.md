@@ -1494,7 +1494,7 @@ and shared safety checks under the
 | `tests/ui/` | Parent, shared request form, feedback UI and nested-Shell component behavior. | Private compositor, D-Bus/AT-SPI/XDG/settings; preview/fake dependencies are declared component inputs. |
 | `tests/child/` | Platform-neutral child JavaScript and GJS adapters. | Node and GJS runners; component evidence, not installed GNOME/PAM acceptance. |
 | `tests/system/` | Installed package, real caller credentials and OS integration. | Only through the guarded VM runner; excluded from default host discovery. |
-| `tests/e2e/` | [Scenario inventory and guarded execution contract](e2e/README.md). | E2E-001 executes real GDM/serial input. Pending customer journeys retain their explicit status and cannot pass through host doubles. |
+| `tests/e2e/` | [Scenario inventory and guarded execution contract](e2e/README.md). | Customer outcomes only; product-free E2E-001 transport qualification is retired from scheduling. Pending customer journeys retain their explicit status and cannot pass through host doubles. |
 
 The current pytest discovery paths and markers are defined in
 [pyproject.toml](../pyproject.toml) and [conftest.py](conftest.py). Default pytest

@@ -133,7 +133,7 @@ required by the recipe; their existence does not qualify an unimplemented route.
 | Supporting work | Minimal route and stopping point |
 | --- | --- |
 | App and game assets | Reuse the maintained fixture builder, verified manifests and artifact cache for native, Snap, Flatpak, versioned-path and offline-game inputs. Reconcile reusable native executables, shared GUI files and launchers through `tools/prepare-vm`; attempts independently verify them over guarded SSH. Deliberate scenario file mutations use shared file operations. No native fixture package or product installer is required. Independently controlled native roles need distinct executable content where content-based enforcement applies. Use the shared package helper only for inputs that actually require package/runtime installation. Bind the required public identity and one ordinary usable action in its consuming slice. No store browsing, vendor account creation, third-party repository setup, updater exercise or new packaging framework. Real package format, confinement, enforcement and retained activity assertions still apply where declared. Lunar's explicitly real-app profile uses FIX05 instead. |
-| Files and desktop entries | Use shared exact-path copy/rename and supported per-user commands/APIs for launcher placement, permissions and trust metadata. Open Files directly at the prepared directory only when its launch route is tested; the actual Files/DING activation remains graphical. No folder tours, Properties-dialog preparation or alternate launch after failure. Product downloads use the bound user's `~/Downloads` and the existing destination helper. |
+| Files and desktop entries | Use shared exact-path copy/rename and supported per-user commands/APIs for launcher placement and permissions. Launch a desktop entry through GIO as the bound child; optional desktop icons and their trust metadata are not product features. Open Files directly at the prepared directory only when its graphical launch route is tested. No folder tours, Properties-dialog preparation or alternate launch after failure. Product downloads use the bound user's `~/Downloads` and the existing destination helper. |
 | Sessions and power | Reuse direct entry, logout, lock/greeter and reboot helpers. Suspend uses one supported guest command and one supported owned-VM wake operation, followed by the actual public return/unlock result. Do not add power-settings, screensaver, RTC, hardware or wake-method matrices. Ordinary overlay reopening uses REQUEST02. |
 | Offline and recovery | Installed offline consumers use LIFE06's same VM Internet-isolation/recovery helper, including from a child desktop or GDM. Restoring Internet access needs no visit to Parent, network settings or another session. Preserve the current product surface and independently observe the local-operation result. Reallocated feedback UI checks use fake retry/success responses instead of VM Internet isolation. |
 | Feedback and information | Routine sending checks reuse the existing fake sender in the Parent/request UI component previews under the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation). Keep real sending separate and optional; no inbox, recipient configuration or sending authorization gates routine checks. Genuine installed collection, confinement and exit results keep their owners. Check offered links under the link-only mandate and open/read/close the owned Privacy disclosure. No external page/content or handler validation. |
@@ -2032,9 +2032,9 @@ Await fresh public results within deadlines, accounting for observation latency.
 | FILE05 | C | Copy or rename a registered fixture file through a bounded shared SSH filesystem operation and verify its exact destination. | `SyntheticFiles.call` in [synthetic_files.py](../../tests/e2e/synthetic_files.py), fixed `synthetic-text` profile; [qualified scope](#synthetic-file-commands). The `native-space` profile supplies the [child-owned executable copy](#space-bearing-executable-copy). `save_destination_actions` adds fixed `save` preparation, exact output readback and owned cleanup for the diagnostic Save binding below. Product catalogue/enforcement results remain independent UI observations. No Files copy/rename tour. | synthetic-text, diagnostic Save destination and Jordan's space-bearing executable copy on Ubuntu 26.04 ready; other profiles pending |
 | FILE08 | C | Inspect a declared synthetic or customer-exported text/ZIP artifact with bounded read-only filesystem/archive APIs over guarded SSH. Bind exact file identity and compare actual contents. For explicitly tested retained work, directly open its document in the registered work app and observe real activity instead. | `read_declared_text` / `read_declared_zip` in [synthetic_files.py](../../tests/e2e/synthetic_files.py) and fixed `open-text` / `open-zip` in [synthetic_files_guest.py](../../tests/e2e/synthetic_files_guest.py) qualify synthetic text/ZIP and the fixed `diagnostic-export` Save receipt binding; see [artifact-read boundary](#customer-artifact-read-boundary). [Child-owned saved work](#child-owned-saved-work) adds document Open/reopen and independent saved-byte readback. File reads alone cannot prove usable or retained activity. No Files/editor/archive-viewer GUI for export inspection and no private product files. | synthetic text/ZIP, named Parent diagnostic-export and fixed Jordan/Riley saved-work bindings ready; other retained-work and exported artifacts pending |
 | FILE09 | C | Change a registered synthetic source file using the shared file helper and observe the product's attachment snapshot/re-add result. For declared retained-work assertions, edit/save in the existing work fixture and read its activity. | `change_attachment_source` / `SyntheticFiles.call('change-source')`; [qualified source binding](#synthetic-source-change) runs as Jamie for standard/single attachment inputs. [Child-owned saved work](#child-owned-saved-work) separately qualifies public edit/Save, independent readback and APP03/04 work observations. UI16/public Save/readback only for work observed by an enforcement/retention case. | standard/single synthetic source preparation and fixed Jordan/Riley document Save/reopen ready; product snapshot/re-add belongs to the attachment UI matrix; other work bindings pending |
-| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `native_usable_app('files', role=None\|'S')` adds the [Jordan A/S Files bindings](#native-files-launch-and-separate-windows); `native_blocked_app(..., route='files')` adds H/S denial with retained A work in case 236. `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's and Riley's exact Allowed fixture grid routes under [native fixture preparation](#native-fixture-preparation), including Jordan's explicit A/Alias shared-target bindings and `other-child` / `child` identities. `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active desktop user over guarded SSH, including Jamie/Parent through [distinct-user retention](#distinct-user-retained-app-qualification), with independent APP02 window readback. `native_blocked_app('A', route='grid')` adds the [case-64/66 bindings](#native-fixture-preparation). Explicit app-grid, desktop-icon and file-manager cases retain their GUI route. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds the [original Lunar AppImage command](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, Jordan A/Alias Allowed grid, stated Jamie/child command bindings and Jordan hard/soft-blocked A grid on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) and supplied Lunar command launch ready; other bindings pending |
-| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | The [Jordan A/H/S Files qualification](#native-files-launch-and-separate-windows) adds A/S presence and closure, H/S denial and owner-bound temporary S closure with retained A work. `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie's command-window presence. [Native denial qualification](#native-launch-denial-qualification) adds Jordan's H/S command denial and N command-window presence/closure. `native-grid-denied` and `native-command-blocked` add the independent [case-64/66/82/83/84 results](#native-fixture-preparation). [Captured activity closure](#captured-native-activity-closure) compares Jordan's original A window after precise Hard/Soft saves. UI01 → UI03 for presence; FILE06 for command denial; UI11 for Flatpak hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds [usable Lunar and complete absence after Quit](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley and Jordan A/Alias Allowed grid presence/normal closure, stated command bindings, Jamie command presence, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan Flatpak S hiding/restoration](#flatpak-grid-use) ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) and supplied Lunar presence/Quit absence ready; other bindings pending |
-| APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley trusted desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. [Child-owned saved work](#child-owned-saved-work) adds edit/Save and usable reopened-window submission. `lunar_ui.run` adds [public Lunar Settings](#lunar-original-appimage-launch-and-quit). | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch), fixed saved-work use and supplied Lunar Settings ready; other actions/bindings pending |
+| APP01 | C | Attempt a launch once by the route explicitly tested by product enforcement. Default supporting launch uses a shared direct command. Hidden launcher and execution denial are distinct. | `native_usable_app('files', role=None\|'S')` adds the [Jordan A/S Files bindings](#native-files-launch-and-separate-windows); `native_blocked_app(..., route='files')` adds H/S denial with retained A work in case 236. `onpc_app_rows::native_search/native_launch_grid/native_open_grid` qualify Jordan's and Riley's exact Allowed fixture grid routes under [native fixture preparation](#native-fixture-preparation), including Jordan's explicit A/Alias shared-target bindings and `other-child` / `child` identities. `native_open_command` / `AccessibleUI.native_launch_command` qualify the fixed native command as the bound active desktop user over guarded SSH, including Jamie/Parent through [distinct-user retention](#distinct-user-retained-app-qualification), with independent APP02 window readback. `native_blocked_app('A', route='grid')` adds the [case-64/66 bindings](#native-fixture-preparation). Explicit app-grid and file-manager cases retain their GUI route; desktop-entry cases use the public system launch API. Command cases use FILE01/02 without Terminal UI. Never substitute the tested route after failure. [Jordan/Riley verified desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds the [original Lunar AppImage command](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native Allowed grid, Jordan A/Alias Allowed grid, stated Jamie/child command bindings and Jordan hard/soft-blocked A grid on Ubuntu 26.04 ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) and supplied Lunar command launch ready; other bindings pending |
+| APP02 | C | Observe exactly the expected usable window, named launch denial, hidden launcher, or closure of a previously observed window. Inputs include route, result and earlier window observation when required. | The [Jordan A/H/S Files qualification](#native-files-launch-and-separate-windows) adds A/S presence and closure, H/S denial and owner-bound temporary S closure with retained A work. `AccessibleUI.native_app_snapshot/native_app_closed` independently observe the owned primary native window and exact initial activity, then complete absence with the recognized desktop after `onpc_app_rows::native_close_app`; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie's command-window presence. [Native denial qualification](#native-launch-denial-qualification) adds Jordan's H/S command denial and N command-window presence/closure. `native-grid-denied` and `native-command-blocked` add the independent [case-64/66/82/83/84 results](#native-fixture-preparation). [Captured activity closure](#captured-native-activity-closure) compares Jordan's original A window after precise Hard/Soft saves. UI01 → UI03 for presence; FILE06 for command denial; UI11 for Flatpak hidden/closed surface with a recognized surrounding UI. Hidden launcher alone cannot prove blocked execution. [Jordan/Riley verified desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. `lunar_ui.run` adds [usable Lunar and complete absence after Quit](#lunar-original-appimage-launch-and-quit). | [Jordan's A/H/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley and Jordan A/Alias Allowed grid presence/normal closure, stated command bindings, Jamie command presence, exact Jordan H/S command denial, Jordan hard/soft-blocked A command and grid denial and stated captured A closure on Ubuntu 26.04 ready; [Jordan Flatpak S hiding/restoration](#flatpak-grid-use) ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch) ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) and supplied Lunar presence/Quit absence ready; other bindings pending |
+| APP03 | C | Perform one declared normal app input and observe its customer-visible effect, proving usability. Repeated game actions are separate bounded invocations. | The [Jordan A/S Files qualification](#native-files-launch-and-separate-windows) adds normal Submit and independent readback. `onpc_app_rows::native_use_app` composes guarded public Submit draft through `AccessibleUI.native_app_submit` and separate exact submitted-label readback; [native qualification](#native-fixture-preparation) includes Jordan/Riley and Jordan A/Alias grid bindings. [Distinct-user retention](#distinct-user-retained-app-qualification) adds Jamie command submission and Jamie/Riley resumed submission on their original windows. UI01 → one of UI04, UI05 or UI06 according to the declared input mode → UI03 or UI02 according to the declared result projection. App action/expected effect is fixture data. [Jordan/Riley verified desktop entries](#native-desktop-entry-and-usable-launch) add the scoped desktop binding. [Child-owned saved work](#child-owned-saved-work) adds edit/Save and usable reopened-window submission. `lunar_ui.run` adds [public Lunar Settings](#lunar-original-appimage-launch-and-quit). | [Jordan's A/S Files route](#native-files-launch-and-separate-windows) on Ubuntu 26.04 ready; Jordan/Riley native primary grid, Jordan A/Alias grid draft submission on Ubuntu 26.04 and stated Jamie/child command and retained-window bindings ready; [Jordan/Riley desktop use](#native-desktop-entry-and-usable-launch), fixed saved-work use and supplied Lunar Settings ready; other actions/bindings pending |
 | APP04 | C | Read a recognizable public activity/window state, or compare it after legitimate return. Inputs declare capture/compare and the earlier immutable observation. | The [same-S Files qualification](#native-files-launch-and-separate-windows) adds separate-primary/secondary and unchanged-original comparisons; the [same-S desktop qualification](#native-desktop-entry-and-usable-launch) adds those comparisons after Jordan's desktop activation. `AccessibleUI.native_app_snapshot(with_window=True)` / `native-activity` read the owned public window endpoint and exact submitted draft. `AppActivityObservation`, `compare_app_activity` and `InstalledJourney.check_activity` copy immutable captures and compare explicit `JourneyPlan.activity_checks` endpoints; `onpc_app_rows::native_read_activity` supplies caller-owned invocation IDs. APP02(present) → UI03 → UI12 only for compare; [native activity qualification](#native-fixture-preparation). A newly launched window cannot satisfy retained-activity expectations. `overlay-native-activity` adds the fixed Riley command binding and two exact retained-window/draft comparisons after normal Cancel; see the [valid overlay slice](#valid-overlay-choice-and-cancel-qualification). [Distinct-user retention](#distinct-user-retained-app-qualification) qualifies Jamie/Riley captures and original-window comparisons through Switch User. [Child-owned saved work](#child-owned-saved-work) distinguishes same-window rereads from deliberate close/reopen with saved text. No hidden process/window inspection. | [Jordan's same-S Files activity](#native-files-launch-and-separate-windows) and [desktop activity](#native-desktop-entry-and-usable-launch) on Ubuntu 26.04 ready; native primary capture/same-window comparison, stated Jamie/Riley retention and case 17 Jordan A/S Cancel retention on Ubuntu ready; fixed Jordan/Riley saved-work comparisons ready; [Jordan windowed/fullscreen and Riley windowed game permission](#game-permission-qualification) ready; other bindings pending |
 | APP05 | C | Prepare the real offline game's declared windowed/fullscreen mode and reproducible level through shared supported commands or keyboard shortcuts, then observe active gameplay. Game settings menus are supporting setup. | Bind startup options in the preceding APP01 launch, or use a fixed supported command/UI05 shortcut on the observed game; do not relaunch retained activity. UI01/UI03 verifies the mode/level, then APP03 proves actual gameplay input/effect. `journey_blocks.game_usable_app(mode=...)` / `AccessibleUI.game_operation('game-windowed-level'/'game-fullscreen-level')` observe the actual GTK mode and fixed level independently before the real move; qualified [windowed](#windowed-game-expiry) and [fullscreen](#fullscreen-game-expiry) compositions. The selected game needs usable public observations; a menu or timer fixture is insufficient. | Jordan's windowed/fullscreen level 1 and Riley's windowed case-128 binding on Ubuntu 26.04 ready; other bindings pending |
 | APP06 | A | Read one complete, account-scoped public projection of Lunar application/tray presence and any registered launcher surface, with the recognized desktop. Absence requires both application and tray absent. Do not launch, reveal or quit anything; a registered accessibility frame supplies no native-window visibility claim. | `lunar_ui.run` adds `lunar-snapshot`; `lunar-closed` retains complete application/tray absence. `e2e --subcategory e2e-heavy --qualify-lunar-tray` qualified independent same-owner presence after normal Jordan entry/original-AppImage launch, followed by genuine Quit/complete absence on Ubuntu 26.04. The [allowed sign-in binding](#allowed-lunar-startup-after-sign-in) additionally qualifies supplied hidden autostart without a launch command. No tray-feature or continuous game-specific observer is required. [Consumer gate](#lunar-client-preparation-and-observation-gate). | owned Lunar application/tray presence and allowed normal-sign-in autostart on Ubuntu 26.04 ready; blocked sign-in binding pending |
@@ -3674,15 +3674,15 @@ must be idempotent, preserve unrelated assets and support owned retry under the
 It changes neither product installation nor child/station language.
 
 [chinese_language_assets.py](../../tests/integration/chinese_language_assets.py)
-verifies `zh_CN.UTF-8`, native MATE/PAM Chinese catalogues, package bytes and
-Noto CJK glyph coverage. Ubuntu also needs `language-pack-gnome-zh-hans-base`
-and `language-pack-gnome-zh-hans`: general language packs alone lack the Shell
-`Activities` translation. Offline bootstrap and restored online snapshots use
-the same read-only oracle. The qualified Ubuntu asset tuple includes MATE
-`1.26.1-6`, PAM `1.7.0-5ubuntu3.2`, six required strings and 12 CJK glyphs.
+verifies a usable `zh_CN.UTF-8` locale and native MATE/PAM Chinese catalogues
+with package-byte identity. Offline bootstrap and restored online snapshots use
+the same read-only oracle. Font tables, glyph coverage and Shell's own
+translations are outside product acceptance. A renewed session's locale seeds
+the product's initial language; the product form and real authentication result
+remain independent customer assertions. Account-helper refusal matrices run in
+their focused qualification, not again inside each customer history.
 
-The Fedora 44 profile uses `glibc-langpack-zh`, `mate-polkit`, `pam`,
-`gnome-shell` and `google-noto-sans-cjk-fonts`, with RPM SHA-256 byte identity,
+The Fedora 44 profile uses `glibc-langpack-zh`, `mate-polkit` and `pam`, with RPM SHA-256 byte identity,
 canonical Workstation/release checks and enforcing SELinux. Fedora assets,
 renewed Chinese desktop, first presentation and native prompts remain unqualified;
 the complete current-install journey must pass there with the same assertions.
@@ -4663,123 +4663,50 @@ Other accounts/routes/tuples remain separate.
 
 #### Native desktop entry and usable launch
 
-`synthetic_files.desktop_entry_actions(child=...)` uses `SyntheticFiles`'s
-finite `native-desktop` and `native-desktop-riley` profiles to copy each child's
-verified launcher into the bound desktop directory, set its executable permission
-and supported GVfs trust
-metadata, and independently read back its identity, bytes and trust. Collisions,
-replaced paths and wrong-account cleanup refuse; unrelated files remain intact.
+`synthetic_files.desktop_entry_actions(child=...)` copies the verified launcher
+to the bound child's Desktop, sets its executable permission and independently
+reads back its identity and bytes. Collisions, changed directories, replacement
+and wrong-account cleanup refuse; unrelated files remain intact. Readback stats
+the exact entry without following links rather than relying on directory iteration.
 
-`journey_blocks.native_usable_app('desktop')` /
-`onpc_app_rows::native_usable_app` qualify APP01/02/03 and FLOW08 for Jordan's
-and Riley's Allowed primary fixture. `AccessibleUI.native_desktop_snapshot(child=...)`
-binds DING's session-bus owner, child UID, resolved GJS executable and exact installed script
-to one public icon name. This finite route admits only that ordinary icon plus
-DING's Home/Trash shortcuts. Accessibility focus does not establish DING's
-internal keyboard selection, so the worker sends Ctrl+A once, independently
-observes the exact sole selected/focused icon, then sends Enter once. No geometry,
-file-manager setup or alternative launch route is used.
+`AccessibleUI.native_desktop_operation` uses the public
+`GioUnix.DesktopAppInfo.launch_uris_as_manager` API once as the active, unlocked
+child, with fixture stdout/stderr detached from the observer's SSH pipe. It checks the
+entry against the declared source and parsed executable/arguments under pinned
+directory guards. Parsing the full command preserves quoted paths with spaces;
+GIO's first-word `get_executable()` projection is insufficient for these entries.
+The input latch is set before launch; a permission error permits only the later
+independent denial observation. A successful API return alone never passes a case.
+There is no dependency on a desktop-icon extension, icon focus/selection,
+GVfs trust metadata or the presence of unrelated icons.
 
-`check_e2e_native_desktop_usable` passed on `onpc-Ubuntu26.04` with two independent entries: trusted placement, wrong-icon
-and ambiguous-owner refusal, icon focus/selection, real desktop activation,
-normal Submit and submitted-draft readback, closure and owned file cleanup.
-Collection, worker/callback shutdown, baseline restoration and host/source
-preservation passed; the VM was observed off. The DING provider tuple is
-`50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
+`journey_blocks.native_usable_app('desktop')` and
+`onpc_app_rows::native_open_desktop` retain independent owned-window, normal
+Submit and submitted-draft readbacks. Cases 68/70/72 keep Parent's precise saved
+Allowed/Hard/Soft rules, Jordan's enabled daily limits, actual use or continuous
+15-second denial, and Riley's unaffected use through the same desktop-entry route.
+The optional desktop interface is not an acceptance target.
 
-Case 68 (`app_launch.DESKTOP_PLAN` / `onpc_app_launch::run`) passed on Ubuntu 26.04: Parent's saved precise Allowed rule
-and Jordan's enabled 30-minute daily allowance/zero grant, then fresh Jordan and
-Riley desktop launch, normal draft submission and independent readback. Each
-child's app was closed and owned desktop entry removed before leaving that
-visit; Riley's policy and limits were untouched. The exact caller is registered
-for the shared native/activity/baseline-child fixture closure. The affected
-`check_e2e_native_desktop_usable` regression passed, including both independent placements, refusals,
-collection, worker shutdown and baseline restoration; the VM was observed off.
+`native_desktop_new_window.PLAN` retains S's explicit secondary desktop-entry
+arguments, separate public endpoints and unchanged original command-opened work.
+`native_desktop_route.PLAN` retains captured original-window closure after each
+precise Hard/Soft save, fresh denied desktop-entry relaunch and unaffected N use.
+Case 233 (`native_temporary_access.DESKTOP_PLAN`) retains three real approvals,
+A/H/S launch outcomes, original A work, S closure and unchanged saved choices.
+These product assertions use the same launch operation and owned entry cleanup.
 
-Case 70 (`app_launch.HARD_DESKTOP_PLAN` / `onpc_app_launch::run`) passed on
-Ubuntu 26.04: Parent saved
-Jordan's precise permanent block and enabled 30-minute daily allowance with
-zero grant. Fresh Jordan's exact desktop activation remained denied for the
-15-second observation; fresh Riley opened and submitted the same app through
-the desktop with independent readback and unchanged policy. Both owned entries
-were removed and Riley's app closed. The affected Allowed desktop case 68 passed
-separately. Collection,
-worker/callback shutdown and baseline restoration passed for both attempts;
-the VM was observed off. Other policy bindings remain separate.
-
-The maintained `reproduce-native-desktop` route composes case 68's Parent saves
-and stops at `jordan-use-selected`, retaining Jordan's scene for guarded maintenance probes;
-see the [diagnostic interface](../../tests/e2e/README.md#shared-guarded-worker).
-It supplies no acceptance credit. Multiple ordinary icons remain unqualified;
-the policy-result qualification is recorded below.
-
-`native_desktop_new_window.PLAN` / `onpc_app_rows::native_desktop_new_window`
-composes `journey_blocks.native_window_app`'s command-primary and desktop-secondary
-endpoints for Jordan's same-S separate-window binding on Ubuntu 26.04. The normal DING
-route is sole-icon selection and Enter: the installed `desktopManager.js`
-Return handler calls `fileItem.js::doOpen`, whose trusted desktop-file path
-uses `Gio.DesktopAppInfo.launch_uris_as_manager`. S's verified desktop entry
-declares `--instance secondary`; the fixture's `NON_UNIQUE` application opens
-that separate public endpoint while its command-opened `--instance primary`
-activity remains. `AccessibleUI.native_window_operation` checks each S process's
-executable, exact arguments, child owner and public window ID; APP04 compares
-distinct endpoints and rereads unchanged original work. The shared
-`native_open_desktop` worker retains the existing selection/Enter guards and
-never substitutes another route. With original work open, its explicit
-`focus_desktop` argument first uses GNOME's normal Ctrl+Alt+Escape
-panel-cycle shortcut to give the desktop keyboard focus; icon focus alone
-cannot transfer compositor focus from the active app. The unchanged exact-icon
-observation still precedes selection and Enter. Callers select this branch
-before input; it is not a fallback after a failed launch or focus operation.
-
-`check_e2e_native_desktop_new_window` passed:
-two independent original/second S window pairs, trusted secondary desktop entry,
-exact icon selection/Enter, normal Submit/readback, distinct public endpoints,
-unchanged original endpoints/work and normal closure. The first attempt's
-`ui:timeout:native-desktop-focused` was reproduced in owned maintenance;
-panel-cycle navigation made the same guarded icon operation pass while keeping
-the original endpoint and draft. The fixed diagnostic reproduction/probe routes
-are documented in the [runner guide](../../tests/e2e/README.md#shared-guarded-worker).
-The required `check_e2e_native_desktop_usable` regression passed. Scoped host safety/source checks, collection,
-worker/callback shutdown, baseline restoration and host/source preservation
-passed; the VM was observed off. The provider tuple remains
-`50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`. This qualifies the sole ordinary S
-icon and Jordan's primary/secondary windows; other children and icon populations
-remain separate.
-
-`native_desktop_route.PLAN` / `NativeDesktopRouteJourney` and
-`onpc_app_rows::native_policy_closure(..., 'desktop')` add Jordan's precise A
-Hard/Soft save results. Each round independently places the verified trusted
-desktop entry, launches through DING's exact sole-icon selection and Enter,
-submits work and captures its public window. After the Parent save and legitimate
-return, APP02 compares complete closure against that immutable capture before
-any new launch. `native_blocked_app('A', route='desktop')` then activates the
-same entry once; `native-desktop-denied` requires complete owned-window absence
-for 15 seconds and a recognized prompt-free desktop. No command denial or
-alternative launcher supplies this result. Unaffected N remains usable and
-each round removes only its owned desktop entry before logout.
-
-`check_e2e_native_desktop_route` passed on Ubuntu 26.04: independent Hard/Soft desktop entries, original-window
-closure, denied desktop relaunch, unaffected app use, wrong-icon and ambiguous-owner
-refusals, collection, worker/callback shutdown and baseline restoration passed.
-The affected `check_e2e_native_desktop_usable` regression passed, including both independent placements and normal
-closure. All 32 scoped host safety checks, source/traceability, links, collection,
-worker/callback shutdown and baseline restoration passed; the VM was observed off.
-The DING tuple remains `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`.
-This qualifies APP01/02/03 for these precise policy results; other children,
-icon populations, temporary approval and complete customer cases remain separate.
-
-Case 233 (`native_temporary_access.DESKTOP_PLAN` / `execute_desktop`) passed on
-Ubuntu 26.04 in run `645c89c728694094946485d077849a7e`. Jordan's A/H/S desktop
-launches use one trusted entry per attempt, with H/S secondary windows preserving
-A's original work. Jamie/exclude, Sam/include and Jamie/exclude approvals verified
-each real approver, the countdown comparison, S denial/use/captured closure,
-retained A work, fresh H denial and unchanged saved choices. The affected
-`check_e2e_native_desktop_usable` qualification and app-grid case 231 passed in
-`80c214926c53479d898ec8b04197990e` and `3c9fda15dc374ec68b50582e03a32701`.
-Collection, worker/callback closure, owned entry cleanup and baseline restoration
-passed. This qualifies the declared child-overlay temporary-access binding;
-other children and icon populations remain separate.
+The earlier Ubuntu DING qualifications describe the replaced icon adapter;
+they do not qualify this changed operation. Current checks must exercise the
+affected product outcomes on their selected targets.
+The repaired case 68 passed on `onpc-Fedora44-202`, including Jordan's submitted
+draft, Riley's independent unaffected use, owned entry removal, collection and
+baseline restoration. Live validation in this repair was explicitly limited to
+that failed case; the other audit-changed cases have no new live acceptance.
+The maintained `reproduce-native-desktop` route stops at `jordan-use-launch`;
+`reproduce-native-desktop-new-window` stops at `first-second-launch`, and its
+probe independently reads the secondary window and original work without
+launching again. These [maintenance diagnostics](../../tests/e2e/README.md#shared-guarded-worker)
+supply no customer acceptance credit.
 
 #### Native launch denial qualification
 
@@ -5683,7 +5610,7 @@ Generic pointer, image, positional and graphical-reattachment routes remain reti
 | Portal/Nautilus chooser | `chooser_snapshot` plus `validate_chooser_portal_owner` bind unique modal and sole delegated D-Bus request. Missing/ambiguous/replaced/contradictory relations refuse. Imported Wayland parents need no GTK CONTROLLED_BY. Scoped Close cancels portal; native GTK uses Cancel; `button`/`push button` roles supported. Parent Open/Cancel qualified on `1:50.2.2-0ubuntu0.1` and `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`, `xkb/us`; named Save/Cancel, unwritable-save recovery and export on `1:50.2.2-0ubuntu0.2`, caller `parent-feedback`. Save restores collapsed `filename_label` before exact-name proof. [Handoff](#attachment-chooser-handoff). | Fixed Parent Open/Cancel, Save/Cancel, save-error recovery and FEED08 export ready; other profiles/tuples pending. |
 | Document viewer | `license_viewer_snapshot`/`check_e2e_license_viewer`: Ubuntu 26.04 Text Editor `50.1-0ubuntu0.1`, `en_US.UTF-8`, `[["xkb", "us"]]`. Owned active viewer, bounded GPL content, close/absence and unchanged caller state; ambiguous/unrelated/hidden content refuses. [DESK10](#same-desktop-window-activation) additionally covers direct LICENSE launch/repeated activation. | DESK10 only; About links and FILE08/FEED08 inspection require no viewer. |
 | Terminal; Settings Users/Date & Time | Retired supporting GUI routes. Fixed guarded commands own files, account fixtures and date/time reads; observe product effects independently. | FILE01/02/06, INFO02, ACCOUNT01/02, AUTH04, TIME05 helpers; no Terminal GUI consumer. |
-| DING desktop icons | Ubuntu 26.04 DING `50.26.04.8ubuntu`, `en_US.UTF-8`, `xkb/us`: `native_desktop_snapshot` / `native_desktop_operation`, `native_usable_app('desktop')` and `check_e2e_native_desktop_usable` qualify exact owner/icon focus, sole selection, Enter activation and independently usable work. `native_desktop_new_window` / `check_e2e_native_desktop_new_window` add Jordan's same-S primary/secondary windows with retained original work and normal panel-cycle navigation. `native_blocked_app('A', route='desktop')` / `check_e2e_native_desktop_route` add captured closure and desktop relaunch denial after precise Hard/Soft saves. `native_temporary_access.DESKTOP_PLAN` / `execute_desktop` add Jordan's three-approval A/H/S child-overlay history. [Exact scope](#native-desktop-entry-and-usable-launch). | Jordan's and Riley's sole ordinary Allowed fixture entry and APP01/02/03/FLOW08 use, Jordan's same-S desktop second window and APP04 original-work comparison, Jordan's precise A Hard/Soft closure and desktop denial, and Jordan's A/H/S desktop/child-overlay temporary-access sequence ready; other children and icon populations pending. |
+| Native desktop entries | `AccessibleUI.native_desktop_operation`, `native_usable_app('desktop')`, `native_desktop_new_window` and `native_blocked_app(..., route='desktop')` share one bound-child GIO desktop-entry launch. Cases 68/70/72 and 233 retain independent use/denial, captured closure, original work and other-child isolation. [Current scope](#native-desktop-entry-and-usable-launch). | Optional icon providers are outside acceptance. Earlier DING qualifications do not qualify the changed API operation; run the affected product cases on selected targets. |
 | Nautilus Files | Qualify only the tested file-manager enforcement launch; supporting file preparation uses commands. | FILE04/declared APP01/02 routes individually gated. |
 | File Roller | No GUI consumer; bounded FILE08 archive API reads customer exports. | FILE08/FEED08 readers ready; no archive viewer needed. |
 | Registered editor | Direct handler launch only for declared preview/information integration or retained-work activity. Source mutation/export reads use FILE05/08/09. | FILE08 work/APP03/04; no FEED08 viewer dependency. |

@@ -299,10 +299,9 @@ def remote_origin():
         absolute_path(value['controller_root'], 'remote controller root')
     if 'source_identity' in value:
         source = value['source_identity']
-        if (not isinstance(source, dict) or set(source) != {'digest', 'generation'}
+        if (not isinstance(source, dict) or set(source) != {'digest'}
                 or not isinstance(source['digest'], str)
-                or re.fullmatch('[0-9a-f]{64}', source['digest']) is None
-                or type(source['generation']) is not int or source['generation'] < 0):
+                or re.fullmatch('[0-9a-f]{64}', source['digest']) is None):
             raise ValueError('vm-config:invalid remote source identity')
     if 'package_revision' in value or 'package_epoch' in value:
         if (not isinstance(value.get('package_revision'), str)

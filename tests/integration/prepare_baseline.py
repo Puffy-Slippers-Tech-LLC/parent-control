@@ -407,7 +407,16 @@ class LibvirtSource:
         inactive = domain_layout(domain.XMLDesc(self.api.VIR_DOMAIN_XML_INACTIVE), self.uuid)
         require(inactive == recorded_layout(layout), "guard:pending-disk-change")
         if state != self.api.VIR_DOMAIN_SHUTOFF:
-            require(not domain.blockJobInfo(layout["target"], 0), "guard:block-job")
+            try:
+                job = domain.blockJobInfo(layout["target"], 0)
+            except self.api.libvirtError as error:
+                if (error.get_error_code() != self.api.VIR_ERR_OPERATION_INVALID
+                        or domain.state()[0] != self.api.VIR_DOMAIN_SHUTOFF):
+                    raise
+                # Setup can power off between the state and block-job reads.
+                # Recheck identity and disk layout at the new offline boundary.
+                return self.snapshot()
+            require(not job, "guard:block-job")
         return layout, state == self.api.VIR_DOMAIN_SHUTOFF
 
     @observed('Waiting for VM shutdown')

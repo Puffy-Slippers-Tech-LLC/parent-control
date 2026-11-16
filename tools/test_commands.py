@@ -1575,6 +1575,6 @@ def main(argv=None):
                             **({'reload': True} if reload else {}),
                             **({'reset': True} if reset else {}))
     except (ValueError, OSError) as error:
-        detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'
+        detail = str(error) if isinstance(error, ValueError) else f'{type(error).__name__}: {error}'
         print('run-tests: ' + detail, file=sys.stderr)
         return 2

@@ -157,6 +157,7 @@ def environment(root, *, scratch=True):
         result[ONLY] = os.environ[ONLY]
     result.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', PYTHONDONTWRITEBYTECODE='1',
                   PYTHONNOUSERSITE='1',
+                  ONPC_LAUNCHER_CONTROLLER_ROOT=str(root),
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
     result.update(test_source.environment())
@@ -341,6 +342,8 @@ def main(argv=None, *, category='unit'):
                                 **({'reload': True} if reload else {}))
         import test_source
         test_source.finish_admission()
+        from launcher_controller import require_startup_sync
+        require_startup_sync()
         with test_activity.activity(root, host_only=None if inherited else True), test_source.reader(root):
             if argv[:1] == ['--unattended']:
                 from regression_process import host_run

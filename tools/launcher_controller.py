@@ -18,6 +18,10 @@ _public_invocation = None
 _CONTROLS = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
              '--cancel-stop', '--add-session', '--reload', '--reset',
              '--reconcile', '--review-ownership')
+_NO_NEW_JOB = tuple(flag for flag in _CONTROLS if flag not in ('--reload', '--reset'))
+_TEST_LAUNCHERS = ('run-tests', 'run-unit-tests', 'run-ui-tests')
+_OWNER_KINDS = ('fix-tests', 'fix-tests-host', 'sessions', 'sessions-host',
+                'plans', 'sync-whatsnew')
 
 
 def public_arguments(launcher):
@@ -49,11 +53,9 @@ def require_startup_sync():
                          'the active checkout owner finishes')
 
 
-def _early_sync(root, name, branch, arguments):
+def _early_sync(root, branch, arguments):
     """Synchronize before workflow imports; live owners retain attachment only."""
-    if (name == 'fix-tests' or name in ('run-tests', 'run-unit-tests')
-            and 'ONPC_TEST_RESULT_DIRECTORY' in os.environ
-            or any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments)):
+    if any(arg.split('=', 1)[0] in _NO_NEW_JOB for arg in arguments):
         return False
     from contextlib import ExitStack
     import fcntl
@@ -62,16 +64,13 @@ def _early_sync(root, name, branch, arguments):
     from test_storage import directory
 
     finish_admission()
-    kinds = {'run-tests': ('sessions', 'sessions-host'),
-             'run-unit-tests': ('sessions-host',),
-             'execute-plan': ('plans',), 'sync-whatsnew': ('sync-whatsnew',)}
     with ExitStack() as locks:
         previous_runs = []
         retained_start = False
         live = False
-        # Exclude replacement of this controller family. Other families retain
-        # independent scheduling under the shared live source lease.
-        for kind in kinds.get(name, ()):
+        # Source is checkout-wide. Every launcher observes the same owners,
+        # including detached repairs that do not hold a source reader lease.
+        for kind in _OWNER_KINDS:
             try:
                 base = directory(kind, root=root, create=False)
             except FileNotFoundError:
@@ -93,8 +92,10 @@ def _early_sync(root, name, branch, arguments):
                               else scope / 'owner')
                 owner = locks.enter_context(lock(owner_path))
                 live |= busy(owner)
-                retained_start |= (scope / 'pending-start.json').exists()
-                if previous is not None:
+                # Repair resume retains results, never historical startup/Git
+                # transactions. Its live owner still protects active edits.
+                retained_start |= not kind.startswith('fix-tests') and (scope / 'pending-start.json').exists()
+                if previous is not None and not kind.startswith('fix-tests'):
                     previous_runs.append(previous)
         return _startup_sync(root, branch, arguments, previous_runs=previous_runs,
                              retained_start=retained_start, live=live)
@@ -165,8 +166,6 @@ def _recover_pull(root, diagnostic, selection, profile, *, descriptors=()):
 def _startup_sync(root, branch, arguments, *, previous_runs=(), retained_start=False,
                   live=False):
     """Pull under shared source guards; report whether imports need replacing."""
-    if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
-        return
     import fcntl
     from test_source import SourceProtection, source_directory, finish_admission, _lock
     finish_admission()
@@ -305,10 +304,10 @@ def dispatch(entry):
         synced = forwarded.get('synced', False)
         if pinned_branch is not None:
             _local_checkout(root, pinned_branch)
-    elif (name == 'run-tests' and selected is None
+    elif (name in _TEST_LAUNCHERS and selected is None
           and (os.environ.get('ONPC_LAUNCHER_CONTROLLER_ROOT') == str(root)
                or os.environ.get('ONPC_RUNNER_INVOCATION')
-               or len(arguments) > 1 and arguments[1] == '--unattended')):
+               or os.environ.get('ONPC_TEST_RESULT_DIRECTORY'))):
         # Internal inventory calls, repair attempts and category children belong
         # to this checkout's controller. Reapplying the public default can verify
         # another checkout instead of the repair (or fail ownership guards).
@@ -352,9 +351,9 @@ def dispatch(entry):
                     os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
                               *arguments], env)
 
-    if name != 'fix-tests' and pinned_branch is not None and not synced:
+    if pinned_branch is not None and not synced:
         _pending_startup = (pinned_branch, arguments)
-        changed = _early_sync(root, name, pinned_branch, arguments)
+        changed = _early_sync(root, pinned_branch, arguments)
         if changed is not None:
             _pending_startup = None
         if changed:
@@ -373,7 +372,7 @@ def dispatch(entry):
     # Ordinary tests retain live import admission. Repairs work directly from
     # the selected checkout and own their execution through the detached owner.
     admission = (test_source.admission(root, arguments)
-                 if name in ('run-tests', 'run-unit-tests') else nullcontext())
+                 if name in _TEST_LAUNCHERS else nullcontext())
     with admission:
         return _entry(root, name, pinned_branch, arguments, entry, public_argv=public_argv)
 
@@ -397,9 +396,8 @@ def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
         # resolved destination even if a source change altered branch defaults.
         test_source.finish_admission()
         arguments = [arg for arg in original_arguments if arg not in ('--reload', '--reset')]
-        temporary = name != 'fix-tests' and test_source.VARIABLE not in test_source.environment()
-        with (nullcontext() if name == 'fix-tests'
-              else test_source.startup(root, arguments)):
+        temporary = test_source.VARIABLE not in test_source.environment()
+        with test_source.startup(root, arguments):
             from launcher_reload import replace
             inherited = test_source.environment()
             if temporary:
@@ -427,8 +425,7 @@ def run(entry):
             # retain live source admission after any synchronization.
             bootstrap = (['--help'] if any(arg.split('=', 1)[0] in _CONTROLS
                                          for arg in sys.argv[1:]) else ['--resume'])
-            with (nullcontext() if Path(sys.argv[0]).name == 'fix-tests'
-                  else test_source.admission(root, bootstrap)):
+            with test_source.admission(root, bootstrap):
                 return dispatch(entry)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f'launcher: {error}', file=sys.stderr)

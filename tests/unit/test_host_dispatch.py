@@ -33,7 +33,9 @@ from vm_selection import vm_config
     (0, (0, 1)),                   # One command with both real-use host roles.
     (0, (0, 1, 2)),                # Three hosts; all SSH originates at the desk.
 ])
-@pytest.mark.parametrize('launcher', ['run-tests', 'fix-tests'])
+@pytest.mark.parametrize('launcher', [
+    'run-tests', 'run-unit-tests', 'run-ui-tests', 'fix-tests', 'execute-plan', 'sync-whatsnew',
+])
 def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, launcher):
     tool = tmp_path / 'tool checkout'
     destination = tool if controller == 0 else tmp_path / 'controller checkout'
@@ -65,11 +67,15 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
     monkeypatch.setattr(host_dispatch, 'git', lambda root, *args: branch_by_root[Path(root)])
     monkeypatch.setattr(launcher_controller, '__file__', str(tool / 'tools/launcher_controller.py'))
     monkeypatch.setattr(launcher_controller, '_local_checkout', lambda root, name:
-        None if (root, name) == (tool, 'main') else pytest.fail('wrong local controller'))
-    def synchronize(*args):
-        assert launcher != 'fix-tests', 'repair startup must use the current checkout'
+        None if branch_by_root.get(root) == name else pytest.fail('wrong local controller'))
+    synchronized = []
+    def synchronize(*args, **kwargs):
+        assert args == (destination, branch, ['--vm', ','.join(
+            'Guest-' + str(index) for index in targets), 'system'])
+        assert kwargs == dict(previous_runs=[], retained_start=False, live=False)
+        synchronized.append(launcher)
         return False
-    monkeypatch.setattr(launcher_controller, '_early_sync', synchronize)
+    monkeypatch.setattr(launcher_controller, '_startup_sync', synchronize)
     monkeypatch.setattr('test_source.admission', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr('test_launcher.environment', lambda root: {'PATH': '/usr/bin'})
     selector = ','.join('Guest-' + str(index) for index in targets)
@@ -105,10 +111,19 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
         assert json.loads(remote[7]) == ['--branch', branch, '--vm', selector, 'system']
         assert remote[8:] == ['--vm', selector, 'system']
         hops.append((names[0], names[controller]))
-        return SimpleNamespace(returncode=entry())
+        # Execute destination admission too: the SSH bootstrap must not let a
+        # remotely placed job bypass synchronization before workflow imports.
+        monkeypatch.setattr(launcher_controller, '__file__',
+                            str(destination / 'tools/launcher_controller.py'))
+        monkeypatch.setattr(sys, 'argv', [str(destination / 'tools' / launcher), *remote[8:]])
+        monkeypatch.setenv(launcher_controller.DESTINATION, json.dumps(dict(
+            root=str(destination), branch=branch, launcher=launcher, pid=os.getpid(),
+            public_argv=json.loads(remote[7]))))
+        return SimpleNamespace(returncode=launcher_controller.dispatch(entry))
 
     monkeypatch.setattr(launcher_controller.subprocess, 'run', ssh_controller)
     assert launcher_controller.dispatch(entry) == 0
+    assert synchronized == [launcher]
     assert operations == [('Guest-' + str(index), 'local' if index == controller else 'ssh')
                           for index in targets]
     assert hops == ([ (names[0], names[controller]) ] if controller else []) + [

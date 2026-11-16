@@ -375,9 +375,10 @@ def test_public_repair_composes_triage_verification_and_closeout(
         passed_point='Original assertion', observation='Latest attempt reached the later assertion.',
         failure='The later assertion now fails; preserve its expected behavior.'))
     control.edit_each_turn = True
+    stalled = dict(fixed, status='stalled', summary='No further useful step at this effort.')
     control.responses = [blocked, diagnostic,
         dict(diagnostic, diagnostic_assessment='inconclusive'),
-        dict(fixed, diagnostic_assessment='inconclusive'), fixed,
+        dict(stalled, diagnostic_assessment='inconclusive'), stalled, stalled, stalled, fixed, fixed,
         next_issue, next_issue, fixed]
     attempts = []
     resumed = False
@@ -429,7 +430,7 @@ def test_public_repair_composes_triage_verification_and_closeout(
         order.append('current validation')
         validate(value)
     monkeypatch.setattr(fix_tests, 'validate_result', current_validate)
-    for _ in range(12):
+    for _ in range(16):
         try:
             assert control.worker(reloading=True) == 0
         except fix_tests.ControllerReload:
@@ -440,19 +441,20 @@ def test_public_repair_composes_triage_verification_and_closeout(
         pytest.fail('repair did not finish across source reloads')
     assert attempts == ['diagnostic', 'diagnostic', 'verification', 'verification', 'verification']
     assert order[-1] == 'closeout' and order.count('closeout') == 1
-    assert order.count('repair') == 8
+    assert order.count('repair') == 12
     assert 'CURRENT_CASE_DECISION' in control.prompts[1]
     assert 'CURRENT_CASE_DECISION' not in control.prompts[-2]
     assert 'CURRENT_CASE_DECISION' not in control.prompts[-1]
-    # The escalation following two observations survives replay of the older,
-    # lower-tier response after its source edit reloads the controller.
-    assert control.turns[4]['effort'] == 'high'
-    assert len({turn['conversation_key'] for turn in control.turns[:6]}) == 1
-    assert control.turns[6]['conversation_key'] != control.turns[5]['conversation_key']
-    assert control.turns[7]['conversation_key'] == control.turns[6]['conversation_key']
-    assert [turn['repair_session'] for turn in control.turns] == [1, 1, 1, 1, 1, 1, 2, 2]
+    # Old stalled responses cannot spend an escalation twice or terminate a
+    # stronger tier before it actually runs, including across source reloads.
+    assert [turn['effort'] for turn in control.turns[4:8]] == ['medium', 'high', 'xhigh', 'xhigh']
+    assert len({turn['conversation_key'] for turn in control.turns[:7]}) == 1
+    assert len({turn['conversation_key'] for turn in control.turns[7:10]}) == 1
+    assert len({turn['conversation_key'] for turn in control.turns[10:]}) == 1
+    assert len({turn['conversation_key'] for turn in control.turns}) == 3
+    assert [turn['repair_session'] for turn in control.turns] == [1] * 7 + [2] * 3 + [3, 3]
     saved = control.saved()
-    assert saved['session_counts'] == {'["unit", "exact", ""]': 2}
+    assert saved['session_counts'] == {'["unit", "exact", ""]': 3}
     assert 'answers' not in saved['controller_restart']['runtime']
     assert TaskBudget(run).read()['completed'] == 1
 

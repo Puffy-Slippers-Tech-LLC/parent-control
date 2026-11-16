@@ -309,7 +309,7 @@ def select(root, request, *, resume=False, stop=False, reload=False):
             raise ValueError('Watch launcher changed; refresh before trying again.')
         if request.get('watch'):
             import watch_control
-            value = watch_control.update(run, request['watch'])
+            value = watch_control.save(run, request['watch'])
             print('fix-tests: Watch SSH {ssh}; view {view} requested.'.format(
                 **{key: 'on' if enabled else 'off' for key, enabled in value.items()}), flush=True)
         if request.get('tasks') is not None:

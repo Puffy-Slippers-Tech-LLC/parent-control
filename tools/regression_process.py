@@ -159,7 +159,7 @@ class Control:
                                 if len(line) > 256 or not line.startswith(watch_control.FRAME):
                                     raise ValueError('invalid control frame')
                                 value = watch_control.validate(json.loads(line[len(watch_control.FRAME):]))
-                                watch_control.update(policy, value)
+                                watch_control.save(policy, value)
                             except (ValueError, OSError, TypeError):
                                 self.stop()
                                 return

@@ -1565,7 +1565,7 @@ def main(argv=None):
             from contextlib import nullcontext
             policy = watch_control.environment().get(watch_control.VARIABLE)
             if policy and watch:
-                watch_control.update(Path(policy).parent, watch)
+                watch_control.save(Path(policy).parent, watch)
             with (nullcontext() if policy else watch_control.receiving({'ssh': False, 'view': False, **watch})), \
                     test_activity.activity(root):
                 validate(root, argv)

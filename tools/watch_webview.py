@@ -353,7 +353,7 @@ class Viewer:
                 if (name not in ('run-tests', 'fix-tests') or not any(
                         candidate == run for candidate, _name in active_launchers(output.root, JsonReader()))):
                     raise ValueError('Watch controls require a running run-tests or fix-tests launcher.')
-                watch_settings(run)  # Refuse controllers started before live control support.
+                watch_settings(run)  # Missing policies use defaults; invalid policies refuse.
                 if action['value'] == 'off' and (target(run).parent / 'watch-recording').exists():
                     raise ValueError('--record requires --watch-ssh on and --watch-view on')
             if action['kind'] in ('stop', 'cancel-stop'):

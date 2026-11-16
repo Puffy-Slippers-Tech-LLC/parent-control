@@ -151,7 +151,7 @@ def _select(root, argv, *, reload=False, watch=None):
                     raise ValueError('vm-config: active run requires its original VM queue')
             if watch:
                 import watch_control
-                value = watch_control.update(run, watch)
+                value = watch_control.save(run, watch)
                 print('run-tests: Watch SSH {ssh}; view {view} requested.'.format(
                     **{key: 'on' if enabled else 'off' for key, enabled in value.items()}), flush=True)
             if '--stop' in argv:

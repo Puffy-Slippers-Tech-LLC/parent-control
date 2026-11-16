@@ -639,57 +639,45 @@ class Bridge {
         return { result: await source.artifact(route.uri), remote: source.config.transport === 'ssh' };
     }
 
-    async launcherCommand(root, run, kind, value) {
+    async launcherCommand(root, run, kind) {
         const route = this.roots.get(root);
-        const watch = ['watch-view', 'watch-ssh'].includes(kind);
         const snapshot = route?.source.snapshot;
-        const current = (watch ? snapshot?.watch_launchers : snapshot?.runs)?.find(item => item.id === route.id);
-        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close', 'watch-view', 'watch-ssh'].includes(kind) ||
-                !(watch ? current?.watch_controls && current.active !== false :
-                    kind === 'close' ? current?.launcher_close && !current.active : current?.launcher_controls) || current.run !== run ||
-                (watch && !['on', 'off'].includes(value)) ||
+        const current = snapshot?.runs?.find(item => item.id === route.id);
+        if (!['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(kind) ||
+                !(kind === 'close' ? current?.launcher_close && !current.active : current?.launcher_controls) || current.run !== run ||
                 (kind === 'add-session' && !current.launcher_add_session_command) ||
                 (kind === 'reload' && !current.launcher_reload_command) ||
                 (kind === 'kill' && !current.launcher_kill)) {
             throw new Error('Launcher changed; refresh before trying again.');
         }
-        const result = await route.source.launcherCommand({ root: route.id, run, kind, ...(watch ? { value } : {}) });
+        const result = await route.source.launcherCommand({ root: route.id, run, kind });
         if (result.ok !== true) throw new Error(result.error || 'Launcher command unavailable.');
         if (typeof result.root !== 'string' || typeof result.run !== 'string' ||
                 typeof result.launcher !== 'string' || !/^[\w.-]{1,100}$/.test(result.launcher) ||
-                (watch && !['run-tests', 'fix-tests'].includes(result.launcher)) ||
                 !Array.isArray(result.argv) || result.argv.some(arg => typeof arg !== 'string' || arg.includes('\0'))) {
             throw new Error('Invalid launcher command.');
         }
         return { ...result, source: route.source.config };
     }
 
-    async watchCommands(kind, value) {
-        if (!['watch-view', 'watch-ssh'].includes(kind) || !['on', 'off'].includes(value)) {
-            throw new Error('Invalid Watch control.');
+    async watchCommands(settings, { changedOnly = false } = {}) {
+        if (typeof settings?.view !== 'boolean' || typeof settings?.ssh !== 'boolean') {
+            throw new Error('Invalid Watch settings.');
         }
-        const groups = [];
+        const commands = [];
         for (const source of this.sources) {
             if (source.status !== 'Connected') {
+                if (changedOnly) continue;
                 throw new Error(`${source.config.label} is disconnected; reconnect before changing all running launchers.`);
             }
-            const runs = source.snapshot.watch_launchers;
-            const unavailable = runs.find(run => !run.watch_controls);
-            if (unavailable) {
-                throw new Error(`${unavailable.launcher} on ${source.config.label} has no live Watch controls; restart it under current code.`);
-            }
-            if (!runs.length) continue;
-            for (const run of runs) this.roots.set(key(source.config.id, run.id), { source, id: run.id });
-            groups.push({ source, runs });
+            const runs = source.snapshot.watch_launchers.filter(run => !changedOnly ||
+                !run.watch_controls || run.watch_view !== settings.view || run.watch_ssh !== settings.ssh);
+            for (const run of runs) commands.push({ root: source.config.root,
+                checkouts: source.snapshot.checkouts.map(checkout => checkout.id),
+                run: run.run, launcher: run.launcher, kind: 'watch-settings',
+                settings: { view: settings.view, ssh: settings.ssh }, source: source.config });
         }
-        // Preflight every target before dispatch. One adapter resolves requests
-        // in order; independent hosts need not wait for each other.
-        return (await Promise.all(groups.map(async ({ source, runs }) => {
-            const commands = [];
-            for (const run of runs) commands.push(await this.launcherCommand(
-                key(source.config.id, run.id), run.run, kind, value));
-            return commands;
-        }))).flat();
+        return commands;
     }
 
     async deleteRunTimes(tokens) {

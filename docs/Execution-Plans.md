@@ -288,8 +288,15 @@ invocation exists. Explicit `--branch` still overrides this internal default.
 `--watch-view on|off`. Both default to off for a new independent run, including
 a fresh resume. On attachment, only explicitly supplied settings change; an
 ordinary attachment or controller reload preserves the live settings. Use the
-same branch, scope and VM selection as the active owner. Changes travel through
-the existing cooperative worker channels and apply during execution without a
+same branch, scope and VM selection as the active owner. Changes use
+one atomic save path that writes the complete runtime policy, creating it
+when absent. Concurrent saves preserve settings omitted by the caller. A missing
+document reads as the default-off policy; invalid existing documents still refuse.
+The Watch extension saves its machine-wide preferences separately in
+`~/.onpc-config/watch.json` on the machine running Watch. It loads those preferences
+when opened and applies them to connected launchers, including newly discovered runs;
+controller-side policy files only relay the active choices to workers.
+Changes travel through the existing cooperative worker channels and apply during execution without a
 reload, test interruption or safe-boundary wait. Small bounded control polling
 remains active while collection is off. Internal test and repair workers inherit
 their controlling launcher's live policy, including across host dispatch.
@@ -302,8 +309,6 @@ processing/transfer. Disabling a feed stops its producer work rather than
 hiding its presentation. Standalone VM tools retain their existing observation.
 `--record` requires both Watch settings on; a recording-enabled controller
 rejects attempts to disable either. Watch can operate without recording.
-Older controllers must finish or restart under current code before accepting
-live Watch controls; attaching cannot retrofit already-running processes.
 
 ```sh
 tools/execute-plan 'docs/Example.md' --check

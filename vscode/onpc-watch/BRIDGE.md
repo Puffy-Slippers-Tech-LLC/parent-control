@@ -128,7 +128,7 @@ The response contains these fields:
 | `capabilities` | `{sessions: boolean, artifacts: boolean}`. Unsupported operations must also refuse at the adapter. |
 | `checkouts` | Array of `{id, label}`. |
 | `runs` | Run sections described below, including retained idle runs. |
-| `watch_launchers` | Complete list of active `run-tests`/`fix-tests` controls, including children grouped under other displayed workflows. Entries have `{id, run, launcher, watch_controls: boolean}` and boolean `watch_ssh`/`watch_view` fields when controls are usable. An unusable control refuses the global operation. IDs and run identities are opaque. |
+| `watch_launchers` | Complete list of active `run-tests`/`fix-tests` controls, including children grouped under other displayed workflows. Entries have `{id, run, launcher, watch_controls: boolean}` and boolean `watch_ssh`/`watch_view` fields when controls are readable. The extension sends its complete locally saved preferences to new connected/discovered launchers. Runtime saves recheck the exact live owner under its admission gate, create missing files and preserve the recording guard; unreadable existing files fail at save. IDs and run identities are opaque. |
 | `entries` | Viewer entries described below, including idle configured viewers. |
 | `resources` | Readable resource summary for the source host. |
 | `watch_ssh` | Boolean host sampling policy, aggregated from live launcher controls and VM heartbeats. |

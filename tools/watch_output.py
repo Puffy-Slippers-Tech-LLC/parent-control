@@ -283,7 +283,7 @@ class Output:
         details = snapshot(self.run / 'frame.json', reader=self.reader)
         if self.repair and not details:
             details = snapshot(self.run / 'test-frame.json', reader=self.reader)
-        if steps:
+        if steps and not self.repair:
             details = [line for line in details if not clean(line).startswith('Overall - ')]
         if details and clean(details[0]).startswith('VM queue | concurrency '):
             spaced = []

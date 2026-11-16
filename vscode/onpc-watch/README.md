@@ -235,6 +235,10 @@ the session transcript and chat. The Status tab places its bold **Status:** labe
 on a separate row immediately below the run summary. The title and both content
 status fields use one shared color palette; titles stay brief, while the content
 fields share the same explanatory text and formatting.
+For `fix-tests`, Status retains the runner's overall passed/failed/total case
+counts during repair. Tests launched inside the repair session refresh that
+same dashboard. Counts become available when the runner discovers its cases;
+a failure before discovery supplies no case totals.
 The Launcher tab streams running command output, including baseline preparation
 phases before VM startup; it does not wait for the command to finish.
 Branch names discovered from local and remote Git refs and commit hashes appear

@@ -56,7 +56,13 @@ def settings():
 
 
 def read(run):
-    return _read(target(run))
+    path = target(run)
+    try:
+        return _read(path)
+    except FileNotFoundError:
+        if path.is_symlink():
+            raise ValueError('watch: invalid settings file')
+        return dict(ssh=False, view=False)
 
 
 def target(run):
@@ -91,9 +97,14 @@ def environment():
     return {VARIABLE: path} if path else {}
 
 
-def _write(run, updates, *, initialize=False, record=False):
+def save(run, updates=None, *, record=False):
+    """Atomically save the complete policy, creating it when absent.
+
+    Merge supplied settings under the same lock so independent toggle saves
+    preserve each other's choices. Missing policies start with both toggles off.
+    """
     global _cached
-    updates = validate(updates, partial=True)
+    updates = validate({} if updates is None else updates, partial=True)
     run = target(run).parent
     gate = os.open(run / 'watch-gate', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     try:
@@ -103,12 +114,7 @@ def _write(run, updates, *, initialize=False, record=False):
             raise ValueError('watch: invalid settings gate')
         fcntl.flock(gate, fcntl.LOCK_EX)
         path = run / 'watch.json'
-        try:
-            value = _read(path)
-        except FileNotFoundError:
-            if not initialize:
-                raise
-            value = dict(ssh=False, view=False)
+        value = read(run)
         value.update(updates)
         if (record or (run / 'watch-recording').exists()) and not all(value.values()):
             raise ValueError('--record requires --watch-ssh on and --watch-view on')
@@ -158,11 +164,7 @@ def initialize(run, updates=None, *, inherit=False, record=False):
             else:
                 with os.fdopen(fd, 'w') as stream:
                     json.dump(str(path), stream)
-    return _write(run, updates or {}, initialize=True, record=record)
-
-
-def update(run, updates):
-    return _write(run, updates)
+    return save(run, updates, record=record)
 
 
 @contextmanager

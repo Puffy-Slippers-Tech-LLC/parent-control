@@ -398,19 +398,28 @@ shown on the left. Start tests through the usual launchers.
 The Reconnect button restarts this tab's source connections.
 
 The **View** and **SSH** switches immediately left of the right panel's layout
-buttons start off. Each click applies the corresponding `--watch-view on|off` or
-`--watch-ssh on|off` option to every currently running `run-tests` and `fix-tests`
-launcher across the connected sources, including runners grouped under another
-workflow. No confirmation dialog or controller restart is needed. The switches
-keep their state across reconnects and hidden tabs; future launchers keep their
-own startup settings until another click.
+buttons load the saved settings from `~/.onpc-config/watch.json` on the machine
+running the Watch extension, independently of controller hosts and checkouts.
+Both default to off when that file is absent. On each click, Watch overwrites
+the file with the complete current settings, creating it when absent, and sends
+both settings to every running `run-tests` and `fix-tests` launcher across the
+connected sources, including runners grouped under another workflow. The local
+save is atomic and needs no existing file. Watch reads the file once when opened;
+every Watch window uses this same file, and settings survive VS Code restarts.
+No confirmation dialog or controller restart is needed.
+While visible, Watch applies them to newly connected and newly discovered launchers.
+Controller-side `watch.json` files are runtime relays for workers, not the saved
+Watch preferences. Closing Watch leaves those workers' last applied settings intact.
 
 With **View** off, image areas show **View disabled**. With global **SSH** off,
 VM command output is hidden and each tile's SSH switch is disabled. A tile that
 was on stays on; enabling global SSH restores its saved visibility preference.
 Launcher progress, sessions, errors and controls remain available. Recording
-guards and unavailable sources can refuse a change; Watch reports the failure
-and restores the toolbar switch instead of claiming every launcher changed.
+guards and unavailable sources can refuse application to a launcher. Saves recheck
+the exact live owner and retain the recording guard; a missing runtime file is
+created by the normal save. Watch reports
+that failure while retaining the saved preference and retries when the source
+reconnects or its launchers change. A failed local save restores the toolbar switch.
 
 The fixed **Run Time** tab follows **VM Viewer**. It loads logged VM case durations only
 while selected, refreshes the data once per minute, and unloads its body when
@@ -644,7 +653,8 @@ but skip counter reads while all active controlled runs on that host have
 `--watch-ssh off`. New `run-tests` and `fix-tests` runs start with both
 `--watch-ssh off` and `--watch-view off`. Use the corresponding `on` option to
 enable command observation or VM display capture, and `off` to stop it during
-the same live run. Omitted options preserve that run's current choices.
+the same live run. Omitted options preserve that run's current choices. While
+Watch is open and visible, it applies its saved preferences to discovered runs.
 Disabling observation clears its retained VM display or command text; launcher
 progress, agent sessions, controls and errors remain available. Adapters and
 running controllers must use current code; unusable live controls refuse global

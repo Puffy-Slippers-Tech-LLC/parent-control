@@ -3,12 +3,41 @@
 const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 const { stripVTControlCharacters } = require('node:util');
 const { Bridge, configuration, resourceConfiguration } = require('./bridge');
 const { WatchErrors, errorDialog } = require('./errors');
+
+const watchSettingsPath = path.join(os.homedir(), '.onpc-config', 'watch.json');
+
+function readWatchSettings() {
+    try {
+        const value = JSON.parse(fs.readFileSync(watchSettingsPath, 'utf8'));
+        if (!value || Array.isArray(value) || typeof value !== 'object' ||
+                typeof value.view !== 'boolean' || typeof value.ssh !== 'boolean') {
+            throw new Error('Invalid Watch settings.');
+        }
+        return value;
+    } catch (error) {
+        if (error.code === 'ENOENT') return { view: false, ssh: false };
+        throw error;
+    }
+}
+
+function saveWatchSettings(settings) {
+    const directory = path.dirname(watchSettingsPath);
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    const temporary = path.join(directory, `.watch-${randomBytes(16).toString('hex')}.json`);
+    try {
+        fs.writeFileSync(temporary, JSON.stringify(settings) + '\n', { flag: 'wx', mode: 0o600 });
+        fs.renameSync(temporary, watchSettingsPath);
+    } finally {
+        fs.rmSync(temporary, { force: true });
+    }
+}
 
 function actionBackground({ shellPath, shellArgs, cwd, invocation, failed, completed = () => {} }) {
     const child = spawn(shellPath, shellArgs, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -131,6 +160,7 @@ function activate(context) {
             panels.get(root).reveal();
             return;
         }
+        const watchSettings = readWatchSettings();
         const panel = vscode.window.createWebviewPanel('onpc.watch', 'ONPC Watch',
             vscode.ViewColumn.Active, {
                 enableScripts: true,
@@ -146,8 +176,14 @@ function activate(context) {
         let sessions = new Map();
         let runRoots = new Set();
         let displayedRuns = new Map();
-        const watchSettings = { view: false, ssh: false };
         let changingWatch = false;
+        let syncedWatch = '';
+        let watchSyncError = '';
+        function reportWatchSyncError(error) {
+            const message = error.message || String(error);
+            if (message !== watchSyncError) errors.report('Cannot apply saved Watch settings', message);
+            watchSyncError = message;
+        }
         function publishWatchSettings() {
             if (!disposed) void panel.webview.postMessage({ type: 'watchSettings', ...watchSettings, pending: changingWatch });
             reset = true;
@@ -191,6 +227,7 @@ function activate(context) {
             // Sources advance independently, with the existing render backpressure.
             try {
                 bridge.tick({ ...selection, session_roots: [...sessionRoots] });
+                void syncWatchSettings().catch(reportWatchSyncError);
                 void publish();
             } catch (error) { failure(error.stack || error.message); }
         }
@@ -230,6 +267,8 @@ function activate(context) {
         function start() {
             stop();
             reset = true;
+            syncedWatch = '';
+            watchSyncError = '';
             try {
                 const values = vscode.workspace.getConfiguration('onpc.watch', vscode.Uri.file(root)).get('sources', []);
                 bridge = new Bridge(configuration(values, root), message => output.appendLine(message), publish,
@@ -380,6 +419,24 @@ c = json.loads(sys.argv[1])
 root, run = Path(c['root']), Path(c['run'])
 sys.path.insert(0, str(root / 'tools'))
 from watch_output import read_json
+if c['kind'] == 'watch-settings':
+    import fcntl
+    import watch_control
+    from detached_launcher import lock
+    from watch_checkouts import checkout
+    from watch_output import active_launchers, JsonReader
+    roots = [checkout(path) for path in c['checkouts']]
+    root = next((root for root in roots if (run, c['launcher']) in
+                 active_launchers(root, JsonReader())), None)
+    if root is None:
+        sys.exit('Watch launcher changed or stopped; refresh before trying again.')
+    with lock(run.parent / 'gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        if (run, c['launcher']) not in active_launchers(root, JsonReader()):
+            sys.exit('Watch launcher changed or stopped; refresh before trying again.')
+        watch_control.initialize(run, c['settings'])
+    print('Watch runtime settings saved.')
+    sys.exit(0)
 if read_json(run.parent / 'current.json')['run'] != run.name:
     sys.exit('Launcher changed; refresh before trying again.')
 if c['kind'] == 'close':
@@ -399,13 +456,13 @@ if '--cancel-stop' in c['argv']:
 if '--add-session' in c['argv']:
     os.environ['ONPC_ADD_SESSION_RUN'] = str(run)
     os.environ['ONPC_ADD_SESSION_KEY'] = c['allowance_key']
-if c['kind'] in ('watch-view', 'watch-ssh'):
-    os.environ['ONPC_WATCH_RUN'] = str(run)
 os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch=branch, launcher=c['launcher'], pid=os.getpid()))
 os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
 `;
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
-                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind, allowance_key: command.allowance_key })];
+                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher,
+                        argv: command.argv, kind, allowance_key: command.allowance_key,
+                        checkouts: command.checkouts, settings: command.settings })];
                 const remote = command.source.transport === 'ssh';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
                 // The destination launcher verifies its checkout and uses the
@@ -422,6 +479,45 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                 });
         }
 
+        async function applyWatchCommands(commands) {
+            const failures = [];
+            const results = await Promise.all(commands.map(command => new Promise(resolve => {
+                try {
+                    launcherBackground(command, command.kind, 'Watch collection',
+                        `Save Watch runtime settings: ${JSON.stringify(command.settings)}`,
+                        diagnostic => { lastTerminalDiagnostic = diagnostic; failures.push(diagnostic); }, resolve);
+                } catch (error) {
+                    failures.push(error.stack || error.message);
+                    resolve(false);
+                }
+            })));
+            if (results.some(ok => !ok)) {
+                throw new Error('Watch settings could not be changed for every launcher. Some launchers may have accepted the change.\n\n' + failures.join('\n\n'));
+            }
+        }
+
+        async function syncWatchSettings() {
+            if (changingWatch || !bridge) return;
+            const current = bridge;
+            const signature = JSON.stringify(current.sources.map(source =>
+                [source.config.id, source.status, source.snapshot?.watch_launchers.map(run => run.run)]));
+            if (signature === syncedWatch) return;
+            syncedWatch = signature;
+            changingWatch = true;
+            publishWatchSettings();
+            try {
+                const commands = await current.watchCommands(watchSettings, { changedOnly: true });
+                if (disposed || bridge !== current) return;
+                await applyWatchCommands(commands);
+                watchSyncError = '';
+            } catch (error) {
+                reportWatchSyncError(error);
+            } finally {
+                changingWatch = false;
+                publishWatchSettings();
+            }
+        }
+
         async function toggleWatch(feature, enabled) {
             if (changingWatch || !bridge) {
                 publishWatchSettings();
@@ -430,32 +526,21 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
             }
             const current = bridge;
             const previous = watchSettings[feature];
+            let saved = false;
             changingWatch = true;
             watchSettings[feature] = enabled;
             publishWatchSettings();
             const label = feature === 'view' ? 'View' : 'SSH';
             try {
-                const kind = `watch-${feature}`;
-                const commands = await current.watchCommands(kind, enabled ? 'on' : 'off');
+                saveWatchSettings(watchSettings);
+                saved = true;
+                const commands = await current.watchCommands(watchSettings);
                 if (disposed || current !== bridge) throw new Error('Watch reconnected; review the current launchers before trying again.');
-                const failures = [];
-                const results = await Promise.all(commands.map(command => new Promise(resolve => {
-                    try {
-                        launcherBackground(command, kind, `${label} ${enabled ? 'on' : 'off'}`,
-                            `tools/${command.launcher} ${command.argv.join(' ')}`,
-                            diagnostic => { lastTerminalDiagnostic = diagnostic; failures.push(diagnostic); }, resolve);
-                    } catch (error) {
-                        failures.push(error.stack || error.message);
-                        resolve(false);
-                    }
-                })));
-                if (results.some(ok => !ok)) {
-                    throw new Error('Watch settings could not be changed for every launcher. Some launchers may have accepted the change.\n\n' + failures.join('\n\n'));
-                }
+                await applyWatchCommands(commands);
                 vscode.window.setStatusBarMessage(`Watch ${label} ${enabled ? 'on' : 'off'} for ${commands.length} running launcher${commands.length === 1 ? '' : 's'}`, 3000);
             } catch (error) {
-                watchSettings[feature] = previous;
-                errors.report(`Cannot change Watch ${label}`, error);
+                if (!saved) watchSettings[feature] = previous;
+                errors.report(saved ? `Saved Watch ${label}; cannot apply to all launchers` : `Cannot save Watch ${label}`, error);
             } finally {
                 changingWatch = false;
                 publishWatchSettings();

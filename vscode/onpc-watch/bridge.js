@@ -607,7 +607,16 @@ class Bridge {
     async artifact(token) {
         const route = this.links.get(token);
         if (!route) throw new Error('Artifact is no longer published by the displayed source.');
-        return { result: await route.source.artifact(route.uri), remote: route.source.config.transport === 'ssh' };
+        let source = route.source;
+        if (source.status === 'Connected' && route.uri.startsWith('onpc-recording://')) {
+            // A local controller can publish recordings stored on another host.
+            // Read through that host's observer, without capturing test source
+            // or contending with a repair in the controller's checkout.
+            const host = new URL(route.uri).hostname;
+            source = this.sources.find(candidate => candidate.config.transport === 'ssh' &&
+                candidate.config.host === host) || source;
+        }
+        return { result: await source.artifact(route.uri), remote: source.config.transport === 'ssh' };
     }
 
     async launcherCommand(root, run, kind) {

@@ -73,164 +73,49 @@ def test_executor_refuses_noncanonical_pool_before_checkout(executor_pool, monke
     assert not state.held and not state.released
 
 
-def test_executor_ready_attempts_choose_only_available_and_retain_failed_owner(executor_pool, monkeypatch):
-    import test_source
+def test_executor_failure_stops_admission_and_releases_bookings(executor_pool):
     import vm_queue
 
     state = executor_pool
-    completed = []
-    readers = set()
-    choices = []
-    paused = threading.Event()
-    probe_cancelled = threading.Event()
-
-    @contextmanager
-    def reader(root, **kwargs):
-        name = state.local.name
-        if name == 'first' and not probe_cancelled.is_set():
-            paused.set()
-            probe_cancelled.set()
-            kwargs['stopped']()
-            pytest.fail('revoked probe admission did not stop the source read')
-        readers.add(name)
-        try:
-            yield
-        finally:
-            readers.discard(name)
-
-    monkeypatch.setattr(test_source, 'reader', reader)
-
-    def choose(ready, active):
-        choices.append((ready, active))
-        assert not active
-        return 'second' if 'second' in ready else ready[0]
-
+    attempted = []
     def execute(worker):
-        name = worker.vm.name
-        assert name in readers and name in state.held
-        assert worker.executor._active == 1
-        if name == 'first':
-            assert 'second' in state.held, 'failed owner released before executor close'
-            assert 'second' not in readers, 'failed owner retained source admission'
-        completed.append(name)
-        return dict(status=2 if name == 'second' else 0, handoffs=[name])
-
+        assert worker.vm.name in state.held
+        attempted.append(worker.vm.name)
+        return dict(status=2, handoffs=['actual failure'])
     with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
-        results = executor.run_ready(execute, choose=choose,
-            needed=lambda vm: vm.name not in completed and not (vm.name == 'first' and paused.is_set()),
-            service=lambda controller, drained: paused.clear() if drained and completed else None)
-        assert state.held == {'second'}
-    assert completed == ['second', 'first']
-    assert choices[0][0] == ('second',) and probe_cancelled.is_set()
-    assert results['second']['status'] == 2 and results['first']['status'] == 0
-    assert not state.held and not readers
+        results = executor.run_ready(execute, choose=lambda ready, active: ready[0],
+                                    needed=lambda vm: True)
+        assert not state.held
+    assert len(attempted) == 1
+    assert results[attempted[0]]['status'] == 2
 
 
-def test_executor_retained_sole_vm_continues_then_borrows_writer_for_recovery(
-        executor_pool, monkeypatch):
-    import test_source
+def test_executor_failure_cancels_and_joins_running_companion(executor_pool, monkeypatch):
     import vm_queue
+    from vm_selection import vm_config
 
     state = executor_pool
-    source = state.root / 'source'
-    source.mkdir(mode=0o700)
-    run = state.root / 'repair'
-    run.mkdir(mode=0o700)
-    for name in (test_source.VARIABLE, test_source.WRITER, test_source.IMPORTS,
-                 test_source.STARTUP_READER, test_source.STARTUP_WRITER):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(test_source, '_local', threading.local())
-    monkeypatch.setattr(test_source, '_generations', {})
-    monkeypatch.setattr(test_source, 'source_directory', lambda root, **kwargs: source)
-    gate = test_source.RepairGate(run, root=state.root)
-    coordinator = threading.get_ident()
-    readers, attempts, observations, completions, recoveries = {}, [], [], [], []
-
-    @contextmanager
-    def reader(root, **kwargs):
-        identity = threading.get_ident()
-        with state.reader(root, **kwargs) as descriptor:
-            readers.setdefault(identity, []).append(descriptor)
-            try:
-                yield descriptor
-            finally:
-                readers[identity].pop()
-                if not readers[identity]:
-                    del readers[identity]
-
-    monkeypatch.setattr(test_source, 'reader', reader)
-
+    vms = [replace(vm, host=replace(vm.host, max_compute_unit=2)) for vm in state.vms]
+    monkeypatch.setattr(vm_config, 'load', {vm.name: vm for vm in vms}.__getitem__)
+    started = threading.Barrier(2, timeout=5)
+    attempts = []
     def execute(worker):
-        identity = threading.get_ident()
-        attempts.append((identity, worker.receipt))
-        assert identity != coordinator and worker.vm.name == 'first'
-        assert executor._active == 1 and state.held == {'first'}
-        assert len(readers[identity]) == 2
-        return dict(status=2 if len(attempts) == 1 else 0,
-                    handoffs=['failure' if len(attempts) == 1 else 'normal'], cleanup=True)
-
-    def observed(vm, result):
-        identity = threading.get_ident()
-        observations.append(result['status'])
-        assert vm.name == 'first' and len(readers[identity]) == 1
-        assert executor._active == 0, 'failure observation retained an execution slot'
-        if result['status']:
-            with gate.protection.state():
-                gate.protection.set_impact(gate.owner, 'untriaged')
-            assert not gate.try_acquire(), 'failure observation let edits cross its reader'
-            with gate.protection.state():
-                gate.protection.set_impact(gate.owner, 'no')
-
-    def completed(vm, result):
-        completions.append(result['status'])
-        assert threading.get_ident() == coordinator and vm.name == 'first'
-        assert not readers and executor._active == 0
-        assert state.held == {'first'}, 'isolated failure lost its recovery reservation'
-
-    def recovery(worker):
-        identity = threading.get_ident()
-        assert (identity, worker.receipt) == attempts[0] == attempts[1]
-        assert worker.vm.name == 'first' and state.held == {'first'}
-        assert executor._active == 1 and len(readers[identity]) == 1
-        descriptor, = test_source.descriptors()
-        assert descriptor == gate.fd
-        assert test_source.environment()[test_source.WRITER] == gate.owner
-        gate.protection.validate(descriptor, held=True, writer=True)
-        return dict(status=0, handoffs=['verified'], cleanup=True)
-
-    def service(controller, drained):
-        if not attempts and drained and not state.held:
-            assert drained and not readers and executor._active == 0
-            controller.reserve('first')
-            assert state.held == {'first'} and executor._active == 0
-        if len(completions) != 2 or recoveries:
-            return False
-        assert drained and not readers and executor._active == 0
-        assert state.held == {'first'}
-        assert gate.try_acquire(ready=lambda: drained)
-        try:
-            with gate.source():
-                recoveries.append(controller.attempt('first', recovery))
-            assert not readers and executor._active == 0
-        finally:
-            gate.release()
-        with gate.protection.state():
-            gate.protection.release_impact(gate.owner)
-        return True
-
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        attempts.append(worker.vm.name)
+        started.wait()
+        if worker.vm.name == 'first':
+            return dict(status=2, handoffs=['actual failure'])
+        assert worker.interrupt.wait(5), 'failure did not cancel its admitted companion'
+        return dict(status=130, interrupted=True, handoffs=[])
+    with vm_queue.Executor(state.root, vms, 2, threading.Event()) as executor:
         results = executor.run_ready(execute, choose=lambda ready, active: ready[0],
-            needed=lambda vm: len(completions) < 2, observed=observed, completed=completed,
-            service=service, keep_failed=True)
-        assert results['first']['handoffs'] == ['failure', 'normal']
-    assert observations == completions == [2, 0]
-    assert recoveries == [dict(status=0, handoffs=['verified'], cleanup=True)]
-    assert not state.held and not readers and executor._active == 0
-    assert state.released == ['first']
-    assert gate.fd is None and gate.protection.owner() is None
+                                    needed=lambda vm: vm.name not in attempts)
+        assert not state.held
+    assert set(attempts) == {'first', 'second'}
+    assert results['first']['status'] == 2 and results['second']['status'] == 130
+    assert executor._active == 0
 
 
-def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_pool):
+def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_pool, monkeypatch):
     import launcher_control
     import vm_queue
 
@@ -260,65 +145,36 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
     errors = json.loads((run / 'controller-errors.json').read_text())
     assert errors[-1]['context'] == 'VM completion first'
     assert errors[-1]['traceback'] == result['first']['traceback']
+    # Slow release of an unselected VM overlaps completion of the running VM.
+    # Its next probe must become ready, not consume an old release as a result.
     attempts.clear()
-    def reject_completion(vm, result):
-        raise ValueError('completion rejected after execution')
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
-        result = executor.run_ready(execute, choose=lambda ready, active: ready[0],
-                                    needed=lambda vm: len(attempts) < 2,
-                                    completed=reject_completion, keep_failed=True)
-    assert attempts == ['first'], 'later work must not erase an unowned completion error'
-    assert result['first']['status'] == 2
-    assert result['first']['cleanup'] is False
-    attempts.clear()
-    def interrupted(worker):
-        attempts.append(worker.vm.name)
-        return dict(status=130, interrupted=True, handoffs=[])
-    def accept_interruption(vm, result):
-        assert vm.name in state.held, 'interrupted owner released before cleanup validation'
-        return dict(result, status=0, cleanup_complete=True)
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
-        result = executor.run_ready(interrupted, choose=lambda ready, active: ready[0],
-                                    needed=lambda vm: not attempts, completed=accept_interruption,
-                                    keep_failed=True)
-    assert result['first']['status'] == 0 and not state.held
-    attempts.clear()
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
-        result = executor.run_ready(interrupted, choose=lambda ready, active: ready[0],
-            needed=lambda vm: not attempts,
-            completed=lambda vm, result: dict(result, status=0, cleanup_complete=False), keep_failed=True)
-        assert state.held == {'first'}
-    assert result['first']['status'] == 2 and not state.held
-    with pytest.raises(ValueError, match='not ready'):
+    first_completed = threading.Event()
+
+    @contextmanager
+    def reservation(name, **kwargs):
+        with state.reservation(name, **kwargs) as receipt:
+            yield receipt
+            if name == 'second':
+                assert first_completed.wait(5)
+
+    def choose(ready, active):
+        if not attempts:
+            return 'first'
+        assert 'second' in ready
+        return 'second'
+
+    with monkeypatch.context() as local:
+        local.setattr(vm_pool, 'reservation', reservation)
+        with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
+            result = executor.run_ready(execute, choose=choose, needed=lambda vm: len(attempts) < 2,
+                completed=lambda vm, value: first_completed.set() if vm.name == 'first' else None)
+    assert attempts == ['first', 'second']
+    assert all(value['status'] == 0 for value in result.values())
+    with pytest.raises(ValueError, match='unavailable'):
         with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
             executor.run_ready(execute, choose=lambda ready, active: 'foreign', needed=lambda vm: True)
     assert not state.held
 
-
-def test_executor_reconciles_joined_receipts_when_service_requests_reload(executor_pool):
-    import launcher_reload
-    import vm_queue
-
-    state = executor_pool
-    started, finish = threading.Event(), threading.Event()
-    completed = []
-
-    def execute(worker):
-        started.set()
-        assert finish.wait(5)
-        return dict(status=0, handoffs=['joined receipt'])
-
-    def service(controller, drained):
-        if started.is_set():
-            finish.set()
-            raise launcher_reload.ReloadRequested()
-
-    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
-        with pytest.raises(launcher_reload.ReloadRequested):
-            executor.run_ready(execute, choose=lambda ready, active: ready[0], needed=lambda vm: True,
-                service=service, completed=lambda vm, result: completed.append(result))
-    assert completed == [dict(status=0, handoffs=['joined receipt'])]
-    assert not state.held and executor._active == 0
 
 
 def test_executor_ready_busy_vm_has_no_source_and_late_checkin_cannot_pass(executor_pool, monkeypatch):
@@ -960,11 +816,9 @@ def test_vm_artifact_helper_uses_vm_scope_before_host_activity(tmp_path, monkeyp
     monkeypatch.setattr(regression_session, 'prepare', lambda *args, **kwargs: directory)
     monkeypatch.setattr(test_source, 'startup', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(test_source, 'finish_admission', lambda: None)
-    monkeypatch.setattr(test_checkpoint, 'guard_scheduling_checkpoints', lambda *args: None)
-    monkeypatch.setattr(test_checkpoint, 'guard_scheduling_run', lambda *args: None)
     monkeypatch.setattr('launcher_controller.require_startup_sync', lambda: None)
     monkeypatch.setattr(test_retention, 'Store', lambda path: SimpleNamespace(
-        path=path, session=lambda: nullcontext()))
+        path=path, execution_session=lambda: nullcontext()))
     monkeypatch.setattr(test_retention, 'retain', lambda *args: None)
     monkeypatch.setattr(detached_launcher, 'nested_operation', lambda *args: nullcontext())
     monkeypatch.setattr(test_launcher, 'environment', lambda *args: dict(os.environ))

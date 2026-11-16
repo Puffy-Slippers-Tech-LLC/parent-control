@@ -10,7 +10,7 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
-ProfileRole = Literal['implementation', 'repair', 'impact_triage', 'backend_reviewer', 'monitor',
+ProfileRole = Literal['implementation', 'repair', 'backend_reviewer', 'monitor',
                       'worker', 'translator', 'commit_helper', 'conflict_resolver']
 
 
@@ -146,7 +146,7 @@ class BatchPresentation(Protocol):
 
 
 class SessionProtocol(Protocol):
-    """One interactive conversation; no process, mailbox or filesystem writes.
+    """One structured interactive conversation; no process or filesystem writes.
 
     The supervisor drains outgoing bytes and feeds stdout chunks. Events are
     consumed in order before polling input/acceptance. Completion requires a
@@ -175,6 +175,22 @@ class SessionProtocol(Protocol):
     def finalize_result(self, text: str) -> dict | None: ...
 
 
+class GoalSessionProtocol(Protocol):
+    """A fresh plain assignment whose native runtime owns goal continuation.
+
+    done/status describe native lifecycle only. Plain sessions have neither a
+    workflow response schema nor a final-result decoder.
+    """
+    outgoing: bytearray
+    done: bool
+    status: int
+
+    def start(self) -> None: ...
+    def start_turn(self, text: str) -> None: ...
+    def feed(self, data: bytes) -> Iterator[SessionEvent]: ...
+    def poll(self) -> None: ...
+
+
 @dataclass(frozen=True)
 class PreparedSession:
     adapter: AgentAdapter
@@ -182,7 +198,7 @@ class PreparedSession:
     argv: tuple[str, ...]
     environment: dict[str, str]
     cwd: Path
-    protocol: SessionProtocol | None = None
+    protocol: SessionProtocol | GoalSessionProtocol | None = None
     presentation: BatchPresentation | None = None
 
     def preflight(self, *profiles: ModelProfile) -> None:

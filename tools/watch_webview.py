@@ -95,8 +95,7 @@ def remote_recording_artifact(uri):
     return json.loads(data)
 
 
-def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
-                 session_waiting=False, launcher=False, branches=()):
+def status_spans(lines, *, session_waiting=False, launcher=False, branches=()):
     """Keep status colors and emphasis without sending HTML or terminal controls."""
     from rich.text import Text
     from rich.console import Console
@@ -186,17 +185,6 @@ def status_spans(lines, *, failures=0, category_failures=None, error_log=None,
             text = Text()
             text.append('Paused - waiting for your answer',
                         style=Style(color='red', meta={'waiting': True}))
-        if error_log and 'Overall - ' in text.plain:
-            match = re.search(r'\((\d+)/(\d+)\)', text.plain)
-            if match:
-                category = re.search(r'Category: (\S+)', text.plain)
-                failed = ((category_failures or {}).get(category[1], 0)
-                          if category and category[1] != 'all' else failures)
-                counts = Text(str(max(0, int(match[1]) - failed)), style='green')
-                counts.append('/')
-                counts.append(str(failed), style=f'red underline link {error_log}')
-                counts.append('/' + match[2])
-                text = text[:match.start() + 1] + counts + text[match.end() - 1:]
         summary = re.fullmatch(r'(?:Round \d+: )?(Category: .+?) \| (Overall - .+)', text.plain)
         display_lines = ([Text('• ') + text[summary.start(index):summary.end(index)]
                           for index in (1, 2)] if summary else [text])
@@ -410,22 +398,12 @@ class Viewer:
                 return dict(kind='file', uri=path.as_uri(), media_type='text/plain')
             video = path.suffix == '.webm' and any(
                 path.parent == root / 'output/test-runs/recordings' for root in self.roots)
-            error_log = any(output.repair and output.run is not None
-                            and path == output.run.parent / 'errors.md'
-                            for output in self.outputs.values())
-            if not video and not error_log:
+            if not video:
                 raise ValueError('Unsupported artifact.')
             with open_private(path) as stream:
                 if not request['inline']:
-                    return dict(kind='file', uri=path.as_uri(),
-                                media_type='video/webm' if video else 'text/markdown')
-                if video:
-                    return inline_video(stream)
-                limit = 2 * 1024 * 1024
-                data = stream.read(limit + 1)
-                if len(data) > limit:
-                    raise ValueError('Artifact exceeds the inline transfer limit; open it on the source host.')
-            return dict(kind='text', text=data.decode('utf-8', errors='replace'))
+                    return dict(kind='file', uri=path.as_uri(), media_type='video/webm')
+                return inline_video(stream)
         except (OSError, ValueError) as error:
             return dict(error=str(error))
 
@@ -451,8 +429,6 @@ class Viewer:
                 record = self.launcher_reader.read(run.parent / 'current.json', 4096)
                 observer = Path(record['observer'])
                 if record['run'] == run.name:
-                    if observer.name.startswith('pipeline-'):
-                        observer = observer.parent
                     if re.fullmatch('[0-9a-f]{32}', observer.name):
                         # A newer parent run can precede its replacement child.
                         return workflow_bases.get(observer.parent)
@@ -518,88 +494,30 @@ class Viewer:
                     status = 'Stopping'
             lines = []
             error_lines = []
-            failures, error_log = 0, None
-            category_failures = {}
-            repair_lines = []
-            pending_repairs = []
             summary = []
             status_index = 0
             steps = []
             status_available = True
-            phase = ''
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
-                    repair_progress = output.repair_progress()
-                    pending_repairs = repair_progress['items']
-                    if pending_repairs:
-                        blocked = repair_progress['blocked']
-                        repair_lines = [f'Unresolved failures: {repair_progress["total"]}',
-                            ('New test admission paused; waiting for admitted attempts and cleanup before repair.'
-                             if blocked else 'Failures queued; independent tests may continue.')]
-                        if repair_progress['total'] > len(pending_repairs):
-                            repair_lines.append(f'Showing the latest {len(pending_repairs)} failures.')
-                        for ticket in pending_repairs:
-                            repair_lines.extend([
-                                f'{ticket["vm"] or "Host"} | {ticket["category"]} | {ticket["case"] or "preparation"}',
-                                f'Impact: {ticket["impact"]} — {ticket["reason"]}'])
-                    if active and not status and output.repair:
-                        try:
-                            repair_state = output.reader.read(output.run / 'checkpoint.json', 2 * 1024 * 1024)
-                        except (OSError, ValueError):
-                            repair_state = {}
-                        phase = next((clean(line).removeprefix('Status: ')
-                                      for step in reversed(steps) for line in reversed(step['lines'])
-                                      if clean(line).startswith('Status: ')), '')
-                        if repair_state.get('pending') is not None:
-                            status = 'Committing Fix'
-                        elif phase == 'Rechecking failed case':
-                            status = 'Rechecking Case'
-                        elif phase in ('Verifying repair', 'Collecting diagnostic evidence'):
-                            status = 'Verifying'
-                        elif phase == 'Checking failure impact' and session.active:
-                            status = 'Checking Impact'
-                        elif phase.startswith(('fixing errors', 'Repairing failed case',
-                                               'validating retained response')) or session.active:
-                            status = 'Repairing'
-                        elif pending_repairs:
-                            status = 'Repair Pending'
-                        elif phase == 'Checking failure impact':
-                            status = 'Checking Impact'
+                    if active and not status and output.repair and session.active:
+                        status = 'Repairing'
                     if active and not status and output.closing_task(steps, session_inactive=not session.active):
                         status = 'Closing Task'
                     summary = output.task_summary(active)
                     lines = [*summary, *(['─'] if summary else [])]
                     lines.extend(line for step in steps
-                             if not (output.repair and step['key'] == 'pipelines')
-                             for line in step['lines'] if not clean(line).startswith('Status: '))
+                                 for line in step['lines'] if not clean(line).startswith('Status: '))
                     status_index = len(summary) if summary else len(lines)
-                    if output.repair:
-                        details = [line for line in details
-                                   if not clean(line).startswith(('VM pipelines | concurrency ',
-                                                                  'Repair queue: '))]
-                        while details and not clean(details[0]).strip():
-                            details.pop(0)
                     if details:
                         if lines:
                             lines.append('─')
                         lines.extend(details)
-                    if repair_lines:
-                        lines.extend(['─', *repair_lines])
                 except (OSError, ValueError, KeyError, TypeError):
                     lines = ['Run status unavailable']
                     error_lines = ['Error status unavailable']
                     status_available = False
-                if output.repair:
-                    try:
-                        state = output.reader.read(output.run / 'checkpoint.json', 2 * 1024 * 1024)
-                        targets = {tuple(item['failure']) for item in state.get('failed_cases', [])}
-                        failures = len(targets)
-                        for category, _case, _vm in targets:
-                            category_failures[category] = category_failures.get(category, 0) + 1
-                        error_log = (output.run.parent / 'errors.md').as_uri()
-                    except (OSError, ValueError, KeyError, TypeError):
-                        pass
             session_run = session.run if session.active else None
             session_number = None
             session_allowance = None
@@ -614,21 +532,6 @@ class Viewer:
                         session_number = number
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
-            elif output.repair and session.run is not None:
-                # The case remains unfinished during verification and between
-                # agent attempts. Only accepted repair close-out removes it.
-                try:
-                    failure = session.state.get('repair_failure')
-                    number = session.state.get('task_session')
-                    if isinstance(failure, list) and type(number) is int and number > 0:
-                        state = session.reader.read(session.run / 'checkpoint.json', limit=2 * 1024 * 1024)
-                        repair = state.get('repairs', {}).get(json.dumps(failure))
-                        if repair is not None:
-                            number -= repair.get('session_start', 0)
-                            if number > 0:
-                                session_number = number
-                except (OSError, ValueError, KeyError, TypeError):
-                    pass
             try:
                 allowance = output.reader.read(output.run / 'session-allowance.json')
                 if (allowance.get('key') is not None
@@ -636,24 +539,6 @@ class Viewer:
                     session_number, session_allowance = allowance['used'], allowance['limit']
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 pass
-            if (output.repair and session.active and session.owner == output.run
-                    and session_number is not None and session.state.get('status') == 'running'
-                    and len(session.state['repair_failure']) == 3
-                    and all(isinstance(part, str) for part in session.state['repair_failure'])):
-                from regression import duration_text
-                category, case, vm = session.state['repair_failure']
-                started = session.state.get('started_at')
-                if category == 'system' and case.startswith('check_') and isinstance(started, (int, float)):
-                    elapsed = duration_text(time.time() - started)
-                    current_vm = ''
-                    for index, line in enumerate(lines):
-                        plain = clean(line).strip()
-                        heading = re.fullmatch(r'VM: (.+) \([^()]*\)', plain)
-                        if heading:
-                            current_vm = heading[1]
-                        if current_vm == vm and re.match(
-                                r'^\[[^]]+\] Check: ' + re.escape(case) + r' - ', plain):
-                            lines[index] = line + f' | Session {session_number}: {elapsed}'
             question = session.panel.question if session.panel and session.panel.question else None
             waiting = bool(session.active and (question or session.panel.chat_state.get('status') in ('waiting', 'blocked')))
             deadline = question.get('deadline') if question else None
@@ -666,27 +551,12 @@ class Viewer:
             status_value = status or ('Running' if active else output.completion_status() or 'Idle')
             status_color = launcher_status_color(status_value)
             status_detail = status_value
-            if status_value == 'Repair Pending':
-                status_detail = ('Repair pending — waiting for active tests and VM cleanup'
-                                 if blocked else
-                                 'Repair pending — waiting for independent tests to finish')
-            elif status_value == 'Checking Impact':
-                status_detail = 'Checking whether the failure affects other tests'
-            elif status_value == 'Rechecking Case':
-                status_detail = 'Rechecking the failed case before repair'
-            elif status_value == 'Verifying':
-                status_detail = {
-                    'Collecting diagnostic evidence': 'Collecting diagnostic evidence',
-                }.get(phase, 'Verifying the repaired case')
-            elif status_value == 'Committing Fix':
-                status_detail = 'Committing and propagating the verified fix'
-            elif waiting:
+            if waiting:
                 status_detail = 'Waiting for your answer'
             content_status = launcher_status_line(status_detail, status_color)
             if status_available and output.run is not None:
                 try:
-                    error_lines = output.error_status(steps, pending_repairs=pending_repairs,
-                        prefer_pending=status_value in ('Repair Pending', 'Checking Impact'),
+                    error_lines = output.error_status(steps,
                         status_override=(None if session.active and not waiting
                                          and status_value in ('Running', 'Repairing') else status_detail),
                         status_color=status_color)
@@ -696,21 +566,13 @@ class Viewer:
             if status_available:
                 # The summary remains fixed above the scrolling test history.
                 lines.insert(status_index, content_status)
-            signature = lines, failures, category_failures, error_log, session_run, waiting, deadline, prompt_id
+            signature = lines, session_run, waiting, deadline, prompt_id
             if self.status_cache.get(root, (None,))[0] != signature:
-                self.status_cache[root] = signature, status_spans(lines, failures=failures,
-                    category_failures=category_failures, error_log=error_log,
-                    session_waiting=waiting)
+                self.status_cache[root] = signature, status_spans(lines, session_waiting=waiting)
             session_view = None
-            if str(root) in session_roots and (session.panel or repair_lines):
-                session_view = (session.panel.webview() if session.panel else
-                                dict(lines=[], model='', simplified=True))
+            if str(root) in session_roots and session.panel:
+                session_view = session.panel.webview()
                 transcript = session_view.pop('lines')
-                if repair_lines:
-                    transcript = [*repair_lines,
-                        'Agent session active.' if session.active else
-                        'No agent session active; repair remains queued.',
-                        '', *transcript]
                 session_view['rows'] = self.cached_spans(root, 'session', transcript)
                 session_view['input_enabled'] = session.input_enabled
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +

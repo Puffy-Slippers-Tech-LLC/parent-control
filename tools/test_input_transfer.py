@@ -74,6 +74,13 @@ def validate_intent(store, value):
 def mutation_guard(store, fd):
     intent = read_intent(store, fd)
     if intent is None:
+        state = store.read(fd)
+        if state is None:
+            return  # A fresh journal owns none of the old transfer's inputs.
+        inherited = os.environ.get(retention.VARIABLE)
+        if inherited is not None and json.loads(inherited) == [str(store.path), state['run']]:
+            retention.owner_descriptor()
+            return  # Current producer admission already checked this boundary.
         # The source intent is published first while both writers are locked.
         # An interrupted first write must also guard an absent-claim recipient.
         if store.path.name.startswith('retention-') and store.path.name != 'retention-batch':
@@ -84,7 +91,8 @@ def mutation_guard(store, fd):
             except FileNotFoundError:
                 pending = None
             if (pending is not None and pending['phase'] == 'pending'
-                    and pending['destination'] == str(store.path)):
+                    and pending['destination'] == str(store.path)
+                    and pending['destination_run'] in {entry['run'] for entry in [*state['history'], state]}):
                 raise ValueError('retention: input ownership transfer pending; resume its guarded recovery')
         return
     if intent['phase'] == 'complete':

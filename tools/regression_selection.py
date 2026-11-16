@@ -119,6 +119,8 @@ class SelectedRun(Run):
             return self.pytest_result(inventory, status)
         if status or (not inventory.total and inventory.state != 'Passed'):
             raise ValueError(f'{kind.upper()} collection failed or collected no tests')
+        if self.known_failure(inventory, (*(inventory.nodeids or ()), *inventory.resumed_nodeids)):
+            return 1
         if inventory.state == 'Passed' and not inventory.total:
             inventory.retry_category = kind
             return 0
@@ -148,6 +150,8 @@ class SelectedRun(Run):
                 break
             self.dashboard.controller_category = (kind, index, len(self.selections))
             item.retry_category = kind
+            if not self.events(kind, args) and self.known_failure(item, ()):
+                break
             if self.resume_category(item):
                 continue
             if item.host:
@@ -182,6 +186,15 @@ class SelectedRun(Run):
                 elif kind == CLEANUP_SELECTION:
                     status = self.run_cleanup(item)
                 else:
+                    from test_results import REPAIR_QUEUE
+                    if (kind in ('component', 'fixture-runtime')
+                            and os.environ.get(REPAIR_QUEUE) and self.checkpoint is not None
+                            and self.checkpoint.results is not None
+                            and any(record['category'] == kind for record in self.checkpoint.results.failures())):
+                        status, _ = self.execute(item, self.command(kind, *args, '--collect-only'),
+                                                 collect=True, events=True)
+                        if status or self.known_failure(item, (*(item.nodeids or ()), *item.resumed_nodeids)):
+                            break
                     status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))
                     status = status or int(item.state != 'Passed')
                 if status:

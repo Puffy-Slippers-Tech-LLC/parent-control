@@ -4,7 +4,6 @@ The repair launcher's registered run owns these small snapshots. Bulk captures
 remain in execution storage; privileged reads use the installed artifact reader.
 """
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,16 +20,6 @@ FILE_BYTES = 128 * 1024
 MAX_FILES = 64
 
 
-def controller_sources(extra=(), *, root=None):
-    """Use the reviewed shared closure and specialized decision owners' bytes."""
-    from plan_launcher import RESPONSE_VALIDATOR_SOURCES
-    root = Path(root) if root is not None else Path(__file__).resolve().parents[1]
-    names = (*RESPONSE_VALIDATOR_SOURCES, 'repair_evidence.py', 'fix_tests.py', 'test_reset.py',
-             'fix_tests_git.py', 'test_source.py', 'vm_case_queue.py', 'e2e_progress.py',
-             'e2e_startup_cache.py', 'fix_tests_response.schema.json', 'fix_tests_impact.schema.json',
-             *extra)
-    return {name: hashlib.sha256((root / 'tools' / name).read_bytes()).hexdigest()
-            for name in dict.fromkeys(names)}
 
 
 def read_failure(path):

@@ -110,26 +110,21 @@ Public artifact/resume/attachment checks in that module use private session
 metadata and locked owner descriptors with a mocked child spawn. Descriptors
 close in a finally block; no worker, live helper or shared runtime is started.
 
-Checkout source-fence checks in test_launchers use private pytest lock files
-and bounded, waited Python children, including one interpreter replacement.
+Checkout source-lease checks in test_launchers use private pytest lock files
+and bounded, waited Python children.
 Forwarding checks use two joined threads and a bounded barrier on those same
-private locks; startup/reload races use private descriptors and local callbacks.
+private locks; startup cleanup uses private descriptors.
 Privileged source borrowing duplicates an owned child's real open description
 through pidfd_getfd, then forwards it to one bounded descendant; all children
-are reaped. It changes no credentials or ptrace policy. A private-checkout
-controller race uses one waited child and an import hook around real admission.
-Impact-session and logical-task admission checks use private JSON records and
-process-local session/input doubles; they start no agent, VM or external service.
-Issue-scoped repair answers reuse those records and doubles through controller
-reloads; descriptor filtering reuses the existing private source-lease threads.
-Checkpoint admission checks use private JSON records and local implementation
-bindings. Private checkout fixtures in test_launchers, unit_test_launcher and
+are reaped. It changes no credentials or ptrace policy.
+Repair-session and logical-task checks use private JSON results and process-local
+command/session doubles; they start no agent, VM or external service.
+Checkpoint checks retain clear terminal outcomes and ignore abandoned claims
+using private JSON records. Private checkout fixtures in test_launchers, unit_test_launcher and
 privileged_test_runner exclude the outer runner's source lease without closing
 its descriptor; the latter copies the new source module with its existing helpers.
 These modules acquire no live VMs, services, displays or shared caches; they
 retain their compatible unit classification and add no cleanup/UI entry.
-Reset recovery borrowing uses one bounded, waited source-reader child in that
-same private checkout; failure cases preserve only its private fence metadata.
 Shared close-out review checks in test_launchers add tiny private Git repositories
 and bounded, waited Git children. They change no real checkout, credentials or
 remote refs; commit execution is doubled at the controller boundary. Existing

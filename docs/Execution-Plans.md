@@ -116,9 +116,10 @@ Activation happens inside the assigned turn: setting an active goal on an idle
 thread can start an automatic turn before the launcher supplies its task.
 History-list recording and memories remain disabled. Ordinary plan sessions start
 with fresh context. The [test repair loop](../tests/README.md#scripted-repair-loop)
-resumes its active unresolved issue's native conversation across diagnostic and
-repair turns, starting fresh context when a distinct issue is exposed. Complete the goal when
-the bounded assignment has been verified, before its final handoff.
+uses one fresh schema-free native goal session for the whole repair and validation.
+Native goal continuation stays in that session; the launcher does not resume old
+threads or submit corrective turns. Complete the goal after the assigned work
+has been verified.
 
 If native turn submission reports an active-turn output-schema conflict, the
 shared Codex adapter reads that same thread, interrupts its active turn and waits
@@ -195,10 +196,8 @@ Resolve actionable findings and
 revalidate material revisions before completion. No review is required by this
 exception for changes outside core backend code. Review supplies no acceptance
 credit and changes no generic implementation, consultation or escalation policy.
-`fix-tests` retains its existing
-[model ladder and specialized execution contract](../tests/README.md#scripted-repair-loop).
-Its existing consultation/repair boundaries still apply; reusable infrastructure
-does not move acceptance or resource ownership into an observer or worker.
+`fix-tests` uses the [single-session repair contract](../tests/README.md#scripted-repair-loop),
+with a selected profile and no launcher escalation ladder or session allowance.
 
 Run the lowest effective maintained checks required by the current task,
 including installed journeys when the behavior requires them. Keep customer
@@ -241,13 +240,10 @@ or workflow validation reads the destination configuration. It fetches first,
 then uses `git pull --no-autostash` when an update is needed. Synchronization
 holds the selected controller family's admission gates, verifies idle kernel
 owners, and takes the shared Git transaction lock and exclusive source lease.
-Retained repair impact holds and pending recovery do not skip this step.
-For a retained source writer, only its original repair's `--resume` may synchronize.
-The fence, holds, dirty/staged/untracked edits, checkpoints and accepted results
-remain owned by recovery; synchronization neither settles nor transfers them.
-With retained repair recovery, startup permits only a fast-forward pull and
-refuses before job allocation if Git cannot preserve local work or has an
-unfinished operation. Existing Git transaction journals pin their source base:
+`fix-tests` and its test/validation invocations use the current checkout and skip
+this synchronization. Old repair journals or source fences have no admission
+authority. Other launchers retain their ordinary Git synchronization policy.
+Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
 Ordinary pull failures retain their low-effort recovery agent;
@@ -262,8 +258,7 @@ The bootstrap remains a placement-only handoff. When early synchronization chang
 admission replaces the launcher interpreter before selection, retaining the verified
 destination and avoiding a second pull. Controller imports and newly launched jobs
 therefore use the synchronized source. Before any potentially mutating pull,
-startup durably advances the shared generation without clearing repair fences
-or holds and forwards its locks to the Git child, including across controller
+startup forwards its locks to the Git child, including across controller
 death. A fetch that confirms source is current advances no generation.
 Valid accepted results remain recovery authority rather than being rerun merely
 because the controller was refreshed.
@@ -297,17 +292,10 @@ when the queue is exhausted; the launcher never invents tasks to fill the limit.
 On attachment, an explicit `--tasks` **replaces** the active run's total limit;
 omitting it keeps that limit. Lowering a limit never interrupts accepted ongoing
 work. All shared launchers default to `0`, running all remaining tasks in their
-selected queue. In `fix-tests`, a round-1 category or explicitly selected
-verification category is one logical task across every selected family and host
-work. An unfiltered verification round is one composite task, retained across
-fresh passes until clean completion or terminal failure. Fresh selected
-verification passes charge their categories again. Family partitions, exact-case
-attempts, repair sessions and resumed close-out cost no additional tasks.
-Admission is charged once before assignment and completed once when its scope
-settles, including failure without passing credit. A limit blocks new tasks while
-admitted work and close-out finish; resume retains charged admissions, valid
-current-pass results and original selectors. Rounds are run-wide, independent of
-the number of VMs; see the [repair loop](../tests/README.md#scripted-repair-loop).
+selected queue. In `fix-tests`, each completed category scope counts once across
+its selected families. Exact-case validation and repair sessions do not consume
+additional tasks. Requested rounds are fixed; no source change adds a pass.
+See the [repair loop](../tests/README.md#scripted-repair-loop).
 
 `--add-session N` adds a positive integer to the running launcher's current
 task/case session allowance. Use the same plan, scope and VM selection as for
@@ -323,8 +311,7 @@ displayed kind. It grants no acceptance or task completion credit.
 The shared launcher publishes the current used count and computed allowance in
 `session-allowance.json`, separately from its controller-owned checkpoint. The
 allowance gate serializes increments, publications and ordinary-plan exhaustion
-decisions. `fix-tests` publishes its serialized repair's allowance at the parent
-controller, including while verification or intervention is pending.
+decisions. `fix-tests` has no session allowance or add-session control.
 ONPC: Watch uses these values for both **Session x/y** labels and offers
 **Add 5 Sessions** in the launcher actions menu. Adding sessions during an
 allowance intervention resumes that same task/case without a second grant;
@@ -361,9 +348,8 @@ grant increases its allowance. Capacity retries keep the original
 session's kind and charge neither allowance again. An exhausted allowance stops
 with the exact retained handoff rather than skipping the task.
 This is a launcher failure: the unfinished task remains unchecked and later
-tasks do not start, since they may depend on it. Only `fix-tests` may record an
-exhausted case as failed and continue
-its independent repair queue; that exception must not enter shared plan execution.
+tasks do not start, since they may depend on it. `fix-tests` has no session allowance
+and uses its separate single-goal repair contract.
 Older checkpoints retain their original charges; an absent repair counter starts
 at zero without guessing or refunding historical turn classifications.
 For an explicitly requested manual replan, first commit the reviewed master,
@@ -403,19 +389,12 @@ result, caller-owned cancellation/cleanup markers, no agent response/error and
 an empty nested-owner record. Other interrupted sessions retain their refusal;
 never edit checkpoints or clear ownership records manually.
 
-Ordinary plans and `fix-tests` share response recovery in
-[`launcher_runtime.py`](../tools/launcher_runtime.py). A successful agent session
-with missing/malformed JSON or a rejected handoff/acceptance/queue transition
-returns to its coordinator after owned cleanup. The latest rejected response and
-exact guard failure remain in the run allocation and corrective prompt. Recovery
-keeps the task's handoff and counters. Ordinary plans use current queue and brief
-definitions, while specialized launchers retain their own baseline policy. Ordinary plans use the
-separate three-session coordinator repair allowance above; `fix-tests` corrects
-the handoff in its current issue conversation and bounds repeated rejection
-through its [effort ladder](../tests/README.md#scripted-repair-loop). Recovery grants no completion
-credit, promotion or allowance reset.
-Stop/cancellation remain effective between attempts. Repeated rejection ends at
-the applicable recovery boundary with a resumable checkpoint and diagnostic handoff.
+Ordinary plans use structured response recovery in
+[`launcher_runtime.py`](../tools/launcher_runtime.py). Missing or rejected responses
+return to their coordinator under the plan's existing allowance and acceptance
+contract. Rejected responses never grant completion. The plain `fix-tests` goal
+session has no structured handoff or response-recovery loop.
+
 An explicit `--reload` requests fresh launcher code in an active run. Saved source
 edits alone never trigger interpreter replacement. The ordinary-plan controller
 reloads at the next session boundary with the result and handoff retained,
@@ -437,15 +416,15 @@ The shared `--reload` option applies to ordinary plans and their dedicated wrapp
 `fix-tests`, `sync-whatsnew`, `run-tests` and its direct `run-unit-tests`
 launcher. Use the same plan/VM/scope selection as for an existing run.
 The request returns immediately; when idle the flag is ignored and ordinary startup
-applies. It preserves workflow progress and allowances. Bare `fix-tests --reload`
-requests both active repair scopes. Shared request and descriptor handling lives in
+applies. It preserves workflow progress. `fix-tests` reloads at a joined execution
+boundary and retains only its current request and clear results. Shared request and descriptor handling lives in
 [`launcher_reload.py`](../tools/launcher_reload.py). Internal test-frame forwarders
 stay under their existing supervisor. Controllers reload only after
 their owned operations and cleanup finish. VM test coordinators interrupt guest
 steps through the [owned interruption route](../tests/README.md#scripted-repair-loop)
 instead of waiting for admitted groups to finish. Ordinary plans and E2E implementation
-retain session/task checkpoints; repair coordinators join interrupted attempts and
-retain their pass, FIFO tickets and source ownership before reloading;
+retain session/task checkpoints; repair controllers finish their active operation
+and retain clear results before reloading;
 translations finish and retain their current batch.
 The test scheduler stops admitting jobs, joins active work, saves completed cases
 and reloads with the original selectors and checkpoint. Cancellation takes precedence;
@@ -461,8 +440,8 @@ use the interruption route above; other workflows retain their documented bounda
 Owners started before this request protocol was installed cannot consume it;
 finish or stop them through their existing interface, then start current code.
 Reload keeps activity and scratch descriptors and an existing single-VM checkout
-helper alive across exec. Drained VM workers retain their checkpoints and repair
-source fence; their successors use the original selectors and same-run budgets.
+helper alive across exec. Drained VM workers retain clear completed results;
+their successors schedule unfinished work without reconstructing old claims.
 
 Reload is not checkout isolation. Already-imported modules stay in memory until
 their controller boundary, but fresh supervisors, test workers, dynamic imports
@@ -472,8 +451,8 @@ Finish coherent edits before requesting reload; the flag cannot refresh code
 already loaded by an active child or undo work it has completed. No file watcher,
 source snapshot or per-file hot-patching protocol is involved.
 
-Capacity recovery applies to every launcher-owned model session: ordinary plans,
-`fix-tests`, `sync-whatsnew`, and worktree
+Capacity recovery applies to structured launcher-owned model sessions: ordinary plans,
+`sync-whatsnew`, and worktree
 conflict resolution. The shared runtime owns the retry policy. Ordinary plans
 retain their checkpointed controller recovery; other workflows use the shared
 supervisor without spending another task, repair or batch slot.
@@ -733,8 +712,10 @@ successfully pushed HEAD, including any merge resolution, and propagation uses
 that pinned commit. A restart resumes that exact propagation before accepting
 completion; it does not repin a transaction with completed destinations.
 
-This boundary is shared by ordinary-plan launchers and `fix-tests`.
-Every committing launcher must use
+This transaction boundary belongs to ordinary-plan launchers and other callers
+that explicitly use structured close-out. `fix-tests` instead gives ordinary Git
+work to its single repair session, with no launcher Git journal or ownership audit.
+Structured committing launchers must use
 `launcher_git.commit_push_propagate()` for the entire commit, source push and
 destination propagation operation. Commit creation and propagation helpers are
 private to the shared Git module; launchers must not import or call them or
@@ -746,8 +727,8 @@ Task completion and
 selection of further work wait until every destination has been pushed.
 
 Plan controllers pull their current branch at session boundaries before
-new work. Repair controllers pull during fenced startup and before repair turns;
-translation controllers pull at startup and between batches. No timer runs and
+new work. Translation controllers pull at startup and between batches.
+Repair controllers use the current checkout and perform no startup pull or fenced recovery. No timer runs and
 no pull mutates a checkout during its active child session or tests. Pending
 accepted close-out and commit/pull intents retain their existing recovery route.
 The shared pull uses the configured upstream with the same recorded stash,
@@ -921,7 +902,7 @@ The current adapters use these components according to their workflow:
 
 | Launcher | Shared infrastructure | Execution input and retained engine |
 | --- | --- | --- |
-| `fix-tests` | Task options/budgets, detached supervision, display and developer questions | Selected suite inventory, verification rounds and failure handoffs through its repair engine; no Markdown task plan |
+| `fix-tests` | Detached supervision, plain native goal sessions, ordinary runner results and display | Current suite inventory and explicitly requested rounds; no Markdown task plan, repair tickets or transaction recovery |
 | `run-tests` | Ownership lock primitives, output following, display, storage and retention | Selected suite inventory through its scheduler and test checkpoints; no Markdown task plan, agent composer or `--tasks` option |
 | `execute-plan` | Ordinary plan driver, task options/budgets, detached supervision and display | Caller-selected master, ordered queue and briefs through `PlanWorkflow`; shared per-task commit and push |
 
@@ -931,9 +912,9 @@ owns composition, scoped qualification and live acceptance in both ordinary
 plans and normal coding sessions.
 
 A new ordinary plan needs Markdown and a thin wrapper constructing `PlanWorkflow`,
-or the generic `execute-plan PATH` command. Specialized state machines such as
-test repair compose the same ownership, budgets, Git and
-presentation pieces while retaining their purpose-specific rules. New adapters
+or the generic `execute-plan PATH` command. Test repair uses ordinary execution,
+plain goal sessions and clear results, without the plan transaction machinery.
+New adapters
 must preserve identity, cancellation, retention and current-task result guards and cover
 their own interruption/recovery boundaries. Plan namespaces are hashes of the
 master's checkout-relative path under the shared storage allocator, keeping

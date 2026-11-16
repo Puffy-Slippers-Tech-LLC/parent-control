@@ -154,7 +154,7 @@ def owner_record(run, **fields):
             overrides[option] = ([token, next(tokens, '')] if token == option else [token])
         else:
             selection.append(token)
-    if '--resume' in selection:
+    if '--resume' in selection and fields.get('launcher') != 'fix-tests':
         # Resume inherits omitted parameters; keep that original selection for
         # subsequent Reload too. Compatible repeats do not change selection.
         previous = current_run(run.parent)
@@ -253,9 +253,9 @@ contract in docs/Execution-Plans.md#plan-format.
 def agent_command(root, model, effort, run=None, *, schema=None, permissions='workspace',
                   delegation=Delegation(), standard_speed=False, shell_environment=(),
                   extra_directories=(), selection=None, logical_tier=None):
-    """Prepare a typed session; callers never modify native command arguments."""
+    """Prepare a plain session, or opt into a workflow's explicit result schema."""
     return prepare_session(SessionRequest(root=root, model=model, effort=effort,
-        run=run, schema=schema or Path(__file__).with_name('fix_tests_response.schema.json'),
+        run=run, schema=schema,
         permissions=permissions, delegation=delegation, standard_speed=standard_speed,
         shell_environment=tuple(shell_environment), extra_directories=tuple(extra_directories),
         instructions=SOURCE_DISCOVERY_INSTRUCTIONS + TASK_TITLE_INSTRUCTIONS,
@@ -295,6 +295,38 @@ def descriptive_output(run):
         atomic(path, dict(record, lines=lines[:-len(stream)] if stream else lines))
 
     return append
+
+
+def _optional_observation(action, *args, **kwargs):
+    """Presentation is best effort; it cannot terminate a native goal session."""
+    try:
+        return action(*args, **kwargs)
+    except Exception:
+        return None
+
+
+class _GoalSession:
+    """Attach one prompt to a fresh native session, without a workflow result."""
+
+    def __init__(self, command, run, renderer):
+        self.protocol, self.renderer = command.protocol, renderer
+        self.prompt = (run / 'prompt.txt').read_text()
+        self.outgoing = self.protocol.outgoing
+        self.protocol.start()
+
+    @property
+    def done(self):
+        return self.protocol.done
+
+    def poll(self):
+        self.protocol.poll()
+
+    def feed(self, data):
+        for event in self.protocol.feed(data):
+            if event.kind == 'ready':
+                self.protocol.start_turn(self.prompt)
+            elif event.kind != 'text_delta':
+                _optional_observation(self.renderer.event, event)
 
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
@@ -407,8 +439,13 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     if requested or parent_gone or (run / 'cancel').exists():
         os.close(owner)
         return 130
-    presentation = command.presentation if kind == 'agent' and not interactive else None
-    if kind == 'agent' and not interactive and presentation is None:
+    plain = kind == 'agent' and command.request.run is not None and command.request.schema is None
+    if plain:
+        # Prepared transports carry mutable native wire state. Each process
+        # owns a fresh protocol, including an explicitly enabled capacity retry.
+        command = command.revised()
+    presentation = command.presentation if kind == 'agent' and not interactive and not plain else None
+    if kind == 'agent' and not interactive and not plain and presentation is None:
         os.close(owner)
         raise ValueError('batch agent session requires a presentation decoder')
     renderer = None
@@ -425,16 +462,15 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive,
             **provenance)
-        if session_state is not None and 'repair_failure' in session_state:
-            session_view.update(repair_failure=session_state['repair_failure'],
-                                task_session=session_state['task_sessions'])
         # The allocation owns terminal history; changing the input recipient
         # must not erase earlier agent sessions in that same launcher run.
-        session_transcript = SessionTranscript(sys.stdout, run)
-        renderer = AgentRenderer(session_transcript, command_log=run / 'agent-commands.log',
+        session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run)
+                              if plain else SessionTranscript(sys.stdout, run))
+        renderer = AgentRenderer(session_transcript or sys.stdout, command_log=run / 'agent-commands.log',
                                  full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
-                                 on_description=descriptive_output(run),
+                                 on_description=(_optional_observation(descriptive_output, run)
+                                                 if plain else descriptive_output(run)),
                                  on_message=(lambda text: task_message(run, task, text))
                                  if task is not None and not interactive else None)
     conversation = None
@@ -470,7 +506,9 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         command = command.revised(interactive=True, thread_id=thread_id)
         conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
                                   session_state=session_state)
-    source = (run / 'prompt.txt').open('rb') if kind == 'agent' and not interactive else None
+    goal_session = _GoalSession(command, run, renderer) if plain else None
+    transport = goal_session or conversation
+    source = (run / 'prompt.txt').open('rb') if kind == 'agent' and transport is None else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None
     child_env = dict(command.environment) if kind == 'agent' else environment()
     from test_source import environment as source_environment
@@ -484,7 +522,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     try:
         child = subprocess.Popen(command.argv if kind == 'agent' else command,
                                  cwd=command.cwd if kind == 'agent' else root, env=child_env,
-                                 stdin=subprocess.PIPE if interactive else source if source is not None else subprocess.DEVNULL,
+                                 stdin=subprocess.PIPE if transport else source if source is not None else subprocess.DEVNULL,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE if renderer else subprocess.STDOUT,
                                  start_new_session=True,
@@ -501,12 +539,15 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     descriptor = None
     try:
         if session_view is not None:
-            atomic(run / 'session-view.json', session_view)
+            if plain:
+                _optional_observation(atomic, run / 'session-view.json', session_view)
+            else:
+                atomic(run / 'session-view.json', session_view)
         descriptor = os.pidfd_open(child.pid)
         sent = None
         finished_at = None
         input_registered = False
-        if conversation:
+        if transport:
             os.set_blocking(child.stdin.fileno(), False)
         ready = kind != 'test'
         pending = b''
@@ -520,16 +561,16 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             output_open = 2 if renderer else 1
             while not exited or output_open:
                 requested = requested or (run / 'cancel').exists()
-                if conversation and not requested and not conversation.done:
-                    conversation.poll()
-                if conversation and not requested and not child.stdin.closed and not exited:
-                    if conversation.done:
+                if transport and not requested and not transport.done:
+                    transport.poll()
+                if transport and not requested and not child.stdin.closed and not exited:
+                    if transport.done:
                         if input_registered:
                             poller.unregister(child.stdin)
                             input_registered = False
                         child.stdin.close()
                         finished_at = time.monotonic()
-                    elif conversation.outgoing and not input_registered:
+                    elif transport.outgoing and not input_registered:
                         poller.register(child.stdin, selectors.EVENT_WRITE, 'input')
                         input_registered = True
                 if finished_at is not None and time.monotonic() - finished_at >= AGENT_GRACE:
@@ -548,14 +589,14 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 for key, _ in poller.select(.1):
                     if key.data == 'input':
                         try:
-                            written = os.write(key.fd, conversation.outgoing)
-                            del conversation.outgoing[:written]
+                            written = os.write(key.fd, transport.outgoing)
+                            del transport.outgoing[:written]
                         except BlockingIOError:
                             continue
                         except BrokenPipeError as error:
                             raise ValueError('Agent conversation input closed before a workflow result; '
                                              'see retained output') from error
-                        if not conversation.outgoing:
+                        if not transport.outgoing:
                             poller.unregister(key.fileobj)
                             input_registered = False
                     elif key.data == 'parent':
@@ -581,14 +622,20 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                             log.write(data)
                             log.flush()
                         if renderer and key.data == 'output':
-                            if conversation:
-                                conversation.feed(data)
+                            if transport:
+                                transport.feed(data)
                             else:
                                 for event in presentation.feed(data):
                                     renderer.event(event)
                         else:
-                            sys.stdout.buffer.write(data)
-                        sys.stdout.flush()
+                            if plain:
+                                _optional_observation(sys.stdout.buffer.write, data)
+                            else:
+                                sys.stdout.buffer.write(data)
+                        if plain:
+                            _optional_observation(sys.stdout.flush)
+                        else:
+                            sys.stdout.flush()
                         if not ready:
                             pending = (pending + data)[-8192:]
                             ready = b' run-tests session:' in pending
@@ -596,21 +643,29 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 # Close any same-session subprocess left behind by the agent.
                 os.killpg(child.pid, signal.SIGKILL)
         status = child.wait()
-        if conversation and conversation.done and finished_at is not None and status in (
+        if transport and transport.done and finished_at is not None and status in (
                 -signal.SIGTERM, -signal.SIGKILL):
             status = 0  # The result was accepted before bounded server shutdown.
+        if goal_session and goal_session.done and status == 0:
+            status = goal_session.protocol.status
         if renderer and (run / 'agent-commands.log').exists():
-            compact_log(run / 'agent-commands.log')
+            if plain:
+                _optional_observation(compact_log, run / 'agent-commands.log')
+            else:
+                compact_log(run / 'agent-commands.log')
         nested_active = nested and finish_nested(root, run)
         if renderer and not conversation and status and not requested:
             from launcher_runtime import AgentCapacityUnavailable
             error = renderer.failure
             if error is not None and error['capacity']:
                 message = str(error.get('message', 'Model at capacity'))
-                atomic(run / 'agent-error.json', dict(message=message, context=error['context'],
-                                                     **error['details']))
+                details = dict(message=message, context=error['context'], **error['details'])
+                if plain:
+                    _optional_observation(atomic, run / 'agent-error.json', details)
+                else:
+                    atomic(run / 'agent-error.json', details)
                 raise AgentCapacityUnavailable(message)
-        if nested_active:
+        if nested_active and not plain:
             status = status or 1
         if conversation and not requested and not conversation.done and status == 0:
             raise ValueError('Agent conversation ended without a workflow result; see retained output')
@@ -648,8 +703,14 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         finally:
             try:
                 if session_view is not None:
-                    session_transcript.close()
-                    atomic(run / 'session-view.json', dict(session_view, status='finished'))
+                    if plain:
+                        if session_transcript is not None:
+                            _optional_observation(session_transcript.close)
+                        _optional_observation(atomic, run / 'session-view.json',
+                                              dict(session_view, status='finished'))
+                    else:
+                        session_transcript.close()
+                        atomic(run / 'session-view.json', dict(session_view, status='finished'))
             finally:
                 os.close(owner)
 
@@ -803,6 +864,28 @@ def _audit_start(store, directory, pending):
             raise ValueError('pending workflow exceeds retention budget; source evidence preserved')
 
 
+@contextmanager
+def _fresh_repair_retention(store, run):
+    """Rotate idle owned output without making old metadata an admission gate.
+
+    A failed historical audit preserves the entire journal. Only an exclusively
+    locked, private directory may move; no unverified allocation is deleted.
+    """
+    import test_retention
+    def audit():
+        with store.opened() as descriptor:
+            state = store.read(descriptor)
+            if state is None:
+                return
+            for _, record in test_retention.latest_allocations([*state['history'], state]):
+                path = Path(record['path'])
+                if (path.parent != run.parent or len(path.name) != 32
+                        or any(character not in '0123456789abcdef' for character in path.name)):
+                    raise ValueError('workflow retention contains a foreign allocation')
+    with store.execution_session(run=run.name, audit=audit):
+        yield
+
+
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None,
@@ -815,15 +898,10 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             raise ValueError('invalid plan workflow namespace')
         directory = private_directory(directory / namespace)
     import test_source
-    source_participant = name in ('fix-tests', 'fix-tests-host')
-    if source_participant:
-        test_source.finish_admission()
+    repair = name in ('fix-tests', 'fix-tests-host')
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner, \
-            ExitStack() as source, ExitStack() as capacity:
+            ExitStack() as capacity:
         fcntl.flock(gate, fcntl.LOCK_EX)
-        if source_participant:
-            controls = ['--stop'] if stop else ['--reload'] if reload else ['--resume'] if source_resume else []
-            source.enter_context(test_source.startup(root, controls, repair=True, wait=False))
         if busy(owner):
             run = current_run(directory)
             if run is None:
@@ -839,7 +917,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 # removal with the worker committing its boundary stop.
                 clear_stop_request(run)
                 return run, False
-            if not stop and name in ('fix-tests', 'plans'):
+            if not stop and name == 'plans':
                 from vm_pool import check_attachment
                 check_attachment(record)
             if add_session is not None:
@@ -873,10 +951,11 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
         if reload:
             test_source.restart_execution()
         from launcher_controller import require_startup_sync
-        require_startup_sync()
+        if not repair:
+            require_startup_sync()
         pending_path = directory / 'pending-start.json'
         pending = None
-        if not resumable_start and os.path.lexists(pending_path):
+        if not repair and not resumable_start and os.path.lexists(pending_path):
             raise ValueError('pending workflow start requires its resumable controller')
         if resumable_start and os.path.lexists(pending_path):
             pending = _start_record(pending_path)
@@ -889,10 +968,6 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 _clear_start(pending_path)
                 return run, False  # Never spawn a possibly already published worker twice.
         else:
-            # Early shared admission already synchronized and refreshed imports.
-            source.close()
-            if source_participant:
-                source.enter_context(test_source.startup(root, controls, repair=True, wait=False))
             run = directory / uuid.uuid4().hex
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
@@ -922,7 +997,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             _publish_start(pending_path, pending)
         guard = (lambda: _audit_start(store, directory, pending)) if resumable_start else None
         recover = (lambda state: state['run'] == pending['run']) if resumable_start else None
-        with store.session(run=run.name if resumable_start else None, guard=guard, recover=recover):
+        with (_fresh_repair_retention(store, run) if repair else
+              store.session(run=run.name if resumable_start else None, guard=guard, recover=recover)):
             test_retention.retain(run)
         if resumable_start:
             pending['phase'] = 'registered'
@@ -967,25 +1043,15 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             output_context = (run / 'output').open('xb')
         with output_context as output:
             from launcher_reload import ReloadRequest
-            import test_source
-            # Fresh repair workers must import under the exact retained writer
-            # before their normal FIFO recovery transfers ownership to this run.
-            with (test_source.startup(root, ['--resume'], repair=True)
-                  if name in ('fix-tests', 'fix-tests-host') else nullcontext()):
-                child_environment = environment()
-                if name in ('fix-tests', 'fix-tests-host'):
-                    descriptor = child_environment.pop(test_source.VARIABLE, None)
-                    child_environment.pop(test_source.WRITER, None)
-                    if descriptor is not None:
-                        child_environment['ONPC_REPAIR_STARTUP_FD'] = descriptor
-                ReloadRequest(run).inherit(child_environment)
-                try:
-                    subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
-                                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                                     pass_fds=(owner, *scratch_descriptors()))
-                except Exception as error:
-                    record_exception(run, 'Controller spawn', error)
-                    raise
+            child_environment = environment()
+            ReloadRequest(run).inherit(child_environment)
+            try:
+                subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
+                                 stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                                 pass_fds=(owner, *scratch_descriptors()))
+            except Exception as error:
+                record_exception(run, 'Controller spawn', error)
+                raise
         return run, True
 
 
@@ -1010,7 +1076,9 @@ def nested_operation(root, child_run):
     plan_owner = (parent.parent.parent == directory('plans', root=root)
                   and len(parent.parent.name) == 64
                   and all(c in '0123456789abcdef' for c in parent.parent.name))
-    if not plan_owner or (
+    repair_owner = parent.parent in tuple(directory(kind, root=root)
+                                         for kind in ('fix-tests', 'fix-tests-host'))
+    if not (plan_owner or repair_owner) or (
             len(parent.name) != 32 or any(c not in '0123456789abcdef' for c in parent.name)):
         raise ValueError('invalid workflow owner directory')
     private_directory(parent)
@@ -1033,21 +1101,6 @@ def _register_nested(parent, child_run):
     atomic(record, entries)
 
 
-def propagation_source_run(root, source):
-    """Resolve a VM pipeline's live workflow without moving its Git checkpoint."""
-    from test_storage import directory
-    if source.parent.parent == directory('fix-tests', root=root):
-        private_directory(source)
-        binding = _start_record(source / 'vm.json', private=False)['vm']
-        name = 'host' if binding is None else binding
-        expected = 'pipeline-' + hashlib.sha256(name.encode()).hexdigest()[:24]
-        if (source.name != expected or
-                _start_record(source / 'pipeline.json', private=False)['parent'] != str(source.parent)):
-            raise ValueError('invalid propagation pipeline identity')
-        return source.parent
-    return source
-
-
 @contextmanager
 def worktree_resolution_owner(root, session):
     """Authenticate a destination resolver against its live source launcher.
@@ -1059,13 +1112,12 @@ def worktree_resolution_owner(root, session):
     private_directory(session)
     record = _start_record(session / 'propagation-owner.json')
     source, source_root = Path(record['run']), Path(record['root'])
-    workflow = propagation_source_run(source_root, source)
     if session != source / 'worktree-resolution' or str(root.resolve()) != record['destination']:
         raise ValueError('worktree resolution checkout identity changed')
-    plan_owner = (workflow.parent.parent == directory('plans', root=source_root)
-                  and len(workflow.parent.name) == 64
-                  and all(c in '0123456789abcdef' for c in workflow.parent.name))
-    if (not plan_owner and workflow.parent not in tuple(directory(kind, root=source_root)
+    plan_owner = (source.parent.parent == directory('plans', root=source_root)
+                  and len(source.parent.name) == 64
+                  and all(c in '0123456789abcdef' for c in source.parent.name))
+    if (not plan_owner and source.parent not in tuple(directory(kind, root=source_root)
             for kind in ('fix-tests', 'fix-tests-host', 'sync-whatsnew'))):
         raise ValueError('invalid propagation source launcher')
     private_directory(source)
@@ -1074,11 +1126,11 @@ def worktree_resolution_owner(root, session):
         raise ValueError('propagation source directory identity changed')
     with lock(session / 'nested-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
-        with lock(workflow.parent / 'owner') as source_owner, lock(session / 'owner') as owner:
+        with lock(source.parent / 'owner') as source_owner, lock(session / 'owner') as owner:
             info = os.fstat(source_owner)
             if ([info.st_dev, info.st_ino] != record['owner_identity'] or not busy(source_owner)
-                    or not busy(owner) or current_run(workflow.parent) != workflow
-                    or (source / 'cancel').exists() or (workflow / 'cancel').exists()
+                    or not busy(owner) or current_run(source.parent) != source
+                    or (source / 'cancel').exists()
                     or (session / 'cancel').exists()
                     or (session / 'nested-closed').exists()):
                 raise ValueError('propagation source no longer accepts test operations')
@@ -1104,8 +1156,7 @@ def nested_runs(root, run):
     for entry in entries:
         child = Path(entry['path'])
         vm_session = (child.parent.parent == allowed[0]
-                      and child.parent.name.startswith('vm-')
-                      and not child.parent.is_symlink())
+                      and child.parent.name.startswith('vm-') and not child.parent.is_symlink())
         if child.parent not in allowed and not vm_session or child.is_symlink():
             raise ValueError('unsafe nested test record; preserve evidence')
         try:

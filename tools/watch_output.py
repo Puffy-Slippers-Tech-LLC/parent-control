@@ -265,9 +265,9 @@ class Output:
     def error_status(self, steps, *, status_override=None, status_color=None):
         """Read the same task-local fields as the shared launcher right pane."""
         from launcher_display import error_status_lines
-        def metadata(name):
+        def metadata(name, limit=65536):
             try:
-                return self.reader.read(self.run / name)
+                return self.reader.read(self.run / name, limit=limit)
             except FileNotFoundError:
                 return {}
         state = metadata('chat-state.json') if self.run else {}
@@ -279,6 +279,20 @@ class Output:
             info = info.get('previous_tasks', {}).get(task, {})
         if state.get('progress_key') is not None and current is None:
             info = {}
+        if self.repair:
+            failure = metadata('repair-failure.json', limit=128 * 1024)
+            if failure:
+                from launcher_render import clean
+                heading = ' '.join(str(failure.get(field, ''))
+                                   for field in ('category', 'case', 'vm')).strip()
+                diagnostics = [heading]
+                for field in ('detail', 'output', 'output_tail'):
+                    value = clean(str(failure.get(field, ''))).strip()
+                    if value and value not in diagnostics:
+                        diagnostics.append(value)
+                if len(diagnostics) == 1:
+                    diagnostics.append(f"Runner exited with status {failure['status']}.")
+                info = dict(last_error='\n'.join(diagnostics), status='Investigating')
         lines, self.error_clock = error_status_lines(info,
             (self.run, current['key'] if current else None, task,
              info.get('last_error_ticket')),

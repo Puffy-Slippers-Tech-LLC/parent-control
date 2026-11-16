@@ -180,6 +180,10 @@ dismissal; a running or replaced launcher cannot be closed. A new run appears no
 
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
 a dropdown at the right end of the pinned task summary row below the title.
+For `fix-tests`, **Error** retains the latest failed operation and its runner
+diagnostics through repair, validation and completion. While repairing, **Status**
+shows the round and repair heading, followed by a separator and that same Error
+content, replacing the completed runner's dashboard.
 The dropdown and action buttons fit their contents, leaving the remaining width for the title.
 The dropdown, menu and resize controls use equal spacing beside their dividers.
 Long titles truncate with an ellipsis before the right-aligned action
@@ -268,7 +272,8 @@ Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
-in **Session**, it copies the displayed transcript.
+in **Status**, it includes the pinned summary above the body; in **Session**, it
+copies the displayed transcript.
 For every execution-plan launcher and `fix-tests`, every view
 starts with **Total Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels
@@ -484,6 +489,14 @@ Three icon buttons at the right end of the viewer tab row select the tile layout
 The tab remembers the selection. Maximizing or minimizing a tile unselects all
 three buttons. Choosing any layout restores all tiles using that layout.
 Overflowing tiles scroll in the chosen direction; the layout buttons stay pinned.
+Viewer rows shrink to fit the pane, down to the combined height of each tile's
+title bar and footer. The VM image shrinks first; with less room, the case title,
+short description and optional SSH output are clipped. The title bar and footer
+remain visible, and footer text uses the title bar's font size.
+Screens and case text do not impose a minimum tile size. The viewer grid resizes
+with the right pane and scrolls only when its title bars and footers cannot fit
+in the chosen layout. Horizontal tiles can shrink below 300 pixels wide, down
+to the space required by their controls and fixed footer content.
 
 Immediately after **Reconnect**, the footer lists configured SSH hosts and any
 additional SSH Watch source hosts, separated by `|`; local sources are omitted

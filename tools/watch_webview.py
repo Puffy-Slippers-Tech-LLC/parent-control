@@ -505,7 +505,7 @@ class Viewer:
                         status = 'Repairing'
                     if active and not status and output.closing_task(steps, session_inactive=not session.active):
                         status = 'Closing Task'
-                    summary = output.task_summary(active)
+                    summary = output.task_summary(active, runner_lines=details)
                     lines = [*summary, *(['─'] if summary else [])]
                     lines.extend(line for step in steps
                                  for line in step['lines'] if not clean(line).startswith('Status: '))

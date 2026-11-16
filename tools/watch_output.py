@@ -200,25 +200,37 @@ class Output:
         self.summary_ended = None
         self.summary_clock = {}
 
-    def task_summary(self, active):
-        """Use every execution plan's accepted counters and shared rendering."""
+    def task_summary(self, active, *, runner_lines=()):
+        """Render plan counters or the repair runner's published case totals."""
         from launcher_display import task_summary_lines
         from launcher_runtime import task_counters
         from launcher_session import clock_duration
         from launcher_view import observed_plan_totals
-        if self.run is None or not self.execution_plan:
+        if self.run is None or not (self.execution_plan or self.repair):
             return []
         if self.summary_run != self.run:
             self.summary_run = self.run
             self.task_totals = self.completed_before = self.summary_ended = None
             self.summary_clock = {}
-        try:
-            _, totals, baseline = task_counters(self.run,
-                observed_plan_totals(self.root, self.run, self.reader),
-                completed_before=self.completed_before)
-            self.task_totals, self.completed_before = totals, baseline
-        except (OSError, ValueError, KeyError, TypeError):
-            pass  # Retain valid totals while editable plan metadata is incomplete.
+        if self.execution_plan:
+            try:
+                _, totals, baseline = task_counters(self.run,
+                    observed_plan_totals(self.root, self.run, self.reader),
+                    completed_before=self.completed_before)
+                self.task_totals, self.completed_before = totals, baseline
+            except (OSError, ValueError, KeyError, TypeError):
+                pass  # Retain valid totals while editable plan metadata is incomplete.
+        else:
+            from launcher_render import clean
+            for line in runner_lines:
+                # Queue frames include failures; ordinary dashboards omit a zero
+                # failure count. Failed cases remain unfinished until repaired.
+                counts = re.match(r'^Overall - [\d?]+% \((\d+)/(?:\d+/)?(\d+)\)', clean(line))
+                if counts:
+                    passed, total = map(int, counts.groups())
+                    if passed <= total:
+                        self.task_totals = passed, total - passed, total
+                    break
         if not active and self.summary_ended is None:
             self.summary_ended = time.monotonic()
         try:

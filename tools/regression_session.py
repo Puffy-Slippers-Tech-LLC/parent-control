@@ -252,7 +252,8 @@ def follow(run, stream=None):
     from detached_launcher import atomic
     from watch_output import JsonReader, snapshot
     stream = stream or sys.stdout
-    destination = os.environ.get(FRAME_DIRECTORY)
+    from detached_launcher import WORKFLOW_DIRECTORY
+    destination = os.environ.get(FRAME_DIRECTORY) or os.environ.get(WORKFLOW_DIRECTORY)
     destination = Path(destination) if destination else None
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     reader = JsonReader()

@@ -135,13 +135,20 @@ class NativeFixtures:
                     if self.profile != 'chinese' else {})
         if self.profile not in ('chinese', 'activity', 'game'):
             require(len({expected[name] for name in executable_sources()}) == len(ASSETS), 'native:identical-roles')
+        request = expected
+        if selection is not None and self.profile in ('native', 'baseline-child'):
+            # Provisioning admits the whole selected union, including the game.
+            # Keep the independent policy read exact to those immutable inputs.
+            from tests.fixtures.native_assets import GAME_EXECUTABLE
+            game = files.get('fixtures/image-root' + GAME_EXECUTABLE)
+            request = {'files': expected, 'extra_executables': [] if game is None else [game]}
         raw = self.transport.call(['/usr/bin/python3', '-I', '-', action,
                                    ('riley-game' if self.child == 'child' else
                                     'baseline-child-selected' if selected_child else
                                     'activity-selected' if selected_activity else
                                     'native-selected' if selection is not None and self.profile == 'native'
                                     else self.profile),
-                                   json.dumps(expected, sort_keys=True)],
+                                   json.dumps(request, sort_keys=True)],
                                   input=guest_source(), timeout=180 if action == 'verify' else 90)
         require(type(raw) is bytes and 0 < len(raw) <= 8192, 'native:response-bound')
         value = json.loads(raw)

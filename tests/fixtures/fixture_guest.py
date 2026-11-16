@@ -251,16 +251,17 @@ class Native:
                    if source in native_assets.runtime_sources()}
         by_path = {m['destination']: m for m in request['members'].values()}
         child_uids = tuple(request['accounts'][role]['uid'] for role in ('child', 'other'))
+        mechanical = sorted({m['sha256'] for m in request['members'].values()
+            if m['native_action'] == 'native-execute' and m['destination'] not in runtime.values()})
         rules = {}
         if any(path in by_path for path in runtime.values()):
             require(set(runtime.values()) <= set(by_path), 'native-runtime-closure')
             expected = {source: by_path[path]['sha256'] for source, path in runtime.items()}
-            rules = native_assets.native_policy_files(expected, child_uids)
+            return native_assets.native_policy_files(expected, child_uids,
+                                                    extra_executables=tuple(mechanical))
         # The one-shot engineering fixtures need the same stock-policy admission
         # as GUI payloads. Keep them untrusted so the product's concrete and
         # wildcard denials still run first, including for identical future copies.
-        mechanical = sorted({m['sha256'] for m in request['members'].values()
-            if m['native_action'] == 'native-execute' and m['destination'] not in runtime.values()})
         if mechanical:
             require(len(set(child_uids)) == 2 and all(
                 type(uid) is int and 1000 <= uid < 2 ** 32 for uid in child_uids),

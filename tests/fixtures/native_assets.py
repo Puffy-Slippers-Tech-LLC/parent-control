@@ -145,7 +145,7 @@ def riley_grid_sources():
     return (*runtime_sources(), launcher_sources()[0])
 
 
-def native_policy_files(expected, child_uids):
+def native_policy_files(expected, child_uids, *, extra_executables=()):
     """Closed Fedora baseline admissions; product denials precede these rules.
 
     Only the two prepared children may open the shared Python runtimes or
@@ -160,7 +160,10 @@ def native_policy_files(expected, child_uids):
                    for key in required)
             or type(child_uids) is not tuple or len(child_uids) != 2
             or any(type(uid) is not int or not 1000 <= uid < 2 ** 32 for uid in child_uids)
-            or len(set(child_uids)) != 2):
+            or len(set(child_uids)) != 2
+            or type(extra_executables) is not tuple
+            or any(type(digest) is not str or re.fullmatch('[0-9a-f]{64}', digest) is None
+                   for digest in extra_executables)):
         raise ValueError('native:baseline-policy-inputs')
     executables = [expected[key] for key in executable_sources()]
     gui = [expected[key] for key in gui_sources()]
@@ -171,6 +174,7 @@ def native_policy_files(expected, child_uids):
     if next_version in executables or nonmatch != expected['fixtures/image-root' + executable_path('N')]:
         raise ValueError('native:baseline-policy-inputs')
     executables.append(next_version)
+    executables.extend(sorted(set(extra_executables)))
     subject = ','.join(str(uid) for uid in sorted(child_uids))
     def rules(permission, hashes):
         return ('# Finite reusable fixture admission; inputs remain untrusted.\n' + ''.join(

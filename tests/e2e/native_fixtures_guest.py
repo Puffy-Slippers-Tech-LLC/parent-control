@@ -61,12 +61,12 @@ def authority():
     return child, parent, source
 
 
-def readback(child, expected, *, selected=False):
+def readback(child, expected, *, selected=False, extra_executables=()):
     require(type(expected) is dict and set(expected) == set(sources())
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == len(ASSETS))
-    verify_native_policy(expected, selected=selected)
+    verify_native_policy(expected, selected=selected, extra_executables=extra_executables)
     result = {}
     with versioned_directory(child):
         for source, (target, mode) in destinations(child).items():
@@ -81,14 +81,14 @@ def readback(child, expected, *, selected=False):
     return {'files': result, 'launchers': [desktop_id(asset[0]) for asset in LAUNCHERS]}
 
 
-def riley_readback(shared_owner, expected, *, catalogue=False):
+def riley_readback(shared_owner, expected, *, catalogue=False, extra_executables=()):
     """Read only; executable ownership stays Jordan's, launcher ownership Riley's."""
     names = sources(alias=False) if catalogue else riley_grid_sources()
     require(type(expected) is dict and set(expected) == set(names)
             and all(type(value) is str and len(value) == 64
                     and all(c in '0123456789abcdef' for c in value) for value in expected.values())
             and len({expected[source] for source in executable_sources()}) == len(ASSETS))
-    verify_native_policy(expected, selected=catalogue)
+    verify_native_policy(expected, selected=catalogue, extra_executables=extra_executables)
     riley = pwd.getpwnam(session_control.ACCOUNTS['child'])
     require(riley.pw_uid >= 1000 and riley.pw_uid != shared_owner.pw_uid)
     targets = {source: (path, mode, shared_owner)
@@ -146,13 +146,13 @@ def activity_root_file(path, mode=0o600, gid=0, limit=LIMIT):
         return data
 
 
-def verify_native_policy(expected, *, selected=False):
+def verify_native_policy(expected, *, selected=False, extra_executables=()):
     """Read-only Fedora preparation guard; never supplies a product outcome."""
     if session_control.package_format() != 'rpm':
         return
     children = tuple(pwd.getpwnam(session_control.ACCOUNTS[role]).pw_uid
                      for role in ('child', 'standard'))
-    rules = native_policy_files(expected, children)
+    rules = native_policy_files(expected, children, extra_executables=extra_executables)
     gid = grp.getgrnam('fapolicyd').gr_gid
     if not selected:
         record = json.loads(activity_root_file('/var/lib/onpc-baseline-fixtures.json'))
@@ -388,6 +388,13 @@ def execute(action, expected, profile='native'):
         value = execute('read', expected, profile)
         require(execute('read', expected, profile) == value)
         return {'readback': value, 'independent_readback': True}
+    extra_executables = ()
+    if profile in ('native-selected', 'baseline-child-selected'):
+        require(type(expected) is dict and set(expected) == {'files', 'extra_executables'}
+                and type(expected['extra_executables']) is list
+                and len(expected['extra_executables']) <= 1)
+        extra_executables = tuple(expected['extra_executables'])
+        expected = expected['files']
     if profile == 'activity-selected':
         require(action == 'read')
         return selected_activity_readback(expected)
@@ -397,7 +404,8 @@ def execute(action, expected, profile='native'):
         require(action == 'read' and os.geteuid() == 0)
         shared_owner = pwd.getpwnam(session_control.ACCOUNTS['standard'])
         require(shared_owner.pw_uid >= 1000)
-        return riley_readback(shared_owner, expected, catalogue=True)
+        return riley_readback(shared_owner, expected, catalogue=True,
+                              extra_executables=extra_executables)
     if profile == 'activity':
         require(action == 'read')
         return activity_readback(expected)
@@ -458,7 +466,8 @@ def execute(action, expected, profile='native'):
         except (OSError, ValueError) as error:
             raise ValueError('game:missing-or-stale-assets; refresh with tools/prepare-vm --mode auto') from error
     else:
-        result = readback(child, expected, selected=profile == 'native-selected')
+        result = readback(child, expected, selected=profile == 'native-selected',
+                          extra_executables=extra_executables)
     require(session_control.source_session(session_control.sessions(), parent.pw_uid) == entry)
     return result
 

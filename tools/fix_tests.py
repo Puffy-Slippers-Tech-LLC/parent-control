@@ -1189,6 +1189,15 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
 
         def answer_blocker(result, metadata, identity, *, intervention=False):
             nonlocal blocker_summary, restart_continuation
+            answered = commits.state.get('controller_restart', {}).get('continuation', {})
+            if (not intervention and answered.get('failure') == target
+                    and answered.get('session') == metadata and answered.get('result') == result):
+                # Source reload revalidates the same response. Its saved
+                # continuation already proves this exact decision was consumed.
+                blocker_summary = result['summary']
+                repair_context.pop('blocked', None)
+                repair_context['blocker_summary'] = blocker_summary
+                return
             progress_row = repair_progress(run, read_progress(run))[-1]
             repair_context['blocked'] = dict(result=result, session=metadata, id=identity,
                                              intervention=intervention)

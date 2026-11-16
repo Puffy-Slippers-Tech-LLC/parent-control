@@ -120,6 +120,14 @@ resumes its active unresolved issue's native conversation across diagnostic and
 repair turns, starting fresh context when a distinct issue is exposed. Complete the goal when
 the bounded assignment has been verified, before its final handoff.
 
+If native turn submission reports an active-turn output-schema conflict, the
+shared Codex adapter reads that same thread, interrupts its active turn and waits
+for both acknowledgment and terminal completion before retrying the saved input
+once. Recovery has a 30-second deadline. Displaced results cannot complete the
+assignment; the retry retains the requested schema, conversation and developer
+input. Other provider, authentication and policy errors keep their existing
+failure routes.
+
 Read repository instructions, the master, the selected brief and only applicable
 owning contracts/source. The shared coordinator prompt supplies the validated
 checkout-relative master, queue and selected brief paths. Use those exact paths;

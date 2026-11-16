@@ -68,6 +68,11 @@ def artifact_reader(root, vm, argv):
     """Read on the artifact host without capturing or admitting checkout source."""
     if argv[:1] not in (['list'], ['stat'], ['read'], ['tail']):
         raise ValueError('artifacts requires list, stat, read or tail')
+    return remote_inspection(root, vm, '/usr/local/libexec/onpc-test-artifacts', argv)
+
+
+def remote_inspection(root, vm, program, argv):
+    """Use an installed authenticated reader without capturing working source."""
     from vm_selection import vm_config
     document = vm_config.read_document(Path(root) / 'config/environment.json', validate_agent=False)
     if vm.host.name == tool_host(root, document).name:
@@ -80,11 +85,11 @@ def artifact_reader(root, vm, argv):
     # Descriptor aliases and source fences belong to execution, not inspection.
     command = ssh_command(vm.host, ['/usr/bin/env', '-C', anchor,
         '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-        '/usr/local/libexec/onpc-test-artifacts', *argv])
+        program, *argv])
     try:
         return subprocess.run(command, cwd=root, check=False, timeout=60).returncode
     except subprocess.TimeoutExpired as error:
-        raise ValueError('artifact reader timed out on ' + vm.host.name) from error
+        raise ValueError('remote inspection timed out on ' + vm.host.name) from error
 
 
 def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
@@ -95,6 +100,9 @@ def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
     """
     if vm.host.name == tool_host(root).name:
         return None
+    if tool == 'test-vm' and options == ['--vm', vm.name, 'probe', 'memory']:
+        return remote_inspection(root, vm, '/usr/local/libexec/onpc-test-runner',
+                                 ['vm', '--vm', vm.name, 'probe', 'memory'])
     from regression_process import Control
     from remote_sources import RemoteVM
     import test_launcher

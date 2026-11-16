@@ -1081,6 +1081,9 @@ An answered blocker keeps its current model/phase and is not a failed repair.
 Answers belong to that unresolved issue, survive its controller reloads and are
 cleared when a distinct issue starts. The answer file records that issue and its
 conversation identity; later cases receive no earlier answers.
+Revalidating an answered blocked response after a source reload consumes neither
+a second answer nor another question; the exact response's session metadata
+identifies the decision already delivered.
 Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal
 without a handoff still stops. No model performs routine ownership recovery.

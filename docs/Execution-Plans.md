@@ -238,17 +238,21 @@ After placement and destination checkout verification, shared controller admissi
 synchronizes upstream before importing the workflow, host filtering, VM selection
 or workflow validation reads the destination configuration. It fetches first,
 then uses `git pull --no-autostash` when an update is needed. Synchronization
-holds the selected controller family's admission gates, verifies idle kernel
-owners, and takes the shared Git transaction lock and exclusive source lease.
-`fix-tests` and its test/validation invocations use the current checkout and skip
-this synchronization. Old repair journals or source fences have no admission
-authority. Other launchers retain their ordinary Git synchronization policy.
+holds checkout-wide controller admission gates, verifies kernel owners across
+all launcher families, and takes the shared Git transaction lock and exclusive
+source lease. Every public job launcher uses this infrastructure, including
+`fix-tests`, `execute-plan`, `sync-whatsnew`, `run-tests`, `run-unit-tests` and
+`run-ui-tests`. There are no per-launcher startup synchronization exceptions.
+Nested test/validation calls belong to their existing controller and use its
+working source without a new upstream pull. Old repair journals or source fences
+have no admission authority.
 Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
 Ordinary pull failures retain their low-effort recovery agent;
 startup requires explicit success and a successful pull retry. Attachments and
-controls keep their existing routes without mutating active source. A new job
+controls keep their existing routes without mutating active source. Idle
+`--reload`, `--resume` and `--reset` invocations that start new jobs must synchronize too. A new job
 cannot fall back to stale imports when synchronization is busy.
 Independent host/VM scopes can start while another scope is active if a
 fetch-only check confirms that their shared source already contains upstream.
@@ -728,7 +732,8 @@ selection of further work wait until every destination has been pushed.
 
 Plan controllers pull their current branch at session boundaries before
 new work. Translation controllers pull at startup and between batches.
-Repair controllers use the current checkout and perform no startup pull or fenced recovery. No timer runs and
+Repair controllers share the same upstream synchronization at public job startup;
+their nested validation uses the repaired working source. No timer runs and
 no pull mutates a checkout during its active child session or tests. Pending
 accepted close-out and commit/pull intents retain their existing recovery route.
 The shared pull uses the configured upstream with the same recorded stash,

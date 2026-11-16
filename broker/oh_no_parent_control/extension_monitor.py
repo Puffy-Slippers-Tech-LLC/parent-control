@@ -72,6 +72,7 @@ class _Watch:
     failure_time: float = 0
     last_recovery: float = 0
     recovery_interrupted: bool = False
+    recovery_pending: bool = False
     observed_state: tuple | None = None
     observed_selection: tuple | None = None
     diagnostic_decision: tuple | None = None
@@ -438,7 +439,7 @@ class ExtensionMonitor:
         if state in {7, 8} or state == 6 and enabled and info.get("enabled") is not False:
             self._decision(watch, "changing-state", "wait")
             raise _ChangingState()
-        if state != 1 or not enabled:
+        if state != 1 or not enabled or watch.recovery_pending:
             # Repeated disablement in a running Shell is tampering. Successful
             # restoration must not delay the next recovery; only failures retry
             # with backoff. Retain this timestamp for Shell crash protection.
@@ -446,6 +447,10 @@ class ExtensionMonitor:
             reason = "global-disabled" if not enabled else "extension-inactive"
             started = now
             self._decision(watch, reason, "started")
+            # A failed commit can leave Shell active while durable settings
+            # remain disabled. Runtime health cannot complete that recovery;
+            # retry the normal verifier until it accepts the full transition.
+            watch.recovery_pending = True
             try:
                 self.manager.set_enabled(watch.uid, True, recover_global_switch=True)
             except ChildExtensionFailed:
@@ -456,6 +461,7 @@ class ExtensionMonitor:
             except Exception:
                 self._decision(watch, reason, "failed", started=started)
                 raise
+            watch.recovery_pending = False
             self._decision(watch, reason, "accepted", started=started)
         else:
             self._decision(watch, "healthy", "unchanged")
@@ -506,6 +512,7 @@ class ExtensionMonitor:
                 watch.failed = watch.reported = watch.report_pending = False
                 watch.last_recovery = 0
                 watch.recovery_interrupted = False
+                watch.recovery_pending = False
             watch.failures = 0
         except _ChangingState:
             self._decision(watch, "changing-state", "wait")

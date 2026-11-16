@@ -75,7 +75,8 @@ def test_extension_monitor_retains_cheap_busy_retry_without_session_probes():
     monitor._reconcile.assert_not_called()
 
 
-def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failure_delay():
+@pytest.mark.parametrize("active_after_failure", [False, True])
+def test_extension_monitor_retries_failed_activation_indefinitely_with_capped_failure_delay(active_after_failure):
     import threading
     from oh_no_parent_control.extension_manager import ExtensionManager
 
@@ -99,6 +100,10 @@ def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failu
             monitor._check(watch)
         assert monitor.manager.set_enabled.call_count == attempt + 1
         assert monitor._later.call_args.args[0] <= 30
+        if active_after_failure:
+            # Shell may stay active after failed persistence and rollback.
+            # Only a verified activation may end these failed-commit retries.
+            monitor._observe.return_value = ({"state": 1, "enabled": True}, True)
     assert watch.failures == MAX_BACKOFF_LEVEL
     assert monitor._later.call_args.args[0] == 30
     monitor.manager.set_enabled.side_effect = None
@@ -106,6 +111,9 @@ def test_extension_monitor_retries_disabled_state_indefinitely_with_capped_failu
     with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=500):
         monitor._check(watch)
     assert watch.failures == 0
+    assert monitor.manager.set_enabled.call_count == 13
+    monitor._observe.return_value = ({"state": 1, "enabled": True}, True)
+    monitor._check(watch)
     assert monitor.manager.set_enabled.call_count == 13
     # Infinite recovery still ends at an actual extension failure, which is
     # reported once and cannot become another activation loop.

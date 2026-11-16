@@ -566,8 +566,11 @@ progress or admission journal to reconstruct.
 After validation the same session performs required commit, push and configured
 branch propagation using ordinary Git operations. It preserves unrelated work
 and histories, without the former repair ownership/fingerprint/journal protocol.
-A Git failure never revokes a test pass. Startup and resume do not reconstruct
-interrupted Git close-out or pull over the current checkout before execution.
+A Git failure never revokes a test pass. Fresh jobs synchronize the selected
+controller checkout with its upstream before execution through shared startup
+admission. Attaching to an active repair does not pull over its edits; a new job
+refuses when synchronization cannot complete. Startup and resume do not
+reconstruct interrupted Git close-out.
 
 `--resume` starts fresh execution using remembered results:
 

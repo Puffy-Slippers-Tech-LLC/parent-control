@@ -125,6 +125,12 @@ privileged_test_runner exclude the outer runner's source lease without closing
 its descriptor; the latter copies the new source module with its existing helpers.
 These modules acquire no live VMs, services, displays or shared caches; they
 retain their compatible unit classification and add no cleanup/UI entry.
+Public startup synchronization in unit_test_launcher uses private local Git
+origins and bounded, waited Git/controller children. Updated workflow sentinels
+prevent agent, UI, translation or VM execution. Owner-lock refusals use private
+descriptors; all paths stay in pytest scratch. CPU and I/O remain bounded, with
+no external network, credentials, sockets or shared mutable state. Compatible
+unit overlap remains valid; cleanup and UI inventory membership is unchanged.
 Shared close-out review checks in test_launchers add tiny private Git repositories
 and bounded, waited Git children. They change no real checkout, credentials or
 remote refs; commit execution is doubled at the controller boundary. Existing

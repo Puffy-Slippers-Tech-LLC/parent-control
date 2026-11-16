@@ -968,8 +968,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
         if reload:
             test_source.restart_execution()
         from launcher_controller import require_startup_sync
-        if not repair:
-            require_startup_sync()
+        require_startup_sync()
         pending_path = directory / 'pending-start.json'
         pending = None
         if not repair and not resumable_start and os.path.lexists(pending_path):

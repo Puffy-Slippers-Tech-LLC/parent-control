@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Qualify the child's exact native desktop icon launch and ordinary app use."""
+"""Qualify the child's native desktop-entry launch and ordinary app use."""
 import sys
 from check_graphical_smoke import main as smoke
 from tools.test_storage import named_input

@@ -34,12 +34,6 @@ def desktop_boundary(tmp_path, monkeypatch, request):
     monkeypatch.setattr(pwd, 'getpwnam', lambda name: SimpleNamespace(
         pw_uid=os.getuid(), pw_gid=os.getgid(), pw_dir='/home/' + user))
     monkeypatch.setattr(files, 'desktop_directory', lambda home: home / 'Desktop')
-    trust = {}
-    def metadata(path, value=None):
-        if value is not None:
-            trust[str(path)] = value
-        return trust.get(str(path), False)
-    monkeypatch.setattr(files, 'desktop_trusted', metadata)
     def call(operation, previous=None):
         return files.native_desktop_operate(Path('/home') / user, operation,
             {'expected': {'source': hashlib.sha256(content).hexdigest()}, 'previous': previous},

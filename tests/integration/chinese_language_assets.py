@@ -11,38 +11,30 @@ import os
 from pathlib import Path
 import re
 import stat
-import struct
 import subprocess
 
 LOCALE = 'zh_CN.UTF-8'
 PACKAGES = ('locales-all=0', 'language-pack-zh-hans-base=0',
             'language-pack-zh-hans=0',
-            'language-pack-gnome-zh-hans-base=0', 'language-pack-gnome-zh-hans=0',
             'mate-polkit=0', 'mate-polkit-common=0',
-            'libpam0g=0', 'fonts-noto-cjk=0')
+            'libpam0g=0')
 LOCALE_PATH = '/usr/lib/locale/zh_CN.utf8/LC_IDENTIFICATION'
-FONT_PATH = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 CATALOGUES = {
     'mate-polkit': ('_Cancel', '_Authenticate', '_Password:',
                     'An application is attempting to perform an action that requires privileges. '
                     'Authentication is required to perform this action.'),
     'Linux-PAM': ('Password: ', 'Authentication failure'),
-    'gnome-shell': ('Activities',),
 }
 CATALOGUE_PACKAGES = {
     'mate-polkit': ('mate-polkit-common',),
     'Linux-PAM': ('language-pack-zh-hans-base', 'language-pack-zh-hans'),
-    'gnome-shell': ('language-pack-gnome-zh-hans-base', 'language-pack-gnome-zh-hans'),
 }
-FEDORA_PACKAGES = ('glibc-langpack-zh', 'mate-polkit', 'pam', 'gnome-shell',
-                   'google-noto-sans-cjk-fonts')
-FEDORA_FONT_PATH = '/usr/share/fonts/google-noto-sans-cjk-fonts/NotoSansCJK-Regular.ttc'
+FEDORA_PACKAGES = ('glibc-langpack-zh', 'mate-polkit', 'pam')
 FEDORA_CATALOGUE_PACKAGES = {
-    'mate-polkit': ('mate-polkit',), 'Linux-PAM': ('pam',), 'gnome-shell': ('gnome-shell',),
+    'mate-polkit': ('mate-polkit',), 'Linux-PAM': ('pam',),
 }
 RPM_LIST_COMMAND = ['/usr/bin/rpm', '-qa', '--queryformat', '%{NAME}\t%{VERSION}-%{RELEASE}\n']
 RPM_FILE_FORMAT = '%{NAME}\t%{VERSION}-%{RELEASE}\t%{FILEDIGESTALGO}\n[%{FILENAMES}\t%{FILEDIGESTS}\n]'
-GLYPHS = '中文密码授权取消身份验证'
 LIMIT = 32 * 1024 * 1024
 LOCALE_COMMAND = ['/usr/bin/env', 'LC_ALL=zh_CN.UTF-8', '/usr/bin/locale', 'charmap']
 
@@ -133,55 +125,6 @@ def read(g, path, limit=LIMIT):
             and all(file_identity(g, name) == info and g.realpath(name) == name
                     for name, info in parents.items()), 'changed')
     return data
-
-
-def font_coverage(data):
-    """Independently inspect the installed font's Unicode format-12 cmap.
-
-    This fixed Noto TTC profile needs only the first face and BMP Chinese
-    characters. Unsupported/corrupt tables refuse rather than guessing coverage.
-    """
-    def unpack(fmt, offset):
-        require(0 <= offset <= len(data) - struct.calcsize(fmt), 'font-table')
-        return struct.unpack_from(fmt, data, offset)
-    require(data[:4] == b'ttcf', 'font-format')
-    count, = unpack('>I', 8)
-    require(1 <= count <= 32, 'font-faces')
-    face, = unpack('>I', 12)
-    require(data[face:face + 4] in (b'OTTO', b'\x00\x01\x00\x00'), 'font-face')
-    tables, = unpack('>H', face + 4)
-    require(1 <= tables <= 128, 'font-tables')
-    cmaps = []
-    for index in range(tables):
-        tag, _, offset, size = unpack('>4sIII', face + 12 + index * 16)
-        require(offset + size <= len(data), 'font-table')
-        if tag == b'cmap':
-            cmaps.append((offset, size))
-    require(len(cmaps) == 1, 'font-cmap')
-    cmap, size = cmaps[0]
-    version, records = unpack('>HH', cmap)
-    require(version == 0 and 1 <= records <= 64, 'font-cmap')
-    coverage = set()
-    for index in range(records):
-        platform, encoding, offset = unpack('>HHI', cmap + 4 + index * 8)
-        if platform not in (0, 3) or platform == 3 and encoding != 10:
-            continue
-        sub = cmap + offset
-        format_, = unpack('>H', sub)
-        if format_ != 12:
-            continue
-        _, reserved, length, _, groups = unpack('>HHIII', sub)
-        require(reserved == 0 and length == 16 + groups * 12
-                and groups <= 100000 and offset + length <= size, 'font-groups')
-        previous = -1
-        for group in range(groups):
-            start, end, glyph = unpack('>III', sub + 16 + group * 12)
-            require(previous < start <= end <= 0x10ffff, 'font-group-order')
-            previous = end
-            coverage.update(char for char in GLYPHS if start <= ord(char) <= end
-                            and glyph + ord(char) - start > 0)
-    require(coverage == set(GLYPHS), 'font-coverage')
-    return len(coverage)
 
 
 def platform(g, os_id=None):
@@ -295,13 +238,9 @@ def verify(g, os_id=None):
                     for message, value in zip(messages, values)), 'translation-fallback')
         files[present[0]] = hashlib.sha256(data).hexdigest()
         translations[domain] = len(messages)
-    font_path = FEDORA_FONT_PATH if os_id == 'fedora' else FONT_PATH
-    font = packaged(font_path, ('google-noto-sans-cjk-fonts',) if os_id == 'fedora' else ('fonts-noto-cjk',))
-    glyphs = font_coverage(font)
-    files[font_path] = hashlib.sha256(font).hexdigest()
     return {'profile': 'chinese', 'os_id': os_id, 'release': '44' if os_id == 'fedora' else '26.04',
             'locale': LOCALE, 'provider': 'mate-polkit', 'packages': packages,
-            'translations': translations, 'cjk_glyphs': glyphs, 'files': files,
+            'translations': translations, 'files': files,
             'runtime_locale': 'UTF-8'}
 
 
@@ -312,7 +251,7 @@ def preflight(g, os_id='ubuntu'):
     this profile never overwrites a colliding unregistered input itself.
     """
     require(os_id in ('ubuntu', 'fedora'), 'unsupported-platform')
-    paths = [LOCALE_PATH, FEDORA_FONT_PATH if os_id == 'fedora' else FONT_PATH]
+    paths = [LOCALE_PATH]
     paths += [f'/usr/share/{directory}/zh_CN/LC_MESSAGES/{domain}.mo'
               for directory in ('locale', 'locale-langpack') for domain in CATALOGUES]
     owned = set()
@@ -320,7 +259,7 @@ def preflight(g, os_id='ubuntu'):
         platform(g, os_id)
         _, records = rpm_inventory(g)
         owned.update(path for files in records.values() for path in files)
-    for name in (() if os_id == 'fedora' else ('locales-all', 'fonts-noto-cjk',
+    for name in (() if os_id == 'fedora' else ('locales-all',
                  *(owner for owners in CATALOGUE_PACKAGES.values() for owner in owners))):
         listing = f'/var/lib/dpkg/info/{name}.list'
         if g.exists(listing) or g.is_symlink(listing):
@@ -364,7 +303,7 @@ def validate_receipt(value):
     fedora = value['os_id'] == 'fedora'
     require(type(value) is dict and set(value) == {
         'profile', 'os_id', 'release', 'locale', 'provider', 'packages',
-        'translations', 'cjk_glyphs', 'files', 'runtime_locale'} and value['profile'] == 'chinese'
+        'translations', 'files', 'runtime_locale'} and value['profile'] == 'chinese'
         and value['locale'] == LOCALE and value['provider'] == 'mate-polkit'
         and value['runtime_locale'] == 'UTF-8'
         and type(value['packages']) is dict
@@ -373,9 +312,9 @@ def validate_receipt(value):
         and all(type(version) is str and re.fullmatch(r'[A-Za-z0-9.+:~\-]+', version)
                 for version in value['packages'].values())
         and value['translations'] == {domain: len(messages) for domain, messages in CATALOGUES.items()}
-        and value['cjk_glyphs'] == len(set(GLYPHS)) and type(value['files']) is dict,
+        and type(value['files']) is dict,
         'receipt')
-    expected = {LOCALE_PATH, FEDORA_FONT_PATH if fedora else FONT_PATH}
+    expected = {LOCALE_PATH}
     for domain in CATALOGUES:
         candidates = {f'/usr/share/{directory}/zh_CN/LC_MESSAGES/{domain}.mo'
                       for directory in (('locale',) if fedora else ('locale', 'locale-langpack'))}

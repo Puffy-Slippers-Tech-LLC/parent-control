@@ -38,6 +38,15 @@ guards remain where necessary. Preserve distinct policy transitions,
 persistence, rejection and recovery; do not import a capability's qualification
 matrix into each customer case.
 
+Customer E2E does not test the desktop environment, fixture presentation or
+runner UI. Native desktop launches use the system desktop-entry API; icon
+extensions, icon selection and trust badges are incidental. Chinese setup
+checks a usable locale for product defaults and authentication, not font tables
+or Shell translations. E2E-001 is retired from ordinary E2E scheduling because
+it exercises only product-free runner transport. Its stable ID and diagnostic
+implementation remain; existing focused infrastructure safety tests retain
+credential, selection/verdict and destructive-cleanup coverage.
+
 The [documentation map](../../docs/TestAutomation/README.md) owns status terms;
 the [UI mandate](../../docs/Mandates/UI-Automation-Mandate.MD) owns selector policy,
 including the external-provider exception. Retained ready bindings do not prove
@@ -750,8 +759,7 @@ E2E IDs 140–150 remain engineering system-test obligations outside this UI
 inventory. Displaced backend assertions remain under the [engineering
 reconciliation](../../docs/TestAutomation/E2E-Building-Blocks.md#inventory-reconciliation).
 
-Run the canonical smoke with `tools/run-tests e2e --vm NAME --id '1'` using verified
-build artifacts. Its callback reuses the qualified serial worker and
+The retired E2E-001 diagnostic implementation reuses the serial worker and
 records nine acknowledgments before the next guest action: readiness, initial
 GDM, selected empty prompt, Escape return, serial password boundary,
 authenticated serial session, command output, logout, and graphical return.
@@ -768,7 +776,7 @@ prove the final return. Pixel matches supply no readiness or acceptance result.
 Raw captures, terminal output and arbitrary module fields stay private;
 post-password capture remains sealed.
 
-The sole canonical smoke is harness coverage, with no product requirement IDs
+This retained qualification is harness coverage, with no product requirement IDs
 or customer acceptance claim. Host/source/baseline preservation and held-lease
 terminal evidence remain the existing controller's responsibility. Test-tool
 activation is `none` (next invocation); no setup or product data change is needed.
@@ -835,8 +843,8 @@ test code: the launcher must enforce lifecycle, secret and observation boundarie
 
 The inventory pins required run and step field names. `evidence.py` now checks
 runtime payloads against these declarations and `private_artifacts.py` verifies
-collected copies. Public controller integration passed the former E2E-034; canonical E2E-001
-qualification and customer coverage remain their owning tasks' work.
+collected copies. The former E2E-034 and E2E-001 transport qualifications provide
+no customer coverage and are excluded from ordinary E2E scheduling.
 
 | Fields | Required meaning for the collector |
 | --- | --- |
@@ -1058,9 +1066,8 @@ in installed and public E2E results.
 
 Host tests exercise actual Git trees, artifact/fixture verification and the real
 private collector with synthetic scenario records. They do not establish live
-VM provenance or customer behavior. E2E-001 now owns the separate live public
-controller qualification formerly assigned to E2E-034; current readiness is
-listed above.
+VM provenance or customer behavior. The former E2E-001/E2E-034 live public
+controller qualification remains diagnostic only.
 
 ## Verify edits
 
@@ -1976,20 +1983,19 @@ and the same owned maintenance envelope, with no acceptance credit. Finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
 `tools/test-vm --vm NAME reproduce-native-desktop` reuses
-`app_launch.DESKTOP_PLAN` through Parent's saved allowed policy, trusted placement,
-Jordan's exact icon focus and one selection shortcut. It stops at
-`jordan-use-selected`, records the shared
-selection observation and retains Jordan's desktop for guarded `exec` probes.
+`app_launch.DESKTOP_PLAN` through Parent's saved allowed policy and verified
+placement. It stops at `jordan-use-launch`, attempts the shared desktop-entry
+launch once and retains Jordan's desktop for guarded `exec` probes.
 The case's qualified fixture profile, owned maintenance envelope and input guards stay
 active. It supplies no acceptance credit; finish with
 `tools/test-vm --vm NAME stop` before clean qualification.
 
 `tools/test-vm --vm NAME reproduce-native-desktop-new-window` reuses
-`native_desktop_new_window.PLAN` through its trusted S placement and original
-submitted draft. It stops at `first-second-icon`, records the actual guarded
-icon observation and retains Jordan's original S window for `exec` probes.
-`probe-native-desktop-new-window` rechecks that same icon operation in the
-retained scene, including the original-work and absent-secondary guards. These
+`native_desktop_new_window.PLAN` through its verified S placement and original
+submitted draft. It stops at `first-second-launch`, attempts the declared
+desktop-entry launch and retains Jordan's original S window for `exec` probes.
+`probe-native-desktop-new-window` independently reads the secondary window and
+unchanged original work without repeating the launch. These
 diagnostics use the same maintenance envelope and supply no acceptance credit;
 finish with `tools/test-vm --vm NAME stop` before clean qualification.
 
@@ -2384,7 +2390,7 @@ remains buffered. Incomplete delivery
 was a hypothesis, not a demonstrated defect. The new checkpoint records that
 gate; it does not prove guest execution. Do not
 clear an ordinary observation failure or recreate its observer to reconnect.
-Ordinary E2E-001 keeps its unchanged-boot assertion; the installed-system
+The retained serial qualification keeps its unchanged-boot assertion; the installed-system
 `Transport.reboot()` route retains its existing behavior.
 
 ### Read-only observation capability
@@ -2461,5 +2467,6 @@ rechecks provenance before release. A `finalization-rejected` event is terminal,
 including after an earlier candidate pass. The final `result.json` also accounts
 for release/connection errors. These reports have diagnostic qualification scope,
 no scenario ID, no inventory override and no customer assertions. Pending cases
-receive no credit from those diagnostics. E2E-001 is the canonical
-public scenario recorder and terminal invocation smoke, superseding E2E-034.
+receive no credit from those diagnostics. The former E2E-001 recorder/terminal
+qualification is also excluded from customer E2E scheduling; its implementation
+remains available for diagnosis without product acceptance credit.

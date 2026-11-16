@@ -1,4 +1,4 @@
-"""036g: exact per-child desktop placement, DING activation and real app use."""
+"""036g: per-child desktop-entry launch and real app use."""
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import fresh_desktop, native_usable_app, prefixed_stages
 from native_fixtures import fixture_actions
@@ -16,7 +16,6 @@ for entry in ('first', 'independent'):
         entry + '-close': 'ui:native-close', entry + '-closed': 'ui:native-closed',
         entry + '-cleanup': 'ui:standard-desktop',
     })
-SCREENS['first-icon'] = 'ui:native-desktop-icon-refusals'
 SCREENS['child-logout'] = 'system:standard-logout'
 PLAN = JourneyPlan(
     prefix='native-desktop-usable', worker_mode='native_desktop_usable', screen_tags=SCREENS,

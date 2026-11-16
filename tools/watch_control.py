@@ -48,7 +48,12 @@ def settings():
     now = time.monotonic()
     cached = _cached
     if cached is None or cached[0] != path or now >= cached[2]:
-        value = _read(path)
+        try:
+            value = _read(path)
+        except FileNotFoundError:
+            # Standalone maintenance can inherit a finished launcher's policy.
+            # With no saved policy, keep its normal observation defaults.
+            value = dict(ssh=True, view=True)
         _cached = (path, value, now + .25)
     else:
         value = cached[1]

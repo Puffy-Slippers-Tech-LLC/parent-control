@@ -364,19 +364,17 @@ original-versus-copy assertions in the consuming case, separate from copy
 qualification.
 
 Desktop launch consumers reuse `synthetic_files.desktop_entry_actions(child=...)`
-for trusted placement, independent readback and receipt-owned cleanup. Keep the
+for verified placement, independent readback and receipt-owned cleanup. Keep the
 child visits, launch/use assertions and placement/cleanup order in each plan;
-do not import a qualification plan to obtain file mechanics. Actual icon input
-uses the [qualified DING operation](../../docs/TestAutomation/E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch),
-including its independent keyboard-selection guard.
+do not import a qualification plan to obtain file mechanics. Launch uses the
+[shared GIO desktop-entry operation](../../docs/TestAutomation/E2E-Building-Blocks.md#native-desktop-entry-and-usable-launch)
+as the active child, followed by independent app-use or denial observations.
 For a second window, compose `journey_blocks.native_window_app` for the explicit
 command-primary and desktop-secondary S endpoints. Keep captures, distinct-window
 comparisons and unchanged original work in the caller. The shared
-`onpc_app_rows::native_open_desktop` owns the optional panel-cycle navigation
-before icon observation; individual workers must not copy that shortcut or use
-it as a retry after uncertain input. An icon's accessibility focus does not
-establish compositor keyboard focus or DING's selected-file set. Qualify the
-route with original work still open, not only on an empty desktop.
+`onpc_app_rows::native_open_desktop` launches the declared desktop entry once.
+Desktop icons, trust metadata and focus/selection shortcuts are not prerequisites.
+Validate retained-work consumers with original work still open.
 
 For versioned additions under an active child block, `SyntheticFiles` accepts
 `administrative=True` only for `native-version-next` and `native-version-nonmatch`.
@@ -1255,10 +1253,10 @@ confirmed-action boundary in `AccessibleUI.natural_reminder_wait`: only a
 successful launch plus independent owned-window and mode readback permits its
 distinct next action. A failed or uncertain launch never reaches that boundary.
 Do not clear the latch in a consumer or a retry predicate to continue after failure.
-Native desktop-icon operations use the same bounded complete-read policy for
+Native desktop-entry operations use the same bounded complete-read policy for
 their window-absence preflight. A retiring unrelated provider discards that
-observation; a complete existing-window refusal stays terminal. Focus, Ctrl+A
-and Enter are never replayed by the read wait.
+observation; a complete existing-window refusal stays terminal. The launch API
+is never replayed by the read wait.
 Game Move, Resume and Close use that same read-only preflight wait before their
 single action. A disappearing provider invalidates the read, not the input
 delivery. Keep the expected progress bound to the declared operation:

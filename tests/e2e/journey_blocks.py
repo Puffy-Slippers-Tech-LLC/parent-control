@@ -258,8 +258,7 @@ def native_window_app(route, *, instance):
     operation = 'ui:native-soft-' + instance + '-'
     return {
         **({'command': operation + 'command-launch'} if route == 'command' else {
-            'icon': 'ui:native-soft-desktop-icon',
-            'selected': 'ui:native-soft-desktop-selected'}),
+            'launch': 'ui:native-soft-desktop-launch'}),
         **{action: operation + action for action in ('opened', 'submit', 'submitted')},
     }
 
@@ -276,11 +275,10 @@ def native_usable_app(route, *, child='other-child', role=None, desktop_observat
                 and desktop_observation is True, 'journey:native-desktop-binding')
         if role == 'S':
             return {'desktop': 'ui:native-soft-desktop',
-                    'icon': 'ui:native-desktop-soft-icon',
-                    'selected': 'ui:native-desktop-soft-selected',
+                    'launch': 'ui:native-desktop-soft-launch',
                     **{action: 'ui:native-soft-' + action for action in ('opened', 'submit', 'submitted')}}
-        stages = {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
-                'selected': 'ui:native-desktop-selected', 'opened': 'ui:native-opened',
+        stages = {'desktop': 'ui:native-desktop', 'launch': 'ui:native-desktop-launch',
+                'opened': 'ui:native-opened',
                 'submit': 'ui:native-submit', 'submitted': 'ui:native-submitted'}
         return {stage: tag.replace('ui:', 'ui:overlay-') if child == 'child' else tag
                 for stage, tag in stages.items()}
@@ -371,9 +369,9 @@ def native_blocked_app(role, *, route='command', child='other-child'):
             name = 'hard' if role == 'H' else 'soft'
             return {'desktop': 'ui:native-' + name + '-desktop',
                     **{action: 'ui:native-desktop-' + name + '-' + action
-                       for action in ('icon', 'selected', 'denied')}}
-        return {'desktop': 'ui:native-desktop', 'icon': 'ui:native-desktop-icon',
-                'selected': 'ui:native-desktop-selected', 'denied': 'ui:native-desktop-denied'}
+                       for action in ('launch', 'denied')}}
+        return {'desktop': 'ui:native-desktop', 'launch': 'ui:native-desktop-launch',
+                'denied': 'ui:native-desktop-denied'}
     if route == 'files':
         require(role in ('A', 'H', 'S'), 'journey:native-files-denial-binding')
         name = {'A': 'allowed', 'H': 'hard', 'S': 'soft'}[role]

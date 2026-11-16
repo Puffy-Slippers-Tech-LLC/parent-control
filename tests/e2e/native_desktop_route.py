@@ -8,15 +8,13 @@ from synthetic_files import desktop_entry_actions
 
 
 # Reuse the qualified policy saves, child returns and immutable closure checks.
-# Each round independently places and removes the child's trusted desktop entry.
+# Each round independently places and removes the child's verified desktop entry.
 SCREENS = {}
 for stage, tag in CLOSURE_PLAN.screen_tags.items():
     name = stage.split('-', 1)[0]
     if name in ('hard', 'soft') and stage.startswith(name + '-activity-'):
         if stage == name + '-activity-desktop':
             activity = native_usable_app('desktop')
-            if name == 'hard':
-                activity['icon'] = 'ui:native-desktop-icon-refusals'
             SCREENS[name + '-place'] = 'ui:standard-desktop'
             SCREENS.update(prefixed_stages(name + '-activity', activity))
     elif name in ('hard', 'soft') and stage == name + '-denied-command':

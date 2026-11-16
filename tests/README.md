@@ -1071,8 +1071,9 @@ pending or retired identities do not make them executable or establish a pass.
 Run Time resolves current descriptions when reading logged cases, so metadata
 updates also apply to older timings without rewriting execution history.
 
-`tools/run-tests` automatically records every VM-scoped category, including
-system and E2E execution, through the
+`tools/run-tests` and `tools/fix-tests` do not record by default. Add the
+value-free `--record` flag to record VM-scoped categories, including system and
+E2E execution, through the
 private GTK recording renderer with shared read-only VM feeds and filtered SSH
 terminals. The recording includes the viewer tabs, VM panels, SSH output
 and progress footer at full frame size; it excludes the left runner terminal,
@@ -1099,7 +1100,8 @@ endpoint rather than creating competing controllers. The parent run's recording
 index retains the latest case receipts across groups. Capture includes only the
 admitted group's feeds from this checkout: another
 controller's secret seals cannot authorize recording its display. The **ONPC: Watch**
-tab can be opened, closed or absent independently.
+tab can be opened, closed or absent independently. Recording remains opt-in
+on resume; specify `--record` again to enable it for the resumed execution.
 The recording is human review material; test assertions and result reports
 remain authoritative. Qualified masked graphical authentication in GDM, lock
 screens and MATE/Shell Polkit prompts remains visible, including rejection and

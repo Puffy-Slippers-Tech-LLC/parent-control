@@ -315,7 +315,7 @@ def execution_arguments(argv):
         if not resume or len(replay) != 1:
             raise ValueError('--resume-case requires --resume and one case')
         completed_cases(json.dumps(replay))
-    argv = [arg for arg in argv if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
+    argv = [arg for arg in argv if arg not in ('--record', '--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if not argv:
         argv = ['all']
     stop = argv[:1] == ['--stop-on-error']
@@ -328,7 +328,7 @@ def execution_arguments(argv):
 def vm_request(argv):
     from vm_selection import vm_config, execution_selection, extract_execution, selected
     args, selector = vm_config.extract_selector(argv)
-    request = [arg for arg in args if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
+    request = [arg for arg in args if arg not in ('--record', '--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if request[:1] == ['--stop-on-error']:
         request = request[1:]
     vm_artifacts = request[:3] == ['artifacts', 'prepare', '--for-vm']
@@ -356,7 +356,7 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--reverse] [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--reverse] [--record] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
@@ -373,6 +373,8 @@ files run serially; VM workers claim cases backwards, retaining lifecycle
 prerequisites. Category/preparation order is unchanged. Bare --resume restores it.
 Bare --resume restores the previous selection and options. Explicit selections
 use current arguments and inventory, retaining readable completed case results.
+Recording is off by default; --record enables VM watch video for this invocation.
+Specify --record again on resume to keep recording.
 Failed, interrupted and incomplete cases remain pending. Without --resume, a new
 execution resets progress. Required preparation and lifecycle prerequisites still run.
 --reset stops both test and repair launchers in this checkout, waits for owned
@@ -436,7 +438,7 @@ Complete categories (combine in any order; execute host, system, e2e)
   tools/run-tests publish-rpm                 RPM prerequisites and results only
 
   Each VM retains its report; configured queues retain a combined result summary.
-  VM execution automatically records the shared watch layout, including all
+  --record opts VM execution into recording the shared watch layout, including all
   active VMs in this runner's queue and their SSH output, with or without ONPC: Watch open.
   Latest category-ID-VMs.webm files live in output/test-runs/recordings/.
   VM names follow numeric config IDs; no timestamp, age or size rotation.
@@ -1247,7 +1249,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False):
         os.environ['ONPC_TEST_REVERSE'] = '1'
         argv = [arg for arg in argv if arg != '--reverse']
     if is_inspection(argv):
-        argv = [arg for arg in argv if arg != '--resume']
+        argv = [arg for arg in argv if arg not in ('--record', '--resume')]
     try:
         argv, _ = vm_request(argv)
     except ValueError as error:
@@ -1457,7 +1459,7 @@ def host_only_request(argv):
     from vm_selection import extract_execution as extract
     args, _ = extract(argv, required=False)
     args = args or ['all']
-    args = [arg for arg in args if arg not in ('--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
+    args = [arg for arg in args if arg not in ('--record', '--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')] or ['all']
     if args[:1] == ['--stop-on-error']:
         args = args[1:] or ['all']
     aliases = subcategory_aliases()

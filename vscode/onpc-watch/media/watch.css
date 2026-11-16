@@ -323,6 +323,7 @@ nav button { flex-shrink: 0; }
     background: var(--vscode-editor-background);
 }
 .pane-toolbar {
+    --pane-control-gap: 8px;
     display: flex; flex-shrink: 0; min-width: 0;
     color: #fff; border-bottom: 1px solid #254c80;
     background: linear-gradient(#4b78b8, #214a80);
@@ -330,13 +331,14 @@ nav button { flex-shrink: 0; }
 .pane-toolbar > strong { flex: 1; align-self: center; padding: 8px; }
 .pane-toolbar { min-height: 45px; }
 #viewer-header { flex-wrap: wrap; }
+#watch-controls, .tile-layout { padding-inline: var(--pane-control-gap); }
 #watch-controls {
-    display: flex; flex: 0 0 auto; align-items: center; gap: 12px; padding: 4px 8px;
+    display: flex; flex: 0 0 auto; align-items: center; gap: 12px; padding-block: 4px;
 }
 #watch-controls label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 #viewers { flex: 1; min-width: 0; align-items: center; gap: 4px; padding: 8px; }
 .tile-layout {
-    display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 0 4px;
+    display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding-block: 0;
     border-left: 1px solid rgb(255 255 255 / 25%);
 }
 .tile-layout button {

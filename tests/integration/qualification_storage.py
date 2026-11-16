@@ -132,8 +132,7 @@ def session(*, check=None, target=None, inputs=None, lease=None, live=False, run
     from tools.test_storage import privileged_state
     store = test_retention.Store(privileged_state(uid))
     guard = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['retention_guard']
-    with store.session(run=run, guard=lambda: guard(ROOT),
-                       preserve_completed=test_retention.legacy_system_evidence):
+    with store.execution_session(run=run, guard=lambda: guard(ROOT)):
         with _record_commands(check):
             yield
 

@@ -11,10 +11,9 @@ from launcher_session import clock_duration
 
 def launcher_status_color(status):
     """One palette for launcher titles and both content status fields."""
-    if status in ('Repair Pending', 'Repairing', 'Rechecking Case', 'Verifying', 'Checking Impact',
-                  'Reload Requested', 'Stop Requested', 'Stopping'):
+    if status in ('Repairing', 'Reload Requested', 'Stop Requested', 'Stopping'):
         return '#af6a00'
-    if status in ('finished', 'Finished', 'Committing Fix', 'Closing Task'):
+    if status in ('finished', 'Finished', 'Closing Task'):
         return '#008000'
     if status in ('failed', 'Failed', 'stopped', 'Stopped', 'Waiting for input'):
         return '#f14c4c'
@@ -55,7 +54,7 @@ def error_status_lines(task_info, key, clock, *, status_override=None, status_co
         last_error.append('-')
     colors = dict(zip(TASK_STATUSES, ('#0098ff', '#0098ff', 'yellow', 'green', '#0098ff',
                                     'yellow', '#0098ff')))
-    color = status_color or (launcher_status_color('Repair Pending') if status_override is not None else colors[status])
+    color = status_color or (launcher_status_color(status) if status_override is not None else colors[status])
     status_line = launcher_status_line(status, color)
     status_line.append(f' ({status_age} ago)', style='#0098ff')
     return [last_error, Text(''), status_line], clock

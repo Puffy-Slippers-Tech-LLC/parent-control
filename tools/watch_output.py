@@ -52,7 +52,7 @@ class JsonReader:
             if cached is not None and cached[0] == identity:
                 # Touch the entry without dropping every other hot publication.
                 self.cache[path] = self.cache.pop(path)
-                # repair_progress modifies nested lines for its display only.
+                # Display projections may modify nested lines.
                 return copy.deepcopy(cached[1])
             data = stream.read(limit + 1)
         if len(data) > limit:
@@ -250,8 +250,7 @@ class Output:
     def repair(self):
         return self.run is not None and self.run.parent.name in ('fix-tests', 'fix-tests-host')
 
-    def error_status(self, steps, *, pending_repairs=(), prefer_pending=False,
-                     status_override=None, status_color=None):
+    def error_status(self, steps, *, status_override=None, status_color=None):
         """Read the same task-local fields as the shared launcher right pane."""
         from launcher_display import error_status_lines
         def metadata(name):
@@ -268,60 +267,19 @@ class Output:
             info = info.get('previous_tasks', {}).get(task, {})
         if state.get('progress_key') is not None and current is None:
             info = {}
-        if pending_repairs and (prefer_pending or not info.get('last_error') or info.get('last_error') == '-'):
-            failure = pending_repairs[-1]
-            info = dict(last_error=failure['error'], status='Investigating')
         lines, self.error_clock = error_status_lines(info,
             (self.run, current['key'] if current else None, task,
-             info.get('last_error_ticket', pending_repairs[-1]['id'] if pending_repairs else None)),
+             info.get('last_error_ticket')),
             self.error_clock, status_override=status_override, status_color=status_color)
         return lines
 
-    def repair_progress(self):
-        """Observe this workflow's coordinator tickets, including between agents."""
-        empty = dict(total=0, blocked=False, items=[])
-        if not self.repair:
-            return empty
-        try:
-            progress = self.reader.read(self.run / 'repair-progress.json', 1024 * 1024)
-        except FileNotFoundError:
-            return empty
-        if (not isinstance(progress, dict) or type(progress.get('total')) is not int
-                or type(progress.get('blocked')) is not bool or not isinstance(progress.get('items'), list)
-                or not 0 <= len(progress['items']) <= 16 or progress['total'] < len(progress['items'])):
-            raise ValueError('watch-output: invalid repair progress')
-        for ticket in progress['items']:
-            if (not isinstance(ticket, dict) or not isinstance(ticket.get('id'), str)
-                    or not re.fullmatch('[0-9a-f]{32}', ticket['id'])):
-                raise ValueError('watch-output: invalid repair ticket')
-            context_path = self.run / ('impact-context-' + ticket['id'] + '.json')
-            try:
-                retained = self.reader.read(context_path, 1024 * 1024)
-                if retained.get('ticket') != ticket['id'] or retained.get('attempt') != ticket['attempt']:
-                    raise ValueError('watch-output: mismatched failure context')
-                context = retained['context']
-            except FileNotFoundError:
-                context = {}
-            actual = context.get('actual', {}).get('text')
-            details = context.get('error_details', {}).get('value') or []
-            error = actual or '\n'.join(item['detail'] for item in details
-                if isinstance(item, dict) and isinstance(item.get('detail'), str))
-            error = error or 'The selected attempt failed; detailed error is unavailable.'
-            identity = f'{ticket["vm"] or "Host"} | {ticket["category"]} | {ticket["case"] or "preparation"}'
-            ticket['error'] = identity + '\n' + error[-4000:]
-        return progress
-
     def status(self, active):
         """Read shared launcher status publications for the editor viewer."""
-        from launcher_progress import repair_progress
         from launcher_render import clean
         steps = snapshot(self.run / 'controller.json', steps=True, reader=self.reader)
         if self.execution_plan:
             from launcher_progress import plan_status
             steps = plan_status(self.run, steps, reader=self.reader, active=active)
-        if self.repair:
-            steps = repair_progress(self.run, steps,
-                child_steps=snapshot(self.run / 'test-controller.json', steps=True, reader=self.reader))
         details = snapshot(self.run / 'frame.json', reader=self.reader)
         if self.repair and not details:
             details = snapshot(self.run / 'test-frame.json', reader=self.reader)
@@ -509,20 +467,17 @@ class SessionOutput:
 
     def discover_sessions(self, owners):
         sessions = []
-        for owner in dict.fromkeys(owners):
-            # Repair admission permits one writer; select its newest session.
-            candidates = [owner, *sorted(owner.glob('pipeline-*'))]
-            for run in candidates:
-                try:
-                    value = self.reader.read(run / 'session-view.json')
-                    if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
-                            or not isinstance(value.get('started_at'), (int, float))
-                            or type(value.get('interactive')) is not bool
-                            or value.get('status') not in ('running', 'finished')):
-                        continue
-                    sessions.append((value['status'] == 'running', value['started_at'], owner, run, value))
-                except (OSError, ValueError, TypeError):
+        for run in dict.fromkeys(owners):
+            try:
+                value = self.reader.read(run / 'session-view.json')
+                if (not isinstance(value, dict) or not isinstance(value.get('session'), str)
+                        or not isinstance(value.get('started_at'), (int, float))
+                        or type(value.get('interactive')) is not bool
+                        or value.get('status') not in ('running', 'finished')):
                     continue
+                sessions.append((value['status'] == 'running', value['started_at'], run, run, value))
+            except (OSError, ValueError, TypeError):
+                continue
         if sessions:
             _active, _started, owner, run, value = max(sessions, key=lambda item: item[:2])
             return owner, run, value, 'session-output.log'

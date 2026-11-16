@@ -189,23 +189,22 @@ def suite_inventory(categories=(), *, inventory=None):
     selected = set()
     narrowed = {}
     aliases = subcategory_aliases(inventory)
-    for argument in categories:
-        for category in argument.split():
-            if category in ('all', 'all-verify'):
-                selected.update(inventory)
-            elif category in ('host', 'host-builds'):
-                selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'host')
-            elif category == 'vm':
-                selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'vm')
-            elif category in inventory:
-                selected.add(category)
-            elif category == 'publish':
-                selected.update(name for name in PUBLISH_CATEGORIES if name in inventory)
-            elif category in aliases:
-                name, child = aliases[category]
-                narrowed.setdefault(name, set()).add(child)
-            else:
-                raise ValueError(f'unknown or unsupported inventory category: {category}')
+    for category in categories:
+        if category in ('all', 'all-verify'):
+            selected.update(inventory)
+        elif category in ('host', 'host-builds'):
+            selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'host')
+        elif category == 'vm':
+            selected.update(name for name, spec in inventory.items() if inventory_scope(name, spec) == 'vm')
+        elif category in inventory:
+            selected.add(category)
+        elif category == 'publish':
+            selected.update(name for name in PUBLISH_CATEGORIES if name in inventory)
+        elif category in aliases:
+            name, child = aliases[category]
+            narrowed.setdefault(name, set()).add(child)
+        else:
+            raise ValueError(f'unknown or unsupported inventory category: {category}')
     if not selected and not narrowed:
         raise ValueError('no categories selected')
     result = {}
@@ -224,8 +223,8 @@ def suite_inventory(categories=(), *, inventory=None):
 
 
 def inventory_scope(name, spec):
-    """Runner-owned scope, including older inventories without scope metadata."""
-    scope = spec.get('scope', CATEGORIES[name].scope if name in CATEGORIES else 'host')
+    """Return the scope declared by the current runner inventory."""
+    scope = spec['scope']
     if scope not in ('host', 'vm'):
         raise ValueError('test inventory scope must be host or vm')
     return scope
@@ -289,7 +288,7 @@ def repair_inventory(root, requested, *, inventory=None):
 
 
 def repair_host_only_request(root, requested):
-    """Repair consumers use the runner's scopes, including legacy packed names."""
+    """Repair selections use the current runner's declared scopes."""
     if host_only_request(requested):
         return True
     try:
@@ -372,11 +371,10 @@ Help, listing and collection return immediately without attaching.
 --reverse reverses cases within each category (JS: file order). Pytest and JS
 files run serially; VM workers claim cases backwards, retaining lifecycle
 prerequisites. Category/preparation order is unchanged. Bare --resume restores it.
---resume inherits the previous selection and options, skipping completed cases
-and retrying failed or interrupted cases. Explicit parameters must be compatible;
-VM names and IDs resolving to the same VMs are equivalent. Incompatible parameters
-fail immediately and report the previous parameters. Without --resume, a new
-execution resets the checkpoint. Required preparation and lifecycle prerequisites still run.
+Bare --resume restores the previous selection and options. Explicit selections
+use current arguments and inventory, retaining readable completed case results.
+Failed, interrupted and incomplete cases remain pending. Without --resume, a new
+execution resets progress. Required preparation and lifecycle prerequisites still run.
 --reset stops both test and repair launchers in this checkout, waits for owned
 cleanup, recovers recorded resources and clears saved progress before starting
 fresh. Source edits and historical logs are preserved. Conflicts with --resume,

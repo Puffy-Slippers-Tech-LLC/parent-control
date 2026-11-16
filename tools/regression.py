@@ -438,7 +438,7 @@ class Report:
             # Give these reports their own bounded ring, just like reconnect
             # transcripts, without adopting fixture recovery authority.
             store = Store(directory('state', root=root) / 'standalone-reports')
-            self.retention_session = store.session()
+            self.retention_session = store.execution_session()
             self.retention_session.__enter__()
         created = None
         try:
@@ -839,14 +839,6 @@ class Execution:
                               'Failed' if status or item.failures else
                               'Passed' if item.done == item.total else
                               'Running' if self.units else 'Failed')
-                if (run.checkpoint is not None and item.state in ('Failed', 'Interrupted')
-                        and not self.failed and self.finished and item.done == item.total
-                        and not (item.state == 'Interrupted'
-                                 and getattr(run.checkpoint, 'queue_vm_cleanup', False))):
-                    # A final controller/cleanup error must be exercised again.
-                    # Completing every assertion alone cannot certify cleanup.
-                    run.checkpoint.event(item.retry_category,
-                        dict(kind='failure', nodeid=sorted(self.finished)[-1]), set())
             item.stop_timer()
             if item.state == 'Failed' and not item.error_detail:
                 detail = self.output_error_summary or self.output_tail.strip()[-2000:]
@@ -996,6 +988,9 @@ class Run:
 
     def resume_category(self, item, kind=None):
         kind = kind or item.retry_category
+        if kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage'):
+            # Discover the current cases, then omit clear passes individually.
+            return False
         if self.checkpoint is not None and self.checkpoint.retry_case and item.selection_args is not None:
             retry = self.checkpoint.retry_case
             if kind == 'system':
@@ -1031,6 +1026,22 @@ class Run:
             item.total = max(1, len(self.checkpoint.passed(kind)))
         item.done, item.state = item.total, 'Passed'
         self.report.write('\nResume: previously completed category ' + kind + '\n')
+        return True
+
+    def known_failure(self, item, cases):
+        checkpoint = self.checkpoint
+        if checkpoint is None or checkpoint.results is None:
+            return False
+        entry = checkpoint.entry(item.retry_category)
+        if entry is None:
+            return False
+        failure = checkpoint.results.select_failure(item.retry_category, checkpoint.family,
+            cases, entry['args'])
+        if failure is None:
+            return False
+        item.state = 'Failed'
+        item.failed_nodeids = (failure['case'],) if failure['case'] else ()
+        item.error_detail = 'Retained failure selected for repair; no test was rerun.'
         return True
 
     def command_environment(self, command):
@@ -1097,17 +1108,7 @@ class Run:
         siblings = set().union(*(identities(options) for options in groups))
         if self.checkpoint.retry_case and self.checkpoint.retry_case not in siblings:
             raise ValueError('case retry is outside the selected system inventory')
-        # A checkpoint pools repeated categories. Remove only known sibling
-        # passes; unknown IDs still reach the controller's inventory guard.
-        passed = self.checkpoint.passed('system') - (siblings - selected)
-        unknown = passed - selected
-        if unknown:
-            # Retain the refusal, but identify the mismatched saved IDs before
-            # the controller starts. Case identities contain no guest secrets.
-            # Bound output even when a large checkpoint is incompatible.
-            print('System resume inventory mismatch: ' + json.dumps(dict(
-                vm=target.name, selected_count=len(selected), sibling_count=len(siblings),
-                unknown_count=len(unknown), unknown_ids=sorted(unknown)[:20])), flush=True)
+        passed = self.checkpoint.passed('system') & selected
         return selected, passed
 
     def resume_command(self, item, command):
@@ -1127,8 +1128,6 @@ class Run:
             if retry:
                 if retry not in selected:
                     raise ValueError('case retry is outside the selected system inventory')
-                if passed - selected:
-                    raise ValueError('selection:resume-inventory-changed')
                 # The installed runner preserves any required lifecycle history.
                 # These omissions are selection, never saved passing results.
                 requested = ({node for node in selected - passed
@@ -1617,50 +1616,6 @@ class Run:
                                   'for implementation and qualification blockers.\n')
 
 
-def recover_initial_checks(root, state):
-    """Accept only a dead owner stopped before the protected-suite gate passed."""
-    import test_activity
-    import test_retention
-    from test_storage import storage_root
-    if not test_activity.descriptors() or len(state['paths']) != 1:
-        return False
-    record = state['paths'][0]
-    report = Path(record['path'])
-    if report.parent not in (root / 'docs/TestAutomation/Evidence/test-all-runs',
-                             storage_root(root) / 'output/test-runs/host/reports'):
-        return False
-    try:
-        # Verify the registered identity without removing anything. Missing or
-        # unreadable progress is uncertainty, not permission to restart suites.
-        test_retention.remove(record, validate_only=True)
-        progress = json.loads((report / 'progress.json').read_text())
-        # A dead parallel coordinator cannot prove that all worker cleanups
-        # finished. Keep that journal for explicit recovery, never infer safety
-        # from partial bucket successes or an absent schedule file.
-        if any(item.get('phase') == 'cleanup' for item in progress):
-            return False
-        by_name = {item['name']: item for item in progress}
-        if len(by_name) != len(progress):
-            return False
-        if by_name['Discovery and prerequisites']['state'] != 'Passed':
-            return False
-        if by_name['Cleanup safety prerequisites']['state'] != 'Running':
-            return False
-        for name, item in by_name.items():
-            if name in ('Discovery and prerequisites', 'Cleanup safety prerequisites'):
-                continue
-            if (item['state'] != 'Pending' or item['done'] != 0
-                    or item['failures'] != 0 or item['started'] is not None):
-                return False
-        if len(by_name) < 3 or (report / 'schedule.jsonl').exists():
-            return False
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-    print('Recovering interrupted initial checks; preserving the previous journal '
-          'and all registered evidence.', flush=True)
-    return True
-
-
 def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
          continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None):
     import test_retention
@@ -1676,8 +1631,7 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
     # including after the inner command controller has restored its handlers.
     with Control().installed() as storage_control:
         store = test_retention.Store(test_activity.retention_path(root))
-        with store.session(
-                recover=lambda state: recover_initial_checks(root, state)):
+        with store.execution_session():
             if storage_control.stopped.is_set():
                 return 130
             status = retained_main(root,

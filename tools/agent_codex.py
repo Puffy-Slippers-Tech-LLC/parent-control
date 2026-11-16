@@ -30,8 +30,7 @@ monitors, advisers and reviewers.
 
 """
 
-SUBAGENT_CONTEXT_INSTRUCTIONS = """Each new task starts with fresh context; a repair
-may resume the same conversation while its issue remains unresolved.
+SUBAGENT_CONTEXT_INSTRUCTIONS = """Each new task starts with fresh context.
 On every spawn_agent call, explicitly set fork_turns="none".
 Never omit fork_turns or use "all". Give every helper a self-contained assignment
 with its exact scope, paths, relevant instructions, current evidence and disjoint
@@ -127,16 +126,8 @@ class CodexAdapter:
         return 'Codex login verified for this account; model access is checked before each workflow'
 
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
-        if role == 'impact_triage':
-            # Failure impact always starts at this tier, independently of the
-            # caller's unit-repair defaults. Capacity recovery preserves effort.
-            profile = ModelProfile('gpt-6.1-sol', 'high')
-            if ((model is not None and model != profile.model)
-                    or (effort is not None and effort != profile.effort)):
-                raise ValueError('impact triage requires gpt-6.1-sol with high effort')
-            return profile
         if role in ('implementation', 'repair', 'translator', 'commit_helper', 'conflict_resolver'):
-            default = ModelProfile('gpt-6.1-sol', 'medium' if role == 'repair' else 'high')
+            default = ModelProfile('gpt-6.1-sol', 'high')
         elif role in ROLES:
             # Role assets remain the authority for their pinned native profiles.
             with Path(__file__).with_name(ROLES[role][1]).open('rb') as stream:
@@ -145,8 +136,6 @@ class CodexAdapter:
         else:
             raise ValueError('unsupported agent model profile')
         model = model or default.model
-        if role == 'repair' and model != default.model:
-            raise ValueError('fix-tests model must be ' + default.model)
         if role == 'translator' and model.endswith('-sol') and model != default.model:
             raise ValueError('Sol must be ' + default.model)
         return ModelProfile(model, effort or default.effort)
@@ -209,12 +198,13 @@ class CodexAdapter:
         executable = self.executable(environment)
         if request.permissions not in ('workspace', 'read_only'):
             raise ValueError('unsupported agent write boundary')
-        if request.run is not None and request.schema is None:
-            raise ValueError('agent result output requires a schema')
         if request.interactive and (request.run is None or request.schema is None):
             raise ValueError('interactive agent sessions require an owned run and schema')
-        if request.interactive and request.extra_directories:
-            raise ValueError('interactive agent sessions do not yet support extra directories')
+        goal_session = request.run is not None and request.schema is None
+        if goal_session and (request.continuation_key is not None or request.thread_id is not None):
+            raise ValueError('plain goal sessions always start a fresh native thread')
+        if (request.interactive or goal_session) and request.extra_directories:
+            raise ValueError('app-server agent sessions do not yet support extra directories')
         delegation = request.delegation
         if (type(delegation.max_concurrent) is not int or delegation.max_concurrent < 1
                 or type(delegation.max_depth) is not int or delegation.max_depth < 1
@@ -229,6 +219,8 @@ class CodexAdapter:
         setting('model_reasoning_effort', request.effort)
         setting('history.persistence', 'none')
         setting('features.memories', False)
+        if goal_session:
+            setting('features.goals', True)
         setting('features.multi_agent', delegation.enabled)
         setting('features.multi_agent_v2', False)
         setting('agents.enabled', delegation.enabled)
@@ -252,7 +244,7 @@ class CodexAdapter:
             if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', name):
                 raise ValueError('invalid agent shell environment name')
             setting(f'shell_environment_policy.set.{name}', value)
-        if request.interactive:
+        if request.interactive or goal_session:
             setting('approval_policy', 'never')
             setting('sandbox_mode', sandbox)
             argv = [executable, 'app-server', '--listen', 'stdio://', *config]
@@ -260,7 +252,7 @@ class CodexAdapter:
             argv = [executable, '--ask-for-approval', 'never', 'exec',
                     '--sandbox', sandbox, '--model', request.model, *config,
                     '--json', '--color', 'never', '--cd', str(request.root)]
-            if request.run is not None:
+            if request.run is not None and request.schema is not None:
                 argv += ['--output-schema', str(request.schema),
                          '--output-last-message', str(request.run / 'agent-result.json')]
             for directory in request.extra_directories:
@@ -269,9 +261,11 @@ class CodexAdapter:
         child_environment = dict(environment)
         for name in ('CODEX_THREAD_ID', 'CODEX_PARENT_THREAD_ID', 'CODEX_SESSION_ID'):
             child_environment.pop(name, None)
+        protocol = (CodexGoalProtocol(request) if goal_session else
+                    CodexProtocol(request) if request.interactive else None)
         return PreparedSession(self, request, tuple(argv), child_environment, request.root,
-                               protocol=CodexProtocol(request) if request.interactive else None,
-                               presentation=None if request.interactive else CodexBatchPresentation())
+                               protocol=protocol,
+                               presentation=None if protocol is not None else CodexBatchPresentation())
 
 
 def batch_failure(error, *, terminal):
@@ -349,17 +343,75 @@ class CodexBatchPresentation:
             yield SessionEvent('diagnostic', {'value': packet})
 
 
-class CodexProtocol:
-    """App-server wire state for one coordinator, beneath shared input gates."""
+class CodexWire:
+    """App-server framing and presentation shared by independent lifecycles."""
 
     def __init__(self, request):
         self.request = request
         self.thread = self.turn = None
-        self.completed = False
         self.pending = b''
         self.requests = {}
         self.counter = 0
         self.outgoing = bytearray()
+
+    def encode(self, packet):
+        self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
+
+    def rpc(self, method, params):
+        self.counter += 1
+        self.requests[self.counter] = (method, params)
+        self.encode({'id': self.counter, 'method': method, 'params': params})
+
+    def feed(self, data):
+        lines = (self.pending + data).split(b'\n')
+        self.pending = lines.pop()
+        for line in lines:
+            yield from self.event(json.loads(line))
+
+    def failure(self, context, error):
+        code = error.get('codexErrorInfo') if isinstance(error, dict) else None
+        detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
+        message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
+        return SessionEvent('failure', {
+            'message': message, 'context': context, 'details': {'codex_error_info': code},
+            'task_error': 'OpenAI stopped this session under its cybersecurity safeguards.'
+                          if code == 'cyberPolicy' else message,
+            'capacity': context == 'turn failed' and code == 'serverOverloaded'})
+
+    def item(self, item, complete):
+        kind = item['type']
+        if kind == 'agentMessage':
+            text = item['text'] if complete else item.get('text', '')
+            yield SessionEvent('text', {'id': item['id'], 'text': text,
+                                       'complete': complete})
+            return
+        if kind == 'commandExecution':
+            item = {'id': item['id'], 'type': 'command_execution', 'command': item['command'],
+                    'aggregated_output': item.get('aggregatedOutput', ''),
+                    'exit_code': item.get('exitCode'), 'status': item.get('status')}
+        elif kind == 'fileChange':
+            changes = [dict(change, kind=change['kind'].get('type', 'update')
+                            if isinstance(change.get('kind'), dict) else change.get('kind', 'update'))
+                       for change in item['changes']]
+            item = dict(item, type='file_change', changes=changes)
+        elif kind in ('mcpToolCall', 'webSearch', 'subAgentActivity'):
+            item = dict(item, type={'mcpToolCall': 'mcp_tool_call', 'webSearch': 'web_search',
+                                   'subAgentActivity': 'sub_agent_activity'}[kind])
+        elif kind in ('reasoning', 'userMessage'):
+            return
+        else:
+            if complete:
+                yield SessionEvent('diagnostic', {'value': item})
+            return
+        yield SessionEvent('item', {'item': item, 'complete': complete})
+
+
+class CodexProtocol(CodexWire):
+    """Structured app-server conversation beneath shared workflow input gates."""
+
+    def __init__(self, request):
+        super().__init__(request)
+        self.completed = False
         self.recovery = None
         self.schema_retried = False
         self.discarded_turns = set()
@@ -377,14 +429,6 @@ class CodexProtocol:
     def turn_requests_pending(self):
         return self.recovery is not None or any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
                    for method, _ in self.requests.values())
-
-    def encode(self, packet):
-        self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
-
-    def rpc(self, method, params):
-        self.counter += 1
-        self.requests[self.counter] = (method, params)
-        self.encode({'id': self.counter, 'method': method, 'params': params})
 
     def start(self):
         self.schema = json.loads(self.request.schema.read_text())
@@ -411,22 +455,6 @@ class CodexProtocol:
             self.recovery['interrupted'] = True
             return
         self.rpc('turn/interrupt', {'threadId': self.thread, 'turnId': self.turn})
-
-    def feed(self, data):
-        lines = (self.pending + data).split(b'\n')
-        self.pending = lines.pop()
-        for line in lines:
-            yield from self.event(json.loads(line))
-
-    def failure(self, context, error):
-        code = error.get('codexErrorInfo') if isinstance(error, dict) else None
-        detail = (error.get('message') or str(error)) if isinstance(error, dict) else str(error)
-        message = f"Codex {context}{f' ({code})' if code else ''}: {detail}"
-        return SessionEvent('failure', {
-            'message': message, 'context': context, 'details': {'codex_error_info': code},
-            'task_error': 'OpenAI stopped this session under its cybersecurity safeguards.'
-                          if code == 'cyberPolicy' else message,
-            'capacity': context == 'turn failed' and code == 'serverOverloaded'})
 
     def recovered_input(self):
         """An interrupt acknowledgment and terminal turn must both drain first."""
@@ -568,36 +596,124 @@ class CodexProtocol:
         elif method in ('error', 'warning'):
             yield SessionEvent('notice', {'text': str(params.get('message', params))})
 
-    def item(self, item, complete):
-        kind = item['type']
-        if kind == 'agentMessage':
-            text = item['text'] if complete else item.get('text', '')
-            yield SessionEvent('text', {'id': item['id'], 'text': text,
-                                       'complete': complete})
-            return
-        if kind == 'commandExecution':
-            item = {'id': item['id'], 'type': 'command_execution', 'command': item['command'],
-                    'aggregated_output': item.get('aggregatedOutput', ''),
-                    'exit_code': item.get('exitCode'), 'status': item.get('status')}
-        elif kind == 'fileChange':
-            changes = [dict(change, kind=change['kind'].get('type', 'update')
-                            if isinstance(change.get('kind'), dict) else change.get('kind', 'update'))
-                       for change in item['changes']]
-            item = dict(item, type='file_change', changes=changes)
-        elif kind in ('mcpToolCall', 'webSearch', 'subAgentActivity'):
-            item = dict(item, type={'mcpToolCall': 'mcp_tool_call', 'webSearch': 'web_search',
-                                   'subAgentActivity': 'sub_agent_activity'}[kind])
-        elif kind in ('reasoning', 'userMessage'):
-            return
-        else:
-            if complete:
-                yield SessionEvent('diagnostic', {'value': item})
-            return
-        yield SessionEvent('item', {'item': item, 'complete': complete})
-
     def finalize_result(self, text):
         try:
             value = json.loads(text)
         except ValueError:
             return None
         return value if isinstance(value, dict) else None
+
+
+class CodexGoalProtocol(CodexWire):
+    """One fresh assignment; Codex alone schedules automatic goal continuation.
+
+    Unlike exec (which unsubscribes after its initial turn), this connection
+    remains attached while the native goal is active. A final message or a
+    completed turn is not session completion. No output schema, resume, steering
+    or launcher-generated follow-up turns participate in this protocol.
+    """
+
+    def __init__(self, request):
+        super().__init__(request)
+        self.started = self.completed = self.done = False
+        self.status = 1
+        self.goal = None
+
+    def start(self):
+        self.rpc('initialize', {'clientInfo': {'name': 'onpc_launcher',
+                 'title': 'Task launcher', 'version': '1.0'},
+                 'capabilities': {'experimentalApi': True}})
+
+    def start_turn(self, text):
+        if self.started:
+            raise ValueError('plain goal session already received its assignment')
+        self.started = True
+        self.rpc('turn/start', {'threadId': self.thread,
+                 'input': [{'type': 'text', 'text': text}],
+                 'model': self.request.model, 'effort': self.request.effort})
+
+    def poll(self):
+        pass
+
+    def settle(self):
+        if not self.done and self.completed and self.turn is None and not self.requests:
+            # Native continuation owns active goals. An ordinary session end
+            # supplies no test verdict; the runner's results decide what remains.
+            self.done = self.goal is None or self.goal.get('status') != 'active'
+            if self.done:
+                self.status = 0
+
+    def event(self, packet):
+        if 'method' not in packet:
+            method, _ = self.requests.pop(packet['id'])
+            if 'error' in packet:
+                self.done = True
+                self.status = 1
+                yield self.failure(method, packet['error'])
+                return
+            result = packet['result']
+            if method == 'initialize':
+                self.encode({'method': 'initialized', 'params': {}})
+                self.rpc('thread/start', {'model': self.request.model,
+                    'cwd': str(self.request.root), 'approvalPolicy': 'never',
+                    'developerInstructions': session_instructions(self.request),
+                    'sandbox': 'read-only' if self.request.permissions == 'read_only' else 'workspace-write',
+                    'ephemeral': False})
+            elif method == 'thread/start':
+                self.thread = result['thread']['id']
+                yield SessionEvent('ready', {'thread_id': self.thread})
+            elif method == 'turn/start':
+                if not self.completed:
+                    self.turn = result['turn']['id']
+            elif method == 'thread/goal/get':
+                self.goal = result['goal']
+                self.settle()
+            return
+        method, params = packet['method'], packet.get('params', {})
+        if 'id' in packet:
+            self.encode({'id': packet['id'], 'error': {'code': -32601,
+                         'message': 'Client operation unavailable; report a workflow blocker.'}})
+            return
+        if params.get('threadId') not in (None, self.thread):
+            return
+        if method == 'turn/started':
+            self.turn = params['turn']['id']
+            self.completed = False
+        elif method == 'thread/goal/updated':
+            self.goal = params['goal']
+            self.settle()
+        elif method == 'thread/goal/cleared':
+            self.goal = None
+            self.settle()
+        elif method == 'item/agentMessage/delta':
+            if params.get('turnId') == self.turn:
+                yield SessionEvent('text_delta', {'id': params['itemId'], 'text': params['delta']})
+        elif method in ('item/started', 'item/completed'):
+            yield from self.item(params['item'], method == 'item/completed')
+        elif method == 'item/commandExecution/outputDelta':
+            if params.get('turnId') == self.turn:
+                yield SessionEvent('command_output', {'id': params['itemId'], 'text': params['delta']})
+        elif method == 'thread/tokenUsage/updated':
+            usage = params.get('tokenUsage', {}).get('last') or {}
+            yield SessionEvent('usage', {'usage': {'input_tokens': usage.get('inputTokens'),
+                'cached_input_tokens': usage.get('cachedInputTokens'),
+                'output_tokens': usage.get('outputTokens'),
+                'reasoning_output_tokens': usage.get('reasoningOutputTokens')}})
+        elif method == 'turn/completed':
+            turn = params['turn']
+            self.turn = None
+            self.completed = True
+            if turn['status'] in ('failed', 'interrupted'):
+                self.done = True
+                if turn['status'] == 'failed':
+                    self.status = 1
+                    yield self.failure('turn failed', turn.get('error'))
+                else:
+                    self.status = 130
+            else:
+                # Read after the terminal notification, including when a goal
+                # update was omitted; never infer completion from prose.
+                self.rpc('thread/goal/get', {'threadId': self.thread})
+            yield SessionEvent('turn_completed', {'interrupted': turn['status'] == 'interrupted'})
+        elif method in ('error', 'warning'):
+            yield SessionEvent('notice', {'text': str(params.get('message', params))})

@@ -39,9 +39,8 @@ class _PushAdvanced(Exception):
 def _synchronization_command(root, run, git):
     """Use the owning public invocation for shared repair attempts too."""
     try:
-        source = launcher.propagation_source_run(root, run)
-        record = json.loads((source.parent / 'current.json').read_text())
-        if (record.get('run') != source.name or not isinstance(record.get('launcher'), str)
+        record = json.loads((run.parent / 'current.json').read_text())
+        if (record.get('run') != run.name or not isinstance(record.get('launcher'), str)
                 or not isinstance(record.get('argv'), list)
                 or not all(isinstance(arg, str) for arg in record['argv'])):
             return ''
@@ -212,7 +211,7 @@ def _sync_current(root, run, state, *, git, checkpoint='checkpoint.json', select
         save()
         if _head(git, root) != before:
             from launcher_reload import request
-            request(launcher.propagation_source_run(root, run))
+            request(run)
     print(f'Git: upstream synchronization complete for {root.name}.', flush=True)
 
 
@@ -824,8 +823,7 @@ def _resolve_once(root, run, phase, details, *, selection=None):
         if not retired:
             launcher.finish_nested(Path(recorded['destination']), session)
     source_info = run.stat()
-    workflow = launcher.propagation_source_run(Path(details['source_root']), run)
-    owner_info = (workflow.parent / 'owner').stat()
+    owner_info = (run.parent / 'owner').stat()
     owner_record = dict(root=details['source_root'], run=str(run),
         destination=str(root.resolve()), identity=[source_info.st_dev, source_info.st_ino],
         checkpoint=details.get('checkpoint', 'checkpoint.json'),

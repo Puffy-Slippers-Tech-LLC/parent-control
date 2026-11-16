@@ -38,14 +38,9 @@ class FrozenSources:
     positions or retain the live checkout's source reader.
     """
 
-    def __init__(self, root, *, checkpoint=None, binding=None):
+    def __init__(self, root):
         self.root = Path(root)
-        self.checkpoint = Path(checkpoint) if checkpoint is not None else None
-        if self.checkpoint is not None and not isinstance(binding, dict):
-            raise ValueError('frozen sources: retained capture requires an exact binding')
-        self.binding = json.loads(json.dumps(binding))
         self._temporary = None
-        self._reference = None
 
     @staticmethod
     def _identity(path, *, directory=False, private=True):
@@ -59,131 +54,6 @@ class FrozenSources:
         return identity if directory else [*identity, info.st_nlink, info.st_size,
                                            info.st_mtime_ns, info.st_ctime_ns]
 
-    @classmethod
-    def _bytes(cls, path, *, maximum=None, private=True):
-        before = cls._identity(path, private=private)
-        if maximum is not None and before[5] > maximum:
-            raise ValueError('frozen sources: oversized capture metadata')
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(descriptor, 'rb') as stream:
-            content = stream.read() if maximum is None else stream.read(maximum + 1)
-        if (before != cls._identity(path, private=private)
-                or maximum is not None and len(content) > maximum):
-            raise ValueError('frozen sources: capture changed while reading')
-        return content
-
-    @staticmethod
-    def _write(path, value, *, maximum):
-        payload = json.dumps(value, separators=(',', ':')).encode()
-        if len(payload) > maximum:
-            raise ValueError('frozen sources: oversized capture metadata')
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(descriptor, 'wb') as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-
-    @classmethod
-    def _owned_scratch(cls, storage):
-        """Require the original allocator lease, including after same-run exec."""
-        from test_storage import scratch_descriptors
-        if not storage.name.startswith('vm-frozen-') or storage.parent.name != 'tmp':
-            raise ValueError('frozen sources: capture is outside owned scratch')
-        owner = storage.parent.parent / 'owner'
-        identity = cls._identity(owner)
-        for descriptor in scratch_descriptors():
-            info = os.fstat(descriptor)
-            if (info.st_dev, info.st_ino) == tuple(identity[:2]):
-                return dict(path=str(owner), identity=identity)
-        raise ValueError('frozen sources: original scratch lease was not inherited')
-
-    def _retain(self):
-        identities = {name: self._identity(path, directory=name in ('storage', 'source'))
-                      for name, path in (('storage', self._temporary), ('source', self.directory),
-                                         ('archive', self.archive_path), ('git', self.git_path))}
-        record = dict(version=1, root=str(self.root), binding=self.binding,
-            owner=self._owned_scratch(self._temporary), identities=identities,
-            source=self.source, document=self.document, branch=self.branch, host=self.host.name,
-            bootstrap=self.bootstrap, manifest=self.manifest, git=self.git)
-        metadata = self._temporary / 'capture.json'
-        self._write(metadata, record, maximum=4 * 1024 * 1024)
-        self._identity(self.checkpoint.parent, directory=True)
-        reference = dict(version=1, root=str(self.root), binding=self.binding,
-            path=str(self._temporary), metadata=self._identity(metadata),
-            sha256=hashlib.sha256(self._bytes(metadata, maximum=4 * 1024 * 1024)).hexdigest())
-        self._write(self.checkpoint, reference, maximum=65536)
-        self._reference = self._identity(self.checkpoint)
-
-    def _restore(self):
-        """Reopen accepted bytes before inspecting a retained live repair writer."""
-        from vm_selection import vm_config
-        reference_identity = self._identity(self.checkpoint)
-        reference = json.loads(self._bytes(self.checkpoint, maximum=65536))
-        if (set(reference) != {'version', 'root', 'binding', 'path', 'metadata', 'sha256'}
-                or reference['version'] != 1 or reference['root'] != str(self.root)
-                or reference['binding'] != self.binding):
-            raise ValueError('frozen sources: retained capture binding differs')
-        storage = Path(reference['path'])
-        owner = self._owned_scratch(storage)
-        metadata = storage / 'capture.json'
-        content = self._bytes(metadata, maximum=4 * 1024 * 1024)
-        if (reference['metadata'] != self._identity(metadata)
-                or reference['sha256'] != hashlib.sha256(content).hexdigest()):
-            raise ValueError('frozen sources: retained metadata changed')
-        record = json.loads(content)
-        if (set(record) != {'version', 'root', 'binding', 'owner', 'identities', 'source',
-                           'document', 'branch', 'host', 'bootstrap', 'manifest', 'git'}
-                or record['version'] != 1 or record['root'] != str(self.root)
-                or record['binding'] != self.binding or record['owner'] != owner):
-            raise ValueError('frozen sources: retained capture ownership differs')
-        directory, archive, packed = storage / 'source', storage / 'source.tar.gz', storage / 'source.pack'
-        identities = {name: self._identity(path, directory=name in ('storage', 'source'))
-                      for name, path in (('storage', storage), ('source', directory),
-                                         ('archive', archive), ('git', packed))}
-        if record['identities'] != identities:
-            raise ValueError('frozen sources: retained source files were replaced or changed')
-        source = record['source']
-        if (not isinstance(source, dict) or set(source) != {'digest', 'generation'}
-                or not isinstance(source['digest'], str) or len(source['digest']) != 64
-                or any(char not in '0123456789abcdef' for char in source['digest'])
-                or type(source['generation']) is not int or source['generation'] < 0
-                or not isinstance(record['bootstrap'], str) or not record['bootstrap']
-                or not isinstance(record['manifest'], dict) or not record['manifest']):
-            raise ValueError('frozen sources: invalid retained source metadata')
-        for name, entry in record['manifest'].items():
-            relative = Path(name)
-            if relative.is_absolute() or '..' in relative.parts or relative.as_posix() != name:
-                raise ValueError('frozen sources: invalid retained input path')
-            path = directory / relative
-            data = self._bytes(path, private=False)
-            if (len(data) != entry['size'] or stat.S_IMODE(path.stat().st_mode) != entry['mode']
-                    or hashlib.sha256(data).hexdigest() != entry['sha256']):
-                raise ValueError('frozen sources: retained input bytes changed')
-        for parent, directories, files in os.walk(directory, followlinks=False):
-            relative = Path(parent).relative_to(directory)
-            if relative == Path('.'):
-                directories[:] = [name for name in directories if name not in ('.git', 'output')]
-            for name in (*directories, *files):
-                if (Path(parent) / name).is_symlink():
-                    raise ValueError('frozen sources: linked retained input')
-            if any((relative / name).as_posix() not in record['manifest'] for name in files):
-                raise ValueError('frozen sources: unexpected retained source input')
-        document = json.loads((directory / 'config/environment.json').read_bytes())
-        if document != record['document']:
-            raise ValueError('frozen sources: retained registry changed')
-        host = vm_config.host_registry(document)[record['host']]
-        branch = vm_config.branch_registry(document).get(record['branch'])
-        if branch is None or branch['host'] != host.name or branch['repo_root'] != str(self.root):
-            raise ValueError('frozen sources: retained controller placement differs')
-        self.directory = self.lease_root = directory
-        self.archive_path, self.git_path = archive, packed
-        self.source, self.document, self.branch, self.host = source, document, record['branch'], host
-        self.bootstrap, self.manifest, self.git = record['bootstrap'], record['manifest'], record['git']
-        if reference_identity != self._identity(self.checkpoint):
-            raise ValueError('frozen sources: retained capture reference changed')
-        self._temporary, self._storage_identity = storage, identities['storage']
-        self._reference = reference_identity
-
     def __enter__(self):
         import test_source
         from host_dispatch import tool_host
@@ -194,23 +64,13 @@ class FrozenSources:
 
         if self._temporary is not None:
             raise ValueError('frozen sources: capture is already active')
-        if self.checkpoint is not None and os.path.lexists(self.checkpoint):
-            self._identity(self.checkpoint.parent, directory=True)
-            self._restore()
-            return self
         storage = Path(tempfile.mkdtemp(prefix='vm-frozen-', dir=scratch_directory()))
         self._temporary = storage
         self._storage_identity = self._identity(storage, directory=True)
         try:
             self.directory = self.lease_root = storage / 'source'
             self.archive_path, self.git_path = storage / 'source.tar.gz', storage / 'source.pack'
-            # A resumed queue may retain impact holds without an active writer.
-            # Bootstrap can read behind those holds, but unverified writer bytes
-            # must never become ordinary test inputs.
-            with test_source.startup(self.root, ['--resume'], repair=True):
-                protection = test_source.SourceProtection(test_source.source_directory(self.root))
-                if protection.owner() is not None:
-                    raise test_source.SourceBusy('frozen sources: finish retained repair before capturing ordinary inputs')
+            with test_source.reader(self.root):
                 self.source = source_identity(self.root)
                 self.document = vm_config.read_document(self.root / 'config/environment.json', validate_agent=False)
                 self.branch = vm_config.current_branch()
@@ -223,39 +83,27 @@ class FrozenSources:
                     os.fchmod(packed.fileno(), 0o600)
                     self.manifest = transfer_archive(self.root, archive)
                     self.git = transfer_git(self.root, packed)
-                if self.source != source_identity(self.root) or self.branch != vm_config.current_branch():
-                    raise ValueError('frozen sources: source changed during capture')
             with self.archive_path.open('rb') as archive:
                 receive_transfer(archive, self.directory, self.manifest)
             _restore_git(self.directory, self.git, self.git_path, self.branch)
-            if self.checkpoint is not None:
-                self._retain()
             return self
         except BaseException:
             self.__exit__(None, None, None)
             raise
 
     def __exit__(self, error_type, *_):
-        import launcher_reload
         storage, self._temporary = self._temporary, None
         if storage is None:
             return
-        if (self.checkpoint is not None and error_type is not None
-                and issubclass(error_type, launcher_reload.ReloadRequested)):
-            return
         if self._identity(storage, directory=True) != self._storage_identity:
             raise ValueError('frozen sources: refusing cleanup of replaced capture')
-        if self._reference is not None and self._identity(self.checkpoint) != self._reference:
-            raise ValueError('frozen sources: refusing cleanup of replaced capture reference')
         shutil.rmtree(storage)
-        if self._reference is not None:
-            self.checkpoint.unlink()
 
     @contextmanager
-    def use(self, *, live=False):
+    def use(self):
         if self._temporary is None:
             raise ValueError('frozen sources: capture is closed')
-        token = _sources.set(None if live else self)
+        token = _sources.set(self)
         try:
             yield
         finally:
@@ -540,13 +388,8 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 guest_input.write(block)
                 if guest_input.tell() > 64 * 1024 * 1024:
                     raise ValueError('remote source: guest input exceeds 64 MiB')
-        # Pool capture is control plumbing, not test admission. It must remain
-        # available behind impact holds so shutdown can acquire/release its VM.
-        # Never wait for a source writer here; queue owners can retry without
-        # retaining a VM or an execution slot.
         with (nullcontext() if sources is not None else
-              test_source.startup(root, ['--resume'], repair=True, wait=False)
-              if mode == 'pool' else test_source.reader(root)):
+              test_source.reader(root, wait=False) if mode == 'pool' else test_source.reader(root)):
             if sources is None:
                 manifest = transfer_archive(root, archive)
                 git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
@@ -733,6 +576,9 @@ def run_worker(root, request_file, request, paths):
         if name in request['environment']:
             environment[name] = mapped(request['environment'][name])
             os.environ[name] = environment[name]
+    if 'ONPC_TEST_RESULT_DIRECTORY' in request['environment']:
+        environment['ONPC_TEST_RESULT_DIRECTORY'] = str(request_file.parent / 'runner-results')
+        os.environ['ONPC_TEST_RESULT_DIRECTORY'] = environment['ONPC_TEST_RESULT_DIRECTORY']
     environment['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(root)
     # A guest exec's arguments belong to the guest, including absolute paths.
     # Map only the host command before its explicit argument boundary.
@@ -832,9 +678,7 @@ def run_worker(root, request_file, request, paths):
         from test_checkpoint import Checkpoint
         from test_commands import selections
         work = json.loads(Path(environment['ONPC_TEST_FAMILY_WORK']).read_bytes())
-        saved = Checkpoint(root, selections(root, work['selection']), resume=True,
-                           binding=work['assignment']['vm'])
-        response['evidence'] = saved.state.get('queue_evidence')
+        response['evidence'] = Checkpoint.worker_result(root, work['assignment']['vm'])
     # A private nonce separates host completion from arbitrary guest stdout.
     # NUL framing also preserves binary output and a final unterminated line.
     event('result', value=response)

@@ -53,6 +53,17 @@ Verify that the owning retention session is active before allocating retained
 evidence. `allocate()` without a session can return disposable scratch; calling
 it alone does not establish retention. Qualification helpers reuse an active
 session rather than open a second run.
+
+Ordinary test and repair execution uses `Store.execution_session()`. Its actual
+resource and authorization guards remain mandatory; historical output is not an
+admission prerequisite. Healthy journals retain their normal bounded rotation.
+When historical output cannot be audited, the shared helper preserves its
+journal under exclusive owner/writer locks and a pinned directory identity,
+then creates a fresh journal. It neither adopts nor deletes the unavailable
+allocations. Live owners and unsafe journal-directory or lock identities still
+refuse. Current input capabilities, VM bookings, disk admission and resource
+recovery remain independent checks. No historical report, migration or repair
+transaction is required to start fresh execution.
 Keep the recorded allocation root private and stable through cleanup; use child
 directories for fixtures that intentionally change permissions or replace paths.
 New process scratch receipts also pin the filesystem ID so device renumbering
@@ -91,11 +102,13 @@ recovery derives both journals and the input, holds checkout/host activity and
 both completed owners, verifies the published bundle and audits unrelated
 allocations and projected budgets. It preserves original records and reports,
 appends the live identity to the VM owner and retires the batch's cleanup claim.
-Durable intents block ordinary retention mutations until both commits complete;
+Durable intents guard the explicit transfer's owners until both commits complete;
 an interrupted transfer must resume with the same VM and selector. It refuses
 changed owners, roots or competing intents. It opens no session, rotates no
-evidence and supplies no acceptance. Do not use a transfer to adopt an
-unregistered or invalid input or to bypass a refusal.
+evidence and supplies no acceptance. Fresh execution does not resume these
+transfers: unavailable old output ownership is preserved separately, and its
+allocations remain unused. Do not use a transfer to adopt an unregistered or
+invalid input or to bypass a refusal.
 
 For a standalone app-snapshot package bundle wrongly registered to the batch,
 use `tools/cleanup-e2e --vm NAME --transfer-batch-appsnapshot ALLOCATION`.
@@ -241,10 +254,11 @@ source evidence, VM capture directories or unrelated temporary files.
 
 Retained evidence belongs to a bounded journal. Follow
 [aggregate output retention](../../tests/README.md#aggregate-output-retention)
-for budgets, automatic retirement of completed execution evidence and explicit
-discard authorization. Preserve current-run evidence at a budget failure;
-failed or interrupted recovery retains diagnostics without clearing or rotating
-the unfinished VM journal.
+for budgets, safe retirement or preservation of historical output, and explicit
+discard authorization. Preserve current-run evidence at a budget failure.
+Failed or interrupted VM resource recovery retains its diagnostics and actual
+VM journals; it still prevents new VM execution. Historical output journals are
+handled independently through `Store.execution_session()`.
 
 Task completion follows the shared
 [completion policy](../Execution-Plans.md#accepted-evidence-lifetime-and-historical-recovery).

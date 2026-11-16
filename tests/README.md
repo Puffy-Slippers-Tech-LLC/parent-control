@@ -344,12 +344,11 @@ Within each group the ordinary `execute_pass` coordinator owns one FIFO per
 family. Ready VMs pull one item at a time; there are no advance shards.
 Repeated selectors for the same category/subcategory share that group's queue
 and accepted case credit.
-The group joins execution, repairs and cleanup before releasing its reservation;
+The group joins execution and cleanup before releasing its reservation;
 the next group selects afresh from the original allowed pool. Every included family keeps its complete selection,
 including while its VMs are occupied. Admission fills one available worker per
 family before a second, rotates equal-compute priority on refill, and uses spare
-capacity when a family is busy or drained. Required-VM recovery stays with its
-original worker. Host work runs once per pass through the existing host scheduler
+capacity when a family is busy or drained. Repair starts after the executor releases all ordinary bookings. Host work runs once per pass through the existing host scheduler
 and shared source admission before VM groups, without consuming VM slots.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
 with `tools/prepare-vm` defaulting to `all` online VMs in both
@@ -365,16 +364,17 @@ Host work runs once; VM workers keep individual reports and journals, with a
 retained queue summary linking their logs and failure handoffs. Required package
 inputs are prepared through the maintained builders. Repair agents remain serial
 within each host or VM workflow; implementation agents remain serial.
-`fix-tests` uses that pass coordinator through `run-tests` and supplies impact triage, repair actions and run-wide rounds under the
+`fix-tests` uses that pass coordinator through `run-tests`, starting one repair
+session after failed execution has joined, under the
 [repair loop](#scripted-repair-loop).
 
 | Module | Scheduling responsibility |
 | --- | --- |
 | `tests/integration/vm_config.py` | Validate VM registry and resolve inherited VM tags. |
 | `tools/test_commands.py` and the category inventory | Declare categories, subcategories, test tags and case membership. |
-| `tools/vm_test_queue.py` (`run-tests` engine) | Select each group's eligible pool, run groups sequentially and own case/repair progress. |
+| `tools/vm_test_queue.py` (`run-tests` engine) | Select each group's eligible pool, run groups sequentially and record ordinary case results. |
 | `tools/host_compute.py` and `tools/vm_queue.py` | Admit supplied candidates under capacity policy, dispatch workers and join owned cleanup; no test-tag rules. |
-| `tools/fix_tests.py` | Pass the requested pool and selections through, supply repair callbacks and own run-wide rounds. |
+| `tools/fix_tests.py` | Pass the requested selection through, run one goal session per failure and own explicitly requested rounds. |
 
 VM ownership is coordinated by the host-wide
 [VM pool](../docs/Mandates/VM-Mandate.MD#central-vm-checkout), keyed by domain UUID.
@@ -385,25 +385,18 @@ one VM at a time; batches use independent workers. Checkout-local activity and
 retained results do not constitute a VM reservation.
 
 Ordinary test and preparation workers share `tools/vm_queue.py` for reservation,
-source admission, execution capacity and joined cleanup. Busy VM waiters use no
-slot or source reader; source waits use no execution slot. Test workers claim
-only after admission and release spare reservations when capacity fills. Source
-waits release idle reservations before waiting and recheck after checkout. Workers
+execution capacity and joined cleanup. Busy VM waiters use no execution slot.
+Test workers claim only after admission and release spare reservations when capacity fills. Workers
 cancel unused waiters when their family's work drains.
 Failed workers release capacity but retain their reservation until the executor
 closes after the worker join. Preparation uses one finite per-VM operation and
 continues after individual failures. These rules also cover explicit single-VM
 selections and repair attempts through the shared pass coordinator.
-Workers return bounded attempt evidence to the coordinator. Passing credit
-requires matching run, pass, assignment, attempt, VM, original selection and
-source identity, plus teardown and owned cleanup. Missing, diagnostic, stale or
-mismatched evidence cannot complete work. A late report or cleanup failure
-leaves the original claim unfinished.
-VM workers compare the full source identity before execution and retain that
-identity in their result. After the controller captures its inputs, ordinary
-checkout edits do not invalidate completed work. Finalization still rejects a
-changed admitted source generation; staged input integrity, exact assignment,
-case execution and cleanup checks remain required.
+Workers return ordinary terminal case results to their coordinator. A result
+from another execution supplies no credit. Clear completed passes and failures
+are retained; absent or incomplete results mean pending work. There is no source
+fingerprint, historical receipt or cleanup-journal qualification of a result.
+Input changes are picked up at dispatch boundaries without revoking passes.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
@@ -444,12 +437,12 @@ preparation dependencies remain unchanged. `tools/fix-tests --reverse` forwards
 the option to every test invocation. Bare `--resume` on either launcher restores
 the saved selection and options, including `--reverse`.
 
-`tools/run-tests --reset` and `tools/fix-tests --reset` explicitly abandon saved
-execution progress and start over. Reset is checkout-wide: it requests cancellation
+`tools/fix-tests --reset` starts an idle repair launcher without remembered results.
+It does not recover historical transactions. `tools/run-tests --reset` explicitly
+abandons saved execution progress and starts over. Its reset is checkout-wide: it requests cancellation
 of both launchers' host and VM owners, waits for their owned cleanup, runs the
 maintained recovery path for the requested and recorded VM selections, and clears
-test checkpoints, remembered requests, current-run pointers and the retained repair
-source fence. Source edits become existing checkout work; historical logs and
+test checkpoints, remembered requests and current-run pointers. Source edits become existing checkout work; historical logs and
 reports retain their normal lifetime. No previous repair or Git close-out is
 resumed. Kernel lock files remain in place.
 An idle successful run needs no further VM cleanup; its historical VM selection
@@ -472,36 +465,15 @@ unit 'tests/unit/test_core.py' -q`. A new execution without `--resume` resets th
 checkpoint for the selected categories and starts that selection from the beginning;
 other categories in the same scope retain their progress. Attachment to a live
 owner keeps that owner's options; inspection never changes checkpoints.
-Before a fresh VM queue resets progress, it checks for retained claims owned by
-the selected VMs and runs maintained VM-only cleanup for those owners
-(`tools/cleanup-e2e --vm NAME --vm-only`). Recovery takes
-the VM reservation and excludes competing queue writers before returning claims
-to pending; a failed recovery preserves the claims and stops the launch.
-Resumed queues retain their ownership and recover through their original workers.
-Each group's ordinary pass state has one exclusive coordinator gate. Its family partitions,
-accepted attempt receipts and uncertain claims share the same record. Resume
-cleans uncertain claims through their original VM before requeueing them;
-standalone cleanup and reset use that same recovery transition under ownership.
-They cannot rewrite a live coordinator's claims. A crash may repeat work, but
-worker checkpoints alone never become family completion authority.
-A shared group checkpoint retains the ordered selection, original allowed pool,
-each group's admitted workers and settled group outcomes. It owns no case credit.
-Resume skips settled groups and reacquires the current group's exact admitted
-subset; groups not yet entered receive fresh admission. Scoped retries retain
-the original group and VM, and cannot settle later cases or groups. Reset and
-owned claim recovery include every retained group checkpoint.
-An explicit repair resume can reconnect a pre-group ordinary-pass checkpoint
-when its entire original selection is one current group with the same run/pass
-identity and eligible VM pool. The group cursor retains that checkpoint's scope,
-identity and admitted workers; case credit, claims and repair transactions remain
-in place. Changed selections, split groups and incompatible VM pools still refuse.
-An unused candidate becoming unavailable does not invalidate admitted workers or
-completed groups. Future groups refresh candidates inside the original allowed
-pool; an unavailable or no-longer-matching admitted worker still refuses resume.
-Explicit resume parameters must match the saved request; omitted options are
-inherited. VM names and IDs are compatible when they resolve to the same VM set.
-Incompatible parameters fail before attachment or execution and report the previous
-parameters. This compatibility check also applies to `fix-tests --resume`.
+A new or resumed VM queue builds its current inventory and remembers clear case
+results. It does not restore old worker claims or group transactions. Resource
+booking selects from the current allowed pool, and each invocation owns only
+its current assignments. Unknown or incomplete old state is pending. Exact-case
+repair validation uses invocation-local state and cannot replace aggregate progress.
+
+Explicit resume parameters select the current work. A bare resume may reuse the
+saved request. Retained case results apply only to the current inventory;
+old selection metadata does not impose a compatibility gate.
 An idle successful owner starts a fresh execution even if its result was not
 previously viewed. With no arguments, an unread failed result remains available
 for reconnection; an explicit selection starts fresh subject to normal recovery
@@ -516,23 +488,11 @@ test runs and repair retries. A fresh verification pass starts its counts over.
 Only completed cases without a reported failure are retained as passes. Failed
 cases, interrupted cases and queued work run again; parallel workers retain
 their independent completions. Pytest passes commit after teardown. An abrupt
-owner/machine failure can lose the last one-second checkpoint interval, causing
-those cases to run again. A failed final controller/cleanup audit repeats a case
-so an empty selection cannot certify recovery. Changed selectors refuse resume;
-start without the option to reset. Host and individual VM checkpoints remain
-separate. Internal repair retries can narrow an aggregate to an original category.
-Whole-system selections accept additive standalone check inventory growth on resume:
-existing passes remain saved and added checks run as pending work. Removed checks
-and changed explicit selectors still refuse resume. New checkpoints record whether
-the original request selected the whole inventory; checkpoints without that
-provenance refuse changed selections.
-Saved results for system cases explicitly marked retired in the persistent case
-registry are removed on resume, and category completion is cleared. Valid passes
-remain saved; replacement cases receive no passing credit from retired results.
-Unknown case names and incompatible active cases still reach the inventory guard.
-Case IDs above the snapshot length limit are replayed rather than retained as
-passes. Resume repairs older checkpoints containing such IDs while keeping all
-other valid passes; malformed state and unsafe files still refuse execution.
+owner/machine failure can lose unflushed progress, leaving those cases pending.
+Clear terminal case results survive independent cleanup failures. Invocation-local repair validation
+uses the current selectors. Newly discovered cases are pending; removed cases
+receive no completion credit. Malformed optional progress is ignored rather than
+becoming a repair or startup refusal.
 
 Preparation, ownership recovery and validated package inputs still run. System
 upgrade and removal/repair lifecycle cases replay their state-changing predecessors when
@@ -543,759 +503,111 @@ use the shared storage/state route; retained reports keep their normal lifetime.
 
 ### Scheduling state compatibility
 
-The shared pass record uses scheduling version `1`, implementation
-`ordinary-pass-v1`, separately from bounded worker checkpoints. It never
-relabels retained pipeline family progress: resume
-refuses that progress until it finishes through its original supported
-implementation, or the existing explicitly authorized reset recovers it. Fresh
-passes preserve settled legacy history and refuse uncertain claims.
-
-Repair allocations and journals use scheduling version `2`, implementation
-`repair-shared-v1`. The cutover deliberately changes admission, run-wide rounds
-and VM-independent task charges. Old per-VM repair records, including markerless
-or `pipeline-v1` rounds and budgets, refuse before copying or execution; they
-cannot be adopted by renaming their format. Bounded ordinary worker checkpoints
-retain their existing version `1` admission format. Native checkpoint and
-ownership validation still applies. Missing or stale impact decisions keep
-live-checkout admission on hold; the repair coordinator's captured companion
-inputs may continue while triage is pending under the repair policy below.
-There is no compatibility path that starts a second historical scheduler.
-Finish unfinished repair and Git transactions using their original supported
-implementation before switching. The existing explicit `--reset` contract is
-the alternative only when abandonment is authorized; refusal itself grants no
-reset permission and preserves original records and counters.
+Execution starts from the current selection and readable terminal case results.
+An old process claim, incomplete attempt, partial record or unfamiliar optional
+metadata supplies no result and never blocks a new run. There is no migration
+or compatibility mode for the removed repair-ticket and source-fence formats.
 
 ### Scripted repair loop
 
-When baseline preparation is needed, follow the
-[VM mandate](../docs/Mandates/VM-Mandate.MD#vm-host-setup-and-baseline) for mode
-authorization, selectors and confirmation. Runners never prepare a baseline
-implicitly; guest prerequisites are described in [VM preparation](integration/Environment.md).
+Run [`tools/fix-tests`](../tools/fix-tests) with the same categories and selectors
+as `run-tests`. It uses the ordinary allocation, category ordering, family
+queues, VM booking, host compute and disk concurrency mechanisms.
 
-When corrective verification or diagnostic execution explicitly reports
-`baseline:preparation-outdated`, `fix-tests` performs the preapproved auto-mode
-refresh on that failed VM through its original reserved worker, after admitted
-work and cleanup have drained. The
-refusal can appear in the attempt's retained failure record even when the
-dashboard's terminal output omits it; recovery reads both sources. The
-worker retains the actual source writer lease; native agent command processes
-cannot inherit that descriptor. Recovery is limited to one refresh per source
-identity in the retained repair, followed by the same exact case and prerequisites,
-preserving its verification or diagnostic purpose. Preparation grants no passing
-credit. Failed preparation retains its output for the next repair session;
-diagnostic execution still runs only once per diagnostic outcome.
+On the first failure, stop dispatch and cancel and join running executions.
+Release their normal bookings before starting repair. Keep every clear terminal
+pass or failure. Interrupted or incomplete executions return to pending without
+repair tickets, triage, cleanup-evidence qualification or a pre-repair recheck.
 
-Run [`tools/fix-tests`](../tools/fix-tests) for the configured enabled VM queue,
-or with `--vm NAME` for one registered VM, to start or attach to the scripted
-repair loop. Round 1 runs every entry in `run-tests --list`, using its explicit
-arguments, until its selected work settles. After bounded impact triage, a repair conversation receives
-that run's generated investigation prompt and returns a diagnostic or corrective change. The
-script uses `run-tests --resume --resume-case=CASE --resume-case-only` to retry that exact case
-under its original selectors and on its failing VM, retaining required lifecycle
-predecessors only. Repair and verification stop at that case; later lifecycle
-phases stay pending. A passing retry leaves the category incomplete. The launcher
-closes out the verified repair before resuming the remaining cases with
-`run-tests --resume`, without repeating completed passes. Failures before a case
-event retain the exact case the launcher was attempting as context, including
-preparation failures; this does not claim that its test body ran or failed.
-For the case-based `system`, `e2e`, `unit`, `component`, `ui` and `fixture-runtime`
-categories, a failure without a reported case ID never triggers a whole-category
-verification. Other leaves retain their command-level verification.
-The repair agent can name one existing, relevant
-`verification_case` within the original category and selectors and explain how
-it exercises the failed operation and correction. Otherwise the launcher chooses
-a recent case, or just the first case in that selection. Missing case identity
-or uncertain relevance must not block selection or widen verification.
-If a retained repair or attempted case is absent from the current inventory under the
-original selectors, discard that stale retry selection and choose an existing
-case by the same rule. The absent case receives neither passing nor failing
-credit; the replacement still needs its own fresh verification.
-This includes collection failures that name a module rather than an individual
-test. Retain the original repair's ownership for close-out; prefer a current test
-in that module for bounded verification.
-The launcher reruns that case
-and its required prerequisites through the case-only runner, for diagnostic
-execution and corrective verification alike. Each newly entered
-category and each fresh verification pass starts without `--resume`.
+One fresh native goal session owns investigation, edits, diagnostics and
+validation of the failed operation. It activates the actual simplicity goal;
+plain prompt text is not goal activation. The session runs the exact case using
+the current selectors and the failing VM when it remains in the allowed pool,
+otherwise another eligible VM of its family, through ordinary booking. The runner
+supplies required lifecycle predecessors and invocation-local execution state.
+The session continues its own work until validation succeeds. The launcher
+does not submit corrective turns, interpret intermediate JSON statuses, escalate
+models, count repair conversations or recover old threads. Native automatic
+goal continuation belongs to the session runtime.
 
-For a configured VM pool, host categories run once per pass. The shared
-coordinator owns one FIFO per family within the current sequential group and records each
-claim before execution. Every family retains its full selection; ready equivalent
-VMs pull work without fixed shards. Failed attempts keep their original VM for
-recovery and exact repair verification. Host work finishes before VM groups without
-consuming VM compute; the host compute cap limits active VM attempts.
-Normal cases execute in
-parallel through fresh runner invocations with the original selectors
-and required lifecycle prerequisites. For a system case spanning several phases,
-normal scheduling targets its last selected unfinished phase. The runner executes
-its predecessors in order in that same attempt, recording each actual pass,
-instead of starting a separate attempt for every prefix of the history. Independent
-checks in each authorization, enforcement or session area share one normal
-invocation, including its VM startup and immutable fixture inputs. The internal
-`--resume-area-only` scope keeps the original selectors and excludes actual saved
-passes; it never grants a pass to an omitted case. Each area still starts from
-its own restored state, and guest pytest stops after the first failure and its
-teardown before controller collection and cleanup. Source admission starts each
-history or area as a unit. Repair or reload can interrupt its guest steps and
-waits for verified owned cleanup before changing source or replacing the controller.
-Repair verification still stops at
-the exact failed case/phase.
-Package preparation reuses content-qualified inputs. Ordinary VM work in a
-repair group uses one complete captured source closure, including package inputs,
-so companions never load edits from an active repair. Bounded repair attempts use
-the writer's current inputs. Fresh groups capture current accepted inputs;
-controller reload reopens the same pinned capture and ordinary inventory under
-its inherited scratch lease. Saved case passes remain complete. A cold resume
-without that lease finishes any retained writer before admitting live inputs.
-Changed case membership invalidates captured isolation and uses the native
-drained inventory reconciliation before qualifying a current replacement case.
+The default repair profile is GPT-6.1 Sol High at Standard speed. `--model` and
+`--effort` select the session profile. Existing authentication, sandbox and command
+authorization remain in effect. Core product backend edits retain the
+[independent review requirement](../AGENTS.md#product-boundaries).
 
-The dashboard shows logical case progress by family and category in the current
-pass, one run-wide round/pass, and VM assignments, attempts and resource waits.
-The active group is identified separately. `Overall` shows completed selected
-cases over the current group's selected total for that family; entering another
-group starts its own counts. Settled earlier groups remain in the group checkpoint.
-The installed-system/E2E row shows completed cases over that group's selected
-inventory. Discovery, prerequisite replays and package preparation still run but
-add nothing to these totals. Successful preparation rows disappear from the shared
-dashboard; unfinished preparation and failures remain visible.
-The round's category counter shows completed categories
-over selected categories; `System Cases: (x/y)` and `E2E Cases: (x/y)` show completed
-cases over the named category's selected total. These counters and `Overall` use
-the shared progress renderer: only the completed numerator in `(x/y)` is green;
-labels, percentages, totals and durations retain their default color.
-Integration checks share one compact progress row per VM, counting completed
-checks over the selected inventory. Only active checks, admission waits and
-failures expand beneath it; pending and successful checks remain available in
-the detailed report and progress inventory. Expanded rows show the named check's
-status and elapsed time without a separate single-check percentage or counter.
-The VM tile uses the category's completed/total count, the active
-selected case's persistent ID/title and case/category clocks,
-including while its prerequisites run. These display counts never grant a pass;
-the runner's teardown-complete checkpoint remains authoritative.
+Only ordinary terminal runner results establish case completion. Agent prose,
+a successful process with no case result, source fingerprints, report archives
+and Git journals are not substitute proof. Invocation-local validation records
+its results in the current round's result store; it does not replace the outer
+scheduler's aggregate checkpoint. After the session ends, ordinary discovery
+selects a remaining clear failure without rerunning it, or runs pending work.
+Removed and unselected cases cannot send the launcher into an old repair.
+A missing or inactive goal is not a launcher failure and supplies no test pass.
+A clear validated pass stands without
+further source comparison, completion audits or acceptance transactions.
+Whole-selection completion applies only to its actual selectors; a smaller
+diagnostic run cannot complete broader work. Successful execution of a selection
+supersedes its earlier failure before case discovery.
+An enclosing operation failure is separate from a passed case. Validation
+executes that operation through its ordinary selection; it cannot succeed just
+by skipping all its previously passed cases. Such validation leaves those
+durable case results intact until actual new results replace them.
 
-Every failed attempt joins the coordinator's observed FIFO before releasing
-source protection. A fresh read-only impact session receives bounded failure
-context and answers whether another case may be affected: `yes`, `no` or `unsure`,
-with a reason and affected scope. It considers other families, host work, shared
-source, fixtures and prerequisites; `no` requires positive scoped evidence.
-Pending, missing, malformed, stale, interrupted or unavailable triage remains
-`unsure`. Decisions bind to the ticket, failed attempt, source generation and
-relevant inputs; changed evidence invalidates `no` until retriage or an accepted
-recheck. Triage grants no passing credit.
+The input detector acts at subsequent dispatch boundaries. It does not interrupt
+a case or repair, reject concurrent edits or invalidate completed results.
+Explicit validation uses the repair's current edits. Ordinary input capture
+remains with the common runner; there is no repair-group frozen inventory.
+There are no automatic extra verification passes. `--rounds X` requests exactly
+X rounds, defaulting to one. `--tasks N` limits completed category scopes for the
+invocation, across their selected families; zero or a negative value means all.
+Reload keeps that invocation's completed-task count. There is no separate
+progress or admission journal to reconstruct.
 
-Interrupted attempts without a reported failure return to normal scheduling,
-not the repair FIFO. Retain their original VM claims until owned cleanup joins;
-then available VMs pull their unfinished work from the ordinary family queues
-in parallel, under the existing capacity and lifecycle rules. Completed case
-passes remain complete. Cancellation grants no pass and starts no impact triage,
-repair conversation or serial pre-repair recheck. Resume also returns older
-cancellation-only tickets to this route, preserving any retained repair edits,
-Git close-out, actual failures and completed repairs.
+After validation the same session performs required commit, push and configured
+branch propagation using ordinary Git operations. It preserves unrelated work
+and histories, without the former repair ownership/fingerprint/journal protocol.
+A Git failure never revokes a test pass. Startup and resume do not reconstruct
+interrupted Git close-out or pull over the current checkout before execution.
 
-Pending triage holds live-checkout admission across participating workflows.
-Within the failing coordinator, companion VMs continue executing and admitting
-work from the group's captured inputs while read-only triage runs asynchronously.
-An evidenced `no` preserves that flow during repair and exact-case verification;
-only the failed VM stays reserved. `yes` or `unsure` pauses new admission and
-interrupts admitted guest steps, including cases inside an area or lifecycle
-history, then joins verified cleanup before repair. A `no` also clears its shared
-hold so eligible other coordinators may continue. Each hold and normal admission
-change atomically through the shared source guard.
+`--resume` starts fresh execution using remembered results:
 
-Repairs remain serial in observed FIFO order and require the exclusive source
-lease. An isolated repair runs alongside detached companion attempts, with an
-execution slot retained for its verification. Incoming case receipts and repair
-settlement share the coordinator lock and union unique passing case identities;
-settlement never replaces progress with a pre-repair snapshot. Thus ten companion
-passes plus one verified repair add eleven to the preceding completed count.
-Writer acquisition follows the failed VM's joined owned cleanup; shared/uncertain
-repairs additionally join interrupted companions. A complete retained failure starts repair
-directly when its recorded source/input identity is unchanged. Live VM failures
-retain their original worker reservation, preserving baseline continuity.
-Recheck the FIFO head through the same coordinator and original VM before an
-agent turn only when inputs changed or the failure result is incomplete
-(including interruption, unfinished cleanup or unknown baseline continuity
-after coordinator restart).
-At a drained boundary, stale impact from before a source change keeps admission
-on hold while that recheck runs; it does not start another impact-triage session
-ahead of the recheck. An accepted recheck settles the ticket without an agent.
-If the recheck fails, reassess its impact before another repair session, borrowing
-the FIFO head's exclusive source lease. This read-only reassessment preserves
-fresh isolation decisions needed to leave a case failed and continue.
-Recheck, diagnostic and exact-case verification borrow the active ticket's source
-lease; nested attempts never start another family scheduler. No other worker
-may load unverified repair edits. Owned cleanup and authorized recovery are
-allowed while impact holds normal admission.
+| Readable terminal result | Action |
+| --- | --- |
+| Pass | Keep it complete. |
+| Failure | Start repair directly, without reproduction first. |
+| Missing, partial, interrupted or unreadable | Schedule as pending. |
 
-Repair results are exactly `resolved`, `leave_failed` or `suspended`, separate
-from impact. Resolution needs an accepted no-edit recheck or fresh verification
-and completed Git close-out. `leave_failed` grants no pass and settles only when
-no repair-owned edits or unfinished writer remain; unresolved `yes`/`unsure`
-impact stops or suspends the run. Suspension, exceptions, lost results and
-mismatched references retain the ticket, continuation and fences. Resume restores
-original ownership and finishes accepted Git work first, then restores impact
-decisions conservatively. Cancellation waits for all owned cleanup.
-Coordinator and worker exceptions retain their type, bounded traceback and
-available ticket/VM/case or task identity. Shared launcher runs keep the latest
-16 exceptions in private `controller-errors.json`, independently of transcript
-compaction; cleanup errors append rather than replace the original failure.
-Normal cancellation and reload are not exception records. The VM queue's retained
-allocation also saves `outcome.json`, including coordinator suspension, pending
-repairs, unfinished work and worker diagnostics alongside `results.json`.
-`fix-tests` saves the latest returned pass as `pass-outcome.json` in its own run.
-These files explain the verdict; checkpoints remain the resume authority.
-Git close-out retains its accepted coordinator attempt until settlement can
-recover it after interruption. Older runs can recover a completed close-out
-only when its commit journal explicitly links the accepted attempt and source
-digest to the controller's recorded completion commit. Resume settles that
-ticket without repeating its accepted verification.
-If diagnostic storage fails, the traceback and storage failure remain in the
-launcher output, and the original execution verdict is preserved.
-Suspended repair settlement records its unfinished ticket without requesting a
-source reader or releasing its writer fence and impact hold. Finished settlement
-still requires reader admission and final qualification checks.
-[`test_source.py`](../tools/test_source.py) owns checkout admission holds,
-reader/writer leases, durable fences and source generation; it owns no case FIFO
-or completion ledger. Workers and propagation resolvers retain source descriptors
-through cleanup and reload.
-Lifecycle prerequisite rows are replayed by their dependent case's runner rather
-than dispatched again as separate normal cases.
+The latest clear result within a requested round wins; an incomplete later
+attempt cannot overwrite it. Current inventory and explicit options are
+authoritative. Omitted options may reuse the previous request. Old repairs,
+conversations, source epochs, ownership claims and transactions are discarded,
+not reconstructed. Existing source edits remain the working checkout.
+No historical log or diagnostic file must be readable to resume.
 
-After confirming that the specific repaired case passed, the launcher stages
-the repair's explicit owned files, commits them as `TA: Fixed CATEGORY CASE`
-(with the VM name when applicable), and runs `git push` before any remaining
-case, another repair session or category. It also completes
-[shared worktree propagation](../docs/Execution-Plans.md#shared-worktree-propagation)
-before advancing. This uses the current branch's configured upstream.
-This per-case close-out applies to every category, whether host or VM.
-Case verification requires the runner's teardown-complete pass for that exact
-case and VM under the original selectors; a different failure alone does not
-prove a pass. Non-case repairs in case-based suites require a fresh, teardown-complete pass of their
-explicit bounded verification case. A saved pass from before the repair cannot
-qualify it. The bounded pass closes only the repair; remaining category cases
-stay pending and resume under normal parallel scheduling after close-out.
-Diagnostic execution alone never triggers a commit. Agents report `stage_paths`
-and leave staging, commits and pushes to the launcher. If that list omits captured
-changes, the launcher falls back to including all current checkout changes,
-including pre-existing dirty or staged work, after the repaired case passes.
-It reports that fallback and retains it across restart. At close-out it refreshes
-the list; if no changes remain because another owner already committed them,
-it completes successfully without a new commit or push. Outside this fallback,
-unrelated unstaged work remains protected. The commit skill preserves unrelated
-staged work under the [shared Git policy](../docs/Execution-Plans.md#git-close-out-and-recovery).
-Edits left by another repair or diagnostic in the retained launcher run recover
-automatically when recorded session changes and exact fingerprints trace the
-overlapping baseline back to a clean start. The original ownership checkpoints
-remain intact; unrelated unstaged edits and mismatched fingerprints still refuse.
-Recovery grants no verification credit to the earlier case.
-Staging, commit or push failures stop advancement and retain the accepted repair.
-The next invocation with `--resume` retries that close-out before tests or agents, preserving
-branch/upstream identity and recognizing an already-created completion commit.
-Later file changes do not invalidate a recorded case pass or block its Git
-close-out; the existing explicit-path and ownership checks still apply.
-No force-push, automatic pull or Git configuration change is performed.
-With `--resume`, unverified repair scopes survive restart separately from the fresh agent-session budgets.
-If another invocation replaces a host category's runner checkpoint between
-attempts, the repair launcher replays the same category and original selectors
-once without saved passes. Only a validated checkpoint selection mismatch
-permits this replay; invalid or unsafe state still stops with the runner's error.
-VM and mixed requests retain the mismatch refusal because they can span
-additional checkpoint stores that have not yet been validated.
-For an explicit repair resume on one bound VM category, a fully validated runner
-checkpoint missing that category can recreate it with the original selectors and
-zero saved passes, preserving all other categories and pending repairs. Existing
-category selectors must still match. This recovers older checkpoints replaced by
-another suite; it cannot recover passes no longer present in saved state. Normal
-execution then replays only work without retained completion credit.
-`--rounds X` defaults to 1, running only round 1.
-With X >= 2, rounds 2 through X each require a full clean pass of the original
-selection, spanning every selected family and host work. Explicit selectors never
-widen to `all`; unfiltered runs retain full regression scope. A repair or admitted
-source change during verification requests a new complete pass after repairs
-settle, including changes from independent participating runs. Admission and
-finalization compare shared source generation. Exact-case verification never
-finishes a round. Resume retains the current pass and valid partial results;
-a requested new clean pass intentionally repeats its complete selection under
-a fresh identity. A terminal left-failed outcome finishes finitely as failure.
+Fresh runs use fresh execution directories. Obsolete transient state is retired
+through ordinary storage cleanup; if old residue cannot yet be safely removed,
+it stays unused and does not veto startup. Actual live VM/resource occupancy is
+handled by the existing resource scheduler, not by deleting lock files.
+Optional display, usage and diagnostic failures cannot change execution results.
+Durable storage failures and actual unavailable external services remain visible.
+Repair and validation use the ordinary bounded test-session retention. If an
+unrelated test session is active, they wait for it and then start their requested
+execution; they never accept its result as their own. Ordinary test invocations
+do not share the repair result store.
 
-Task limits count logical work independently of VM count. One round-1 category
-or explicitly selected verification category covers all its selected families.
-An unfiltered verification round is one composite task, retained across fresh
-passes until clean completion or terminal failure. Fresh selected verification
-passes charge their categories again. Each admission is recorded once before
-assignment and completed once when its scope settles, including failure without
-pass credit. Family partitions, bounded attempts and resumed close-out cost no
-extra tasks. A limit blocks new admissions while admitted family work, repair
-and close-out finish; resume retains those charges.
-For each round-1 category, the launcher highlights
-`Running category [category] (x/y)` beneath the test dashboard's `Overall` row,
-then retains it after the completed test output with its position in the discovered list.
-The exact argument arrays from that inventory are forwarded to the test runner.
-When both publishing leaves are unfinished, the repair launcher runs them through
-`run-tests publish`, using its resource-aware parallel DEB/RPM schedule. Failures
-retain separate leaf repairs; interrupted companions resume after repair close-out.
-Completed leaves and retained unfinished repairs keep their existing resume scope.
+Host-only and VM-containing selections retain separate detached launcher
+namespaces. Attach with the same scope to observe ongoing output.
+`tools/fix-tests --stop` cancels active scopes; categories or `--vm` narrow the
+selection. Cancellation joins only the processes launched by this run. A killed
+controller's supervisor cancels its child. No previous run's cleanup transaction
+is a condition of starting another repair run.
 
-Optional categories restrict both repair and verification: `tools/fix-tests host`,
-`tools/fix-tests vm`,
-`tools/fix-tests unit ui` and `tools/fix-tests "unit ui"` are supported.
-Category arguments pass through to the runner, for example `tools/fix-tests e2e --id 6`
-or `tools/fix-tests unit 'tests/unit/test_regression.py' -q`. The exact selectors
-are retained for repairs and every verification round. Launcher options such as
-`--vm`, `--model`, `--effort`, `--rounds`, `--tasks` and `--stop` remain launcher-owned,
-are recognized before or after categories, and are removed from the forwarded
-arguments. For example, `tools/fix-tests e2e --id 6 --rounds 3` forwards
-`e2e --id 6` for each of three rounds. Inspection
-flags are not repair selections; use `run-tests` for listing or collection.
-Expansion uses the same `suite_inventory` utility as the `run-tests` host coordinator.
-`host` (also `host-builds`) expands to all implemented host leaves;
-`vm` expands to all implemented VM leaves, and `all` expands to every
-implemented leaf. The repair launcher preserves the runner's category definitions,
-scope metadata and ordering without a separate category registry. Overlapping selections
-are deduplicated in inventory order, and unknown categories or diagnostic helpers
-are rejected. With explicit categories, round 2 repeats only those leaves until
-a complete selected pass needs no repairs; it never invokes the `all` aggregate.
-Without categories verification uses the full regression aggregate.
-Categories, rounds and model options apply to new runs; attaching keeps the active run's options.
-Host-only repair runs keep their own workflow owner and output under
-`output/test-runs/host/fix-tests-host/`; VM-containing runs use the existing
-`output/test-runs/host/fix-tests/`. Separate host and VM test runs may overlap,
-but their repair workers share one checkout source lease. A repair waits for
-active checks and their cleanup; new checks wait while it edits, verifies and
-closes out. A stopped repair keeps unverified edits fenced until its original
-run resumes. Each run retains its own FIFO queue and case budgets.
-Attach with the same scope. Bare `tools/fix-tests --stop` cancels active host
-and VM repair runs in the current checkout, requesting both cancellations before
-waiting for owned cleanup. Categories or `--vm` narrow cancellation, for example
-`tools/fix-tests host --stop` or `tools/fix-tests vm --vm NAME --stop`.
-Without `--stop`, no categories select the VM namespace.
-
-The launcher itself is Python scripting. The following model ladders remain the
-enforced Codex policy, including goal/review requirements. Escalation timing,
-explicit overrides, case budgets and acceptance remain here. New runs validate the selected model
-and effort against the Codex CLI catalog before testing. Impact triage always
-uses the selected adapter's logical high-effort profile, resolved by that adapter:
-Codex **GPT-6.1 Sol High**. The planned Claude Code mapping is **Opus 5.5** with
-equivalent native high effort; current workflow qualification remains required,
-and this mapping neither enables an unqualified adapter nor switches providers.
-Capacity recovery preserves that tier. Triage takes a source reader lease that
-its own admission hold cannot block; an active source writer still fences it.
-Impact triage never consumes the per-case repair session allowance, including
-unit failures. Repair reuses its classification for the same evidence.
-Proven mechanical repairs retain **GPT-6.1 Sol Medium**, or
-**GPT-6.1 Sol Low** for unit failures.
-App issues, uncertainty and unresolved security, concurrency, ownership or
-difficult diagnosis raise the next turn in the same conversation to
-**GPT-6.1 Sol High** to recheck and repair, or **GPT-6.1 Sol Medium**
-for unit failures. This raises reasoning effort
-at the judgment boundary while preserving the investigation. Ordinary delegation stays disabled; the shared mandatory
-[backend review](../docs/Execution-Plans.md#execution-and-delegation) remains
-required only for core backend changes. The impact session supplies classification
-without a duplicate session for the same evidence.
-
-If verification still reports the same case, its next repair escalates from
-**GPT-6.1 Sol Medium** to **GPT-6.1 Sol High**, from High to **GPT-6.1 Sol xHigh**,
-and from xHigh to **GPT-6.1 Sol Max**. A stall uses the same immediate escalation
-ladder. A `stalled`, `app_issue` or `uncertain` response remains tied to the effort
-that produced it. When a stronger turn is already scheduled, that response cannot
-spend another escalation or end the conversation before the stronger turn runs,
-including when replayed after reload. Unit failures use a ladder one tier lower throughout:
-**GPT-6.1 Sol Low → Medium → High → xHigh**, stopping at xHigh.
-The runner-reported failure category selects the ladder, including unit failures
-within mixed selections, expanded aggregates and aggregate verification.
-Diagnostics, interpretation, improved instrumentation and fixes that fail for the
-same reason stay in the same native agent conversation. The supervisor may restart
-its process between test executions; it resumes the recorded thread, including
-across controller reloads. It supplies the latest bounded observation without
-replaying a transcript. Selected tiers survive blocker answers and returns to an
-unresolved issue; neither a blocker nor a diagnostic experiment is a failed repair.
-After two completed, observed experiments assessed as inconclusive, the next turn
-reassesses competing explanations at the next available tier in that conversation.
-Unavailable evidence or access/preparation failures do not consume that diagnostic
-streak; an evidenced useful finding resets it. This assessment grants no pass.
-A newly exposed case receives high-effort impact triage, then the applicable
-repair tier, even in the same category. A stall at the highest executed tier
-opens a fresh assessment at that tier using the next case conversation slot.
-It retains the latest handoff, observations, owned edits and developer answers;
-exhaustion uses the existing session intervention below.
-Within one case, an agent may return `new_issue` only after a corrective attempt
-has demonstrably passed the previous failure point and exposed a distinct issue.
-Its `next_issue` names the latest verification attempt, passed point, concrete
-passage observation and self-contained new failure. The launcher requires that
-exact completed case observation (or qualified command result for non-case leaves)
-before opening a fresh conversation for that distinct issue. A changed
-message alone, an interrupted run or an earlier preparation failure is insufficient.
-The agent assesses passage; this context decision never establishes test completion.
-Owned edits, original selectors and the full-case verification requirement remain.
-That verification observation is consumed when the new context opens; another
-context reset requires a new corrective attempt.
-Before a repair or diagnostic retry, the launcher copies bounded private failure
-context into `failure-evidence-*.json` (original) and `latest-evidence-*.json`
-(latest attempt) beside its control files. These snapshots
-include the runner handoff, per-VM report logs and recent failed-attempt command
-output/error tails, read through the scoped artifact reader when privileged.
-Remote handoffs carry a typed sibling context binding for host, VM, attempt and
-source; the repair run copies that bounded context before the allocation rotates.
-Remote source paths remain labels, never local read targets. Structured failed
-command events prioritize their exact streams over recent cleanup output.
-They survive ordinary execution-journal rotation for the repair run's lifetime;
-missing/refused reads and size limits remain explicit. Bulk captures retain their
-normal retention policy. A snapshot is investigation evidence, never a pass.
-Repair verification uses the existing runner checkpoint for the exact category,
-selectors, case and target after teardown. An unrelated failure or aggregate
-summary cannot substitute for that case's result. Completed repairs and saved
-Git close-out do not reopen old reports or archive declarations.
-The repair launcher keeps its current unvalidated response, prompt and session
-metadata in the existing checkpoint for interrupted recovery. It does not copy
-whole turn trees or carry proof bundles across tasks. Optional bounded failure
-context is diagnostic; unavailable copies do not change a test result.
-When reviewed decision dependencies change, `fix-tests` automatically replaces
-its controller at a child-free boundary in the same live run. It retains the
-owner lock, output stream, scratch leases, selectors, rounds, task counts,
-case-session budgets, escalation tiers, diagnostic observations and answered
-blockers. The fresh interpreter validates the exact retained response before
-repair verification or close-out, keeping the original failure and owned-file
-baseline. Reloading grants no new session or retry credit and requires no
-reattachment or manual restart. Cancellation still takes priority. The separate
-E2E implementation launcher retains its source-change handoff behavior.
-
-For a repair coordinator reload, the drained coordinator carries its recorded FIFO
-writer's source lease through fresh imports, then drains retained recovery before
-normal admission. A failed interpreter replacement closes that temporary lease
-without clearing the repair journals or admitting unrelated readers.
-
-The runner's `failure.json` includes `failures` entries with category, case ID
-and VM name; host cases have an empty VM name. Worker bucket names, report paths
-and model-generated labels never define a case. Multi-VM handoffs retain each
-guest's identity. Within a category, handoffs preserve the order in which
-failures were observed, so the first failure is repaired before later cases
-that may have failed because of it. Repeated failures of the same case retain
-its original position. The repair targets one reported case at a time and
-reruns the original category selectors. A passing category clears its repair
-handoffs.
-
-Each case initially has **five fresh repair conversations per launcher run**.
-Impact triage is separate. Diagnostic, repair, escalation, response recovery and
-answered-blocker turns for the same unresolved issue consume no additional session.
-Malformed responses receive a correction turn in the same conversation. Repeated
-rejection raises the next turn through the existing effort ladder and suspends
-edited work if rejection persists at the highest tier. This bounds handoff repair
-without limiting useful diagnostic or corrective experiments.
-Counts survive
-switching cases and later verification rounds; another case or VM has its own
-budget. Non-case failures and legacy handoffs without case IDs share a category
-infrastructure budget (VM-scoped when supplied). Verification and owned cleanup
-after the fifth conversation still finish, and a pass is accepted. That conversation
-can continue working on its unresolved issue. Only opening another fresh context
-pauses for developer intervention. An explicit answer can grant five further sessions; a timeout or
-the choice to leave the case failed logs the failure and continues the queue.
-`repair-stop.json` retains that case's identity, count, latest failure prompt and
-last agent result, even if another case was repaired in between. An entire category
-has no five-session cap. At the highest tier, `stalled` requests a fresh
-assessment within the remaining allowance instead of failing the case early.
-After five conversations, another assessment requires session intervention;
-speculative edits or identical diagnostic reruns are not required. Lower-tier
-stalls escalate within the same conversation. Missing prerequisites
-and permissions use their maintained repair/blocker routes, not model escalation
-by themselves. These are session limits, not token budgets.
-
-An assigned VM worker that returns missing, stale or invalid attempt evidence
-enters that infrastructure repair queue instead of terminating the repair loop.
-Its original claim stays owned; the rejected receipt supplies no case or cleanup
-credit. The log identifies the admission failure, and triage retains the original
-worker error/output even without a failure handoff. Resolution requires a fresh
-qualified retry on the original VM, using the attempted case within the original
-selection. Unqualified successful retries remain repair failures. Resource
-admission refusals before assignment retain their normal refusal behavior.
-
-Detaching preserves the live loop. After a stopped/dead owner, `fix-tests --resume`
-restores the latest selection, completed categories, current round and pending
-runner checkpoint. Explicit categories retain their original selectors. Without
-`--resume`, a new run starts from its first category with empty repair, queue,
-pending close-out and pass state. Explicit resume retains charged task admissions;
-fresh-run budgets renew except for a retained unresolved conversation, whose
-identity and consumed slot survive. Explicit resume restores only that active
-conversation; new issues start without solved issues' histories. Legacy per-turn
-counts reset once when adopting conversation accounting; legacy responses remain
-valid but cannot recover an unrecorded native thread. New verification rounds still
-execute the complete requested selection. After a repair within verification,
-the next clean pass clears previous category completions before queuing work;
-an interruption can resume only that pass's completions.
-Fresh startup preserves source edits as existing checkout work, but does not
-inherit unfinished repairs or their Git ownership bookkeeping. Only `--resume`
-recovers pending repairs and accepted Git close-out before tests. A retained
-source fence from an interrupted repair can still block fresh startup; use
-`--resume` to finish that repair or `--reset` to abandon its saved transaction
-and verify the current checkout from the beginning. An active run
-still reattaches regardless of `--resume`; a fresh allocation starts only after
-its owner and owned cleanup release their locks. Lock files remain in place;
-kernel locks, rather than file existence, determine ownership.
-Explicit resume carries the retained writer identity into the new allocation.
-Before workflow imports or allocation, idle public startup synchronizes through
-the [shared controller admission](../docs/Execution-Plans.md#common-launcher-interface).
-Retained repair holds do not skip that synchronization. The original repair's
-resume keeps its fence and saved progress while a guarded fast-forward receives
-pushed fixes; conflicting local work or an unfinished Git operation stops startup
-without allocating a job. Active owners still attach without changing source.
-Only that FIFO writer, holding the exclusive checkout source lease, transfers
-the source fence; readers and unrelated runs still refuse admission. Repeated
-resumes preserve this handoff even if the prior worker never acquired its lease.
-Older stranded copies require the original restart identity and identical repair
-ownership records; a dirty file or a passed diagnostic alone cannot release the fence.
-
-The source fence survives cancellation, process death and interpreter replacement.
-Normal participating test tools protect startup imports, input preparation and
-execution with reader leases; nested verification borrows its recorded writer's
-lease. Reload carries the lease through fresh imports. Only the owning repair's
-validated outcome or authorized checkout reset can clear a retained fence.
-Source generations advance for admitted changes across independent runs and
-reset, rather than reusing an old generation. Unrelated dirty or staged files
-never establish repair ownership and are preserved by recovery.
-
-Public controllers retain admission through imports and finite startup work,
-release it before observation or resource waits, and recheck the generation
-before changing saved execution state. A fresh repair cannot borrow a retained
-writer merely because that writer appeared while startup was waiting.
-Active control requests attach without starting execution. Idle reload and
-completed reset replace the public controller under a temporary source lease
-before starting fresh work, preserving the selected checkout and arguments.
-Privileged preparation authenticates its caller and duplicates the caller's
-actual held source lease, preserving exclusive writer borrowing. Dispatchers and
-builders forward that lease through their existing descendant lifetimes, so the
-initiating command's exit cannot release it early. Missing native descriptor
-support, denied duplication or unproven ownership refuses before preparation;
-none authorizes clearing the original fence or saved progress.
-
-Use `tools/fix-tests --resume` without repeating the original arguments to
-restore the saved selection, VM queue, rounds, model, effort and task limit.
-Older saved requests restore the options they recorded; omitted unrecorded
-options retain their defaults. Its startup line lists retained passed
-categories. A session-limit or stalled handoff does not erase those category
-passes, including a completed diagnostic test run; resuming does not reinterpret
-an old agent conversation. Failed/interrupted cases still need their matching
-runner checkpoint. Additional verification rounds deliberately run their fresh
-required selection; do not add `--rounds` just to continue a stopped round.
-
-An answered blocker keeps its current model/phase and is not a failed repair.
-Answers belong to that unresolved issue, survive its controller reloads and are
-cleared when a distinct issue starts. The answer file records that issue and its
-conversation identity; later cases receive no earlier answers.
-Revalidating an answered blocked response after a source reload consumes neither
-a second answer nor another question; the exact response's session metadata
-identifies the decision already delivered.
-Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
-normal cleanup failure handoff enters the same repair policy, while refusal
-without a handoff still stops. No model performs routine ownership recovery.
-
-`--model` and `--effort` override the initial agent for a new run. Explicit
-stronger effort choices are never downgraded: Sol xHigh moves to Sol Max for
-non-unit failures and remains xHigh for unit failures. An explicit Sol Max
-override remains there for either category. Omitting `--effort` selects each
-failure category's initial tier; an explicit effort applies to both ladders.
-Every tier uses `gpt-6.1-sol`; other models,
-including other Sol versions, are refused with no silent fallback.
-The selected pair, automatic escalation tiers and any override-specific reachable
-pairs must be listed in the existing CLI catalog before testing begins.
-All agent sessions pin **Standard speed**,
-including answered blockers and repair retries, overriding personal Fast defaults.
-Prompts require scoped reading and concise evidence handoffs without reducing
-understanding, tests, cleanup or behavior-confirmation requirements.
-Each agent uses
-`codex exec` with a fresh persistent thread, disabled history-list recording and
-memories, and receives
-the latest failure handoff. The script never resumes or forks a session; the app
-review receives the latest failure handoff, classification or repair summary and applicable
-developer answers. An answered blocker also supplies its latest repair handoff.
-The [official noninteractive documentation](https://learn.chatgpt.com/docs/non-interactive-mode)
-defines the invocation. The shared [goal setup](../docs/Execution-Plans.md#execution-and-delegation)
-requires persistence and activates the actual goal before task work.
-Existing CLI authentication, configuration,
-workspace sandbox and command rules remain in effect; agents cannot request
-interactive approvals. Install/authenticate Codex separately before starting.
-Agent output uses `exec --json` events rendered with the setup-provided Rich
-library: compact bulleted Markdown messages, `Ran` commands and `Explored`
-read/search entries, plans, tool activity and file-change summaries. Consecutive
-reads and searches share one heading and display filenames. Commands
-use blue executable names and green quoted arguments; output and connectors are
-gray, with red failure statuses. Short output previews appear beneath commands,
-limited to three display lines with an omitted-line count. Successful exploration
-bodies and zero exit statuses are hidden. Interleaved results repeat their
-command context. Full output is retained in
-`agent-commands.log` inside the same run, using the transcript's size limit.
-Reasoning events are hidden; user-facing agent updates and
-final results remain visible. Diffs use syntax colors, hunk line numbers and
-pale red/green backgrounds for removals/additions
-when supplied by the event; file-change events containing only paths show those
-paths without inventing a diff. The detached supervisor renders an append-only,
-100-column transcript with ANSI styling retained for Watch.
-CLI diagnostics
-remain separate from event parsing, and unknown events remain visible. There is
-no interactive agent approval prompt; developer decisions use the launcher's
-shared question menu described below. The result file still controls repair
-verification. Development activation is `none`; new launcher processes
-use the checkout code without product installation or a service restart.
-
-When a useful experiment requires instrumentation before a corrective edit is
-justified, return the structured status **`diagnostic_ready`**. Its summary must
-identify the hypothesis, bounded instrumentation changes, expected observations,
-evidence location and interpretation. Instrumentation must preserve behavior,
-privacy, assertions and validation guards. This outcome claims no repair.
-The launcher owns exactly one rerun of the original authorized selectors per
-diagnostic outcome; agents cannot supply commands, run tests or nested launchers.
-It retains a bounded output snapshot and runner handoff in private
-`latest-evidence-*.json` files, then supplies the observations to the same conversation,
-even when the diagnostic case passed. The agent reports whether its question made
-progress, remained inconclusive or was unavailable; the retained thread keeps its
-observations and ruled-out explanations together.
-An intervening preparation failure does not establish that the original failure
-point was passed; keep that investigation in the same conversation. The fifth
-conversation's diagnostic runs and interpretation can
-continue without another session charge. `stalled` means no
-useful authorized next step exists, rather than an experiment awaiting execution.
-
-ONPC: Watch can attach to the current output at any time.
-`tools/fix-tests --vm NAME --stop` requests immediate cancellation and returns. Tests receive the runner's
-Ctrl+C path and finish guarded cleanup before exit. Agents receive termination,
-with a three-second limit before their recorded process group is killed. If the
-loop owner dies, its supervisor detects EOF and cancels the current operation.
-Completed or dead owners never block a fresh run: file locks determine liveness,
-old cancel markers are isolated by run, and normal `run-tests` startup performs
-its existing retention/VM recovery. An attached predecessor's result is consumed
-before starting the requested category; it never counts as that category passing.
-On stale ownership, `fix-tests` invokes `tools/cleanup-e2e --host-only` when no
-VM is selected, or the selected VM/queue recovery route otherwise, before
-retrying the category. Host recovery requires no VM configuration or privilege.
-Recovery still fails closed when no actionable handoff is available.
-
-Repair and reload use the same owned interruption route without cancelling the
-launcher. Guest test commands are disposable: terminate their owned SSH channel
-immediately and restore their starting snapshot instead of waiting for guest
-teardown or remaining cases. VM lifecycle/snapshot operations finish safely;
-the controller remains alive for diagnostics, restoration, host audits and lease
-release. A matching post-cleanup receipt returns unfinished work to pending.
-Verified completed cases retain credit; interrupted cases create no failure
-ticket or repair-session charge. Genuine observed failures remain failures.
-Missing or failed cleanup proof retains original-VM ownership and reports an
-infrastructure problem rather than silently requeuing unsafe work. Stateful
-histories reconstruct their prerequisites when replayed.
-
-Explicit app-snapshot prerequisite refusals pause the current `fix-tests` VM
-selection as one batch. Running VM attempts receive immediate cooperative
-cancellation, including an in-progress case; the launcher joins their owned
-cleanup before preparing snapshots. Product-content changes (including an old
-version snapshot) rebuild every selected VM. Installation/fixture recipe changes
-check all selected VMs together and rebuild only snapshots whose recipe is stale;
-matching snapshots are reused. A missing initial snapshot or VM-local snapshot
-problem refreshes only the reporting VMs. No VM outside the original selection
-is interrupted or prepared. Preparation uses host compute admission,
-followed by guarded maintenance cleanup, then resumes pending cases with their
-claims, session allowances and completed results retained. Interrupted cases
-receive no passing credit. An unsuccessful refresh or a repeated refusal for the
-same VM and expected inputs stops with the request retained for recovery. Later
-product or fixture changes can trigger another refresh within the same run.
-
-Worker execution errors during a bounded recheck, diagnostic run or verification
-return failed attempt results to repair policy, including source-transfer
-validation errors before dispatch. They retain the exception diagnostics and
-original VM reservation without granting cleanup or passing credit. An
-unsuccessful recheck supplies its bounded diagnostics to the repair session;
-it does not suspend the coordinator merely because no runner handoff was produced.
-Source-lease contention, cancellation and reload retain their control paths.
-
-Logs and small control files are private under `output/test-runs/host/fix-tests/`. They are
-not agent conversation history. Existing test evidence remains under the runner's
-retention policy. Watch shows the report and `Failure handoff:` paths
-with a short instruction to read and follow the handoff's `prompt` field;
-the full investigation prompt is saved in machine-readable `failure.json` with
-stable retry category and case IDs. `fix-tests` reads that saved prompt directly,
-so terminal output omits the long manual-session prompt. For a manual handoff,
-ask the new session to read the indicated `failure.json` and follow its `prompt`.
-A missing or malformed handoff without a retained failure ticket, agent
-crash or unmapped infrastructure failure stops with evidence.
-
-`agent-usage.jsonl` records CLI turn counters with session/repair IDs, attempt,
-case identity, per-case session number, round, phase, selected model/effort and
-Standard speed. `tier_transition` events record old/new model and effort and
-the escalation reason. Session exit, structured result, session-limit and category
-verification events link classification, blockers and retries to the repair chain.
-Missing counters are unknown, including a session with no
-reported usage; they are never zero-filled. An interrupted verification has no
-success event. `diagnostic_execution` records observations separately from repair
-verification. A different failing case or preparation failure is not a failed
-verification of the repaired case: `passed` is null and `outcome` is
-`unknown_or_not_executed` until evidence resolves it. A later same-case failure
-or category pass records that resolution under the original identity.
-A category pass is local verification, not proof that later
-aggregate verification will pass. Records are observational, never resume state;
-recording failure warns without interrupting repair or cleanup.
-
-OpenAI's [model guidance](https://learn.chatgpt.com/docs/models#gpt-61-sol)
-recommends GPT-6.1 Sol for complex coding at lower cost than Astra. Luna is
-suited to focused repeatable tasks, but this classifier can edit tests and must
-distinguish mechanical defects from product regressions; lowering it further
-needs quality evidence. [Standard speed](https://learn.chatgpt.com/docs/agent-configuration/speed)
-avoids Fast's 2.5x included-usage multiplier when Fast would otherwise apply.
-[Included usage](https://learn.chatgpt.com/docs/pricing) depends on the workload;
-API prices and purchased-credit rates do not establish Pro weekly savings.
-Compare total counters per verified repair chain (including failures and blocked
-sessions), first-pass success and review findings with the account's weekly
-dashboard. Host regressions establish routing and safety contracts, not equal
-model success rates or a measured allowance improvement. No paid-model benchmark
-is part of launcher validation.
-
-An agent-reported blocker waits for developer instructions using the
-shared [question implementation](../tools/launcher_question.py).
-The menu offers two or three suggestions, selects the first recommendation by
-default, and includes editable Other input. Enter submits the selection; neither
-elapsed time nor disconnection submits an answer. Reattach with `tools/fix-tests --vm NAME`
-to answer. The prompt waits 30 minutes when opened from 08:00 through 22:59
-in the development computer's local time, and 10 minutes otherwise. A timeout
-fails the case with reason **waiting for input** and continues independent work;
-it never selects an answer. Reattachment and controller reload preserve the
-original deadline. No repairs to that case start while waiting. After an answer,
-the same conversation receives the latest observation and developer instructions,
-rechecks prerequisites, and continues the same repair phase without another session charge.
-Decisions remain available to later repairs in the run within their stated scope.
-Ctrl+C or `--stop` cancels a paused run without answering.
-
-The session allowance limits fresh issue conversations. Launcher-owned test
-execution and further turns on the same unresolved issue do not spend it.
-A repair returned by the fifth conversation still receives its exact-case
-verification; opening a sixth conversation reaches the allowance check.
-An agent's `fixed` result is a claim, not passing test credit.
-
-Exhausting a case's fresh-conversation allowance opens an intervention prompt with a
-short explanation and the same timed question. Continuing explicitly grants
-five more repair conversations; leaving the case failed continues the queue. The
-daytime/nighttime deadline and `+10m` extension use the same question mechanism.
-An unanswered timeout fails and logs the case, then continues independent work.
-Watch shows the flashing **Waiting for session intervention** text, countdown
-and `+10m` link in the VM heading. Submitting an answer removes the timer and
-waiting indicator immediately.
-
-Timed-out prompts, exhausted case session allowances and terminal stalls append
-their case identity, detailed reason, investigation prompt and latest result to
-`errors.md` in the launcher's gitignored test-runs folder (`fix-tests` or
-`fix-tests-host`). When the latest repair was verified, the record also includes
-its verification outcome and runner-reported failures, separately from the
-agent's result. A new run resets this cumulative Markdown log; `--resume`
-appends to it. Failed cases receive no passing credit and the launcher finishes
-with a failure result after draining the queue. Unverified repair edits remain
-in the checkout without being committed as verified repairs. Stateful histories
-retain their indivisible scheduling boundary.
-
-This fail-and-continue policy belongs only to `fix-tests`. Plan launchers retain their
-[plan allowance contract](../docs/Execution-Plans.md#common-launcher-interface).
-
-Watch case and overall totals show **completed/failed/total**: completed is green,
-and failed is red and underlined. Clicking the failed count in **ONPC: Watch**
-opens the cumulative error log in the VS Code editor.
-
-The [failure mandate](#handling-test-failures) still applies: classify from evidence,
-report expected versus actual behavior and ask before accepting changed behavior
-or altering expectations unless that exact change is already authorized. The
-loop does not weaken checks or bypass permissions to continue.
+Failure before case discovery goes to the repair session with the attempted
+operation and available output. Missing optional details do not prevent repair.
+The [failure handling contract](#handling-test-failures) still protects product
+expectations: do not redefine assertions or customer behavior just to obtain a
+pass. Use the maintained preparation entry points when prerequisites need repair;
+follow the [VM mandate](../docs/Mandates/VM-Mandate.MD) for authorization.
 
 ### E2E implementation
 
@@ -1623,13 +935,11 @@ all progress. Category `waiting` records time queued separately from execution.
 Source identity is recorded at startup for reference. Checkout edits during a
 run do not stop scheduling or invalidate results. Tests can load later edits; a passing run does not
 certify one immutable checkout revision.
-VM controllers use their captured inputs. A passing captured run retains its
-original source identity and completion credit even when later checkout changes
-could affect a future run. Keep those later changes untouched. Queue acceptance
-still requires the exact assigned attempt, completed cases and owned cleanup;
-repair settlement retains its writer and ownership guards.
-The repair controller starts another verification pass only for an explicit
-coordinator-reported repair impact, not a later checkout checksum difference.
+VM controllers use captured inputs and refresh them at dispatch boundaries.
+Clear terminal case results retain completion credit after later checkout edits;
+interrupted cases remain pending. The shared queue associates results with the
+current assignment. Repair follows the [single-session loop](#scripted-repair-loop)
+without source ownership transactions or automatic extra verification passes.
 
 The aggregate dispatches each complete `system` or ready `e2e` selection in one
 invocation through the shared VM launcher. Prerequisite checks run once at each
@@ -1879,31 +1189,36 @@ in short `/tmp` directories because Linux limits socket paths to 107 bytes;
 their owners remove them on close. Explicit screenshot exports retain the
 existing caller-owned `/tmp/onpc-*.png` contract.
 
-Each retention journal keeps at most three runs and 4 GiB of allocated blocks,
-checked at session boundaries. Older completed runs expire first; an oversized
-current run is preserved and reported as an error at finalization. Before new
-execution, automatic recovery retires oversized completed execution evidence
-under the activity/storage owner locks, after recorded VM recovery and the
-privileged live-reference audit. It reports this retirement; active owners,
-unresolved recovery and unsafe identities still refuse. Other journals retain
-their oversized evidence until explicit cleanup. These are per-journal limits,
-not a filesystem quota on an active build. Recovery receipts expire with their
-run. Reconnect and repair directories also rotate; repair transcripts retain
+Each active retention journal keeps at most three runs and 4 GiB of allocated
+blocks, checked at session boundaries. Older completed runs expire first; an
+oversized current run is preserved and reported as an error at finalization.
+Ordinary execution uses `Store.execution_session()`: actual resource and
+authorization guards run independently of historical output retirement. A live
+storage owner still prevents replacement. When an idle historical journal or
+its allocations cannot be audited, the helper preserves the journal under its
+owner/writer locks and pinned directory identity, then starts fresh output.
+Unavailable allocations are neither adopted nor deleted. Preserved journals
+remain outside the active rotation; a new execution gains no authority to remove
+them or use their allocations. Unsafe journal directories
+or lock identities still refuse. Actual VM recovery, current input validation,
+resource bookings and disk admission remain required. These are per-journal
+limits, not a filesystem quota on an active build. Recovery receipts expire with
+their run. Reconnect and repair directories also rotate; repair transcripts retain
 a bounded tail (32 MiB threshold) between operations. Process-owned temporary
 scratch uses an inherited owner lock and recorded directory identity: the next
 launcher reclaims idle scratch, while active owners remain protected. Build
 subprocesses forward inherited scratch leases through the fixture builder too.
-Scratch initialization publishes a complete owner atomically from a recorded
-staging slot; interrupted initialization and deletion can resume without
-adopting unknown payloads or losing the directory identity.
-An older scratch directory missing its owner or identity receipt is reported
-and left untouched; it does not block a fresh, independently owned allocation.
+Scratch allocation uses a fresh UUID directory and records its owner lock and
+identity before exposing payload storage. Old scratch cleanup is optional:
+only an idle, identity-verified allocation can be removed. Incomplete,
+unreadable, replaced or unrecorded leftovers are preserved without preventing
+fresh scratch. Startup does not recover earlier staging or deletion journals.
 Explicit `--reset` may retire an empty legacy shell after draining launcher
 owners, under the scratch gate. It pins and checks the shell and optional empty
 `tmp/` directory's identities, ownership, modes and mounts, and uses only `rmdir`.
 It never creates a replacement receipt or recursively deletes unrecorded payloads.
-Unsafe ownership, symlinks, replaced identities and unfinished recorded
-reclamation still refuse rather than being adopted or deleted.
+Unsafe ownership, symlinks and replaced identities refuse deletion; existing
+leftovers are never adopted as a new allocation.
 Pruning always audits registered allocations and budgets, but rewrites its
 journal only when retiring records. Session lifecycle and allocation changes
 still synchronize before returning; unchanged pruning adds no duplicate flushes.
@@ -1930,8 +1245,8 @@ Publication registers
 one empty staging allocation before writing, measures existing plus projected
 output before allocation, and checks actual simultaneous usage before commit.
 It leaves the previous journal and every existing export unchanged on precommit
-failure. A durable committed receipt owns any interrupted retirement. Ordinary
-writers refuse a pending publication; the bundle route re-verifies its complete
+failure. A durable committed receipt owns any interrupted retirement. The export
+owner refuses a pending publication; the bundle route re-verifies its complete
 payload before finishing retirement. `--defer-cleanup` commits verified evidence
 while retaining old exports until `bundle-finish`; this permits safety validation
 before the first changed deletion. It is unfinished cleanup, not another export
@@ -1951,8 +1266,9 @@ recovery: `tools/cleanup-e2e --vm NAME --transfer-batch-input CHECK`. The
 owns its two-owner audit, published-input verification and resumable transaction.
 Inputs normally prepare inside their VM worker's retention session. This route
 preserves reports and original records; it neither rotates evidence nor supplies
-acceptance. Pending transfers refuse ordinary retention writes until recovery
-finishes with the original selector.
+acceptance. Explicit transfer recovery keeps its original selector and frozen
+owners. Fresh execution leaves unavailable transfer ownership and allocations
+preserved, without adopting them or requiring that historical transaction.
 Standalone snapshot package allocations use the same recovery through
 `tools/cleanup-e2e --vm NAME --transfer-batch-appsnapshot ALLOCATION`; see the
 storage mandate for its absent-destination-claim and exact-basename guards.
@@ -1995,23 +1311,15 @@ its latest owner.
 
 Host-only runs use `output/test-runs/host/state/retention-host/`; VM workers and
 snapshot preparation use `output/test-runs/host/state/retention-<canonical-target>/`.
-The queue summary uses `retention-batch/`; older single-target records remain in
-`retention/`. Queue startup reconciles its interrupted host-output journal under
-the existing storage owner lease; it does not recover a VM or replace the
-workers' separate VM recovery. Live owners and replaced allocations still refuse.
-Completed historical host-test output from combined runs remains in its original
-batch journal and receives the same ownership, identity and mount audits.
-VM inputs and unrelated allocations still refuse this host-only recovery.
-New combined runs give their host-test output its own host journal.
-Each journal retains
-its own last three runs, so active host evidence cannot block VM preparation
-or be rotated by it. Existing records stay in their original journal.
-Privileged system/E2E
-outputs have a separate root-owned journal under
-`output/test-runs/privileged/state/retention-<uid>/`; all VM categories in
-one aggregate share its run token. Privileged outputs older than its three-run
-window rotate during serial preflight, before VM memory admission, after the
-shared VM lease/journal show no unfinished recovery. A host-only
+The queue summary uses `retention-batch/`. Each execution journal rotates healthy
+recorded output or preserves unavailable history through the shared execution
+session. Historical journals in other scopes are not startup gates. Combined
+runs give host-test output its own host journal, independent of VM workers and
+their actual resource recovery. Privileged system/E2E output has a separate
+root-owned journal under `output/test-runs/privileged/state/`, named
+`retention-<uid>-<canonical-target>` when a VM is selected and `retention-<uid>`
+otherwise. VM categories in one aggregate share its run token. Privileged output
+retirement follows actual VM recovery and live-reference checks. A host-only
 run or a failure before VM execution does not discard the last VM diagnostics.
 Refresh the installed dispatcher with `./setup.sh --test-tools-only` after this
 change. Test tooling has package update activation **none**.

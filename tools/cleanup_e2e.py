@@ -120,7 +120,7 @@ def main(argv=None):
             # on a writer that may itself need this VM. Keep this scope around
             # remote dispatch and explicit retirement as well as ordinary cleanup.
             with reservation(vm.name, wait=not args.if_available), test_activity.activity(root), \
-                    test_source.startup(root, ['--resume'], repair=True, wait=False):
+                    test_source.startup(root, ['--resume'], wait=False):
                 status = remote_cleanup(vm)
                 if status is None and args.discard_completed:
                     from regression_process import category_run
@@ -133,11 +133,6 @@ def main(argv=None):
                     status = None
                 if status is None:
                     status = cleanup(root)
-                if not status:
-                    from test_checkpoint import recover_family_claims
-                    recovered = recover_family_claims(root, vm.name)
-                    if recovered:
-                        print(f'cleanup-e2e: returned {recovered} interrupted family cases to pending', flush=True)
             if status:
                 return status
         return 0 if args.vm_only else cleanup_host(root)

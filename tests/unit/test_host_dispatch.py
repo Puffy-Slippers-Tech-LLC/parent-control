@@ -33,7 +33,8 @@ from vm_selection import vm_config
     (0, (0, 1)),                   # One command with both real-use host roles.
     (0, (0, 1, 2)),                # Three hosts; all SSH originates at the desk.
 ])
-def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
+@pytest.mark.parametrize('launcher', ['run-tests', 'fix-tests'])
+def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, launcher):
     tool = tmp_path / 'tool checkout'
     destination = tool if controller == 0 else tmp_path / 'controller checkout'
     branch = 'main' if controller == 0 else 'controller'
@@ -58,18 +59,21 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
         (root / 'config').mkdir(parents=True)
         (root / 'tools').mkdir()
         (root / 'config/environment.json').write_text(json.dumps(document))
-        (root / 'tools/run-tests').write_text('# private launcher fixture\n')
+        (root / 'tools' / launcher).write_text('# private launcher fixture\n')
     monkeypatch.setattr(vm_config, 'ROOT', tool)
     monkeypatch.setattr(vm_config, 'current_branch', lambda: 'main')
     monkeypatch.setattr(host_dispatch, 'git', lambda root, *args: branch_by_root[Path(root)])
     monkeypatch.setattr(launcher_controller, '__file__', str(tool / 'tools/launcher_controller.py'))
     monkeypatch.setattr(launcher_controller, '_local_checkout', lambda root, name:
         None if (root, name) == (tool, 'main') else pytest.fail('wrong local controller'))
-    monkeypatch.setattr(launcher_controller, '_early_sync', lambda *args: False)
+    def synchronize(*args):
+        assert launcher != 'fix-tests', 'repair startup must use the current checkout'
+        return False
+    monkeypatch.setattr(launcher_controller, '_early_sync', synchronize)
     monkeypatch.setattr('test_source.admission', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr('test_launcher.environment', lambda root: {'PATH': '/usr/bin'})
     selector = ','.join('Guest-' + str(index) for index in targets)
-    monkeypatch.setattr(sys, 'argv', [str(tool / 'tools/run-tests'), '--branch', branch,
+    monkeypatch.setattr(sys, 'argv', [str(tool / 'tools' / launcher), '--branch', branch,
                                      '--vm', selector, 'system'])
     hops, operations = [], []
 
@@ -97,7 +101,7 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
     def ssh_controller(argv, **kwargs):
         assert argv[0] == 'ssh' and argv[-2] == names[controller]
         remote = shlex.split(argv[-1])
-        assert remote[4:7] == [str(destination), branch, 'run-tests']
+        assert remote[4:7] == [str(destination), branch, launcher]
         assert json.loads(remote[7]) == ['--branch', branch, '--vm', selector, 'system']
         assert remote[8:] == ['--vm', selector, 'system']
         hops.append((names[0], names[controller]))
@@ -214,18 +218,13 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
                  test_source.STARTUP_READER, test_source.STARTUP_WRITER):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(test_source, '_local', threading.local())
-    monkeypatch.setattr(test_source, '_generations', {})
     monkeypatch.setattr(vm_config, 'current_branch', lambda: 'controller')
     run = subprocess.run
     def bounded(*args, **kwargs):
         kwargs.setdefault('timeout', 10)
         return run(*args, **kwargs)
     monkeypatch.setattr(subprocess, 'run', bounded)
-    import launcher_reload
-    checkpoint = tmp_path / 'frozen.json'
-    binding = dict(scope='repair-vm', identity={'pass': 'a' * 32})
-    with pytest.raises(launcher_reload.ReloadRequested), remote_sources.FrozenSources(
-            controller, checkpoint=checkpoint, binding=binding) as frozen:
+    with remote_sources.FrozenSources(controller) as frozen:
         captured = frozen.directory
         baseline = dict(frozen.source)
         (controller / 'payload.txt').write_text('unverified repair source\n')
@@ -234,9 +233,6 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
             pytest.fail('ordinary frozen dispatch reacquired the live source reader')
         monkeypatch.setattr('test_source.reader', live_reader)
         with frozen.use():
-            assert remote_sources.current_sources(controller) is frozen
-            with frozen.use(live=True):
-                assert remote_sources.current_sources(controller) is None
             assert remote_sources.current_sources(controller) is frozen
         with remote_sources.capsule(controller, frozen.host,
                 [str(controller / 'tools/test-vm')], {}, sources=frozen) as (command, payload, request):
@@ -273,34 +269,7 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
                          env={}, output=output.append) == 0
         assert route.result == received
         assert b''.join(output) == b'ordinary output\n'
-        raise launcher_reload.ReloadRequested()
-
-    assert checkpoint.exists() and captured.exists()
-    repair = tmp_path / 'repair'
-    repair.mkdir(mode=0o700)
-    gate = test_source.RepairGate(repair, root=controller)
-    assert gate.try_acquire()
-    try:
-        # A real edit-triggered reload retains the live writer. Reopening must
-        # neither recapture its unverified bytes nor wait for that writer.
-        script = '''import json, sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from remote_sources import FrozenSources
-with FrozenSources(Path(sys.argv[2]), checkpoint=Path(sys.argv[3]),
-                   binding=json.loads(sys.argv[4])) as reopened:
-    print(json.dumps(dict(directory=str(reopened.directory), source=reopened.source,
-        payload=(reopened.directory / 'payload.txt').read_text())))
-'''
-        restored = subprocess.run([sys.executable, '-IBu', '-c', script,
-            str(Path(remote_sources.__file__).parent), str(controller), str(checkpoint), json.dumps(binding)],
-            env=dict(os.environ), capture_output=True, text=True, timeout=10, check=True,
-            pass_fds=scratch_descriptors())
-        assert json.loads(restored.stdout) == dict(directory=str(captured), source=baseline,
-                                                 payload='uncommitted controller change\n')
-    finally:
-        gate.release()
-    assert not checkpoint.exists() and not captured.exists()
+    assert not captured.exists()
 
 
 

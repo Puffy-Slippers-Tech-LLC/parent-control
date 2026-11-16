@@ -180,6 +180,10 @@ dismissal; a running or replaced launcher cannot be closed. A new run appears no
 
 The **Status**, **Launcher**, **Error** and **Session** views are selected from
 a dropdown at the right end of the pinned task summary row below the title.
+For `fix-tests`, **Error** retains the latest failed operation and its runner
+diagnostics through repair, validation and completion. While repairing, **Status**
+shows the round and repair heading, followed by a separator and that same Error
+content, replacing the completed runner's dashboard.
 The dropdown and action buttons fit their contents, leaving the remaining width for the title.
 The dropdown, menu and resize controls use equal spacing beside their dividers.
 Long titles truncate with an ellipsis before the right-aligned action

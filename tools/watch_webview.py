@@ -564,8 +564,16 @@ class Viewer:
                 except (OSError, ValueError, KeyError, TypeError):
                     error_lines = ['Error status unavailable']
             if status_available:
-                # The summary remains fixed above the scrolling test history.
-                lines.insert(status_index, content_status)
+                if output.repair and any(clean(line).startswith('Repairing ') for step in steps
+                                         for line in step['lines']):
+                    # During repair, the failed runner's frame is stale. Show
+                    # the same retained diagnostics as the Error tab instead.
+                    lines = [*summary, *(['─'] if summary else []),
+                             *(line for step in steps for line in step['lines']),
+                             '─', *error_lines]
+                else:
+                    # The summary remains fixed above the scrolling test history.
+                    lines.insert(status_index, content_status)
             signature = lines, session_run, waiting, deadline, prompt_id
             if self.status_cache.get(root, (None,))[0] != signature:
                 self.status_cache[root] = signature, status_spans(lines, session_waiting=waiting)

@@ -12081,7 +12081,7 @@ class AccessibleUI:
             before = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', APPROVER_IDENTITIES[approver]),
                 duration_seconds=seconds, custom_text=custom, overlay=overlay,
-                overlay_child=child)
+                overlay_child=child, language=language)
             require(before['child'] == CHILD_IDENTITIES[child]
                     and before['approver'] == APPROVER_IDENTITIES[approver]
                     and before['allow_soft'] is soft,
@@ -12092,7 +12092,7 @@ class AccessibleUI:
             intermediate = self.kiosk_request_form(enabled=True,
                 expected_selection=('approver', APPROVER_IDENTITIES[approver]),
                 duration_seconds=seconds, custom_text=equivalent, overlay=overlay,
-                overlay_child=child)
+                overlay_child=child, language=language)
             require(intermediate == {**before, 'custom_text': equivalent},
                     'ui:overlay-refresh-intermediate')
             self.set_text('kiosk-custom-duration', custom, child=child)

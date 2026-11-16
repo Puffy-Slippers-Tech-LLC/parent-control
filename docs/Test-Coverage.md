@@ -6,17 +6,17 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">6010</span>/<span style="color: gray">0</span>/6010 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">6065</span>/<span style="color: gray">0</span>/6065 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">308</span>/<span style="color: gray">0</span>/308 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
+| Installed system | <span style="color: green">67</span>/<span style="color: gray">0</span>/67 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
 | Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
 | E2E | <span style="color: green">154</span>/<span style="color: gray">44</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6780</span>/<span style="color: gray">44</span>/6824** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6834</span>/<span style="color: gray">44</span>/6878** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -2408,7 +2408,7 @@ Variant: surface: kiosk
 **Steps:**
 
 - Jamie enables Riley with zero daily time. Record saved policy, enter the station and independently capture Riley's 75-second request for Jamie with soft apps included.
-- Open What's New and independently read the packaged Child 1.4 content offered for the installed 1.2 to 2.0 upgrade.
+- Open What's New and independently read the packaged Child 1.4 content offered for the verified installed upgrade to 2.0.
 - Close normally and require the same usable request. Cancel to sign-in, return to Parent to confirm unchanged policy and zero time, then log out normally.
 
 ### Scenario 266

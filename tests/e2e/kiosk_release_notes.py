@@ -43,9 +43,10 @@ PLAN = JourneyPlan(prefix='kiosk-release-notes', worker_mode='kiosk_release_note
 
 class KioskReleaseNotesJourney(KioskWhatsNewJourney):
     def previous_version(self, current):
-        # The declared installed preparation binds the real 1.2→2.0 package
-        # history. Customer acceptance reads public content, never private state.
-        return '1.2'
+        # Snapshot preparation binds the genuine previous/current packages.
+        # Strip packaging epoch/revision rather than reading private history.
+        version = self.context.verified.upgrade_inputs['packages']['previous']['version']
+        return version.split(':')[-1].split('-')[0].split('+')[0]
 
 
 def execute(recorder, context):

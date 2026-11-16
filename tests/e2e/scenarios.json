@@ -43,14 +43,14 @@
       "requirement_gap": null,
       "contract_refs": ["docs/Specification.md", "docs/SystemDesign/State.md#whats-new-backend", "docs/TestAutomation/E2E-Scenario-Recipes.md#kiosk-release-notes-and-request-return"],
       "components": ["parent", "kiosk", "broker"],
-      "environment": ["ubuntu26.04"],
+      "environment": ["ubuntu26.04", "fedora44"],
       "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "installed-release-notes-upgrade", "fixture-credentials-via-secret-api", "declared-public-route-and-recipe-data"],
       "phases": {
         "setup": [{"id": "setup", "operation": "provision", "description": "Restore the verified genuine-upgrade installed snapshot and bind fixture credentials under the owned attempt."}],
-        "start": [{"id": "start", "operation": "begin", "description": "Begin at sign-in after the real 1.2 to 2.0 upgrade, with no grants or injected release-note history."}],
+        "start": [{"id": "start", "operation": "begin", "description": "Begin at sign-in after the real 1.2 (DEB) or 1.3 (RPM) to 2.0 upgrade, with no grants or injected release-note history."}],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Jamie enables Riley with zero daily time. Record saved policy, enter the station and independently capture Riley's 75-second request for Jamie with soft apps included."},
-          {"id": "step-2", "operation": "ui", "description": "Open What's New and independently read the packaged Child 1.4 content offered for the installed 1.2 to 2.0 upgrade."},
+          {"id": "step-2", "operation": "ui", "description": "Open What's New and independently read the packaged Child 1.4 content offered for the verified installed upgrade to 2.0."},
           {"id": "step-3", "operation": "ui", "description": "Close normally and require the same usable request. Cancel to sign-in, return to Parent to confirm unchanged policy and zero time, then log out normally."}
         ],
         "end": [{"id": "end", "operation": "collect", "description": "Reconcile independent public results, collection and worker shutdown."}],

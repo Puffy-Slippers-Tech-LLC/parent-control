@@ -115,7 +115,8 @@ class KioskWhatsNewJourney(KioskRequestJourney):
             current = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
             previous_version = self.previous_version(current)
             previous = version_key(previous_version)
-            require(previous == version_key('1.2') and version_key(current) == version_key('2.0'),
+            require(previous in (version_key('1.2'), version_key('1.3'))
+                    and version_key(current) == version_key('2.0'),
                     'kiosk-whats-new:qualification-upgrade-range')
             records = tomllib.loads(source.decode())['records']
             eligible = sorted((record for record in records if

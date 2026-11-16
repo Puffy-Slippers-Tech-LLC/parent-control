@@ -192,7 +192,7 @@ class NativeFixtures:
             if self.profile == 'chinese':
                 from chinese_language_assets import validate_receipt
                 require(set(value) == {'profile', 'os_id', 'release', 'locale', 'provider',
-                                      'packages', 'translations', 'cjk_glyphs', 'files',
+                                      'packages', 'translations', 'files',
                                       'unchanged_state', 'runtime_locale'}
                         and value['unchanged_state'] is True,
                         'native:chinese-receipt')

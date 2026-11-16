@@ -23,32 +23,19 @@ def catalogue(messages):
     return struct.pack('<7I', 0x950412de, 0, count, 28, 28 + count * 8, 0, 0) + b''.join(tables) + strings
 
 
-def font():
-    groups = [(ord(char), ord(char), index + 1) for index, char in enumerate(sorted(set(profile.GLYPHS)))]
-    sub = struct.pack('>HHIII', 12, 0, 16 + len(groups) * 12, 0, len(groups))
-    sub += b''.join(struct.pack('>III', *group) for group in groups)
-    cmap = struct.pack('>HHHHI', 0, 1, 3, 10, 12) + sub
-    return (struct.pack('>4sIII', b'ttcf', 0x10000, 1, 16)
-            + struct.pack('>4sHHHH', b'OTTO', 1, 0, 0, 0)
-            + struct.pack('>4sIII', b'cmap', 0, 44, len(cmap)) + cmap)
-
-
 def populate(files, metadata):
     """Add the finite distro-managed profile to an existing guestfs double."""
     previous = set(files)
     files.setdefault('/usr/lib/os-release', b'ID=ubuntu\nVERSION_ID="26.04"\n')
     files[profile.LOCALE_PATH] = b'Chinese locale\0UTF-8\0'
-    files[profile.FONT_PATH] = font()
     files['/usr/share/locale/zh_CN/LC_MESSAGES/mate-polkit.mo'] = catalogue({
         message: '中文 ' + message for message in profile.CATALOGUES['mate-polkit']})
     files['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/Linux-PAM.mo'] = catalogue({
         message: '中文 ' + message for message in profile.CATALOGUES['Linux-PAM']})
-    files['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/gnome-shell.mo'] = catalogue({'Activities': '活动'})
     owners = {
-        'locales-all': [profile.LOCALE_PATH], 'fonts-noto-cjk': [profile.FONT_PATH],
+        'locales-all': [profile.LOCALE_PATH],
         'mate-polkit-common': ['/usr/share/locale/zh_CN/LC_MESSAGES/mate-polkit.mo'],
         'language-pack-zh-hans-base': ['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/Linux-PAM.mo'],
-        'language-pack-gnome-zh-hans-base': ['/usr/share/locale-langpack/zh_CN/LC_MESSAGES/gnome-shell.mo'],
     }
     for owner, paths in owners.items():
         files[f'/var/lib/dpkg/info/{owner}.list'] = ('\n'.join(paths) + '\n').encode()
@@ -69,9 +56,7 @@ def populate_fedora(files, metadata):
     files['/etc/selinux/config'] = b'SELINUX=enforcing\nSELINUXTYPE=targeted\n'
     files['/sys/fs/selinux/enforce'] = b'1\n'
     files[profile.LOCALE_PATH] = b'Chinese locale\0UTF-8\0'
-    files[profile.FEDORA_FONT_PATH] = font()
-    owners = {'glibc-langpack-zh': [profile.LOCALE_PATH],
-              'google-noto-sans-cjk-fonts': [profile.FEDORA_FONT_PATH]}
+    owners = {'glibc-langpack-zh': [profile.LOCALE_PATH]}
     for domain, messages in profile.CATALOGUES.items():
         path = f'/usr/share/locale/zh_CN/LC_MESSAGES/{domain}.mo'
         files[path] = catalogue({message: '中文 ' + message for message in messages})

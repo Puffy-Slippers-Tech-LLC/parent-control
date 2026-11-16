@@ -703,7 +703,7 @@ sub native_usable_app {
             && (($child eq 'other-child' || $child eq 'child') && !defined($role)
                 || $child eq 'other-child' && $role eq 'S');
         $journey->consume_observation('desktop', $desktop);
-        $opened = native_open_desktop($journey, 'opened', defined($role) ? 1 : 0);
+        $opened = native_open_desktop($journey, 'opened');
     } elsif ($route eq 'files') {
         $journey->consume_observation('desktop', $desktop);
         $journey->consume_observation('files', $journey->seen('files'));
@@ -746,7 +746,7 @@ sub native_blocked_app {
             || $route eq 'desktop' && $role =~ /\A(?:A|H|S)\z/);
     if ($route eq 'desktop') {
         $journey->consume_observation('desktop', $journey->seen('desktop'));
-        return native_open_desktop($journey, 'denied', $role eq 'A' ? 0 : 1);
+        return native_open_desktop($journey, 'denied');
     }
     if ($route eq 'files') {
         $journey->consume_observation('files', $journey->seen('files'));
@@ -1975,26 +1975,15 @@ sub snap_grid {
     $journey->finish();
 }
 
-# DING's normal Enter path launches the selected desktop file's declared Exec.
-# It opens our NON_UNIQUE fixture's secondary process even with primary work open.
+# Launch the desktop entry through the shared system API; app use/denial is
+# observed separately, without requiring a desktop-icons provider.
 sub native_open_desktop {
-    onpc_progress::operation('Opening the child\'s app through its exact desktop icon');
-    my ($journey, $result, $focus_desktop) = @_;
+    onpc_progress::operation('Opening the child\'s app through its desktop entry');
+    my ($journey, $result) = @_;
     $result //= 'opened';
-    $focus_desktop //= 0;
-    die 'native:desktop-arguments' unless (@_ >= 1 && @_ <= 3)
-        && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied')
-        && ($focus_desktop eq '0' || $focus_desktop eq '1');
-    # With original work open, GNOME's panel-cycle shortcut transfers keyboard
-    # focus to DING without closing that work. AT-SPI icon focus alone cannot
-    # transfer compositor focus. Select this route before input, never as a retry;
-    # the fresh exact-icon and sole-selection guards still precede Enter.
-    testapi::send_key('ctrl-alt-esc') if $focus_desktop;
-    my $icon = $journey->consume_observation('icon', $journey->seen('icon'));
-    die 'native:desktop-selection' unless exists($icon->{desktop_icon_selected});
-    testapi::send_key('ctrl-a') unless $icon->{desktop_icon_selected};
-    $journey->consume_observation('selected', $journey->seen('selected'));
-    testapi::send_key('ret');
+    die 'native:desktop-arguments' unless (@_ == 1 || @_ == 2)
+        && ref($journey) eq 'onpc_journey' && ($result eq 'opened' || $result eq 'denied');
+    $journey->seen('launch');
     return $journey->seen($result);
 }
 
@@ -2010,7 +1999,7 @@ sub native_desktop_new_window {
         native_use_app($earlier, native_open_command($earlier, undef));
         native_read_activity($earlier, 'capture');
         my $second = $flow->scope('second');
-        native_use_app($second, native_open_desktop($second, 'opened', 1));
+        native_use_app($second, native_open_desktop($second, 'opened'));
         native_read_activity($second, 'capture');
         native_read_activity($earlier, 'reread');
         native_finish_app($second);
@@ -2022,7 +2011,7 @@ sub native_desktop_new_window {
 }
 
 sub native_desktop_usable {
-    onpc_progress::operation('Checking the child can open and use an app from its desktop icon');
+    onpc_progress::operation('Checking the child can open and use an app from its desktop entry');
     my ($exchange, $declared, $challenges) = @_;
     die 'native:arguments' unless @_ == 3;
     my $journey = native_child_entry($exchange, $declared, $challenges, 'native-desktop-usable');

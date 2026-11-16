@@ -94,24 +94,6 @@ def desktop_directory(home):
     return path
 
 
-def desktop_trusted(path, value=None):
-    """Use the child's supported GVfs metadata API on the session bus."""
-    from gi.repository import Gio
-    runtime = Path('/run/user') / str(os.getuid())
-    require(stat.S_ISDIR(runtime.lstat().st_mode) and runtime.lstat().st_uid == os.getuid()
-            and stat.S_ISSOCK((runtime / 'bus').lstat().st_mode)
-            and (runtime / 'bus').lstat().st_uid == os.getuid())
-    os.environ['XDG_RUNTIME_DIR'] = str(runtime)
-    os.environ['DBUS_SESSION_BUS_ADDRESS'] = 'unix:path=' + str(runtime / 'bus')
-    file = Gio.File.new_for_path(str(path))
-    if value is not None:
-        require(type(value) is bool)
-        require(file.set_attribute_string('metadata::trusted', 'true' if value else 'false',
-                                          Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None))
-    info = file.query_info('metadata::trusted', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, None)
-    return info.get_attribute_string('metadata::trusted') == 'true'
-
-
 def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan', role='A'):
     """One exact child-owned desktop entry; never adopt or overwrite a collision."""
     import pwd
@@ -162,11 +144,16 @@ def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan'
             result = {'directory': identity(os.fstat(destination_fd))[:5],
                       'source': identity(entry), 'sha256': expected['source'],
                       'destination': str(destination), 'file': None}
-            if destination.name in os.listdir(destination_fd):
+            # Repeated enumeration on one open directory can miss a new entry.
+            # Look up the exact name through the pinned descriptor instead.
+            try:
+                os.stat(destination.name, dir_fd=destination_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
                 copied, target = read_regular(destination_fd, destination.name,
                                               owner=child.pw_uid, mode=0o755, limit=4096)
-                require(copied == data and target.st_gid == child.pw_gid
-                        and desktop_trusted(destination))
+                require(copied == data and target.st_gid == child.pw_gid)
                 result['file'] = identity(target)
             guard()
             return result, data
@@ -185,11 +172,8 @@ def native_desktop_operate(home, operation, request, *, user='onpc-child-jordan'
                 write_exclusive(destination_fd, destination.name, data,
                                 owner=child.pw_uid, group=child.pw_gid, mode=0o755)
                 guard()
-                require(desktop_trusted(destination, True))
             elif operation == 'cleanup':
                 require(current['file'] is not None)
-                guard()
-                require(not desktop_trusted(destination, False))
                 guard()
                 require(identity(os.stat(destination.name, dir_fd=destination_fd,
                                          follow_symlinks=False)) == current['file'])

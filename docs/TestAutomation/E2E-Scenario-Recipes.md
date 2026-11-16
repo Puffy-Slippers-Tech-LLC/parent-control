@@ -1384,10 +1384,10 @@ order and recorder phases. It prepares no approval and requires no retained work
 Case 68 uses `app_launch.DESKTOP_PLAN` / `onpc_app_launch::run` with the enabled,
 Allowed native desktop binding. Parent saves Jordan's 30-minute daily allowance,
 zero grant and fixture A's precise Allowed rule with independent readback.
-Fresh Jordan and then fresh Riley each receive the same verified trusted launcher
+Fresh Jordan and then fresh Riley each receive the same verified launcher
 on their own desktop through `synthetic_files.desktop_entry_actions`.
-The shared DING adapter binds the child's owner and exact sole ordinary icon,
-focuses it, and independently verifies its selection before one Enter activation.
+The shared operation launches that exact desktop entry once through the public
+GIO API as the active child. Desktop icons and extension behavior are incidental.
 Each child submits the normal draft with independent window and result reads,
 then closes that app normally and removes only the owned desktop entry.
 Riley's policy and disabled limits remain untouched. No approval, alternate route,
@@ -1396,10 +1396,10 @@ separate-window or launcher-visibility assertion is used.
 Case 70 uses `app_launch.HARD_DESKTOP_PLAN` and the same worker's enabled,
 hard-blocked desktop binding. Parent saves Jordan's 30-minute daily allowance,
 zero grant and fixture A's precise permanent block with independent readback.
-Fresh Jordan receives the trusted desktop entry and activates its exact sole
-icon once. The shared denial operation requires continuous complete app-window
+Fresh Jordan receives the verified desktop entry and launches it once through
+the same API. The shared denial operation requires continuous complete app-window
 absence for 15 seconds and a recognized prompt-free desktop. Remove Jordan's
-owned entry before logout. Fresh Riley receives the same target's trusted entry,
+owned entry before logout. Fresh Riley receives the same target's verified entry,
 opens it from the desktop, submits the normal draft and independently reads the
 result, then closes the app and removes the owned entry. Riley's policy and
 disabled limits remain untouched. No approval or alternate route is used.
@@ -2329,10 +2329,10 @@ creates no prerequisite for another case.
 The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
 native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
 The native desktop/child-overlay binding uses `DESKTOP_PLAN` / `execute_desktop`.
-It places one trusted A, H or S desktop entry per launch and removes that entry
+It places one verified A, H or S desktop entry per launch and removes that entry
 after the independently observed result. H/S retain their distinct executable
-and secondary window, preserving A's original activity. The same guarded DING
-icon selection/Enter route proves each launch and a 15-second complete window
+and secondary window, preserving A's original activity. The same guarded GIO
+desktop-entry API attempts each launch and a 15-second complete window
 absence proves denial; no launcher-visibility assertion is added.
 The native command/station binding uses `COMMAND_KIOSK_PLAN` /
 `execute_command_kiosk`, with the same finite approvals and app assertions.
@@ -3009,7 +3009,7 @@ verified by the attempt under the
 
 | Phase | Shared composition and independent public result |
 | --- | --- |
-| Declared setup | Start from the product-free baseline with independently verified Chinese assets and one verified current-package transfer/readback. Use DESK13(Jordan, `zh_CN.UTF-8`) for the account setting, then explicit session renewal and fresh child entry to observe a Chinese desktop before product installation. Keep Jamie/station English and Jordan's product language unset. No older product is installed, and no private preference writes or synthetic grants are used. |
+| Declared setup | Start from the product-free baseline with independently verified Chinese locale/authentication assets and one verified current-package transfer/readback. Use DESK13(Jordan, `zh_CN.UTF-8`) for the account setting, then explicit session renewal and fresh child entry to confirm that locale before product installation. Shell translation and font rendering are outside acceptance. Keep Jamie/station English and Jordan's product language unset. No older product is installed, and no private preference writes or synthetic grants are used. |
 | Install latest, no reboot | From the declared administrator session, LIFE04 installs the latest verified current-source package once. Independently require successful completion, the expected installed version, the final reboot notice and unchanged boot. Do not reboot before the tested kiosk entry or replace this installation with an app snapshot. Navigate through the shared greeter/kiosk entry blocks and independently require Jordan as the default selected child. On the very first presentation, require the reboot-required prompt's message and buttons in Simplified Chinese, with no English first-run language dialog displacing it. Observe this before any automatic language-setup handler or Parent policy setup acts. |
 | Reboot and first kiosk presentation | Exit through the public prompt/session flow and perform LIFE02 in the same attempt. Independently confirm a changed boot and fresh usable greeter. Use existing public Parent policy blocks for any required request eligibility after this reboot, leaving Jordan's personal language unset. Reacquire fresh kiosk observations. Before saving any product language for Jordan, require Jordan still selected, the first-run language preference dialog already Chinese, Chinese selected by default, and the underlying kiosk/request surface Chinese from its first usable presentation. Compare bounded representative headings, child/approver/duration/Request labels and dialog actions against independently specified Chinese expectations. A later language switch cannot repair an English initial presentation. |
 | Save Chinese and approve | Use the shared public chooser operations to select/save `zh-Hans` and independently observe completion. Set/read the ordinary Jamie/Jordan/75-second/soft-included request through REQUEST04/05/06, then REQUEST09. AUTH01 must observe both the product-owned Chinese request context and the real MATE agent's Chinese Authenticate/Cancel buttons and system-owned explanatory/password text. Use the qualified Chinese provider binding and unchanged secret-safe AUTH02 route for a real approval; independently require the Chinese granted result and ordinary automatic exit/access result. |

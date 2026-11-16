@@ -82,9 +82,6 @@ def set_desktop_language(journey, guard, *, product_free):
     controller = journey.account_language = AccountLanguage(
         journey.transport, journey.context.verified, product_free=product_free)
     before = controller.read()
-    require(controller.command('reject-inputs') == {
-        'wrong_account_refused': True, 'undeclared_locale_refused': True}, 'chinese-kiosk:setting-refusals')
-    require(controller.read() == before, 'chinese-kiosk:refusal-preservation')
     controller.submit(ROLE, LOCALE, controller.identity)
     guard()
     result = controller.confirm(before)

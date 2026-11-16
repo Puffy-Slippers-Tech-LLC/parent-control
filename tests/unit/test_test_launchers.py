@@ -129,7 +129,8 @@ def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
     # Reporting failure cannot kill the actual repair session or change its
     # lifecycle verdict. Protocol errors are outside this optional boundary.
     renderer.event.side_effect = OSError('optional transcript unavailable')
-    session = detached_launcher._GoalSession(command, tmp_path, renderer)
+    session = detached_launcher._GoalSession(command, tmp_path, renderer,
+        dict(session='test-session', status='running', started_at=0))
     native = command.protocol
 
     def take():

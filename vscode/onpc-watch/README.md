@@ -489,6 +489,10 @@ Viewer rows shrink to fit the pane, down to the combined height of each tile's
 title bar and footer. The VM image shrinks first; with less room, the case title,
 short description and optional SSH output are clipped. The title bar and footer
 remain visible, and footer text uses the title bar's font size.
+Screens and case text do not impose a minimum tile size. The viewer grid resizes
+with the right pane and scrolls only when its title bars and footers cannot fit
+in the chosen layout. Horizontal tiles can shrink below 300 pixels wide, down
+to the space required by their controls and fixed footer content.
 
 Immediately after **Reconnect**, the footer lists configured SSH hosts and any
 additional SSH Watch source hosts, separated by `|`; local sources are omitted

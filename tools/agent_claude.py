@@ -233,6 +233,9 @@ class ClaudeProtocol(ClaudeBatchPresentation):
     def start(self):
         pass  # The owned bridge reports ready after SDK initialization.
 
+    def poll(self):
+        pass
+
     def start_turn(self, text):
         if self.active_turn or self.turn_requests_pending:
             raise ValueError('Claude previous turn has not drained')

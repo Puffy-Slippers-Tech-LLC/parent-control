@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import time
 import tomllib
 
 from agent_adapter import ModelProfile, PreparedSession, ProfileRole, SessionEvent, SessionRequest
@@ -359,6 +360,10 @@ class CodexProtocol:
         self.requests = {}
         self.counter = 0
         self.outgoing = bytearray()
+        self.recovery = None
+        self.schema_retried = False
+        self.discarded_turns = set()
+        self.interrupted = False
 
     @property
     def ready(self):
@@ -366,11 +371,11 @@ class CodexProtocol:
 
     @property
     def active_turn(self):
-        return self.turn is not None
+        return self.recovery is not None or self.turn is not None
 
     @property
     def turn_requests_pending(self):
-        return any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
+        return self.recovery is not None or any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
                    for method, _ in self.requests.values())
 
     def encode(self, packet):
@@ -389,6 +394,7 @@ class CodexProtocol:
 
     def start_turn(self, text):
         self.completed = False
+        self.interrupted = False
         self.rpc('turn/start', {'threadId': self.thread,
                  'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema,
                  'model': self.request.model, 'effort': self.request.effort})
@@ -398,6 +404,12 @@ class CodexProtocol:
                  'input': [{'type': 'text', 'text': text}]})
 
     def interrupt(self):
+        self.interrupted = True
+        if self.recovery is not None:
+            # Recovery is already draining the native turn. Honor the user's
+            # interruption without issuing a second interrupt or retrying input.
+            self.recovery['interrupted'] = True
+            return
         self.rpc('turn/interrupt', {'threadId': self.thread, 'turnId': self.turn})
 
     def feed(self, data):
@@ -416,11 +428,46 @@ class CodexProtocol:
                           if code == 'cyberPolicy' else message,
             'capacity': context == 'turn failed' and code == 'serverOverloaded'})
 
+    def recovered_input(self):
+        """An interrupt acknowledgment and terminal turn must both drain first."""
+        if self.recovery['acknowledged'] and self.recovery['completed']:
+            text = self.recovery['text']
+            interrupted = self.recovery['interrupted']
+            self.recovery = None
+            self.turn = None
+            self.completed = interrupted
+            if interrupted:
+                yield SessionEvent('turn_completed', {'interrupted': True})
+            else:
+                yield SessionEvent('retry_input', {'text': text, 'recovered': True})
+
+    def poll(self):
+        if self.recovery is not None and time.monotonic() >= self.recovery['deadline']:
+            raise ValueError('Codex active-turn recovery timed out; saved input and conversation were retained')
+
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
             if 'error' in packet:
-                if method == 'turn/steer' and (self.completed or self.turn is None):
+                if (method == 'turn/start' and not self.schema_retried
+                        and 'ActiveTurnOutputSchemaMismatch' in str(packet['error'].get('message', ''))):
+                    # Resume can start an automatic goal turn without our schema.
+                    # Keep this thread and input; never relax the result schema or
+                    # retry arbitrary provider/authentication/policy failures.
+                    self.schema_retried = True
+                    self.recovery = dict(text=params['input'][0]['text'], turn=None,
+                                         acknowledged=False, completed=False, completed_turn=None,
+                                         interrupted=self.interrupted, deadline=time.monotonic() + 30)
+                    self.rpc('thread/read', {'threadId': self.thread, 'includeTurns': True})
+                    yield SessionEvent('discard_result', {})
+                    yield SessionEvent('notice', {'text': 'Draining an active conversation turn before retrying the saved input.'})
+                elif (method == 'turn/interrupt' and self.recovery is not None
+                      and self.recovery['completed']):
+                    # The selected turn can finish before its interrupt is
+                    # handled. Its terminal notification already drained it.
+                    self.recovery['acknowledged'] = True
+                    yield from self.recovered_input()
+                elif method == 'turn/steer' and (self.completed or self.turn is None):
                     # Completion raced with steering. Deliver once as a new turn.
                     yield SessionEvent('retry_input', {'text': params['input'][0]['text']})
                 elif method == 'turn/interrupt' and self.completed:
@@ -429,7 +476,29 @@ class CodexProtocol:
                     yield self.failure(method, packet['error'])
                 return
             result = packet['result']
-            if method == 'initialize':
+            if method == 'thread/read' and self.recovery is not None:
+                if result['thread']['id'] != self.thread:
+                    raise ValueError('agent recovery thread identity changed')
+                active = [turn for turn in result['thread']['turns'] if turn['status'] == 'inProgress']
+                if len(active) > 1:
+                    raise ValueError('agent recovery found multiple active turns')
+                if active:
+                    turn = active[0]['id']
+                    self.discarded_turns.add(turn)
+                    self.recovery['turn'] = turn
+                    if self.recovery['completed_turn'] == turn:
+                        self.recovery.update(acknowledged=True, completed=True)
+                        yield from self.recovered_input()
+                    else:
+                        self.rpc('turn/interrupt', {'threadId': self.thread, 'turnId': turn})
+                else:
+                    # Completion raced the read; there is nothing left to stop.
+                    self.recovery.update(acknowledged=True, completed=True)
+                    yield from self.recovered_input()
+            elif method == 'turn/interrupt' and self.recovery is not None:
+                self.recovery['acknowledged'] = True
+                yield from self.recovered_input()
+            elif method == 'initialize':
                 self.encode({'method': 'initialized', 'params': {}})
                 params = {'model': self.request.model, 'cwd': str(self.request.root),
                          'approvalPolicy': 'never',
@@ -446,6 +515,7 @@ class CodexProtocol:
                     raise ValueError('resumed agent thread identity changed')
                 yield SessionEvent('ready', {'thread_id': self.thread})
             elif method == 'turn/start':
+                self.schema_retried = False
                 if not self.completed:
                     self.turn = result['turn']['id']
             return
@@ -457,6 +527,19 @@ class CodexProtocol:
             return
         # Adviser notifications must not replace the coordinator's turn/result.
         if params.get('threadId') not in (None, self.thread):
+            return
+        if self.recovery is not None:
+            # Neither results nor failures from the displaced turn belong to
+            # the new assignment. Retain only its terminal cleanup boundary.
+            if method == 'turn/completed':
+                turn = params['turn']['id']
+                self.discarded_turns.add(turn)
+                self.recovery['completed_turn'] = turn
+                if turn == self.recovery['turn']:
+                    self.recovery['completed'] = True
+                    yield from self.recovered_input()
+            return
+        if params.get('turnId', params.get('turn', {}).get('id')) in self.discarded_turns:
             return
         if method == 'turn/started':
             self.turn = params['turn']['id']

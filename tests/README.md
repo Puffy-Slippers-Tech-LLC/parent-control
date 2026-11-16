@@ -1070,6 +1070,9 @@ runner checkpoint. Additional verification rounds deliberately run their fresh
 required selection; do not add `--rounds` just to continue a stopped round.
 
 An answered blocker keeps its current model/phase and is not a failed repair.
+Answers belong to that unresolved issue, survive its controller reloads and are
+cleared when a distinct issue starts. The answer file records that issue and its
+conversation identity; later cases receive no earlier answers.
 Ownership recovery remains the existing scripted `cleanup-e2e` operation; a
 normal cleanup failure handoff enters the same repair policy, while refusal
 without a handoff still stops. No model performs routine ownership recovery.
@@ -2276,7 +2279,12 @@ For evidence on a configured VM's host, use
 `tools/test-vm --vm NAME artifacts list '<report-directory>'`, then the same
 `read`, `tail` or `stat` action and arguments. This read-only bridge routes to
 that host's existing artifact reader with its caller, path and identity guards;
-it does not start or acquire the guest.
+it does not start or acquire the guest. Inspection uses the installed reader
+directly, without source capture or admission, so it stays available behind a
+repair writer or impact hold. A controller already on that host uses the local
+reader; other controllers use the configured SSH alias and storage checkout.
+Agent commands receive no process-local source descriptor aliases; their
+supervisor retains the actual leases and execution/recovery ownership.
 
 `read` also accepts `--offset` for paging through large files. `list` returns
 JSON names; `stat` returns JSON type, size, mode, and modification time. `export`

@@ -111,6 +111,33 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets):
         (names[controller], names[index]) for index in targets if index != controller]
     assert all(source == names[0] for source, _target in hops)
 
+    # Inspection must work behind a repair writer, even when a native command
+    # has inherited its environment labels but none of its descriptors. The
+    # same controller/host matrix covers a server-local reader without SSH.
+    monkeypatch.setenv('ONPC_TEST_SOURCE_FD', '2147483647')
+    monkeypatch.setattr(remote_sources, 'capsule',
+        lambda *args, **kwargs: pytest.fail('artifact inspection captured source'))
+    reads = []
+    def read_artifact(argv, **kwargs):
+        remote = shlex.split(argv[-1])
+        host = argv[-2]
+        anchor = next(item['repo_root'] for item in branches if item['host'] == host)
+        assert remote == ['/usr/bin/env', '-C', anchor, '/usr/bin/pkexec',
+            '--disable-internal-agent', '--keep-cwd', '/usr/local/libexec/onpc-test-artifacts',
+            'read', '/var/tmp/onpc-owned/report with spaces.json', '--bytes', '128']
+        assert kwargs['cwd'] == destination and kwargs['timeout'] == 60
+        reads.append(host)
+        return SimpleNamespace(returncode=7)
+    monkeypatch.setattr(host_dispatch.subprocess, 'run', read_artifact)
+    _, vms = vm_config.execution(selector, destination / 'config/environment.json', remote=True)
+    for vm in vms:
+        status = host_dispatch.artifact_reader(destination, vm,
+            ['read', '/var/tmp/onpc-owned/report with spaces.json', '--bytes', '128'])
+        assert status == (None if vm.host.name == names[controller] else 7)
+        with pytest.raises(ValueError, match='artifacts requires'):
+            host_dispatch.artifact_reader(destination, vm, ['export', '/var/tmp/onpc-owned/report'])
+    assert reads == [names[index] for index in targets if index != controller]
+
 
 def test_source_transfer_uses_controller_working_bytes_without_touching_host_checkout(tmp_path, monkeypatch):
     from test_storage import scratch_descriptors

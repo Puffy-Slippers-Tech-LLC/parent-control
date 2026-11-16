@@ -10,6 +10,8 @@ SSH/controller doubles. Source capture owns tiny private Git/Make trees and
 bounded, waited children; its ignored large input is sparse and never read.
 No live VM, network, helper, account, bus, display or shared cache is accessed.
 The module is unit-only, compatible with overlap, and has no cleanup/UI entry.
+Artifact inspection extends that same controller/host matrix using doubled
+SSH only, including stale source labels; no live helper or network is accessed.
 Recording publication guards add only tiny private media/manifests and file
 locks beneath pytest storage; they start no renderer or encoder. Snap admission
 checks use process-local command, activity and source-lease doubles, with no VM,
@@ -118,6 +120,8 @@ are reaped. It changes no credentials or ptrace policy. A private-checkout
 controller race uses one waited child and an import hook around real admission.
 Impact-session and logical-task admission checks use private JSON records and
 process-local session/input doubles; they start no agent, VM or external service.
+Issue-scoped repair answers reuse those records and doubles through controller
+reloads; descriptor filtering reuses the existing private source-lease threads.
 Checkpoint admission checks use private JSON records and local implementation
 bindings. Private checkout fixtures in test_launchers, unit_test_launcher and
 privileged_test_runner exclude the outer runner's source lease without closing

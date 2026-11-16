@@ -941,7 +941,6 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         commits.state['session_policy'] = 'issue-conversations'
     case_results = {tuple(json.loads(key)): value for key, value in runtime.get('results', {}).items()}
     case_tiers = {tuple(json.loads(key)): tuple(value) for key, value in runtime.get('tiers', {}).items()}
-    developer_answers = runtime.get('answers', [])
     repair_context = runtime.get('repair')
     restart_continuation = saved.get('continuation')
     loop_state = commits.state.setdefault('rounds', {})
@@ -955,7 +954,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         state = dict(run=str(run), runtime=dict(repair=repair_context,
             results={commits.key(key): value for key, value in case_results.items()},
             tiers={commits.key(key): value for key, value in case_tiers.items()},
-            answers=developer_answers, task=active_task))
+            task=active_task))
         if continuation or restart_continuation:
             state['continuation'] = continuation or restart_continuation
         commits.state['controller_restart'] = state
@@ -1089,11 +1088,12 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
         repair_id = previous['repair_id'] if previous else uuid.uuid4().hex
         attempt = previous['attempt'] + 1 if previous else 1
         blocker_summary = None
-        continuation = commits.state.get('controller_restart', {}).get('continuation')
-        if continuation is not None and continuation['failure'] == dict(zip(('category', 'case', 'vm'), failure_key)):
-            blocker_summary = continuation['result']['summary']
-        result_recovery = None
         target = dict(zip(('category', 'case', 'vm'), failure_key))
+        continuation = commits.state.get('controller_restart', {}).get('continuation')
+        if continuation is not None and continuation['failure'] == target:
+            blocker_summary = continuation['result']['summary']
+        developer_answers = entry.setdefault('answers', [])
+        result_recovery = None
         category = target['category']
         initial = initial_model(model, effort or None, category=category)
         if impact.get('classification') != 'test_issue':
@@ -1212,12 +1212,13 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 allowance.add(MAX_REPAIR_SESSIONS)
                 case_limit()
             developer_answers.append(answer)
-            atomic(run / 'developer-answers.json', developer_answers)
+            atomic(run / 'developer-answers.json', dict(failure=target,
+                conversation_key=entry.get('conversation', {}).get('key'), answers=developer_answers))
             blocker_summary = result['summary']
             repair_context.pop('blocked', None)
             repair_context['blocker_summary'] = blocker_summary
             restart_continuation = dict(failure=target, result=result,
-                answers=developer_answers, prompt=prompt, session=metadata)
+                prompt=prompt, session=metadata)
             commits.state.setdefault('controller_restart', {})['continuation'] = restart_continuation
             commits.save()
             check_controller(continuation=restart_continuation)
@@ -1419,6 +1420,9 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 entry.pop('conversation', None)
                 entry.pop('inconclusive_diagnostics', None)
                 entry.pop('validated_response', None)
+                entry['answers'] = []
+                developer_answers = entry['answers']
+                blocker_summary = None
                 # Consume the observation which opened this context. It cannot
                 # justify another reset until a new corrective attempt runs.
                 commits.state['repair_actions'].pop(current_ticket['id'], None)

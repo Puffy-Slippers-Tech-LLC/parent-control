@@ -269,11 +269,14 @@ changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extens
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
 in **Session**, it copies the displayed transcript.
-For every execution-plan launcher, every view
+For every execution-plan launcher and `fix-tests`, every view
 starts with **Total Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels
 scroll the summary horizontally instead of wrapping it. A divider
 spans the panel above the completed task recaps and current task/session rows.
+For `fix-tests`, these are passed/unfinished/total cases from the runner's
+overall counts; failed cases remain unfinished until repaired. Before discovery,
+the counts show dashes. The existing Overall row retains passed/failed/total.
 The **Total Tasks:** label is bold. When the whole plan
 finishes, the same line adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.

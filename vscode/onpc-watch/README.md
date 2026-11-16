@@ -349,6 +349,11 @@ Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Input is
 routed only to the displayed, still-current launcher session.
+Native goal repair sessions accept chat on their current turn. Messages wait in
+the session mailbox between automatic goal turns; Watch does not start extra
+turns. A rejected delivery appears in the transcript with the message text and
+is not automatically replayed. Existing sessions started without chat support
+remain read-only until the next session starts with the updated launcher.
 Recording links in **Launcher**, **Session**, **Status** and **Error** open through GIO using
 the desktop's default video application for local sources. SSH sources transfer
 the selected recording on demand and play it in a VS Code video tab. Playback

@@ -308,10 +308,13 @@ def _optional_observation(action, *args, **kwargs):
 class _GoalSession:
     """Attach one prompt to a fresh native session, without a workflow result."""
 
-    def __init__(self, command, run, renderer):
+    def __init__(self, command, run, renderer, session_view):
         self.protocol, self.renderer = command.protocol, renderer
+        self.run = run
+        self.session_view = session_view
         self.prompt = (run / 'prompt.txt').read_text()
         self.outgoing = self.protocol.outgoing
+        _optional_observation(atomic, run / 'chat-state.json', self.session_view)
         self.protocol.start()
 
     @property
@@ -320,6 +323,20 @@ class _GoalSession:
 
     def poll(self):
         self.protocol.poll()
+        # Native goal continuation owns turn creation. Keep input queued between
+        # turns, and steer only the live turn rather than starting another one.
+        if self.done or self.protocol.turn is None or any(
+                method in ('turn/start', 'turn/steer')
+                for method, _params in self.protocol.requests.values()):
+            return
+        from launcher_chat import take_input
+        messages = [entry['text'] for entry in take_input(self.run)
+                    if entry['kind'] == 'message'
+                    and entry['session'] == self.session_view['session']]
+        if messages:
+            text = '\n\n'.join(messages)
+            self.protocol.steer(text)
+            _optional_observation(self.renderer.message, text, 'You')
 
     def feed(self, data):
         for event in self.protocol.feed(data):
@@ -460,7 +477,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         if usage_callback is not None:
             on_usage = lambda usage: usage_callback(dict(usage or {}, **provenance))
         session_view = dict(session=uuid.uuid4().hex, status='running',
-            started_at=time.time(), interactive=interactive,
+            started_at=time.time(), interactive=interactive or plain,
             **provenance)
         # The allocation owns terminal history; changing the input recipient
         # must not erase earlier agent sessions in that same launcher run.
@@ -506,7 +523,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         command = command.revised(interactive=True, thread_id=thread_id)
         conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
                                   session_state=session_state)
-    goal_session = _GoalSession(command, run, renderer) if plain else None
+    goal_session = _GoalSession(command, run, renderer, session_view) if plain else None
     transport = goal_session or conversation
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and transport is None else None
     log = (run / 'last-test.log').open('wb') if kind != 'agent' else None

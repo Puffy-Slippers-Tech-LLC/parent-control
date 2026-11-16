@@ -609,8 +609,8 @@ class CodexGoalProtocol(CodexWire):
 
     Unlike exec (which unsubscribes after its initial turn), this connection
     remains attached while the native goal is active. A final message or a
-    completed turn is not session completion. No output schema, resume, steering
-    or launcher-generated follow-up turns participate in this protocol.
+    completed turn is not session completion. Watch can steer the live turn;
+    no output schema, resume or launcher-generated follow-up turns participate.
     """
 
     def __init__(self, request):
@@ -635,6 +635,10 @@ class CodexGoalProtocol(CodexWire):
     def poll(self):
         pass
 
+    def steer(self, text):
+        self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
+                 'input': [{'type': 'text', 'text': text}]})
+
     def settle(self):
         if not self.done and self.completed and self.turn is None and not self.requests:
             # Native continuation owns active goals. An ordinary session end
@@ -645,8 +649,16 @@ class CodexGoalProtocol(CodexWire):
 
     def event(self, packet):
         if 'method' not in packet:
-            method, _ = self.requests.pop(packet['id'])
+            method, params = self.requests.pop(packet['id'])
             if 'error' in packet:
+                if method == 'turn/steer':
+                    # A turn may end after the mailbox is drained. Do not
+                    # interrupt the goal or replay input with unknown delivery.
+                    yield SessionEvent('notice', {'text':
+                        'Chat message was not accepted; review the session before sending again.\n'
+                        + params['input'][0]['text'] + '\n' + str(packet['error'])})
+                    self.settle()
+                    return
                 self.done = True
                 self.status = 1
                 yield self.failure(method, packet['error'])
@@ -667,6 +679,8 @@ class CodexGoalProtocol(CodexWire):
                     self.turn = result['turn']['id']
             elif method == 'thread/goal/get':
                 self.goal = result['goal']
+                self.settle()
+            elif method == 'turn/steer':
                 self.settle()
             return
         method, params = packet['method'], packet.get('params', {})

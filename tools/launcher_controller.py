@@ -41,7 +41,7 @@ def _pending_git(previous):
             if saved is not None:
                 if any(saved.get(key) is not None for key in (
                         'commit_intent', 'pull_intent', 'worktree_propagation',
-                        'upstream_pull', 'git_reconciliation')):
+                        'upstream_pull')):
                     return True
     return False
 

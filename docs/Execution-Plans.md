@@ -249,6 +249,8 @@ have no admission authority.
 Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
+A saved reconciliation note about overlapping pre-existing changes does not
+represent a started Git transaction and does not freeze unrelated launchers.
 Ordinary pull failures retain their low-effort recovery agent;
 startup requires explicit success and a successful pull retry. Attachments and
 controls keep their existing routes without mutating active source. Idle

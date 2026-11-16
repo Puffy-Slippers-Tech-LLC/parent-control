@@ -438,7 +438,8 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                     const nonce = randomBytes(16).toString('hex');
                     const listener = video.webview.onDidReceiveMessage(message => {
                         if (message.type === 'playback-error') errors.report('Cannot play Watch recording',
-                            `VS Code could not decode the transferred WebM recording.\nMedia error: ${message.code}: ${message.detail}`);
+                            `VS Code could not decode the transferred WebM recording.\nMedia error: ${message.code}: ${message.detail}` +
+                            (message.fallback ? `\nMedia Source fallback: ${message.fallback}` : ''));
                     });
                     video.onDidDispose(() => listener.dispose());
                     // A Blob avoids putting an entire recording into a media URL.
@@ -448,14 +449,58 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                         <script nonce="${nonce}">
                         const vscode = acquireVsCodeApi();
                         const video = document.querySelector('video');
-                        video.addEventListener('error', () => {
-                            document.getElementById('error').hidden = false;
-                            vscode.postMessage({type: 'playback-error', code: video.error?.code, detail: video.error?.message});
-                        });
                         const bytes = Uint8Array.from(atob('${result.data}'), character => character.charCodeAt(0));
+                        const urls = [];
+                        let triedMediaSource = false, failed = false, nativeError;
+                        const showError = fallback => {
+                            if (failed) return;
+                            failed = true;
+                            document.getElementById('error').hidden = false;
+                            const error = nativeError || video.error;
+                            vscode.postMessage({type: 'playback-error', code: error?.code,
+                                detail: error?.message, fallback});
+                        };
+                        const playWithMediaSource = async () => {
+                            // Electron's FFmpeg may lack the WebM demuxer. MSE uses
+                            // Chromium's parser for the same bytes, without transcoding.
+                            // https://github.com/microsoft/vscode/issues/195758
+                            if (bytes.length < 4 || bytes[0] !== 0x1a || bytes[1] !== 0x45 ||
+                                    bytes[2] !== 0xdf || bytes[3] !== 0xa3) {
+                                throw new Error('Transferred recording is not WebM.');
+                            }
+                            const header = Array.from(bytes.subarray(0, 65536), byte => String.fromCharCode(byte)).join('');
+                            const codecs = { V_VP8: 'vp8', V_VP9: 'vp9' };
+                            const codec = Object.keys(codecs).find(id => header.includes(id));
+                            if (!codec) throw new Error('Recording has no supported WebM video codec.');
+                            const type = 'video/webm; codecs="' + codecs[codec] + '"';
+                            if (typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(type)) {
+                                throw new Error('VS Code does not support ' + type + '.');
+                            }
+                            const source = new MediaSource();
+                            const url = URL.createObjectURL(source);
+                            urls.push(url);
+                            const opened = new Promise(resolve => source.addEventListener('sourceopen', resolve, {once: true}));
+                            video.src = url;
+                            await opened;
+                            const buffer = source.addSourceBuffer(type);
+                            await new Promise((resolve, reject) => {
+                                buffer.addEventListener('updateend', resolve, {once: true});
+                                buffer.addEventListener('error', () => reject(new Error('WebM Media Source parsing failed.')), {once: true});
+                                buffer.appendBuffer(bytes);
+                            });
+                            source.endOfStream();
+                        };
+                        video.addEventListener('error', () => {
+                            if (!triedMediaSource && video.error?.code === 4) {
+                                triedMediaSource = true;
+                                nativeError = {code: video.error.code, message: video.error.message};
+                                playWithMediaSource().catch(error => showError(error.message));
+                            } else showError(triedMediaSource ? video.error?.message : undefined);
+                        });
                         const url = URL.createObjectURL(new Blob([bytes], {type: 'video/webm'}));
+                        urls.push(url);
                         video.src = url;
-                        window.addEventListener('unload', () => URL.revokeObjectURL(url));
+                        window.addEventListener('unload', () => urls.forEach(url => URL.revokeObjectURL(url)));
                         </script></body></html>`;
                 } else throw new Error('Adapter returned an unsupported artifact.');
             } catch (error) { errors.report('Cannot open Watch artifact', error); }

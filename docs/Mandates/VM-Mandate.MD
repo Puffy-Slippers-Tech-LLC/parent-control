@@ -249,6 +249,9 @@ During a test, `tools/test-vm --vm NAME probe memory` requests a fixed read-only
 sample from that VM's active owner. It acquires no checkout or controller lease,
 opens no retention session and receives no SSH credentials or reservation receipt.
 Only the installed authenticated helper for the owner's caller may request it.
+For a remote VM, dispatch invokes that host's installed helper from its registered
+checkout directly, like artifact inspection; it never captures or transfers the
+repairing checkout's source. The SSH request has a 60-second deadline.
 The owner serializes probes using separate command state and guarded SSH; returns
 bounded memory, swap, page-fault, OOM and memory-pressure counters with run,
 domain-instance and boot identity; and publishes the result through shared Watch.

@@ -203,6 +203,7 @@ class AppSession:
             raise ValueError('interactive agent session requires a protocol handler')
         self.outgoing = self.protocol.outgoing
         self.messages = []
+        self.recovered_input = None
         self.capacity_inputs = []
         self.final = None
         self.final_text = ''
@@ -278,6 +279,7 @@ class AppSession:
     def poll(self):
         if self.done:
             return
+        self.protocol.poll()
         for entry in take_input(self.run):
             if entry['session'] not in (None, self.session):
                 # Text submitted at a session boundary still reaches the next
@@ -294,10 +296,19 @@ class AppSession:
                     (self.run / 'cancel').touch(mode=0o600)
             else:
                 self.interrupt_requested = True
-        if self.interrupt_requested and self.protocol.active_turn and not self.interrupting:
-            self.protocol.interrupt()
-            self.interrupting = True
-            self.publish('interrupting')
+        if self.interrupt_requested:
+            self.recovered_input = None
+            if self.protocol.active_turn and not self.interrupting:
+                self.protocol.interrupt()
+                self.interrupting = True
+                self.publish('interrupting')
+            elif not self.protocol.active_turn and not self.protocol.turn_requests_pending:
+                # An interrupt can arrive after native cleanup but before a
+                # queued continuation starts. There is no native turn to drain.
+                self.completed = True
+        elif self.recovered_input is not None:
+            self.messages.insert(0, self.recovered_input)
+            self.recovered_input = None
         # Complete interruption and owned cleanup before delivering a queued
         # continuation. Late acknowledgements still belong to the old turn.
         self.finish_turn()
@@ -383,7 +394,12 @@ class AppSession:
                     root=str(self.root.resolve()), agent=self.agent))
             self.start_turn(self.prompt)
         elif kind == 'retry_input':
-            self.messages.insert(0, data['text'])
+            if data.get('recovered'):
+                # Check the observer mailbox before replaying recovered work;
+                # Escape can arrive at the recovery-completion boundary.
+                self.recovered_input = data['text']
+            else:
+                self.messages.insert(0, data['text'])
         elif kind == 'discard_result':
             self.final = None
         elif kind == 'text_delta':

@@ -964,9 +964,10 @@
         screenshot.append(icon);
         const { maximize, maximizeShape } = tileResizeControls(titlebar, entry.label,
             () => minimizeTile(entry.id), toggleMaximize);
-        const heading = element('div', 'heading', body);
-        const step = element('div', 'step', body);
-        const display = element('div', 'display', body);
+        const content = element('div', 'card-content', body);
+        const heading = element('div', 'heading', content);
+        const step = element('div', 'step', content);
+        const display = element('div', 'display', content);
         const canvas = element('canvas', 'screen', display);
         canvas.setAttribute('aria-label', entry.kind === 'vm' ? 'VM display, view only' : 'UI worker display, view only');
         canvas.hidden = true;
@@ -980,7 +981,7 @@
         });
         const waiting = element('p', 'waiting', display);
         waiting.textContent = 'Waiting for display';
-        const activity = element('pre', 'activity', body);
+        const activity = element('pre', 'activity', content);
         activity.setAttribute('aria-label', 'Filtered VM command output');
         const footer = element('div', 'card-footer', body);
         const status = element('div', 'status', footer);

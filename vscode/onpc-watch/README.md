@@ -485,6 +485,10 @@ Three icon buttons at the right end of the viewer tab row select the tile layout
 The tab remembers the selection. Maximizing or minimizing a tile unselects all
 three buttons. Choosing any layout restores all tiles using that layout.
 Overflowing tiles scroll in the chosen direction; the layout buttons stay pinned.
+Viewer rows shrink to fit the pane, down to the combined height of each tile's
+title bar and footer. The VM image shrinks first; with less room, the case title,
+short description and optional SSH output are clipped. The title bar and footer
+remain visible, and footer text uses the title bar's font size.
 
 Immediately after **Reconnect**, the footer lists configured SSH hosts and any
 additional SSH Watch source hosts, separated by `|`; local sources are omitted

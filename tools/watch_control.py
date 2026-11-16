@@ -33,7 +33,9 @@ def _read(path):
         owners = {os.geteuid(), int(os.environ.get('PKEXEC_UID', os.geteuid()))}
         if (not stat.S_ISREG(info.st_mode) or info.st_size > 1024
                 or info.st_uid not in owners or stat.S_IMODE(info.st_mode) != 0o600
-                or info.st_nlink != 1):
+                # Atomic updates can unlink an already-open settings snapshot.
+                # Its contents remain valid; additional hard links do not.
+                or info.st_nlink > 1):
             raise ValueError('watch: invalid settings file')
         return validate(json.loads(stream.read(1025)))
 

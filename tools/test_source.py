@@ -307,8 +307,7 @@ def _borrow_process(root, uid, pid):
                                  + os.strerror(ctypes.get_errno()) + '; preparation refused')
             resources.callback(os.close, fd)
             authenticate()
-            with protection.state():
-                protection.validate(fd, held=True)
+            protection.validate(fd, held=True)
             break
         else:
             raise ValueError('source lease: authenticated preparation parent has no held source lease')

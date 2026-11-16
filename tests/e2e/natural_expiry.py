@@ -1132,7 +1132,9 @@ def run_system_graphical_expiry(directory, lease, transport, ledger, *, expected
                  lock_retry, lock_outage)) <= 1,
             'expiry:ambiguous-history')
     plan, journey_type, ready, complete = (
-        (STOP_PLAN, LockOutageJourney, 'outage-ready', 'outage-complete')
+        (replace(STOP_PLAN, screen_tags={**STOP_PLAN.screen_tags,
+            'recovered-desktop': 'ui:child-retained-unlock-diagnostic'}),
+         LockOutageJourney, 'outage-ready', 'outage-complete')
         if lock_outage else
         (STOP_PLAN, LockRetryJourney, 'retry-ready', 'retry-complete')
         if lock_retry else

@@ -760,8 +760,7 @@ sys.path.insert(0, sys.argv[1])
 from test_source import SourceProtection, _lock
 source = SourceProtection(Path(sys.argv[2]))
 with _lock(source.directory / 'source.lock') as descriptor:
-    with source.state():
-        assert source.admit(descriptor)
+    assert source.admit(descriptor)
     print('ready', flush=True)
     sys.stdin.read()
 '''

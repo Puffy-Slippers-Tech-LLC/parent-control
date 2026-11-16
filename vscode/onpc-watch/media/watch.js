@@ -421,7 +421,9 @@
                 error: section.errorStatus, session: section.output }[section.view];
             const activity = section.view === 'session' && !section.activity.hidden ?
                 `\n${section.activity.innerText}` : '';
-            vscode.postMessage({ type: 'copy', root: entry.id, text: body.innerText + activity });
+            const summary = section.view === 'status' && !section.summary.hidden ?
+                `${section.summary.innerText}\n` : '';
+            vscode.postMessage({ type: 'copy', root: entry.id, text: summary + body.innerText + activity });
         });
         const copyCommand = element('button', 'run-copy run-launcher-action', menu);
         copyCommand.type = 'button';

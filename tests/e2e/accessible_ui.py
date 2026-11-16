@@ -8646,6 +8646,8 @@ class AccessibleUI:
             'objects': objects, 'objects_truncated': len(candidates) > 32,
             'visible_passwords': min(16, sum(item['role'] == 'password text' for item in visible)),
             'visible_dialogs': min(16, sum(item['role'] in ('dialog', 'alert') for item in visible)),
+            'visible_activities': min(16, sum(item['role'] == 'toggle button'
+                                             and item['name'] == 'Activities' for item in visible)),
             'unlock_hint': 'Click or press a key to unlock' in labels,
             'time_restriction': 'Screen Time Limit Reached' in labels,
             'unlock_action': any(item['role'] in ('push button', 'button')
@@ -8660,7 +8662,7 @@ class AccessibleUI:
         try:
             return self.standard_shell_desktop(no_prompt=True)
         except UiError as original:
-            if str(original) != 'ui:fresh-desktop-prompt':
+            if str(original) not in ('ui:fresh-desktop-prompt', 'ui:timeout:fresh-shell-desktop'):
                 raise
             started = time.monotonic()
             deadline = started + 5
@@ -8684,6 +8686,34 @@ class AccessibleUI:
                     sort_keys=True), file=sys.stderr, flush=True)
             try:
                 emit(0, getattr(original, 'retained_unlock_snapshot', None), 'original-refusal')
+                # Sample the real session only after the original check has
+                # failed. A still-locked/inactive child and an unlocked child
+                # with no observed desktop imply different next experiments.
+                session_started = time.monotonic_ns()
+                try:
+                    current = session_control.sessions(deadline=min(deadline, time.monotonic() + 2))
+                    graphical = {key: props for key, props in current.items()
+                                 if session_control.local_graphical(props)}
+                    child_sessions = [
+                        {'session_sha256': hashlib.sha256(json.dumps([
+                            key, *[props[field] for field in (
+                                'User', 'Remote', 'Class', 'Type', 'Seat')]]).encode()).hexdigest(),
+                         'active': props['Active'] == 'yes',
+                         'locked_hint': props['LockedHint'] == 'yes'}
+                        for key, props in graphical.items()
+                        if props['User'] == str(os.getuid())
+                        and props['Class'] in ('user', 'user-early')]
+                    foreground = ['child' if props['User'] == str(os.getuid()) else
+                                  'greeter' if props['Class'] == 'greeter' else 'other'
+                                  for props in graphical.values() if props['Active'] == 'yes']
+                    session_sample = {'status': 'observed', 'child_sessions': child_sessions,
+                                      'foreground': foreground}
+                except Exception:
+                    session_sample = {'status': 'unavailable'}
+                print(json.dumps({'event': 'retained-unlock-session',
+                    'observation_start_monotonic_ns': session_started,
+                    'observation_end_monotonic_ns': time.monotonic_ns(),
+                    **session_sample}, sort_keys=True), file=sys.stderr, flush=True)
                 # Start at most three reads within five seconds. An in-flight
                 # public read retains its existing bounded API/transport limits.
                 for index in range(1, 4):

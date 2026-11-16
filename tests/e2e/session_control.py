@@ -70,9 +70,11 @@ def require(value, code):
         raise SessionError('session:' + code)
 
 
-def call(argv):
+def call(argv, *, deadline=None):
+    timeout = 15 if deadline is None else min(15, deadline - time.monotonic())
+    require(timeout > 0, 'observation-timeout')
     return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
-                          text=True, check=True, timeout=15).stdout
+                          text=True, check=True, timeout=timeout).stdout
 
 
 def package_format():
@@ -109,8 +111,10 @@ def installed_package_version(name):
     return version
 
 
-def session_ids():
-    rows = call(['/usr/bin/loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines()
+def session_ids(*, deadline=None):
+    options = {} if deadline is None else {'deadline': deadline}
+    rows = call(['/usr/bin/loginctl', 'list-sessions', '--no-legend', '--no-pager'],
+                **options).splitlines()
     require(len(rows) <= 32, 'session-bound')
     identities = []
     for row in rows:
@@ -122,18 +126,20 @@ def session_ids():
     return identities
 
 
-def session_scan():
+def session_scan(*, deadline=None):
     """Collect properties sequentially; this alone is not a stable snapshot."""
+    options = {} if deadline is None else {'deadline': deadline}
     result = {}
-    for identity in session_ids():
+    for identity in session_ids(**options):
         try:
             raw = call(['/usr/bin/loginctl', 'show-session', identity, '--no-pager',
                         '-p', 'User', '-p', 'Active', '-p', 'Remote', '-p', 'Class',
-                        '-p', 'Type', '-p', 'Seat', '-p', 'LockedHint', '-p', 'State'])
+                        '-p', 'Type', '-p', 'Seat', '-p', 'LockedHint', '-p', 'State'],
+                       **options)
         except subprocess.CalledProcessError:
             # Logout can remove a session between list and show. Confirm that
             # disappearance through a fresh read; never repeat the action.
-            require(identity not in session_ids(), 'session-read')
+            require(identity not in session_ids(**options), 'session-read')
             continue
         pairs = [line.split('=', 1) for line in raw.splitlines()]
         require(all(len(pair) == 2 for pair in pairs), 'session-properties')
@@ -152,7 +158,7 @@ def session_scan():
     return result
 
 
-def sessions(*, diagnostic=None):
+def sessions(*, diagnostic=None, deadline=None):
     """Require convergent readback before interpreting session relationships.
 
     A seat switch can happen between show-session calls: the old desktop can
@@ -161,11 +167,13 @@ def sessions(*, diagnostic=None):
     Compare complete scans, including ownership and lock state, rather than
     filtering away an unexpected session. Stable ambiguity still reaches the
     caller's refusal checks. Only observations repeat, never session input.
+    An optional monotonic deadline bounds every command in a diagnostic scan.
     """
-    previous = session_scan()
+    options = {} if deadline is None else {'deadline': deadline}
+    previous = session_scan(**options)
     scans = [previous]
     for _ in range(3):
-        current = session_scan()
+        current = session_scan(**options)
         scans.append(current)
         if current == previous:
             if callable(diagnostic):

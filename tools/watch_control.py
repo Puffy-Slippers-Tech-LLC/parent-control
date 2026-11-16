@@ -138,18 +138,24 @@ def initialize(run, updates=None, *, inherit=False, record=False):
     if inherit and VARIABLE in os.environ:
         path = Path(os.environ[VARIABLE])
         if (not path.is_absolute() or '..' in path.parts or path.name != 'watch.json'
-                or path.resolve(strict=True) != path):
+                or path.resolve() != path):
             raise ValueError('watch: invalid inherited settings')
-        _read(path)
-        pointer = Path(run) / 'watch-parent.json'
         try:
-            fd = os.open(pointer, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        except FileExistsError:
-            if target(run) != path:
-                raise ValueError('watch: inherited settings changed')
+            _read(path)
+        except FileNotFoundError:
+            # Optional observation from a parent with no saved policy must not
+            # prevent fresh execution. This run owns its default-off policy.
+            pass
         else:
-            with os.fdopen(fd, 'w') as stream:
-                json.dump(str(path), stream)
+            pointer = Path(run) / 'watch-parent.json'
+            try:
+                fd = os.open(pointer, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            except FileExistsError:
+                if target(run) != path:
+                    raise ValueError('watch: inherited settings changed')
+            else:
+                with os.fdopen(fd, 'w') as stream:
+                    json.dump(str(path), stream)
     return _write(run, updates or {}, initialize=True, record=record)
 
 

@@ -86,6 +86,22 @@ adapter also publishes `checkout` on each run for viewer ordering.
 Every snapshot includes current metadata for the selected scope, even when
 pixels or transcript bodies are omitted. Viewers outside `scope` may be omitted.
 
+Adapters accept `resources: false`
+to omit host counter sampling when the bridge uses a dedicated host resource
+reader. That reader accepts
+`enabled: false`, which skips counter reads and returns empty resource fields.
+The bridge derives this setting from the latest main snapshots on the same
+host; it waits for their first policy before sampling. A host without a main
+adapter retains standalone resource sampling.
+
+Live launcher controls are independent of the visible Watch selection.
+`--watch-view off` stops server capture and prevents VM pixel copies, checksums
+and PNG encoding. `--watch-ssh off` stops command transcript/activity polling and
+host counter sampling. Disabled displays and command text are cleared. Minimal
+policy/connection heartbeats, launcher and agent session progress, errors and
+controls remain available. Frame metadata requires boolean `watch_view` and
+`watch_ssh` fields.
+
 Adapters may advertise `capabilities.updates: true`. Only after that advertisement,
 the bridge sends optional `updates: true`. Such responses set `updates: true` and
 may omit unchanged run body fields (`rows`, `error_rows`, `launcher_output`,
@@ -112,8 +128,10 @@ The response contains these fields:
 | `capabilities` | `{sessions: boolean, artifacts: boolean}`. Unsupported operations must also refuse at the adapter. |
 | `checkouts` | Array of `{id, label}`. |
 | `runs` | Run sections described below, including retained idle runs. |
+| `watch_launchers` | Complete list of active `run-tests`/`fix-tests` controls, including children grouped under other displayed workflows. Entries have `{id, run, launcher, watch_controls: boolean}` and boolean `watch_ssh`/`watch_view` fields when controls are usable. An unusable control refuses the global operation. IDs and run identities are opaque. |
 | `entries` | Viewer entries described below, including idle configured viewers. |
 | `resources` | Readable resource summary for the source host. |
+| `watch_ssh` | Boolean host sampling policy, aggregated from live launcher controls and VM heartbeats. |
 | `resource_sample` | Sample identity, compared only within this source. |
 | `resource_charts` | Array of `{label, text, segments, host_segments?}` for CPU, VM/Host RAM and Disk; empty if unavailable. VM/Host RAM reports VM working set / total host usage in decimal GB rounded to one decimal place. `segments` contains the purple VM line; optional `host_segments` contains the teal host line (`MemTotal` minus `MemAvailable`). Both use percentage of total host RAM. Older single-line charts remain accepted. |
 | `session_result` | Optional `{id, ok, error?}` acknowledging the requested action. |
@@ -223,6 +241,26 @@ and calls `watch_output.close_finished_run` on the source host. It locks the idl
 owner and rechecks the run identity before persisting a private `watch-closed`
 marker inside that run. Readers omit dismissed idle tiles, including after
 restart; execution checkpoints and artifacts are preserved. New runs remain visible.
+
+Global **View** and **SSH** switches start off and affect all current live
+launchers on an explicit click, independently of scope, layout or tile visibility.
+The bridge requires the complete `watch_launchers` inventory and preflights
+all targets before dispatch. Disconnected sources, unusable live controls
+and recording guards surface a failure. Adapters and running controllers must
+use current code. Opening Watch or reconnecting does not
+change launcher settings; future launchers keep their own defaults.
+Each toggle resolves a request such as
+`{"protocol":1,"launcher_action":{"root":"launcher-id","run":"run-identity","kind":"watch-view","value":"off"}}`
+(or `kind: "watch-ssh"`, with `value: "on"` or `"off"`). The adapter checks a
+live `run-tests`/`fix-tests` publication and strips saved Watch and lifecycle
+options before appending the selected Watch option, preserving the other live
+setting. The extension dispatches the resolved public command in the background
+without a confirmation dialog. Its bootstrap supplies `ONPC_WATCH_RUN` so public
+admission refuses an exited or replaced owner instead of starting tests.
+Failures report any partial success and restore the toolbar switch. Global SSH
+off hides command text and disables tile SSH switches without changing their
+saved on/off state; global View off shows `View disabled` in image areas.
+
 An explicit click requests
 `{"protocol":1,"launcher_action":{"root":"run-section-id","run":"run-identity","kind":"stop"}}`
 (or `kind: "resume"`, `"cancel-stop"`, `"reload"`, `"add-session"`, `"kill"` or `"close"`). The adapter checks the displayed run against its current,

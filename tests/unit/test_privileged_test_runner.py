@@ -41,7 +41,7 @@ def checkout(tmp_path, monkeypatch):
     tools = tmp_path / 'tools'
     tools.mkdir()
     for name in ('regression_process.py', 'test_activity.py', 'vm_source_snapshot.py',
-                 'test_storage.py', 'test_retention.py', 'test_io.py', 'test_source.py'):
+                 'test_storage.py', 'test_retention.py', 'test_io.py', 'test_source.py', 'watch_control.py'):
         shutil.copy2(root / 'tools' / name, tools / name)
     integration = tmp_path / 'tests/integration'
     integration.mkdir(parents=True)

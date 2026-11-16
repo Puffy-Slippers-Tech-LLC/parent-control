@@ -627,6 +627,8 @@ def _run(root, argv, caller):
                        'TMPDIR': str(scratch_directory())}
         with test_retention.Store(privileged_state(caller.pw_uid)).execution_session(), \
                 Control().installed(pipe=argv[:1] == ['--unattended']) as control:
+            import watch_control
+            environment.update(watch_control.environment())
             environment.update(test_retention.environment())
             return control.run(command, cwd=root, env=environment, owned_group=True)
     if argv[:1] in (['pool'], ['pool-provision'], ['pool-retire'], ['disk'], ['compute']):
@@ -675,6 +677,8 @@ def _run(root, argv, caller):
         if TOKENS in os.environ:
             environment[TOKENS] = os.environ[TOKENS]
         with module['Control']().installed(pipe=True) as control:
+            import watch_control
+            environment.update(watch_control.environment())
             environment.update(PKEXEC_UID=str(caller.pw_uid), HOME='/root')
             import test_retention
             from test_storage import privileged_state, scratch_directory

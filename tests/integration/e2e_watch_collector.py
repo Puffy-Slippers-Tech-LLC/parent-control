@@ -12,6 +12,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import Frames, layout, progress_packet, require
+import watch_control
 
 # Supported QEMU org.qemu.Display1.Listener API, copied image path only.
 # Deliberately do not advertise Unix.Map/DMABUF (synchronous/GPU acknowledgements).
@@ -108,6 +109,8 @@ def receive_progress(control, frames, attach=None):
         if packet in (b'lease-locked', b'lease-unlocked'):
             frames.publish(lease_locked=packet == b'lease-locked')
             return True
+        if not watch_control.enabled('ssh'):
+            return True  # Discard queued optional metadata without parsing it.
         value = json.loads(packet)
         if type(value) is dict and set(value) == {'memory'}:
             memory = value['memory']
@@ -150,13 +153,26 @@ def export_listener(connection, display, failed, *, current=lambda: True):
 class Attachment:
     """QEMU connections may end; the lease's frame publication stays alive."""
 
-    def __init__(self, display, acknowledge):
-        self.display, self.acknowledge = display, acknowledge
+    def __init__(self, display, acknowledge, *, retain=lambda peer: None):
+        self.display, self.acknowledge, self.retain = display, acknowledge, retain
         self.connections = []
+        self.connection = None
+        self.listener = None
         self.generation = 0
+        self.enabled = False
 
-    def close(self):
+    def suspend(self):
+        """Revoke QEMU's copied-image listener, retaining its guarded endpoint."""
+        self.enabled = False
         self.generation += 1
+        if self.listener is not None:
+            try:
+                # Revoke inherited duplicates as well as Gio's descriptor.
+                self.listener.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            self.listener.close()
+            self.listener = None
         connections, self.connections = self.connections, []
         for connection in connections:
             if not connection.is_closed():
@@ -164,9 +180,48 @@ class Attachment:
         self.display.update('Disable', [])
         self.display.publish()
 
+    def close(self):
+        self.suspend()
+        connection, self.connection = self.connection, None
+        if connection is not None and not connection.is_closed():
+            connection.close(None, None)
+
     def open(self, peer, *, listener=None, remote=None):
         from gi.repository import Gio, GLib
         self.close()
+        try:
+            transport = Gio.Socket.new_from_fd(os.dup(peer.fileno())).connection_factory_create_connection()
+            connection = Gio.DBusConnection.new_sync(transport, None,
+                Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT, None, None)
+            self.connection = connection
+            connection.set_exit_on_close(False)
+            connection.connect('closed', lambda *_: self.close() if self.connection is connection else None)
+            result = connection.call_sync(None, '/org/qemu/Display1/VM',
+                'org.freedesktop.DBus.Properties', 'Get',
+                GLib.Variant('(ss)', ('org.qemu.Display1.VM', 'ConsoleIDs')), None,
+                Gio.DBusCallFlags.NONE, 3000, None)
+            require(0 in result.unpack()[0], 'primary-console-missing')
+            if watch_control.enabled('view'):
+                self.resume(listener=listener, remote=remote)
+                listener = remote = None  # resume owns both supplied peers.
+            else:
+                self.acknowledge()
+        except BaseException:
+            self.close()
+            raise
+        finally:
+            for endpoint in (listener, remote):
+                if endpoint is not None:
+                    endpoint.close()
+
+    def resume(self, *, listener=None, remote=None):
+        """Attach only to the original attested connection, without lease calls."""
+        from gi.repository import Gio, GLib
+        self.enabled = True
+        if self.connection is None or self.connection.is_closed():
+            return
+        self.suspend()
+        self.enabled = True
         generation = self.generation
 
         def failed(*_):
@@ -201,24 +256,15 @@ class Attachment:
         if listener is None:
             listener, remote = socket.socketpair()
         try:
-            transport = Gio.Socket.new_from_fd(os.dup(peer.fileno())).connection_factory_create_connection()
-            connection = Gio.DBusConnection.new_sync(transport, None,
-                Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT, None, None)
-            connection.set_exit_on_close(False)
-            self.connections.append(connection)
-            connection.connect('closed', failed)
-            result = connection.call_sync(None, '/org/qemu/Display1/VM',
-                'org.freedesktop.DBus.Properties', 'Get',
-                GLib.Variant('(ss)', ('org.qemu.Display1.VM', 'ConsoleIDs')), None,
-                Gio.DBusCallFlags.NONE, 3000, None)
-            require(0 in result.unpack()[0], 'primary-console-missing')
+            self.listener = socket.socket(fileno=os.dup(listener.fileno()))
+            self.retain(self.listener)
             transport = Gio.Socket.new_from_fd(listener.detach()).connection_factory_create_connection()
             Gio.DBusConnection.new(transport, None,
                 Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.DELAY_MESSAGE_PROCESSING,
                 None, None, connected)
             fds = Gio.UnixFDList.new()
             index = fds.append(remote.fileno())
-            connection.call_with_unix_fd_list(None, '/org/qemu/Display1/Console_0',
+            self.connection.call_with_unix_fd_list(None, '/org/qemu/Display1/Console_0',
                 'org.qemu.Display1.Console', 'RegisterListener', GLib.Variant('(h)', (index,)),
                 None, Gio.DBusCallFlags.NONE, 3000, fds, None, registered)
         except BaseException:
@@ -251,13 +297,26 @@ def main():
     frames.publish(lease_locked=True)
     display = Display(frames)
     loop = GLib.MainLoop()
-    attachment = Attachment(display, lambda: control.send(b'attached'))
+    attachment = Attachment(display, lambda: control.send(b'attached'),
+        retain=lambda peer: control.sendmsg([b'listener'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS,
+                                            array.array('i', [peer.fileno()]))]))
     counts = {'frames': 0, 'viewers': 0}
     last_beat = 0
+    settings = None
 
     def tick():
-        nonlocal last_beat
+        nonlocal last_beat, settings
         try:
+            current = watch_control.settings()
+            if current['view'] != attachment.enabled:
+                if current['view']:
+                    attachment.resume()
+                else:
+                    attachment.suspend()
+            if current != settings:
+                frames.publish(watch_view=current['view'], watch_ssh=current['ssh'],
+                               **({} if current['ssh'] else {'progress': None, 'memory': None}))
+                settings = current
             try:
                 if not receive_progress(control, frames, attachment.open):
                     loop.quit()
@@ -294,7 +353,9 @@ def main():
             print('watch-collector: transport-failed ' + category, flush=True)
             loop.quit()
             return False
-        return True
+        # No 30 Hz frame-copy polling while the QEMU listener is detached.
+        GLib.timeout_add(33 if settings['view'] else 250, tick)
+        return False
 
     try:
         listener, remote = socket.socket(fileno=args.listener), socket.socket(fileno=args.remote)

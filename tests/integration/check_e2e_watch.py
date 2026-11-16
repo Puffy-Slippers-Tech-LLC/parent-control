@@ -16,6 +16,7 @@ from qualification_storage import allocate, session as storage_session
 from graphical_lease import Adapter
 from owned_commands import Commands, require
 import system_runner as runner
+from tools import watch_control
 
 
 class RFBProbe:
@@ -154,7 +155,9 @@ def main():
     require(len(sys.argv) == 1 and os.geteuid() == os.getegid() == 0, 'watch:invocation')
     require(Path.cwd() == runner.ROOT == runner.baseline.guest_contract.CHECKOUT, 'watch:checkout')
     os.umask(0o077)
-    with storage_session(check='check_e2e_watch'):
+    # These frames/transcripts are the subject of the safety qualification,
+    # independent of the enclosing launcher's optional observation preference.
+    with storage_session(check='check_e2e_watch'), watch_control.receiving(dict(ssh=True, view=True)):
         directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-e2e-watch-check-', dir='/tmp'))
         print('watch-check: evidence=' + str(directory), flush=True)
         commands, ledger = Commands(), runner.RunLedger()

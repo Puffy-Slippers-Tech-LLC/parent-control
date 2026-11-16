@@ -356,7 +356,7 @@ def usage():
     listing = '\n'.join(f'  {name:<{width}}  {CATEGORIES[name].description}' for name in inventory)
     helpers = '\n'.join(f'  {name:<{width}}  {spec.description}'
                         for name, spec in CATEGORIES.items() if name not in inventory)
-    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--reverse] [--record] [--stop-on-error] [category [args ...]] ...
+    return f'''Usage: tools/run-tests [--vm NAME] [--resume | --reset] [--reverse] [--record] [--watch-ssh on|off] [--watch-view on|off] [--stop-on-error] [category [args ...]] ...
        tools/run-tests --help
        tools/run-tests --list
        tools/run-tests --stop
@@ -375,6 +375,12 @@ Bare --resume restores the previous selection and options. Explicit selections
 use current arguments and inventory, retaining readable completed case results.
 Recording is off by default; --record enables VM watch video for this invocation.
 Specify --record again on resume to keep recording.
+Watch collection is off by default for new runs. --watch-ssh on|off controls
+Watch SSH output, progress and resource sampling; --watch-view on|off controls
+screen capture and transfer. Attach with the same scope/VM selection to change
+either setting live, without reloading or restarting tests. Omitted settings
+remain unchanged on attachment and controller reload. --record requires both on;
+neither can be disabled during a recording-enabled run.
 Failed, interrupted and incomplete cases remain pending. Without --resume, a new
 execution resets progress. Required preparation and lifecycle prerequisites still run.
 --reset stops both test and repair launchers in this checkout, waits for owned
@@ -1511,6 +1517,12 @@ def is_inspection(argv):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    import watch_control
+    try:
+        argv, watch = watch_control.parse(argv)
+    except ValueError as error:
+        print('run-tests: ' + str(error), file=sys.stderr)
+        return 2
     reset = '--reset' in argv
     if reset:
         argv = [arg for arg in argv if arg != '--reset']
@@ -1550,11 +1562,17 @@ def main(argv=None):
                 raise ValueError('--reset requires an independent public invocation')
             # Internal workers inherit a verified lock, and must execute their
             # assigned category instead of observing their own parent session.
-            with test_activity.activity(root):
+            from contextlib import nullcontext
+            policy = watch_control.environment().get(watch_control.VARIABLE)
+            if policy and watch:
+                watch_control.update(Path(policy).parent, watch)
+            with (nullcontext() if policy else watch_control.receiving({'ssh': False, 'view': False, **watch})), \
+                    test_activity.activity(root):
                 validate(root, argv)
                 return _main(argv)
         from regression_session import main as session_main
-        return session_main(root, argv, **({'reload': True} if reload else {}),
+        return session_main(root, argv, **({'watch': watch} if watch else {}),
+                            **({'reload': True} if reload else {}),
                             **({'reset': True} if reset else {}))
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'test activity ownership unavailable'

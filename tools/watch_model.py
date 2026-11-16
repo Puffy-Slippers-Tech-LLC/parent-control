@@ -90,7 +90,13 @@ class ResourceUsage:
             total += max(0, current - inactive_file)
         return total
 
-    def text(self):
+    def text(self, *, enabled=True):
+        if not enabled:
+            self.previous_cpu = self.previous_disks = self.last = None
+            self.label = ''
+            self.history.clear()
+            self.charts = []
+            return ''
         now = self.clock()
         if self.last is not None and now - self.last < 1:
             return self.label
@@ -218,7 +224,11 @@ if __name__ == '__main__':
         request = json.loads(line)
         if request.get('protocol') != 1:
             raise ValueError('Watch protocol 1 required')
+        enabled = request.get('enabled', True)
+        if type(enabled) is not bool:
+            raise ValueError('Watch enabled must be boolean')
         print(json.dumps(dict(protocol=1, entries=[], runs=[], checkouts=[],
+                              watch_launchers=[], watch_ssh=enabled,
                               capabilities=dict(sessions=False, artifacts=False),
-                              resources=usage.text(), resource_sample=usage.last,
+                              resources=usage.text(enabled=enabled), resource_sample=usage.last,
                               resource_charts=usage.charts)), flush=True)

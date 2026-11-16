@@ -161,6 +161,8 @@ def environment(root, *, scratch=True):
                   PYTHONPATH=f'{root}/broker:{root}/kiosk:{root}')
     result.update(test_activity.environment())
     result.update(test_source.environment())
+    from watch_control import environment as watch_environment
+    result.update(watch_environment())
     from vm_pool import VARIABLE as CHECKOUT
     if CHECKOUT in os.environ:
         result[CHECKOUT] = os.environ[CHECKOUT]
@@ -187,6 +189,11 @@ def test_environment(root):
     result.pop('SSH_AUTH_SOCK', None)
     from vm_recording import VARIABLE as RECORDING_CONTROL
     result.pop(RECORDING_CONTROL, None)
+    from watch_control import VARIABLE as WATCH_CONTROL
+    # Unit/component doubles can call launcher APIs against private fake runs;
+    # they must never write their enclosing controller's live Watch policy.
+    # UI workers explicitly restore the real policy for their capture fixture.
+    result[WATCH_CONTROL] = ''
     result.pop(test_activity.VARIABLE, None)
     result.pop(test_activity.HOST_VARIABLE, None)
     result.pop(test_activity.COMPATIBILITY_VARIABLE, None)
@@ -299,13 +306,17 @@ def run_host(root, category, argv):
     print(f'run-{category}-tests: starting pytest with {count} validated selection(s)',
           file=sys.stderr, flush=True)
     timeout = pytest_timeout(argv, category)
+    environment = test_environment(root)
+    if category == 'ui':
+        from watch_control import environment as watch_environment
+        environment.update(watch_environment())
     if timeout is not None:
         from regression_process import Control
         with Control().installed() as control:
-            return control.run(command, cwd=root, env=test_environment(root),
+            return control.run(command, cwd=root, env=environment,
                                timeout=timeout, kill_after=UI_KILL_AFTER)
     from test_storage import scratch_descriptors
-    return subprocess.run(command, env=test_environment(root),
+    return subprocess.run(command, env=environment,
                           pass_fds=scratch_descriptors(), check=False).returncode
 
 

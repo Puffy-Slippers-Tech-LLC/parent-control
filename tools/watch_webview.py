@@ -229,7 +229,7 @@ def png(pixels, width, height, stride, *, rgba=False, red_first=False):
     return 'data:image/png;base64,' + base64.b64encode(encoded).decode('ascii')
 
 
-def launcher_arguments(record, kind, *, branch, execution_plan=False):
+def launcher_arguments(record, kind, *, branch, execution_plan=False, value=None):
     """Share the displayed action's arguments with its actual invocation."""
     if kind == 'resume' and not execution_plan and 'requested_argv' not in record:
         return ['--branch', branch, '--resume']
@@ -245,12 +245,22 @@ def launcher_arguments(record, kind, *, branch, execution_plan=False):
             break
         if arg == '--add-session':
             next(tokens, None)
+        elif kind in ('watch-view', 'watch-ssh') and arg == '--tasks':
+            next(tokens, None)
+        elif kind in ('watch-view', 'watch-ssh') and arg.startswith('--tasks='):
+            continue
+        elif kind != 'resume' and arg in ('--watch-ssh', '--watch-view'):
+            next(tokens, None)
+        elif kind != 'resume' and arg.startswith(('--watch-ssh=', '--watch-view=')):
+            continue
         elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
             argv.append(arg)
     if kind in ('stop', 'cancel-stop', 'add-session') or 'requested_argv' not in record:
         argv = ['--branch', branch, *argv]
     if kind == 'add-session':
         return ['--add-session', '5', *argv]
+    if kind in ('watch-view', 'watch-ssh'):
+        return [f'--{kind}', value, *argv]
     return argv if kind == 'resume' and execution_plan else [f'--{kind}', *argv]
 
 
@@ -280,6 +290,7 @@ class Viewer:
         self.run_times_scope = None
         self.run_times_at = 0
         self.timing_records = {}
+        self.watch_targets = {}
 
     def cached_spans(self, root, kind, lines, *, branches=()):
         """Reuse unchanged rows when a streaming update changes the text tail."""
@@ -306,6 +317,11 @@ class Viewer:
         from watch_output import read_json, active_run
         try:
             output = self.outputs.get(Path(action['root']))
+            if action['kind'] in ('watch-view', 'watch-ssh'):
+                from types import SimpleNamespace
+                target = self.watch_targets.get(action['root'])
+                if target is not None:
+                    output = SimpleNamespace(root=target['root'], run=target['run'], execution_plan=False)
             if output is None or output.run is None or str(output.run) != action['run']:
                 raise ValueError('Launcher changed; refresh before trying again.')
             run = active_run(output.run.parent, workflow=output.run.parent.name not in (
@@ -332,6 +348,14 @@ class Viewer:
                         or allowance_key is None):
                     raise ValueError('No active session allowance; refresh before trying again.')
             name, argv = record.get('launcher'), record.get('requested_argv', record.get('argv'))
+            if action['kind'] in ('watch-view', 'watch-ssh'):
+                from watch_control import read as watch_settings, target
+                if (name not in ('run-tests', 'fix-tests') or not any(
+                        candidate == run for candidate, _name in active_launchers(output.root, JsonReader()))):
+                    raise ValueError('Watch controls require a running run-tests or fix-tests launcher.')
+                watch_settings(run)  # Refuse controllers started before live control support.
+                if action['value'] == 'off' and (target(run).parent / 'watch-recording').exists():
+                    raise ValueError('--record requires --watch-ssh on and --watch-view on')
             if action['kind'] in ('stop', 'cancel-stop'):
                 argv = record.get('stop_argv', argv)
             if (not isinstance(name, str) or not re.fullmatch(r'[\w.-]{1,100}', name)
@@ -344,7 +368,8 @@ class Viewer:
                         allowance_key=allowance_key,
                         argv=([] if action['kind'] == 'kill' else
                               launcher_arguments(record, action['kind'], branch=self.roots[output.root],
-                                                 execution_plan=output.execution_plan)))
+                                                 execution_plan=output.execution_plan,
+                                                 value=action.get('value'))))
         except (OSError, ValueError, KeyError, TypeError) as error:
             return dict(ok=False, error=str(error))
 
@@ -417,6 +442,7 @@ class Viewer:
         if session_root:
             session_roots.add(session_root)
         sections = []
+        self.watch_targets = {}
         workflow_roots = {run: root for root in self.roots
                           for run, _name in active_launchers(root, self.launcher_reader,
                               include_idle=True, workflows_only=True)}
@@ -447,6 +473,16 @@ class Viewer:
             # Child runners can be dispatched into another worktree. Their
             # progress already appears in the controlling workflow's section.
             candidates = list(active_launchers(checkout_root, self.launcher_reader, include_idle=True))
+            from watch_control import read as watch_settings
+            for run, name in active_launchers(checkout_root, self.launcher_reader):
+                if name not in ('run-tests', 'fix-tests'):
+                    continue
+                target = dict(root=checkout_root, run=run, launcher=name, watch_controls=False)
+                try:
+                    target.update(watch_settings(run), watch_controls=True)
+                except (OSError, ValueError, TypeError):
+                    pass  # Publish unusable controls so global requests fail before dispatch.
+                self.watch_targets[str(run.parent)] = target
             for run, _name in candidates:
                 observe(checkout_root, run)
         # Discovery may learn a child's checkout before its parent's checkout.
@@ -603,6 +639,11 @@ class Viewer:
                 record = self.launcher_reader.read(output.run.parent / 'current.json') if output.run else {}
                 sections[-1]['launcher_controls'] = record.get('run') == output.run.name and isinstance(record.get('argv'), list)
                 name, argv = record.get('launcher'), record.get('requested_argv', record.get('argv'))
+                policy = self.watch_targets.get(str(output.run.parent)) if active else None
+                sections[-1]['watch_controls'] = bool(policy and policy['run'] == output.run
+                                                     and policy['watch_controls'])
+                if sections[-1]['watch_controls']:
+                    sections[-1].update(watch_ssh=policy['ssh'], watch_view=policy['view'])
                 if (sections[-1]['launcher_controls'] and isinstance(name, str)
                         and isinstance(argv, list) and all(isinstance(arg, str) for arg in argv)):
                     sections[-1]['launcher_command'] = shlex.join([f'tools/{name}',
@@ -652,7 +693,8 @@ class Viewer:
             feed.close()
 
     def screen(self, entry, frame, visible, *, updates=False):
-        if not visible or frame == 'waiting' or (frame is not None and frame[1]['state'] != 'live'):
+        if (not visible or frame == 'waiting' or (frame is not None
+                and (frame[1]['state'] != 'live' or frame[1].get('watch_view') is False))):
             self.images.pop(entry, None)
             return {'screen': None}
         if frame is None or not frame[2]:
@@ -729,6 +771,14 @@ class Viewer:
             if entry not in self.vms:
                 self.vms[entry] = [AsyncFeed(Feed(entry[1], root=entry[0])), {}]
 
+        runs = self.run_status(request.get('session_root'), request.get('session_roots', ()))
+        # A disabled controller can be waiting for its first VM frame. Do not
+        # scan progress/transcript sockets just because there is no header yet.
+        controlled_ssh = [not target['watch_controls'] or target['ssh']
+                          for target in self.watch_targets.values()]
+        for feed, _meta in self.vms.values():
+            feed.feed.default_watch_ssh = any(controlled_ssh) if controlled_ssh else True
+
         scope = request.get('scope', 'all')
         if scope not in ('all', *(str(root) for root in self.roots)):
             scope = 'all'
@@ -792,7 +842,6 @@ class Viewer:
         valid_ids = {entry_id(Path(root), key) for root, key in scoped}
         if selected not in valid_ids and selected != 'run-time':
             selected = 'all'
-        runs = self.run_status(request.get('session_root'), request.get('session_roots', ()))
         # Follow the displayed terminal sections, including changes on refresh.
         # Checkouts without a displayed run follow in discovery order.
         ordered_roots = dict.fromkeys([section['checkout'] for section in runs] +
@@ -839,13 +888,25 @@ class Viewer:
             self.run_times = None
             self.run_times_scope = None
             self.timing_records.clear()
+        # Controlled launchers can be waiting for a VM, or executing on a
+        # transferred checkout. Read both live controls and VM heartbeats.
+        policies = [meta.get('watch_ssh', True) for _feed, meta in self.vms.values() if meta]
+        policies.extend(controlled_ssh)
+        watch_ssh = any(policies) if policies else True
         response = dict(protocol=1, capabilities=dict(sessions=True, session_roots=True, updates=True,
                     artifacts=True, delete_run_times=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times,
                     runs=runs, session_result=result,
+                    watch_launchers=[dict(id=key, run=str(target['run']), launcher=target['launcher'],
+                        watch_controls=target['watch_controls'],
+                        **(dict(watch_ssh=target['ssh'], watch_view=target['view'])
+                           if target['watch_controls'] else {}))
+                        for key, target in self.watch_targets.items()],
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
-                    resources=self.resources.text(), resource_sample=self.resources.last,
+                    watch_ssh=watch_ssh,
+                    resources=self.resources.text(enabled=watch_ssh and request.get('resources', True)),
+                    resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)
         # Keep full state internally for input/artifact guards. Only the wire
         # representation omits unchanged bodies, and only after negotiation.
@@ -908,9 +969,12 @@ def main():
             if 'launcher_action' in request:
                 action = request['launcher_action']
                 if (set(request) - {'protocol', 'launcher_action'} or type(action) is not dict
-                        or set(action) != {'root', 'run', 'kind'}
+                        or set(action) != ({'root', 'run', 'kind', 'value'} if
+                            action.get('kind') in ('watch-view', 'watch-ssh') else {'root', 'run', 'kind'})
                         or any(type(value) is not str for value in action.values())
-                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close')):
+                        or action['kind'] not in ('stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close',
+                                                  'watch-view', 'watch-ssh')
+                        or 'value' in action and action['value'] not in ('on', 'off')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
                 continue
@@ -927,13 +991,14 @@ def main():
                 print(json.dumps(dict(protocol=1, artifact_result=result),
                                  separators=(',', ':')), flush=True)
                 continue
-            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'session_root', 'session_roots', 'session_action'} or
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'resources', 'session_root', 'session_roots', 'session_action'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
                     type(request.get('session_roots', [])) is not list or
                     any(type(root) is not str or not 0 < len(root) <= 4096
                         for root in request.get('session_roots', [])) or
                     type(request.get('reset', False)) is not bool or
+                    type(request.get('resources', True)) is not bool or
                     type(request.get('updates', False)) is not bool):
                 raise ValueError('watch: invalid request')
             action = request.get('session_action')

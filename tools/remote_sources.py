@@ -129,7 +129,7 @@ def _receive(anchor, allocation_source=None):
                  'ONPC_TEST_SOURCE_IMPORT_FD', 'ONPC_REPAIR_STARTUP_FD',
                  'ONPC_REPAIR_WRITER_FD', 'ONPC_TEST_ACTIVITY_FD',
                  'ONPC_TEST_HOST_ACTIVITY_FD', 'ONPC_TEST_COMPATIBILITY_FD',
-                 'ONPC_TEST_RETENTION', 'ONPC_TEST_RETENTION_FD'):
+                 'ONPC_TEST_RETENTION', 'ONPC_TEST_RETENTION_FD', 'ONPC_WATCH_CONTROL'):
         os.environ.pop(name, None)
     # Remote allocation uses the host's installed storage implementation. Local
     # replay must use the frozen allocator too: its live anchor may be undergoing
@@ -360,6 +360,7 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
     from contextlib import ExitStack
     from vm_test_queue import source_identity
     from host_dispatch import tool_host
+    import watch_control
 
     root = Path(root)
     sources = _sources.get() if sources is None else sources
@@ -430,7 +431,9 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 branch=sources.branch if sources is not None else vm_config.current_branch(),
                 controller_root=str(root), source_identity=sources.source if sources is not None else source_identity(root),
                 command=list(map(str, command)),
-                environment={key: value for key, value in environment.items() if key != 'SSH_AUTH_SOCK'},
+                environment={key: value for key, value in environment.items()
+                             if key not in ('SSH_AUTH_SOCK', watch_control.VARIABLE)},
+                watch=watch_control.settings(),
                 cooperative=cooperative, execution=execution or {}, cwd=str(cwd or root),
                 stdin_size=guest_input.tell() if stdin_file is not None else None,
                 separate_stderr=separate_stderr, files=files, manifest=manifest, size=archive.tell())
@@ -484,9 +487,12 @@ def worker(request_file):
     from contextlib import ExitStack
     from vm_recording import Session, VARIABLE as RECORDING
     from vm_selection import select
+    import watch_control
     if request['mode'] != 'pool':
         restore_git(root, request)
     with ExitStack() as stack:
+        if request['mode'] != 'pool':
+            stack.enter_context(watch_control.receiving(request.get('watch', dict(ssh=True, view=True))))
         if request['mode'] != 'pool' and RECORDING in request['environment']:
             vm = request['environment']['ONPC_TEST_VM']
             select(vm)
@@ -670,6 +676,8 @@ def run_worker(root, request_file, request, paths):
     from contextlib import nullcontext
     with (open(request['stdin_path'], 'rb') if 'stdin_path' in request else nullcontext()) as guest_input, \
             Control().installed(pipe=True) as control:
+        import watch_control
+        environment.update(watch_control.environment())
         status = control.run(command, cwd=mapped(request.get('cwd', controller)), env=environment,
             cooperative=request['cooperative'], output=output, stdin_file=guest_input,
             stderr_output=stderr if request.get('separate_stderr') else None,

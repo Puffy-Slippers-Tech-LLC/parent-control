@@ -87,7 +87,7 @@ def current_session(directory):
         return run, busy(owner)
 
 
-def select(root, argv, *, reload=False):
+def select(root, argv, *, reload=False, watch=None):
     # Activity descriptor state is process-local. Concurrent callers in this
     # process serialize only startup; detached host/VM workers remain independent.
     from test_commands import is_inspection
@@ -97,10 +97,10 @@ def select(root, argv, *, reload=False):
     test_source.finish_admission()
     with startup(root), _startup:
         with test_source.admission(root, ['--reload'] if reload else argv, wait=False):
-            return _select(root, argv, reload=reload)
+            return _select(root, argv, reload=reload, watch=watch)
 
 
-def _select(root, argv, *, reload=False):
+def _select(root, argv, *, reload=False, watch=None):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
     from test_results import VARIABLE
     # Inspection never attaches, waits for locks, or consumes an unread result.
@@ -126,6 +126,9 @@ def _select(root, argv, *, reload=False):
         fcntl.flock(gate, fcntl.LOCK_EX)
         source.enter_context(test_source.startup(root, ['--reload'] if reload else argv, wait=False))
         run, active = current_session(directory)
+        expected_watch_run = os.environ.get('ONPC_WATCH_RUN')
+        if expected_watch_run is not None and (not active or str(run) != expected_watch_run):
+            raise ValueError('Watch launcher changed or stopped; refresh before trying again.')
         if reload and not active:
             test_source.restart_execution()
         if active:
@@ -146,6 +149,11 @@ def _select(root, argv, *, reload=False):
             if original is not None and requested_vm is not None and active_vm is None:
                 if requested_vm != ','.join(original['vms']):
                     raise ValueError('vm-config: active run requires its original VM queue')
+            if watch:
+                import watch_control
+                value = watch_control.update(run, watch)
+                print('run-tests: Watch SSH {ssh}; view {view} requested.'.format(
+                    **{key: 'on' if enabled else 'off' for key, enabled in value.items()}), flush=True)
             if '--stop' in argv:
                 (run / 'cancel').touch(mode=0o600)
             elif reload:
@@ -228,6 +236,10 @@ def _select(root, argv, *, reload=False):
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
+                import watch_control
+                watch_control.initialize(run, watch or {}, inherit=bool(watch_control.environment()),
+                                         record='--record' in requested)
+                environment[watch_control.VARIABLE] = str(watch_control.target(run))
                 if test_source.VARIABLE in environment and test_source.WRITER not in environment:
                     environment[test_source.IMPORTS] = environment[test_source.VARIABLE]
                 from launcher_reload import ReloadRequest
@@ -320,7 +332,7 @@ def follow(run, stream=None):
             atomic(destination / 'frame.json', [])
 
 
-def main(root, argv, *, reload=False, reset=False):
+def main(root, argv, *, reload=False, reset=False, watch=None):
     run = None
     requested = False
 
@@ -333,7 +345,8 @@ def main(root, argv, *, reload=False, reset=False):
     previous = signal.signal(signal.SIGINT, cancel)
     try:
         def start():
-            return select(root, argv, **({'reload': True} if reload else {}))
+            return select(root, argv, **({'reload': True} if reload else {}),
+                          **({'watch': watch} if watch else {}))
         if reset:
             from test_reset import reset as reset_state
             from test_commands import host_only_request, validate

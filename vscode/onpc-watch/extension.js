@@ -10,7 +10,7 @@ const { stripVTControlCharacters } = require('node:util');
 const { Bridge, configuration, resourceConfiguration } = require('./bridge');
 const { WatchErrors, errorDialog } = require('./errors');
 
-function actionBackground({ shellPath, shellArgs, cwd, invocation, failed }) {
+function actionBackground({ shellPath, shellArgs, cwd, invocation, failed, completed = () => {} }) {
     const child = spawn(shellPath, shellArgs, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     const limit = 1024 * 1024;
     let transcript = '', omitted = false, finished = false;
@@ -32,6 +32,7 @@ function actionBackground({ shellPath, shellArgs, cwd, invocation, failed }) {
                 (error ? `\n${error.stack || error}\n` : '') +
                 `\nProcess output${omitted ? ' (last 1,048,576 characters; earlier output omitted)' : ''}:\n${stripVTControlCharacters(transcript)}`);
         }
+        completed(!error && code === 0);
     };
     child.on('error', error => finish(null, null, error));
     child.on('close', (code, signal) => finish(code, signal));
@@ -66,6 +67,10 @@ function html(webview, context) {
             aria-orientation="vertical" aria-valuemin="0" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
         <section id="viewer" aria-label="UI and VM viewers"><div id="viewer-header" class="pane-toolbar">
         <nav id="viewers" aria-label="Viewers"></nav>
+        <div id="watch-controls" role="group" aria-label="Watch collection">
+        <label>View <button id="watch-view" class="session-toggle" type="button" role="switch" aria-label="View for all running launchers" aria-checked="false"></button></label>
+        <label>SSH <button id="watch-ssh" class="session-toggle" type="button" role="switch" aria-label="SSH for all running launchers" aria-checked="false"></button></label>
+        </div>
         <div id="tile-layout"></div></div>
         <main id="grid" class="tile-grid"><p class="empty" role="status">Connecting to watch…</p></main>
         </section></div>
@@ -141,6 +146,13 @@ function activate(context) {
         let sessions = new Map();
         let runRoots = new Set();
         let displayedRuns = new Map();
+        const watchSettings = { view: false, ssh: false };
+        let changingWatch = false;
+        function publishWatchSettings() {
+            if (!disposed) void panel.webview.postMessage({ type: 'watchSettings', ...watchSettings, pending: changingWatch });
+            reset = true;
+            void publish();
+        }
         const titleStateKey = `watch.launcherTitles:${root}`;
         const launcherTitles = new Map(context.workspaceState.get(titleStateKey, []));
         const saveTitles = () => context.workspaceState.update(titleStateKey, [...launcherTitles])
@@ -234,6 +246,7 @@ function activate(context) {
                 ready = true;
                 rendering = false;
                 reset = true;
+                publishWatchSettings();
                 poll();
             } else if (message?.type === 'rendered' && message.id === rendering) {
                 rendering = false;
@@ -256,6 +269,9 @@ function activate(context) {
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
                        typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(message.kind)) {
                 void launchControl(message);
+            } else if (message?.type === 'watchToggle' && ['view', 'ssh'].includes(message.kind) &&
+                       typeof message.enabled === 'boolean') {
+                void toggleWatch(message.kind, message.enabled);
             } else if (message?.type === 'renameLauncher' && runRoots.has(message.root) &&
                        displayedRuns.get(message.root) === message.run &&
                        typeof message.title === 'string' && message.title.length <= 512) {
@@ -344,9 +360,21 @@ function activate(context) {
                 if (message.kind === 'add-session' && allowanceKey !== command.allowance_key) {
                     throw new Error('Session allowance changed; refresh before trying again.');
                 }
-                // Recheck the publication when the action actually starts, and
-                // pin dispatch to this checkout rather than a launcher default branch.
-                const bootstrap = `import json, os, subprocess, sys
+                launcherBackground(command, message.kind, action, commandText, diagnostic => {
+                    lastTerminalDiagnostic = diagnostic;
+                    errors.report(`Cannot ${message.kind} launcher`, diagnostic);
+                });
+            } catch (error) {
+                errors.report(`Cannot ${message.kind} launcher`, error);
+            } finally {
+                confirmingLauncher = false;
+            }
+        }
+
+        function launcherBackground(command, kind, action, commandText, failed, completed) {
+            // Recheck the publication when the action actually starts, and
+            // pin dispatch to this checkout rather than a launcher default branch.
+            const bootstrap = `import json, os, subprocess, sys
 from pathlib import Path
 c = json.loads(sys.argv[1])
 root, run = Path(c['root']), Path(c['run'])
@@ -371,11 +399,13 @@ if '--cancel-stop' in c['argv']:
 if '--add-session' in c['argv']:
     os.environ['ONPC_ADD_SESSION_RUN'] = str(run)
     os.environ['ONPC_ADD_SESSION_KEY'] = c['allowance_key']
+if c['kind'] in ('watch-view', 'watch-ssh'):
+    os.environ['ONPC_WATCH_RUN'] = str(run)
 os.environ['ONPC_LAUNCHER_DESTINATION'] = json.dumps(dict(root=str(root), branch=branch, launcher=c['launcher'], pid=os.getpid()))
 os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c['launcher']), *c['argv']])
 `;
                 const argv = ['/usr/bin/python3', '-IBu', '-c', bootstrap,
-                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind: message.kind, allowance_key: command.allowance_key })];
+                    JSON.stringify({ root: command.root, run: command.run, launcher: command.launcher, argv: command.argv, kind, allowance_key: command.allowance_key })];
                 const remote = command.source.transport === 'ssh';
                 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
                 // The destination launcher verifies its checkout and uses the
@@ -388,15 +418,48 @@ os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(root / 'tools' / c
                     shellPath, shellArgs,
                     ...(remote ? {} : { cwd: command.root }),
                     invocation: `Action: ${action}\nHost: ${command.source.label}\nCheckout: ${command.root}\nCommand: ${commandText}\n\nProcess invocation:\n${[shellPath, ...shellArgs].map(quote).join(' ')}`,
-                    failed(diagnostic) {
-                        lastTerminalDiagnostic = diagnostic;
-                        errors.report(`Cannot ${message.kind} launcher`, diagnostic);
-                    }
+                    failed, completed
                 });
+        }
+
+        async function toggleWatch(feature, enabled) {
+            if (changingWatch || !bridge) {
+                publishWatchSettings();
+                if (!bridge) errors.report('Cannot change Watch collection', 'Reconnect Watch before changing collection settings.');
+                return;
+            }
+            const current = bridge;
+            const previous = watchSettings[feature];
+            changingWatch = true;
+            watchSettings[feature] = enabled;
+            publishWatchSettings();
+            const label = feature === 'view' ? 'View' : 'SSH';
+            try {
+                const kind = `watch-${feature}`;
+                const commands = await current.watchCommands(kind, enabled ? 'on' : 'off');
+                if (disposed || current !== bridge) throw new Error('Watch reconnected; review the current launchers before trying again.');
+                const failures = [];
+                const results = await Promise.all(commands.map(command => new Promise(resolve => {
+                    try {
+                        launcherBackground(command, kind, `${label} ${enabled ? 'on' : 'off'}`,
+                            `tools/${command.launcher} ${command.argv.join(' ')}`,
+                            diagnostic => { lastTerminalDiagnostic = diagnostic; failures.push(diagnostic); }, resolve);
+                    } catch (error) {
+                        failures.push(error.stack || error.message);
+                        resolve(false);
+                    }
+                })));
+                if (results.some(ok => !ok)) {
+                    throw new Error('Watch settings could not be changed for every launcher. Some launchers may have accepted the change.\n\n' + failures.join('\n\n'));
+                }
+                vscode.window.setStatusBarMessage(`Watch ${label} ${enabled ? 'on' : 'off'} for ${commands.length} running launcher${commands.length === 1 ? '' : 's'}`, 3000);
             } catch (error) {
-                errors.report(`Cannot ${message.kind} launcher`, error);
+                watchSettings[feature] = previous;
+                errors.report(`Cannot change Watch ${label}`, error);
             } finally {
-                confirmingLauncher = false;
+                changingWatch = false;
+                publishWatchSettings();
+                poll();
             }
         }
 

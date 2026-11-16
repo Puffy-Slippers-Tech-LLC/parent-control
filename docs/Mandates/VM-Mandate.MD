@@ -483,6 +483,13 @@ the existing case or unfinished brief, linked here.
 
 ## VM observation mandate
 
+- `run-tests` and `fix-tests` may explicitly disable their optional screen and
+  SSH/intention observation under the [live Watch controls](../Execution-Plans.md#common-launcher-interface).
+  Their new independent runs default to both off. This exception stops Watch
+  producer work, preserves execution/ownership and required diagnostics, and
+  does not disable screenshots or observations required by a test assertion.
+  Recordings require both feeds on. Standalone maintenance and preparation keep
+  the observation requirements below.
 - Every VM operation, experiment, qualification, setup, maintenance and test must
   use the shared `watch` infrastructure, regardless of its caller or whether it
   is E2E. Start display observation through the shared VM lease; route host/SSH

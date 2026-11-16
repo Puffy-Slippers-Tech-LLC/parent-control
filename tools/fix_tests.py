@@ -130,13 +130,14 @@ def supervise(root, run, owner, kind, payload):
     if kind == 'agent':
         failure = json.loads(payload)
         request = read_json(run / 'request.json', {})
+        from watch_control import environment as watch_environment
         model, effort = resolve_profile('repair', model=request.get('model'),
                                         effort=request.get('effort') or 'high')
         from test_results import VARIABLE
         command = launcher.agent_command(root, model, effort, run, schema=None,
             standard_speed=True, shell_environment=((VARIABLE, os.environ[VARIABLE]),
                 ('ONPC_LAUNCHER_CONTROLLER_ROOT', str(root)),
-                (launcher.WORKFLOW_DIRECTORY, str(run))))
+                (launcher.WORKFLOW_DIRECTORY, str(run)), *watch_environment().items()))
         # The previous supervisor joined its nested runs before returning.
         # A fresh session has no previous registration transaction to resume.
         (run / 'nested-closed').unlink(missing_ok=True)
@@ -255,7 +256,8 @@ def worker(root, run, owner):
     status = 1
     try:
         from launcher_control import watching
-        with watching(run):
+        import watch_control
+        with watching(run), watch_control.binding(run):
             status = run_rounds(root, run, owner, read_json(run / 'request.json', {}))
     except (launcher.Stopped, KeyboardInterrupt):
         status = 130
@@ -293,6 +295,8 @@ def select(root, request, *, resume=False, stop=False, reload=False):
                 str(root), str(run), str(owner)]
     def started(run):
         launcher.atomic(run / 'request.json', request)
+        import watch_control
+        watch_control.initialize(run, request.get('watch', {}), record=bool(request.get('record')))
         for number in range(1, request['rounds'] + 1):
             if number in retained:
                 results = ResultStore(run / 'results' / str(number))
@@ -300,23 +304,34 @@ def select(root, request, *, resume=False, stop=False, reload=False):
                     results.record(**record)
         save_binding(run, execution_binding())
     def attached(run):
+        expected_watch_run = os.environ.get('ONPC_WATCH_RUN')
+        if expected_watch_run is not None and str(run) != expected_watch_run:
+            raise ValueError('Watch launcher changed; refresh before trying again.')
+        if request.get('watch'):
+            import watch_control
+            value = watch_control.update(run, request['watch'])
+            print('fix-tests: Watch SSH {ssh}; view {view} requested.'.format(
+                **{key: 'on' if enabled else 'off' for key, enabled in value.items()}), flush=True)
         if request.get('tasks') is not None:
             current = read_json(run / 'request.json', {})
             if isinstance(current, dict):
                 launcher.atomic(run / 'request.json', dict(current, tasks=request['tasks']))
     return launcher.select(root, kind, command, stop=stop, reload=reload,
-        on_start=started, on_attach=attached, launcher_name='fix-tests')
+        on_start=started, on_attach=attached, launcher_name='fix-tests',
+        **({'existing_only': True} if os.environ.get('ONPC_WATCH_RUN') else {}))
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (new runs: off; update live without restarting tests)')
+    parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (new runs: off; update live without restarting tests)')
     parser.add_argument('--vm', help='registered VM name or configured pool selector')
     parser.add_argument('--resume', action='store_true', help='keep clear results; restart unfinished work')
     parser.add_argument('--stop', action='store_true', help='cancel running cases or repair')
     parser.add_argument('--reset', action='store_true', help='start without previous results')
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
     parser.add_argument('--reverse', action='store_true')
-    parser.add_argument('--record', action='store_true', help='record VM watch video (default: off)')
+    parser.add_argument('--record', action='store_true', help='record VM watch video; requires both Watch options on (default: off)')
     parser.add_argument('--model', help='repair session model')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
                         help='repair reasoning effort (default: high)')
@@ -330,6 +345,10 @@ def main(argv=None):
     if args.reverse and '--reverse' not in categories:
         categories.append('--reverse')
     request = dict(categories=categories, record=args.record)
+    watch = {name: getattr(args, 'watch_' + name) == 'on' for name in ('ssh', 'view')
+             if getattr(args, 'watch_' + name) is not None}
+    if watch:
+        request['watch'] = watch
     for name in ('vm', 'model', 'effort', 'rounds', 'tasks'):
         supplied = getattr(args, name)
         request[name] = supplied if supplied is not None else saved.get(name)

@@ -16,6 +16,7 @@ import socket
 import subprocess
 
 from e2e_watch import Observer, configuration_digest, require
+import watch_control
 
 
 def matches(connection, uuid, domain_id, xml_sha256, *, expected_xml=None):
@@ -62,7 +63,7 @@ class Session:
                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                     pass_fds=(remote.fileno(), display.fileno(), *scratch_descriptors()),
                     env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8',
-                         'PKEXEC_UID': str(uid)})
+                         'PKEXEC_UID': str(uid), **watch_control.environment()})
             self.pidfd = os.pidfd_open(self.child.pid)
             self.control.settimeout(10)
             self.control.sendall(b'start')

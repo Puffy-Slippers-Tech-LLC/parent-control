@@ -87,7 +87,7 @@ class Frames:
         self.meta = {'run': run, 'state': 'waiting', 'width': 0, 'height': 0,
                      'stride': 0, 'format': 0, 'cursor_x': 0, 'cursor_y': 0,
                      'cursor_on': False, 'cursor_width': 0, 'cursor_height': 0,
-                     'hot_x': 0, 'hot_y': 0}
+                     'hot_x': 0, 'hot_y': 0, 'watch_view': True, 'watch_ssh': True}
         self.publish()
 
     def publish(self, pixels=None, cursor=None, **meta):
@@ -123,7 +123,9 @@ def read_frame(memory, previous=0, *, pixels=True):
     if memory[:PREFIX.size] != prefix:
         return None
     meta = json.loads(metadata)
-    include_pixels = pixels
+    for name in ('watch_view', 'watch_ssh'):
+        require(type(meta.get(name)) is bool, 'watch-policy')
+    include_pixels = pixels and meta['watch_view']
     pixels = cursor = b''
     if meta['state'] == 'live':
         count = layout(meta['width'], meta['height'], meta['stride'], meta['format'])

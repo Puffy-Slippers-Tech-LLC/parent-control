@@ -20,6 +20,7 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 from e2e_watch_protocol import BASE, require
+import watch_control
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -157,6 +158,8 @@ class ProgressPublication:
 
     def publish(self):
         """Flush a milestone immediately, serialized with periodic heartbeats."""
+        if not watch_control.enabled('ssh'):
+            return True
         from e2e_watch_protocol import progress_packet
         import uuid
         with self.publish_lock:
@@ -348,7 +351,9 @@ class Observer:
                 command.extend(['--' + name, str(fd)])
             command.extend(['--uid', str(uid), '--run', run])
             self.child = subprocess.Popen(command, pass_fds=tuple(fd for fd in descriptors if fd >= 0),
-                stdin=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8'})
+                stdin=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C.UTF-8',
+                                             'PKEXEC_UID': str(uid),
+                                             **watch_control.environment()})
             self.pidfd = os.pidfd_open(self.child.pid)
             self.control.sendall(b'start')
             self.control.settimeout(.25)
@@ -370,7 +375,25 @@ class Observer:
         try:
             while not self.stop.is_set():
                 try:
-                    message = self.control.recv(16)
+                    message, controls, flags, _ = self.control.recvmsg(
+                        16, socket.CMSG_SPACE(16), socket.MSG_CMSG_CLOEXEC)
+                    descriptors = array.array('i')
+                    try:
+                        for level, kind, data in controls:
+                            if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+                                descriptors.frombytes(data[:len(data) - len(data) % descriptors.itemsize])
+                        require(not flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC), 'collector-message')
+                        if message == b'listener':
+                            require(len(descriptors) == 1, 'collector-listener')
+                            listener = socket.socket(fileno=descriptors.pop())
+                            if self.listener is not None:
+                                self.listener.close()
+                            self.listener = listener
+                        else:
+                            require(not descriptors, 'collector-descriptor')
+                    finally:
+                        for fd in descriptors:
+                            os.close(fd)
                 except TimeoutError:
                     message = None
                 if message in (b'ready', b'beat'):
@@ -383,7 +406,8 @@ class Observer:
                     self.display_ready.set()
                 elif message == b'':
                     break
-                if self.memory_source is not None and time.monotonic() >= next_memory:
+                if (watch_control.enabled('ssh') and self.memory_source is not None
+                        and time.monotonic() >= next_memory):
                     next_memory = time.monotonic() + 1
                     memory = None
                     try:
@@ -414,7 +438,9 @@ class Observer:
                         last_locked = self.lease_locked
                     except BlockingIOError:
                         pass
-                if self.progress is not None:
+                if not watch_control.enabled('ssh'):
+                    last_progress = None  # Restore cleared metadata on live enable.
+                elif self.progress is not None:
                     progress = self.progress.snapshot()
                     if progress != last_progress:
                         from e2e_watch_protocol import progress_packet

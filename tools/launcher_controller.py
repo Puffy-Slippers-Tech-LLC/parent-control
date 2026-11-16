@@ -55,6 +55,11 @@ def require_startup_sync():
 
 def _early_sync(root, branch, arguments):
     """Synchronize before workflow imports; live owners retain attachment only."""
+    if os.environ.get('ONPC_WATCH_RUN'):
+        if (Path(sys.argv[0]).name not in ('run-tests', 'fix-tests') or not any(
+                arg.partition('=')[0] in ('--watch-ssh', '--watch-view') for arg in arguments)):
+            raise ValueError('watch: invalid launcher control invocation')
+        return False  # A Watch control must never start or synchronize a new job.
     if any(arg.split('=', 1)[0] in _NO_NEW_JOB for arg in arguments):
         return False
     from contextlib import ExitStack

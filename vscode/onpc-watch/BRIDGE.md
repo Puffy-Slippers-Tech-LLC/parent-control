@@ -304,5 +304,14 @@ An artifact transfer temporarily occupies its source connection; other sources
 continue updating. Original artifacts remain under their source's retention and
 ownership policy. The bridge creates no local artifact cache or saved test data.
 
+A published `onpc-recording://HOST/...` reference uses the configured SSH Watch
+source whose host alias matches `HOST`, when present. This lets a local
+controller's link read directly from the storage host without a test-source
+capture or source-repair admission. The originating source must be connected;
+the destination adapter retains its recording path, ownership and publication
+checks. A disconnected matching destination refuses rather than falling back
+to a source transfer. Without a matching SSH source, the originating adapter
+retains responsibility for resolving the reference.
+
 See [source configuration](README.md#local-and-ssh-sources) for local/SSH examples
 and the `command` override used to introduce another backend adapter.

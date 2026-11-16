@@ -7,6 +7,7 @@ The extension requests at most one snapshot at a time over its private stdio.
 
 import argparse
 import base64
+from contextlib import redirect_stdout
 import hashlib
 import json
 import re
@@ -72,6 +73,7 @@ def remote_recording_artifact(uri):
     from regression_process import Control
     from remote_sources import RemoteVM
     import test_launcher
+    import test_source
     environment = test_launcher.environment(root)
     for variable in ('ONPC_TEST_VM', 'ONPC_VM_CHECKOUT', 'ONPC_VM_RECORDING_CONTROL',
                      'ONPC_TEST_FAMILY_WORK', 'ONPC_TEST_VM_WORKER', 'ONPC_TEST_VM_BATCH'):
@@ -81,7 +83,9 @@ def remote_recording_artifact(uri):
         if len(data) + len(block) > 96 * 1024 * 1024:
             raise ValueError('Recording response exceeds transfer limit.')
         data.extend(block)
-    with Control().installed() as control:
+    # A Watch request must not wait behind a repair past the bridge deadline.
+    # Keep the source guard, returning its refusal as an artifact error instead.
+    with test_source.reader(root, wait=False), Control().installed() as control:
         status = RemoteVM(root, host=host).run(control,
             ['/usr/bin/python3', '-B', str(root / 'tools/watch_webview.py'),
              '--root', str(root), '--recording', uri], env=environment,
@@ -391,7 +395,9 @@ class Viewer:
             if remote_recording:
                 from host_dispatch import tool_host
                 for root in self.roots:
-                    if parsed.netloc == tool_host(root).name and path.is_relative_to(root):
+                    # Unrelated worktrees may retain an older registry schema.
+                    # Only consult host metadata for a possible storage root.
+                    if path.is_relative_to(root) and parsed.netloc == tool_host(root).name:
                         return recording_artifact(uri, root, parsed.netloc)
                 return remote_recording_artifact(uri)
             if uri in self.case_links:
@@ -1044,7 +1050,11 @@ def main():
                         or set(artifact) != {'uri', 'inline'} or type(artifact['uri']) is not str
                         or len(artifact['uri']) > 8192 or type(artifact['inline']) is not bool):
                     raise ValueError('watch: invalid artifact request')
-                print(json.dumps(dict(protocol=1, artifact_result=viewer.artifact(artifact)),
+                # Dispatch helpers can print admission/transfer diagnostics.
+                # Stdout belongs exclusively to the bridge's JSON responses.
+                with redirect_stdout(sys.stderr):
+                    result = viewer.artifact(artifact)
+                print(json.dumps(dict(protocol=1, artifact_result=result),
                                  separators=(',', ':')), flush=True)
                 continue
             if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'session_root', 'session_roots', 'session_action'} or

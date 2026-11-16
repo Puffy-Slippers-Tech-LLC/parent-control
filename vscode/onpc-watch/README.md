@@ -376,7 +376,10 @@ Transfer uses the existing client-to-server SSH connection
 and does not require reverse SSH. When a controller publishes a recording on
 another host, Watch uses that host's configured SSH source to read it directly,
 without waiting for the controller checkout's source repair. Playback failures appear in Watch error details,
-including the decoder's error. Older VP9 recordings remain unchanged and may
+including the decoder's error and any Media Source fallback failure.
+When Electron cannot open the WebM container directly, Watch retries the original
+bytes through Chromium's Media Source parser. This also supports older VP9 clips
+when VS Code provides that codec. Older VP9 recordings remain unchanged and may
 require the source host's desktop player; rerunning the case replaces them with
 the current format.
 Inline remote videos are limited to 64 MiB; larger recordings remain available on the

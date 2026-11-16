@@ -1254,7 +1254,8 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 classification = replay['classification']
                 # A response may already have raised the next turn's tier
                 # before its edits required this reload. Replay cannot undo it.
-                case_tiers.setdefault(failure_key, (replay['model'], replay['effort']))
+                response_tier = (replay['model'], replay['effort'])
+                case_tiers.setdefault(failure_key, response_tier)
                 progress(category, 'validating retained response', model=replay['model'], effort=replay['effort'])
                 replay = None  # Validation itself spends no model session.
             else:
@@ -1276,6 +1277,7 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
                 selection = resolve_selection(root)
                 agent_model, agent_effort = initial_model(agent_model, agent_effort,
                     category=category, selection=selection)
+                response_tier = (agent_model, agent_effort)
                 progress(category, 'fixing errors', model=agent_model, effort=agent_effort)
                 # Aggregate failures can enter a leaf repair before its own test.
                 task = active_task
@@ -1436,8 +1438,21 @@ def reserved_worker(root, run, owner, model, effort, app_model, requested='[]', 
             if result['status'] in ('app_issue', 'uncertain', 'stalled'):
                 initial_classification = not classification and result['status'] != 'stalled'
                 classification = result['status'] + ': ' + result['summary']
+                # Diagnostic assessment or a pre-reload decision may already
+                # have scheduled a stronger turn. This older response cannot
+                # escalate again or declare that unexecuted tier stalled.
+                if case_tiers[failure_key] != response_tier:
+                    continue
                 raised = escalate(result['status'], classification_only=initial_classification)
                 if raised or initial_classification:
+                    continue
+                if result['status'] == 'stalled':
+                    # A fresh assessment uses the next conversation slot at
+                    # the same effort. check_budget owns exhaustion/intervention.
+                    entry.pop('conversation', None)
+                    commits.save()
+                    print('fix-tests: highest-effort repair stalled; requesting a fresh assessment '
+                          'within the case session allowance.', flush=True)
                     continue
                 retain_stop('stalled')
                 fail_case('repair stalled: ' + result['summary'])

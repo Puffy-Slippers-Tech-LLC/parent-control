@@ -897,7 +897,10 @@ without a duplicate session for the same evidence.
 If verification still reports the same case, its next repair escalates from
 **GPT-6.1 Sol Medium** to **GPT-6.1 Sol High**, from High to **GPT-6.1 Sol xHigh**,
 and from xHigh to **GPT-6.1 Sol Max**. A stall uses the same immediate escalation
-ladder. Unit failures use a ladder one tier lower throughout:
+ladder. A `stalled`, `app_issue` or `uncertain` response remains tied to the effort
+that produced it. When a stronger turn is already scheduled, that response cannot
+spend another escalation or end the conversation before the stronger turn runs,
+including when replayed after reload. Unit failures use a ladder one tier lower throughout:
 **GPT-6.1 Sol Low → Medium → High → xHigh**, stopping at xHigh.
 The runner-reported failure category selects the ladder, including unit failures
 within mixed selections, expanded aggregates and aggregate verification.
@@ -912,13 +915,16 @@ reassesses competing explanations at the next available tier in that conversatio
 Unavailable evidence or access/preparation failures do not consume that diagnostic
 streak; an evidenced useful finding resets it. This assessment grants no pass.
 A newly exposed case receives high-effort impact triage, then the applicable
-repair tier, even in the same category.
+repair tier, even in the same category. A stall at the highest executed tier
+opens a fresh assessment at that tier using the next case conversation slot.
+It retains the latest handoff, observations, owned edits and developer answers;
+exhaustion uses the existing session intervention below.
 Within one case, an agent may return `new_issue` only after a corrective attempt
 has demonstrably passed the previous failure point and exposed a distinct issue.
 Its `next_issue` names the latest verification attempt, passed point, concrete
 passage observation and self-contained new failure. The launcher requires that
 exact completed case observation (or qualified command result for non-case leaves)
-before opening a fresh conversation. A changed
+before opening a fresh conversation for that distinct issue. A changed
 message alone, an interrupted run or an earlier preparation failure is insufficient.
 The agent assesses passage; this context decision never establishes test completion.
 Owned edits, original selectors and the full-case verification requirement remain.
@@ -986,9 +992,11 @@ pauses for developer intervention. An explicit answer can grant five further ses
 the choice to leave the case failed logs the failure and continues the queue.
 `repair-stop.json` retains that case's identity, count, latest failure prompt and
 last agent result, even if another case was repaired in between. An entire category
-has no five-session cap. At the highest tier, `stalled` fails the case when
-there is no useful authorized next step; speculative edits or repeated attempts
-are not required. Lower-tier stalls escalate within the same budget. Missing prerequisites
+has no five-session cap. At the highest tier, `stalled` requests a fresh
+assessment within the remaining allowance instead of failing the case early.
+After five conversations, another assessment requires session intervention;
+speculative edits or identical diagnostic reruns are not required. Lower-tier
+stalls escalate within the same conversation. Missing prerequisites
 and permissions use their maintained repair/blocker routes, not model escalation
 by themselves. These are session limits, not token budgets.
 

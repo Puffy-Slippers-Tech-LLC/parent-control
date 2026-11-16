@@ -268,7 +268,8 @@ Full JSON results remain in that log. Reload launcher
 changes with `tools/fix-tests --reload`; `./setup.sh --watch` updates the extension.
 The links remain available in every view, including while idle. **Copy tab content** in the
 three-line menu copies the current tab's body as plain text to the clipboard;
-in **Session**, it copies the displayed transcript.
+in **Status**, it includes the pinned summary above the body; in **Session**, it
+copies the displayed transcript.
 For every execution-plan launcher and `fix-tests`, every view
 starts with **Total Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels

@@ -371,11 +371,17 @@ nav button { flex-shrink: 0; }
 .tile-grid.single { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(0, 1fr); }
 /* Viewer rows stop shrinking only when their header and footer meet. */
 #grid { grid-auto-rows: minmax(min-content, 1fr); }
-#grid[data-layout="horizontal"] { grid-template-rows: minmax(min-content, 1fr); }
-.card {
-    display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: min-content;
+#grid[data-layout="horizontal"] {
+    grid-template-rows: minmax(min-content, 1fr);
+    grid-auto-columns: minmax(min-content, 1fr);
 }
-.card-content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.card {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    min-width: min-content; min-height: min-content;
+}
+/* Screens and case text must not enlarge the grid's intrinsic minimum size. */
+.card-content { display: flex; flex-direction: column; min-height: 0; overflow: hidden; contain: size; }
+.card .title { contain: inline-size; }
 #runs[data-layout="vertical"] { row-gap: 0; }
 #runs:not([data-layout="vertical"]) > .run-divider { display: none; }
 #grid.runtime-body { display: block; }
@@ -452,7 +458,7 @@ nav button { flex-shrink: 0; }
 }
 .vm .status { color: #0066ff; }
 .card-footer { display: flex; flex-shrink: 0; align-items: center; min-width: 0; }
-.card-footer .status { flex: 1; min-width: 0; font: inherit; }
+.card-footer .status { flex: 1; min-width: 0; font: inherit; contain: inline-size; }
 .vm-memory { flex-shrink: 0; padding-left: 8px; }
 .ssh-control { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 4px 8px; white-space: nowrap; }
 footer { display: flex; flex-shrink: 0; gap: 8px; align-items: center; padding: 4px 8px; border-top: 1px solid var(--vscode-panel-border); }

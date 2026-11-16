@@ -200,7 +200,7 @@ class Output:
         self.summary_ended = None
         self.summary_clock = {}
 
-    def task_summary(self, active, *, runner_lines=()):
+    def task_summary(self, active):
         """Render plan counters or the repair runner's published case totals."""
         from launcher_display import task_summary_lines
         from launcher_runtime import task_counters
@@ -222,7 +222,11 @@ class Output:
                 pass  # Retain valid totals while editable plan metadata is incomplete.
         else:
             from launcher_render import clean
-            for line in runner_lines:
+            # Live repair frames can describe a single validation case. The
+            # retained direct-runner frame owns the launcher's overall counts,
+            # including when Watch reconnects during an agent session.
+            totals_lines = snapshot(self.run / 'test-frame.json', reader=self.reader)
+            for line in totals_lines:
                 # Queue frames include failures; ordinary dashboards omit a zero
                 # failure count. Failed cases remain unfinished until repaired.
                 counts = re.match(r'^Overall - [\d?]+% \((\d+)/(?:\d+/)?(\d+)\)', clean(line))

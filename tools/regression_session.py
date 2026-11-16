@@ -272,7 +272,11 @@ def follow(run, stream=None):
                         lines = snapshot(run / 'frame.json', reader=reader)
                         if steps is not None and (steps, lines) != forwarded:
                             atomic(destination / 'frame.json', lines)
-                            if lines:
+                            # Keep the controller's overall totals through repair.
+                            # Agent-launched tests use WORKFLOW_DIRECTORY and may
+                            # select just one case; only the controller's direct
+                            # runner uses FRAME_DIRECTORY.
+                            if lines and os.environ.get(FRAME_DIRECTORY):
                                 atomic(destination / 'test-frame.json', lines)
                             forwarded = (steps, lines)
                     except (OSError, ValueError, KeyError, TypeError):

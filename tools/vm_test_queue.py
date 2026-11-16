@@ -124,7 +124,8 @@ def source_identity(root):
 
 
 def execute_pass(root, plan, control, execute, *, host=None,
-                 checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None):
+                 checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
+                 progress=None):
     """Run current pending work, stop on failure and join all normal bookings."""
     from test_checkpoint import PassCheckpoint
     from test_results import ResultStore
@@ -149,6 +150,21 @@ def execute_pass(root, plan, control, execute, *, host=None,
         if replay:
             for family in families:
                 checkpoint.retry(family, replay, area='--resume-area-only' in guest_args)
+
+        def publish_counts():
+            if progress is None:
+                return
+            selected = {(family, work['category'], case)
+                        for family, items in families.items() for work in items
+                        if not focused or replay in work['cases']
+                        for case in work['cases']
+                        if not focused or '--resume-area-only' in guest_args or case == replay}
+            passed = {key for key in selected if key[2] in checkpoint.passed(key[0], key[1])}
+            failures = {(record['family'], record['category'], record['case'])
+                        for record in result_store.failures()} & selected
+            progress(len(passed - failures), len(failures), len(selected))
+
+        publish_counts()
 
         if host_args:
             value = host() if host is not None else dict(status=2, cleanup=False)
@@ -246,6 +262,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     focus_finished.add(vm.family)
                 if sources is not None and sources.source != source_identity(root):
                     changed.set()
+                publish_counts()
                 return value
 
         for family, items in families.items():
@@ -485,15 +502,23 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
             # after an interrupted input was removed and recreated.
             output_lock = threading.Lock()
             frames = {name: ['Queued'] for name in snapshot['vms']}
+            case_summary = []
 
             def publish_frames():
                 if hasattr(sys.stdout, 'frame'):
                     lines = [f'VM queue | concurrency {snapshot["concurrency"]}']
+                    lines.extend(case_summary)
                     for index, name in enumerate(snapshot['vms']):
                         if index:
                             lines.append('')
                         lines.extend([f'VM: {name}', *frames[name]])
                     sys.stdout.frame(lines)
+
+            def progress(passed, failed, total):
+                with output_lock:
+                    case_summary[:] = [f'Overall - {int(100 * (passed + failed) / max(total, 1))}% '
+                                       f'({passed}/{failed}/{total})']
+                    publish_frames()
 
             def execute_worker(worker, assignment, inherited):
                 vm, receipt = worker.vm, worker.receipt
@@ -682,7 +707,8 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
             try:
                 outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
                                        checkpoint_scope=checkpoint_scope,
-                                       continue_on_errors=continue_on_errors, sources=sources, failed_work=failed_work)
+                                       continue_on_errors=continue_on_errors, sources=sources, failed_work=failed_work,
+                                       progress=progress)
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

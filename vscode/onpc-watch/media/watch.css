@@ -227,6 +227,7 @@ nav button { flex-shrink: 0; }
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 .session-composer { margin: 0 8px; }
+.session-output .session-composer { margin: 0 0 1lh; }
 .session-prompt {
     display: flex; align-items: flex-start; gap: 10px; padding: 4px 0;
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
@@ -234,11 +235,11 @@ nav button { flex-shrink: 0; }
     background: var(--vscode-textCodeBlock-background, var(--vscode-input-background));
 }
 .session-prompt-marker { flex: 0 0 auto; padding-left: 2px; }
-.session-composer textarea {
+.session-prompt-text {
     display: block; flex: 1; min-width: 0; width: 100%; margin: 0; padding: 0 12px 0 0;
     border: 0; border-radius: 0; outline: none; resize: none; overflow-y: hidden;
     color: var(--vscode-input-foreground); background: transparent;
-    font: inherit; line-height: inherit;
+    font: inherit; line-height: inherit; white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .session-prompt:focus-within { box-shadow: inset 2px 0 var(--vscode-focusBorder); }
 .session-footer {

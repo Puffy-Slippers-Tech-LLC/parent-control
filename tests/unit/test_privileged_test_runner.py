@@ -384,15 +384,31 @@ def test_system_rejects_invalid_options(checkout, arguments):
 
 
 @pytest.mark.parametrize('status', [0, 1])
-def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, monkeypatch, status):
+@pytest.mark.parametrize('admitted', [False, True, 'final-refused'])
+def test_dispatch_runs_only_selected_controller_with_retention_guard(checkout, monkeypatch, status, admitted):
     import test_storage
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: checkout / 'retention')
-    guard = Mock()
+    guard = Mock(side_effect=([None, ValueError('VM resource admission denied')]
+                             if admitted == 'final-refused' else
+                             None if admitted else ValueError('VM resource admission denied')))
     monkeypatch.setitem(runner['run'].__globals__, 'retention_guard', guard)
     execute = Mock(return_value=SimpleNamespace(returncode=status))
     monkeypatch.setattr(runner['subprocess'], 'run', execute)
     monkeypatch.setattr(runner['os'], 'getgrouplist', lambda *args: [1000])
     caller = SimpleNamespace(pw_uid=1000, pw_gid=1000, pw_name='fixture', pw_dir='/tmp')
+    if not admitted:
+        with pytest.raises(ValueError, match='VM resource admission denied'):
+            runner['run'](checkout, ['system', 'check_future_feature', *VM_ARGS], caller)
+        execute.assert_not_called()
+        assert not (checkout / 'retention').exists()
+        return
+    if admitted == 'final-refused':
+        with pytest.raises(ValueError, match='VM resource admission denied'):
+            runner['run'](checkout, ['system', 'check_future_feature', *VM_ARGS], caller)
+        execute.assert_called_once()
+        assert (checkout / 'retention/recovery-required').exists()
+        assert not json.loads((checkout / 'retention/current.json').read_text())['finished']
+        return
     assert runner['run'](checkout, ['system', 'check_future_feature', *VM_ARGS], caller) == status
     execute.assert_called_once()
     expected = runner['vm_snapshot_command'](checkout, ['system'],

@@ -39,18 +39,17 @@ def main():
     from test_storage import privileged_state
     store = test_retention.Store(privileged_state(uid))
     lease = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['retention_lease']
-    # Keep both VM leases through the live-reference audit and deletion, after
-    # recorded VM recovery. A competing controller cannot start during pruning.
-    store.reconcile(lambda: reconcile_vm(ROOT), completed_guard=unused,
-                    lease=lambda: lease(ROOT))
-    # Rotate eligible completed evidence before the aggregate's RAM admission.
-    with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
-        with lease(ROOT), store.retirement(fd) as authorize:
-            with store.locked(fd, 'writer.lock'):
-                state = store.read(fd)
-                if state is not None and state['finished']:
-                    store.prune(fd, state, keep=2, completed_guard=unused,
-                                authorize=authorize)
+    # Actual VM recovery remains mandatory. Historical output is independently
+    # retired when safe, or preserved without blocking the next execution.
+    reconcile_vm(ROOT)
+    def audit():
+        with store.opened() as fd:
+            state = store.read(fd)
+            if state is not None:
+                records = test_retention.latest_allocations([*state['history'], state])
+                unused({record['path'] for _, record in records})
+    with lease(ROOT), store.execution_session(audit=audit):
+        pass
     print('Test recovery: VM and privileged storage are ready.', flush=True)
     return 0
 

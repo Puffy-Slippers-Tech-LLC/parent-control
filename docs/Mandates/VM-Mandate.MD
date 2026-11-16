@@ -92,21 +92,18 @@ VM value replaces the family's tags. Matching uses exact tokens. A required fami
 without a matching candidate refuses execution, never falls back or earns a pass.
 The shared capacity scheduler receives eligible candidates only and owns no test
 membership or tag inheritance. `fix-tests` passes its allowed pool through and
-supplies repair callbacks and rounds; it performs no separate VM scheduling.
+starts repair only after the ordinary run releases bookings; it performs no separate VM scheduling.
 
 Admission reserves a fixed random subset for the current test group, including
-its repairs, prerequisite preparation and reload recovery. Owned execution and
+prerequisite preparation and current execution. Owned execution and
 cleanup join before the reservation is released and the next group is admitted
 from the original allowed pool. Thus different groups need not fit simultaneously.
 Other workflows retain their launcher-lifetime reservations. Surviving owned
-commands retain the charge. The original request remains attachment metadata;
-group checkpoints record admitted canonical names separately. Resume reserves
-the active group's exact admitted subset, refusing insufficient capacity rather
-than drawing different workers or discarding saved ownership. Completed groups
-stay complete. Unused candidates may become unavailable without blocking resume;
-retained workers must still satisfy current availability and tag rules. Future
-groups refresh eligible candidates within the original allowed pool and receive
-admission when reached; resume never widens that pool. Shutdown recovery
+commands retain the charge. The original request remains attachment metadata.
+Each new execution admits currently eligible workers from that allowed pool;
+historical worker assignments do not pin a resumed run to an old allocation.
+Clear completed cases stay complete within their family. Future groups receive
+admission when reached; resume never widens the requested pool. Shutdown cleanup
 uses only the current group's recorded admitted VMs. Its receipt is cleared
 after joined cleanup, so shutdown cannot revisit a VM released by an earlier group.
 If availability is below the smallest selected VM's cost on any selected host,
@@ -139,7 +136,8 @@ permits only the existing recovery path and grants no new guest execution.
 Within each test group, tests use one pending case queue per admitted family: an available VM
 atomically claims its next case, so each case executes once per family. The same
 pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
-failed or interrupted claims retain their owner through cleanup and recovery.
+failed or interrupted attempts retain their live owner until joined cleanup.
+Historical claims are discarded; incomplete attempts return to pending.
 Stateful histories and system area attempts remain indivisible for scheduling,
 but guest steps inside them may be interrupted for repair, reload or cancellation.
 Each VM runs one attempt at a time, retaining its own lease and journals.
@@ -149,28 +147,20 @@ Baseline helper refresh runs once after preparation workers finish.
 Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
 including explicit single-VM selections. Each worker reserves only its canonical
 target from the selected pool. Reservation waiters consume no execution capacity;
-workers recheck source protection after reservation and acquire capacity only
-after source admission. Spare grants are released when capacity fills, rather
-than parking free VMs behind active workers. A live source wait likewise releases
-the idle reservation before waiting and rechecks after checkout. Normal test
-claims follow that admission. Waiters whose
+workers use the current execution's stable source snapshot. Spare grants are
+released when capacity fills, rather than parking free VMs behind active workers.
+Normal test claims follow that admission. Waiters whose
 family work has drained are cancelled without waiting for the occupied VM.
 Failed test workers retain their reservations while the remaining workers finish,
 with their execution slots released. Reservation release follows joined owned
-cleanup, never a progress event or timeout. Companion attempts in a repair group
-use a complete captured source closure and continue executing/admitting during
-triage. An isolated result preserves that flow during serial repair and bounded
-verification on the original failed VM. Shared or uncertain impact pauses and
-interrupts companion work through the
-[owned interruption contract](../../tests/README.md#scripted-repair-loop).
-The failed VM's cleanup joins before repair; shared/uncertain repairs also join
-companion cleanup. Pending, shared or uncertain impact holds live-checkout
-admission across other participating workflows; an isolated decision releases
-its own shared hold. Captured companion inputs never load unverified edits.
-Required-VM recheck and verification keep the failed attempt's original target and borrow
-the active repair's fenced source lease. The
-[repair contract](../../tests/README.md#scripted-repair-loop) owns durable impact
-decisions, run-wide rounds and VM-independent task charges.
+cleanup, never a progress event or timeout. On the first failed case, the repair
+launcher stops admission, cancels and joins companions, and releases normal
+bookings. Clear terminal results remain; incomplete attempts return to pending.
+One goal session validates the failure on the same named VM through ordinary
+booking and lifecycle prerequisites. There are no repair source fences, impact
+holds, borrowed writer leases or retained repair tickets. The
+[repair contract](../../tests/README.md#scripted-repair-loop) owns that flow and
+explicit rounds.
 Cancellation stops queued work and waits for active cleanup; an active baseline
 replacement finishes before returning cancellation because it has no cooperative
 stop protocol. Multiple preparation selections are confirmed together before

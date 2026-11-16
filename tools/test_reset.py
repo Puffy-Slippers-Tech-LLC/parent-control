@@ -62,7 +62,7 @@ def reset(root, start, *, host_only, selector=None):
 
     Gates exclude concurrent startup while cleanup retires current pointers and
     progress. Kernel locks remain in place. An interrupted reset is repeatable:
-    no pointer or fence is removed until maintained recovery has succeeded.
+    no pointer is removed until maintained resource cleanup has succeeded.
     """
     import test_activity
     from test_source import source_directory
@@ -81,10 +81,6 @@ def reset(root, start, *, host_only, selector=None):
                       ('fix-tests', 'fix-tests-host', 'sessions', 'sessions-host')]
             scopes.extend(sorted(scopes[2].glob('vm-*')))
             repair_scopes = set(scopes[:2])
-            legacy = root / 'artifacts/fix-tests'
-            if legacy.exists():
-                scopes.append(legacy)
-                repair_scopes.add(legacy)
             scopes = [launcher.private_directory(path) for path in scopes]
             with ExitStack() as stack:
                 active = False
@@ -147,8 +143,7 @@ def idle_resources(root, source):
     activity.mkdir(parents=True, exist_ok=True)
     launcher.private_directory(source)
     with ExitStack() as locks:
-        for path in (activity / 'host.lock', activity / 'lock', source / 'repair-owner',
-                     source / 'repair-queue-gate'):
+        for path in (activity / 'host.lock', activity / 'lock', source / 'source.lock'):
             fd = locks.enter_context(launcher.lock(path))
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -164,37 +159,12 @@ def _clean(root, scopes, names, stack, source):
     if removed:
         print(f'Reset: removed {removed} empty orphan scratch allocation(s).', flush=True)
     state = directory('state', root=root)
-    from test_checkpoint import PassCheckpoint, PASS_NAMESPACES, pass_namespaces
-    checkpoints = pass_namespaces(root)
-    # Use the ordinary coordinator's validated ownership record, rather than
-    # independently decoding or rewriting its claims during reset.
-    for checkpoint_scope in checkpoints:
-        with PassCheckpoint.saved(root, scope=checkpoint_scope) as checkpoint:
-            if checkpoint is not None:
-                names.update(assignment['vm'] for assignment in checkpoint.claims())
-    # A former queue may retain claims for VMs no longer in a current pointer.
-    # Recover those exact VM owners before retiring their claim checkpoints.
-    for path in sorted(state.glob('run-tests-family-vm-*')):
-        if not re.fullmatch(r'run-tests-family-vm-[0-9a-f]{24}', path.name):
-            continue
-        launcher.private_directory(path)
-        record = path / 'current.json'
-        if record.exists():
-            saved = json.loads(record.read_text())
-            if not isinstance(saved, dict):
-                raise ValueError(f'reset: invalid retained VM checkpoint: {record}')
-            claims = saved.get('queue_claims', {})
-            if not isinstance(claims, dict) or any(not isinstance(name, str) or not name for name in claims.values()):
-                raise ValueError(f'reset: invalid retained VM claims: {record}')
-            names.update(claims.values())
-    # Reuse recovery's VM leases, lifecycle guards, journals and claim recovery.
+    # Actual VM cleanup remains under ordinary resource booking.
     command = [str(root / 'tools/cleanup-e2e')]
     command += ['--vm', ','.join(sorted(names)), '--if-available'] if names else ['--host-only']
-    # Recovery consumes the retained checkout bytes before the fence can be
-    # retired. Borrow its verified source owner without resuming repair work;
-    # activity/state locks must remain available to the cleanup child.
+    # Activity locks must remain available to the cleanup child.
     from test_source import startup as source_startup
-    with source_startup(root, ['--resume'], repair=True, wait=False):
+    with source_startup(root, ['--resume'], wait=False):
         status = subprocess.run(command, cwd=root, env=launcher.environment(),
                                 stdin=subprocess.DEVNULL,
                                 pass_fds=launcher.scratch_descriptors(), check=False).returncode
@@ -203,25 +173,21 @@ def _clean(root, scopes, names, stack, source):
     # Recovery borrows/acquires its own activity locks; exclude others again
     # before changing checkpoints, without holding those locks across recovery.
     stack.enter_context(idle_resources(root, source))
-    # Keep the same coordinator gate until retirement finishes. The maintained
-    # cleanup above already used recover(), which never awards completion.
-    for checkpoint_scope in checkpoints:
-        checkpoint = stack.enter_context(PassCheckpoint.saved(root, scope=checkpoint_scope))
-        if checkpoint is not None and checkpoint.claims():
-            raise ValueError('reset: ordinary pass still has uncertain claims; state preserved; retry --reset')
     for path in sorted(state.iterdir()):
-        if (path.name in checkpoints.values()
-                or path.name in {value + '-groups' for value in PASS_NAMESPACES.values()}
-                or re.fullmatch(r'(?:run-tests(?:-family)?|fix-tests)-(?:host|vm)-[0-9a-f]{24}|(?:run-tests|fix-tests)-request', path.name)):
+        if (path.name == 'run-tests-request'
+                or re.fullmatch(r'(?:test-pass|runner-progress)-[0-9a-f]{24}', path.name)):
             launcher.private_directory(path)
             for record in path.iterdir():
                 if record.suffix in ('.json', '.tmp'):
                     remove(record)
-    # Abandon the previous repair transaction, preserving its edits as input to
-    # the new verification. Old checkpoints remain historical, unreachable by resume.
+    results = state / 'test-results' / 'cases'
+    if results.exists():
+        launcher.private_directory(results)
+        for record in results.iterdir():
+            if record.suffix == '.json':
+                remove(record)
+    # Preserve edits; stop referring to the previous executions.
     for scope in scopes:
         remove(scope / 'current.json')
         remove(scope / 'current.tmp')
-    from test_source import SourceProtection
-    SourceProtection(source).reset(remove)
     print('Reset: recovery complete; saved test and repair progress cleared; starting fresh.', flush=True)

@@ -330,8 +330,7 @@ class Feed:
         except (OSError, ValueError, KeyError, TypeError):
             progress = None
         if self.root is not None:
-            from launcher_progress import watch_case_progress, watch_system_check_progress
-            progress = watch_case_progress(self.root, self.vm_name, progress, reader=self.case_reader)
+            from launcher_progress import watch_system_check_progress
             progress = watch_system_check_progress(self.root, self.vm_name, progress, reader=self.case_reader)
             from vm_controller_progress import progress as controller_progress
             progress = controller_progress(self.root, self.vm_name, progress, reader=self.case_reader)

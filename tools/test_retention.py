@@ -6,7 +6,7 @@ serialize the private journal. Unregistered replacements and unfinished owners
 fail closed. A recreated path belongs to its latest recorded allocation.
 """
 
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, ExitStack
 import fcntl
 import json
 import os
@@ -462,7 +462,10 @@ class Store:
         except FileNotFoundError:
             return None
         with os.fdopen(source) as stream:
-            private(os.fstat(stream.fileno()), regular=True)
+            info = os.fstat(stream.fileno())
+            private(info, regular=True)
+            if info.st_size > 8 * 1024 ** 2:
+                raise ValueError('retention: output journal exceeds metadata limit')
             value = json.load(stream)
         return validate_state(value)
 
@@ -545,7 +548,66 @@ class Store:
                              'storage_usage=' + json.dumps(usage, sort_keys=True))
 
     @contextmanager
-    def session(self, *, run=None, guard=None, recover=None, preserve_completed=None):
+    def execution_session(self, *, run=None, guard=None, audit=None):
+        """Start execution independently of unavailable historical output.
+
+        Resource admission is separate from output retirement: a failed resource
+        guard never permits execution. Refused historical output is preserved
+        under its idle owner's locks, without deleting or adopting allocations.
+        Healthy journals keep their ordinary bounded rotation.
+        """
+        if run is not None and not valid_token(run):
+            raise ValueError('retention: invalid run token')
+        if guard is not None:
+            guard()
+        admitting = True
+        def output_audit():
+            with self.opened() as fd:
+                if admitting and 'recovery-required' in os.listdir(fd):
+                    raise ValueError('retention: previous output owner did not finish')
+            if audit is not None:
+                audit()
+        with ExitStack() as session:
+            try:
+                session.enter_context(self.session(run=run, guard=output_audit, recover=lambda state: True))
+            except OwnerBusy:
+                raise
+            except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+                with self.opened() as fd, self.locked(fd, 'owner.lock', blocking=False), \
+                        self.locked(fd, 'writer.lock', blocking=False, transfer=True, publication=True):
+                    with self._preservation_parent(fd) as parent:
+                        preserved = self.path.name + '-preserved-' + uuid.uuid4().hex
+                        os.rename(self.path.name, preserved, src_dir_fd=parent, dst_dir_fd=parent)
+                        test_io.sync(parent, os.fsync)
+                print(f'Retention: preserved unavailable historical output journal '
+                      f'{self.path.with_name(preserved)}: {error}', file=sys.stderr, flush=True)
+                session.enter_context(self.session(run=run, guard=output_audit))
+            admitting = False
+            try:
+                yield
+            finally:
+                if guard is not None:
+                    try:
+                        guard()
+                    except BaseException:
+                        preserve_for_recovery()
+                        raise
+
+    @contextmanager
+    def _preservation_parent(self, descriptor):
+        parent = directory(self.path.parent)
+        try:
+            private(os.fstat(parent))
+            held = os.fstat(descriptor)
+            current = os.stat(self.path.name, dir_fd=parent, follow_symlinks=False)
+            if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
+                raise ValueError('retention: output journal directory identity changed')
+            yield parent
+        finally:
+            os.close(parent)
+
+    @contextmanager
+    def session(self, *, run=None, guard=None, recover=None):
         if not self.path.is_absolute() or '..' in self.path.parts:
             raise ValueError('retention: invalid storage path')
         ensure_directory(self.path)
@@ -559,10 +621,6 @@ class Store:
                 guard()
             with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
                 state = self.read(fd)
-                if (state and state['finished'] and preserve_completed is not None
-                        and 'recovery-required' not in os.listdir(fd)
-                        and preserve_completed(state)):
-                    raise ValueError('retention: legacy evidence requires explicit storage migration')
                 if state and not state['finished']:
                     if ('recovery-required' in os.listdir(fd) or recover is None
                             or not recover(state)):
@@ -604,26 +662,28 @@ class Store:
             try:
                 yield run
             finally:
-                if previous_session is None:
-                    _sessions.pop(str(self.path), None)
-                else:
-                    _sessions[str(self.path)] = previous_session
-                if previous is None:
-                    os.environ.pop(VARIABLE, None)
-                else:
-                    os.environ[VARIABLE] = previous
-                if previous_owner is None:
-                    os.environ.pop(OWNER_VARIABLE, None)
-                else:
-                    os.environ[OWNER_VARIABLE] = previous_owner
-                if guard is not None:
-                    guard()
-                with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
-                    state = self.read(fd)
-                    state['finished'] = 'recovery-required' not in os.listdir(fd)
-                    self.save(fd, state)
-                    if state['finished']:
-                        self.prune(fd, state, authorize=authorize)
+                try:
+                    if guard is not None:
+                        guard()
+                    with self.retirement(fd) as authorize, self.locked(fd, 'writer.lock'):
+                        state = self.read(fd)
+                        state['finished'] = 'recovery-required' not in os.listdir(fd)
+                        self.save(fd, state)
+                        if state['finished']:
+                            self.prune(fd, state, authorize=authorize)
+                finally:
+                    if previous_session is None:
+                        _sessions.pop(str(self.path), None)
+                    else:
+                        _sessions[str(self.path)] = previous_session
+                    if previous is None:
+                        os.environ.pop(VARIABLE, None)
+                    else:
+                        os.environ[VARIABLE] = previous
+                    if previous_owner is None:
+                        os.environ.pop(OWNER_VARIABLE, None)
+                    else:
+                        os.environ[OWNER_VARIABLE] = previous_owner
 
     def producer_binding(self):
         """Return only this process's live, descriptor-held producer capability."""
@@ -949,44 +1009,6 @@ def descriptors():
     if VARIABLE not in os.environ or OWNER_VARIABLE not in os.environ:
         return ()
     return (owner_descriptor(active=False),)
-
-
-def legacy_system_evidence(state):
-    """Recognize the old system exporter changing a registered 0700 root to 0755.
-
-    Only the privileged dispatcher uses this migration, under its recovery
-    guard. Audit every allocation; archive the whole journal without deletion.
-    """
-    legacy = False
-    for _, record in latest_allocations([*state['history'], state]):
-        path = Path(record['path'])
-        if (path.parent != Path('/tmp') or not path.name.startswith('onpc-system-')
-                or record.get('mode', 0o700) != 0o700):
-            remove(record, validate_only=True)
-            continue
-        try:
-            target = directory(path)
-        except FileNotFoundError:
-            continue
-        try:
-            info = os.fstat(target)
-            if stat.S_IMODE(info.st_mode) != 0o755:
-                remove(record, validate_only=True)
-                continue
-            if (info.st_uid != os.geteuid() or
-                    (info.st_dev, info.st_ino) != (record['device'], record['inode'])):
-                raise ValueError('retention: legacy allocation identity changed')
-            parent = directory(path.parent)
-            try:
-                if mount_id(target) != mount_id(parent):
-                    raise ValueError('retention: mounted storage is not disposable')
-            finally:
-                os.close(parent)
-            check_tree(target, info.st_dev)
-            legacy = True
-        finally:
-            os.close(target)
-    return legacy
 
 
 def token():

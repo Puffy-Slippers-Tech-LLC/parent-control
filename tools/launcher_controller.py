@@ -30,10 +30,10 @@ def public_arguments(launcher):
 def _pending_git(previous):
     """Git journals pin their original source base until their owner settles."""
     if previous is not None:
-        from test_source import _read, IMPACT_MAX_BYTES
+        from test_source import _read, MAX_RECORD_BYTES
         for filename in ('checkpoint.json', 'translation-state.json'):
             path = previous / filename
-            saved = _read(path, max_bytes=IMPACT_MAX_BYTES)
+            saved = _read(path, max_bytes=MAX_RECORD_BYTES)
             if saved is not None:
                 if any(saved.get(key) is not None for key in (
                         'commit_intent', 'pull_intent', 'worktree_propagation',
@@ -51,7 +51,9 @@ def require_startup_sync():
 
 def _early_sync(root, name, branch, arguments):
     """Synchronize before workflow imports; live owners retain attachment only."""
-    if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
+    if (name == 'fix-tests' or name in ('run-tests', 'run-unit-tests')
+            and 'ONPC_TEST_RESULT_DIRECTORY' in os.environ
+            or any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments)):
         return False
     from contextlib import ExitStack
     import fcntl
@@ -60,17 +62,15 @@ def _early_sync(root, name, branch, arguments):
     from test_storage import directory
 
     finish_admission()
-    kinds = {'fix-tests': ('fix-tests', 'fix-tests-host'),
-             'run-tests': ('sessions', 'sessions-host'),
+    kinds = {'run-tests': ('sessions', 'sessions-host'),
              'run-unit-tests': ('sessions-host',),
              'execute-plan': ('plans',), 'sync-whatsnew': ('sync-whatsnew',)}
     with ExitStack() as locks:
         previous_runs = []
-        repair_runs = []
         retained_start = False
         live = False
         # Exclude replacement of this controller family. Other families retain
-        # independent scheduling under the shared source lease/generation guard.
+        # independent scheduling under the shared live source lease.
         for kind in kinds.get(name, ()):
             try:
                 base = directory(kind, root=root, create=False)
@@ -96,10 +96,8 @@ def _early_sync(root, name, branch, arguments):
                 retained_start |= (scope / 'pending-start.json').exists()
                 if previous is not None:
                     previous_runs.append(previous)
-                    if name == 'fix-tests' and kind in ('fix-tests', 'fix-tests-host'):
-                        repair_runs.append(previous)
         return _startup_sync(root, branch, arguments, previous_runs=previous_runs,
-                             repair_runs=repair_runs, retained_start=retained_start, live=live)
+                             retained_start=retained_start, live=live)
 
 
 def _pull(root, *, recovery=False, frozen=False, descriptors=(), before_change=lambda: None):
@@ -164,13 +162,13 @@ def _recover_pull(root, diagnostic, selection, profile, *, descriptors=()):
     _pull(root, descriptors=descriptors)
 
 
-def _startup_sync(root, branch, arguments, *, previous_runs=(), repair_runs=(), retained_start=False,
+def _startup_sync(root, branch, arguments, *, previous_runs=(), retained_start=False,
                   live=False):
     """Pull under shared source guards; report whether imports need replacing."""
     if any(arg.split('=', 1)[0] in _CONTROLS for arg in arguments):
         return
     import fcntl
-    from test_source import SourceProtection, source_directory, finish_admission, _lock, _read, IMPACT_MAX_BYTES
+    from test_source import SourceProtection, source_directory, finish_admission, _lock
     finish_admission()
     protection = SourceProtection(source_directory(root))
     common = Path(_git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
@@ -183,7 +181,7 @@ def _startup_sync(root, branch, arguments, *, previous_runs=(), repair_runs=(), 
             if live:
                 return None
             raise ValueError('repository synchronization is busy; retry after it finishes') from error
-        with _lock(protection.directory / 'repair-owner') as source:
+        with _lock(protection.directory / 'source.lock') as source:
             with protection.state():
                 try:
                     fcntl.flock(source, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -197,18 +195,8 @@ def _startup_sync(root, branch, arguments, *, previous_runs=(), repair_runs=(), 
                         fcntl.flock(source, fcntl.LOCK_SH | fcntl.LOCK_NB)
                     except BlockingIOError:
                         return None
-                pending = protection.owner()
-                if pending is not None and not live:
-                    if ('--resume' not in arguments
-                            or pending not in {str(run.resolve()) for run in repair_runs}):
-                        raise ValueError('retained repair source requires its original --resume; '
-                                         'source and checkpoints were preserved')
-                    saved = _read(Path(pending) / 'checkpoint.json', {}, max_bytes=IMPACT_MAX_BYTES)
-                    if not saved.get('active_ticket'):
-                        raise ValueError('retained source writer has no matching active repair ticket')
                 frozen = any(_pending_git(run) for run in previous_runs)
-                recovery = ('--resume' in arguments or frozen or retained_start or pending is not None
-                            or bool(protection.impact_holds()))
+                recovery = '--resume' in arguments or frozen or retained_start
             if live:
                 try:
                     _pull(root, frozen=True, descriptors=(source, transaction))
@@ -232,11 +220,9 @@ def _startup_sync(root, branch, arguments, *, previous_runs=(), repair_runs=(), 
                         from agent_adapter import resolve_profile, resolve_selection
                         selection = resolve_selection(root)
                         # Pin recovery before a mutating ordinary pull can put
-                        # its code into conflict. No-op/repair sync needs no CLI.
+                        # its code into conflict. No-op synchronization needs no CLI.
                         selection.adapter()
                         profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
-                    with protection.state():
-                        protection.advance_generation(source)
                     invalidated = True
             try:
                 _pull(root, recovery=recovery, frozen=frozen, descriptors=(source, transaction),
@@ -366,7 +352,7 @@ def dispatch(entry):
                     os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(command),
                               *arguments], env)
 
-    if pinned_branch is not None and not synced:
+    if name != 'fix-tests' and pinned_branch is not None and not synced:
         _pending_startup = (pinned_branch, arguments)
         changed = _early_sync(root, name, pinned_branch, arguments)
         if changed is not None:
@@ -384,13 +370,10 @@ def dispatch(entry):
             os.execve('/usr/bin/python3', ['/usr/bin/python3', '-IBu',
                       str(root / 'tools' / name), *arguments], env)
     import test_source
-    # Restore only the source admission released from the test/repair wrappers.
-    # Plan/translation controls retain their existing agent-free recovery path.
-    # A repair controller must reach recovery or report its blocker promptly;
-    # waiting behind a retained impact hold cannot make an idle repair advance.
-    admission = (test_source.admission(root, arguments, repair=name == 'fix-tests',
-                                      wait=name != 'fix-tests')
-                 if name in ('run-tests', 'run-unit-tests', 'fix-tests') else nullcontext())
+    # Ordinary tests retain live import admission. Repairs work directly from
+    # the selected checkout and own their execution through the detached owner.
+    admission = (test_source.admission(root, arguments)
+                 if name in ('run-tests', 'run-unit-tests') else nullcontext())
     with admission:
         return _entry(root, name, pinned_branch, arguments, entry, public_argv=public_argv)
 
@@ -414,8 +397,9 @@ def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
         # resolved destination even if a source change altered branch defaults.
         test_source.finish_admission()
         arguments = [arg for arg in original_arguments if arg not in ('--reload', '--reset')]
-        temporary = test_source.VARIABLE not in test_source.environment()
-        with test_source.startup(root, arguments, repair=name == 'fix-tests', fresh=True):
+        temporary = name != 'fix-tests' and test_source.VARIABLE not in test_source.environment()
+        with (nullcontext() if name == 'fix-tests'
+              else test_source.startup(root, arguments)):
             from launcher_reload import replace
             inherited = test_source.environment()
             if temporary:
@@ -439,12 +423,12 @@ def run(entry):
         try:
             import test_source
             root = Path(__file__).resolve().parents[1]
-            # Bootstrap only reads placement/ownership metadata. It must remain
-            # available behind retained repair holds; workflow imports below
-            # still require their normal admission after synchronization.
+            # Bootstrap reads placement metadata. Ordinary workflow imports
+            # retain live source admission after any synchronization.
             bootstrap = (['--help'] if any(arg.split('=', 1)[0] in _CONTROLS
                                          for arg in sys.argv[1:]) else ['--resume'])
-            with test_source.admission(root, bootstrap, repair=True):
+            with (nullcontext() if Path(sys.argv[0]).name == 'fix-tests'
+                  else test_source.admission(root, bootstrap)):
                 return dispatch(entry)
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f'launcher: {error}', file=sys.stderr)

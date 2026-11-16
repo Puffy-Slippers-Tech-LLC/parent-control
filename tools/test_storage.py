@@ -498,32 +498,7 @@ def privileged_state(uid):
         raise ValueError('privileged storage requires an authenticated caller')
     from vm_selection import selected
     vm = selected(required=False)
-    legacy = directory('state') / f'retention-{uid}'
-    if vm:
-        legacy_retention_guard(legacy)
-    return legacy.with_name(legacy.name + ('-' + vm.name if vm else ''))
-
-
-def legacy_retention_guard(path):
-    """Preserve old journals and refuse to forget an unfinished or live owner."""
-    if not path.exists():
-        return
-    if __package__:
-        from .test_retention import Store, private
-    else:
-        from test_retention import Store, private
-    store = Store(path)
-    with store.opened() as fd:
-        owner = os.open('owner.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=fd)
-        try:
-            private(os.fstat(owner), regular=True)
-            fcntl.flock(owner, fcntl.LOCK_SH | fcntl.LOCK_NB)
-            with store.locked(fd, 'writer.lock'):
-                state = store.read(fd)
-                if state and not state['finished']:
-                    raise ValueError('retention: legacy VM journal is unfinished; preserve evidence and recover it before parallel execution')
-        finally:
-            os.close(owner)
+    return directory('state') / (f'retention-{uid}' + ('-' + vm.name if vm else ''))
 
 
 def runtime_allocation(factory, *, prefix='onpc-runtime-'):
@@ -555,60 +530,34 @@ def runtime_directory(*, prefix='onpc-runtime-'):
         remove(record)
 
 
-def initialize_scratch(parent, fd, retention):
-    """Publish a complete scratch owner from an identity-recorded staging slot.
-
-    No payload is written until the staging identity is durably recorded. An
-    interruption before that receipt can leave only an empty slot, which can be
-    initialized without deleting or adopting any unrecorded contents.
-    """
-    staging = parent / 'initializing'
-    try:
-        receipt = os.open('initializing.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-    except FileNotFoundError:
-        pass
-    else:
-        with os.fdopen(receipt) as stream:
-            retention.private(os.fstat(stream.fileno()), regular=True)
-            record = json.load(stream)
-        if record['path'] != str(staging):
-            raise ValueError('scratch staging identity path changed')
-        retention.remove(record)
-        os.unlink('initializing.json', dir_fd=fd)
-        os.fsync(fd)
-    try:
-        os.mkdir('initializing', mode=0o700, dir_fd=fd)
-    except FileExistsError:
-        pass
-    child = retention.directory(staging)
+def allocate_scratch(parent, fd, retention):
+    """Allocate one independent owner; expose payload storage after its receipt."""
+    path = parent / ('run-' + uuid.uuid4().hex)
+    os.mkdir(path.name, mode=0o700, dir_fd=fd)
+    child = os.open(path.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
     try:
         info = os.fstat(child)
         retention.private(info)
-        if retention.mount_id(child) != retention.mount_id(fd) or os.listdir(child):
-            raise ValueError('scratch staging has unrecorded contents or a mount')
-        record = dict(path=str(staging), device=info.st_dev, inode=info.st_ino, mode=0o700)
+        if retention.mount_id(child) != retention.mount_id(fd):
+            raise ValueError('scratch allocation is mounted')
+        record = dict(path=str(path), device=info.st_dev, inode=info.st_ino, mode=0o700)
         # Block-device numbers can change after reboot. Record the filesystem
         # identity while this new allocation is pinned; never infer it later
         # from a legacy receipt whose device no longer matches.
         filesystem = os.fstatvfs(child).f_fsid
         if filesystem:
             record['filesystem'] = filesystem
-        retention.Store(parent).save(fd, record, name='initializing.json')
-        path = parent / ('run-' + uuid.uuid4().hex)
         owner = os.open('owner', os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=child)
         try:
             fcntl.flock(owner, fcntl.LOCK_EX)
             receipt = os.open('identity.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL,
                               0o600, dir_fd=child)
             with os.fdopen(receipt, 'w') as stream:
-                json.dump(dict(record, path=str(path)), stream)
+                json.dump(record, stream)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.mkdir('tmp', mode=0o700, dir_fd=child)
             os.fsync(child)
-            os.rename('initializing', path.name, src_dir_fd=fd, dst_dir_fd=fd)
-            os.fsync(fd)
-            os.unlink('initializing.json', dir_fd=fd)
             os.fsync(fd)
             return path / 'tmp', owner
         except BaseException:
@@ -616,27 +565,6 @@ def initialize_scratch(parent, fd, retention):
             raise
     finally:
         os.close(child)
-
-
-def reclaim_scratch(parent, fd, retention, record=None):
-    # Keep the identity outside the tree being removed. A crash after deleting
-    # its owner/receipt files must still leave enough proof to finish cleanup.
-    if record is None:
-        try:
-            receipt = os.open('reclaiming.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-        except FileNotFoundError:
-            return
-        with os.fdopen(receipt) as stream:
-            retention.private(os.fstat(stream.fileno()), regular=True)
-            record = json.load(stream)
-        path = Path(record['path'])
-        if path.parent != parent or not path.name.startswith('run-'):
-            raise ValueError('scratch reclamation identity path changed')
-    else:
-        retention.Store(parent).save(fd, record, name='reclaiming.json')
-    retention.remove(record)
-    os.unlink('reclaiming.json', dir_fd=fd)
-    os.fsync(fd)
 
 
 def reset_orphan_scratch(*, root=None):
@@ -654,7 +582,6 @@ def reset_orphan_scratch(*, root=None):
     store = retention.Store(parent)
     removed = 0
     with store.opened() as fd, store.locked(fd, 'gate'):
-        reclaim_scratch(parent, fd, retention)
         for name in os.listdir(fd):
             if re.fullmatch(r'run-[0-9a-f]{32}', name) is None:
                 continue
@@ -701,7 +628,8 @@ def scratch_directory():
 
     The locked owner descriptor is inherited by children. Receipts record the
     allocation identity before it is handed out. Incomplete entries are preserved
-    without preventing an independent allocation; unsafe identities still refuse.
+    without preventing an independent allocation. Old cleanup is optional;
+    unknown or unsafe leftovers never gain deletion authority.
     """
     global _scratch, _scratch_fd
     if _scratch is not None:
@@ -714,44 +642,39 @@ def scratch_directory():
     with retention.Store(parent).opened() as fd, retention.Store(parent).locked(fd, 'gate'):
         if _scratch is not None:
             return _scratch
-        reclaim_scratch(parent, fd, retention)
         for name in os.listdir(fd):
-            if name in ('gate', 'initializing', 'initializing.json', 'current.tmp'):
+            if re.fullmatch(r'run-[0-9a-f]{32}', name) is None:
                 continue
-            child = retention.directory(parent / name)
             try:
-                retention.private(os.fstat(child))
+                child = retention.directory(parent / name)
                 try:
-                    owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW, dir_fd=child)
-                except FileNotFoundError:
-                    print(
-                        f'scratch allocation {str(parent / name)!r} is missing its owner file; '
-                        'preserving it and allocating independent scratch', file=sys.stderr)
-                    continue
-                try:
-                    retention.private(os.fstat(owner), regular=True)
+                    retention.private(os.fstat(child))
+                    owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=child)
                     try:
-                        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    except BlockingIOError:
-                        continue
-                    try:
-                        receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=child)
-                    except FileNotFoundError:
-                        print(
-                            f'scratch allocation {str(parent / name)!r} is missing its identity receipt; '
-                            'preserving it and allocating independent scratch', file=sys.stderr)
-                        continue
-                    with os.fdopen(receipt) as stream:
-                        retention.private(os.fstat(stream.fileno()), regular=True)
-                        record = json.load(stream)
-                    if record['path'] != str(parent / name):
-                        raise ValueError('scratch identity path changed')
-                    reclaim_scratch(parent, fd, retention, record)
+                        retention.private(os.fstat(owner), regular=True)
+                        try:
+                            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        except BlockingIOError:
+                            continue
+                        receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                          dir_fd=child)
+                        with os.fdopen(receipt) as stream:
+                            info = os.fstat(stream.fileno())
+                            retention.private(info, regular=True)
+                            if info.st_size > 65536:
+                                raise ValueError('scratch identity receipt exceeds metadata limit')
+                            record = json.load(stream)
+                        if not isinstance(record, dict) or record.get('path') != str(parent / name):
+                            raise ValueError('scratch identity path changed')
+                        retention.remove(record)
+                    finally:
+                        os.close(owner)
                 finally:
-                    os.close(owner)
-            finally:
-                os.close(child)
-        _scratch, _scratch_fd = initialize_scratch(parent, fd, retention)
+                    os.close(child)
+            except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+                print(f'Scratch: preserved unavailable old allocation {parent / name}: {error}',
+                      file=sys.stderr)
+        _scratch, _scratch_fd = allocate_scratch(parent, fd, retention)
         # Descendants are launched with scratch_descriptors(), so an abruptly
         # terminated coordinator cannot make a still-running child's tree idle.
         atexit.register(os.close, _scratch_fd)

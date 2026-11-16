@@ -69,13 +69,16 @@ def prepare(root, *, host_only=False, vm_name=None):
 
 def current_session(directory):
     current = directory / 'current.json'
-    if not current.exists():
+    try:
+        record = json.loads(current.read_text())
+        name = record.get('run') if isinstance(record, dict) else None
+    except (OSError, ValueError):
         return None, False
-    record = json.loads(current.read_text())
-    name = record['run']
     if not isinstance(name, str) or len(name) != 32 or any(c not in '0123456789abcdef' for c in name):
-        raise ValueError('invalid aggregate session identity')
+        return None, False
     run = directory / name
+    if not run.is_dir():
+        return None, False
     with lock(run / 'owner') as owner:
         return run, busy(owner)
 
@@ -95,6 +98,7 @@ def select(root, argv, *, reload=False):
 
 def _select(root, argv, *, reload=False):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
+    from test_results import VARIABLE
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
@@ -106,7 +110,7 @@ def _select(root, argv, *, reload=False):
     _, selector = vm_config.extract_selector(requested)
     vms = vm_config.execution(selector)[1] if selector is not None and not host_only else ()
     session_vm = vms[0].name if len(vms) == 1 else None
-    if '--resume' in argv:
+    if '--resume' in argv and not os.environ.get(VARIABLE):
         from test_checkpoint import request_record
         previous = request_record(root, 'run-tests')
         if previous is not None:
@@ -120,12 +124,11 @@ def _select(root, argv, *, reload=False):
         run, active = current_session(directory)
         if reload and not active:
             test_source.restart_execution()
-        if '--stop' not in argv:
-            from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
-            guard_scheduling_checkpoints(root)
-            if run is not None:
-                guard_scheduling_run(run)
         if active:
+            if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
+                # Repair needs its requested execution, never another caller's
+                # result. The caller waits outside this startup gate.
+                return run, False
             from vm_selection import extract_execution as extract
             _, requested_vm = extract(requested, required=False)
             record = json.loads((directory / 'current.json').read_text())
@@ -194,19 +197,13 @@ def _select(root, argv, *, reload=False):
         with (test_activity.activity(root, host_only=True) if host_only else nullcontext()):
             import test_retention
             store = test_retention.Store(directory / 'retention')
-            if store.path.exists():
-                # Registration can itself be interrupted before a worker is
-                # published. Gates and activity ownership exclude live users.
-                store.reconcile(lambda: None)
-            with store.session():
+            with store.execution_session():
                 run = directory / uuid.uuid4().hex
                 run.mkdir(mode=0o700)
                 test_retention.retain(run)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
-                from test_checkpoint import scheduling_marker
                 from detached_launcher import atomic
-                atomic(run / 'scheduling.json', scheduling_marker())
                 if admitted is None:
                     atomic(run / 'admitted-vms.json', [])
                 else:
@@ -261,12 +258,13 @@ def follow(run, stream=None):
     reader = JsonReader()
     forwarded = None
     try:
-        with lock(run / 'owner') as owner, (run / 'output').open('rb') as output:
+        with lock(run / 'owner') as owner, ExitStack() as files:
+            try:
+                output = files.enter_context((run / 'output').open('rb'))
+            except OSError:
+                output = None
             while True:
                 active = busy(owner)
-                if output.tell() > os.fstat(output.fileno()).st_size:
-                    output.seek(0)
-                    decoder.reset()
                 if destination is not None:
                     try:
                         steps = snapshot(run / 'controller.json', steps=True, reader=reader)
@@ -275,11 +273,18 @@ def follow(run, stream=None):
                             atomic(destination / 'frame.json', lines)
                             if lines:
                                 atomic(destination / 'test-frame.json', lines)
-                            atomic(destination / 'test-controller.json', steps)
                             forwarded = (steps, lines)
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
-                data = output.read(65536)
+                data = b''
+                if output is not None:
+                    try:
+                        if output.tell() > os.fstat(output.fileno()).st_size:
+                            output.seek(0)
+                            decoder.reset()
+                        data = output.read(65536)
+                    except OSError:
+                        output = None
                 if data:
                     stream.write(decoder.decode(data))
                     stream.flush()
@@ -287,10 +292,13 @@ def follow(run, stream=None):
                 if not active:
                     stream.write(decoder.decode(b'', final=True))
                     stream.flush()
-                    result = run / 'result'
-                    status = int(result.read_text()) if result.exists() else 1
-                    if not result.exists():
-                        print('Test owner stopped without a final result; run is incomplete.',
+                    from test_results import PENDING_STATUS
+                    try:
+                        status = int((run / 'result').read_text())
+                    except (OSError, ValueError):
+                        status = PENDING_STATUS
+                    if status == PENDING_STATUS:
+                        print('Test owner stopped without a clear final result; work remains pending.',
                               file=stream, flush=True)
                     (run / 'delivered').touch(mode=0o600)
                     return status
@@ -324,6 +332,18 @@ def main(root, argv, *, reload=False, reset=False):
                                        host_only=host_only_request(argv or ['all']), selector=selector)
         else:
             run, started = start()
+        from test_results import VARIABLE
+        if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
+            while run is not None and not started:
+                waiting, run = run, None
+                print('run-tests: waiting for the active test session before starting selected work.',
+                      file=sys.stderr, flush=True)
+                with lock(waiting / 'owner') as owner:
+                    while busy(owner) and not requested:
+                        time.sleep(.1)
+                if requested:
+                    return 130
+                run, started = start()
         if run is None:
             from test_commands import is_inspection
             if '--stop' in argv and not is_inspection(argv):
@@ -377,7 +397,7 @@ def worker(root, argv, run, owner, *, reloading=False):
                     options = argv if '--resume' in argv else ['--resume', *argv]
                     print('run-tests: reloading controller; completed work retained.', flush=True)
                     os.environ.update(test_activity.environment(reloading=True))
-                    with test_source.reader(root, fresh=True) as source:
+                    with test_source.reader(root) as source:
                         temporary = test_source.WRITER not in test_source.environment()
                         if temporary:
                             os.environ[test_source.IMPORTS] = str(source)
@@ -418,11 +438,8 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
     sys.stdout = SessionOutput(run, original)
     try:
         with test_source.reader(root, stopped=regression_process.session_stop.is_set):
-            from test_checkpoint import guard_scheduling_run, guard_scheduling_checkpoints
-            guard_scheduling_run(run)
-            guard_scheduling_checkpoints(root)
             from test_commands import _main, selections, host_only_selection, host_only_request, includes_host_request
-            from test_recovery import before_queue, before_run
+            from test_recovery import before_run
             from vm_pool import selected_reservation
             from vm_selection import BATCH
             from vm_recording import recording
@@ -430,12 +447,6 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
             # controller here before releasing this initialization lease.
             if BATCH in os.environ and not host_only_request(argv):
                 import vm_test_queue
-        # Fresh family progress cannot reset retained claims until the original
-        # VMs have passed owned cleanup. Do this before holding the batch gate,
-        # which would otherwise exclude that same standalone recovery.
-        status = before_queue(root, argv)
-        if status:
-            return status
         resources.enter_context(selected_reservation(enabled=not host_only_request(argv),
                                 stopped=regression_process.session_stop))
         resources.enter_context(test_activity.activity(root, host_only=host_only_request(argv),
@@ -457,14 +468,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
             if replay:
                 if len(categories) != 1:
                     raise ValueError('case retry requires one category')
-                if continuing:
-                    if '--resume-case-only' in argv or '--resume-area-only' in argv:
-                        checkpoint.retry_case = replay[0]
-                        checkpoint.retry_area = replay[0].partition('::')[0] if '--resume-area-only' in argv else None
-                elif '--resume-case-only' in argv or '--resume-area-only' in argv:
-                    checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
-                else:
-                    checkpoint.event(categories[0], dict(kind='failure', nodeid=replay[0]), set())
+                checkpoint.retry(categories[0], replay[0], area='--resume-area-only' in argv)
             before_run(root, argv, categories=categories)
         with recording(root, enabled=BATCH not in os.environ
                        and not host_only_selection([(kind, []) for kind in categories]), run=run) as media:

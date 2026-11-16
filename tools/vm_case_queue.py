@@ -7,12 +7,6 @@ import re
 import subprocess
 
 
-def family_binding(family, workers=None):
-    # Family names are opaque values, including names resembling VM names.
-    return json.dumps(['family', family, *([] if workers is None else [sorted(workers)])],
-                      separators=(',', ':'))
-
-
 def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     """Collect existing public identities without starting a VM."""
     from test_commands import execution_selections

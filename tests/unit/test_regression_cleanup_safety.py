@@ -14,14 +14,28 @@ from regression_process import Control
 from regression_schedule import Job, run_jobs
 
 
+COOPERATIVE_STOP = f'''import json,sys
+sys.path.insert(0, {str(Path(__file__).resolve().parents[2] / 'tools')!r})
+from watch_control import FRAME, validate
+
+def wait_for_stop():
+    # Live Watch settings share the cancellation pipe with STOP.
+    line = sys.stdin.buffer.readline()
+    while line.startswith(FRAME):
+        validate(json.loads(line[len(FRAME):]))
+        line = sys.stdin.buffer.readline()
+    assert line == b'STOP\\n'
+'''
+
+
 @pytest.mark.parametrize('stage', ['Discovery', 'Cleanup prerequisites', 'Host UI',
                                   'Publishing', 'Package builds', 'Installed-system', 'E2E'])
 def test_aggregate_signal_warning_precedes_cleanup_and_survives_redraw(tmp_path, monkeypatch, stage):
     import regression
     (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').mkdir(parents=True)
     script = tmp_path / 'owned.py'
-    script.write_text("import sys\nprint('ready', flush=True)\n"
-                      "assert sys.stdin.readline() == 'STOP\\n'\n"
+    script.write_text(COOPERATIVE_STOP + "print('ready', flush=True)\n"
+                      "wait_for_stop()\n"
                       "print('cleanup complete', flush=True)\n")
     stream = io.StringIO()
     observed = bytearray()
@@ -134,8 +148,8 @@ with Control().installed(pipe=True) as control:
 def test_quiet_child_dashboard_failure_waits_for_cooperative_cleanup(tmp_path):
     marker = tmp_path / 'cleaned'
     script = tmp_path / 'child.py'
-    script.write_text(f'''import pathlib,sys
-assert sys.stdin.readline() == 'STOP\\n'
+    script.write_text(COOPERATIVE_STOP + f'''import pathlib
+wait_for_stop()
 pathlib.Path({str(marker)!r}).write_text('cleaned')
 ''')
     def broken():
@@ -357,10 +371,10 @@ def test_nested_prompt_ownership_guard_keeps_each_command_artifact_identity(tmp_
 @pytest.mark.parametrize('boundary', ['publish', 'build-a', 'build-b', 'compare'])
 def test_build_chain_cancellation_drains_companion_and_never_starts_successor(tmp_path, boundary):
     script = tmp_path / 'owned-build.py'
-    script.write_text("import sys\n"
+    script.write_text(COOPERATIVE_STOP +
                       "print('ready', flush=True)\n"
                       "if sys.argv[1] == sys.argv[2] or sys.argv[1] == 'companion':\n"
-                      "    assert sys.stdin.readline() == 'STOP\\n'\n"
+                      "    wait_for_stop()\n"
                       "print('cleaned', flush=True)\n")
     keys = ['publish', 'build-a', 'build-b', 'compare']
     control = Control()

@@ -344,23 +344,68 @@ def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monk
     assert calls == ['test']
 
 
-def test_requested_rounds_do_not_repeat_for_external_edits(tmp_path, monkeypatch):
+def test_requested_rounds_repeat_same_repair_workflow_and_resume(tmp_path, monkeypatch):
     import fix_tests
     import test_results
     import vm_selection
+    monkeypatch.setattr(os, 'environ', os.environ.copy())
     monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'unit': {'args': []}})
     monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
     monkeypatch.setenv(test_results.VARIABLE, '')
+    monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
+    original = tmp_path / 'original'
+    original.mkdir(mode=0o700)
+    request = dict(categories=['unit'], rounds=3, tasks=None)
+    (original / 'request.json').write_text(json.dumps(request))
     calls = []
     def execute(root, run, owner, kind, command=None):
-        calls.append(Path(os.environ[test_results.VARIABLE]).name)
+        results = test_results.ResultStore()
+        calls.append((results.directory.name, kind))
+        if kind == 'agent':
+            assert command['case'] == 'failed'
+            assert results.passed('unit', 'host') == {'passed'}
+            results.record('unit', 'host', 'failed', 0)
+            return 0
+        assert command == [str(root / 'tools/run-tests'), '--stop-on-error', 'unit']
         (root / 'concurrent-edit').write_text(str(len(calls)))
+        if not results.passed('unit', 'host'):
+            results.record('unit', 'host', 'passed', 0)
+            results.record('unit', 'host', 'failed', 1)
+            if results.directory.name == '2':
+                return 130  # Interrupt after round 2 has checkpointed work.
+            return 1
+        if results.select_failure('unit', 'host', ['passed', 'failed'], []):
+            assert results.directory.name == '2'
+            return 1  # Resume discovers the saved failure without reproducing it.
+        assert results.passed('unit', 'host') == {'passed', 'failed'}
         return 0
-    request = dict(categories=['unit'], rounds=2, tasks=None)
-    assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert calls == ['1', '2']
-    assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert calls == ['1', '2']
+    with pytest.raises(fix_tests.launcher.Stopped):
+        fix_tests.run_rounds(tmp_path, original, 0, request, operation=execute)
+    expected = [('1', 'test'), ('1', 'agent'), ('1', 'test'), ('2', 'test')]
+    assert calls == expected
+
+    # Exercise bare --resume, including request restoration and copying the
+    # per-round results into the newly allocated launcher run.
+    resumed = tmp_path / 'resumed'
+    monkeypatch.setattr(fix_tests, 'previous_run',
+                        lambda root, kind: original if kind == 'fix-tests-host' else None)
+    def start(root, kind, command, *, on_start, **kwargs):
+        assert kind == 'fix-tests-host'
+        command(resumed, 0)
+        resumed.mkdir(mode=0o700)
+        on_start(resumed)
+        return resumed, True
+    monkeypatch.setattr(fix_tests.launcher, 'select', start)
+    monkeypatch.setattr(fix_tests.launcher, 'report_start', lambda *args, **kwargs: 0)
+    assert fix_tests.main(['--resume']) == 0
+    restored = fix_tests.read_json(resumed / 'request.json')
+    assert restored['rounds'] == 3 and restored['categories'] == ['unit']
+    assert test_results.ResultStore(resumed / 'results' / '2').passed('unit', 'host') == {'passed'}
+    assert fix_tests.run_rounds(tmp_path, resumed, 0, restored, operation=execute) == 0
+    expected += [(number, kind) for number in ('2', '3') for kind in ('test', 'agent', 'test')]
+    assert calls == expected
+    assert fix_tests.run_rounds(tmp_path, resumed, 0, restored, operation=execute) == 0
+    assert calls == expected
 
 
 def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_path, monkeypatch):

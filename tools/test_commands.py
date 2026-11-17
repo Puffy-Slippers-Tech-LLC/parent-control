@@ -477,7 +477,7 @@ Aggregate aliases (no suite selectors)
   package builds A/B and their comparison.
   All VM operations use metadata-only verification; image contents are never
   scanned. Focused system/e2e options remain available.
-  The granular inventory supplies both host's suites and fix-tests round 1.
+  The granular inventory supplies both host's suites and every fix-tests round.
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.

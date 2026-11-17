@@ -564,7 +564,10 @@ its selector without replaying a case that has already completed.
 Explicit validation uses the repair's current edits. Ordinary input capture
 remains with the common runner; there is no repair-group frozen inventory.
 There are no automatic extra verification passes. `--rounds X` requests exactly
-X rounds, defaulting to one. `--tasks N` limits completed category scopes for the
+X repetitions of the same test/repair workflow, defaulting to one. The selected
+inventory is resolved once for the invocation. Each round uses its own result
+store; round boundaries add no verification or repair logic.
+`--tasks N` limits completed category scopes for the
 invocation, across their selected families; zero or a negative value means all.
 Reload keeps that invocation's completed-task count. There is no separate
 progress or admission journal to reconstruct.
@@ -592,6 +595,8 @@ authoritative. Omitted options may reuse the previous request. Old repairs,
 conversations, source epochs, ownership claims and transactions are discarded,
 not reconstructed. Existing source edits remain the working checkout.
 No historical log or diagnostic file must be readable to resume.
+For example, if round 2 of `--rounds 3` is interrupted, bare `--resume` keeps
+round 1 complete, continues round 2 from its saved case results, then runs round 3.
 
 Fresh runs use fresh execution directories. Obsolete transient state is retired
 through ordinary storage cleanup; if old residue cannot yet be safely removed,

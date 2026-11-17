@@ -8260,7 +8260,7 @@ class AccessibleUI:
             else:
                 raise UiError('ui:app-row-wrong-accepted')
             return {'refusal': 'wrong-child' if wrong_child else 'wrong-page'}
-        return {'rows': self.app_rows(child)}
+        return self.wait(lambda: {'rows': self.app_rows(child)}, 'app-rows')
 
     def launchable_result(self, product):
         """SEARCH04's owned Shell launcher branch, without input."""

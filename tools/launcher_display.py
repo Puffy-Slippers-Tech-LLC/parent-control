@@ -63,6 +63,6 @@ def error_status_lines(task_info, key, clock, *, status_override=None, status_co
 def task_summary_lines(totals, duration):
     """Share task totals and their palette across terminal and editor views."""
     completed, unfinished, total = totals or ('—', '—', '—')
-    counts = Text(f'Total Tasks: {completed}/{unfinished}/{total}')
+    counts = Text(f'Tasks: {completed}/{unfinished}/{total}')
     style_task_counts(counts)
     return [counts, Text('Total Duration: ' + duration)]

@@ -2468,12 +2468,19 @@ closure, owned cleanup, baseline restoration and preservation passed; VM off.
 The former active-only wrapper is retired; both plans retain the same worker
 and suspend/wake operation. Complete case 125 composes that operation and native
 denial with expired persistence setup/recovery in `suspend_wake_expired.PLAN` /
-`SuspendWakeExpiredJourney` and `onpc_lifecycle::app_restart_expired`. Its Ubuntu
+`SuspendWakeExpiredJourney` and `onpc_lifecycle::app_restart_expired`. Before
+sleep, its retained GDM return uses `session_control`'s `child-desktop-identity`
+for the active unlocked session, then APP04 compares the original work and
+TIME01 reads the positive countdown. This return does not require Shell's
+Activities control. Authentication and the immutable session/work comparisons
+retain their shared guards. Its Ubuntu
 26.04 journey passed: the original deadline crossed
 during sleep, same-child denial, unchanged saved allowance/app rules, explicit
 twenty-minute replacement, positive usable time, retained work and Allowed/Hard/Soft
 results. The affected expired app-reopening case 117 passed; both attempts completed collection and owned cleanup.
-Other targets retain their separate acceptance.
+Case 125's pre-sleep session/work binding and complete journey also passed on
+Fedora 44, including collection and owned cleanup. Other targets retain their
+separate acceptance.
 
 | ID | Kind | Block and explicit contract | Callees / reuse source | Status |
 | --- | --- | --- | --- | --- |

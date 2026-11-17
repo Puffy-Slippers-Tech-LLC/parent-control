@@ -15,7 +15,13 @@ BOUNDARY = {
     **prefixed_stages('before-parent', desktop_entry('parent', source='gdm', entry='retained')),
     'before-policy': 'ui:revoke-saved-balances',
     **desktop_return('boundary-parent-leave', account='parent'),
-    **prefixed_stages('boundary-child', desktop_entry('child', source='gdm', entry='retained')),
+    **prefixed_stages('boundary-child', {
+        **desktop_entry('child', source='gdm', entry='retained'),
+        # This return needs the unlocked original work, not Shell's Activities
+        # control. Keep authentication and independently compare that work below.
+        'desktop': 'system:child-desktop-identity',
+    }),
+    'boundary-activity': 'ui:overlay-native-activity',
     'boundary-countdown': 'ui:child-countdown-present',
     'expiry-wait': 'system:child-entry-same',
     'suspend-countdown': 'ui:child-countdown-present',
@@ -57,6 +63,8 @@ PLAN = replace(EXPIRED, prefix='suspend-wake-expired', worker_mode='suspend_wake
                         + 'recipient-rechecked') for prefix, role in LOGINS.items()},
     activity_entries={'boundary-child-entry-guard': 'original-capture',
                       'recovered-child-entry-guard': 'original-capture'},
+    activity_checks={**EXPIRED.activity_checks,
+                     'boundary-activity': ('original-capture', 'same')},
 )
 
 

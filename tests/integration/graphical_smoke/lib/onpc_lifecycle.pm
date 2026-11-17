@@ -356,6 +356,7 @@ sub app_restart_expired {
     if ($suspend) {
         $leave->('boundary-parent-leave');
         $enter->('boundary-child', 'child', 'retained');
+        onpc_app_rows::native_read_activity($journey, 'boundary-activity');
         $journey->seen($_) for qw(boundary-countdown expiry-wait suspend-countdown suspend wake-session);
         $journey->consume_observation('denial-ready', $journey->seen('denial-ready'));
         $journey->seen($_) for qw(time-denied return-greeter denied-returned retained-after);

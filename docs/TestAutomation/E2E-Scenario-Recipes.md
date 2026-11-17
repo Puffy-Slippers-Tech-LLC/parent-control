@@ -1599,6 +1599,12 @@ Select replacement inputs and authenticate the intended parent explicitly;
 never assume a remembered default. No pre-expiry overlay visit is added solely
 to inspect preferences. The combined idle case 122 keeps its existing checks.
 
+Case 125's retained return before sleep uses the shared unlocked-session identity
+check and independently compares the original usable work before reading the
+countdown. Shell's Activities control is not a prerequisite for that return;
+the original session, authentication, grant deadline and post-sleep recovery
+checks remain required.
+
 Cases **118 and 120** also absorb former E2E-037 cases 162 and 163.
 Before the declared boundary, publicly enable positive daily time for Riley,
 save Jordan's countdown animation **on** and Riley's **off** through PANEL02,

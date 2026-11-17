@@ -58,6 +58,10 @@ tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
 groups run in order; unit/UI selections and the established aggregates use their
 qualified parallel schedules.
+Multi-category runs collect selected unit, UI, component and fixture-runtime
+suites before executing the first category and reuse those inventories during
+execution. Overall counts therefore include later host suites from the start, including
+retained passes on resume. Collection remains diagnostic work, not a test pass.
 Help, listing and collection-only commands keep their inspection output and take
 one category at a time. `tools/run-tests --help` prints usage, including how
 the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`

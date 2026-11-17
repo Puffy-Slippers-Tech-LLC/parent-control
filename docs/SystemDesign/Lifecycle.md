@@ -158,6 +158,8 @@ configuration, and establishes/readbacks `Session=oh-no-parent-control`,
 `SessionType=wayland`, `SystemAccount=false`, `Saved=true`.
 Fresh state uses `CacheUser`; already visible/saved state avoids it. Retained hidden
 state first uses owned visibility migration at AccountsService start-pre.
+Before resolving the kiosk object, provisioning uses public `ListCachedUsers`
+to finish pending account reloads caused by account creation or credential changes.
 Optional icon failures cannot veto routing.
 
 The bounded isolated-Python login helper verifies the reserved account identity;

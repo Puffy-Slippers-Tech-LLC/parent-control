@@ -51,32 +51,13 @@
     }
   ],
   "branches": [
-    {
-      "name": "main",
-      "host": "local",
-      "repo_root": "/Data/Code/PST/parent-control"
-    },
-    {
-      "name": "worktree",
-      "host": "local",
-      "repo_root": "/Data/Code/PST/parent-control1"
-    },
-    {
-      "name": "test",
-      "host": "myserver",
-      "repo_root": "/Data/Code/PST/parent-control-test"
-    },
-    {
-      "name": "others",
-      "host": "myserver",
-      "repo_root": "/Data/Code/PST/parent-control-others"
-    }
+    { "name": "main", "host": "local", "repo_root": "/Data/Code/PST/parent-control" },
+    { "name": "worktree", "host": "local", "repo_root": "/Data/Code/PST/parent-control1" },
+    { "name": "test", "host": "myserver", "repo_root": "/Data/Code/PST/parent-control-test" },
+    { "name": "others", "host": "myserver", "repo_root": "/Data/Code/PST/parent-control-others" }
   ],
   "launchers": [
-    {
-      "name": "fix-tests",
-      "default_branch": "test"
-    }
+    { "name": "fix-tests", "default_branch": "test" }
   ],
   "families": [
     {
@@ -88,72 +69,14 @@
       "package_format": "deb",
       "fixture_path": "common/ubuntu/common",
       "vms": [
-        {
-          "id": "10",
-          "name": "onpc-Ubuntu26.04",
-          "enabled": "true",
-          "host": "local",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "11",
-          "name": "onpc-Ubuntu26.04-1",
-          "enabled": "true",
-          "host": "local",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-1.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "100",
-          "name": "onpc-Ubuntu26.04-100",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-100.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "101",
-          "name": "onpc-Ubuntu26.04-101",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-101.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "102",
-          "name": "onpc-Ubuntu26.04-102",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-102.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "103",
-          "name": "onpc-Ubuntu26.04-103",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "104",
-          "name": "onpc-Ubuntu26.04-104",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-104.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "110",
-          "name": "onpc-Ubuntu26.04-110",
-          "enabled": "true",
-          "host": "myserver",
-          "vm_tags": "heavy",
-          "compute_unit": 2,
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2",
-          "owning_branch": ""
-        }
+        { "id": "10", "name": "onpc-Ubuntu26.04", "enabled": "true", "host": "local", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04.qcow2", "owning_branch": "" },
+        { "id": "11", "name": "onpc-Ubuntu26.04-1", "enabled": "true", "host": "local", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-1.qcow2", "owning_branch": "" },
+        { "id": "100", "name": "onpc-Ubuntu26.04-100", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-100.qcow2", "owning_branch": "" },
+        { "id": "101", "name": "onpc-Ubuntu26.04-101", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-101.qcow2", "owning_branch": "" },
+        { "id": "102", "name": "onpc-Ubuntu26.04-102", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-102.qcow2", "owning_branch": "" },
+        { "id": "103", "name": "onpc-Ubuntu26.04-103", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2", "owning_branch": "" },
+        { "id": "104", "name": "onpc-Ubuntu26.04-104", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-104.qcow2", "owning_branch": "" },
+        { "id": "110", "name": "onpc-Ubuntu26.04-110", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2", "owning_branch": "" }
       ]
     },
     {
@@ -165,64 +88,13 @@
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
       "vms": [
-        {
-          "id": "20",
-          "name": "onpc-Fedora44",
-          "enabled": "true",
-          "host": "local",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "200",
-          "name": "onpc-Fedora44-200",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-200.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "201",
-          "name": "onpc-Fedora44-201",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-201.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "202",
-          "name": "onpc-Fedora44-202",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-202.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "203",
-          "name": "onpc-Fedora44-203",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-203.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "204",
-          "name": "onpc-Fedora44-204",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-204.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "210",
-          "name": "onpc-Fedora44-210",
-          "enabled": "true",
-          "host": "myserver",
-          "vm_tags": "heavy",
-          "compute_unit": 2,
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2",
-          "owning_branch": ""
-        }
+        { "id": "20", "name": "onpc-Fedora44", "enabled": "true", "host": "local", "disk_anchor": "/Data/virt-manager/onpc-Fedora44.qcow2", "owning_branch": "" },
+        { "id": "200", "name": "onpc-Fedora44-200", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-200.qcow2", "owning_branch": "" },
+        { "id": "201", "name": "onpc-Fedora44-201", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-201.qcow2", "owning_branch": "" },
+        { "id": "202", "name": "onpc-Fedora44-202", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-202.qcow2", "owning_branch": "" },
+        { "id": "203", "name": "onpc-Fedora44-203", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-203.qcow2", "owning_branch": "" },
+        { "id": "204", "name": "onpc-Fedora44-204", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-204.qcow2", "owning_branch": "" },
+        { "id": "210", "name": "onpc-Fedora44-210", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2", "owning_branch": "" }
       ]
     },
     {
@@ -234,22 +106,8 @@
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
       "vms": [
-        {
-          "id": "30",
-          "name": "onpc-Fedora45",
-          "enabled": "true",
-          "host": "local",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora45.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "300",
-          "name": "onpc-Fedora45-300",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora45-300.qcow2",
-          "owning_branch": ""
-        }
+        { "id": "30", "name": "onpc-Fedora45", "enabled": "true", "host": "local", "disk_anchor": "/Data/virt-manager/onpc-Fedora45.qcow2", "owning_branch": "" },
+        { "id": "300", "name": "onpc-Fedora45-300", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora45-300.qcow2", "owning_branch": "" }
       ]
     }
   ]

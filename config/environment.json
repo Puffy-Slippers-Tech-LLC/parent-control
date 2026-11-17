@@ -1,5 +1,14 @@
 {
   "agent": "codex",
+  "agents": {
+    "codex": {
+      "fix-tests": {
+        "default_model": "gpt-6.1-sol",
+        "default_effort": "high"
+      }
+    },
+    "claude": {}
+  },
   "snap_tests_enabled": true,
   "hosts": [
     {

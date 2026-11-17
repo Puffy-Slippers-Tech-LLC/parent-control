@@ -3,9 +3,9 @@
   "agents": {
     "codex": {
       "defaults": {
-        "frontier": { "model": "gpt-6-astra", "effort": "xhigh" },
-        "workhorse": { "model": "gpt-6.1-sol", "effort": "high" },
-        "bargain": { "model": "gpt-6.1-sol", "effort": "low" }
+        "frontier": { "model": "gpt-6.2-astra", "effort": "xhigh" },
+        "workhorse": { "model": "gpt-6.2-sol", "effort": "high" },
+        "bargain": { "model": "gpt-6.2-sol", "effort": "low" }
       },
       "capacity_fallbacks": { "workhorse": "frontier" }
     },

@@ -232,11 +232,17 @@ class Output:
             for line in totals_lines:
                 # Queue frames include failures; ordinary dashboards omit a zero
                 # failure count. Failed cases remain unfinished until repaired.
-                counts = re.match(r'^Overall - [\d?]+% \((\d+)/(?:\d+/)?(\d+)\)', clean(line))
+                counts = re.match(r'^Overall - [\d?]+% \((\d+)/(?:\d+/)?(\d+|\?)\)', clean(line))
                 if counts:
-                    passed, total = map(int, counts.groups())
-                    if passed <= total:
-                        self.task_totals = passed, total - passed, total
+                    passed = int(counts[1])
+                    if counts[2] == '?':
+                        # Later categories may not have collected yet. Their
+                        # unknown sizes do not erase completed case counts.
+                        self.task_totals = passed, '—', '—'
+                    else:
+                        total = int(counts[2])
+                        if passed <= total:
+                            self.task_totals = passed, total - passed, total
                     break
         if not active and self.summary_ended is None:
             self.summary_ended = time.monotonic()

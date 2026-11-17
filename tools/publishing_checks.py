@@ -42,7 +42,8 @@ def snapshot(root, checkout, log):
 
 
 def check_deb(root, checkout, directory, log, report):
-    publish.command('unshare', '--user', '--map-root-user', 'true', cwd=root, log=log)
+    # Exercise user namespaces through the real sbuild below. Ubuntu authorizes
+    # sbuild's AppArmor profile while restricting a standalone unshare probe.
     publish.command('dpkg-checkbuilddeps', cwd=root, log=log)
     version = publish.command('dpkg-parsechangelog', '-S', 'Version', cwd=checkout)
     report['version'] = version
@@ -74,7 +75,7 @@ def run(root=ROOT, *, package_format, build_target=None, architecture='x86_64'):
     tools = ('git', 'make')
     if package_format == 'deb':
         build.check_prerequisites()
-        tools += ('dpkg-buildpackage', 'dpkg-checkbuilddeps', 'dpkg-parsechangelog', 'lintian', 'unshare')
+        tools += ('dpkg-buildpackage', 'dpkg-checkbuilddeps', 'dpkg-parsechangelog', 'lintian')
     else:
         rpm.prerequisites()
     for tool in tools:

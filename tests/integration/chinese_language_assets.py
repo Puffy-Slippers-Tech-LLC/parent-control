@@ -91,7 +91,7 @@ def require(value, code):
         raise ValueError('baseline:chinese-' + code + '; run tools/prepare-vm')
 
 
-def file_identity(g, path):
+def file_identity(g, path, *, directory=False):
     # guestfs lstatns includes access times, unlike LocalFiles.lstatns. Reads
     # on bootstrap's writable mount may legitimately update atime. Preserve
     # the same inode/ownership/content-change identity on both readers, using
@@ -99,6 +99,10 @@ def file_identity(g, path):
     stable = {'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size',
               'st_mtime_ns', 'st_ctime_ns', 'st_mtime_sec', 'st_mtime_nsec',
               'st_ctime_sec', 'st_ctime_nsec'}
+    if directory:
+        # Live system directories can gain unrelated entries during a read.
+        # Pin their identity and permissions, not their changing contents.
+        stable = {'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid'}
     return {key: value for key, value in g.lstatns(path).items() if key in stable}
 
 
@@ -108,7 +112,7 @@ def read(g, path, limit=LIMIT):
     for parent in reversed(Path(path).parents):
         name = str(parent)
         require(g.exists(name) and not g.is_symlink(name), 'parent')
-        info = file_identity(g, name)
+        info = file_identity(g, name, directory=True)
         require(g.realpath(name) == name and stat.S_ISDIR(info['st_mode'])
                 and info['st_uid'] == info['st_gid'] == 0
                 and not info['st_mode'] & 0o022, 'parent')
@@ -121,9 +125,10 @@ def read(g, path, limit=LIMIT):
             and 0 < g.filesize(path) <= limit, 'file')
     data = g.read_file(path)
     require(type(data) is bytes and 0 < len(data) <= limit
-            and file_identity(g, path) == before
-            and all(file_identity(g, name) == info and g.realpath(name) == name
-                    for name, info in parents.items()), 'changed')
+            and file_identity(g, path) == before, 'changed-file:' + path)
+    for name, info in parents.items():
+        require(file_identity(g, name, directory=True) == info
+                and g.realpath(name) == name, 'changed-parent:' + name)
     return data
 
 

@@ -7,8 +7,10 @@ import {logWarning} from './logger.js';
 // GNOME 50 retains its parental-controls wall-clock deadline across inactivity.
 // Its public dailyLimitTime getter is zero while inactive. Refresh that cache
 // through Malcontent's overlap-merging API, never through private Shell state.
-// Continuous use must keep the native deadline: the daemon does not yet know
-// about the ongoing active interval. See Screen-Time.md for the API contract.
+// The daemon's change signal is broadcast across accounts. A peer's write can
+// therefore replace an active native deadline with an estimate which omits
+// ongoing use. Checkpoint that observed activity when the deadline increases.
+// See Screen-Time.md for the API contract.
 export class ResumeEstimateRefresh {
     constructor(manager, onError) {
         this.manager = manager;
@@ -36,8 +38,17 @@ export class ResumeEstimateRefresh {
         if (this.closed) return;
         const wasEnabled = this.enabled;
         const wasActive = this.active;
+        const previousDeadline = this.deadline;
         this.enabled = this.manager.parentalControlsSessionLimitsEnabled;
-        this.active = Number(this.manager.dailyLimitTime) > 0;
+        this.deadline = Number(this.manager.dailyLimitTime);
+        this.active = this.deadline > 0;
+        if (this.active && !wasActive)
+            this.activeSince = {
+                realtime: GLib.get_real_time(),
+                monotonic: GLib.get_monotonic_time(),
+            };
+        else if (!this.active)
+            this.activeSince = null;
         if (this.enabled !== wasEnabled) {
             this.resumeFailures.clear();
             this.resumeReported = false;
@@ -51,6 +62,8 @@ export class ResumeEstimateRefresh {
             this.failures = 0;
             if (this.enabled && (!this.active || wasEnabled && wasActive === false))
                 this.refresh();
+        } else if (this.enabled && this.active && this.deadline > previousDeadline) {
+            this.refresh();
         }
         // Estimate notifications can be our own delayed replay echo. Only a
         // policy/state change rearms an exhausted inactive balance; native
@@ -70,7 +83,8 @@ export class ResumeEstimateRefresh {
         let retry = false;
         let stage = 'usage-queue';
         try {
-            const replayed = await replayOwnUsage(cancellable, value => { stage = value; });
+            const replayed = await replayOwnUsage(cancellable, value => { stage = value; },
+                () => this.activeSince);
             if (cancellable.is_cancelled()) return;
             if (replayed) {
                 stage = 'timer-estimate';
@@ -98,8 +112,8 @@ export class ResumeEstimateRefresh {
             const category = timerErrorCategory(error);
             const transient = ['busy', 'no-reply', 'no-owner', 'service-unknown', 'timeout']
                 .includes(category);
-            // Never replay late retries during active use: they would omit
-            // ongoing, uncheckpointed usage and extend the native deadline.
+            // Keep active failures bounded to notifications; do not turn
+            // timer-service trouble into periodic usage writes.
             retry = transient && !this.active;
             // A single temporary boundary failure can retain a finite native
             // deadline. Keep per-stage evidence across idle successes: a

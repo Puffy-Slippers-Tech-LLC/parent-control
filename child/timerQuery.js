@@ -54,10 +54,10 @@ export function queryEstimatedTimes() {
     });
 }
 
-// Replaying a returned interval is idempotent: Malcontent merges overlapping
-// records. Its public EstimatedTimesChanged signal also refreshes GNOME's cache.
-// Query as the actual child; never create an interval or send an empty record.
-export function replayOwnUsage(cancellable, observeStage = () => {}) {
+// Malcontent merges overlapping records. Inactive refreshes replay a completed
+// self-read interval; active refreshes checkpoint only activity actually observed
+// by the controller. Date the checkpoint at dispatch, including queue/read time.
+export function replayOwnUsage(cancellable, observeStage = () => {}, activeSince = () => null) {
     return enqueue(async () => {
         if (cancellable.is_cancelled()) return false;
         observeStage('query-usage');
@@ -67,11 +67,26 @@ export function replayOwnUsage(cancellable, observeStage = () => {}) {
             '(a(tt))', CALL_TIMEOUT_MS, cancellable);
         if (cancellable.is_cancelled()) return false;
         observeStage('select-record');
-        const now = Math.floor(GLib.get_real_time() / 1_000_000);
-        const record = records.findLast(([start, end]) =>
+        const realtime = GLib.get_real_time();
+        const monotonic = GLib.get_monotonic_time();
+        const now = Math.floor(realtime / 1_000_000);
+        const since = activeSince();
+        if (since !== null) {
+            if (![since.realtime, since.monotonic].every(value =>
+                Number.isSafeInteger(value) && value >= 0) || since.monotonic > monotonic)
+                throw new Error('Invalid active usage boundary');
+            // Completed checkpoints are wall-clock intervals. Remapping them
+            // after a clock correction could charge the same activity twice.
+            // Leave that boundary to Shell until its clocks agree again or a
+            // new active interval begins. Allow the API's one-second precision.
+            if (Math.abs((realtime - since.realtime) - (monotonic - since.monotonic)) > 1_000_000)
+                return false;
+        }
+        const record = since === null ? records.findLast(([start, end]) =>
             Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
-            start >= 0 && end >= start && end <= now);
-        if (!record) return false;
+            start >= 0 && end >= start && end <= now)
+            : [Math.floor(since.realtime / 1_000_000), now];
+        if (!record || record[1] < record[0]) return false;
         observeStage('record-usage');
         await callTimer(INTERFACE, 'RecordUsage', new GLib.Variant('(a(ttss))',
             [[[record[0], record[1], 'login-session', '']]]), '()', CALL_TIMEOUT_MS, cancellable);

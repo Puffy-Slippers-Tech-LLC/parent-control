@@ -499,9 +499,11 @@ on resume, and the native dispatcher can lock using that stale deadline. The
 [resume estimate controller](../../child/resumeEstimateRefresh.js) observes the
 manager's public `dailyLimitTime` notifications (zero while inactive), rather
 than implementing another activity tracker. At inactivity/resume boundaries,
-the existing [timer client](../../child/timerQuery.js) self-reads `QueryUsage`
-and replays one complete returned interval, with identical endpoints, through
-`RecordUsage`. Malcontent's documented overlap merging preserves accounting;
+the existing [timer client](../../child/timerQuery.js) self-reads `QueryUsage`.
+While inactive it replays one complete returned interval, with identical
+endpoints, through `RecordUsage`. On resume it checkpoints activity observed
+since the public getter became active, including time waiting for the queued
+timer operation. Malcontent's documented overlap merging preserves accounting;
 its normal `EstimatedTimesChanged` signal refreshes Shell as well as the panel.
 No empty transaction, invented use, policy change or private Shell mutation is
 used. The relevant public contracts are
@@ -514,13 +516,22 @@ scheduling near expiry. This is necessary because Shell also evaluates its old
 deadline during inactivity. A zero balance stops this maintenance until a native
 policy/state change, including the daily reset. Delayed estimate notifications
 do not rearm an exhausted balance or create a replay feedback loop.
-Continuous activity never repeats usage writes or retries
-a failed resume write: either would omit ongoing uncheckpointed use and restart
-the countdown. Activity/limit changes cancel obsolete reads before a write;
+Malcontent broadcasts estimate changes across accounts. A peer's usage write
+can therefore make Shell replace an active deadline with an estimate that omits
+the child's ongoing activity. When an active native deadline increases, the
+controller checkpoints its observed active interval through dispatch time.
+The interval keeps its observed wall-clock start, and monotonic elapsed time
+guards against clock corrections beyond the API's one-second precision. Such
+corrections suspend active checkpoints until the clocks agree again or a new
+active interval begins; Shell owns that boundary. Previously checkpointed use
+is never remapped onto a different wall-clock interval. Inactive time is excluded.
+Unchanged/decreasing deadlines and checkpoint echoes require
+no write, and failed active writes do not schedule periodic retries.
+Activity/limit changes cancel obsolete reads before a write;
 shutdown cancels pending work and removes the controller's signals and timer.
 Disabling limits discards coalesced work before any later active enable.
 Cancellation prevents obsolete dispatch; it cannot retract an already dispatched
-D-Bus write. That write still contains only the identical recorded interval.
+D-Bus write. That write still contains only completed history or observed use.
 The workaround remains asynchronous and cannot guarantee cache refresh during
 timer-service unavailability or make native deadline evaluation atomic with resume.
 Transient inactive failures back off and open the existing child error reporter

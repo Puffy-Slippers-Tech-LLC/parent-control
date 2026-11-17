@@ -58,6 +58,10 @@ tests followed by shell checks in one report. Each category keeps its own
 arguments, and all selections are validated before execution. Arbitrary category
 groups run in order; unit/UI selections and the established aggregates use their
 qualified parallel schedules.
+Multi-category runs collect selected unit, UI, component and fixture-runtime
+suites before executing the first category and reuse those inventories during
+execution. Overall counts therefore include later host suites from the start, including
+retained passes on resume. Collection remains diagnostic work, not a test pass.
 Help, listing and collection-only commands keep their inspection output and take
 one category at a time. `tools/run-tests --help` prints usage, including how
 the `all` aggregate breaks down into separately runnable pieces. `tools/run-tests --list`
@@ -530,8 +534,19 @@ does not submit corrective turns, interpret intermediate JSON statuses, escalate
 models, count repair conversations or recover old threads. Native automatic
 goal continuation belongs to the session runtime.
 
-The default repair profile is GPT-6.1 Sol High at Standard speed. `--model` and
-`--effort` select the session profile. Existing authentication, sandbox and command
+Repair model and effort defaults come from
+`agents.<agent>.fix-tests.default_model` and `default_effort` in
+[`config/environment.json`](../config/environment.json) in the executing checkout.
+The checked-in Codex profile is `gpt-6.1-sol` with `high` effort at Standard speed.
+Each new repair session reads the current defaults; editing them does not change
+an already running session. `--model` and `--effort` override their respective
+defaults, including remembered explicit overrides on `--resume`. Both defaults
+must be nonempty tokens. Missing or malformed profiles fail without hidden defaults;
+the native runtime still determines model and effort support.
+The workflow has no automatic escalation ladder. The empty `agents.claude` entry
+does not enable the unqualified Claude transport. Other workflows and native
+helper-role profiles retain their existing settings.
+Existing authentication, sandbox and command
 authorization remain in effect. Core product backend edits retain the
 [independent review requirement](../AGENTS.md#product-boundaries).
 
@@ -560,7 +575,10 @@ its selector without replaying a case that has already completed.
 Explicit validation uses the repair's current edits. Ordinary input capture
 remains with the common runner; there is no repair-group frozen inventory.
 There are no automatic extra verification passes. `--rounds X` requests exactly
-X rounds, defaulting to one. `--tasks N` limits completed category scopes for the
+X repetitions of the same test/repair workflow, defaulting to one. The selected
+inventory is resolved once for the invocation. Each round uses its own result
+store; round boundaries add no verification or repair logic.
+`--tasks N` limits completed category scopes for the
 invocation, across their selected families; zero or a negative value means all.
 Reload keeps that invocation's completed-task count. There is no separate
 progress or admission journal to reconstruct.
@@ -588,6 +606,8 @@ authoritative. Omitted options may reuse the previous request. Old repairs,
 conversations, source epochs, ownership claims and transactions are discarded,
 not reconstructed. Existing source edits remain the working checkout.
 No historical log or diagnostic file must be readable to resume.
+For example, if round 2 of `--rounds 3` is interrupted, bare `--resume` keeps
+round 1 complete, continues round 2 from its saved case results, then runs round 3.
 
 Fresh runs use fresh execution directories. Obsolete transient state is retired
 through ordinary storage cleanup; if old residue cannot yet be safely removed,

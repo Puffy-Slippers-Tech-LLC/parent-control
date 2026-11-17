@@ -16,7 +16,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
+from agent_adapter import resolve_selection, resolve_workflow_profile
 from test_commands import repair_inventory, repair_host_only_request
 
 
@@ -131,11 +131,12 @@ def supervise(root, run, owner, kind, payload):
         failure = json.loads(payload)
         request = read_json(run / 'request.json', {})
         from watch_control import environment as watch_environment
-        model, effort = resolve_profile('repair', model=request.get('model'),
-                                        effort=request.get('effort') or 'high')
+        selection = resolve_selection(root)
+        model, effort = resolve_workflow_profile('fix-tests', selection=selection,
+            model=request.get('model'), effort=request.get('effort'))
         from test_results import VARIABLE
         command = launcher.agent_command(root, model, effort, run, schema=None,
-            standard_speed=True, shell_environment=((VARIABLE, os.environ[VARIABLE]),
+            selection=selection, standard_speed=True, shell_environment=((VARIABLE, os.environ[VARIABLE]),
                 ('ONPC_LAUNCHER_CONTROLLER_ROOT', str(root)),
                 (launcher.WORKFLOW_DIRECTORY, str(run)), *watch_environment().items()))
         # The previous supervisor joined its nested runs before returning.
@@ -170,79 +171,78 @@ def run_rounds(root, run, owner, request, *, operation=execute):
     from vm_selection import execution_arguments, execution_binding
     inventory = repair_inventory(root, request.get('categories', []))
     rounds = request.get('rounds', 1)
-    number = 1
     completed_tasks = sum(record.get('invocation') == run.name
         and record['family'] == 'selection' and not record['status'] and record.get('complete') is True
         for directory in (run / 'results').glob('*') if directory.is_dir()
         for record in ResultStore(directory).load())
-    while number <= rounds:
-        if (run / 'cancel').exists():
-            raise launcher.Stopped()
-        reload_request = read_json(run / 'reload.json')
-        if reload_request is not None and reload_request != read_json(run / 'reload-accepted.json'):
-            launcher.atomic(run / 'reload-accepted.json', reload_request)
-            for descriptor in (owner, *launcher.scratch_descriptors()):
-                os.set_inheritable(descriptor, True)
-            sys.stdout.flush()
-            os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                '--worker', str(root), str(run), str(owner)])
+    for number in range(1, rounds + 1):
         results = ResultStore(run / 'results' / str(number))
         os.environ[VARIABLE] = str(results.directory)
-        pending = [name for name, spec in inventory.items()
-                   if not results.complete(name, 'selection', spec['args'])]
-        if not pending:
-            number += 1
-            continue
-        # A task cap selects finite categories; it owns no admission transaction.
-        current = read_json(run / 'request.json', request)
-        limit = current.get('tasks') if isinstance(current, dict) else None
-        if type(limit) is int and limit > 0:
-            pending = pending[:max(0, limit - completed_tasks)]
+        while True:
+            if (run / 'cancel').exists():
+                raise launcher.Stopped()
+            reload_request = read_json(run / 'reload.json')
+            if reload_request is not None and reload_request != read_json(run / 'reload-accepted.json'):
+                launcher.atomic(run / 'reload-accepted.json', reload_request)
+                for descriptor in (owner, *launcher.scratch_descriptors()):
+                    os.set_inheritable(descriptor, True)
+                sys.stdout.flush()
+                os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                    '--worker', str(root), str(run), str(owner)])
+            pending = [name for name, spec in inventory.items()
+                       if not results.complete(name, 'selection', spec['args'])]
             if not pending:
-                progress(run, number, rounds, 'Task limit reached; remaining cases are pending.')
-                return 0
-        progress(run, number, rounds, 'Running ' + ', '.join(pending))
-        command = [str(root / 'tools/run-tests'), '--stop-on-error']
-        if request.get('record'):
-            command.append('--record')
-        if '--reverse' in request.get('categories', []):
-            command.append('--reverse')
-        command += [argument for category in pending
-                    for argument in (category, *inventory[category]['args'])]
-        if execution_binding() is not None:
-            command += execution_arguments()
-        results.begin()
-        status = operation(root, run, owner, 'test', command)
-        if status == 0:
-            for category in pending:
-                results.record(category, 'selection', '', 0, complete=True,
-                               options=inventory[category]['args'], invocation=run.name)
-            completed_tasks += len(pending)
-            continue
-        elif status == 130:
-            raise launcher.Stopped()
-        elif status == PENDING_STATUS:
-            continue
-        elif status < 0:
-            return status
-        failure = results.failure()
-        if failure is None:
-            failure = results.record(pending[0], 'command', '', status, complete=False,
-                options=inventory[pending[0]]['args'], command=command,
-                detail='The selected runner command failed before a case result was available. '
-                       'Inspect the current launcher output for the original error.')
-        # Validation clears the result store's failure pointer. Keep the last
-        # failure visible to observers throughout repair and after completion.
-        try:
-            launcher.atomic(run / 'repair-failure.json', failure)
-        except (OSError, ValueError):
-            pass  # Optional Watch metadata cannot prevent repair.
-        progress(run, number, rounds,
-                 f"Repairing {failure['category']} {failure.get('case', '')} {failure.get('vm', '')}".strip())
-        (run / 'prompt.txt').write_text(repair_prompt(root, failure, record=bool(request.get('record'))), encoding='utf-8')
-        status = operation(root, run, owner, 'agent', failure)
-        if status:
-            return status
+                break
+            # A task cap selects finite categories; it owns no admission transaction.
+            current = read_json(run / 'request.json', request)
+            limit = current.get('tasks') if isinstance(current, dict) else None
+            if type(limit) is int and limit > 0:
+                pending = pending[:max(0, limit - completed_tasks)]
+                if not pending:
+                    progress(run, number, rounds, 'Task limit reached; remaining cases are pending.')
+                    return 0
+            progress(run, number, rounds, 'Running ' + ', '.join(pending))
+            command = [str(root / 'tools/run-tests'), '--stop-on-error']
+            if request.get('record'):
+                command.append('--record')
+            if '--reverse' in request.get('categories', []):
+                command.append('--reverse')
+            command += [argument for category in pending
+                        for argument in (category, *inventory[category]['args'])]
+            if execution_binding() is not None:
+                command += execution_arguments()
+            results.begin()
+            status = operation(root, run, owner, 'test', command)
+            if status == 0:
+                for category in pending:
+                    results.record(category, 'selection', '', 0, complete=True,
+                                   options=inventory[category]['args'], invocation=run.name)
+                completed_tasks += len(pending)
+                continue
+            elif status == 130:
+                raise launcher.Stopped()
+            elif status == PENDING_STATUS:
+                continue
+            elif status < 0:
+                return status
+            failure = results.failure()
+            if failure is None:
+                failure = results.record(pending[0], 'command', '', status, complete=False,
+                    options=inventory[pending[0]]['args'], command=command,
+                    detail='The selected runner command failed before a case result was available. '
+                           'Inspect the current launcher output for the original error.')
+            # Validation clears the result store's failure pointer. Keep the last
+            # failure visible to observers throughout repair and after completion.
+            try:
+                launcher.atomic(run / 'repair-failure.json', failure)
+            except (OSError, ValueError):
+                pass  # Optional Watch metadata cannot prevent repair.
+            progress(run, number, rounds,
+                     f"Repairing {failure['category']} {failure.get('case', '')} {failure.get('vm', '')}".strip())
+            (run / 'prompt.txt').write_text(repair_prompt(root, failure, record=bool(request.get('record'))), encoding='utf-8')
+            status = operation(root, run, owner, 'agent', failure)
+            if status:
+                return status
     progress(run, rounds, rounds, 'Selected work completed.')
     return 0
 
@@ -332,10 +332,10 @@ def main(argv=None):
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
     parser.add_argument('--reverse', action='store_true')
     parser.add_argument('--record', action='store_true', help='record VM watch video; requires both Watch options on (default: off)')
-    parser.add_argument('--model', help='repair session model')
+    parser.add_argument('--model', help='repair model (default: agents.<agent>.fix-tests.default_model in config/environment.json)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
-                        help='repair reasoning effort (default: high)')
-    parser.add_argument('--rounds', type=int, help='number of requested passes (default: 1)')
+                        help='repair effort (default: agents.<agent>.fix-tests.default_effort in config/environment.json)')
+    parser.add_argument('--rounds', type=int, help='repeat the same test/repair workflow this many times (default: 1)')
     parser.add_argument('--tasks', type=int, help='maximum completed categories this invocation; 0 means all')
     args, categories = parser.parse_known_args(argv)
     root = Path(__file__).resolve().parents[1]

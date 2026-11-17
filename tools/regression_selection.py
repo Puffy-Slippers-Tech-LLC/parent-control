@@ -48,6 +48,11 @@ class SelectedRun(Run):
                             count_overall=not (kind == 'artifacts' and args == ['prepare']),
                             host=kind not in ('system', 'e2e'),
                             phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
+            if kind == 'artifacts' and not args:
+                item.total = 3  # Two builds and their reproducibility comparison.
+            elif kind == 'publish':
+                from test_commands import PUBLISH_CATEGORIES
+                item.total = len(PUBLISH_CATEGORIES)
             item.selection_args = tuple(args)
             if kind == 'system' and args and args[0].startswith('check_'):
                 item.name += ' — ' + args[0]
@@ -90,6 +95,20 @@ class SelectedRun(Run):
             self.serial_status = result
         return result
 
+    def collect_pytest(self, kind, inventory, args):
+        if kind == 'ui':
+            args, _ = selected_options(self.root, args)
+        status, _ = self.execute(inventory, self.command(kind, *args, '--collect-only'),
+                                 collect=True, events=True)
+        if self.control.stopped.is_set():
+            return 130
+        if self.serial_host and status:
+            # Direct launchers retain pytest's public exit codes, including 5.
+            return self.pytest_result(inventory, status)
+        if status or (not inventory.total and inventory.state != 'Passed'):
+            raise ValueError(f'{kind.upper()} collection failed or collected no tests')
+        return 0
+
     def run_pytest(self, kind, inventory, args):
         if kind == 'ui':
             args, options = selected_options(self.root, args)
@@ -109,16 +128,10 @@ class SelectedRun(Run):
             status, _ = self.execute(inventory, self.command(kind, *args), events=True)
             return self.pytest_result(inventory, status)
 
-        status, _ = self.execute(inventory, self.command(kind, *args, '--collect-only'),
-                                 collect=True, events=True)
-        if self.control.stopped.is_set():
-            return 130
-        if self.serial_host and status:
-            # Direct pytest launchers preserve its public exit codes, including
-            # no tests selected (5), while retaining the shared report/dashboard.
-            return self.pytest_result(inventory, status)
-        if status or (not inventory.total and inventory.state != 'Passed'):
-            raise ValueError(f'{kind.upper()} collection failed or collected no tests')
+        if inventory.nodeids is None:
+            status = self.collect_pytest(kind, inventory, args)
+            if status:
+                return status
         if self.known_failure(inventory, (*(inventory.nodeids or ()), *inventory.resumed_nodeids)):
             return 1
         if inventory.state == 'Passed' and not inventory.total:
@@ -142,10 +155,20 @@ class SelectedRun(Run):
     def run(self):
         self.inputs = source_identity(self.root)
         self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
+        selected = list(zip(self.categories, self.selections, strict=True))
+        # Discover every selected host suite before dispatch, as the full host
+        # aggregate does. Retain these inventories for execution so later suites
+        # cannot keep the overall denominator unknown throughout earlier work.
+        if len(selected) > 1:
+            for index, (item, (kind, args)) in enumerate(selected, 1):
+                if kind in ('unit', 'ui', 'component', 'fixture-runtime') and self.events(kind, args):
+                    self.dashboard.controller_category = (kind, index, len(self.selections))
+                    if self.collect_pytest(kind, item, args):
+                        return
         # Categories stay ordered; unit/UI use the same buckets as host.
         # Keep a stable work list while collected inventories expand into jobs.
         host_elapsed = 0.0
-        for index, (item, (kind, args)) in enumerate(list(zip(self.categories, self.selections, strict=True)), 1):
+        for index, (item, (kind, args)) in enumerate(selected, 1):
             if self.control.stopped.is_set():
                 break
             self.dashboard.controller_category = (kind, index, len(self.selections))
@@ -191,9 +214,9 @@ class SelectedRun(Run):
                             and os.environ.get(REPAIR_QUEUE) and self.checkpoint is not None
                             and self.checkpoint.results is not None
                             and any(record['category'] == kind for record in self.checkpoint.results.failures())):
-                        status, _ = self.execute(item, self.command(kind, *args, '--collect-only'),
-                                                 collect=True, events=True)
-                        if status or self.known_failure(item, (*(item.nodeids or ()), *item.resumed_nodeids)):
+                        if item.nodeids is None and self.collect_pytest(kind, item, args):
+                            break
+                        if self.known_failure(item, (*(item.nodeids or ()), *item.resumed_nodeids)):
                             break
                     status, _ = self.execute(item, self.command(kind, *args), events=self.events(kind, args))
                     status = status or int(item.state != 'Passed')

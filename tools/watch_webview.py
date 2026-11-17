@@ -160,7 +160,7 @@ def status_spans(lines, *, session_waiting=False, launcher=False, branches=()):
                                   color=color.get_truecolor().hex if color and not themed else None))
             rows.append(spans)
             continue
-        summary_label = re.match(r'^(Total Tasks:|Total Duration:|Ended:)', text.plain)
+        summary_label = re.match(r'^(Tasks:|Total Duration:|Ended:)', text.plain)
         if summary_label:
             text.stylize('bold', 0, summary_label.end())
         family_progress = re.fullmatch(r'\S+ \| (?:system|e2e): \((\d+)/\d+\)', text.plain)

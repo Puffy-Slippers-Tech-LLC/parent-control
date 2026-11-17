@@ -15,6 +15,7 @@ from tests.support.paths import ROOT
 from tests.support.package_scripts import Machine, machine, package_machine, rpm_script_source
 from tests.support.shell import relocate_system_paths
 from tools import build_rpm, package_inputs, rpm_builder
+from tools.publishing.rpm import SCM_INPUTS
 from tools.test_storage import scratch_descriptors
 
 
@@ -708,13 +709,12 @@ def test_copr_make_entrypoint_exports_srpm_without_host_setup(tmp_path, prerequi
     checkout = tmp_path / 'checkout'
     checkout.mkdir()
     package_inputs.copy(ROOT, checkout)
-    # COPR checks out the repository, including the source-preparation tools;
-    # these development helpers must remain absent from the product tarball.
-    for name in ('build_rpm.py', 'rpm_builder.py', 'package_inputs.py',
-                 'test_storage.py', 'test_retention.py', 'test_io.py', 'build_targets.py'):
-        shutil.copy2(ROOT / 'tools' / name, checkout / 'tools' / name)
-    (checkout / '.copr').mkdir()
-    shutil.copy2(ROOT / '.copr/Makefile', checkout / '.copr/Makefile')
+    # Exercise the same finite source context as local COPR validation; these
+    # development helpers must remain absent from the product tarball.
+    for relative in SCM_INPUTS:
+        destination = checkout / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / relative, destination)
     commands = tmp_path / 'commands'
     commands.mkdir()
     (commands / 'dnf').write_text(

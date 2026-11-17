@@ -1467,7 +1467,7 @@
             // Execution-plan totals precede the first divider; ordinary runner
             // status has no fixed summary and keeps all rows in the history.
             const summaryEnd = rows.findIndex(row => row.tagName === 'HR');
-            const hasSummary = summaryEnd > 0 && entry.rows[0].some(part => part.text.startsWith('Total Tasks:'));
+            const hasSummary = summaryEnd > 0 && entry.rows[0].some(part => part.text.startsWith('Tasks:'));
             let statusRow = null;
             if (hasSummary) {
                 const summary = rows[0];

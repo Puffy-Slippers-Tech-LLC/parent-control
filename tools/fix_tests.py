@@ -16,7 +16,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
-from agent_adapter import resolve_profile
+from agent_adapter import resolve_selection, resolve_workflow_profile
 from test_commands import repair_inventory, repair_host_only_request
 
 
@@ -131,11 +131,12 @@ def supervise(root, run, owner, kind, payload):
         failure = json.loads(payload)
         request = read_json(run / 'request.json', {})
         from watch_control import environment as watch_environment
-        model, effort = resolve_profile('repair', model=request.get('model'),
-                                        effort=request.get('effort') or 'high')
+        selection = resolve_selection(root)
+        model, effort = resolve_workflow_profile('fix-tests', selection=selection,
+            model=request.get('model'), effort=request.get('effort'))
         from test_results import VARIABLE
         command = launcher.agent_command(root, model, effort, run, schema=None,
-            standard_speed=True, shell_environment=((VARIABLE, os.environ[VARIABLE]),
+            selection=selection, standard_speed=True, shell_environment=((VARIABLE, os.environ[VARIABLE]),
                 ('ONPC_LAUNCHER_CONTROLLER_ROOT', str(root)),
                 (launcher.WORKFLOW_DIRECTORY, str(run)), *watch_environment().items()))
         # The previous supervisor joined its nested runs before returning.
@@ -331,9 +332,9 @@ def main(argv=None):
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
     parser.add_argument('--reverse', action='store_true')
     parser.add_argument('--record', action='store_true', help='record VM watch video; requires both Watch options on (default: off)')
-    parser.add_argument('--model', help='repair session model')
+    parser.add_argument('--model', help='repair model (default: agents.<agent>.fix-tests.default_model in config/environment.json)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
-                        help='repair reasoning effort (default: high)')
+                        help='repair effort (default: agents.<agent>.fix-tests.default_effort in config/environment.json)')
     parser.add_argument('--rounds', type=int, help='repeat the same test/repair workflow this many times (default: 1)')
     parser.add_argument('--tasks', type=int, help='maximum completed categories this invocation; 0 means all')
     args, categories = parser.parse_known_args(argv)

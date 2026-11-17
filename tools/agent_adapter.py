@@ -10,7 +10,7 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
-ProfileRole = Literal['implementation', 'repair', 'backend_reviewer', 'monitor',
+ProfileRole = Literal['implementation', 'backend_reviewer', 'monitor',
                       'worker', 'translator', 'commit_helper', 'conflict_resolver']
 
 
@@ -225,6 +225,31 @@ def resolve_profile(role: ProfileRole, *, model: str | None = None,
         return selection.adapter().resolve_profile(role, model=model, effort=effort)
     from agent_codex import CodexAdapter
     return CodexAdapter().resolve_profile(role, model=model, effort=effort)
+
+
+def resolve_workflow_profile(workflow: str, *, selection: AgentSelection,
+                             model: str | None = None, effort: str | None = None) -> ModelProfile:
+    """Read editable defaults for each new session; explicit overrides win.
+
+    Metadata cannot qualify an inactive adapter or change workflow retry policy.
+    Other workflows and native helper roles retain their own profile authority.
+    """
+    from vm_selection import read_document
+    selection.adapter()  # Refuse unqualified providers before reading their profiles.
+    path = selection.root / 'config/environment.json'
+    field = f'agents.{selection.name}.{workflow}'
+    document = read_document(path)
+    try:
+        profile = document['agents'][selection.name][workflow]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f'{path}: {field} is required') from error
+    if not isinstance(profile, dict) or set(profile) != {'default_model', 'default_effort'}:
+        raise ValueError(f'{path}: {field} requires only default_model and default_effort')
+    for name, value in profile.items():
+        if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
+            raise ValueError(f'{path}: {field}.{name} must be a nonempty token')
+    return ModelProfile(model if model is not None else profile['default_model'],
+                        effort if effort is not None else profile['default_effort'])
 
 
 def capacity_fallback(model: str, *, selection: AgentSelection | None = None) -> str | None:

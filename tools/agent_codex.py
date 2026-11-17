@@ -126,7 +126,7 @@ class CodexAdapter:
         return 'Codex login verified for this account; model access is checked before each workflow'
 
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
-        if role in ('implementation', 'repair', 'translator', 'commit_helper', 'conflict_resolver'):
+        if role in ('implementation', 'translator', 'commit_helper', 'conflict_resolver'):
             default = ModelProfile('gpt-6.1-sol', 'high')
         elif role in ROLES:
             # Role assets remain the authority for their pinned native profiles.

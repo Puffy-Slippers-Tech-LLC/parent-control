@@ -60,7 +60,9 @@ def check_countdown_balance(countdown, *, seconds, precision_seconds,
     require(low <= seconds + margin
             and high >= seconds - elapsed - margin,
             'countdown:balance-mismatch')
-    return {'elapsed_seconds': elapsed, 'rounding_seconds': precision_seconds,
+    # Keep full precision for the assertion above. Sub-millisecond diagnostic
+    # digits add no evidence and can collide with numeric fixture secrets.
+    return {'elapsed_seconds': round(elapsed, 3), 'rounding_seconds': precision_seconds,
             'sampling_seconds': sampling_seconds, 'display_interval_seconds': [low, high],
             **({'tolerance_seconds': tolerance_seconds} if tolerance_seconds else {})}
 

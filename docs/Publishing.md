@@ -742,6 +742,12 @@ Added, changed and removed files all count. The pending marker prevents a later
 a prior manifest requires a reboot, which is conservative for first installation
 and migration from releases that predate this mechanism.
 
+Debian builds omit version-only ELF package notes, use a stable debug source
+path and strip without automatic debug-symbol packages. Ubuntu's automatic
+extraction otherwise reseeds build IDs with the package version. Unchanged native
+helpers therefore retain their bytes and linker content IDs across package
+version changes; the activation manifest still hashes their full shipped contents.
+
 ### Activation levels
 
 The table below describes the **current shipped classifier**. The kiosk

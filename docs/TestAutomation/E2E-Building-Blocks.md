@@ -5809,6 +5809,18 @@ older source identity, binds both package digests and increasing native versions
 and requires the shipped manifests to classify the update as exactly
 `process-restart`. No activation marker or manifest is injected.
 
+The same finite profiles also build Debian packages for Ubuntu. The private
+older source uses the current changelog version with `~activation1` appended,
+which sorts before the unchanged current version under Debian's native
+comparison. Verification reconstructs that changelog and historical module,
+checks both package identities and requires the exact shipped activation impact.
+This packaging input does not establish installed acceptance for another profile.
+
+Package and language preservation enumerate every persistent local account
+through the public `getent --service=files passwd` interface. Temporary NSS
+identities such as GDM's session-owned greeter are outside that saved-data set;
+ordinary, system and unrelated local accounts remain subject to exact comparison.
+
 The shared no-action package operations, public allowance setup and retained
 Parent comparison supply the journey. Fresh older installation and its actual
 activation reboot precede the update. Exact configuration completion, absence of

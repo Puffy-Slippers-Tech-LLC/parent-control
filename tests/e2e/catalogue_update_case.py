@@ -1,6 +1,6 @@
 """Cases 110/111: retain a parent draft across a real fixture package change."""
 from dataclasses import replace
-from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
+from accessible_ui import MATCH_APPS, NAMED_CHILD_OPERATIONS
 from asset_transfer import AssetTransfer
 from feedback_composition import text_fragment
 from installed_journey import JourneyPlan, record_installed_journey
@@ -29,6 +29,9 @@ RESULT = {'parent-logout': 'system:parent-logout',
           'updated-launch': 'ui:native-updated-command-blocked'}
 SCREENS = {**SETUP, **DRAFT, **SAVE, **REFRESH, **RESULT}
 APP = MATCH_APPS['Update']
+OLD_RULE = '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-old.AppImage'
+NEW_RULE = '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-new.AppImage'
+WILDCARD_RULE = '/opt/onpc-test-fixtures/Applications/Catalogue/Catalogue-*.AppImage'
 PLAN = JourneyPlan(
     prefix='catalogue-update', worker_mode='catalogue_update_case', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -45,10 +48,10 @@ PLAN = JourneyPlan(
         'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',)),
         'jordan-parent-selected': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
     balance_checks={'allowance-configured': 1800},
-    match_checks={'opened-rule': (APP, MATCH_RULES[-3]),
-                  'draft-before-update': (APP, MATCH_RULES[-1]),
+    match_checks={'opened-rule': (APP, OLD_RULE),
+                  'draft-before-update': (APP, WILDCARD_RULE),
                   'draft-after-update': 'draft-before-update',
-                  'loaded-rule': (APP, MATCH_RULES[-1])},
+                  'loaded-rule': (APP, WILDCARD_RULE)},
     access_checks={'loaded-access': (APP, 'permanent')},
     invocations=tuple('child-entry-' + stage for stage, tag in CHILD.items() if tag.startswith('ui:')),
     challenges={'child-entry': ('other-child', 'child-entry-standard-recipient-qualified',
@@ -72,7 +75,7 @@ REMOVE_PLAN = replace(PLAN, prefix='catalogue-remove', worker_mode='catalogue_re
     settings_checks={**PLAN.settings_checks,
         'removed-jordan-parent-selected': SettingsObservation(
             'existing-fixture-child', True, ('30 minutes',))},
-    match_checks={**PLAN.match_checks, 'opened-rule': (APP, MATCH_RULES[-2])})
+    match_checks={**PLAN.match_checks, 'opened-rule': (APP, NEW_RULE)})
 
 
 class CatalogueUpdateJourney(AppPolicyJourney):

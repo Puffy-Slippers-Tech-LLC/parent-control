@@ -754,7 +754,14 @@ class BusNode:
         return len(self.children())
 
     def get_child_at_index(self, index):
-        return self.api.node(self.children()[index])
+        children = self.children()
+        try:
+            reference = children[index]
+        except IndexError as error:
+            # A provider may unregister after the caller reads ChildCount.
+            # Discard this observation; a missing child is never absence proof.
+            raise IncompleteTree('public-atspi:incomplete-tree') from error
+        return self.api.node(reference)
 
     def get_parent(self):
         return self.api.node(self.property('Parent'))

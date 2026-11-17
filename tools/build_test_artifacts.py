@@ -64,7 +64,7 @@ NO_ACTION_VERSIONS = {
     'rpm': ('0:1.5-0.1.dev.fc44', '0:2.0-0.1.dev.fc44'),
 }
 NO_ACTION_RPM_RELEASES = {'previous': '0.1.dev', 'current': '0.2.dev'}
-# Finite Fedora process profile: retain today's packaging and payload, with
+# Finite process profile: retain today's packaging and payload, with
 # only the actual pre-55a2c1ea broker module in the older package. No invented
 # product logic or activation manifest is written by the fixture builder.
 PROCESS_BASELINE = '14fcf510b5f36424969b949b8398cd63befc62b8'
@@ -379,25 +379,28 @@ def build_no_action(output, *, package_format, build_target=None, architecture='
 
 
 @contextmanager
-def process_source(*, repository=None):
-    with activation_source(PROCESS_BASELINE, PROCESS_MODULE, repository=repository) as root:
+def process_source(*, repository=None, package_format='rpm'):
+    with activation_source(PROCESS_BASELINE, PROCESS_MODULE, repository=repository,
+                           package_format=package_format) as root:
         yield root
 
 
 @contextmanager
-def session_source(*, repository=None):
-    with activation_source(SESSION_BASELINE, SESSION_MODULE, repository=repository) as root:
+def session_source(*, repository=None, package_format='rpm'):
+    with activation_source(SESSION_BASELINE, SESSION_MODULE, repository=repository,
+                           package_format=package_format) as root:
         yield root
 
 
 @contextmanager
-def reboot_source(*, repository=None):
-    with activation_source(REBOOT_BASELINE, REBOOT_MODULE, repository=repository) as root:
+def reboot_source(*, repository=None, package_format='rpm'):
+    with activation_source(REBOOT_BASELINE, REBOOT_MODULE, repository=repository,
+                           package_format=package_format) as root:
         yield root
 
 
 @contextmanager
-def activation_source(baseline, module, *, repository=None):
+def activation_source(baseline, module, *, repository=None, package_format='rpm'):
     repository = REPOSITORY if repository is None else repository
     from tools.test_storage import scratch_directory
     with tempfile.TemporaryDirectory(prefix='onpc-process-source-', dir=scratch_directory()) as name:
@@ -407,6 +410,15 @@ def activation_source(baseline, module, *, repository=None):
             shutil.copy2(old / module, root / module)
         if (root / module).read_bytes() == (repository / module).read_bytes():
             raise ArtifactError('activation profile requires changed payload')
+        if package_format == 'deb':
+            # Debian takes its version from the changelog, rather than a
+            # separate RPM Release input. Give only the private predecessor a
+            # lower native version; keep today's packaging and product logic.
+            changelog = root / 'debian/changelog'
+            version = _run(['dpkg-parsechangelog', '-l' + str(changelog),
+                            '-S', 'Version']).stdout.strip()
+            changelog.write_text(changelog.read_text().replace(
+                '(' + version + ')', '(' + version + '~activation1)', 1))
         yield root
 
 
@@ -419,18 +431,19 @@ def build_session(output, *, package_format):
 
 
 def build_activation(output, *, package_format, profile, build_target=None, architecture='x86_64'):
-    if package_format != 'rpm':
-        raise ArtifactError('activation profile is supported only for Fedora RPM')
+    if package_format not in ('deb', 'rpm'):
+        raise ArtifactError('unsupported package format')
     source, baseline = {'process': (process_source, PROCESS_BASELINE),
                         'session': (session_source, SESSION_BASELINE),
                         'reboot': (reboot_source, REBOOT_BASELINE)}[profile]
     output = _require_empty_output(output)
     for label, release in NO_ACTION_RPM_RELEASES.items():
-        with source() if label == 'previous' else nullcontext(REPOSITORY) as root:
+        with source(package_format=package_format) if label == 'previous' else nullcontext(REPOSITORY) as root:
             selected = package_inputs.paths(root)
             digest = package_inputs.digest(root, selected)
             metadata = _metadata(selected, digest)
-            metadata['source']['rpm_release'] = release
+            if package_format == 'rpm':
+                metadata['source']['rpm_release'] = release
             if label == 'previous':
                 metadata['source'][profile + '_baseline'] = baseline
             _build(output / label, root, selected, digest, metadata,
@@ -588,30 +601,33 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     package_format = formats.pop().removeprefix('.')
     release = _require_previous_release(package_format)
     historical_no_action = previous['source'].get('revision') == NO_ACTION_REVISIONS['previous']
-    rpm_process = package_format == 'rpm' and 'process_baseline' in previous['source']
-    rpm_session = package_format == 'rpm' and 'session_baseline' in previous['source']
-    rpm_reboot = package_format == 'rpm' and 'reboot_baseline' in previous['source']
+    process = 'process_baseline' in previous['source']
+    session = 'session_baseline' in previous['source']
+    reboot = 'reboot_baseline' in previous['source']
+    activation_profile = process or session or reboot
     rpm_no_action = (package_format == 'rpm' and 'rpm_release' in previous['source']
-                     and not (rpm_process or rpm_session or rpm_reboot))
+                     and not activation_profile)
     no_action = historical_no_action or rpm_no_action
-    if rpm_process or rpm_session or rpm_reboot:
-        if sum((rpm_process, rpm_session, rpm_reboot)) != 1:
+    if activation_profile:
+        if sum((process, session, reboot)) != 1:
             raise ArtifactError('ambiguous activation profile')
-        profile = 'reboot' if rpm_reboot else 'session' if rpm_session else 'process'
+        profile = 'reboot' if reboot else 'session' if session else 'process'
         baseline, source = {'reboot': (REBOOT_BASELINE, reboot_source),
                             'session': (SESSION_BASELINE, session_source),
                             'process': (PROCESS_BASELINE, process_source)}[profile]
         if previous['source'].get(profile + '_baseline') != baseline:
             raise ArtifactError('activation baseline mismatch')
-        with source(repository=repository) as root:
+        with source(repository=repository, package_format=package_format) as root:
             selected_previous = package_inputs.paths(root)
             expected_previous = {**current['source'],
                 'digest_sha256': package_inputs.digest(root, selected_previous),
-                'file_count': len(selected_previous), 'rpm_release': NO_ACTION_RPM_RELEASES['previous'],
+                'file_count': len(selected_previous),
                 profile + '_baseline': baseline}
+            if package_format == 'rpm':
+                expected_previous['rpm_release'] = NO_ACTION_RPM_RELEASES['previous']
             if previous['source'] != expected_previous:
                 raise ArtifactError('process source identity mismatch')
-        if current['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES['current']:
+        if package_format == 'rpm' and current['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES['current']:
             raise ArtifactError('process RPM release input mismatch')
     elif rpm_no_action:
         for label, manifest in (('previous', previous), ('current', current)):
@@ -633,7 +649,7 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     repository = REPOSITORY if repository is None else repository
     selected = package_inputs.paths(repository)
     current_source = {key: value for key, value in current['source'].items()
-                      if not (rpm_no_action or rpm_process or rpm_session or rpm_reboot) or key != 'rpm_release'}
+                      if not (rpm_no_action or (activation_profile and package_format == 'rpm')) or key != 'rpm_release'}
     if not historical_no_action and (set(current_source) != {'revision', 'scope', 'digest_sha256', 'file_count'}
             or type(current_source['revision']) is not str
             or re.fullmatch(r'[0-9a-f]{40}', current_source['revision']) is None
@@ -660,10 +676,12 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     old_version = (release['version'].removesuffix('.fc44') + target.dist
                    if package_format == 'rpm' and previous.get('build_inputs', {}).get('build_target')
                    else release['version'])
-    if rpm_no_action or rpm_process or rpm_session or rpm_reboot:
+    if rpm_no_action or (activation_profile and package_format == 'rpm'):
         version = rpm_metadata(repository, NO_ACTION_RPM_RELEASES['current'])[0]
         old_version = f"0:{version}-{NO_ACTION_RPM_RELEASES['previous']}{target.dist}"
         expected = f"0:{version}-{NO_ACTION_RPM_RELEASES['current']}{target.dist}"
+    elif activation_profile:
+        old_version = expected + '~activation1'
     elif historical_no_action:
         old_version, expected = NO_ACTION_VERSIONS[package_format]
     if (old['version'] != old_version or new['version'] != expected
@@ -672,9 +690,9 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
                 current['source']['digest_sha256'] == previous['source']['digest_sha256'])):
         raise ArtifactError('upgrade package release identity mismatch')
     _require_newer_version(new['version'], old['version'], package_format=package_format)
-    if no_action or rpm_process or rpm_session or rpm_reboot:
-        activation = ('reboot' if rpm_reboot else 'session-renewal' if rpm_session
-                      else 'process-restart' if rpm_process else 'none')
+    if no_action or activation_profile:
+        activation = ('reboot' if reboot else 'session-renewal' if session
+                      else 'process-restart' if process else 'none')
         verify_no_action_payloads({'previous': output / 'previous' / previous['artifacts']['package']['path'],
                                   'current': current_root / current['artifacts']['package']['path']},
                                  activation=activation)
@@ -830,11 +848,11 @@ def main() -> int:
     parser.add_argument('--no-action-inputs', action='store_true',
                         help='build the reviewed release-only RPM or authentic 1.5/2.0 DEB update')
     parser.add_argument('--process-inputs', action='store_true',
-                        help='build the finite older-broker/current Fedora process update')
+                        help='build the finite older-broker/current process update')
     parser.add_argument('--session-inputs', action='store_true',
-                        help='build the finite older-extension/current Fedora session update')
+                        help='build the finite older-extension/current session update')
     parser.add_argument('--reboot-inputs', action='store_true',
-                        help='build the finite earlier-service/current Fedora reboot update')
+                        help='build the finite earlier-service/current reboot update')
     parser.add_argument('--native-inputs', action='store_true',
                         help='prepare the reviewed finite native dependency pair, not product packages')
     parser.add_argument('--verify-native-inputs', action='store_true',

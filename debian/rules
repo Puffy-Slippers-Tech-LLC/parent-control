@@ -1,6 +1,11 @@
 #!/usr/bin/make -f
 
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# Activation compares shipped bytes. Version-only ELF notes and debug paths
+# must not change unchanged native helpers or their build IDs on every update.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all qa=-elfpackagemetadata
+export DEB_BUILD_DEBUGPATH = /usr/src/oh-no-parent-control
+# Ubuntu's dpkg-buildpackage also supplies the note directly to the linker.
+unexport ELF_PACKAGE_METADATA
 PACKAGE_STAGING_ROOT ?= $(CURDIR)/debian/oh-no-parent-control
 
 %:
@@ -33,6 +38,14 @@ execute_after_dh_installdeb:
 override_dh_installsystemd:
 	# Maintainer scripts own the migration stop and manifest-selected activation.
 	dh_installsystemd --no-start --no-stop-on-upgrade
+
+# Ubuntu's automatic dbgsym extraction reseeds build IDs with the package
+# version. Keep linker content IDs and omit detached debug links/packages so
+# unchanged runtime files stay identical between version-only updates.
+override_dh_dwz:
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
 
 override_dh_fixperms:
 	dh_fixperms

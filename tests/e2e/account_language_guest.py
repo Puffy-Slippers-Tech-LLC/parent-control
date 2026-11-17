@@ -73,9 +73,15 @@ class AccountsAPI:
 
 
 def accounts():
-    # ListCachedUsers is not exhaustive. Read NSS, including system/unrelated
-    # accounts; never create an absent station user on the product-free baseline.
-    result = sorted(pwd.getpwall(), key=lambda item: item.pw_uid)
+    # Preserve every persistent local account, including system/unrelated users.
+    # NSS also exposes transient GDM greeter users that disappear normally when
+    # their sessions end. They are not saved account data owned by the package.
+    rows = sessions.call(['/usr/bin/getent', '--service=files', 'passwd']).splitlines()
+    fields = [row.split(':') for row in rows]
+    require(0 < len(fields) <= 128 and all(len(row) == 7
+            and row[2].isdecimal() and row[3].isdecimal() for row in fields), 'account-schema')
+    result = sorted((pwd.struct_passwd([*row[:2], int(row[2]), int(row[3]), *row[4:]])
+                     for row in fields), key=lambda item: item.pw_uid)
     require(0 < len(result) <= 128 and len({item.pw_uid for item in result}) == len(result)
             and len({item.pw_name for item in result}) == len(result), 'account-bound')
     return result

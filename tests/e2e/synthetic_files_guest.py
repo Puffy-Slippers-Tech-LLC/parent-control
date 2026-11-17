@@ -238,7 +238,14 @@ def native_space_operate(home, operation, request, profile='native-space', *, ad
 
         def readback():
             guard()
-            names = set(os.listdir(parent))
+            # A reused directory stream can miss newly created entries on
+            # Fedora's filesystem. Enumerate from a fresh pinned descriptor.
+            scan = os.open('.', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                           dir_fd=parent)
+            try:
+                names = set(os.listdir(scan))
+            finally:
+                os.close(scan)
             base = ({'Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage'} if versioned
                     else {source_name}) | set(GUI_FILES)
             require(base <= names <= base | ({NATIVE_VERSION_NEXT, NATIVE_VERSION_NONMATCH}

@@ -139,8 +139,8 @@ def record_exception(run, context, error, **identity):
     return details
 
 
-def owner_record(run, **fields):
-    """Publish one clock origin per backend spawn, shared by all observers."""
+def owner_record(run, *, watch_visibility=True, **fields):
+    """Publish shared owner metadata; WatchVisibility only controls discovery."""
     from vm_pool import VARIABLE
     from launcher_controller import public_arguments
     requested_argv = public_arguments(fields.get('launcher'))
@@ -177,7 +177,8 @@ def owner_record(run, **fields):
         fields['requested_argv'] = requested_argv
     if VARIABLE in os.environ:
         fields['vm_checkout'] = os.environ[VARIABLE]
-    return dict(fields, run=run.name, started_at=time.time(), started_monotonic=time.monotonic())
+    return dict(fields, WatchVisibility=watch_visibility, run=run.name,
+                started_at=time.time(), started_monotonic=time.monotonic())
 
 
 def private_directory(path):
@@ -479,10 +480,14 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive or plain,
             **provenance)
-        # The allocation owns terminal history; changing the input recipient
-        # must not erase earlier agent sessions in that same launcher run.
-        session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run)
-                              if plain else SessionTranscript(sys.stdout, run))
+        # Each repair starts a fresh conversation. Other workflows retain
+        # terminal history across their agent sessions within this allocation.
+        fresh_transcript = run.parent.name in ('fix-tests', 'fix-tests-host')
+        session_view['fresh_transcript'] = fresh_transcript
+        session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run,
+                                                   reset=fresh_transcript)
+                              if plain else SessionTranscript(sys.stdout, run,
+                                                              reset=fresh_transcript))
         renderer = AgentRenderer(session_transcript or sys.stdout, command_log=run / 'agent-commands.log',
                                  full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
@@ -906,7 +911,7 @@ def _fresh_repair_retention(store, run):
 def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='cancel',
            on_attach=None, on_start=None, namespace=None, resumable_start=False,
            reload=False, existing_only=False, launcher_name=None, public_argv=None, stop_argv=None,
-           add_session=None, source_resume=False, resume_compute=False):
+           add_session=None, source_resume=False, resume_compute=False, watch_visibility=True):
     """Attach before evaluating new options; only the lock grants ownership."""
     from test_storage import directory as storage_directory
     directory = storage_directory(name, root=root)
@@ -1029,6 +1034,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                 _audit_start(store, directory, pending)
         fcntl.flock(owner, fcntl.LOCK_EX)
         published_record = owner_record(run, launcher=launcher_name or name,
+                                       watch_visibility=watch_visibility,
                                        argv=list(sys.argv[1:] if public_argv is None else public_argv))
         published_record['cancel_stop'] = stop_marker == 'stop'
         if stop_argv is not None:
@@ -1249,5 +1255,5 @@ def report_start(run, *, label='launcher', started=False, stop=False, reload=Fal
     action = ('stop requested for' if stop else 'reload requested for' if reload
               else 'started' if started else 'already running')
     print(f'\033[32m{label}: controller {action}: {run.name}.\033[0m '
-          'Open ONPC: Watch to attach at any time.', file=stream or sys.stdout, flush=True)
+          f'Output: {run / "output"}', file=stream or sys.stdout, flush=True)
     return 0

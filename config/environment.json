@@ -101,6 +101,22 @@
           "owning_branch": ""
         },
         {
+          "id": "103",
+          "name": "onpc-Ubuntu26.04-103",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "104",
+          "name": "onpc-Ubuntu26.04-104",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-104.qcow2",
+          "owning_branch": ""
+        },
+        {
           "id": "110",
           "name": "onpc-Ubuntu26.04-110",
           "enabled": "true",
@@ -108,14 +124,6 @@
           "vm_tags": "heavy",
           "compute_unit": 2,
           "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "103",
-          "name": "onpc-Ubuntu26.04-103",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2",
           "owning_branch": ""
         }
       ]
@@ -162,6 +170,22 @@
           "owning_branch": ""
         },
         {
+          "id": "203",
+          "name": "onpc-Fedora44-203",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-203.qcow2",
+          "owning_branch": ""
+        },
+        {
+          "id": "204",
+          "name": "onpc-Fedora44-204",
+          "enabled": "true",
+          "host": "myserver",
+          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-204.qcow2",
+          "owning_branch": ""
+        },
+        {
           "id": "210",
           "name": "onpc-Fedora44-210",
           "enabled": "true",
@@ -169,14 +193,6 @@
           "vm_tags": "heavy",
           "compute_unit": 2,
           "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2",
-          "owning_branch": ""
-        },
-        {
-          "id": "203",
-          "name": "onpc-Fedora44-203",
-          "enabled": "true",
-          "host": "myserver",
-          "disk_anchor": "/Data/virt-manager/onpc-Fedora44-203.qcow2",
           "owning_branch": ""
         }
       ]

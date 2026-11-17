@@ -364,7 +364,7 @@ def usage():
 
 With no categories, start the all aggregate. An active run takes precedence
 over new execution categories. Idle invocations start fresh.
-Launch commands return after admission; use ONPC: Watch for progress and results.
+Launch commands return after admission; the printed run directory retains progress and results.
 Select a
 configured queue without --vm; narrowed runs require their original --vm NAME.
 Help, listing and collection return immediately without attaching.
@@ -387,7 +387,7 @@ execution resets progress. Required preparation and lifecycle prerequisites stil
 cleanup, recovers recorded resources and clears saved progress before starting
 fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --stop and --reload; inspection performs no reset.
---stop requests cancellation and returns immediately; follow cleanup in ONPC: Watch.
+--stop requests cancellation and returns immediately; cleanup output stays in the run directory.
 --reload requests a controller refresh at safe boundaries and returns immediately;
 when idle, the flag is ignored and execution starts normally.
 VM categories read config/environment.json and select VMs with enabled equal to

@@ -443,9 +443,10 @@ class Viewer:
             session_roots.add(session_root)
         sections = []
         self.watch_targets = {}
+        visible_bases = set()
         workflow_roots = {run: root for root in self.roots
                           for run, _name in active_launchers(root, self.launcher_reader,
-                              include_idle=True, workflows_only=True)}
+                              include_idle=True, workflows_only=True, watch_visible_only=True)}
         workflow_bases = {run.parent: run for run in workflow_roots}
 
         def supervisor(run):
@@ -472,7 +473,9 @@ class Viewer:
         for checkout_root in self.roots:
             # Child runners can be dispatched into another worktree. Their
             # progress already appears in the controlling workflow's section.
-            candidates = list(active_launchers(checkout_root, self.launcher_reader, include_idle=True))
+            candidates = list(active_launchers(checkout_root, self.launcher_reader,
+                                               include_idle=True, watch_visible_only=True))
+            visible_bases.update(run.parent for run, _name in candidates)
             from watch_control import read as watch_settings
             for run, name in active_launchers(checkout_root, self.launcher_reader):
                 if name not in ('run-tests', 'fix-tests'):
@@ -492,6 +495,8 @@ class Viewer:
         for root, output in self.outputs.items():
             branch = self.roots[output.root]
             label, active, reset, data = output.poll()
+            if root not in visible_bases:
+                continue
             if reset or root not in self.launcher_logs:
                 self.launcher_logs[root] = ''
                 self.launcher_controls[root] = TerminalControls()

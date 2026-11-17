@@ -48,13 +48,13 @@ def guest_catalogue(binding, expected):
     import stat
     import subprocess
     label, version, previous = CATALOGUE[binding]
-    session_control.require(os.geteuid() == 0 and session_control.package_format() == 'deb',
-                            'catalogue-package-target')
+    fedora = session_control.package_format() == 'rpm'
+    session_control.require(os.geteuid() == 0, 'catalogue-package-target')
     account = pwd.getpwnam(session_control.ACCOUNTS['parent'])
     session_control.require(account.pw_uid >= 1000 and grp.getgrnam(session_control.administrator_group()).gr_gid
         in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
     source = session_control.source_session(session_control.sessions(), account.pw_uid)
-    path = Path('/var/lib/onpc-e2e-assets/catalogue-' + label + '.deb')
+    path = Path('/var/lib/onpc-e2e-assets/catalogue-' + label + ('.rpm' if fedora else '.deb'))
     for item in (path, *path.parents):
         info = item.lstat()
         session_control.require(item.resolve() == item and info.st_uid == info.st_gid == 0
@@ -75,14 +75,23 @@ def guest_catalogue(binding, expected):
             '/opt/onpc-test-fixtures/Applications/Catalogue',
             '/usr/share/applications/com.puffyslippers.ONPCTest.Update.desktop')),
             'catalogue-package-collision')
-    header = subprocess.run(['/usr/bin/dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture'],
+    header = subprocess.run((['/usr/bin/rpm', '-qp', '--queryformat',
+                              '%{NAME}\n%{EPOCHNUM}:%{VERSION}-%{RELEASE}\n%{ARCH}\n', str(path)] if fedora else
+                             ['/usr/bin/dpkg-deb', '-f', str(path), 'Package', 'Version', 'Architecture']),
                             check=True, capture_output=True, timeout=30).stdout.decode().splitlines()
-    session_control.require(header == ['Package: onpc-catalogue-fixture', 'Version: ' + version,
-                                       'Architecture: amd64'], 'catalogue-package-header')
-    query = subprocess.run(['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
-                            'onpc-catalogue-fixture'], capture_output=True, timeout=30)
-    session_control.require(query.returncode == 1 and not query.stdout if previous is None else
-        query.returncode == 0 and query.stdout.decode().splitlines() == ['install ok installed', previous],
+    session_control.require(header == (['onpc-catalogue-fixture', '0:' + version + '-1', 'x86_64'] if fedora else
+                                      ['Package: onpc-catalogue-fixture', 'Version: ' + version,
+                                       'Architecture: amd64']), 'catalogue-package-header')
+    query = subprocess.run((['/usr/bin/rpm', '-q', '--queryformat', '%{VERSION}-%{RELEASE}\n',
+                             'onpc-catalogue-fixture'] if fedora else
+                            ['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
+                             'onpc-catalogue-fixture']), capture_output=True, timeout=30,
+                            env={**os.environ, 'LC_ALL': 'C'})
+    absent = (query.stdout.decode().splitlines() == ['package onpc-catalogue-fixture is not installed']
+              if fedora else not query.stdout)
+    session_control.require(query.returncode == 1 and absent if previous is None else
+        query.returncode == 0 and query.stdout.decode().splitlines() == (
+            [previous + '-1'] if fedora else ['install ok installed', previous]),
         'catalogue-package-phase')
     session_control.require(session_control.source_session(session_control.sessions(), account.pw_uid) == source,
                             'source-changed')
@@ -93,8 +102,13 @@ def guest_catalogue(binding, expected):
     os.environ.update(PATH='/usr/sbin:/usr/bin:/sbin:/bin', LANG='C.UTF-8',
                       DEBIAN_FRONTEND='noninteractive', TERM='dumb')
     os.dup2(1, 2)
-    argv = ((*ARGV[:3], 'remove', '-y', 'onpc-catalogue-fixture')
-            if binding == 'remove-catalogue-new' else (*ARGV[:-1], str(path)))
+    if fedora:
+        argv = (('/usr/bin/dnf', '--quiet', 'remove', '--no-autoremove', '-y', 'onpc-catalogue-fixture')
+                if binding == 'remove-catalogue-new' else
+                ('/usr/bin/dnf', '--quiet', 'install', '-y', str(path)))
+    else:
+        argv = ((*ARGV[:3], 'remove', '-y', 'onpc-catalogue-fixture')
+                if binding == 'remove-catalogue-new' else (*ARGV[:-1], str(path)))
     os.execv(argv[0], argv)
 
 
@@ -377,11 +391,14 @@ class PackageCommand:
         require(not self.attempted and binding not in self.transport.package_attempts, 'package:replay')
         self.verified.recheck()
         label, version, _previous = CATALOGUE[binding]
-        key = 'catalogue-' + label + '.deb'
-        require('package.deb' in self.verified.asset_files and key in self.verified.asset_files,
+        fedora = 'package.rpm' in self.verified.asset_files
+        key = 'catalogue-' + label + ('.rpm' if fedora else '.deb')
+        require(('package.rpm' if fedora else 'package.deb') in self.verified.asset_files
+                and key in self.verified.asset_files,
                 'package:catalogue-input-required')
         from build_test_artifacts import package_identity
-        expected = {'name': 'onpc-catalogue-fixture', 'version': version, 'architecture': 'amd64',
+        expected = {'name': 'onpc-catalogue-fixture', 'version': '0:' + version + '-1' if fedora else version,
+                    'architecture': 'x86_64' if fedora else 'amd64',
                     'sha256': self.verified.asset_files[key]}
         require(package_identity(self.verified.assets / key) == expected, 'package:wrong-artifact')
         return expected
@@ -405,14 +422,19 @@ class PackageCommand:
         require(type(raw) is bytes and 0 < len(raw) <= LIMIT, 'package:output-bound')
         require(type(status) is int and status == 0, 'package:command-failed')
         version = CATALOGUE[self.binding][1]
-        result = self.transport.call(['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
-                                      'onpc-catalogue-fixture'], timeout=30, check=False)
+        fedora = 'package.rpm' in self.verified.asset_files
+        result = self.transport.call((['/usr/bin/rpm', '-q', '--queryformat', '%{VERSION}-%{RELEASE}\n',
+                                       'onpc-catalogue-fixture'] if fedora else
+                                      ['/usr/bin/dpkg-query', '-W', '-f=${Status}\\n${Version}\\n',
+                                       'onpc-catalogue-fixture']), timeout=30, check=False)
         if self.binding == 'remove-catalogue-new':
-            require(self.transport.commands.last_returncode == 1 and not result,
+            absent = (result.decode().splitlines() == ['package onpc-catalogue-fixture is not installed']
+                      if fedora else not result)
+            require(self.transport.commands.last_returncode == 1 and absent,
                     'package:removed-fixture')
             return {'operation': self.binding, 'outcome': 'passed', 'removed': True}
         require(self.transport.commands.last_returncode == 0, 'package:installed-version')
-        require(result.decode().splitlines() == ['install ok installed', version],
+        require(result.decode().splitlines() == ([version + '-1'] if fedora else ['install ok installed', version]),
                 'package:installed-version')
         return {'operation': self.binding, 'outcome': 'passed', 'version': version}
 

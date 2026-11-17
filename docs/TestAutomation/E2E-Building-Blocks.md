@@ -4742,7 +4742,7 @@ retains its focused route without standalone system registration.
 
 Case 110 uses `catalogue_update_case.PLAN` / `CatalogueUpdateJourney` and
 `onpc_fresh_thirty_allowance::catalogue_update_case`. The fixture builder's
-verified `onpc-catalogue-fixture` DEB pair moves the executable from
+verified `onpc-catalogue-fixture` DEB or RPM pair moves the executable from
 `Catalogue-old.AppImage` (1.0) to `Catalogue-new.AppImage` (2.0), retaining its
 desktop ID. `PackageCommand.submit_fixture` binds each single-use transaction
 to its digest and expected installed version. Parent keeps the nondefault
@@ -4751,12 +4751,12 @@ read the updated target and saved Hard rule. Fresh Jordan entry must deny the
 updated command with complete owned-window absence. The shared native command
 route now requires the bound child's direct exec to return EACCES or EPERM;
 exit status or journal availability alone cannot establish denial.
-The complete case passed on Ubuntu 26.04, with collection, worker shutdown,
-owned cleanup and baseline restoration passed.
+The complete case passed on Ubuntu 26.04 and Fedora 44, with collection, worker
+shutdown, owned cleanup and baseline restoration passed.
 
 Case 111 uses `catalogue_update_case.REMOVE_PLAN` and the same journey/worker.
 Its fixed `install-catalogue-new`, `remove-catalogue-new` and
-`reinstall-catalogue-new` commands bind the same verified 2.0 DEB, active
+`reinstall-catalogue-new` commands bind the same verified 2.0 native package, active
 administrator, installed version and single-use transaction markers. Removal
 requires independent package absence. The original owned wildcard draft stays
 open through removal and Save; LIFE01/PARENT02 refresh then reads a complete
@@ -4764,7 +4764,8 @@ loaded catalogue with empty search and all filters selected before proving the
 app absent. Reinstallation and another refresh must expose the retained wildcard
 and Hard rule before any edits. Fresh Jordan entry must deny the same executable
 with complete window absence. This continuous case passed on Ubuntu 26.04, including collection, worker shutdown,
-owned cleanup and baseline restoration. Other fixture formats remain unqualified.
+owned cleanup and baseline restoration. RPM removal/reinstallation remains
+unqualified.
 
 #### Captured native activity closure
 

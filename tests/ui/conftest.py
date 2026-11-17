@@ -194,6 +194,10 @@ def hermetic_ui_session(ui_monitor_size, request):
     if UI_TIMINGS is not None:
         boot = UI_TIMINGS.wrap(boot, 'session.boot')
     boot(session)
+    # Dogtail enables the bridge for preview children. Keep this GTK 3 observer
+    # out of its own accessibility tree: synchronous reads cannot service its
+    # AT-SPI callbacks on the same thread. Children retain session.environment.
+    os.environ["NO_AT_BRIDGE"] = "1"
     # Install Dogtail's bare-Mutter input backend before dogtail.tree imports
     # rawinput.  Importing the backend otherwise eagerly probes the optional
     # GNOME Shell Ponytail service, which a bare-Mutter session intentionally

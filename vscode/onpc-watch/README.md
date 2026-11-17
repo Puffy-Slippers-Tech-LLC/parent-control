@@ -101,7 +101,7 @@ before this control becomes available.
 
 New runs retain the original caller parameters before host/VM resolution.
 Resume, Reload and Copy Command preserve those parameters, including VM family
-selectors and `--host`, without inserting resolved VM names or default options.
+selectors and `--vmhost`, without inserting resolved VM names or default options.
 An omitted `--branch` stays omitted, allowing the configured default branch;
 an explicitly supplied branch stays explicit.
 Older runs retain their saved resolved parameters until their next normal launch.

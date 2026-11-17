@@ -325,13 +325,17 @@ def execution_arguments(argv):
     return args, stop
 
 
-def vm_request(argv):
-    from vm_selection import vm_config, execution_selection, extract_execution, selected
-    args, selector = vm_config.extract_selector(argv)
+def vm_artifact_request(args):
     request = [arg for arg in args if arg not in ('--record', '--reverse', '--resume', '--resume-case-only', '--resume-area-only') and not arg.startswith('--resume-case=')]
     if request[:1] == ['--stop-on-error']:
         request = request[1:]
-    vm_artifacts = request[:3] == ['artifacts', 'prepare', '--for-vm']
+    return request[:3] == ['artifacts', 'prepare', '--for-vm']
+
+
+def vm_request(argv):
+    from vm_selection import vm_config, execution_selection, extract_execution, selected
+    args, selector = vm_config.extract_selector(argv)
+    vm_artifacts = vm_artifact_request(args)
     if vm_artifacts and not is_inspection(args) and selector is None:
         raise ValueError('VM artifact preparation requires one explicit --vm NAME')
     if not is_inspection(args) and args != ['--stop'] and not host_only_request(args):
@@ -1515,10 +1519,35 @@ def is_inspection(argv):
     return any(flag in argv for flag in INSPECTION_FLAGS)
 
 
+def vmhost_request(argv, vmhost, *, use_defaults):
+    from detached_launcher import WORKFLOW_DIRECTORY
+    from launcher_controller import public_arguments
+    from test_results import VARIABLE as REPAIR_RESULTS
+    from vm_selection import BATCH, VARIABLE, vm_config
+    if vmhost is None:
+        # A parent workflow may already own the exact targets for this run.
+        inherited = os.environ.get(WORKFLOW_DIRECTORY) and (VARIABLE in os.environ or BATCH in os.environ)
+        if (not use_defaults or public_arguments('run-tests') is None or inherited or any(
+                key in os.environ for key in (REPAIR_RESULTS, 'ONPC_MAKE_VM', 'ONPC_E2E_VM', 'ONPC_WATCH_RUN'))):
+            return argv, False
+    args, selector = vm_config.extract_selector(argv)
+    if host_only_request(args):
+        return argv, False
+    if vmhost is None and (is_inspection(args) or '--stop' in args or vm_artifact_request(args)):
+        return argv, False
+    if vmhost is None and selector is None:
+        # Unnarrowed runs share a session scope. Resolve defaults only when
+        # starting new work, after giving its active owner a chance to attach.
+        return argv, True
+    return vm_config.filter_vm_hosts(argv, vmhost, use_defaults=use_defaults), False
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     import watch_control
+    from vm_selection import vm_config
     try:
+        argv, vmhost = vm_config.extract_vmhost(argv)
         argv, watch = watch_control.parse(argv)
     except ValueError as error:
         print('run-tests: ' + str(error), file=sys.stderr)
@@ -1537,12 +1566,22 @@ def main(argv=None):
             return 2
     try:
         from test_checkpoint import resume_arguments
-        if not (test_activity.descriptors() or test_activity.VARIABLE in os.environ
-                or 'ONPC_RUNNER_INVOCATION' in os.environ):
-            argv = resume_arguments(Path(__file__).resolve().parents[1], argv)
+        independent = not (test_activity.descriptors() or test_activity.VARIABLE in os.environ
+                           or 'ONPC_RUNNER_INVOCATION' in os.environ)
+        resumed, previous = (resume_arguments(Path(__file__).resolve().parents[1], argv)
+                             if independent else (argv, None))
+        _, explicit_vm = vm_config.extract_selector(argv)
+        reuse_selection = previous is not None and vmhost is None and explicit_vm is None
+        use_defaults = independent and not reuse_selection and not reload
+        if previous is not None and vmhost is not None and explicit_vm is None:
+            # An explicit host filter selects current work. Omitted categories
+            # come from the checkpoint, but its saved VM restriction does not.
+            resumed, _ = vm_config.extract_selector(resumed)
+        argv, implicit_default = vmhost_request(resumed, vmhost, use_defaults=use_defaults)
         if '--reverse' in argv:
             os.environ['ONPC_TEST_REVERSE'] = '1'
-        vm_request(argv)
+        if not implicit_default:
+            vm_request(argv)
     except ValueError as error:
         print('run-tests: ' + str(error), file=sys.stderr)
         return 2
@@ -1554,7 +1593,7 @@ def main(argv=None):
         if reset:
             print('run-tests: --reset requires an unprivileged public invocation', file=sys.stderr)
             return 2
-        return _main(argv)
+        return _main(vm_config.filter_vm_hosts(argv, use_defaults=True) if implicit_default else argv)
     try:
         root = Path(__file__).resolve().parents[1]
         if test_activity.descriptors() or test_activity.VARIABLE in os.environ:
@@ -1573,7 +1612,9 @@ def main(argv=None):
         from regression_session import main as session_main
         return session_main(root, argv, **({'watch': watch} if watch else {}),
                             **({'reload': True} if reload else {}),
-                            **({'reset': True} if reset else {}))
+                            **({'reset': True} if reset else {}),
+                            **({'resume_request': previous} if reuse_selection else {}),
+                            **({'implicit_default': True} if implicit_default else {}))
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else f'{type(error).__name__}: {error}'
         print('run-tests: ' + detail, file=sys.stderr)

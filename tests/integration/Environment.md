@@ -217,8 +217,12 @@ Test and preparation selection follow the
 `--vm` accepts VM names/IDs, family names/IDs, comma-separated mixtures, `all-enabled`, or `all`.
 Every value matches case-insensitively and resolves to canonical configured VM names.
 Family selectors expand to eligible members; the union includes each VM only once.
-Optional `--host` accepts one configured host or a comma-separated list and
-intersects that union with the selected hosts. Selection defaults to enabled
+Optional `--vmhost` accepts one configured host or a comma-separated list and
+intersects that union with the selected hosts. Hosts can set `default_host` to
+the string `"true"` to join the default host filter used by `run-tests` and
+`fix-tests`. The field defaults to `"false"`. See the
+[VM selector contract](../../docs/Mandates/VM-Mandate.MD#target-selection).
+Selection defaults to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
 always requiring both VM and host enabled. The host's `max_compute_unit`
 limits the total reserved VM compute across launchers. Tests admit each sequential

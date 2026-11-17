@@ -233,8 +233,9 @@ def launcher_arguments(record, kind, *, branch, execution_plan=False, value=None
     """Share the displayed action's arguments with its actual invocation."""
     if kind == 'resume' and not execution_plan and 'requested_argv' not in record:
         return ['--branch', branch, '--resume']
+    test_controls = record.get('launcher') == 'run-tests' and kind in ('reload', 'watch-view', 'watch-ssh')
     argv = (record.get('stop_argv', record['argv']) if kind in ('stop', 'cancel-stop')
-            else record['argv'] if kind == 'add-session'
+            else record['argv'] if kind == 'add-session' or test_controls
             else record.get('requested_argv', record['argv']))
     # Replace lifecycle switches; never replay a destructive reset.
     tokens = iter(argv)
@@ -255,7 +256,7 @@ def launcher_arguments(record, kind, *, branch, execution_plan=False, value=None
             continue
         elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
             argv.append(arg)
-    if kind in ('stop', 'cancel-stop', 'add-session') or 'requested_argv' not in record:
+    if kind in ('stop', 'cancel-stop', 'add-session') or test_controls or 'requested_argv' not in record:
         argv = ['--branch', branch, *argv]
     if kind == 'add-session':
         return ['--add-session', '5', *argv]

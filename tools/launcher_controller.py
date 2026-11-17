@@ -384,13 +384,16 @@ def dispatch(entry):
 
 def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
     global _pending_startup, _public_invocation
-    from vm_selection import HOST_HELP, host_arguments
+    from vm_selection import vm_config
     original_arguments = list(arguments)
-    arguments = host_arguments(arguments)
+    vm_test_launcher = name in ('run-tests', 'fix-tests')
+    if name == 'execute-plan':
+        arguments = vm_config.host_arguments(arguments)
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
-        print(HOST_HELP, flush=True)
+        if vm_test_launcher or name == 'execute-plan':
+            print(vm_config.host_help(use_defaults=vm_test_launcher), flush=True)
     import test_source
     previous_invocation = _public_invocation
     _public_invocation = (name, original_arguments if public_argv is None else public_argv)

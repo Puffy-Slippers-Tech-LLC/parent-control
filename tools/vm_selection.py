@@ -23,8 +23,6 @@ SELECTOR_HELP = ('VM name/ID or family name/ID (case-insensitive), comma-separat
                  'all-enabled (default), '
                  'or all; offline VMs/hosts are always skipped; owning_branch restrictions always apply; '
                  'host max_compute_unit limits reserved VM compute')
-HOST_HELP = vm_config.HOST_HELP
-host_arguments = vm_config.host_arguments
 parse_vm_arguments = vm_config.parse_vm_arguments
 BASELINE_INSTRUCTIONS = (
     'When authorized baseline preparation is needed in launcher/session work, use '

@@ -257,10 +257,9 @@ Report meaningful failures and unresolved work in the normal handoff.
 
 ## Common launcher interface
 
-Shared public launchers and standalone VM tools accept optional `--host NAME`,
+Shared public launchers and standalone VM tools accept optional `--vmhost NAME[,NAME...]`,
 using the [shared VM filter](Mandates/VM-Mandate.MD#target-selection).
 The narrowed canonical VM names use the existing attachment/resume binding rules.
-This option filters VMs only; `--branch` continues to control where the launcher runs.
 
 Public commands using the shared controller accept `--branch NAME`, selecting a
 branch from `config/environment.json`. Without it, the matching `launchers` entry's

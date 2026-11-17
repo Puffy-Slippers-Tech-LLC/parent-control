@@ -33,6 +33,7 @@
     {
       "name": "local",
       "enabled": "true",
+      "default_host": "false",
       "transport": "local",
       "virt-manager": "/Data/virt-manager",
       "max_compute_unit": 3,
@@ -42,6 +43,7 @@
     {
       "name": "myserver",
       "enabled": "true",
+      "default_host": "true",
       "transport": "ssh",
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
@@ -62,7 +64,7 @@
   "families": [
     {
       "family": "ubuntu26.04-x86_64",
-      "id": "u2604",
+      "id": "u26",
       "vm_tags": "general",
       "compute_unit": 1,
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",

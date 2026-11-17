@@ -48,15 +48,22 @@ and cleanup.
 | `tools/test-vm` maintenance | One registered name or ID | Refuses maintenance without an explicit target | One owned target |
 | `tools/disable-extension` | One registered name or ID | Refuses without an explicit target | Existing owned running maintenance target; no restore |
 
-Every tool accepting `--vm` also accepts optional `--host NAME[,NAME...]` (or
-`--host=NAME[,NAME...]`) through the shared filter in
+Every tool accepting `--vm` also accepts optional `--vmhost NAME[,NAME...]` (or
+`--vmhost=NAME[,NAME...]`) through the shared filter in
 [`vm_config.py`](../../tests/integration/vm_config.py). The filter intersects the
-VM selection with those exact configured hosts and forwards canonical VM names;
-it does not change controller placement. Queue tools may use `--host` without
-`--vm` to narrow their default queue. Single-VM tools still require `--vm` and
-refuse a host mismatch, without widening their target or changing observation
+VM selection with those exact configured hosts and forwards canonical VM names.
+Controller placement follows `--branch` and the checkout configuration. Host
+categories run on the controller. Queue tools may use `--vmhost` without
+`--vm` to narrow their default queue. For new VM test runs without `--vmhost`,
+`run-tests` and `fix-tests` use every host whose `default_host` is the string
+`"true"`. If none are marked, all hosts are eligible. An explicit `--vmhost`
+overrides the defaults. Bare resume restores the saved VM selection. Stop,
+reload and Watch controls use the active run's VM selection. Standalone VM
+artifact preparation uses its explicit VM target. Other
+launchers use all hosts when `--vmhost` is omitted. Single-VM tools still require
+`--vm` and refuse a host mismatch, without widening their target or changing observation
 and owned-recovery admission rules. Unknown hosts, duplicate/missing host values
-and empty intersections refuse before work. `--host` conflicts with
+and empty intersections refuse before VM work. `--vmhost` conflicts with
 `cleanup-e2e --host-only`. Arguments after `--` belong to the invoked command and
 are never interpreted as host or VM filters.
 

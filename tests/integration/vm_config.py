@@ -33,6 +33,7 @@ class HostConfig:
     backup_root: Path | None = None
     ssh_port: int | None = None
     disk_concurrency: int = 1
+    default_host: bool = False
 
 
 @dataclass(frozen=True)
@@ -187,6 +188,9 @@ def host_registry(document):
             raise ValueError('vm-config:duplicate-host')
         if entry['enabled'] not in ('true', 'false'):
             raise ValueError('vm-config:host enabled must be the string true or false')
+        default_host = entry.get('default_host', 'false')
+        if default_host not in ('true', 'false'):
+            raise ValueError('vm-config:host default_host must be the string true or false')
         compute = compute_unit(entry['max_compute_unit'], 'host max_compute_unit')
         disk_concurrency = entry.get('disk_concurrency', 1)
         if type(disk_concurrency) is not int or disk_concurrency < 1:
@@ -201,7 +205,7 @@ def host_registry(document):
         if 'virt-manager' in entry:
             absolute_path(entry['virt-manager'], 'virt-manager')
         hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, compute, root, port,
-                                 disk_concurrency)
+                                 disk_concurrency, default_host == 'true')
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
     return hosts
@@ -469,6 +473,13 @@ def family_selectors(document):
             for field in ('family', 'id') if field in family}
 
 
+def selector_values(value, option):
+    values = value.split(',')
+    if '' in values:
+        raise ValueError(f'vm-config: {option} contains an empty selector')
+    return values
+
+
 def execution(name=None, path=None, *, remote=None):
     """Only VMs whose own flag and host flag are true may be acquired."""
     document = read_document(path, validate_agent=False)
@@ -484,7 +495,7 @@ def execution(name=None, path=None, *, remote=None):
     else:
         # Resolve the whole request before work, deduplicating aliases in order.
         selected = {}
-        for value in name.split(','):
+        for value in selector_values(name, '--vm'):
             value = value.casefold()
             if value in selectors:
                 matches = (vm for vm in families[selectors[value]['family']]
@@ -602,67 +613,69 @@ def arguments():
     return ['--vm', selected().name]
 
 
-def extract_selector(argv):
-    """Consume the optional selector without changing single-VM consumers."""
-    remaining, names = [], []
+def extract_selector(argv, *, option='--vm'):
+    """Consume one optional selector flag before the guest argument boundary."""
+    remaining, selections = [], []
     iterator = iter(argv)
-    for value in iterator:
-        if value == '--':
-            # Guest command arguments belong to the guest, including --vm and
-            # --help. Never reinterpret them as host VM selection options.
-            remaining.extend((value, *iterator))
+    for token in iterator:
+        if token == '--':
+            remaining.extend((token, *iterator))
             break
-        elif value == '--vm':
-            names.append(next(iterator, None))
-        elif value.startswith('--vm='):
-            names.append(value.partition('=')[2])
+        if token == option:
+            selections.append(next(iterator, None))
+        elif token.startswith(option + '='):
+            selections.append(token.partition('=')[2])
         else:
-            remaining.append(value)
-    if len(names) > 1:
-        raise ValueError('vm-config:duplicate --vm')
-    if names and (not names[0] or names[0].startswith('--')):
-        raise ValueError('vm-config: --vm requires a value')
-    return remaining, names[0] if names else None
+            remaining.append(token)
+    if len(selections) > 1:
+        raise ValueError(f'vm-config:duplicate {option}')
+    selection = selections[0] if selections else None
+    if selections and (not selection or selection.startswith('-')):
+        raise ValueError(f'vm-config: {option} requires a value')
+    return remaining, selection
 
 
-HOST_HELP = ('--host NAME[,NAME...] optionally limits the VM selection to those configured hosts '
-             '(e.g. myserver or local,myserver); omitted: no host filter. Single-VM tools still '
-             'require --vm. This does not change controller placement.')
+VMHOST_OPTION = '--vmhost'
+
+
+def host_help(*, use_defaults=False):
+    default = ('hosts with default_host="true", or all hosts if none are marked'
+               if use_defaults else 'all hosts')
+    return (f'{VMHOST_OPTION} NAME[,NAME...] filters VM selection by configured host names '
+            f'(e.g. myserver or local,myserver). Omitted for VM work: {default}. '
+            'Single-VM tools still require --vm. Controller placement follows branch configuration.')
+
+
+def extract_vmhost(argv):
+    return extract_selector(argv, option=VMHOST_OPTION)
 
 
 def host_arguments(argv, *, single=False, path=None):
+    remaining, host = extract_vmhost(argv)
+    return filter_vm_hosts(remaining, host, single=single, path=path)
+
+
+def filter_vm_hosts(remaining, host=None, *, single=False, path=None, use_defaults=False):
     """Intersect VM targets with a host list, preserving opaque command arguments.
 
     Single-target maintenance resolves metadata only: observations and owned
     recovery must remain possible after availability or branch flags change.
     Its existing caller remains responsible for admission and ownership checks.
     """
-    remaining, hosts = [], []
-    tokens = iter(argv)
-    for token in tokens:
-        if token == '--':
-            remaining.extend((token, *tokens))
-            break
-        if token == '--host':
-            hosts.append(next(tokens, None))
-        elif token.startswith('--host='):
-            hosts.append(token.partition('=')[2])
-        else:
-            remaining.append(token)
-    if not hosts:
+    if host is None and not use_defaults:
         return remaining
-    if len(hosts) != 1:
-        raise ValueError('vm-config:duplicate --host')
-    host = hosts[0]
-    if not host or host.startswith('-'):
-        raise ValueError('vm-config: --host requires a value')
     controls = remaining[:remaining.index('--')] if '--' in remaining else remaining
     if any(option in controls for option in ('--help', '-h')):
         return remaining
     if '--host-only' in controls:
-        raise ValueError('vm-config: --host cannot be combined with --host-only')
-    host_names = set(host.split(','))
-    if not host_names <= host_registry(read_document(path, validate_agent=False)).keys():
+        raise ValueError(f'vm-config: {VMHOST_OPTION} cannot be combined with --host-only')
+    registry = host_registry(read_document(path, validate_agent=False))
+    if host is None:
+        host = ','.join(configured.name for configured in registry.values() if configured.default_host)
+        if not host:
+            return remaining
+    host_names = set(selector_values(host, VMHOST_OPTION))
+    if not host_names <= registry.keys():
         raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
     insertion = next((index for index, value in enumerate(controls)
                       if value == '--vm' or value.startswith('--vm=')), None)
@@ -679,7 +692,7 @@ def host_arguments(argv, *, single=False, path=None):
 
 
 def add_host_argument(parser):
-    parser.add_argument('--host', metavar='NAME', help=HOST_HELP)
+    parser.add_argument(VMHOST_OPTION, metavar='NAME[,NAME...]', help=host_help())
 
 
 def parse_vm_arguments(parser, argv=None, *, single=False):

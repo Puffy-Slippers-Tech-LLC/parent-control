@@ -87,7 +87,7 @@ def current_session(directory):
         return run, busy(owner)
 
 
-def select(root, argv, *, reload=False, watch=None):
+def select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
     # Activity descriptor state is process-local. Concurrent callers in this
     # process serialize only startup; detached host/VM workers remain independent.
     from test_commands import is_inspection
@@ -97,10 +97,11 @@ def select(root, argv, *, reload=False, watch=None):
     test_source.finish_admission()
     with startup(root), _startup:
         with test_source.admission(root, ['--reload'] if reload else argv, wait=False):
-            return _select(root, argv, reload=reload, watch=watch)
+            return _select(root, argv, reload=reload, watch=watch,
+                           implicit_default=implicit_default, resume_request=resume_request)
 
 
-def _select(root, argv, *, reload=False, watch=None):
+def _select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
     from test_results import VARIABLE
     # Inspection never attaches, waits for locks, or consumes an unread result.
@@ -114,11 +115,8 @@ def _select(root, argv, *, reload=False, watch=None):
     _, selector = vm_config.extract_selector(requested)
     vms = vm_config.execution(selector)[1] if selector is not None and not host_only else ()
     session_vm = vms[0].name if len(vms) == 1 else None
-    if '--resume' in argv and not os.environ.get(VARIABLE):
-        from test_checkpoint import request_record
-        previous = request_record(root, 'run-tests')
-        if previous is not None:
-            session_vm = previous.get('session_vm', session_vm)
+    if resume_request is not None and not os.environ.get(VARIABLE):
+        session_vm = resume_request.get('session_vm', session_vm)
     directory = prepare(root, host_only=host_only,
                         vm_name=session_vm)
     test_source.finish_admission()
@@ -178,6 +176,8 @@ def _select(root, argv, *, reload=False, watch=None):
         # Reconnection wins over new execution arguments, including invalid
         # selections. Validate only when starting a new run, under the same gate.
         # Idle invocations with no arguments start the complete aggregate.
+        if implicit_default:
+            requested = vm_config.filter_vm_hosts(requested, use_defaults=True)
         validate(root, requested)
         admitted = None
         original = None
@@ -200,8 +200,10 @@ def _select(root, argv, *, reload=False, watch=None):
         # while this run is active. New public selectors still read current JSON.
         from vm_selection import extract_execution as extract
         requested, configured = extract(requested, required=False)
-        if configured is not None:
-            requested.extend(('--vm', configured))
+        worker_argv = [*requested, '--vm', configured] if configured is not None else requested
+        # A default queue stays in the shared session namespace. The worker
+        # still receives its canonical targets even if host defaults change.
+        record_argv = requested if implicit_default else worker_argv
         # Keep host-only ownership independent of standalone VM preparation.
         # Pass its actual locked descriptor, never a PID-based ownership guess.
         # VM checkout happens in the lifetime owner, before checkout-local
@@ -221,14 +223,14 @@ def _select(root, argv, *, reload=False, watch=None):
                 else:
                     host_compute.save_admitted(run, admitted)
                 command = ['/usr/bin/python3', '-u', '-B', str(Path(__file__).resolve()),
-                           str(root), str(run), str(owner), *requested]
+                           str(root), str(run), str(owner), *worker_argv]
                 # Publish before spawning: terminal loss immediately after
                 # Popen must not leave a live worker without reconnect metadata.
                 temporary = directory / 'current.tmp'
                 from vm_selection import BATCH
                 from detached_launcher import owner_record, WORKFLOW_DIRECTORY
                 # Display provenance only; this grants no execution or input authority.
-                temporary.write_text(json.dumps(owner_record(run, launcher='run-tests', argv=requested,
+                temporary.write_text(json.dumps(owner_record(run, launcher='run-tests', argv=record_argv,
                     watch_visibility=False,
                     observer=os.environ.get(FRAME_DIRECTORY) or os.environ.get(WORKFLOW_DIRECTORY),
                     vm_requested=original,
@@ -250,7 +252,7 @@ def _select(root, argv, *, reload=False, watch=None):
                 environment.pop(WORKFLOW_DIRECTORY, None)
                 with nested_operation(root, run):
                     from test_checkpoint import request_record
-                    remembered = [arg for arg in requested
+                    remembered = [arg for arg in worker_argv
                                   if arg not in ('--resume', '--resume-case-only', '--resume-area-only')
                                   and not arg.startswith('--resume-case=')]
                     if not host_only and configured is None:
@@ -333,7 +335,7 @@ def follow(run, stream=None):
             atomic(destination / 'frame.json', [])
 
 
-def main(root, argv, *, reload=False, reset=False, watch=None):
+def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=False, resume_request=None):
     run = None
     requested = False
 
@@ -347,11 +349,15 @@ def main(root, argv, *, reload=False, reset=False, watch=None):
     try:
         def start():
             return select(root, argv, **({'reload': True} if reload else {}),
-                          **({'watch': watch} if watch else {}))
+                          **({'watch': watch} if watch else {}),
+                          **({'resume_request': resume_request} if resume_request is not None else {}),
+                          **({'implicit_default': True} if implicit_default else {}))
         if reset:
             from test_reset import reset as reset_state
             from test_commands import host_only_request, validate
             from vm_selection import vm_config
+            if implicit_default:
+                argv = vm_config.filter_vm_hosts(argv, use_defaults=True)
             validate(root, argv or ['all'])
             _, selector = vm_config.extract_selector(argv)
             run, started = reset_state(root, test_source.restart_execution,

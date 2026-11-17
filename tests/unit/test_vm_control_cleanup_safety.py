@@ -1957,7 +1957,7 @@ def test_dispatcher_passes_input_marker_without_a_privileged_host_path():
 
 @pytest.mark.parametrize('args,error', [
     ([], 'vm-probe:'), (['id'], 'vm-probe:'), (['--'], 'vm-probe:'),
-    (['--host', 'other', '--', 'id'], 'vm-config:unknown host'),
+    (['--vmhost', 'other', '--', 'id'], 'vm-config:unknown host'),
 ])
 def test_root_guest_dispatch_refuses_invalid_host_controls(args, error):
     root = Path(__file__).resolve().parents[2]

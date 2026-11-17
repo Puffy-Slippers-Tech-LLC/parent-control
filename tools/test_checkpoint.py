@@ -216,18 +216,19 @@ def request_record(root, namespace, value=None):
 
 def resume_arguments(root, argv):
     if '--resume' not in argv or any(arg in ('--help', '-h', '--list', '--stop', '--collect-only') for arg in argv):
-        return argv
+        return argv, None
     from vm_selection import vm_config
     args, selector = vm_config.extract_selector(argv)
     if any(arg not in ('--resume', '--record') for arg in args):
-        return argv
+        return argv, None
     previous = request_record(root, 'run-tests')
     if not isinstance(previous, dict) or not isinstance(previous.get('argv'), list):
-        return argv
+        return argv, None
     saved, binding = vm_config.extract_selector(previous['argv'])
-    return ['--resume', *[arg for arg in args if arg == '--record'],
-            *[arg for arg in saved if arg not in ('--resume', '--record')],
-            *(['--vm', selector or binding] if selector or binding else [])]
+    resumed = ['--resume', *[arg for arg in args if arg == '--record'],
+               *[arg for arg in saved if arg not in ('--resume', '--record')],
+               *(['--vm', selector or binding] if selector or binding else [])]
+    return resumed, previous
 
 
 class Checkpoint:

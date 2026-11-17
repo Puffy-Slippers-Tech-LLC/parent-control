@@ -320,8 +320,10 @@ owned cleanup. Stateful histories remain indivisible, as do independent system
 area attempts that share preparation. Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts a VM name/ID or family name/ID, a comma-separated
 mixture, `all-enabled`, or `all`, with case-insensitive matching. Families expand to eligible members and overlapping
-selectors include each VM once. Optional `--host` accepts one host or a comma-separated
-list and intersects the selected pool. All selectors require both enabled flags.
+selectors include each VM once. Optional `--vmhost` accepts one host or a comma-separated
+list and intersects the selected VM pool. `run-tests` and `fix-tests` use the
+[configured VM host defaults](../docs/Mandates/VM-Mandate.MD#target-selection) when
+the filter is omitted. All selectors require both enabled flags.
 All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the

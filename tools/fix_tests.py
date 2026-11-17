@@ -276,12 +276,23 @@ def worker(root, run, owner):
     return status
 
 
-def select(root, request, *, resume=False, stop=False, reload=False):
+def bind_vm_request(request, vmhost=None, *, use_defaults=False):
+    from vm_selection import execution_selection, vm_config
+    selector = request['vm']
+    selection = ['--vm', selector] if selector is not None else []
+    selection = vm_config.filter_vm_hosts(selection, vmhost, use_defaults=use_defaults)
+    _, request['vm'] = vm_config.extract_selector(selection)
+    execution_selection(request['vm'])
+
+
+def select(root, request, *, resume=False, stop=False, reload=False, use_defaults=False):
     from test_results import ResultStore
     from vm_selection import execution_binding, save_binding
     kind = 'fix-tests-host' if repair_host_only_request(root, request['categories']) else 'fix-tests'
     retained = {}
     def command(run, owner):
+        if use_defaults:
+            bind_vm_request(request, use_defaults=True)
         previous = previous_run(root, kind) if resume else None
         if previous is not None:
             old_request = read_json(previous / 'request.json', {})
@@ -326,6 +337,7 @@ def select(root, request, *, resume=False, stop=False, reload=False):
 
 
 def main(argv=None):
+    from vm_selection import vm_config, VARIABLE, BATCH
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (new runs: off; update live without restarting tests)')
     parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (new runs: off; update live without restarting tests)')
@@ -341,6 +353,7 @@ def main(argv=None):
                         help='repair effort override (otherwise inherited from the configured profile)')
     parser.add_argument('--rounds', type=int, help='repeat the same test/repair workflow this many times (default: 1)')
     parser.add_argument('--tasks', type=int, help='maximum completed categories this invocation; 0 means all')
+    argv, vmhost = vm_config.extract_vmhost(sys.argv[1:] if argv is None else argv)
     args, categories = parser.parse_known_args(argv)
     root = Path(__file__).resolve().parents[1]
     saved = previous_request(root) if args.resume else {}
@@ -359,21 +372,28 @@ def main(argv=None):
     request['rounds'] = request['rounds'] or 1
     if request['rounds'] < 1:
         parser.error('--rounds must be positive')
-    if args.stop and not categories and request['vm'] is None:
+    if args.stop and not categories and request['vm'] is None and vmhost is None:
         for kind in ('fix-tests-host', 'fix-tests'):
             run, _ = launcher.select(root, kind, None, stop=True)
             if run is not None:
                 launcher.report_start(run, label='fix-tests', stop=True)
         return 0
-    from vm_selection import execution_selection, VARIABLE, BATCH
-    if request['vm'] is not None or not repair_host_only_request(root, categories):
-        execution_selection(request['vm'])
+    host_only = repair_host_only_request(root, categories)
+    from launcher_controller import public_arguments
+    use_defaults = (not host_only and vmhost is None and not (args.stop or args.reload)
+                    and not os.environ.get('ONPC_WATCH_RUN') and (args.vm is not None or not saved)
+                    and public_arguments('fix-tests') is not None)
+    if not host_only and vmhost is not None:
+        request['vm'] = args.vm
+    if request['vm'] is not None or not host_only:
+        if not use_defaults:
+            bind_vm_request(request, vmhost if not host_only else None)
     else:
         os.environ.pop(VARIABLE, None)
         os.environ.pop(BATCH, None)
     repair_inventory(root, categories)
     run, started = select(root, request, resume=args.resume and not args.reset,
-                          stop=args.stop, reload=args.reload)
+                          stop=args.stop, reload=args.reload, use_defaults=use_defaults)
     if run is None:
         print('fix-tests: no active launcher.')
         return 0

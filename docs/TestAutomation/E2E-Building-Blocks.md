@@ -4115,6 +4115,13 @@ readback. Riley's policy and disabled limits remained untouched. Complete case 8
 collection, worker/callback shutdown, owned cleanup and baseline restoration passed. This supplies no Snap denial,
 policy-driven closure or deferred-case acceptance.
 
+For live diagnosis of case 86, `tools/test-vm --vm NAME reproduce-snap-grid`
+reuses `snap_app_launch.GRID_PLAN`, its policy comparisons and fixture verification.
+It replays Jordan's launch, Submit and logout before Riley's fresh grid launch,
+reads `overlay-snap-allowed-opened` once, then closes the worker without replying
+to that boundary. The owned Riley scene remains available for guarded `exec`
+inspection followed by `stop`. This diagnostic supplies no acceptance credit.
+
 ### Offline game activity
 
 `game_activity.PLAN` / `GameActivityJourney` passed `check_e2e_game_activity`

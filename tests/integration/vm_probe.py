@@ -1761,15 +1761,23 @@ def probe_flatpak_command(lease):
 
 
 def reproduce_snap_grid(lease):
-    """Retain Jordan's first Snap grid launch for inspection in his desktop."""
+    """Retain Riley's grid launch after Jordan's actual launch, use and logout."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
-    from snap_grid import SnapGridJourney
+    from snap_app_launch import GRID_PLAN
+    from policy_edits import AppPolicyJourney
+    from snap_fixtures import fixture_actions
     from tools.test_storage import named_input
     assets = named_input(vm_source=True, fixture_source=True)
+    if not assets.is_dir():
+        import shlex
+        print('snap-grid-diagnosis: prepare fixture inputs with ' + shlex.join([
+            'tools/run-tests', 'artifacts', 'prepare', '--for-vm', '--vm', 'NAME',
+            '--output', str(assets)]), flush=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
-    return reproduce_denial(lease, SnapGridJourney, None,
-        'allowed-opened', 'snap-grid', assets=assets,
-        boundary_operation='snap-allowed-opened')
+    return reproduce_denial(lease, AppPolicyJourney, GRID_PLAN,
+        'riley-use-opened', 'snap-grid-allowed', assets=assets,
+        actions=fixture_actions(include_refusal=False),
+        boundary_operation='overlay-snap-allowed-opened')
 
 
 def reproduce_riley_native_grid(lease):

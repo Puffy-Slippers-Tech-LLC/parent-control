@@ -14575,7 +14575,7 @@ class AccessibleUI:
             # never names, draft values or a second diagnostic tree traversal.
             diagnostic['complete_reads'] = min(10000, diagnostic['complete_reads'] + 1)
             diagnostic['owner_count'] = sum(
-                identities[node] == 'com.puffyslippers.ONPCFixture.native.' + instance
+                identities[node] == 'com.puffyslippers.ONPCFixture.' + kind + '.' + instance
                 for node in nodes)
             diagnostic['ids'] = {control: sum(identities[node] == identity for node in nodes)
                 for control, identity in [('window', scope), *[
@@ -16873,6 +16873,53 @@ def require_active_launch_session(*, unlocked=False):
         require(not session_control.screen_saver_active(uid), 'ui:launch-session')
 
 
+def snap_startup_diagnostic():
+    """Bounded, failure-only process and startup categories for Allowed Snap."""
+    value = {'event': 'ui-snap-startup', 'process_states': [], 'markers': []}
+    try:
+        processes = list(Path('/proc').iterdir())
+        require(len(processes) <= 8192, 'ui:snap-diagnostic-bound')
+        for process in processes:
+            if not process.name.isdecimal():
+                continue
+            try:
+                if process.stat().st_uid != os.getuid():
+                    continue
+                argv = (process / 'cmdline').read_bytes()[:8192].split(b'\0')
+                if not any(arg == b'onpc-fixture-allowed' or
+                           arg.startswith(b'/snap/onpc-fixture-allowed/') for arg in argv):
+                    continue
+                state = (process / 'stat').read_text().rpartition(') ')[2].split()[0]
+                value['process_states'].append(state if state in 'RSDZTtIX' else 'other')
+            except (OSError, IndexError):
+                continue
+        result = subprocess.run([
+            '/usr/bin/journalctl', '--user', '--boot', '--lines=128',
+            '--output=json', '--no-pager', '--quiet',
+        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
+        require(len(result.stdout) + len(result.stderr) <= 131072, 'ui:snap-diagnostic-bound')
+        markers = (
+            ('snap-started', 'Started snap.onpc-fixture-allowed.'),
+            ('display-unavailable', 'cannot open display'),
+            ('permission-denied', 'Permission denied'),
+            ('operation-not-permitted', 'Operation not permitted'),
+            ('traceback', 'Traceback (most recent call last):'),
+            ('segmentation-fault', 'segfault'),
+            ('namespace-failed', 'cannot update snap namespace'),
+            ('scope-failed', 'Failed to start app-'),
+        )
+        entries = [json.loads(line) for line in result.stdout.splitlines()]
+        require(len(entries) <= 128, 'ui:snap-diagnostic-bound')
+        for label, text in markers:
+            if any(type(entry.get('MESSAGE')) is str and text in entry['MESSAGE']
+                   for entry in entries):
+                value['markers'].append(label)
+        value['journal'] = 'read'
+    except Exception:
+        value['journal'] = 'unavailable'
+    return value
+
+
 def native_startup_diagnostic():
     """Failure-only evidence for the named child fixture launches in this boot.
 
@@ -17488,7 +17535,7 @@ def main():
     ui.overlay_request = overlay_request
     ui.kiosk_request = kiosk_request
     ui.natural_reminder_record = natural_reminder_record
-    if sys.argv[1] == 'overlay-native-opened':
+    if sys.argv[1] in ('overlay-native-opened', 'snap-allowed-opened', 'overlay-snap-allowed-opened'):
         ui.native_open_diagnostic = {'event': 'ui-native-public-observation', 'complete_reads': 0}
     trace_argument = (sys.argv[1] in ACCESSIBILITY_TRACE_OPERATIONS or
                       sys.argv[1] == 'parent-toggle-enabled')
@@ -17559,6 +17606,12 @@ def main():
             error.add_note('public-atspi-cache-reread:' + status)
         raise
     except UiError as error:
+        if sys.argv[1] in ('snap-allowed-opened', 'overlay-snap-allowed-opened'):
+            try:
+                print(json.dumps(ui.native_open_diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+                print(json.dumps(snap_startup_diagnostic(), sort_keys=True), file=sys.stderr, flush=True)
+            except Exception:
+                print('ui:snap-startup-diagnostic-unavailable', file=sys.stderr, flush=True)
         if (sys.argv[1] == 'desktop'
                 and str(error) == 'ui:system-prompt-refused:desktop:shell-polkit'):
             try:

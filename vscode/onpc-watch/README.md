@@ -239,9 +239,9 @@ Failed launcher titles appear in red.
 the launcher terminal output, **Error** shows the shared launcher's **Last Error**
 and **Status** fields with the same colors and elapsed ages, and **Session** opens
 the session transcript and chat. The Status tab places its bold **Status:** label
-on a separate row immediately below the run summary. The title and both content
-status fields use one shared color palette; titles stay brief, while the content
-fields share the same explanatory text and formatting.
+in the scrolling body immediately below the pinned one-line run summary. The title
+and both content status fields use one shared color palette; titles stay brief,
+while the content fields share the same explanatory text and formatting.
 For `fix-tests`, Status retains the runner's overall passed/failed/total case
 counts during repair, including after reconnecting. Tests launched inside the
 repair session publish live progress without replacing those overall totals.
@@ -281,7 +281,8 @@ copies the displayed transcript.
 For every execution-plan launcher and `fix-tests`, every view
 starts with **Tasks: completed/unfinished/total | duration**
 on one pinned line, using the shared launcher counters and colors. Narrow panels
-scroll the summary horizontally instead of wrapping it. A divider
+scroll the summary horizontally instead of wrapping it. Normal running and repair
+use this same summary layout; status text stays in the body below it. A divider
 spans the panel above the completed task recaps and current task/session rows.
 For `fix-tests`, these are passed/unfinished/total cases from the runner's
 overall counts; failed cases remain unfinished until repaired. Before discovery,

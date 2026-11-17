@@ -1486,8 +1486,9 @@
                 }
             }
             section.summary.hidden = !hasSummary;
-            section.summary.replaceChildren(...(hasSummary ? [rows[0], ...(statusRow ? [statusRow] : [])] : []));
-            section.history.replaceChildren(...(hasSummary ? rows.slice(summaryEnd + 1) : rows));
+            section.summary.replaceChildren(...(hasSummary ? [rows[0]] : []));
+            section.history.replaceChildren(...(hasSummary
+                ? [...(statusRow ? [statusRow] : []), ...rows.slice(summaryEnd + 1)] : rows));
             if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         });
         runDividers();

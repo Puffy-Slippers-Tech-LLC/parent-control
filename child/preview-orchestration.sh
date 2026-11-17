@@ -219,7 +219,10 @@ onpc_preview_prepare_presentation() {
     local asset mode_dir="$onpc_preview_root/data/gnome-shell/modes"
     onpc_preview_session_mode=user
     export XDG_CURRENT_DESKTOP=GNOME
-    if [[ -f "$onpc_preview_system_shell_dir/modes/ubuntu.json" ]]; then
+    # Headless lifecycle checks use public state, not distro presentation. A
+    # server can provide GNOME Shell without Ubuntu's optional Yaru assets.
+    if [[ $onpc_preview_headless != 1 \
+            && -f "$onpc_preview_system_shell_dir/modes/ubuntu.json" ]]; then
         for asset in gnome-shell.css gnome-shell-theme.gresource gnome-shell-icons.gresource; do
             [[ -f "$onpc_preview_system_shell_dir/theme/Yaru/$asset" ]] || {
                 printf 'Ubuntu child preview requires Yaru asset: %s\n' "$asset" >&2

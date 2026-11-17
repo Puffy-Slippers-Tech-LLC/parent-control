@@ -224,6 +224,7 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
             prompt = (run / 'prompt.txt').read_text()
             assert '--resume-case=failed' in prompt and 'selected' in prompt
             import test_commands
+            assert fix_tests.validation_command(root, command)[0] == 'tools/run-tests'
             assert test_commands.execution_arguments(
                 fix_tests.validation_command(root, command)[1:]) == (['unit', 'selected'], True)
             assert results.passed('unit', 'host') == {'passed'}

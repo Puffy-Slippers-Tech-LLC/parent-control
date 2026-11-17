@@ -1,5 +1,11 @@
 """Partition the discovered UI inventory without splitting shared fixtures.
 
+The GTK observer disables only its own accessibility bridge after session boot;
+preview children retain the private session's enabled bridge. This prevents
+self-query deadlocks without changing buses, processes, cleanup or reservations.
+Headless Shell checks use standard GNOME user mode without optional distro
+theme assets; their private Shell, bus, settings and reservations stay the same.
+
 Parent feedback retry recovery uses the existing owned preview/display/bus and
 fake HTTP Session, with a tiny tmp_path release file released in finally.
 Success/closed-feedback attachment setup reuses the boundary matrix's same

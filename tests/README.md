@@ -1940,6 +1940,10 @@ the packaged extension, and private runtime state. They must not change the
 developer's desktop, extension settings or live source. Preview launchers are
 development tools, not customer E2E commands.
 
+After Dogtail boots, the GTK observer keeps its own accessibility bridge disabled
+so synchronous reads cannot block on callbacks to that same observer thread.
+Preview children inherit the private session's enabled bridge independently.
+
 ### Watching host UI tests
 
 Install with `./setup.sh --watch`, reload VS Code, then open
@@ -2045,8 +2049,10 @@ recorded identity after owned descendants settle. The shared lifecycle runner
 starts GNOME Shell headlessly with a virtual Wayland output. Panel, reminder,
 overlay, language and reload checks use public Application UI values and
 lifecycle results; no outer compositor, Devkit viewer, PipeWire capture,
-screenshot service or geometry assertion is required. Interactive child previews
-retain their visible Devkit viewer and its guarded ownership/cleanup. The
+screenshot service or geometry assertion is required. Headless checks use GNOME's
+standard user mode without optional distro theme assets. Interactive child previews
+retain Ubuntu's Yaru presentation when applicable, their visible Devkit viewer
+and guarded ownership/cleanup. The
 [legacy review publisher](ui/test_child_shell_lifecycle.py)
 still copies attempt logs to `artifacts/ui/child-shell/`;
 `latest/` is only a convenience copy. Migration of that publisher to shared

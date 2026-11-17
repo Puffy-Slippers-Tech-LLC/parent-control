@@ -525,11 +525,12 @@ def test_catalogue_query_and_representative_filter_results(
         fixture_uids={CHILD: 1001, EXISTING_CHILD: 1002},
         dispatch=lambda: GLib.MainContext.default().iteration(False))
     reader.parent_page(EXISTING_CHILD, 'App Limits')
-    initial = tuple((identity, {'H': 'permanent', 'S': 'conditional'}.get(role, access), match)
-        for identity, access, match in expected_rows()
-        for role in ('A', 'H', 'S', 'N')
-        if identity == 'parent-app-' + hashlib.sha256(
-            f'com.puffyslippers.ONPCTest.{role}.desktop'.encode()).hexdigest()[:16])
+    access_overrides = {
+        'parent-app-' + hashlib.sha256(
+            f'com.puffyslippers.ONPCTest.{role}.desktop'.encode()).hexdigest()[:16]: access
+        for role, access in (('H', 'permanent'), ('S', 'conditional'))}
+    initial = tuple((identity, access_overrides.get(identity, access), match)
+                    for identity, access, match in expected_rows())
     assert reader.app_rows(EXISTING_CHILD) == initial
     run_block(reader, 'replace', binding, child='existing')
     # Cover each category, empty filters and combined predicates without

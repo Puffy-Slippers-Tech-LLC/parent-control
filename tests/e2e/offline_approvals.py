@@ -11,7 +11,7 @@ from journey_checks import require_zero_grant
 from named_app_set import APPS, named_app_set
 from native_fixtures import fixture_actions
 from private_artifacts import require
-from request_composition import KioskRequestJourney
+from request_composition import KioskRequestJourney, _estimate_read_bounds
 from request_flow import approval_and_return
 from vm_internet import InternetIsolation, internet_result, restore
 from watch_activity import operation
@@ -193,9 +193,14 @@ class OfflineApprovalsJourney(KioskRequestJourney, AccessChoiceJourney):
             current = CountdownSample.from_ui(value, boot_sha256=self.ui.boot_proof)
             if stage != 'before-countdown':
                 estimate = self.estimates[stage.split('-')[0]]
+                # The async calculation predates the final label read. Use
+                # its measured bracket, including that real countdown time.
+                start, end = _estimate_read_bounds(estimate)
+                require(current.countdown.observed_monotonic_ns >= end,
+                        'offline-approvals:countdown-before-estimate')
                 comparison = check_countdown_balance(current.countdown,
                     seconds=estimate['estimate']['seconds'], precision_seconds=1,
-                    observed_monotonic_ns=estimate['observed_monotonic_ns'],
+                    observed_monotonic_ns=start,
                     max_elapsed_seconds=300, sampling_seconds=0)
                 earlier = self.latest_countdown.countdown
                 elapsed = (current.countdown.observed_monotonic_ns - earlier.observed_monotonic_ns) / 1e9

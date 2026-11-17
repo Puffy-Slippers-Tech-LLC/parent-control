@@ -2225,6 +2225,8 @@ before the form exits. On the child desktop after each approval, independently
 check the added time against the earlier public balance and elapsed time, use
 the allowed and soft apps, require hard-app refusal and observe the countdown
 advance. Check the complete first result before normal sign-out to the station.
+Date each asynchronous estimate by its recorded calculation bracket when
+comparing it with the later countdown, including time before the label read.
 Do not reset, revoke or reconnect between approvals. The positive daily
 allowance keeps the final desktop usable after the single revocation, so prove
 soft-app closure/refused relaunch, retained allowed access and hard refusal

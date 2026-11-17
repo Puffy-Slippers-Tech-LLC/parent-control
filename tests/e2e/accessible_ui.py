@@ -8354,6 +8354,27 @@ class AccessibleUI:
             self.invalidate_observation()
             raise UiError('ui:incomplete-tree') from error
 
+    def external_desktop_snapshot(self):
+        """Read desktop providers without discovering unrelated product surfaces.
+
+        Product controls have their own scoped API observations. Shell readiness
+        and authentication prompts depend only on the external applications.
+        """
+        try:
+            from application_ui import PRODUCT_APPLICATIONS
+        except ImportError:
+            from tests.e2e.application_ui import PRODUCT_APPLICATIONS
+        nodes, snapshot, identities, facts = [], {}, {}, {}
+        for application in self.desktop_applications():
+            if application.get_accessible_id() in PRODUCT_APPLICATIONS:
+                continue
+            nodes.extend(self.nodes(application, strict=True, protect_text=True,
+                                    snapshot=snapshot, facts=facts, identities=identities))
+            require(len(nodes) <= 6000, 'ui:tree-bound')
+        require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                        for node in nodes), 'ui:incomplete-tree')
+        return nodes, snapshot, identities, facts
+
     def prepare_launch_desktop(self):
         """Leave Shell's overview once and independently observe its closure.
 
@@ -8452,8 +8473,8 @@ class AccessibleUI:
     def shell_provider_metadata(self):
         """Qualification provenance only; no product state or arbitrary text."""
         def observe():
-            owner, _nodes, _snapshot, _facts = self.shell_search_snapshot()
-            return self._shell_provider_metadata(owner)
+            desktop = self.shell_desktop_observation(no_prompt=True)
+            return self._shell_provider_metadata(desktop[0]) if desktop else None
         # Desktop readiness does not freeze the next public tree. Shell can
         # retire a node before this provenance read; retry only the complete
         # observation under the shared deadline, never desktop/login input.
@@ -8569,9 +8590,7 @@ class AccessibleUI:
         require(root is not None, 'ui:incomplete-tree')
         capture = getattr(self, 'retained_unlock_diagnostic_active', False)
         observed_start = time.monotonic_ns() if capture else None
-        snapshot, facts, identities = {}, {}, {}
-        nodes = list(self.nodes(root, strict=True, protect_text=True,
-                                snapshot=snapshot, facts=facts, identities=identities))
+        nodes, snapshot, identities, facts = self.external_desktop_snapshot()
         observed_end = time.monotonic_ns() if capture else None
         if any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes):
             error = UiError('ui:incomplete-tree')

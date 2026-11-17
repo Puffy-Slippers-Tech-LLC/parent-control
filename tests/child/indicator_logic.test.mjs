@@ -710,6 +710,13 @@ test('passes raw observations and retains the broker deadline through fresh usag
     h.manager.dailyLimitTime = 0; // Inactivity is passed through for broker selection.
     await h.indicator._refreshEstimate();
     assert.equal(h.calls.at(-1)[0], 0);
+    // At login Shell's estimate array can still be empty, so its public
+    // deadline getter returns undefined. The valid timer read remains usable.
+    h.manager.dailyLimitTime = undefined;
+    await h.indicator._refreshEstimate();
+    assert.deepEqual(h.calls.at(-1), [0, 581,
+        'com.puffyslippers.OhNoParentControl1']);
+    assert.equal(h.indicator._statusLoaded, true);
     h.deadline(700_000_000);
     await h.indicator._refreshEstimate();
     assert.equal(h.indicator._deadlineUsec, 700_000_000);
@@ -733,6 +740,14 @@ test('temporary failures retain the original deadline or initial unavailable sta
             assert.equal(h.indicator._statusLoaded, loaded);
             assert.equal(h.reports.length, 4);
             assert.ok(h.logs.every(log => log.stage === stage && log.loaded === loaded));
+            for (const log of h.logs) {
+                const {event, ...fields} = log;
+                assert.equal(event, 'child.refresh-inputs-failed');
+                assert.equal(fields.native_endpoint,
+                    stage === 'timer-estimate' ? 'not-read' : 'available');
+                assert.equal(fields.timer_endpoint, fields.native_endpoint);
+                assert.doesNotThrow(() => diagnosticEnvelope(diagnosticCatalog, event, fields));
+            }
             h.time(110);
             if (loaded) assert.equal(h.indicator._remainingSeconds(), 40);
             h.fail(null);
@@ -741,6 +756,29 @@ test('temporary failures retain the original deadline or initial unavailable sta
             assert.equal(h.indicator._statusLoaded, true);
             assert.equal(h.indicator._refreshRetries, 0);
         }
+    }
+});
+
+test('failed refreshes classify missing and invalid endpoints without retaining their values', async () => {
+    const privateText = 'private@example.test /home/private';
+    for (const [native, timer, expected] of [
+        [undefined, 340, ['missing', 'available']],
+        [privateText, 0, ['invalid', 'absent']],
+        [340, privateText, ['available', 'invalid']],
+    ]) {
+        const h = refreshHarness({loaded: false});
+        h.manager.dailyLimitTime = native;
+        h.timer(timer);
+        h.fail('broker-calculation');
+        await h.indicator._refreshEstimate();
+        const {event, ...fields} = h.logs[0];
+        assert.equal(event, 'child.refresh-inputs-failed');
+        assert.deepEqual([fields.native_endpoint, fields.timer_endpoint], expected);
+        const encoded = diagnosticEnvelope(diagnosticCatalog, event, fields);
+        assert.ok(!encoded.includes(privateText));
+        assert.equal(fields.loaded, false);
+        assert.equal(h.reports.length, 1, 'diagnostics preserve ordinary failure reporting');
+        assert.equal(h.indicator._deadlineUsec, 0, 'failed reads never manufacture time');
     }
 });
 

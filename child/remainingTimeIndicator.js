@@ -41,6 +41,15 @@ function diagnosticSeconds(value) {
         ? Math.min(0xffffffff, Math.max(0, Math.ceil(value))) : 0;
 }
 
+function diagnosticEndpoint(value) {
+    if (value === undefined || value === null)
+        return 'missing';
+    if (typeof value !== 'number' || value < 0 ||
+        !Number.isSafeInteger(value * 1_000_000))
+        return 'invalid';
+    return value === 0 ? 'absent' : 'available';
+}
+
 function applyTextLanguage(text, language) {
     const attributes = text.get_attributes()?.copy() ?? new Pango.AttrList();
     attributes.change(Pango.attr_language_new(language));
@@ -633,6 +642,8 @@ class RemainingTimeIndicator extends PanelMenu.Button {
 
         this._refreshPending = true;
         let stage = 'timer-estimate';
+        let nativeEndpoint = 'not-read';
+        let timerEndpoint = 'not-read';
         const refreshStarted = GLib.get_monotonic_time();
         try {
             const estimates = await queryEstimatedTimes();
@@ -642,8 +653,13 @@ class RemainingTimeIndicator extends PanelMenu.Button {
             stage = 'allowance-calculation';
             const estimate = estimates[''];
             const currentTime = Main.timeLimitsManager.getCurrentTime();
-            const managerLimit = Main.timeLimitsManager.dailyLimitTime;
+            // Shell has no deadline until its asynchronous login estimate
+            // arrives. Let the broker use the timer fallback in that interval.
+            const nativeEnd = Main.timeLimitsManager.dailyLimitTime;
+            nativeEndpoint = diagnosticEndpoint(nativeEnd);
+            const managerLimit = nativeEnd ?? 0;
             const timerEnd = estimate ? estimate[2] : 0;
+            timerEndpoint = diagnosticEndpoint(timerEnd);
             stage = 'broker-calculation';
             const brokerStarted = GLib.get_monotonic_time();
             const deadline = await calculateOwnDeadline(
@@ -672,8 +688,9 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 // A transient daemon/database failure says nothing about the
                 // last successful estimate. Preserve it until a supported
                 // D-Bus query supplies a replacement.
-                logWarning('child.refresh-failed', {
+                logWarning('child.refresh-inputs-failed', {
                     stage, category: timerErrorCategory(error),
+                    native_endpoint: nativeEndpoint, timer_endpoint: timerEndpoint,
                     loaded: this._statusLoaded,
                     locked: Main.sessionMode.isLocked,
                     greeter: Main.sessionMode.isGreeter,

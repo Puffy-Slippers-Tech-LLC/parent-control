@@ -622,7 +622,12 @@ and report the failure. No failed read becomes zero remaining time.
 Diagnostics record a closed error category, attempt number, retry decision and
 successful recovery. Terminal refresh diagnostics distinguish the timer read,
 local allowance calculation and broker calculation, plus loaded/locked/greeter
-booleans. Categories come only from Gio error domains/codes or the recognized
+booleans. `child.refresh-inputs-failed` also classifies each original native and
+timer endpoint as not read, missing, invalid, absent (zero) or available, before
+the missing native endpoint is normalized to the timer-fallback sentinel. It
+retains no raw endpoint, value type or exception text. The older
+`child.refresh-failed` schema remains readable for retained logs.
+Error categories come only from Gio error domains/codes or the recognized
 timer Busy names; raw remote names, messages and stacks never enter events. New event
 IDs preserve the field-free `child.estimate-failed` contract. The
 shared catalogue and child enum validator must ship together with the broker;

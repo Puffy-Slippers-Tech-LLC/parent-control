@@ -360,10 +360,10 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             hide_task_completion=hide_task_completion, on_usage=on_usage,
             interactive=interactive, task=task, session_state=session_state)
     from launcher_runtime import AgentCapacityUnavailable, capacity_failure
-    configured_model = command.request.model
     failures = 0
     previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
+        fallback_model = command.adapter.capacity_fallback(command.request.model)
         while True:
             (run / 'agent-error.json').unlink(missing_ok=True)
             if on_model is not None:
@@ -374,8 +374,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                     interactive=interactive, task=task, session_state=session_state)
             except AgentCapacityUnavailable as error:
                 failures += 1
-                delay, fallback, exhausted = capacity_failure(configured_model, failures,
-                    selection=command.request.selection)
+                delay, fallback, exhausted = capacity_failure(failures, fallback_model=fallback_model)
                 if exhausted:
                     raise AgentCapacityUnavailable('model capacity recovery exhausted: ' + str(error)) from error
                 requested = False
@@ -388,7 +387,7 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
                 for sig in previous:
                     signal.signal(sig, stop)
                 if fallback:
-                    model = command.adapter.capacity_fallback(configured_model)
+                    model = fallback_model
                     delegation = command.request.delegation
                     if subagents_follow_model:
                         delegation = replace(delegation, model=model)
@@ -457,6 +456,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
     if requested or parent_gone or (run / 'cancel').exists():
         os.close(owner)
         return 130
+    if kind == 'agent' and command.request.run is None:
+        command = command.revised(run=run)
     plain = kind == 'agent' and command.request.run is not None and command.request.schema is None
     if plain:
         # Prepared transports carry mutable native wire state. Each process

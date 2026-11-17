@@ -226,7 +226,7 @@ def _startup_sync(root, branch, arguments, *, previous_runs=(), retained_start=F
                         # Pin recovery before a mutating ordinary pull can put
                         # its code into conflict. No-op synchronization needs no CLI.
                         selection.adapter()
-                        profile = resolve_profile('conflict_resolver', effort='low', selection=selection)
+                        profile = resolve_profile('startup_pull_recovery', selection=selection)
                     invalidated = True
             try:
                 _pull(root, recovery=recovery, frozen=frozen, descriptors=(source, transaction),
@@ -235,7 +235,7 @@ def _startup_sync(root, branch, arguments, *, previous_runs=(), retained_start=F
                 if recovery:
                     raise ValueError('controller source synchronization failed; retained repair '
                                      'ownership, edits and checkpoints were preserved: ' + str(error)) from error
-                print('Git pull failed; starting a low-effort recovery session.', flush=True)
+                print('Git pull failed; starting the configured recovery session.', flush=True)
                 invalidate()
                 _recover_pull(root, str(error), selection, profile, descriptors=(source, transaction))
             _local_checkout(root, branch)

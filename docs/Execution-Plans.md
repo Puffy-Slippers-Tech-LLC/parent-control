@@ -91,8 +91,58 @@ new launchers and session prompts must follow this same completion policy.
 
 ## Execution and delegation
 
-The requirements below remain the enforced Codex policy. Codex role assets own
-helper profiles. Workflows own escalation timing, overrides, budgets and acceptance.
+The requirements below remain the enforced Codex policy. Model selection follows
+the [model profiles](#model-profiles). Workflows own escalation timing, overrides,
+budgets and acceptance.
+
+### Model profiles
+
+[`config/environment.json`](../config/environment.json) owns model/effort selection
+under `agents`. Each provider's `defaults` object (`agents.codex.defaults` or
+`agents.claude.defaults`) contains named presets such as
+`frontier`, `workhorse` and `bargain`, each with a literal `model` and `effort`.
+Tool and helper profiles are siblings of the providers under `agents.tools`.
+Each profile has a `model` that names a selected-provider preset or a literal model:
+
+```json
+"fix-tests": { "model": "workhorse" },
+"plan-worker": { "model": "workhorse", "effort": "medium" },
+"custom-tool": { "model": "provider-model-id", "effort": "high" }
+```
+
+A preset supplies both model and effort. Omit tool `effort` to inherit the
+preset's effort; specify it to override that effort. A literal model requires
+an explicit effort. Presets do not reference other presets. Explicit CLI
+model/effort overrides take precedence over the resolved profile. Missing or
+malformed configuration fails without hidden model defaults; native catalogue
+preflight still checks support.
+
+Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-helper`,
+`conflict-resolver`, `startup-pull-recovery`, `plan-worker`, `plan-monitor` and
+`backend-reviewer`. Resolve selections in the executing checkout after dispatch,
+not at module import time. Plan admission pins its coordinator profile; translation
+admission pins its coordinator pair, and each new repair session resolves its
+current profile. An active session is not reconfigured by metadata edits.
+Plan `--check` validates the plan without selecting or qualifying an agent;
+its model/effort output remains null unless supplied explicitly by a wrapper.
+Shared Git helpers retain their originating checkout's selection when operating
+in a destination checkout. Native helper TOML assets retain their instructions,
+permissions and delegation limits; the launcher renders their model/effort into
+the owned run directory before native execution. Translation helpers follow
+their coordinator, including temporary capacity fallback.
+
+Each provider's `capacity_fallbacks` maps source preset names to target preset names. Only the
+models participate: fallback preserves the active session's effort rather than
+using the target preset's effort. This mapping does not change retry counts,
+timing, qualification or a workflow's decision to disable capacity recovery.
+Resolve the fallback when its logical session starts and retain it through every
+capacity retry, including automatic plan-controller reload. Later metadata edits
+affect new logical sessions, not an admitted session's retry policy.
+Claude presets are configuration only; they do not qualify Claude workflows.
+Their initial mapping uses Fable 5.2 for frontier reasoning, Opus 5.5 for
+workhorse coding and Haiku 5.5 for bargain tasks, following the official
+[model lineup](https://platform.claude.com/docs/en/about-claude/models/overview)
+and supported [Claude Code effort levels](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 
 At the start of every agentic session, including coordinators, workers, monitors,
 advisers and reviewers, activate this goal using Codex's `/goal` command:
@@ -156,7 +206,7 @@ coordinator under the existing response-recovery contract.
 Other queue and acceptance edits are consumed directly by ordinary launchers;
 they do not trigger snapshot comparisons or a change-acceptance log.
 
-Drive subagents using **GPT-6.1 Sol with appropriate reasoning efforts** as needed
+Drive subagents using the configured helper profiles with appropriate reasoning efforts as needed
 to divide and conquer. Prefer lower-effort agents for routine monitoring and
 coverage refreshes: Low for read-only monitoring, Medium for settled routine
 implementation or coverage maintenance, High or above for difficult diagnosis,
@@ -184,7 +234,7 @@ consultation requirements in
 subagent defaults. Delegate scoped implementation or review to appropriately
 configured subagents when the coordinator or routine `plan_worker` defaults do
 not meet those requirements.
-The mandatory independent **Astra xHigh** review for core backend changes applies
+The mandatory independent **backend-reviewer** review for core backend changes applies
 across **all launchers**, including repair, recovery and optimization. The shared
 `detached_launcher.agent_command` injects this instruction and requests a
 read-only `backend_reviewer` role, so a new launcher inherits the mandate while
@@ -491,14 +541,15 @@ supervisor without spending another task, repair or batch slot.
 An explicit capacity-failed turn returns to the same task and logical session
 after supervisor and nested cleanup.
 Retry the configured model after delays of 5, 10, 20, 40 and 80 seconds. If all
-five retries fail with that same capacity code, a GPT-6.1 Sol session gets one
-final attempt on `gpt-6-astra` at the **exact same reasoning effort**. The model
+five retries fail with that same capacity code, a session with a configured
+`capacity_fallbacks` mapping gets one final attempt on the mapped model at the
+**exact same reasoning effort**. The model
 override applies only to that session; the next session, including a continuation,
 answered blocker or rejected response, starts with the workflow's configured
 model again. Translation helpers follow their coordinator's temporary model;
 other workflows retain their explicitly configured adviser/worker roles.
-No fallback is inferred for other configured models. Exhausting
-the retry sequence or the single Astra attempt stops with a retained handoff.
+No fallback is inferred for unmapped models. Exhausting
+the retry sequence or the single fallback attempt stops with a retained handoff.
 Capacity attempts share one task-session slot and have their own finite counter;
 they do not exhaust or renew the task's normal session allowance. Each attempt
 reconciles partial work and retained results against current task definitions
@@ -561,8 +612,8 @@ operations or Git changes. The shared ordinary-plan driver first pulls the curre
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
 then validates the accepted task's explicit owned paths, captured session changes,
 and its master and queue, then invokes the repository's
-[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised GPT-6.1 Sol
-High session with the suggested message `TA: Completed task ID`. The adapter's
+[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised `commit-helper`
+session with the suggested message `TA: Completed task ID`. The adapter's
 `commit_helper` profile supplies that pinned
 model/effort pair. Its supervised caller checks catalogue readiness before
 starting task supervision, retaining the executable check during preparation. Loading
@@ -807,8 +858,8 @@ may adopt a descendant HEAD and refresh its active-work snapshot. Branch and
 upstream identity checks still apply. A matching transaction stash retains its
 original base; a rewritten or unrelated HEAD still refuses recovery.
 
-Merge and stash-restoration conflicts start supervised, unattended GPT-6.1 Sol
-High resolution turns in the affected destination, using the shared agent and
+Merge and stash-restoration conflicts start supervised, unattended resolution
+turns using the configured `conflict-resolver` profile in the affected destination, using the shared agent and
 cleanup infrastructure and the adapter's `conflict_resolver` profile.
 The current profile remains pinned independently of coordinator overrides.
 The resolver's supervised caller likewise checks catalogue readiness before

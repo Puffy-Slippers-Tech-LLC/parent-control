@@ -1,5 +1,4 @@
-model = "gpt-6.1-sol"
-model_reasoning_effort = "low"
+# Model/effort are supplied from environment.json by the launcher.
 service_tier = "default"
 sandbox_mode = "read-only"
 approval_policy = "never"

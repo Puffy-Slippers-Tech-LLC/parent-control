@@ -332,9 +332,9 @@ def main(argv=None):
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
     parser.add_argument('--reverse', action='store_true')
     parser.add_argument('--record', action='store_true', help='record VM watch video; requires both Watch options on (default: off)')
-    parser.add_argument('--model', help='repair model (default: agents.<agent>.fix-tests.default_model in config/environment.json)')
+    parser.add_argument('--model', help='repair model override (profile: agents.tools.fix-tests in config/environment.json)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),
-                        help='repair effort (default: agents.<agent>.fix-tests.default_effort in config/environment.json)')
+                        help='repair effort override (otherwise inherited from the configured profile)')
     parser.add_argument('--rounds', type=int, help='repeat the same test/repair workflow this many times (default: 1)')
     parser.add_argument('--tasks', type=int, help='maximum completed categories this invocation; 0 means all')
     args, categories = parser.parse_known_args(argv)

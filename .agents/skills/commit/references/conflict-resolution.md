@@ -3,7 +3,8 @@
 Read this procedure only when a merge or saved-work restoration conflict occurs.
 Follow the [shared propagation contract](../../../../docs/Execution-Plans.md#shared-worktree-propagation).
 
-Use a dedicated GPT-6.1 Sol High subagent for resolution. Give the agent the
+Use a dedicated subagent with the selected agent's `conflict-resolver` profile
+from `config/environment.json` for resolution. Give the agent the
 affected checkout, pinned source commit, branch/upstream identities, conflict
 paths, original staged/unstaged/untracked state, exact backup stash identities
 and recovery journal. Scope it to resolving those conflicts and validating the

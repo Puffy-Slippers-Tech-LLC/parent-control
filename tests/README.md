@@ -534,18 +534,19 @@ does not submit corrective turns, interpret intermediate JSON statuses, escalate
 models, count repair conversations or recover old threads. Native automatic
 goal continuation belongs to the session runtime.
 
-Repair model and effort defaults come from
-`agents.<agent>.fix-tests.default_model` and `default_effort` in
+Repair model and effort come from
+`agents.tools.fix-tests` in
 [`config/environment.json`](../config/environment.json) in the executing checkout.
-The checked-in Codex profile is `gpt-6.1-sol` with `high` effort at Standard speed.
+The checked-in Codex profile selects `workhorse` at Standard speed; see
+[model profiles](../docs/Execution-Plans.md#model-profiles) for preset inheritance
+and explicit effort overrides.
 Each new repair session reads the current defaults; editing them does not change
 an already running session. `--model` and `--effort` override their respective
-defaults, including remembered explicit overrides on `--resume`. Both defaults
-must be nonempty tokens. Missing or malformed profiles fail without hidden defaults;
+profile values, including remembered explicit overrides on `--resume`. Model and
+effort must resolve to nonempty tokens. Missing or malformed profiles fail without hidden defaults;
 the native runtime still determines model and effort support.
-The workflow has no automatic escalation ladder. The empty `agents.claude` entry
-does not enable the unqualified Claude transport. Other workflows and native
-helper-role profiles retain their existing settings.
+The workflow has no automatic escalation ladder. The `agents.claude.defaults` presets
+do not enable the unqualified Claude transport.
 Existing authentication, sandbox and command
 authorization remain in effect. Core product backend edits retain the
 [independent review requirement](../AGENTS.md#product-boundaries).

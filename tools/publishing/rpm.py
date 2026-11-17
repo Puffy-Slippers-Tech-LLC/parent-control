@@ -18,7 +18,8 @@ from tools import build_rpm, package_inputs, test_storage, host_disk, build_targ
 SCM_INPUTS = tuple(map(Path, (
     '.copr/Makefile', 'tools/build_rpm.py', 'tools/package_inputs.py',
     'tools/rpm_builder.py', 'tools/test_storage.py', 'tools/test_retention.py',
-    'tools/test_io.py', 'tools/build_targets.py',
+    'tools/test_io.py', 'tools/test_source.py', 'tools/host_compute.py',
+    'tools/build_targets.py',
 )))
 
 RECIPE = '''FROM registry.fedoraproject.org/fedora:44 AS source

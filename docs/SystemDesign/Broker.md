@@ -289,9 +289,12 @@ loads on broker process restart.
 
 The root PAM helper calls `RecoverChildExtension` after its GDM time check
 accepts a restricted child login or unlock, including daily-allowance entry
-without kiosk approval. The broker serializes recovery with policy transactions,
-validates the target child and reasserts activation only for a saved enabled
-control. Recovery failure refuses that authentication attempt; it creates no
+without kiosk approval. Recovery runs in a D-Bus worker and waits up to 30 seconds
+for the shared transaction lock, so background monitoring cannot immediately
+reject a valid login. After acquiring it, the broker rechecks the caller's
+administrator role, reloads and validates the target child, and reasserts
+activation only for a saved enabled control. Recovery failure refuses that
+authentication attempt; it creates no
 grant and changes no account policy or saved preference. PAM rechecks current
 remaining time after recovery before accepting admission.
 

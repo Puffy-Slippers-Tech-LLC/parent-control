@@ -45,6 +45,7 @@ FULL_DAY_SCHEDULE = (0, 86400)
 # D-Bus uint64 values used by GJS must remain exactly representable in Number.
 MAX_SAFE_DEADLINE_USEC = (1 << 53) - 1
 CLOCK_SAMPLE_TOLERANCE_USEC = 1000
+EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS = 30
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
 
 
@@ -224,8 +225,8 @@ class Broker:
         self._transaction_revision = 0
         self._grant_diagnostics = GrantDiagnostics()
 
-    def _acquire_request_lock(self, diagnostic_kind="other"):
-        if not self._request_lock.acquire(blocking=False):
+    def _acquire_request_lock(self, diagnostic_kind="other", *, timeout=0):
+        if not self._request_lock.acquire(timeout=timeout):
             try:
                 owner = self._request_lock_diagnostic
                 LOG.info("core.transaction-busy", requested=diagnostic_kind,
@@ -603,9 +604,15 @@ class Broker:
         """Reassert saved enforcement for PAM and administrator management."""
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
-        if not self._acquire_request_lock("extension-recovery"):
+        # This runs in a D-Bus worker, so wait for the current transaction
+        # instead of rejecting a valid login when background monitoring wins
+        # the lock. Reload target and policy only after admission below.
+        if not self._acquire_request_lock("extension-recovery",
+                timeout=EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS):
             raise Busy("another request is already in progress")
         try:
+            if not self._is_admin(caller_uid):
+                raise AccessDenied("administrator access is required")
             target = self._target(self._load_config(), target_uid)
             preferences = self._load_request_preferences(target.uid)
             if not preferences["parent_control_enabled"]:

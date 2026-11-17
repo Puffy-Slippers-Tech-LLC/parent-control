@@ -41,6 +41,8 @@ host package state, shared images or new cleanup resources.
 
 Core deadline/order checks add one bounded, joined thread with private Events
 and recording adapters per case; no bus, process, shared path or VM is acquired.
+Recovery contention checks use that same private thread/lock pattern; the core
+module remains compatible with unit overlap and has no cleanup or UI entry.
 Production-clock cases read the immutable public OS timezone file and patch only
 process-local clock/file bindings; they mutate no host timezone or shared state.
 

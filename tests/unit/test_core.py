@@ -126,6 +126,82 @@ def test_session_extension_hints_revalidate_policy_and_roles_under_transaction_l
     assert accounts.events == []
 
 
+@pytest.mark.parametrize("change", ["none", "disable", "demote-caller"])
+def test_login_recovery_waits_for_monitor_and_reloads_policy(change):
+    preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(preferences=preferences, extensions=extensions, accounts=accounts)
+    entered, finished = threading.Event(), threading.Event()
+    result, errors = [], []
+    lock = broker._request_lock
+
+    def acquire(**kwargs):
+        # Require blocking admission before handing scheduling back to the
+        # lock owner; otherwise a fail-fast implementation could win the race.
+        assert 0 < kwargs["timeout"] <= 30
+        entered.set()
+        return lock.acquire(**kwargs)
+
+    def recover():
+        try:
+            result.append(broker.recover_child_extension(1003, 1001))
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    assert broker._acquire_request_lock("extension-monitor")
+    held_by_test = True
+    thread = threading.Thread(target=recover)
+    try:
+        with mock.patch.object(broker, "_request_lock", mock.Mock(
+                acquire=acquire, release=lock.release)):
+            thread.start()
+            assert entered.wait(2)
+            assert not finished.is_set()
+            assert extensions.calls == []
+            # A policy change ordered before recovery must win even though
+            # the login began while the old saved control was enabled.
+            if change == "disable":
+                preferences.values[1001]["parent_control_enabled"] = False
+            elif change == "demote-caller":
+                accounts.users[1003] = replace(accounts.users[1003], is_admin=False)
+            broker._release_request_lock()
+            held_by_test = False
+            thread.join(2)
+            assert not thread.is_alive()
+    finally:
+        if held_by_test:
+            lock.release()
+        if thread.ident is not None:
+            thread.join(2)
+    if change == "demote-caller":
+        assert len(errors) == 1 and isinstance(errors[0], AccessDenied)
+        assert result == []
+    else:
+        assert errors == []
+        assert result == [change == "none"]
+    assert extensions.recoveries == ([1001] if change == "none" else [])
+
+
+def test_login_recovery_lock_timeout_keeps_enforcement_closed(monkeypatch):
+    from oh_no_parent_control import core
+
+    preferences, extensions = Preferences(), Extensions()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(preferences=preferences, extensions=extensions)
+    monkeypatch.setattr(core, "EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS", 0)
+    assert broker._acquire_request_lock("extension-monitor")
+    try:
+        with pytest.raises(Busy):
+            broker.recover_child_extension(0, 1001)
+        assert broker._request_lock.locked()
+        assert extensions.calls == []
+    finally:
+        broker._release_request_lock()
+    assert broker.recover_child_extension(0, 1001)
+
+
 def test_startup_confirmed_extension_failure_keeps_saved_policy_and_broker_available():
     preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
     preferences.values[1001]["parent_control_enabled"] = True

@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import sysconfig
+import tempfile
 import time
 
 import test_retention
@@ -250,7 +251,9 @@ def prepare_artifacts(builder, output):
     # Register before writing, including failures and interruptions. The cache
     # owns no payload generations outside the established retention journal.
     test_retention.retain(output)
-    with receipt(builder.REPOSITORY, 'artifacts') as (record, save):
+    from test_storage import scratch_directory
+    with tempfile.TemporaryDirectory(prefix='onpc-artifact-reuse-', dir=scratch_directory()) as temporary, \
+            receipt(builder.REPOSITORY, 'artifacts') as (record, save):
         started = time.monotonic()
         captured, metadata = artifact_identity(builder)
         before = digest(captured)
@@ -268,6 +271,11 @@ def prepare_artifacts(builder, output):
                         or source.resolve() != source or source == output):
                     raise ValueError('startup cache: invalid retained path')
                 test_retention.private(source.stat())
+                # The previous run may rotate while a new package builds.
+                # Capture its bytes now, then verify and reuse only our copy.
+                staged = Path(temporary) / 'bundle'
+                shutil.copytree(source, staged, symlinks=True)
+                source = staged
                 if tree_digest(source) != record['payload']:
                     raise ValueError('startup cache: payload changed')
                 manifest = builder.verify(source)

@@ -349,9 +349,10 @@ structured workflow results wait for completion before being interpreted.
 Structured results appear as labeled text, including the impact assessment's
 reason, scope, evidence and classification. The original JSON remains available
 to the launcher for validation and scheduling.
-Agent session changes within a launcher run preserve terminal history; chat
-always targets the current session. Oldest rows expire under the bounded
-scrollback limits instead of clearing the conversation at each session change.
+Each new `fix-tests` repair session clears the previous repair's conversation.
+Reconnecting Watch retains the current repair session's history. Other launchers
+preserve terminal history across agent sessions within a run. Chat always targets
+the current session, and oldest rows expire under the bounded scrollback limits.
 Command and tool result bodies are hidden in
 both modes; activity names remain visible and saved transcripts retain results.
 Simplified mode pins the latest command activity to one clipped line above the

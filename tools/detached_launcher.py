@@ -480,10 +480,14 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive or plain,
             **provenance)
-        # The allocation owns terminal history; changing the input recipient
-        # must not erase earlier agent sessions in that same launcher run.
-        session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run)
-                              if plain else SessionTranscript(sys.stdout, run))
+        # Each repair starts a fresh conversation. Other workflows retain
+        # terminal history across their agent sessions within this allocation.
+        fresh_transcript = run.parent.name in ('fix-tests', 'fix-tests-host')
+        session_view['fresh_transcript'] = fresh_transcript
+        session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run,
+                                                   reset=fresh_transcript)
+                              if plain else SessionTranscript(sys.stdout, run,
+                                                              reset=fresh_transcript))
         renderer = AgentRenderer(session_transcript or sys.stdout, command_log=run / 'agent-commands.log',
                                  full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,

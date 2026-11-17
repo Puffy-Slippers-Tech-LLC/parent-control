@@ -121,16 +121,21 @@ class SessionMarkdown(Markdown):
 class SessionTranscript:
     """Append rendered agent output to the launcher run's bounded log."""
 
-    def __init__(self, stream, run):
+    def __init__(self, stream, run, *, reset=False):
         self.stream = stream
         self.path = run / 'session-output.log'
         self.line_start = True
         fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NONBLOCK | os.O_NOFOLLOW, 0o600)
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+                raise ValueError('unsafe session transcript')
+            if reset:
+                os.ftruncate(fd, 0)
+            self.log = os.fdopen(fd, 'wb')
+        except Exception:
             os.close(fd)
-            raise ValueError('unsafe session transcript')
-        self.log = os.fdopen(fd, 'wb')
+            raise
 
     def isatty(self):
         return False

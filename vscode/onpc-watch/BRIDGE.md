@@ -90,14 +90,13 @@ Adapters accept `resources: false`
 to omit host counter sampling when the bridge uses a dedicated host resource
 reader. That reader accepts
 `enabled: false`, which skips counter reads and returns empty resource fields.
-The bridge derives this setting from the latest main snapshots on the same
-host; it waits for their first policy before sampling. A host without a main
-adapter retains standalone resource sampling.
+The bridge keeps this reader enabled independently of VM SSH collection,
+including before the first main snapshot arrives.
 
 Live launcher controls are independent of the visible Watch selection.
 `--watch-view off` stops server capture and prevents VM pixel copies, checksums
-and PNG encoding. `--watch-ssh off` stops command transcript/activity polling and
-host counter sampling. Disabled displays and command text are cleared. Minimal
+and PNG encoding. `--watch-ssh off` stops VM command transcript/activity polling
+and transfer. Host counter sampling remains active. Disabled displays and command text are cleared. Minimal
 policy/connection heartbeats, launcher and agent session progress, errors and
 controls remain available. Frame metadata requires boolean `watch_view` and
 `watch_ssh` fields.
@@ -131,7 +130,7 @@ The response contains these fields:
 | `watch_launchers` | Complete list of active `run-tests`/`fix-tests` controls, including children grouped under other displayed workflows. Entries have `{id, run, launcher, watch_controls: boolean}` and boolean `watch_ssh`/`watch_view` fields when controls are readable. The extension sends its complete locally saved preferences to new connected/discovered launchers. Runtime saves recheck the exact live owner under its admission gate, create missing files and preserve the recording guard; unreadable existing files fail at save. IDs and run identities are opaque. |
 | `entries` | Viewer entries described below, including idle configured viewers. |
 | `resources` | Readable resource summary for the source host. |
-| `watch_ssh` | Boolean host sampling policy, aggregated from live launcher controls and VM heartbeats. |
+| `watch_ssh` | Boolean VM SSH collection policy, aggregated from live launcher controls and VM heartbeats; does not control host sampling. |
 | `resource_sample` | Sample identity, compared only within this source. |
 | `resource_charts` | Array of `{label, text, segments, host_segments?}` for CPU, VM/Host RAM and Disk; empty if unavailable. VM/Host RAM reports VM working set / total host usage in decimal GB rounded to one decimal place. `segments` contains the purple VM line; optional `host_segments` contains the teal host line (`MemTotal` minus `MemAvailable`). Both use percentage of total host RAM. Older single-line charts remain accepted. |
 | `session_result` | Optional `{id, ok, error?}` acknowledging the requested action. |

@@ -653,8 +653,9 @@ unreachable servers. Readers connect asynchronously at startup; Watch does not
 wait for SSH handshakes or offline hosts before opening. Healthy connections reuse
 persistent SSH readers; no separate
 SSH ping processes are started. Host resource readers are polled once per second,
-but skip counter reads while all active controlled runs on that host have
-`--watch-ssh off`. New `run-tests` and `fix-tests` runs start with both
+independently of the global SSH toggle and launcher `--watch-ssh` settings.
+The SSH toggle controls VM command collection and transfer; footer CPU, RAM and
+disk I/O monitoring remains active. New `run-tests` and `fix-tests` runs start with both
 `--watch-ssh off` and `--watch-view off`. Use the corresponding `on` option to
 enable command observation or VM display capture, and `off` to stop it during
 the same live run. Omitted options preserve that run's current choices. While

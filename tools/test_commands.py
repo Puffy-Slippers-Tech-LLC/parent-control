@@ -376,7 +376,7 @@ use current arguments and inventory, retaining readable completed case results.
 Recording is off by default; --record enables VM watch video for this invocation.
 Specify --record again on resume to keep recording.
 Watch collection is off by default for new runs. --watch-ssh on|off controls
-Watch SSH output, progress and resource sampling; --watch-view on|off controls
+Watch VM SSH output, progress and transfer; --watch-view on|off controls
 screen capture and transfer. Attach with the same scope/VM selection to change
 either setting live, without reloading or restarting tests. Omitted settings
 remain unchanged on attachment and controller reload. --record requires both on;

@@ -491,6 +491,12 @@ evidence collection and outer restoration remain the existing attempt envelope.
 | DESK12 | C | Resolve the product panel API surface from the observed unlocked child desktop, including a caller-declared fullscreen activity. Require the current session and logical control availability. | DESK01 → shared `child-panel` client → UI01/UI02. `AccessibleUI.overlay_panel_target(child=...)` binds `child-request-button`; the adapter owns desktop/session details. See [overlay entry qualification](#overlay-entry-qualification) and [fullscreen game request/return](#fullscreen-gameplay-request-and-return). E2E-024 retains real gameplay and request/return outcomes without focus or pointer revelation. | normal request entry, open-overlay history and Jordan fullscreen request/return ready on Ubuntu 26.04; other bindings keep their existing scope |
 | DESK13 | A | Set the explicitly bound fixture user's desktop language to one declared installed locale through a supported system API, then independently read back that account's language. Do not change product preferences, another account or the observer locale; no implicit logout/login. Return the confirmed setting and whether session renewal is required. | `AccountLanguage.submit` / `confirm` in [account_language.py](../../tests/e2e/account_language.py), with AccountsService `User.SetLanguage` and independent `Language` API reads in [account_language_guest.py](../../tests/e2e/account_language_guest.py). `check_e2e_desktop_language` qualified Jordan → `zh_CN.UTF-8` on every enabled VM (Ubuntu 26.04), confirming Ubuntu's normalized `zh_CN` and required renewal. Greeter/account/locale refusals, Chinese FIX06, independent readbacks, preservation, collection and owned cleanup passed. The Chinese lifecycle qualification's recipe owns explicit renewal and public fresh-desktop observation. [Language preparation contract](#chinese-language-preparation-and-desktop-language-setup). | ready for the Jordan Chinese setting binding |
 
+DESK01 and its Shell provider metadata read use
+`AccessibleUI.external_desktop_snapshot`: complete external application trees,
+including unknown/authentication-modal refusal, without product API inventories.
+Product settings, countdown and request results retain their separate scoped
+Application UI observations; desktop readiness does not establish those results.
+
 #### Parent lock surface qualification
 
 `check_e2e_lock_surface` qualifies fresh Parent command Lock and independently

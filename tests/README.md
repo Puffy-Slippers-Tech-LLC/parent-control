@@ -737,7 +737,10 @@ Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 [E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
 pending scope and prerequisites.
 Every `tools/run-tests` category runs in a detached controller. The launcher
-returns after admission; Watch observes the progress and final verdict.
+returns after admission; its private run directory retains progress and the final
+verdict. `run-tests` sets shared `WatchVisibility` to `false`, so Watch does not
+display its own launcher section. Invoking workflows such as `fix-tests` still
+receive and display its output and progress.
 `--reload` requests replacement and returns immediately. Active VM guest steps
 are interrupted through the [repair interruption route](#scripted-repair-loop);
 replacement waits for owned cleanup, not completion of the admitted case group.
@@ -775,11 +778,12 @@ result. After delivery, or when no VM session exists, an invocation without argu
 aggregate. VM session output and ownership records live under
 `output/test-runs/host/sessions/`; host-only records live under
 `output/test-runs/host/sessions-host/`. Reconnect to a host-only run with a host
-category such as `host`, `ui`, or `unit` to address its active owner; use Watch to read retained results.
+category such as `host`, `ui`, or `unit` to address its active owner; read retained
+results in the printed run directory.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
-using the new fast mode. Neither aggregate accepts suite selectors. Watch shows
+using the new fast mode. Neither aggregate accepts suite selectors. Supervising workflows show
 colored category progress with branches for the four host workers, a join before
 the exclusive VM stages, and overall wall time. Publishing, build A, build B and
 comparison appear individually under the host branch that runs them. Branch assignment reflects

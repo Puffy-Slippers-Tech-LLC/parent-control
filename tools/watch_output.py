@@ -103,8 +103,9 @@ def active_run(base, *, workflow=False, reader=None, include_idle=False):
     return run if include_idle else None
 
 
-def active_launchers(root, reader, *, include_idle=False, workflows_only=False):
-    """Discover live publications, optionally including retained idle runs."""
+def active_launchers(root, reader, *, include_idle=False, workflows_only=False,
+                     watch_visible_only=False):
+    """Discover publications, optionally filtering Watch tiles, never output transport."""
     for kind in ('fix-tests', 'fix-tests-host', 'sync-whatsnew',
                  'plans', 'sessions-host', 'sessions'):
         if workflows_only and kind in ('sessions-host', 'sessions'):
@@ -123,6 +124,8 @@ def active_launchers(root, reader, *, include_idle=False, workflows_only=False):
                     if run is not None:
                         record = reader.read(item / 'current.json', 4096)
                         if record.get('run') != run.name:
+                            continue
+                        if watch_visible_only and record.get('WatchVisibility', True) is False:
                             continue
                         name = record.get('launcher', 'launcher')
                         if not isinstance(name, str) or not re.fullmatch(r'[\w.-]{1,100}', name):

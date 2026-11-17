@@ -28,12 +28,15 @@ strip and overflow menu as minimized viewers, leaving the grid space for expande
 tiles. Double-click a minimized title to restore the launcher's chosen layout.
 
 The left panel shows **Run Status** across related Git worktrees, using shared
-runner discovery and the pipeline dashboard. Each concurrent launcher gets its
+runner discovery and the pipeline dashboard. Each visible concurrent launcher gets its
 own section, including launchers in the same worktree. Sections
 share the panel in equal sections initially. A `run-tests` child that publishes
 its controlling launcher is shown through that launcher's progress, even across
-worktrees. Independent runners keep their own sections. Older child runs without
-that publication remain visible until their next normal start.
+worktrees. `run-tests` sets the internal `WatchVisibility` flag to `false`, so
+independent runners have no launcher section either. The shared flag defaults to
+`true`; older publications without it remain visible until their next normal start.
+Hidden runners still forward output and progress to their invokers and remain
+subject to the global Watch collection controls.
 In Vertical mode, the horizontal dividers can be
 dragged to resize adjacent sections, or focused
 and adjusted with Up/Down. A vertical divider separates each actions menu from

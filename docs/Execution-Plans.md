@@ -921,6 +921,13 @@ not implement panel formatting or wiring. Thin plan entry points supply only
 `PlanWorkflow` configuration. Non-plan launchers such as `fix-tests` use the base
 presentation strategy directly and can customize their layout and progress.
 
+Shared owner publications carry the internal boolean `WatchVisibility`, defaulting
+to `true` (also when absent in older publications). Launchers pass
+`watch_visibility` to shared owner publication or detached selection to override
+it. `run-tests` publishes `false`, hiding its own active and retained launcher
+sections in ONPC: Watch. Output forwarding, supervisor progress, verdicts and
+Watch collection controls remain independent of this discovery flag.
+
 | Shared component | Responsibility | Customization |
 | --- | --- | --- |
 | [`execution_plan.py`](../tools/execution_plan.py) | Markdown selection, dependency/pointer and completion guards | Master/queue paths, task briefs and acceptance metadata |

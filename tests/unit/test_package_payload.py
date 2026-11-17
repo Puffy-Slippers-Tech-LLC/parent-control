@@ -314,7 +314,8 @@ def test_final_package_hook_refreshes_stripped_binary_digests(production_payload
                               pass_fds=scratch_descriptors())
     assert sequence.returncode == 0, sequence.stdout + sequence.stderr
     commands = [line.strip() for line in sequence.stdout.splitlines()]
-    assert commands.index("dh_strip -a") < commands.index(
+    # The package strips through its override to keep native build IDs stable.
+    assert commands.index("debian/rules override_dh_strip") < commands.index(
         "debian/rules execute_before_dh_md5sums") < commands.index("dh_md5sums")
 
 

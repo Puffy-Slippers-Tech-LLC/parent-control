@@ -178,9 +178,12 @@ preference reload, including failed-save recovery, and can be overwritten by a
 later app-policy save. See the
 [frontend limitation](SystemDesign/Frontends.md#parent-controls-and-shared-information).
 
-The broker's nonblocking shared transaction lock covers screen-time controls,
+The broker's shared transaction lock covers screen-time controls,
 app-policy saves, approvals, revocations and session preparation; request-choice
-persistence does not take that lock. Approval revalidates its preference snapshot
+persistence does not take that lock. Policy requests acquire it without waiting;
+explicit extension recovery waits within a finite bound before revalidating the
+target and saved control, including when background monitoring holds the lock.
+Approval revalidates its preference snapshot
 around authentication and
 usage queries. Once a request and its cleanup finish, another request may begin
 immediately with fresh parent authentication; successful requests add no waiting

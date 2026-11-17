@@ -21,7 +21,6 @@ from test_storage import directory as storage_directory
 from tools import whats_new_catalogs as catalogs
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL, DEFAULT_EFFORT = resolve_profile('translator')
 DEFAULT_SUBAGENTS = 5
 DEFAULT_BATCH_SIZE = 24
 SCHEMA = Path(__file__).with_name('sync_whatsnew_response.schema.json')
@@ -322,14 +321,14 @@ def main(argv=None):
                              help='reload a running launcher after the current batch; ignored when starting')
         actions.add_argument('--resume', action='store_true',
                              help='continue the remaining translations (the default behavior)')
-        parser.add_argument('--model', default=DEFAULT_MODEL, help=f'coordinator/translator model (default: {DEFAULT_MODEL})')
-        parser.add_argument('--effort', choices=('medium', 'high', 'xhigh'), default=DEFAULT_EFFORT)
+        parser.add_argument('--model', help='coordinator/translator model override (otherwise use environment.json)')
+        parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh'),
+                            help='effort override (otherwise inherit the configured profile)')
         parser.add_argument('--subagents', type=int, choices=range(0, 7), default=DEFAULT_SUBAGENTS,
                             help='read-only helpers alongside coordinator (default: 5; 0 is serial)')
         parser.add_argument('--batch-size', type=int, choices=range(1, 33), default=DEFAULT_BATCH_SIZE,
                             help='pending languages per fresh session (default: 24)')
         args = parser.parse_args(argv)
-        resolve_profile('translator', model=args.model, effort=args.effort)
         if args.check:
             release = catalogs.check(ROOT)
             print(f'sync-whatsnew: v{release.version}: all translations complete')
@@ -345,6 +344,9 @@ def main(argv=None):
         pending_pull = None
         def start(run, owner):
             nonlocal pending_pull
+            selection = resolve_selection(ROOT)
+            model, effort = resolve_profile('translator', model=args.model, effort=args.effort,
+                                            selection=selection)
             previous = launcher.current_run(storage_directory('sync-whatsnew', root=ROOT))
             if previous is not None and (previous / 'translation-state.json').exists():
                 saved = json.loads((previous / 'translation-state.json').read_text())
@@ -353,11 +355,10 @@ def main(argv=None):
             release = catalogs.latest(ROOT) if pending_pull is None else None
             work = catalogs.pending(ROOT, release) if release is not None else {}
             if work:
-                selection = resolve_selection(ROOT)
-                available_model(args.model, args.effort, args.subagents, selection=selection)
-                agent_command(ROOT, run, args.model, args.effort, args.subagents, selection=selection)
+                available_model(model, effort, args.subagents, selection=selection)
+                agent_command(ROOT, run, model, effort, args.subagents, selection=selection)
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
-                    str(run), str(owner), args.model, args.effort, str(args.subagents), str(args.batch_size)]
+                    str(run), str(owner), model, effort, str(args.subagents), str(args.batch_size)]
 
         def resume_pull(run):
             if pending_pull is not None:

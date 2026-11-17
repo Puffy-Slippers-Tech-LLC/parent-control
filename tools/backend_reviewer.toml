@@ -1,6 +1,5 @@
 # Shared by every coding launcher; invoked only for core backend changes.
-model = "gpt-6-astra"
-model_reasoning_effort = "xhigh"
+# Model/effort are supplied from environment.json by the launcher.
 service_tier = "default"
 sandbox_mode = "read-only"
 approval_policy = "never"

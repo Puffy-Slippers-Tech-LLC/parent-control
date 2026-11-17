@@ -7,9 +7,10 @@ import re
 import shutil
 import subprocess
 import time
-import tomllib
 
-from agent_adapter import ModelProfile, PreparedSession, ProfileRole, SessionEvent, SessionRequest
+from agent_adapter import (AgentSelection, ModelProfile, PreparedSession, ProfileRole,
+                           SessionEvent, SessionRequest, resolve_workflow_profile,
+                           resolve_capacity_fallback)
 
 
 SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions that simplify '
@@ -41,9 +42,9 @@ it does not authorize delegation beyond the launcher's existing policy.
 
 BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
 AGENTS.md requires an independent code review by the backend_reviewer agent
-(GPT-6 Astra xHigh) before completing the changes. This mandate applies across
+(using its configured metadata profile) before completing the changes. This mandate applies across
 all launchers, including repair, recovery and optimization sessions. It overrides
-Sol-only and no-delegation rules only for this required review; keep the launcher's
+coordinator-model and no-delegation rules only for this required review; keep the launcher's
 existing coordinator, implementation, consultation and escalation model policy.
 Do not request this review for changes outside core backend code. Give the reviewer
 the exact owned changes, relevant source/contracts and validation evidence in a
@@ -75,6 +76,9 @@ def session_instructions(request):
 
 class CodexAdapter:
     name = 'codex'
+
+    def __init__(self, root=None):
+        self.selection = AgentSelection(self.name, root or Path(__file__).resolve().parents[1])
 
     def setup(self, root, *, headless=False):
         from install_codex_rules import prepare_checkout
@@ -126,22 +130,26 @@ class CodexAdapter:
         return 'Codex login verified for this account; model access is checked before each workflow'
 
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
-        if role in ('implementation', 'translator', 'commit_helper', 'conflict_resolver'):
-            default = ModelProfile('gpt-6.1-sol', 'high')
-        elif role in ROLES:
-            # Role assets remain the authority for their pinned native profiles.
-            with Path(__file__).with_name(ROLES[role][1]).open('rb') as stream:
-                config = tomllib.load(stream)
-            default = ModelProfile(config['model'], config['model_reasoning_effort'])
-        else:
+        workflows = {
+            'implementation': 'execute-plan', 'translator': 'sync-whatsnew',
+            'commit_helper': 'commit-helper', 'conflict_resolver': 'conflict-resolver',
+            'startup_pull_recovery': 'startup-pull-recovery',
+            'worker': 'plan-worker', 'monitor': 'plan-monitor',
+            'backend_reviewer': 'backend-reviewer',
+        }
+        if role not in workflows:
             raise ValueError('unsupported agent model profile')
-        model = model or default.model
-        if role == 'translator' and model.endswith('-sol') and model != default.model:
-            raise ValueError('Sol must be ' + default.model)
-        return ModelProfile(model, effort or default.effort)
+        return resolve_workflow_profile(workflows[role], selection=self.selection,
+                                        model=model, effort=effort)
 
     def capacity_fallback(self, model):
-        return 'gpt-6-astra' if model == 'gpt-6.1-sol' else None
+        return resolve_capacity_fallback(model, selection=self.selection)
+
+    def helper_profile(self, request, role):
+        delegation = request.delegation
+        return (self.resolve_profile(role, model=delegation.model or request.model,
+                                     effort=delegation.effort or request.effort)
+                if role == 'translator' else self.resolve_profile(role))
 
     def executable(self, environment):
         executable = shutil.which('codex', path=environment.get('PATH', ''))
@@ -180,9 +188,7 @@ class CodexAdapter:
                 required.append(ModelProfile(delegation.model or request.model,
                                              delegation.effort or request.effort))
             for role in delegation.roles:
-                required.append(self.resolve_profile(role) if role != 'translator' else
-                                self.resolve_profile(role, model=delegation.model or request.model,
-                                                     effort=delegation.effort or request.effort))
+                required.append(self.helper_profile(request, role))
         for model, effort in dict.fromkeys(required):
             if not any(isinstance(entry, dict) and entry.get('visibility') == 'list'
                        and entry.get('slug') == model
@@ -231,10 +237,23 @@ class CodexAdapter:
             setting('agents.default_subagent_model', delegation.model)
         if delegation.effort is not None:
             setting('agents.default_subagent_reasoning_effort', delegation.effort)
-        for role in delegation.roles:
+        for role in delegation.roles if delegation.enabled else ():
             name, filename, description = ROLES[role]
             setting(f'agents.{name}.description', description)
-            setting(f'agents.{name}.config_file', str(Path(__file__).with_name(filename)))
+            asset = Path(__file__).with_name(filename)
+            # Run-less preparations are catalogue inspection only. Supervision
+            # always supplies its owned run before starting the native session.
+            if request.run is not None:
+                profile = self.helper_profile(request, role)
+                text = (f'model = {json.dumps(profile.model)}\n'
+                        f'model_reasoning_effort = {json.dumps(profile.effort)}\n'
+                        + asset.read_text())
+                asset = request.run / f'agent-{role}.toml'
+                temporary = asset.with_suffix('.tmp')
+                temporary.write_text(text, encoding='utf-8')
+                temporary.chmod(0o600)
+                temporary.replace(asset)
+            setting(f'agents.{name}.config_file', str(asset))
         if request.standard_speed:
             setting('service_tier', 'default')
             setting('features.fast_mode', False)

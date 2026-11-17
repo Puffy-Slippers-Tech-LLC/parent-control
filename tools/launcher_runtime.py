@@ -10,7 +10,6 @@ import json
 import os
 
 import detached_launcher as launcher
-from agent_adapter import capacity_fallback
 
 
 class TaskLimitReached(Exception):
@@ -24,9 +23,9 @@ class AgentCapacityUnavailable(ValueError):
 CAPACITY_RETRY_DELAYS = (5, 10, 20, 40, 80)
 
 
-def capacity_failure(model, failures, *, delays=CAPACITY_RETRY_DELAYS, selection=None):
-    """One bounded policy for every launcher's logical model session."""
-    fallback = failures == len(delays) + 1 and capacity_fallback(model, selection=selection) is not None
+def capacity_failure(failures, *, fallback_model, delays=CAPACITY_RETRY_DELAYS):
+    """Apply retry timing to a fallback already pinned by the session owner."""
+    fallback = failures == len(delays) + 1 and fallback_model is not None
     exhausted = failures > len(delays) and not fallback
     delay = delays[failures - 1] if failures <= len(delays) else 0
     return delay, fallback, exhausted

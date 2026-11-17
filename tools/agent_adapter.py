@@ -11,7 +11,8 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
 ProfileRole = Literal['implementation', 'backend_reviewer', 'monitor',
-                      'worker', 'translator', 'commit_helper', 'conflict_resolver']
+                      'worker', 'translator', 'commit_helper', 'conflict_resolver',
+                      'startup_pull_recovery']
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,7 @@ class AgentSelection:
                              'for workflow execution; no agent was started or fallback selected. '
                              'Configure a qualified agent before starting a workflow')
         from agent_codex import CodexAdapter
-        return CodexAdapter()
+        return CodexAdapter(self.root)
 
 
 def resolve_selection(root: Path) -> AgentSelection:
@@ -221,42 +222,108 @@ def prepare_session(request: SessionRequest, environment: dict[str, str]) -> Pre
 def resolve_profile(role: ProfileRole, *, model: str | None = None,
                     effort: str | None = None,
                     selection: AgentSelection | None = None) -> ModelProfile:
-    if selection is not None:
-        return selection.adapter().resolve_profile(role, model=model, effort=effort)
-    from agent_codex import CodexAdapter
-    return CodexAdapter().resolve_profile(role, model=model, effort=effort)
+    selection = selection or resolve_selection(Path(__file__).resolve().parents[1])
+    return selection.adapter().resolve_profile(role, model=model, effort=effort)
+
+
+def _token(value, field):
+    if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
+        raise ValueError(f'{field} must be a nonempty token')
+    return value
+
+
+def _profile(profiles, key, field):
+    try:
+        profile = profiles[key]
+    except (KeyError, TypeError) as error:
+        raise ValueError(f'{field}.{key} is required') from error
+    if (not isinstance(profile, dict) or 'model' not in profile
+            or set(profile) - {'model', 'effort'}):
+        raise ValueError(f'{field}.{key} requires model and optional effort')
+    for name, value in profile.items():
+        _token(value, f'{field}.{key}.{name}')
+    return profile
+
+
+def _profiles(selection):
+    from vm_selection import read_document
+    selection.adapter()  # Metadata cannot qualify an inactive provider.
+    path = selection.root / 'config/environment.json'
+    field = f'{path}: agents'
+    document = read_document(path)
+    try:
+        profiles = document['agents']
+    except (KeyError, TypeError) as error:
+        raise ValueError(f'{field} is required') from error
+    if not isinstance(profiles, dict):
+        raise ValueError(f'{field} must be an object')
+    if not isinstance(profiles.get(selection.name), dict):
+        raise ValueError(f'{field}.{selection.name} must be an object')
+    return profiles, field
+
+
+def _defaults(profiles, field):
+    defaults = profiles.get('defaults', {})
+    if not isinstance(defaults, dict):
+        raise ValueError(f'{field}.defaults must be an object')
+    for name in defaults:
+        _token(name, field + '.defaults')
+        preset = _profile(defaults, name, field + '.defaults')
+        if 'effort' not in preset or preset['model'] in defaults:
+            raise ValueError(f'{field}.defaults.{name} requires a literal model and effort')
+    return defaults
 
 
 def resolve_workflow_profile(workflow: str, *, selection: AgentSelection,
                              model: str | None = None, effort: str | None = None) -> ModelProfile:
-    """Read editable defaults for each new session; explicit overrides win.
+    """Resolve a named preset or literal model/effort in the executing checkout.
 
+    A preset supplies both fields; an optional effort overrides its effort.
+    Literal models require effort. CLI overrides win over the resolved profile.
     Metadata cannot qualify an inactive adapter or change workflow retry policy.
-    Other workflows and native helper roles retain their own profile authority.
     """
-    from vm_selection import read_document
-    selection.adapter()  # Refuse unqualified providers before reading their profiles.
-    path = selection.root / 'config/environment.json'
-    field = f'agents.{selection.name}.{workflow}'
-    document = read_document(path)
-    try:
-        profile = document['agents'][selection.name][workflow]
-    except (KeyError, TypeError) as error:
-        raise ValueError(f'{path}: {field} is required') from error
-    if not isinstance(profile, dict) or set(profile) != {'default_model', 'default_effort'}:
-        raise ValueError(f'{path}: {field} requires only default_model and default_effort')
-    for name, value in profile.items():
-        if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
-            raise ValueError(f'{path}: {field}.{name} must be a nonempty token')
-    return ModelProfile(model if model is not None else profile['default_model'],
-                        effort if effort is not None else profile['default_effort'])
+    profiles, field = _profiles(selection)
+    if not isinstance(profiles.get('tools'), dict):
+        raise ValueError(f'{field}.tools must be an object')
+    profile = _profile(profiles['tools'], workflow, field + '.tools')
+    defaults = _defaults(profiles[selection.name], field + '.' + selection.name)
+    preset = defaults.get(profile['model'], {})
+    selected_model = preset.get('model', profile['model'])
+    selected_effort = profile.get('effort', preset.get('effort'))
+    if selected_effort is None:
+        raise ValueError(f'{field}.tools.{workflow} requires effort for a literal model or a complete preset')
+    return ModelProfile(_token(model if model is not None else selected_model, field + '.model'),
+                        _token(effort if effort is not None else selected_effort, field + '.effort'))
+
+
+def resolve_capacity_fallback(model: str, *, selection: AgentSelection) -> str | None:
+    """Metadata selects models; the shared runtime still owns finite retry policy.
+
+    Fallback edges name presets but use only their models, preserving the
+    session's current effort. There is no recursive fallback or escalation.
+    """
+    profiles, field = _profiles(selection)
+    profiles, field = profiles[selection.name], field + '.' + selection.name
+    defaults = _defaults(profiles, field)
+    fallbacks = profiles.get('capacity_fallbacks', {})
+    if not isinstance(fallbacks, dict):
+        raise ValueError(f'{field}.capacity_fallbacks must be an object')
+    matches = set()
+    for source, target in fallbacks.items():
+        if not isinstance(target, str) or source not in defaults or target not in defaults:
+            raise ValueError(f'{field}.capacity_fallbacks must reference named defaults')
+        if defaults[source]['model'] == defaults[target]['model']:
+            raise ValueError(f'{field}.capacity_fallbacks must select a different model')
+        if defaults[source]['model'] == model:
+            matches.add(defaults[target]['model'])
+    if len(matches) > 1:
+        raise ValueError(f'{field}.capacity_fallbacks has ambiguous targets for {model}')
+    return next(iter(matches), None)
 
 
 def capacity_fallback(model: str, *, selection: AgentSelection | None = None) -> str | None:
-    if selection is not None:
-        return selection.adapter().capacity_fallback(model)
-    from agent_codex import CodexAdapter
-    return CodexAdapter().capacity_fallback(model)
+    selection = selection or resolve_selection(Path(__file__).resolve().parents[1])
+    return selection.adapter().capacity_fallback(model)
 
 
 def setup_agent(root: Path, *, headless: bool = False) -> None:

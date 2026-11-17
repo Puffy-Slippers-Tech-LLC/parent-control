@@ -54,7 +54,7 @@
   updating a plan does not execute or close its tasks.
 - When creating or executing a large job's execution plan, follow
   [Execution plans](docs/Execution-Plans.md): master, ordered queue, task briefs,
-  resumable launcher contract and GPT-6.1 Sol delegation guidance.
+  resumable launcher contract and metadata-driven delegation guidance.
 - Reuse unchanged instructions/source in context, including injected AGENTS.md.
   After a new session or compaction, retrieve missing applicable requirements.
   Read complete relevant functions and necessary callers, callees and shared
@@ -70,14 +70,14 @@
   causes in shared code; isolate platform-specific behavior and check affected
   supported platforms.
 - [For product backend code involving core functionalities]:
-  - Choose GPT-6.1 Sol High for settled implementation.
-  - Choose GPT-6.1 Sol xHigh for unresolved security, concurrency, ownership, difficult diagnosis or broad
+  - Choose the selected agent's `workhorse` preset in `config/environment.json` for settled implementation.
+  - Choose that preset with `xhigh` effort for unresolved security, concurrency, ownership, difficult diagnosis or broad
   correctness review.
-  - Use bounded Astra xHigh advice when an applicable workflow requires it.
-  - Before completing changes, obtain an independent code review from an Astra
-    xHigh subagent. This mandate applies across all launchers, including repair,
+  - Use the selected agent's `frontier` preset for bounded advice when an applicable workflow requires it.
+  - Before completing changes, obtain an independent code review using the configured
+    `backend-reviewer` profile. This mandate applies across all launchers, including repair,
     recovery and optimization, only for core backend changes. It overrides
-    Sol-only or no-delegation rules solely for that review, preserving each
+    coordinator-model or no-delegation rules solely for that review, preserving each
     launcher's existing coordinator, implementation and escalation model policy.
 - The [launcher policies](tests/README.md#scripted-repair-loop) specialize these defaults
   for test repair and E2E implementation. Prefer quality, then allowance.

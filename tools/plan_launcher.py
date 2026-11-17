@@ -46,8 +46,8 @@ from launcher_runtime import (AgentCapacityUnavailable, CAPACITY_RETRY_DELAYS, S
 class PlanWorkflow:
     name: str
     plan: str | None = None
-    model: str = resolve_profile('implementation').model
-    effort: str = resolve_profile('implementation').effort
+    model: str | None = None
+    effort: str | None = None
     commit_prefix: str | None = 'TA'
     vm: bool = False
     max_sessions: int = 5
@@ -68,12 +68,12 @@ def coordinator_repair(state):
     return any(state.get(key) for key in ('git_reconciliation', 'result_recovery'))
 
 
-def capacity_session_spec(spec, state, *, selection=None):
+def capacity_session_spec(spec, state):
     """A capacity fallback never mutates the workflow's configured model/effort."""
     recovery = state.get('capacity_recovery', {})
     if (capacity_retry(state) and recovery.get('failures') == len(CAPACITY_RETRY_DELAYS) + 1
-            and capacity_fallback(spec.model, selection=selection) is not None):
-        return replace(spec, model=capacity_fallback(spec.model, selection=selection))
+            and state.get('capacity_fallback_model') is not None):
+        return replace(spec, model=state['capacity_fallback_model'])
     return spec
 
 
@@ -137,6 +137,10 @@ def validate_result(plan, state, result):
 
 def session_command(root, spec, run=None, *, selection=None, logical_tier=None):
     selection = selection or resolve_selection(root)
+    if spec.model is None or spec.effort is None:
+        model, effort = resolve_profile('implementation', model=spec.model, effort=spec.effort,
+                                        selection=selection)
+        spec = replace(spec, model=model, effort=effort)
     worker = resolve_profile('worker', selection=selection)
     shell_environment = []
     if run is not None:
@@ -1031,7 +1035,15 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                 selection = resolve_selection(root)
             if selection is None:
                 raise ValueError('capacity retry has no live agent selection')
-            active_spec = capacity_session_spec(spec, state, selection=selection)
+            if spec.model is None or spec.effort is None:
+                model, effort = resolve_profile('implementation', model=spec.model, effort=spec.effort,
+                                                selection=selection)
+                spec = replace(spec, model=model, effort=effort)
+            # Automatic reload retains this session's fallback. An older live
+            # checkpoint without a pin resolves it once on its first new-code turn.
+            if not retrying_capacity or 'capacity_fallback_model' not in state:
+                state['capacity_fallback_model'] = capacity_fallback(spec.model, selection=selection)
+            active_spec = capacity_session_spec(spec, state)
             prepared = session_command(root, active_spec, selection=selection)
             prepared.preflight()
             state['agent_selection'] = selection.record()
@@ -1083,8 +1095,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
             except AgentCapacityUnavailable as error:
                 launcher.finish_nested(root, run)
                 failures = state.get('capacity_recovery', {}).get('failures', 0) + 1
-                delay, fallback, exhausted = capacity_failure(spec.model, failures,
-                    delays=CAPACITY_RETRY_DELAYS, selection=selection)
+                delay, fallback, exhausted = capacity_failure(failures,
+                    delays=CAPACITY_RETRY_DELAYS, fallback_model=state['capacity_fallback_model'])
                 state.update(phase='recover', in_flight=False, capacity_recovery={
                     'message': str(error), 'retry_after': time.time() + delay,
                     'session': state['total_sessions'], 'failures': failures, 'exhausted': exhausted})
@@ -1093,7 +1105,7 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                     status, reason = 1, f'model capacity recovery exhausted: {error}'
                     break
                 if fallback:
-                    print(f'{spec.name}: model still at capacity; using {capacity_fallback(spec.model, selection=selection)} '
+                    print(f"{spec.name}: model still at capacity; using {state['capacity_fallback_model']} "
                           f'{spec.effort} for this session only.', flush=True)
                 else:
                     print(f'{spec.name}: model at capacity; retrying this session after '
@@ -1273,7 +1285,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                     warn_remaining(limit, remaining + budget.read()['completed'], label=spec.name)
                 print(f"{spec.name}: limits now tasks={limit if limit is not None else 'all'}", flush=True)
         def command(selected, owner):
-            nonlocal initial_remaining, binding
+            nonlocal initial_remaining, binding, spec
             if spec.vm or args.vm:
                 execution_selection(args.vm)
             else:
@@ -1297,6 +1309,9 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             if ((records or initial.get('phase') != 'complete')
                     and not any(initial.get(key) for key in
                                 ('pending_completion', 'upstream_pull', 'commit_intent', 'recovery_run'))):
+                model, effort = resolve_profile('implementation', model=spec.model, effort=spec.effort,
+                                                selection=resolve_selection(root))
+                spec = replace(spec, model=model, effort=effort)
                 session_command(root, spec).preflight()  # No task/model session.
             if validation_error is not None:
                 if (not initial.get('in_flight') and not initial.get('pending_completion')

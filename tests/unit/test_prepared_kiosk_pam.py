@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.support.paths import ROOT
+from tests.support.pam import load_private_pam
 from tools.test_storage import scratch_descriptors
 
 PROFILES = ROOT / 'data/pam-configs'
@@ -213,7 +214,7 @@ def native(compiled, tmp_path):
     (directory / 'status').write_text('0')
     for name in ('admission', 'removing'):
         (directory / name).unlink(missing_ok=True)
-    pam = ctypes.CDLL('libpam.so.0')
+    pam = load_private_pam(directory)
 
     class Conversation(ctypes.Structure):
         _fields_ = [('conv', ctypes.c_void_p), ('data', ctypes.c_void_p)]

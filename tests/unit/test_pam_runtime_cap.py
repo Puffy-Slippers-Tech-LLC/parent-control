@@ -6,6 +6,7 @@ import subprocess
 import pytest
 
 from tests.support.paths import ROOT
+from tests.support.pam import load_private_pam
 from tools.test_storage import scratch_descriptors
 
 
@@ -28,7 +29,7 @@ def pam_modules(tmp_path_factory):
 
 def run_pam(confdir, service="gdm-password"):
     """Load only our two test-local modules; never open a real login session."""
-    pam = ctypes.CDLL("libpam.so.0")
+    pam = load_private_pam(confdir)
 
     class Conversation(ctypes.Structure):
         _fields_ = [("conv", ctypes.c_void_p), ("appdata_ptr", ctypes.c_void_p)]

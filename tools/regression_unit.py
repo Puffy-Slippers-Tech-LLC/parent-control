@@ -5,6 +5,13 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+Native PAM checks in prepared_kiosk_pam, pam_runtime_cap and package_configuration
+compile one small audit-transport double in pytest scratch, with a bounded,
+waited compiler child forwarding scratch leases. Its symbols remain local to
+that pytest process; real libpam dispatch and module results are retained, with
+no host audit socket, service, account or shared mutable state. Existing unit
+overlap remains safe; these modules have no cleanup or UI inventory membership.
+
 Host-dispatch matrix checks use tiny pytest-private registries and process-local
 SSH/controller doubles. Source capture owns tiny private Git/Make trees and
 bounded, waited children; its ignored large input is sparse and never read.

@@ -20,6 +20,7 @@ import sys
 import pytest
 from tests.support.paths import ROOT
 from tests.support.modules import load_module
+from tests.support.pam import load_private_pam
 from tests.support.shell import relocate_system_paths
 from tools.test_storage import scratch_descriptors
 
@@ -221,7 +222,7 @@ def selected_pam_transactions(root):
     # Historical input keeps the ordinary installed module name. Resolve only
     # that name to the private new binary in libpam's copied configuration.
     original = 'account required pam_oh_no_parent_control.so kiosk\nsession required pam_oh_no_parent_control.so kiosk\n'
-    pam = ctypes.CDLL('libpam.so.0')
+    pam = load_private_pam(directory)
     class Conversation(ctypes.Structure):
         _fields_ = [('conv', ctypes.c_void_p), ('data', ctypes.c_void_p)]
     pam.pam_start_confdir.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(Conversation),

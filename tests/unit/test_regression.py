@@ -219,7 +219,9 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
 
 
 @pytest.mark.parametrize('changed_during', ['last-case', 'reservation'])
-def test_source_changes_refresh_pending_inventory_without_replaying_passes(tmp_path, monkeypatch, changed_during):
+@pytest.mark.parametrize('focused', [False, True])
+def test_source_changes_refresh_pending_inventory_without_replaying_passes(
+        tmp_path, monkeypatch, changed_during, focused):
     import remote_sources
     import vm_test_queue
     from test_results import VARIABLE
@@ -265,17 +267,18 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(tmp_p
         return dict(status=0, handoffs=[], evidence=dict(assignment, passed=[case], failed=[], cleanup=True))
     def group(root, selected, **kwargs):
         return vm_test_queue.execute_pass(root, selected, SimpleNamespace(stopped=threading.Event()),
-                                          execute, sources=kwargs['sources'])
+            execute, sources=kwargs['sources'], retry_requested=kwargs['retry_requested'])
     monkeypatch.setattr(remote_sources, 'FrozenSources', Sources)
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     monkeypatch.setattr(vm_test_queue, '_plan', plan)
     monkeypatch.setattr(vm_test_queue, '_execute_group', group)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: dict(identity))
     monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
-    assert vm_test_queue._run_group(tmp_path, ['e2e'], return_outcome=True)['status'] == 0
+    args = ['--resume-case=last', '--resume-case-only', 'e2e'] if focused else ['e2e']
+    assert vm_test_queue._run_group(tmp_path, args, return_outcome=True)['status'] == 0
     assert captures == ['first', 'changed']
-    assert plans == [['e2e'], ['--resume', 'e2e']]
-    assert executed == ['first', 'last', 'added']
+    assert plans == [args, ['--resume', *args]]
+    assert executed == (['last'] if focused else ['first', 'last', 'added'])
 
 
 @pytest.mark.parametrize(('selector', 'names'), [(None, ['one', 'two', 'three']),

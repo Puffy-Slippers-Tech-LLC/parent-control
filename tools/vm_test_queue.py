@@ -125,7 +125,7 @@ def source_identity(root):
 
 def execute_pass(root, plan, control, execute, *, host=None,
                  checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
-                 progress=None):
+                 progress=None, retry_requested=True):
     """Run current pending work, stop on failure and join all normal bookings."""
     from test_checkpoint import PassCheckpoint
     from test_results import ResultStore
@@ -147,7 +147,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
     with PassCheckpoint(root, selection, {vm.name: vm.family for vm in vms}, families,
                         resume='--resume' in (*host_args, *guest_args),
                         scope=checkpoint_scope) as checkpoint:
-        if replay:
+        if replay and retry_requested:
             for family in families:
                 checkpoint.retry(family, replay, area='--resume-area-only' in guest_args)
 
@@ -431,6 +431,7 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
     from contextlib import ExitStack
     from remote_sources import FrozenSources
     failed_work = set()
+    retry_requested = True
     while True:
         with ExitStack() as inputs:
             with test_source.startup(root, argv):
@@ -438,7 +439,11 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
             sources = inputs.enter_context(FrozenSources(root)) if plan[1] else None
             outcome = _execute_group(root, plan, reloading=reloading, return_outcome=True,
                 checkpoint_scope=checkpoint_scope, sources=sources,
-                continue_on_errors=continue_on_errors, failed_work=failed_work)
+                continue_on_errors=continue_on_errors, failed_work=failed_work,
+                retry_requested=retry_requested)
+        # A source refresh keeps the focused selector and all clear results.
+        # The caller's explicit replay applies once, before the first pass.
+        retry_requested = False
         if not (outcome.get('source_changed')
                 and (not outcome['status'] or continue_on_errors and outcome['status'] == 1)):
             return outcome if return_outcome else outcome['status']
@@ -446,7 +451,8 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
 
 
 def _execute_group(root, plan, *, reloading=False, return_outcome=False,
-        checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None):
+        checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
+        retry_requested=True):
     snapshot, vms, host_args, guest_args, guest_selection, families = plan
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
@@ -708,7 +714,7 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                 outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
                                        checkpoint_scope=checkpoint_scope,
                                        continue_on_errors=continue_on_errors, sources=sources, failed_work=failed_work,
-                                       progress=progress)
+                                       progress=progress, retry_requested=retry_requested)
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

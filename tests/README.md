@@ -555,6 +555,8 @@ durable case results intact until actual new results replace them.
 
 The input detector acts at subsequent dispatch boundaries. It does not interrupt
 a case or repair, reject concurrent edits or invalidate completed results.
+An explicit case replay applies once per invocation; refreshing inputs preserves
+its selector without replaying a case that has already completed.
 Explicit validation uses the repair's current edits. Ordinary input capture
 remains with the common runner; there is no repair-group frozen inventory.
 There are no automatic extra verification passes. `--rounds X` requests exactly

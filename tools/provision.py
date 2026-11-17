@@ -129,6 +129,9 @@ def provision_icon(path, *, fresh):
 
 def provision_accounts_service(user):
     """Retain main metadata while setting the release's dedicated session."""
+    # Drain already-queued account reloads after creation/credential changes.
+    # ListCachedUsers waits for pending reloads; FindUserById alone does not.
+    busctl("call", BUS, MANAGER, BUS, "ListCachedUsers")
     path = f"{MANAGER}/User{user.pw_uid}"
     if shlex.split(busctl("call", BUS, MANAGER, BUS, "FindUserById", "x", str(user.pw_uid))) != ["o", path]:
         fail("AccountsService returned an invalid object for [Kiosk user]")

@@ -20,6 +20,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
     let hold = false;
     let failure = null;
     let failureMethod = null;
+    let clockOffset = 0;
     const manager = {
         parentalControlsSessionLimitsEnabled: true, dailyLimitTime: active ? 200 : 0,
         handlers: new Map(), nextId: 0,
@@ -50,7 +51,8 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
             Error: BusError,
             Variant: class { constructor(type, value) { Object.assign(this, {type, value}); } },
             VariantType: class { constructor(type) { this.type = type; } },
-            get_real_time: () => now * 1_000_000, get_monotonic_time: () => now * 1_000_000,
+            get_real_time: () => (now + clockOffset) * 1_000_000,
+            get_monotonic_time: () => now * 1_000_000,
             timeout_add(_priority, delay, callback) {
                 const id = ++nextTimer;
                 timers.set(id, {delay, callback});
@@ -95,6 +97,8 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
     const bridge = new context.ResumeEstimateRefresh(manager, error => reports.push(error));
     return {bridge, calls, reports, logs, timers, manager, records,
         query: context.queryEstimatedTimes,
+        setNow: value => { now = value; },
+        setClockOffset: value => { clockOffset = value; },
         setRemaining: value => { remaining = value; },
         setFailure: (value, method = null) => { failure = value; failureMethod = method; },
         setHold: value => { hold = value; },
@@ -110,10 +114,10 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
 const settle = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
 const plain = value => JSON.parse(JSON.stringify(value));
 
-test('continuous use and repeated native estimate notifications never restart the countdown', async () => {
+test('continuous use and unchanged native notifications do not write usage', async () => {
     const h = harness();
     h.manager.emit();
-    h.manager.dailyLimitTime++;
+    h.manager.dailyLimitTime--;
     h.manager.emit();
     await settle();
     assert.equal(h.calls.length, 0);
@@ -121,7 +125,7 @@ test('continuous use and repeated native estimate notifications never restart th
     h.bridge.close();
 });
 
-test('idle and resume replay exact self-read endpoints and ignore estimate echoes', async () => {
+test('idle replays self-read endpoints; resume checkpoints observed activity and ignores echoes', async () => {
     const h = harness();
     h.activity(false);
     await settle();
@@ -133,12 +137,105 @@ test('idle and resume replay exact self-read endpoints and ignore estimate echoe
     h.activity(true);
     await settle();
     assert.equal(h.calls.length, 6);
+    assert.deepEqual(plain(h.calls[4][4].value), [[[100, 100, 'login-session', '']]]);
     assert.equal(h.timers.size, 0);
     h.manager.emit();
     await settle();
     assert.equal(h.calls.length, 6, 'the replay signal must not create a feedback loop');
     h.bridge.close();
 });
+
+test('a peer estimate reset checkpoints ongoing use through queue and read delays', async () => {
+    const h = harness({records: []});
+    h.setHold(true);
+    const estimate = h.query();
+    await settle();
+    h.setNow(125);
+    h.manager.dailyLimitTime = 225;
+    h.manager.emit();
+    await settle();
+    assert.deepEqual(h.calls.map(call => call[3]), ['GetEstimatedTimes']);
+    h.setNow(130);
+    h.release();
+    await estimate;
+    await settle();
+    assert.equal(h.calls.at(-1)[3], 'QueryUsage');
+    h.setNow(135);
+    h.setHold(false);
+    h.release();
+    await settle();
+    assert.deepEqual(plain(h.calls.find(call => call[3] === 'RecordUsage')[4].value),
+        [[[100, 135, 'login-session', '']]]);
+    assert.equal(h.calls.length, 4);
+    assert.equal(h.timers.size, 0);
+    h.manager.emit();
+    await settle();
+    assert.equal(h.calls.length, 4, 'checkpoint echoes must not create a write loop');
+    h.bridge.close();
+});
+
+test('a new active interval excludes time spent inactive from corrective checkpoints', async () => {
+    const h = harness();
+    h.setNow(120);
+    h.activity(false);
+    await settle();
+    h.setNow(170);
+    h.activity(true);
+    await settle();
+    h.setNow(180);
+    h.manager.dailyLimitTime += 10;
+    h.manager.emit();
+    await settle();
+    assert.deepEqual(plain(h.calls.at(-2)[4].value), [[[170, 180, 'login-session', '']]]);
+    h.bridge.close();
+});
+
+test('a subsecond backward clock correction during resume cannot send a reversed interval', async () => {
+    const h = harness({now: 100.1});
+    h.activity(false);
+    await settle();
+    const before = h.calls.length;
+    h.setHold(true);
+    h.activity(true);
+    await settle();
+    h.setNow(100.2);
+    h.setClockOffset(-0.5);
+    h.setHold(false);
+    h.release();
+    await settle();
+    assert.deepEqual(h.calls.slice(before).map(call => call[3]), ['QueryUsage']);
+    assert.equal(h.reports.length, 0);
+    h.bridge.close();
+});
+
+for (const offset of [300, -150]) {
+    test(`a ${offset}-second clock correction cannot double-charge earlier checkpoints`, async () => {
+        const h = harness();
+        h.setNow(150);
+        h.manager.dailyLimitTime += 50;
+        h.manager.emit();
+        await settle();
+        const writes = () => h.calls.filter(call => call[3] === 'RecordUsage')
+            .map(call => plain(call[4].value)[0][0]);
+        assert.deepEqual(writes(), [[100, 150, 'login-session', '']]);
+        h.setNow(200);
+        h.setClockOffset(offset);
+        h.manager.dailyLimitTime += 50;
+        h.manager.emit();
+        await settle();
+        assert.deepEqual(writes(), [[100, 150, 'login-session', '']],
+            'the merged usage must remain the original 51 inclusive seconds');
+        assert.equal(h.timers.size, 0);
+        assert.equal(h.reports.length, 0);
+        // Native activity transitions establish a fresh wall-clock boundary.
+        h.activity(false);
+        await settle();
+        h.activity(true);
+        await settle();
+        assert.deepEqual(writes().at(-1), [200 + offset, 200 + offset, 'login-session', '']);
+        h.bridge.close();
+    });
+}
 
 test('a completed single-second record retains its inclusive endpoints', async () => {
     const h = harness({active: false, records: [[40, 40]]});

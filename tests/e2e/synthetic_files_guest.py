@@ -21,6 +21,10 @@ from contextlib import ExitStack
 from datetime import date
 from download_destination import DIRECTORY as SAVE_DIRECTORY, download_directory
 from guest_files import identity, read_regular, require, write_exclusive
+if __name__ == '__main__':
+    from native_assets import GUI_FILES
+else:
+    from tests.fixtures.native_assets import GUI_FILES
 
 ZIP_NAME = 'Synthetic archive.zip'
 ZIP_ARTIFACT = 'synthetic-archive'
@@ -236,7 +240,7 @@ def native_space_operate(home, operation, request, profile='native-space', *, ad
             guard()
             names = set(os.listdir(parent))
             base = ({'Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage'} if versioned
-                    else {source_name}) | {'onpc-test-gui.py', 'gtk_automation.py'}
+                    else {source_name}) | set(GUI_FILES)
             require(base <= names <= base | ({NATIVE_VERSION_NEXT, NATIVE_VERSION_NONMATCH}
                                             if versioned else {copy_name}))
             result = {'directory': chain[-1][3], 'destination': str(parent_path / copy_name),

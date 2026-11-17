@@ -87,6 +87,7 @@ class SyntheticFiles:
         program = Path(__file__).with_name('synthetic_files_guest.py').read_bytes()
         source = Path(__file__).with_name('download_destination.py').read_text()
         files_source = Path(__file__).with_name('guest_files.py').read_text()
+        native_source = (Path(__file__).resolve().parents[1] / 'fixtures/native_assets.py').read_text()
         modules = ('import sys, types\n'
                    'download_destination = types.ModuleType("download_destination")\n'
                    'sys.modules["download_destination"] = download_destination\n'
@@ -94,7 +95,10 @@ class SyntheticFiles:
                    'download_destination.__dict__)\n'
                    'guest_files = types.ModuleType("guest_files")\n'
                    'sys.modules["guest_files"] = guest_files\n'
-                   f'exec({files_source!r}, guest_files.__dict__)\n')
+                   f'exec({files_source!r}, guest_files.__dict__)\n'
+                   'native_assets = types.ModuleType("native_assets")\n'
+                   'sys.modules["native_assets"] = native_assets\n'
+                   f'exec({native_source!r}, native_assets.__dict__)\n')
         program = modules.encode() + program
         if self.profile in WORK_PROFILES:
             work = Path(__file__).resolve().parents[1] / 'fixtures/work_document.py'

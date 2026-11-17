@@ -202,7 +202,7 @@ def copy_boundary(tmp_path, monkeypatch):
     root.mkdir(mode=0o755)
     (root / files.NATIVE_SPACE_SOURCE).write_bytes(b'fixed executable')
     (root / files.NATIVE_SPACE_SOURCE).chmod(0o755)
-    for name in ('onpc-test-gui.py', 'gtk_automation.py'):
+    for name in files.GUI_FILES:
         (root / name).write_bytes(b'preserved runtime')
     monkeypatch.setattr(files, 'NATIVE_SPACE_PARENT', Path('/fixtures'))
     real_open = os.open
@@ -289,8 +289,7 @@ def test_version_copy_cleanup_refuses_replaced_source_in_parent_directory(tmp_pa
     source = root / files.NATIVE_VERSION_SOURCE
     source.write_bytes(b'next version')
     source.chmod(0o755)
-    for name in ('Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage',
-                 'onpc-test-gui.py', 'gtk_automation.py'):
+    for name in ('Lunar Client-3.7.17.AppImage', 'PrismLauncher.AppImage', *files.GUI_FILES):
         (versioned / name).write_bytes(b'preserved')
     monkeypatch.setattr(files, 'NATIVE_VERSION_PARENT', Path('/Applications/Versioned'))
     real_open = os.open

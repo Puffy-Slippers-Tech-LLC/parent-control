@@ -1552,8 +1552,10 @@ part of the case.
 ### E2E-020
 
 Implementation status: Cases 110 and 111 are implemented through
-`catalogue_update_case.py`. Both use the verified catalogue fixture DEB packages
-on Ubuntu 26.04; case 111 removes and reinstalls the same 2.0 package.
+`catalogue_update_case.py`. Both select the verified catalogue fixture DEB or RPM
+pair matching the product package; case 111 removes and reinstalls the same 2.0
+package. Installed qualification is recorded in the
+[catalogue](E2E-Building-Blocks.md#native-launch-denial-qualification).
 
 **Catalog update/disappearance between display and save.** Cases 110, 111.
 

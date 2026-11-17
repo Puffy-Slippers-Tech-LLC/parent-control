@@ -1589,12 +1589,11 @@ def stage_assets(source, destination, commands, *, package_only=False, fixture_f
         require(baseline.digest(destination / ('package' + package.suffix)) ==
                 manifest['artifacts']['package']['sha256'], 'assets:package-changed')
         if catalogue_update:
-            require(package.suffix == '.deb', 'assets:catalogue-platform')
             expected = json.loads((fixtures / 'SHA256SUMS.json').read_bytes())['files']
             for label in ('old', 'new'):
-                relative = 'catalogue-packages/' + label + '.deb'
+                relative = 'catalogue-packages/' + label + package.suffix
                 require(relative in expected, 'assets:catalogue-input-required')
-                target = destination / ('catalogue-' + label + '.deb')
+                target = destination / ('catalogue-' + label + package.suffix)
                 shutil.copyfile(fixtures / relative, target)
                 require(baseline.digest(target) == expected[relative], 'assets:fixture-changed')
         if fixture_files:

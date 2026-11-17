@@ -384,7 +384,7 @@ def _build_snap(output: Path, runtime: Path, triplet: str, loader: Path) -> None
 
 
 def _build_catalogue_packages(output: Path) -> None:
-    """One finite DEB pair for a real catalogue change during an open draft."""
+    """Native package pairs for a real catalogue change during an open draft."""
     packages = output / 'catalogue-packages'
     packages.mkdir()
     tree = output / 'catalogue-package-build'
@@ -399,6 +399,28 @@ def _build_catalogue_packages(output: Path) -> None:
         _write_text(root / 'usr/share/applications/com.puffyslippers.ONPCTest.Update.desktop',
             _desktop_entry('ONPC Catalogue Fixture ' + version,
                 INSTALL_PREFIX / ('Applications/Catalogue/Catalogue-' + label + '.AppImage')))
+        top = tree / ('rpm-' + label)
+        top.mkdir()
+        spec = top / 'catalogue.spec'
+        _write_text(spec,
+            'Name: onpc-catalogue-fixture\nVersion: ' + version + '\nRelease: 1\n'
+            'Summary: Disposable catalogue update fixture\nLicense: MIT\n'
+            'BuildArch: x86_64\nAutoReqProv: no\n'
+            '%global __os_install_post %{nil}\n%global _build_id_links none\n'
+            '%description\nDisposable catalogue update fixture.\n'
+            '%install\nmkdir -p "%{buildroot}"\n'
+            'cp -a "%{_sourcedir}/." "%{buildroot}/"\n'
+            '%files\n/opt/onpc-test-fixtures/Applications/Catalogue\n'
+            '/usr/share/applications/com.puffyslippers.ONPCTest.Update.desktop\n')
+        _set_reproducible_times(root)
+        _run(['rpmbuild', '-bb', '--define', '_topdir ' + str(top),
+              '--define', '_sourcedir ' + str(root),
+              '--define', '_buildhost onpc-fixtures',
+              '--define', 'use_source_date_epoch_as_buildtime 1',
+              '--define', 'clamp_mtime_to_source_date_epoch 1', str(spec)],
+             environment=dict(os.environ, SOURCE_DATE_EPOCH='0'))
+        shutil.copyfile(top / ('RPMS/x86_64/onpc-catalogue-fixture-' + version + '-1.x86_64.rpm'),
+                        packages / (label + '.rpm'))
         _write_text(root / 'DEBIAN/control',
             'Package: onpc-catalogue-fixture\nVersion: ' + version + '\nArchitecture: amd64\n'
             'Maintainer: ONPC Tests <dev@tech.puffyslippers.com>\n'
@@ -411,7 +433,7 @@ def _build_catalogue_packages(output: Path) -> None:
 
 
 def build(output: Path) -> None:
-    required = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd', 'dpkg-deb')
+    required = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd', 'dpkg-deb', 'rpmbuild')
     missing = [name for name in required if shutil.which(name) is None]
     if missing:
         raise FixtureError('missing GUI fixture prerequisites: ' + ', '.join(missing)

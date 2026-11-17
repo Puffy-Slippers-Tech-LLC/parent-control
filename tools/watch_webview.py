@@ -910,7 +910,7 @@ class Viewer:
                         for key, target in self.watch_targets.items()],
                     checkouts=[dict(id=str(root), label=branch) for root, branch in self.roots.items()],
                     watch_ssh=watch_ssh,
-                    resources=self.resources.text(enabled=watch_ssh and request.get('resources', True)),
+                    resources=self.resources.text(enabled=request.get('resources', True)),
                     resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)
         # Keep full state internally for input/artifact guards. Only the wire

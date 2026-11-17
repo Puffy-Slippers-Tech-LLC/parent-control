@@ -432,13 +432,8 @@ class Bridge {
             if (this.sources.includes(source)) continue;
             if (Date.now() < (source.nextSampleAt || 0)) continue;
             source.nextSampleAt = Date.now() + 1000;
-            const mainSources = this.sources.filter(main => main.config.transport === source.config.transport &&
-                (source.config.transport === 'local' || main.config.host === source.config.host));
-            // A first main snapshot establishes policy before any counters are
-            // sampled. Hosts without a main adapter retain standalone behavior.
-            const enabled = !mainSources.length || mainSources.some(main => main.snapshot &&
-                main.snapshot.watch_ssh);
-            try { source.tick({ enabled }); }
+            // Host counters remain live independently of VM SSH collection.
+            try { source.tick({}); }
             catch (error) { source.fail(error.message); }
         }
         for (const source of this.sources) {

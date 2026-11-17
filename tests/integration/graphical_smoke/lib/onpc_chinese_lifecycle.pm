@@ -16,7 +16,6 @@ sub run {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'chinese-lifecycle', review => 0);
     $journey->declare_invocations($invocations);
     $journey->declare_challenges($challenges);
-    onpc_gdm::reattach_functional();
     onpc_customer_reboot::chinese_current_entry($journey);
     $journey->seen($_) for qw(setup-cancel setup-returned);
     onpc_gdm::sign_in_challenge($journey, 'setup-parent',

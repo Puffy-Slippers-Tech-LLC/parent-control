@@ -13610,7 +13610,11 @@ class AccessibleUI:
         """UI04: activate Cancel once after refusing any system prompt."""
         # The station's scoped public action is explicitly authorized even
         # when its Cancel control is clipped by the scroll viewport.
-        target = self.kiosk_exit_target(overlay=overlay, child=child)
+        # A provider may change during the complete recipient read. Reacquire
+        # only that read within one deadline; never retry the Cancel input.
+        target = self.wait(
+            lambda: self.kiosk_exit_target(overlay=overlay, child=child),
+            'kiosk-cancel-ready', prompt_in_predicate=True)
         self._invoke_target(target)
 
     def shortcut_provider_snapshot(self, *, closing=False):

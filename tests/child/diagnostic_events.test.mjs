@@ -131,6 +131,11 @@ test('timer failure diagnostics accept only reviewed categories and bounded stat
     for (const changed of [{...fields, stage: secret}, {...fields, category: secret},
         {...fields, loaded: secret}, {...fields, message: secret}])
         assert.throws(() => diagnosticEnvelope(catalog, 'child.refresh-failed', changed));
+    const inputs = {...fields, native_endpoint: 'missing', timer_endpoint: 'available'};
+    assert.doesNotThrow(() => diagnosticEnvelope(catalog, 'child.refresh-inputs-failed', inputs));
+    for (const changed of [{...inputs, native_endpoint: secret},
+        {...inputs, timer_endpoint: secret}, {...inputs, native_end: 1791743000}])
+        assert.throws(() => diagnosticEnvelope(catalog, 'child.refresh-inputs-failed', changed));
     for (const attempt of [0, 7, NaN, Infinity, secret])
         assert.throws(() => diagnosticEnvelope(catalog, 'child.timer-read-failed', {
             category: 'no-reply', attempt, retry: true,

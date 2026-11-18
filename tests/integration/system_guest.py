@@ -494,6 +494,13 @@ def child_trust_inputs_diagnostic(*, include_timing=False):
     print(json.dumps(observation, sort_keys=True), flush=True)
 
 
+def pam_service_path(name):
+    """Locate the effective service file without following a local symlink."""
+    local = Path('/etc/pam.d') / name
+    require(not local.is_symlink(), 'pam-original:unsafe-local')
+    return local if local.exists() else Path('/usr/lib/pam.d') / name
+
+
 def pam_service_state():
     """Measure the original service bytes and local/vendor selection independently.
 
@@ -502,10 +509,8 @@ def pam_service_state():
     """
     services = {}
     for name in ('gdm-password', 'systemd-user'):
-        local = Path('/etc/pam.d') / name
-        require(not local.is_symlink(), 'pam-original:unsafe-local')
-        source = 'local' if local.exists() else 'vendor'
-        path = local if source == 'local' else Path('/usr/lib/pam.d') / name
+        path = pam_service_path(name)
+        source = 'local' if path.parent == Path('/etc/pam.d') else 'vendor'
         try:
             descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             with os.fdopen(descriptor, 'rb') as stream:

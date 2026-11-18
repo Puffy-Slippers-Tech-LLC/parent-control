@@ -127,8 +127,7 @@ def effective_stack(record, stage, state):
             for rows in native.values():
                 require(any(len(row) >= 3 and row[2] == 'pam_sss.so' for row in rows),
                         'missing-native-sssd-layout')
-            service = PAM / 'gdm-password'
-            rows = rules(service)
+            rows = rules(guest.pam_service_path('gdm-password'))
             require(any(len(row) >= 3 and row[0] == 'session' and
                         row[1] in ('include', 'substack') and row[2] == 'password-auth'
                         for row in rows), 'missing-vendor-session-include')
@@ -195,7 +194,8 @@ def prepare(variant, record):
         state['override_bytes'] = contents.hex()
         require(identity(source) == original, 'vendor-source-overwritten')
     state['pam_original'] = guest.pam_service_state()
-    state['gdm_original'] = identity(PAM / 'gdm-password')[-1].hex()
+    if variant == 'pending-vendor':
+        state['gdm_original'] = identity(guest.pam_service_path('gdm-password'))[-1].hex()
     effective_stack(record, 'prepared', state)
     return state
 
@@ -261,14 +261,12 @@ def pending_retry(state, record):
     target = PAM / ('gdm-password.rpmnew' if fedora() else 'gdm-password.dpkg-dist')
     contents = (bytes.fromhex(state['gdm_original']) +
                 b'\n# onpc pending vendor PAM update\nsession optional pam_permit.so\n')
-    # gdm-password is a declared local baseline input. systemd-user can instead
-    # come directly from the vendor directory: local absence is routing state,
-    # and publishing an override must not silently change that selection.
-    protected = {PAM / 'gdm-password': identity(PAM / 'gdm-password')}
-    for path in (PAM / 'systemd-user', VENDOR / 'systemd-user'):
-        protected[path] = identity(path) if os.path.lexists(path) else None
-    require(any(protected[path] is not None for path in
-                (PAM / 'systemd-user', VENDOR / 'systemd-user')), 'missing-systemd-user-service')
+    # Either service can be vendor-only. Preserve the selected files and any
+    # local absence so the reinstall cannot silently change the selection.
+    guest.pam_service_state()
+    protected = {path: identity(path) if os.path.lexists(path) else None
+                 for service in ('gdm-password', 'systemd-user')
+                 for path in (PAM / service, VENDOR / service)}
     restoration = STATE / ('fedora-authselect.json' if fedora() else 'malcontent-pam-before-install')
     baseline = restoration_fingerprint(restoration)
     owned = create_owned(target, contents)
@@ -307,8 +305,9 @@ def pending_retry(state, record):
 def verify_administrator_denials(record):
     """Real vendor-stack denials remain authoritative for passwordless kiosk use."""
     path = PAM / 'gdm-password'
-    original = identity(path)
-    info = path.lstat()
+    source = guest.pam_service_path(path.name)
+    original = identity(source)
+    info = source.lstat()
     ordinary_controls(record, 'administrator-denial-before')
     empty_authentication_probe(0, 'pam-variant.administrator-before', record)
     # pam_deny returns PAM_AUTH_ERR for both authentication and account calls.
@@ -319,18 +318,27 @@ def verify_administrator_denials(record):
         prefix = (f'{kind} [success=1 default=ignore] pam_succeed_if.so quiet user != {removal.PRODUCT}\n'
                   f'{kind} requisite pam_deny.so\n').encode()
         edited = prefix + original[-1]
-        require(identity(path) == original, 'administrator-policy-identity-changed')
-        removal.write_hook(path, info, original[-1], edited)
+        require(identity(source) == original, 'administrator-policy-identity-changed')
+        if source == path:
+            removal.write_hook(path, info, original[-1], edited)
+        else:
+            owned = create_owned(path, edited)
+            inode = identity(path)[:2]
         try:
-            require(identity(path) == original[:-1] + (edited,), 'administrator-policy-not-published')
+            if source == path:
+                require(identity(path) == original[:-1] + (edited,), 'administrator-policy-not-published')
             empty_authentication_probe(account, 'pam-variant.administrator-' + kind, record,
                                        expected_authenticate=authentication)
             ordinary_controls(record, 'administrator-' + kind + '-denied')
         finally:
-            require(identity(path) == original[:-1] + (edited,),
-                    'administrator-policy-identity-changed')
-            removal.write_hook(path, info, edited, original[-1])
-        require(identity(path) == original, 'administrator-policy-not-restored')
+            if source == path:
+                require(identity(path) == original[:-1] + (edited,),
+                        'administrator-policy-identity-changed')
+                removal.write_hook(path, info, edited, original[-1])
+            else:
+                unlink_owned(path, owned, inode=inode)
+        require(guest.pam_service_path(path.name) == source and identity(source) == original,
+                'administrator-policy-not-restored')
         empty_authentication_probe(0, 'pam-variant.administrator-' + kind + '-retry', record)
     ordinary_controls(record, 'administrator-denial-restored')
     record('onpc.pam-variants.administrator-denials',

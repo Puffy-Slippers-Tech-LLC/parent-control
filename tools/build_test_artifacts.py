@@ -47,12 +47,12 @@ PREVIOUS_RELEASES = {
             'version': RELEASE_VERSION, 'architecture': 'amd64'},
     # Unsigned v1.3 annotated tag/commit independently matched to GitHub's
     # public git/tags API on 2026-10-17. It contains the Fedora 44 recipe.
-    # Build those exact inputs with the maintained builder; never backport
-    # today's packaging.
     'rpm': {'name': 'v1.3', 'tag': '8e2423f3308893cc8a582cb2a66f60aab5f88a77',
             'commit': '188be907c46b1cd0dabae06ac898c43e75beb05e',
             'version': '0:1.3-0.1.dev.fc44', 'architecture': 'x86_64'},
 }
+FEDORA45_PRIOR_INSTALLER = 'fedora45-gnome51'
+FEDORA45_PRIOR_OS_CHECK = '[ "$VERSION_ID" != 45 ]'
 # A real, unmodified version-only update. The adjacent source commits change
 # app metadata, changelog and release notes, not running-service payloads.
 NO_ACTION_REVISIONS = {
@@ -275,6 +275,10 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                     or package_inputs.digest(source_copy, source_paths) != source_digest):
                 raise ArtifactError('package source inputs changed while copying')
             if package_format == 'rpm':
+                if (target.name == 'fedora45'
+                        and metadata['source'].get('release_tag') == PREVIOUS_RELEASES['rpm']['tag']):
+                    adapt_fedora45_prior_installer(source_copy)
+                    metadata['build_inputs']['prior_installer'] = FEDORA45_PRIOR_INSTALLER
                 # Keep the caller's rootless build image/storage identity. The
                 # maintained builder freezes inputs and disables networking.
                 from tools.build_package import build_rpm
@@ -509,6 +513,24 @@ def _require_previous_release(package_format):
     return PREVIOUS_RELEASES[package_format]
 
 
+def adapt_fedora45_prior_installer(root):
+    """Retarget only the v1.3 test RPM's install gates in the private build copy."""
+    for relative, replacements in (
+            ('rpm/oh-no-parent-control.spec.in', (
+                ('Requires:       gnome-shell < 51\n', 'Requires:       gnome-shell < 52\n'),)),
+            ('packaging/fedora.inc', (
+                ('[ "$VERSION_ID" != 44 ]', FEDORA45_PRIOR_OS_CHECK),
+                ('Fedora Workstation 44;', 'Fedora Workstation 45;'),
+                ('Fedora Workstation 44 for this', 'Fedora Workstation 45 for this')))):
+        path = root / relative
+        content = path.read_text()
+        for original, replacement in replacements:
+            if content.count(original) != 1:
+                raise ArtifactError(f'unexpected v1.3 installer input: {relative}')
+            content = content.replace(original, replacement)
+        path.write_text(content)
+
+
 def build_upgrade(output, *, package_format, build_target=None, architecture='x86_64'):
     """Finite genuine release/current preparation; no fabricated predecessor."""
     release = _require_previous_release(package_format)
@@ -675,6 +697,15 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         target = build_targets.get(current.get('build_inputs', {}).get('build_target', 'fedora44'),
                                    current.get('build_inputs', {}).get('target_architecture', 'x86_64'), 'rpm')
         expected = f"0:{rpm_metadata(repository, '0.1.dev')[0]}-0.1.dev{target.dist}"
+        if target.name == 'fedora45' and not (no_action or activation_profile):
+            old_rpm = str(output / 'previous' / previous['artifacts']['package']['path'])
+            requirements = _run(['rpm', '-qp', '--requires', old_rpm]).stdout.splitlines()
+            shell_requirements = {line for line in requirements if line.startswith('gnome-shell ')}
+            scripts = _run(['rpm', '-qp', '--scripts', old_rpm]).stdout
+            if (previous.get('build_inputs', {}).get('prior_installer') != FEDORA45_PRIOR_INSTALLER
+                    or shell_requirements != {'gnome-shell >= 50', 'gnome-shell < 52'}
+                    or FEDORA45_PRIOR_OS_CHECK not in scripts):
+                raise ArtifactError('v1.3 test RPM installer does not match Fedora 45')
     else:
         expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
                          '-S', 'Version']).stdout.strip()
@@ -703,7 +734,10 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
                                  activation=activation)
         return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']},
                 'activation': activation}
-    return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
+    result = {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
+    if package_format == 'rpm' and target.name == 'fedora45':
+        result['prior_installer'] = FEDORA45_PRIOR_INSTALLER
+    return result
 
 
 def verify_package_input(output: Path) -> dict[str, Any]:

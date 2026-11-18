@@ -1449,8 +1449,11 @@ the same-version reinstall observation. Neither package is installed on the host
 genuine earlier-release history to that route. Prepare its owned input with
 `tools/run-tests artifacts prepare --for-vm --upgrade-inputs --vm NAME`, then pass
 the returned bundle's `current` and `previous` directories as `--artifacts` and
-`--previous-artifacts`. Ubuntu pins released v1.2; Fedora pins released v1.3's
-existing RPM recipe. The builder verifies the annotated tag/commit, exact source
+`--previous-artifacts`. Ubuntu pins released v1.2; Fedora pins released v1.3.
+For Fedora 45 test inputs, the builder adjusts the old installer's Fedora
+Workstation and GNOME Shell version checks in the private build copy and verifies
+those changes in the resulting RPM. The released broker and desktop code are
+used as shipped. The builder verifies the annotated tag/commit, exact source
 digest, package version and architecture and native strictly increasing version
 order. The focused selector refuses a missing prior input or a fabricated release.
 Ordinary current-package suites omit this optional history.

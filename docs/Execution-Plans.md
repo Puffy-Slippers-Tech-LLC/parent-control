@@ -117,7 +117,7 @@ model/effort overrides take precedence over the resolved profile. Missing or
 malformed configuration fails without hidden model defaults; native catalogue
 preflight still checks support.
 
-Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-helper`,
+Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-skill-driver`,
 `conflict-resolver`, `execution-plan-worker`, `execution-plan-monitor` and
 `backend-reviewer`. Resolve selections in the executing checkout after dispatch,
 not at module import time. Plan admission pins its coordinator profile; translation
@@ -615,12 +615,12 @@ operations or Git changes. The shared ordinary-plan driver first pulls the curre
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
 then validates the accepted task's explicit owned paths, captured session changes,
 and its master and queue, then invokes the repository's
-[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised `commit-helper`
-session with the suggested message `TA: Completed task ID`. The adapter's
-`commit_helper` profile supplies that pinned
-model/effort pair. Its supervised caller checks catalogue readiness before
-starting task supervision, retaining the executable check during preparation. Loading
-the shared Git modules or doing deterministic Git work requires no agent CLI.
+[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised session with
+the suggested message `TA: Completed task ID`. The `commit-skill-driver` profile
+supplies the pinned model/effort pair. Its supervised caller checks catalogue
+readiness before starting task supervision, retaining the executable check during
+preparation. Loading the shared Git modules or doing deterministic Git work
+requires no agent CLI.
 The skill owns
 the commit, source push and
 [shared worktree propagation](#shared-worktree-propagation). `execute-plan`

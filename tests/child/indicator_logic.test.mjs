@@ -646,7 +646,7 @@ test('locking waits for the latest balance through coalesced reads and refresh f
     await failed;
     indicator._sync();
     assert.equal(locks, 1, 'a failed refresh cannot confirm the old expired balance');
-    assert.equal(reports.length, 1);
+    assert.equal(reports.length, 0, 'a pending recovery must not open the reporter');
     assert.equal(retries.size, 1, 'existing recovery remains scheduled');
     const [id, retry] = [...retries][0];
     retries.delete(id);
@@ -722,6 +722,28 @@ test('passes raw observations and retains the broker deadline through fresh usag
     assert.equal(h.indicator._deadlineUsec, 700_000_000);
 });
 
+test('a transient broker failure recovers without opening the reporter or restarting time', async () => {
+    const h = refreshHarness();
+    h.manager.dailyLimitTime = 0;
+    h.indicator._deadlineUsec = 340_123_456;
+    h.fail('broker-calculation');
+    await h.indicator._refreshEstimate();
+    assert.equal(h.reports.length, 0, 'the first failed read is still recoverable');
+    assert.equal(h.indicator._deadlineUsec, 340_123_456);
+    assert.equal(h.timers.size, 1);
+    const [id, retry] = [...h.timers][0];
+    h.timers.delete(id);
+    h.time(105);
+    h.fail(null);
+    retry();
+    await new Promise(setImmediate);
+    assert.equal(h.reports.length, 0);
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.indicator._refreshRetries, 0);
+    assert.equal(h.indicator._deadlineUsec, 340_123_456);
+    assert.equal(h.indicator._remainingSeconds(), 236, 'recovery consumes the original interval');
+});
+
 test('temporary failures retain the original deadline or initial unavailable state with finite recovery', async () => {
     for (const loaded of [true, false]) {
         for (const stage of ['timer-estimate', 'broker-calculation']) {
@@ -729,6 +751,7 @@ test('temporary failures retain the original deadline or initial unavailable sta
             h.fail(stage);
             await h.indicator._refreshEstimate();
             for (let attempt = 0; attempt < 3; attempt++) {
+                assert.equal(h.reports.length, 0, 'only an exhausted recovery reports');
                 const [id, callback] = [...h.timers][0];
                 h.timers.delete(id);
                 callback();
@@ -738,7 +761,7 @@ test('temporary failures retain the original deadline or initial unavailable sta
             assert.equal(h.timers.size, 0, 'recovery stops after three retries');
             assert.equal(h.indicator._deadlineUsec, loaded ? 150_000_000 : 0);
             assert.equal(h.indicator._statusLoaded, loaded);
-            assert.equal(h.reports.length, 4);
+            assert.equal(h.reports.length, 1);
             assert.ok(h.logs.every(log => log.stage === stage && log.loaded === loaded));
             for (const log of h.logs) {
                 const {event, ...fields} = log;
@@ -759,6 +782,38 @@ test('temporary failures retain the original deadline or initial unavailable sta
     }
 });
 
+test('estimate changes cannot postpone reporting an unresolved countdown outage', async () => {
+    const h = refreshHarness();
+    h.fail('broker-calculation');
+    for (let attempt = 0; attempt < 6; attempt++) {
+        if (attempt % 2 === 0) {
+            h.indicator.refreshEstimate();
+        } else {
+            const [id, retry] = [...h.timers][0];
+            h.timers.delete(id);
+            retry();
+        }
+        await new Promise(setImmediate);
+        assert.equal(h.reports.length, attempt < 3 ? 0 : 1);
+        assert.equal(h.indicator._deadlineUsec, 150_000_000);
+    }
+    h.fail(null);
+    h.indicator.refreshEstimate();
+    await new Promise(setImmediate);
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.reports.length, 1);
+
+    h.fail('broker-calculation');
+    h.indicator.refreshEstimate();
+    await new Promise(setImmediate);
+    assert.equal(h.reports.length, 1, 'success rearms quiet recovery for a new outage');
+    for (let attempt = 0; attempt < 3; attempt++) {
+        h.indicator.refreshEstimate();
+        await new Promise(setImmediate);
+    }
+    assert.equal(h.reports.length, 2, 'a later unresolved outage reports once again');
+});
+
 test('failed refreshes classify missing and invalid endpoints without retaining their values', async () => {
     const privateText = 'private@example.test /home/private';
     for (const [native, timer, expected] of [
@@ -777,7 +832,7 @@ test('failed refreshes classify missing and invalid endpoints without retaining 
         const encoded = diagnosticEnvelope(diagnosticCatalog, event, fields);
         assert.ok(!encoded.includes(privateText));
         assert.equal(fields.loaded, false);
-        assert.equal(h.reports.length, 1, 'diagnostics preserve ordinary failure reporting');
+        assert.equal(h.reports.length, 0, 'diagnostics do not interrupt pending recovery');
         assert.equal(h.indicator._deadlineUsec, 0, 'failed reads never manufacture time');
     }
 });

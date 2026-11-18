@@ -447,8 +447,11 @@ event framework or expiry scheduler is added. Pending reads coalesce, and a
 newer invalidation or disposal rejects obsolete replies. Requests pin the known
 broker owner. Failures retain the last verified deadline without extending it,
 with at most three recovery retries after 1, 3 and 10 seconds; a new invalidation
-rearms recovery. A source change also invalidates that cached deadline for
-product lock requests until the latest calculation succeeds. Pending,
+rearms recovery. Each failure retains its diagnostic event. Four consecutive
+current-read failures open the error reporter once, including when invalidations
+rearm retries; only a verified success clears that failure count. Successful
+recovery does not interrupt the child. A source change also invalidates that
+cached deadline for product lock requests until the latest calculation succeeds. Pending,
 superseded and failed reads cannot confirm exhaustion; the retained deadline
 remains available for display. Without a new invalidation, normal countdown
 expiry still locks using the current verified deadline. Native GNOME enforcement

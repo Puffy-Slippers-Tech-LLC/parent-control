@@ -185,6 +185,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._deadlineSerial = null;
         this._refreshRetryId = 0;
         this._refreshRetries = 0;
+        this._refreshFailures = 0;
         this._brokerOwner = null;
         this._sessionPreparePending = false;
         this._sessionPrepared = false;
@@ -682,6 +683,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                 };
             }
             this._refreshRetries = 0;
+            this._refreshFailures = 0;
             logInfo('child.estimate', {remaining: diagnosticSeconds(this._remainingSeconds())});
         } catch (error) {
             if (!this._destroyed && serial === this._refreshSerial) {
@@ -704,7 +706,12 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                         return GLib.SOURCE_REMOVE;
                     });
                 }
-                this._onError?.(error, 'countdown-refresh');
+                // Invalidations rearm retries, but cannot hide an unresolved
+                // outage. A verified read rearms reporting after recovery.
+                const failures = this._refreshFailures ?? 0;
+                this._refreshFailures = Math.min(failures + 1, REFRESH_RETRY_DELAYS_MS.length + 1);
+                if (failures === REFRESH_RETRY_DELAYS_MS.length)
+                    this._onError?.(error, 'countdown-refresh');
             }
         } finally {
             this._refreshPending = false;

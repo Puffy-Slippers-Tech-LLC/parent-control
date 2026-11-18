@@ -318,7 +318,7 @@ sub seasonal_paired_grants {
     my $riley = $journey->scope('riley-request');
     $riley->{kiosk_request} = ['child', 'parent', 600, 0];
     onpc_request_flow::prepare($riley, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 600, 0, 'kiosk');
-    $journey->seen('approval-wait-' . $_) for 1 .. 6;
+    $journey->seen('approval-wait-' . $_) for 1 .. 3;
     onpc_request_flow::approve($riley, 'fixture-child', 'fixture-parent', 600, 0, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'riley-fresh');
     onpc_app_rows::native_activity_entry($journey, 'riley-activity', 'command', 'child');
@@ -369,14 +369,14 @@ sub ordinary_fixed_grant {
     $request->{kiosk_request} = $binding;
     onpc_request_flow::prepare($request, 'new', 'new', 'observed',
         'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
-    $journey->seen('approval-wait-' . $_) for 1 .. 4;
+    $journey->seen('approval-wait-' . $_) for 1 .. 2;
     onpc_request_flow::approve($request, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
     $journey->seen('approved-balance');
     onpc_gdm::sign_in_challenge($journey, 'child-login',
         'fresh-installed-greeter', 'fresh-child-focused', 'fresh-desktop');
     onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
     $journey->invoke('initial-countdown');
-    $journey->invoke('midnight-wait-' . $_) for 1 .. 6;
+    $journey->invoke('midnight-wait-' . $_) for 1 .. 2;
     $journey->invoke($_) for qw(before-countdown cross-midnight after-countdown);
     onpc_app_rows::native_activity_resume($journey, 'continued-activity');
     $journey->seen('continued-activity-capture');

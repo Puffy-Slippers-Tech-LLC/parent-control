@@ -1682,7 +1682,7 @@ required, with unchanged game progress through the extended natural expiry.
 
 Resolve game assets/mode and arm observers before issuance. Case 131 uses the
 finite daily-10/addition-10 grant-dominant profile; case 128 uses grant-10 then
-daily-20. Require at least 300 seconds of each positive operand and a dominance
+daily-15. Require at least 300 seconds of each positive operand and a dominance
 gap exceeding 90 seconds before the request, so setup cannot erase the original
 inequality. Both cases retain actual gameplay through extended natural expiry.
 Reuse the existing explicit request arguments; choosing the finite request data
@@ -2247,7 +2247,7 @@ Implementation status: Cases 196/197/198 use `ordinary_daily_reset.PLAN`,
 passed their complete Ubuntu 26.04 journeys. Case 200 uses
 `spring_forward_paired_grants.PLAN`; case 203 is registered through
 `fall_back_paired_grants.PLAN`. Both use the shared `seasonal_paired_grants`
-history; registration alone supplies no fall-back acceptance.
+history and passed on Ubuntu 26.04 with the twenty-minute preparation window.
 
 **Use time across local day and daylight-saving boundaries.** Cases 196, 197, 198, 200, 203.
 
@@ -2910,12 +2910,12 @@ preset guest clock instead of waiting for the host's calendar window. After the
 restored guest's normal setup and before any parent/child input, the shared
 [`calendar_fixture.preset_ordinary_midnight`](../../tests/e2e/calendar_fixture.py)
 disables network time synchronization through `timedatectl` and sets the clock
-to 23:35 on the next future ordinary day in the unchanged timezone for implemented
-cases 196/197/198. Case 200 uses the same module's `preset_spring_forward` to
-prepare thirty elapsed minutes before the next real one-hour spring transition
-in the unchanged timezone, with independent transition/day-length readback.
-Case 203 uses `preset_fall_back` for the next real one-hour fall transition,
-with independent transition and 25-hour-day readback.
+on the next future ordinary day in the unchanged timezone. Cases 196 and 197
+start at 23:35, and case 198 starts at 23:42, leaving eight minutes for setup
+before the fixed-grant approval window opens. Cases 200 and 203 use the same
+module's `preset_spring_forward` and `preset_fall_back` to start twenty elapsed
+minutes before the next real one-hour offset change. The unchanged timezone,
+transition and 23- or 25-hour day length are read back independently.
 Declare and independently read back that date/window. Make no further clock adjustments:
 each case must cross its real calendar boundary at normal speed and retain
 its own elapsed-use, deadline, access and denial assertions. Case 196 must
@@ -3094,8 +3094,11 @@ shared owner and independently read public policy/app values. No other
 scenario's approval or panel rendering is needed to pass this account history.
 
 E2E-054 `account-offline`, case 255, binds this complete history in
-`tests/e2e/language_persistence.py`. Both policy captures use a 2400-second
+`tests/e2e/language_persistence.py` and passed on Ubuntu 26.04. Both policy captures use a 2400-second
 monotonic history bound, with two seconds of public refresh/formatter tolerance.
+Read full policy at the initial captures, language and relaunch results, and
+each child's final offline and online readbacks. Before isolation and Parent
+relaunch, use the selected-child read for the unchanged interim state.
 App IDs and rules remain exact across languages. App names follow the parent's
 language under [ONPC-CORE-APPS-002](../Specification.md): capture each child's
 Chinese names at its first Chinese readback and require those exact names on

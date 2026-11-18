@@ -21,7 +21,7 @@ SETUP = {
     'jordan-allowance': 'ui:parent-language-jordan-allowance',
     'jordan-before': 'ui:parent-language-jordan-enabled-en',
 }
-PARENT = {'offline-enter': 'ui:parent-language-jordan-enabled-en',
+PARENT = {'offline-enter': 'ui:parent-language-jordan-selected',
     **language_selection('chinese', 'zh-Hans', surface='parent'),
     'chinese-save': 'ui:parent-language-save'}
 for prefix, child, name in (('parent-riley', 'child', 'riley'), ('parent-jordan', 'existing', 'jordan'),
@@ -30,12 +30,9 @@ for prefix, child, name in (('parent-riley', 'child', 'riley'), ('parent-jordan'
         prefix + '-selected': 'ui:parent-language-' + name + '-selected',
         prefix + '-state': 'ui:parent-language-' + name + '-enabled-zh-hans',
         prefix + '-choice': 'ui:parent-language-open', prefix + '-close': 'ui:parent-language-cancel'})
-PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-riley-enabled-zh-hans',
+PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-riley-selected',
     'same-parent-window': 'ui:parent-language-jordan-enabled-zh-hans',
     'reopened-choice': 'ui:parent-language-open', 'reopened-close': 'ui:parent-language-cancel',
-    **custom_child_selection('riley-session', 'child'),
-    'riley-session-selected': 'ui:parent-language-riley-selected',
-    'riley-session-before': 'ui:parent-language-riley-enabled-zh-hans',
     'parent-switch': 'system:parent-switch-user', 'parent-greeter': 'ui:gdm-returned'})
 # Later account/approver changes and reentry read each actual translated form.
 # The representative Cancel/reopen below owns checked-language persistence;
@@ -92,7 +89,6 @@ FINAL = {**RETURN, 'return-parent-command': 'ui:parent-command-launch', 'return-
     'final-riley-selected': 'ui:parent-language-riley-selected',
     'riley-offline-final': 'ui:parent-language-riley-enabled-zh-hans',
     'parent-final-choice': 'ui:parent-language-open', 'parent-final-close': 'ui:parent-language-cancel',
-    'offline-restore': 'ui:parent-language-riley-enabled-zh-hans',
     'riley-online-final': 'ui:parent-language-riley-enabled-zh-hans',
     **custom_child_selection('online-jordan', 'existing'),
     'online-jordan-selected': 'ui:parent-language-jordan-selected',
@@ -109,7 +105,7 @@ ASSERTIONS = {'initial-language': 'initial-english-native-names', 'offline-enter
     'riley-reentered': 'hebrew-reentry', 'direct-form': 'overlay-kiosk-sharing',
     'relaunched-form': 'overlay-relaunch', 'renewed-overlay-form': 'renewed-session-language',
     'jordan-offline-final': 'jordan-offline-policy', 'riley-offline-final': 'riley-offline-policy',
-    'parent-final-choice': 'parent-child-independent', 'offline-restore': 'confirmed-online-recovery',
+    'parent-final-choice': 'parent-child-independent', 'parent-final-close': 'confirmed-online-recovery',
     'riley-online-final': 'riley-final-policy', 'jordan-online-final': 'jordan-final-policy'}
 PLAN = JourneyPlan(prefix='language-persistence', worker_mode='language_persistence', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -123,7 +119,7 @@ PLAN = JourneyPlan(prefix='language-persistence', worker_mode='language_persiste
         'child': ('child', 'child-child-recipient-qualified', 'child-child-recipient-rechecked'),
         'renewed': ('child', 'renewed-child-recipient-qualified', 'renewed-child-recipient-rechecked'),
         'return': ('parent', 'return-recipient-qualified', 'return-recipient-rechecked')},
-    stage_actions={'offline-enter': 'language-offline', 'offline-restore': 'language-online'},
+    stage_actions={'offline-enter': 'language-offline', 'parent-final-close': 'language-online'},
     assertions_after=ASSERTIONS)
 
 # Independent literal visible/accessibility oracles, including names and numbers.

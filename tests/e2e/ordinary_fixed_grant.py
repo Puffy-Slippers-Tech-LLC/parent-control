@@ -3,7 +3,7 @@
 import datetime
 from zoneinfo import ZoneInfo
 
-from calendar_fixture import preset_ordinary_midnight
+from calendar_fixture import FIXED_GRANT_LEAD_SECONDS, preset_ordinary_midnight
 from countdown import CountdownSample
 from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
@@ -20,6 +20,8 @@ from request_flow import prepared_request
 
 CHOICES = dict(child='fixture-child', approver='fixture-parent',
                duration_seconds=1200, allow_soft=False)
+APPROVAL_WAITS = tuple(f'approval-wait-{i}' for i in range(1, 3))
+MIDNIGHT_WAITS = tuple(f'midnight-wait-{i}' for i in range(1, 3))
 PREPARE = {
     **fresh_desktop('parent'), **parent_management(),
     'before-grant': 'ui:revoke-balances',
@@ -28,7 +30,7 @@ PREPARE = {
     'switch-user': 'system:parent-switch-user', 'gdm-switched': 'ui:gdm-returned',
     **prefixed_stages('request', prepared_request(prefix='new', entry='new',
                                                 initial='observed', **CHOICES)),
-    **{f'approval-wait-{i}': 'ui:kiosk-request-estimate' for i in range(1, 5)},
+    **dict.fromkeys(APPROVAL_WAITS, 'ui:kiosk-request-estimate'),
     **prefixed_stages('request', approved_request(**CHOICES, exit='automatic', explicit=True)),
     'approved-balance': 'ui:revoke-balances',
     **prefixed_stages('fresh', fresh_desktop('child')),
@@ -36,7 +38,7 @@ PREPARE = {
     'initial-countdown': 'ui:child-countdown-present',
 }
 CROSSING = {
-    **{f'midnight-wait-{i}': 'ui:child-countdown-present' for i in range(1, 7)},
+    **dict.fromkeys(MIDNIGHT_WAITS, 'ui:child-countdown-present'),
     'before-countdown': 'ui:child-countdown-present',
     'cross-midnight': 'ui:child-countdown-present',
     'after-countdown': 'ui:child-countdown-present',
@@ -78,8 +80,8 @@ PLAN = JourneyPlan(
     },
     kiosk_request=('child', 'parent', 1200, False),
     stage_actions={'setup-detached': 'calendar-window', 'desktop': 'native-verify',
-                   **{f'approval-wait-{i}': 'approval-wait' for i in range(1, 5)},
-                   **{f'midnight-wait-{i}': 'midnight-wait' for i in range(1, 7)},
+                   **dict.fromkeys(APPROVAL_WAITS, 'approval-wait'),
+                   **dict.fromkeys(MIDNIGHT_WAITS, 'midnight-wait'),
                    'cross-midnight': 'cross-midnight', 'natural-expiry': 'natural-expiry'},
     activity_entries={'natural-expiry': 'continued-activity-capture'},
     activity_checks={stage: ('activity-capture', 'same') for stage in
@@ -133,7 +135,8 @@ class FixedGrantJourney(InstalledJourney):
                 and start.utcoffset() == local.utcoffset() == midnight.utcoffset(),
                 'fixed-grant:not-an-ordinary-day')
         boundary = int(midnight.timestamp()) * 1_000_000_000
-        require(1200 <= (boundary - value['readback']['epoch_ns']) / 1e9 <= 1800,
+        require(FIXED_GRANT_LEAD_SECONDS - 300 <= (boundary - value['readback']['epoch_ns']) / 1e9
+                <= FIXED_GRANT_LEAD_SECONDS,
                 'fixed-grant:scheduled-window-unavailable')
         journey.window = {'date': local.date().isoformat(), 'timezone': value['timezone'],
             'midnight': midnight.isoformat(), 'midnight_epoch_ns': boundary,

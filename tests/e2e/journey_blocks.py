@@ -139,14 +139,21 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
     }
 
 
+DAILY_DOMINANT_TIME_OPERATIONS = {
+    (600, 15): 'ui:time-explanation-setup-positive-read',
+    (600, 20): 'ui:time-explanation-daily-20-on-read',
+    (1200, 40): 'ui:time-explanation-daily-40-on-read',
+}
+
+
 def daily_dominant_time_profile(*, grant_seconds, daily_minutes, finish='gdm'):
     """FLOW13: approve at daily zero, then raise daily time without revocation.
 
     Cases retain both the Parent comparison and their later request-time check.
-    These are the ordinary and delayed-approval recipes' finite input pairs.
+    Each caller supplies a declared grant and daily allowance pair.
     """
     require(type(grant_seconds) is int and type(daily_minutes) is int
-            and (grant_seconds, daily_minutes) in ((600, 20), (1200, 40)),
+            and (grant_seconds, daily_minutes) in DAILY_DOMINANT_TIME_OPERATIONS,
             'time-profile:daily-dominant-binding')
     require(finish in ('parent', 'gdm'), 'time-profile:daily-dominant-finish')
     return {
@@ -157,7 +164,7 @@ def daily_dominant_time_profile(*, grant_seconds, daily_minutes, finish='gdm'):
         **prefixed_stages('profile-result', retained_parent_entry(
             source='same-user', desktop_observation=False)),
         'profile-balance': 'ui:revoke-balances',
-        'dominant-configured': f'ui:time-explanation-daily-{daily_minutes}-on-read',
+        'dominant-configured': DAILY_DOMINANT_TIME_OPERATIONS[grant_seconds, daily_minutes],
         'dominant-settings': 'ui:parent-selected',
         **({'dominant-switch': 'system:parent-switch-user',
             'dominant-gdm': 'ui:gdm-returned'} if finish == 'gdm' else {}),

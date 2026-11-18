@@ -39,13 +39,17 @@ print(json.dumps({'timezone':zone,'before_epoch_ns':before,'target_epoch_ns':tar
 '''
 
 ORDINARY_MIDNIGHT = 'PRESET_HOUR,PRESET_MINUTE=23,35\n' + ORDINARY_CLOCK
+FIXED_GRANT_LEAD_SECONDS = 18 * 60
+FIXED_GRANT_MIDNIGHT = f'PRESET_HOUR,PRESET_MINUTE=23,{60 - FIXED_GRANT_LEAD_SECONDS // 60}\n' + ORDINARY_CLOCK
 ORDINARY_DAYTIME = 'PRESET_HOUR,PRESET_MINUTE=12,0\n' + ORDINARY_CLOCK
 
 
 def preset_ordinary_midnight(journey, guard):
     """One fixed preparation, after restore/setup and before any parent input."""
+    if journey.plan.prefix == 'ordinary-fixed-grant':
+        return _preset_ordinary(journey, guard, FIXED_GRANT_MIDNIGHT, ('ordinary-fixed-grant',))
     return _preset_ordinary(journey, guard, ORDINARY_MIDNIGHT,
-        ('ordinary-daily-reset', 'ordinary-rest-of-day', 'ordinary-fixed-grant'))
+        ('ordinary-daily-reset', 'ordinary-rest-of-day'))
 
 
 def preset_ordinary_daytime(journey, guard):
@@ -79,6 +83,7 @@ def _preset_ordinary(journey, guard, program, prefixes):
     return value
 
 
+SEASONAL_LEAD_SECONDS = 20 * 60
 SEASONAL_TRANSITION = '''import datetime,json,os,subprocess,sys,time
 from zoneinfo import ZoneInfo
 assert os.geteuid()==0
@@ -105,7 +110,7 @@ for current in range(start+3600,start+370*86400,3600):
     previous=current
 else:
     raise RuntimeError('calendar-fixture:no-seasonal-window')
-target=boundary-1800
+target=boundary-int(sys.argv[2])
 local=datetime.datetime.fromtimestamp(target,tz)
 midnight=datetime.datetime.combine(local.date()+datetime.timedelta(days=1),datetime.time(),tz)
 day_start=datetime.datetime.combine(local.date(),datetime.time(),tz)
@@ -149,15 +154,15 @@ def _preset_seasonal(journey, guard, direction, change):
             'calendar-fixture:entry')
     guard()
     with watch_activity.operation('Preparing the seasonal clock change before parent or child actions'):
-        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', SEASONAL_TRANSITION, str(change)],
-                                     timeout=120)
+        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', SEASONAL_TRANSITION,
+                                      str(change), str(SEASONAL_LEAD_SECONDS)], timeout=120)
     guard()
     value = json.loads(raw)
     require(value['ntp_enabled'] is False
             and value['before_epoch_ns'] < value['target_epoch_ns']
             <= value['readback_epoch_ns'] < value['target_epoch_ns'] + 30_000_000_000
             and value['offset_after_seconds'] - value['offset_before_seconds'] == change
-            and value['transition_epoch_ns'] - value['target_epoch_ns'] == 1800_000_000_000,
+            and value['transition_epoch_ns'] - value['target_epoch_ns'] == SEASONAL_LEAD_SECONDS * 10**9,
             'calendar-fixture:readback')
     return value
 

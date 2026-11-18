@@ -3,7 +3,8 @@ from copy import deepcopy
 
 from grant_only_profile import GrantOnlyProfileJourney
 from installed_journey import JourneyPlan
-from journey_blocks import daily_dominant_time_profile, fresh_desktop, prefixed_stages
+from journey_blocks import (DAILY_DOMINANT_TIME_OPERATIONS, daily_dominant_time_profile,
+                            fresh_desktop, prefixed_stages)
 from private_artifacts import require
 from request_flow import prepared_request
 from ui_observations import SettingsObservation
@@ -38,7 +39,7 @@ class DailyDominantProfileJourney(GrantOnlyProfileJourney):
     """Caller-owned operands and read brackets, never a renewed grant deadline."""
     def __init__(self, context, progress, plan=PLAN, *, grant_seconds=600,
                  daily_minutes=20, actions=None):
-        require((grant_seconds, daily_minutes) in ((600, 20), (1200, 40)),
+        require((grant_seconds, daily_minutes) in DAILY_DOMINANT_TIME_OPERATIONS,
                 'time-profile:daily-dominant-binding')
         super().__init__(context, progress, plan, grant_seconds=grant_seconds, actions=actions)
         self.dominant_minutes = daily_minutes

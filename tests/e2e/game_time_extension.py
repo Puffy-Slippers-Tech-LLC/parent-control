@@ -17,8 +17,9 @@ from time_profiles_dominant import DailyDominantProfileJourney
 from ui_observations import AppRowsObservation, SettingsObservation
 
 
+DAILY_MINUTES = 15
 PROFILE = {
-    **daily_dominant_time_profile(grant_seconds=600, daily_minutes=20, finish='parent'),
+    **daily_dominant_time_profile(grant_seconds=600, daily_minutes=DAILY_MINUTES, finish='parent'),
     'game-apps': 'ui:parent-apps-page', 'game-policy': 'ui:parent-app-rows',
     'dominant-switch': 'system:parent-switch-user', 'dominant-gdm': 'ui:gdm-returned',
 }
@@ -55,7 +56,8 @@ PLAN = JourneyPlan(
     stage_actions={'desktop': 'native-verify', 'natural-expiry': 'natural-expiry'},
     child_bindings={stage: 'child' for stage, tag in SCREENS.items()
                     if tag.removeprefix('ui:') in GAME_OPERATIONS},
-    settings_checks={'dominant-settings': SettingsObservation('fixture-child', True, ('20 minutes',))},
+    settings_checks={'dominant-settings': SettingsObservation(
+        'fixture-child', True, (f'{DAILY_MINUTES} minutes',))},
     overlay_request=('child', 'parent', 75, False),
     countdown_checks={'countdown': ('new-estimate', 'estimate', 1, 300)},
     activity_entries={'natural-expiry': 'resumed-capture'},
@@ -104,7 +106,7 @@ class GameTimeExtensionChecks:
 class GameTimeExtensionJourney(GameTimeExtensionChecks, DailyDominantProfileJourney,
                                KioskRequestJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions)
+        super().__init__(context, progress, plan, daily_minutes=DAILY_MINUTES, actions=actions)
 
 
 FULLSCREEN_PROFILE = {

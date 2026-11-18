@@ -4283,8 +4283,8 @@ a separate FLOW11 qualification. It does not qualify fullscreen play.
 
 `game_time_extension.GameTimeExtensionJourney` and
 `onpc_app_rows::game_time_extension` passed complete case 128
-(`E2E-024/daily-dominant-windowed`) on Ubuntu 26.04. Riley's original ten-minute grant survives the
-enabled twenty-minute daily allowance save. The game stays Always Allowed;
+(`E2E-024/daily-dominant-windowed`) on Ubuntu 26.04. Riley's original ten-minute
+grant survives the fifteen-minute daily allowance save. The game stays Always Allowed;
 Jamie approves Custom 1.25 Minutes (75 seconds) with soft apps excluded.
 The public request and returned countdown preserve the daily-dominant operands
 and the required maximum-plus-addition calculation with elapsed-time bounds.

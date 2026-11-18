@@ -5,7 +5,7 @@ from dataclasses import replace
 from zoneinfo import ZoneInfo
 
 from accessible_ui import KIOSK_BOUND_OPERATIONS, OVERLAY_BOUND_OPERATIONS, NAMED_TIME_OPERATIONS
-from calendar_fixture import preset_spring_forward, preset_fall_back
+from calendar_fixture import SEASONAL_LEAD_SECONDS, preset_spring_forward, preset_fall_back
 from countdown import CountdownSample
 from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
@@ -27,6 +27,7 @@ CHOICES = {name: dict(child='existing-fixture-child' if name == 'jordan' else 'f
            for name, binding in BINDINGS.items()}
 ENTRIES = {}
 LOGIN_STAGES = set(fresh_desktop('parent'))
+APPROVAL_WAITS = tuple(f'approval-wait-{i}' for i in range(1, 4))
 
 
 def entry(prefix, account, mode, expected='success'):
@@ -59,7 +60,7 @@ PREPARE = {
     'jordan-switch': 'system:standard-switch-user', 'jordan-greeter': 'ui:gdm-returned',
     **prefixed_stages('riley-request', prepared_request(prefix='new', entry='new', initial='observed',
                                                        **CHOICES['riley'])),
-    **{f'approval-wait-{i}': 'ui:kiosk-request-estimate' for i in range(1, 7)},
+    **dict.fromkeys(APPROVAL_WAITS, 'ui:kiosk-request-estimate'),
     **prefixed_stages('riley-request', approved_request(**CHOICES['riley'], exit='automatic', explicit=True)),
     **entry('riley-fresh', 'child', 'fresh'),
     **native_activity_entry('riley-activity', child='child'),
@@ -130,7 +131,7 @@ PLAN = JourneyPlan(
     child_bindings={'parent-retained': 'existing', **{stage: 'existing' for stage in JORDAN_STAGES
                     if SCREENS[stage][3:] in NAMED_TIME_OPERATIONS | {'revoke-balances'}}},
     stage_actions={'setup-detached': 'calendar-window', 'desktop': 'native-verify',
-        **{f'approval-wait-{i}': 'approval-wait' for i in range(1, 7)},
+        **dict.fromkeys(APPROVAL_WAITS, 'approval-wait'),
         'cross-transition': 'cross-transition', 'natural-expiry': 'natural-expiry'},
     activity_checks=ACTIVITY_CHECKS,
     activity_entries={'natural-expiry': 'riley-activity-capture'},
@@ -181,7 +182,8 @@ class PairedGrantsJourney(InstalledJourney):
         midnight = start + datetime.timedelta(days=1)
         require(clock['timezone'] == prepared['timezone']
                 and clock['epoch_ns'] >= prepared['readback_epoch_ns']
-                and 1500 <= (boundary - clock['readback']['epoch_ns']) / 1e9 <= 1800
+                and SEASONAL_LEAD_SECONDS - 300 <= (boundary - clock['readback']['epoch_ns']) / 1e9
+                    <= SEASONAL_LEAD_SECONDS
                 and midnight.timestamp() - start.timestamp() == day_seconds
                 and int(midnight.timestamp()) * 1_000_000_000 == prepared['midnight_epoch_ns']
                 and datetime.datetime.fromtimestamp(boundary / 1e9 - 1, zone).utcoffset().total_seconds()

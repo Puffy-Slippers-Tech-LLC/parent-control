@@ -1662,7 +1662,7 @@ sub game_time_extension {
             onpc_parent::open_for_child($journey, 'desktop', 'same-user', 'retained', 'child', 'profile-result', 0));
         $journey->seen($_) for qw(profile-balance game-apps game-policy profile-final-switch profile-final-gdm);
     } else {
-        onpc_parent::daily_dominant_time_profile($journey, 600, 20, 'parent');
+        onpc_parent::daily_dominant_time_profile($journey, 600, 15, 'parent');
         $journey->seen($_) for qw(game-apps game-policy dominant-switch dominant-gdm);
     }
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'child-entry');

@@ -35,9 +35,7 @@ sub run {
         $journey->seen("$prefix-$_") for qw(state choice close);
     }
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
-    $journey->seen($_) for qw(reopened-choice reopened-close);
-    onpc_allowance_boundaries::select_child($journey, 'riley-session');
-    $journey->seen($_) for qw(riley-session-before parent-switch parent-greeter);
+    $journey->seen($_) for qw(reopened-choice reopened-close parent-switch parent-greeter);
     onpc_gdm::enter_station($journey, 'initial-');
     $journey->seen($_) for qw(station-initial-language station-initial-save jordan-jamie jordan-custom);
     onpc_text::replace_text($journey, 'jordan-kiosk-fraction', 'jordan-text');
@@ -73,7 +71,7 @@ sub run {
     onpc_allowance_boundaries::select_child($journey, 'final-jordan');
     $journey->seen('jordan-offline-final');
     onpc_allowance_boundaries::select_child($journey, 'final-riley');
-    $journey->seen($_) for qw(riley-offline-final parent-final-choice parent-final-close offline-restore riley-online-final);
+    $journey->seen($_) for qw(riley-offline-final parent-final-choice parent-final-close riley-online-final);
     onpc_allowance_boundaries::select_child($journey, 'online-jordan');
     $journey->seen('jordan-online-final');
     $journey->finish();

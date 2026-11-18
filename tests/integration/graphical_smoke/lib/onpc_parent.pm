@@ -539,7 +539,8 @@ sub daily_dominant_time_profile {
     die 'time-profile:daily-dominant-binding' unless (@_ == 3 || @_ == 4)
         && ref($journey) eq 'onpc_journey'
         && defined($finish) && ($finish eq 'parent' || $finish eq 'gdm')
-        && (($seconds eq '600' && $minutes eq '20') || ($seconds eq '1200' && $minutes eq '40'));
+        && (($seconds eq '600' && ($minutes eq '15' || $minutes eq '20'))
+            || ($seconds eq '1200' && $minutes eq '40'));
     grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, $seconds, 'default', 0);
     onpc_gdm::sign_in_challenge($journey, 'profile-return',
         'profile-return-installed-greeter', 'profile-return-parent-focused', 'profile-return-desktop');

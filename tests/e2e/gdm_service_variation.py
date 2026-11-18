@@ -21,7 +21,6 @@ import time
 ACCOUNT = 'oh-no-parent-control'
 INTERFACE = 'org.freedesktop.Accounts.User'
 DEDICATED = ['oh-no-parent-control', 'wayland']
-PAM = Path('/etc/pam.d/gdm-autologin')
 WORKER = '/usr/libexec/gdm-session-worker'
 WARNING = b'# onpc service-variation observation only\naccount optional pam_warn.so\n'
 ROUTING_VARIATIONS = ('normal', 'alternate-session', 'empty-fields', 'alternate-transport')
@@ -476,7 +475,8 @@ def attempt(token, *, routing_variation=None):
     user = '/org/freedesktop/Accounts/User' + str(account.pw_uid)
     config = Path('/etc/gdm/custom.conf' if guest.package_path().suffix == '.rpm'
                   else '/etc/gdm3/custom.conf')
-    pam = Path('/etc/pam.d/gdm-password') if routing_variation is not None else PAM
+    service = 'gdm-password' if routing_variation is not None else 'gdm-autologin'
+    pam = guest.pam_service_path(service)
     original_config, original_pam = snapshot(config), snapshot(pam)
     require(WARNING not in base64.b64decode(original_pam['bytes']), 'observation-collision')
     require(Path(WORKER).is_file() and Path(WORKER).stat().st_uid == 0, 'worker-executable')
@@ -487,7 +487,7 @@ def attempt(token, *, routing_variation=None):
         'automatic_original': api.automatic(), 'automatic_expected': api.automatic(),
         'routing_original': api.routing(user), 'routing_expected': api.routing(user),
         'restored': False, 'restart_attempted': False, 'pam': str(pam),
-        'service': 'gdm-password' if routing_variation is not None else 'gdm-autologin'}
+        'service': service}
     if routing_variation is not None:
         from system_kiosk_admission import routing_variations
         require(state['routing_original'] == DEDICATED and not state['automatic_original'],
@@ -563,8 +563,10 @@ def routing_attempt(token, variation):
             and state['service'] == 'gdm-password', 'routing-attempt-state')
     api = accounts()
     user = state['user']
-    require(snapshot(Path(state['config'])) == state['config_expected']
-            and snapshot(Path(state['pam'])) == state['pam_expected']
+    pam = guest.pam_service_path('gdm-password')
+    require(str(pam) == state['pam']
+            and snapshot(Path(state['config'])) == state['config_expected']
+            and snapshot(pam) == state['pam_expected']
             and api.automatic() == state['automatic_expected'], 'configuration-changed')
     require(api.routing(user) == state['routing_expected'] == DEDICATED,
             'routing-baseline-changed')
@@ -667,8 +669,9 @@ def restore(token, *, routing=False):
     state = load(receipt, marker, token)
     require(not state['restored'], 'already-restored')
     config = Path(state['config'])
-    pam = Path(state.get('pam', str(PAM)))
-    require(pam == (Path('/etc/pam.d/gdm-password') if routing else PAM), 'receipt-pam')
+    service = 'gdm-password' if routing else 'gdm-autologin'
+    pam = guest.pam_service_path(service)
+    require(state['service'] == service and state['pam'] == str(pam), 'receipt-pam')
     api = accounts()
     if routing and api.routing(state['user']) != state['routing_expected']:
         # A failed controller observation can still follow a completed product
@@ -722,7 +725,8 @@ def restore(token, *, routing=False):
             and api.automatic() == state['automatic_original'], 'restore-readback')
     guest.guard()
     guest.run(['systemctl', 'restart', 'display-manager.service'], timeout=60)
-    require(snapshot(config) == current and snapshot(pam) == state['pam_original']
+    require(snapshot(config) == current and guest.pam_service_path(service) == pam
+            and snapshot(pam) == state['pam_original']
             and api.routing(state['user']) == state['routing_original']
             and api.automatic() == state['automatic_original'], 'restore-restart-readback')
     if routing:

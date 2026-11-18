@@ -6023,8 +6023,10 @@ chooses dedicated Wayland with a stale alternate session, empty saved fields or
 stale saved `SessionType=x11`, each from the valid baseline. The current binding
 explicitly uses `expectation='execution'` and requires actual dedicated Wayland
 logind, selected-session process and running app observations for every variation.
-An attempt-bound identity diagnostic witnesses the reached account callback;
-saved defaults or command resolution alone supply no execution credit.
+An attempt-bound identity diagnostic witnesses the reached account callback.
+The PAM observation uses GDM's effective local or vendor service file and
+verifies that the same file is restored. Saved defaults and command resolution
+alone supply no execution credit.
 
 One real AccountsService discovery outage requires successful installed native admission,
 an observed usable public greeter baseline, exact owned service/mask restoration
@@ -6033,7 +6035,7 @@ also separates each restored variation from the next attempt's restart.
 The [design owner](../SystemDesign/Kiosk-Confinement.md#service-and-routing-boundary)
 records the finite mechanism and limits. The qualified scope is normal and
 three varied executions, discovery-independent admission, exact restoration and
-fresh public entry/form/Cancel/return on Ubuntu 26.04 and Fedora 44.
+fresh public entry/form/Cancel/return on Ubuntu 26.04, Fedora 44 and Fedora 45.
 
 ### Owned sign-in lease variation
 

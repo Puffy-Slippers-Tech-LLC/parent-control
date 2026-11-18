@@ -39,7 +39,7 @@ def require_startup_sync():
                          'the active checkout owner finishes')
 
 
-def _early_sync(root, branch, arguments, *, boundary_run=None):
+def _early_sync(root, branch, arguments, *, boundary_run=None, check_only=False):
     """Check live owners before synchronizing at startup or a joined boundary."""
     if os.environ.get('ONPC_WATCH_RUN'):
         if (Path(sys.argv[0]).name not in ('run-tests', 'fix-tests') or not any(
@@ -96,20 +96,26 @@ def _early_sync(root, branch, arguments, *, boundary_run=None):
                 retained_start |= not kind.startswith('fix-tests') and (scope / 'pending-start.json').exists()
                 if previous is not None and not kind.startswith('fix-tests'):
                     previous_runs.append(previous)
-        return _startup_sync(root, branch, arguments, previous_runs=previous_runs,
+        return _startup_sync(root, branch, previous_runs=previous_runs,
                              retained_start=retained_start, live=live,
-                             **({'on_boundary_admitted': locks.close} if boundary_run is not None else {}))
+                             on_boundary_admitted=locks.close if boundary_run is not None else None,
+                             check_only=check_only)
 
 
-def synchronize_boundary(root, branch, run):
-    """Synchronize an executing controller after its workers have joined."""
+def synchronize_boundary(root, branch, run, *, check_only=False):
+    """Check or acquire sync admission. An occupied checkout defers the pull."""
     try:
         _local_checkout(root, branch)
-        synchronized = _early_sync(root, branch, [], boundary_run=run)
+        return _early_sync(root, branch, [], boundary_run=run, check_only=check_only) is not None
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         raise SyncError(str(error)) from error
-    if synchronized is None:
-        raise SyncError('checkout synchronization is busy; resume after the other checkout owner finishes')
+
+
+def upstream_update_ready(root, branch, run, *, control):
+    """Drain test workers only when upstream is ahead and a pull looks admissible."""
+    from launcher_source_sync import upstream_pending
+
+    return upstream_pending(root, control=control) and synchronize_boundary(root, branch, run, check_only=True)
 
 
 def synchronize_reload(root, run):
@@ -118,7 +124,9 @@ def synchronize_reload(root, run):
     previous = launcher_reload.current
     launcher_reload.current = None
     try:
-        synchronize_boundary(root, _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD'), run)
+        branch = _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
+        if not synchronize_boundary(root, branch, run):
+            raise SyncError('checkout synchronization is busy; resume after the other checkout owner finishes')
     finally:
         launcher_reload.current = previous
 

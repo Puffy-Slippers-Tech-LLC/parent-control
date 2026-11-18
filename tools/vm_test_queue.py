@@ -564,8 +564,8 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
             sources = inputs.enter_context(FrozenSources(root)) if plan[1] else None
             upstream = {}
             if sources is not None and upstream_run is not None:
-                from launcher_source_sync import upstream_pending
-                upstream['check_upstream'] = lambda *, control: upstream_pending(root, control=control)
+                from launcher_controller import upstream_update_ready
+                upstream['check_upstream'] = partial(upstream_update_ready, root, sources.branch, upstream_run)
             outcome = _execute_group(root, plan, reloading=reloading, return_outcome=True,
                 checkpoint_scope=checkpoint_scope, sources=sources,
                 continue_on_errors=continue_on_errors, failed_work=failed_work,
@@ -588,8 +588,10 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
                 if not outcome['cleanup_complete']:
                     raise SyncError('active test bundles did not finish cleanup')
                 from launcher_controller import synchronize_boundary
-                synchronize_boundary(root, sources.branch, upstream_run)
-                if not stopped.is_set() and validate_routing is not None:
+                synchronized = synchronize_boundary(root, sources.branch, upstream_run)
+                if not synchronized:
+                    print('Git: checkout is busy. Deferring upstream synchronization.', flush=True)
+                elif not stopped.is_set() and validate_routing is not None:
                     launcher_reload.check()
                     validate_routing()
         except SyncError as error:

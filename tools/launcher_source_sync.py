@@ -59,21 +59,16 @@ def _upstream_pending(root, descriptors, control):
 
 
 def upstream_pending(root, *, control=None):
-    """Fetch tracking refs under the same Git guard used by pulls."""
+    """Fetch tracking refs if the shared Git guard is available for dispatch."""
     try:
         with _git_transaction(root) as transaction:
-            if control is None:
-                fcntl.flock(transaction, fcntl.LOCK_EX)
-            else:
+            if control is not None:
                 import launcher_reload
-                while True:
-                    launcher_reload.check()
-                    try:
-                        fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        break
-                    except BlockingIOError:
-                        if control.stopped.wait(.1):
-                            raise SyncError('upstream check cancelled')
+                launcher_reload.check()
+            try:
+                fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return False
             return _upstream_pending(root, (transaction,), control)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         raise SyncError(str(error)) from error
@@ -178,11 +173,15 @@ def _pending_git(previous):
     return False
 
 
-def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_start=False,
-                         live=False, on_boundary_admitted=None):
+def synchronize_checkout(root, branch, *, previous_runs=(), retained_start=False,
+                         live=False, on_boundary_admitted=None, check_only=False):
     """Pull under shared source guards; report whether imports need replacing."""
     from test_source import SourceProtection, source_directory, finish_admission, _lock
     boundary = on_boundary_admitted is not None
+    if check_only and live:
+        # A live workflow can be waiting for this run's result. Continue
+        # using the available checkout until there is a safe pull boundary.
+        return None
     finish_admission()
     protection = SourceProtection(source_directory(root))
     # Share the propagation lock and source lease, so no pull runs over active
@@ -191,7 +190,7 @@ def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_
         try:
             fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            if live:
+            if live or boundary:
                 return None
             raise ValueError('repository synchronization is busy; retry after it finishes') from error
         with _lock(protection.directory / 'source.lock') as source:
@@ -208,6 +207,8 @@ def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_
                         fcntl.flock(source, fcntl.LOCK_SH | fcntl.LOCK_NB)
                     except BlockingIOError:
                         return None
+                if check_only:
+                    return True
                 frozen = any(_pending_git(run) for run in previous_runs)
                 recovery = frozen or retained_start
             if live:

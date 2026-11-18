@@ -406,12 +406,15 @@ are retained; absent or incomplete results mean pending work. There is no source
 fingerprint, historical receipt or cleanup-journal qualification of a result.
 Input changes are picked up at dispatch boundaries without revoking passes.
 Before claiming a VM work item, an independent `run-tests` run or a normal
-`fix-tests` test pass fetches the controller checkout's upstream. Each system
-area or lifecycle history uses a single source capture. When upstream advances,
-dispatch pauses while active bundles finish and release their VM bookings. The
-controller then pulls under the shared checkout guards and captures the updated
-source for pending bundles. If the pull fails, one session
-uses the configured `agents.tools.conflict-resolver` profile in
+`fix-tests` test pass checks upstream when the Git lock is available. Each system
+area or lifecycle history uses a single source capture. When upstream advances
+and the checkout is available for a pull, dispatch pauses while active bundles
+finish and release their VM bookings. The controller then pulls under the shared
+checkout guards and captures the updated source for pending bundles. A busy
+checkout defers the pull while pending bundles continue with the available
+checkout. Admission is checked again before dispatch, including when ownership
+changes between the first check and the joined boundary. If the pull fails, one
+session uses the configured `agents.tools.conflict-resolver` profile in
 [`config/environment.json`](../config/environment.json). A clean pull runs
 without a session. If synchronization cannot complete, pending work stays
 pending and the runner reports a synchronization failure.

@@ -719,22 +719,64 @@ def test_shared_closeout_review_refuses_inactive_controller(shared_closeout):
     assert (run / 'checkpoint.json').read_bytes() == checkpoint
 
 
-def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path):
+def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolated_source):
     import detached_launcher as launcher
-    from test_source import SourceProtection
+    from launcher_controller import synchronize_boundary, synchronize_reload, upstream_update_ready
+    from launcher_source_sync import SyncError
+    from regression_process import Control
+    from test_storage import directory
 
-    source = SourceProtection(tmp_path)
-    with launcher.lock(tmp_path / 'source.lock') as reader:
-        assert source.admit(reader)
-        source.validate(reader, held=True)
-        with launcher.lock(tmp_path / 'source.lock') as writer:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    with launcher.lock(tmp_path / 'source.lock') as writer:
-        fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        source.validate(writer, held=True, writer=True)
-    with launcher.lock(tmp_path / 'source.lock') as reader:
-        assert source.admit(reader)
+    root = tmp_path / 'checkout'
+    root.mkdir()
+
+    def git(*args):
+        return subprocess.run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', *args],
+                              cwd=root, check=True, capture_output=True, text=True, timeout=10).stdout.strip()
+
+    git('init', '--initial-branch=main')
+    git('commit', '--allow-empty', '-m', 'Base')
+    base = git('rev-parse', 'HEAD')
+    git('switch', '-c', 'published')
+    git('commit', '--allow-empty', '-m', 'Upstream advance')
+    upstream = git('rev-parse', 'HEAD')
+    git('switch', 'main')
+    git('config', 'branch.main.remote', '.')
+    git('config', 'branch.main.merge', 'refs/heads/published')
+
+    sessions = directory('sessions', root=root)
+    run = launcher.private_directory(sessions / ('a' * 32))
+    launcher.atomic(sessions / 'current.json', {'run': run.name})
+    host_sessions = directory('sessions-host', root=root)
+    host_run = launcher.private_directory(host_sessions / ('b' * 32))
+    launcher.atomic(host_sessions / 'current.json', {'run': host_run.name})
+    with (launcher.lock(run / 'owner') as owner, launcher.lock(host_run / 'owner') as host_owner,
+          launcher.lock(tmp_path / 'source.lock') as reader):
+        fcntl.flock(owner, fcntl.LOCK_EX)
+        fcntl.flock(host_owner, fcntl.LOCK_EX)
+        control = Control()
+        assert not upstream_update_ready(root, 'main', run, control=control)
+        assert not synchronize_boundary(root, 'main', run)
+        fcntl.flock(host_owner, fcntl.LOCK_UN)
+
+        with launcher.lock(root / '.git/onpc-worktree-propagation.lock') as transaction:
+            fcntl.flock(transaction, fcntl.LOCK_EX)
+            assert not upstream_update_ready(root, 'main', run, control=control)
+
+        assert isolated_source.admit(reader)
+        isolated_source.validate(reader, held=True)
+        assert not upstream_update_ready(root, 'main', run, control=control)
+        fcntl.flock(reader, fcntl.LOCK_UN)
+        assert upstream_update_ready(root, 'main', run, control=control)
+
+        # Ownership can change after the probe while the runner joins its work.
+        assert isolated_source.admit(reader)
+        assert not synchronize_boundary(root, 'main', run)
+        with pytest.raises(SyncError, match='checkout synchronization is busy'):
+            synchronize_reload(root, run)
+        assert git('rev-parse', 'HEAD') == base
+        fcntl.flock(reader, fcntl.LOCK_UN)
+        assert synchronize_boundary(root, 'main', run)
+        assert git('rev-parse', 'HEAD') == upstream
 
 
 @pytest.fixture

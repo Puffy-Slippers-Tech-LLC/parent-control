@@ -20,6 +20,7 @@ from installed_setup import timed_stage
 from observation_transport import ReadOnlyObservations
 from private_artifacts import require
 import system_runner as system
+import vm_config
 from vm_transport import Transport
 from ui_observations import (
     AppActivityObservation, RequestObservation, SettingsObservation, UiObservations,
@@ -57,6 +58,26 @@ ACTIVITY_BINDINGS = {
        for operation, (_role, instance, action) in accessible_ui.PACKAGED_APP_BINDINGS.items()
        if action in ('activity', 'policy-activity', 'policy-closed')},
 }
+
+
+REQUEST_BACKDROP = '''import os,pathlib,sys
+flag=pathlib.Path('/etc/onpc-static-request-backdrop')
+assert not os.path.lexists(flag)
+if sys.argv[1]=='static':
+    with flag.open('xb') as stream:
+        os.fchmod(stream.fileno(),0o644)
+        stream.write(b'1\\n')
+    assert flag.read_bytes()==b'1\\n'
+'''
+
+
+def prepare_request_backdrop(transport):
+    """Apply the E2E rendering preference before the worker releases desktop input."""
+    static = vm_config.read_document(validate_agent=False).get('e2e_static_request_backdrop', False)
+    require(type(static) is bool, 'e2e:invalid-request-backdrop-setting')
+    mode = 'static' if static else 'animated'
+    transport.call(['/usr/bin/python3', '-I', '-c', REQUEST_BACKDROP, mode], timeout=30)
+    print(f'e2e:request-backdrop={mode}', file=sys.stderr, flush=True)
 
 
 def validate_boundary(journey, directory, boundary):
@@ -899,6 +920,7 @@ class InstalledJourney:
                                   lease=context.lease)
             with timed_stage('setup-ssh-readiness'):
                 transport.probe_ready(timeout=180)
+            prepare_request_backdrop(transport)
             # The snapshot's installed app persists, but its helper payload
             # belongs to the snapshot-creation run. Bootstrap has already bound
             # the guard marker to this attempt's package and selected inputs.

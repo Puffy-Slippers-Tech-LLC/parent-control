@@ -1095,7 +1095,7 @@ snapshot's private credential record, or the dedicated baseline-maintenance
 transport, and the existing maintenance ownership journal; manually started
 guests and active test controllers are refused.
 For lightweight diagnostics during an active test, use
-`tools/test-vm --vm NAME probe memory` instead. The installed helper authenticates
+`tools/test-vm --vm NAME probe memory` or `probe cpu`. The installed helper authenticates
 the requester to the active owner's fixed read-only probe endpoint without
 acquiring another checkout. See the [VM mandate](Mandates/VM-Mandate.MD#owned-maintenance-and-execution)
 for the diagnostic bounds and lifecycle contract. This does not enable arbitrary

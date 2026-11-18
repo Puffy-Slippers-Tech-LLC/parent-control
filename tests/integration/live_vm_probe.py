@@ -12,11 +12,10 @@ import struct
 import tempfile
 import threading
 
-from owned_commands import Commands
-from watch_activity import operation, current
+PROBES = ('memory', 'cpu')
+TOP_PROCESSES = 12
 
-
-PROGRAM = '''import hashlib,json,pathlib,time
+MEMORY_PROGRAM = '''import hashlib,json,pathlib,time
 p=pathlib.Path
 boot=hashlib.sha256(p('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
 m={s[0].rstrip(':'):int(s[1]) for line in p('/proc/meminfo').read_text().splitlines()
@@ -34,6 +33,50 @@ print(json.dumps({'boot_sha256':boot,'sample_monotonic_ns':time.monotonic_ns(),
  'pressure_total_us':{k:int(pressure[k]['total']) for k in ('some','full')}}))
 '''
 
+CPU_PROGRAM = '''import collections,hashlib,json,os,pathlib,re,time
+
+def boot():
+    return hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+
+def snapshot():
+    cpu = tuple(map(int, pathlib.Path('/proc/stat').read_text().splitlines()[0].split()[1:9]))
+    pressure = pathlib.Path('/proc/pressure/cpu').read_text().splitlines()[0].split()
+    vmstat = dict(line.split() for line in pathlib.Path('/proc/vmstat').read_text().splitlines())
+    processes = {}
+    with os.scandir('/proc') as entries:
+        for entry in entries:
+            if not entry.name.isdecimal():
+                continue
+            try:
+                stat = pathlib.Path(entry.path, 'stat').read_text(errors='replace')
+            except OSError:
+                continue
+            close = stat.rindex(')')
+            name = re.sub('[^a-zA-Z0-9_.:-]', '_', stat[stat.index('(') + 1:close])[:15]
+            fields = stat[close + 2:].split()
+            processes[(entry.name, fields[19])] = (name or '_', int(fields[11]) + int(fields[12]))
+    return time.monotonic_ns(), cpu, int(pressure[-1].split('=')[1]), vmstat, processes
+
+identity = boot()
+begin, cpu_before, pressure_before, vm_before, before = snapshot()
+time.sleep(3)
+end, cpu_after, pressure_after, vm_after, after = snapshot()
+assert identity == boot()
+by_name = collections.Counter()
+for key in before.keys() & after.keys():
+    name, ticks = after[key]
+    delta = ticks - before[key][1]
+    if delta > 0:
+        by_name[name] += delta
+cpu_delta = [current - previous for current, previous in zip(cpu_after, cpu_before)]
+print(json.dumps(dict(boot_sha256=identity, sample_monotonic_ns=end, interval_ns=end-begin,
+    ticks_per_second=os.sysconf('SC_CLK_TCK'), total_ticks=sum(cpu_delta),
+    busy_ticks=sum(cpu_delta[:3] + cpu_delta[5:7]), pressure_some_us=pressure_after-pressure_before,
+    swap_pages={k:int(vm_after[k])-int(vm_before[k]) for k in ('pswpin','pswpout')},
+    matched_process_ticks=by_name.total(), processes=sorted(by_name.items(),
+    key=lambda item: (-item[1], item[0]))[:''' + str(TOP_PROCESSES) + '''])))
+'''
+
 
 def address(vm):
     from vm_pool import identity
@@ -44,27 +87,52 @@ def peer_uid(peer):
     return struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
 
 
-def validate(sample):
+def counter(value):
+    return type(value) is int and 0 <= value < 2**63
+
+
+def validate(sample, probe='memory'):
+    memory_fields = {'meminfo_kib', 'vmstat', 'pressure_total_us'}
+    cpu_counters = {'interval_ns', 'ticks_per_second', 'total_ticks', 'busy_ticks',
+                    'pressure_some_us', 'matched_process_ticks'}
+    fields = memory_fields if probe == 'memory' else cpu_counters | {'swap_pages', 'processes'}
     if (type(sample) is not dict or set(sample) != {
-            'boot_sha256', 'sample_monotonic_ns', 'meminfo_kib', 'vmstat', 'pressure_total_us'}
+            'boot_sha256', 'sample_monotonic_ns', *fields}
             or not isinstance(sample['boot_sha256'], str)
             or re.fullmatch('[0-9a-f]{64}', sample['boot_sha256']) is None
-            or type(sample['sample_monotonic_ns']) is not int or sample['sample_monotonic_ns'] < 0):
+            or not counter(sample['sample_monotonic_ns'])):
         raise ValueError('vm-probe:invalid-sample')
-    for key, fields in (
+    if probe == 'cpu':
+        processes = sample['processes']
+        if (any(not counter(sample[key]) for key in cpu_counters)
+                or not 0 < sample['interval_ns'] <= sample['sample_monotonic_ns']
+                or not sample['ticks_per_second'] or not sample['total_ticks']
+                or sample['busy_ticks'] > sample['total_ticks']
+                or type(processes) is not list or len(processes) > TOP_PROCESSES
+                or any(type(row) is not list or len(row) != 2 or type(row[0]) is not str
+                       or re.fullmatch('[a-zA-Z0-9_.:-]{1,15}', row[0]) is None
+                       or not counter(row[1]) or not row[1] for row in processes)
+                or sum(row[1] for row in processes) > sample['matched_process_ticks']
+                or len({row[0] for row in processes}) != len(processes)):
+            raise ValueError('vm-probe:invalid-sample')
+        groups = (('swap_pages', {'pswpin', 'pswpout'}),)
+    else:
+        groups = (
             ('meminfo_kib', {'MemTotal', 'MemAvailable', 'MemFree', 'Cached', 'Buffers',
                              'SReclaimable', 'Shmem', 'SwapTotal', 'SwapFree'}),
             ('vmstat', {'pswpin', 'pswpout', 'pgmajfault', 'oom_kill'}),
-            ('pressure_total_us', {'some', 'full'})):
+            ('pressure_total_us', {'some', 'full'}))
+    for key, fields in groups:
         values = sample[key]
         if (type(values) is not dict or set(values) != fields
-                or any(type(v) is not int or not 0 <= v < 2**63 for v in values.values())):
+                or any(not counter(value) for value in values.values())):
             raise ValueError('vm-probe:invalid-sample')
     return sample
 
 
 class Server:
     def __init__(self, lease, transport):
+        from owned_commands import Commands
         from vm_transport import Transport, guard_host
         self.uid = int(os.environ['PKEXEC_UID'])
         if os.geteuid() != 0 or self.uid <= 0 or lease.fd is None:
@@ -105,6 +173,8 @@ class Server:
             self.finished.set()
 
     def _serve(self):
+        from watch_activity import operation, current
+
         while not self.stop.is_set():
             try:
                 peer, _ = self.socket.accept()
@@ -116,9 +186,10 @@ class Server:
                     if peer_uid(peer) != 0:
                         continue
                     raw = peer.recv(256)
-                    if (self.stop.is_set() or raw != f'memory:{self.uid}'.encode('ascii')):
+                    probe = next((name for name in PROBES if raw == f'{name}:{self.uid}'.encode('ascii')), None)
+                    if self.stop.is_set() or probe is None:
                         continue
-                    with operation('Probing guest memory during the active run', priority=3):
+                    with operation(f'Probing guest {probe} during the active run', priority=3):
                         try:
                             size = 0
                             def bound(data, stream):
@@ -126,11 +197,12 @@ class Server:
                                 size += len(data)
                                 if size > 4096:
                                     raise ValueError('vm-probe:oversized-sample')
+                            program = MEMORY_PROGRAM if probe == 'memory' else CPU_PROGRAM
                             sample = validate(json.loads(self.transport.call(
-                                ['/usr/bin/python3', '-I', '-c', PROGRAM], timeout=10,
-                                on_stream=bound)))
+                                ['/usr/bin/python3', '-I', '-c', program], timeout=10,
+                                on_stream=bound)), probe)
                             self.transport.guard(self.config)
-                            result = dict(probe='memory', domain_uuid=self.config['domain_uuid'],
+                            result = dict(probe=probe, domain_uuid=self.config['domain_uuid'],
                                           run=self.config['run'], domain_id=self.config['domain_id'],
                                           sample=sample)
                             transcript = current()
@@ -154,29 +226,31 @@ class Server:
         self.socket.close()
 
 
-def request(vm, uid):
+def request(vm, uid, probe='memory'):
     if os.geteuid() != 0 or uid <= 0:
         raise ValueError('vm-probe:authenticated-helper-required')
+    if probe not in PROBES:
+        raise ValueError('vm-probe:unsupported-probe')
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
             peer.settimeout(70)
             peer.connect(address(vm))
             if peer_uid(peer) != 0:
                 raise ValueError('vm-probe:untrusted-owner')
-            peer.send(f'memory:{uid}'.encode('ascii'))
+            peer.send(f'{probe}:{uid}'.encode('ascii'))
             raw = peer.recv(8193)
         if len(raw) > 8192:
             raise ValueError('vm-probe:oversized-reply')
         result = json.loads(raw)
-        if result.get('error'):
+        if type(result) is not dict or result.get('error'):
             raise ValueError('vm-probe:sample-unavailable')
         if (set(result) != {'probe', 'domain_uuid', 'run', 'domain_id', 'sample'}
-                or result['probe'] != 'memory' or result['domain_uuid'] != vm
+                or result['probe'] != probe or result['domain_uuid'] != vm
                 or not isinstance(result['run'], str)
                 or re.fullmatch('[0-9a-f]{32}', result['run']) is None
                 or type(result['domain_id']) is not int or result['domain_id'] < 0):
             raise ValueError('vm-probe:invalid-owner-reply')
-        validate(result['sample'])
+        validate(result['sample'], probe)
         return result
     except (OSError, json.JSONDecodeError) as error:
         raise ValueError('vm-probe:no-active-owner-or-probe-unavailable') from error

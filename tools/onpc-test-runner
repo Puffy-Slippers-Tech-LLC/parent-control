@@ -147,8 +147,8 @@ def selection(root, argv, *, allow_missing_artifacts=False):
         return ['/usr/bin/python3', '-B', str(target), *vm_args, '--expected-uuid', identity,
                 'exec', '--timeout', str(timeout), *(['--stdin'] if input_stream else []), '--', *command]
     if argv[:2] == ['vm', 'probe']:
-        if argv != ['vm', 'probe', 'memory']:
-            raise ValueError('vm-probe: use probe memory')
+        if argv[2:] not in (['memory'], ['cpu']):
+            raise ValueError('vm-probe: use probe memory or probe cpu')
         if identity is None:
             raise ValueError('test-runner:prepare-vm-and-refresh-test-tools')
         # The dispatcher services this request directly, without acquiring or
@@ -704,10 +704,10 @@ def _run(root, argv, caller):
     controls = argv[:argv.index('--')] if '--' in argv else argv
     argv, configured = vm_config.extract(argv, required='--list' not in controls,
                                           path=root / 'config/environment.json')
-    if argv == ['vm', 'probe', 'memory']:
+    if argv[:2] == ['vm', 'probe']:
         sys.path.insert(0, str(root / 'tests/integration'))
         from live_vm_probe import request
-        print(json.dumps(request(VM_UUIDS[configured.name], caller.pw_uid), sort_keys=True))
+        print(json.dumps(request(VM_UUIDS[configured.name], caller.pw_uid, argv[2]), sort_keys=True))
         return 0
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
                    'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1'}

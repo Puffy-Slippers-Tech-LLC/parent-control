@@ -29,6 +29,7 @@
     }
   },
   "snap_tests_enabled": true,
+  "e2e_static_request_backdrop": true,
   "hosts": [
     {
       "name": "local",

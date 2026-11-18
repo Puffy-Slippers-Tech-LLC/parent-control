@@ -100,9 +100,11 @@ def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
     """
     if vm.host.name == tool_host(root).name:
         return None
-    if tool == 'test-vm' and options == ['--vm', vm.name, 'probe', 'memory']:
+    if tool == 'test-vm' and options[:3] == ['--vm', vm.name, 'probe']:
+        if options[3:] not in (['memory'], ['cpu']):
+            raise ValueError('vm-probe: use probe memory or probe cpu')
         return remote_inspection(root, vm, '/usr/local/libexec/onpc-test-runner',
-                                 ['vm', '--vm', vm.name, 'probe', 'memory'])
+                                 ['vm', *options])
     from regression_process import Control
     from remote_sources import RemoteVM
     import test_launcher

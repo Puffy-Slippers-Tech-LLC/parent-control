@@ -74,6 +74,7 @@ SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
 CHILD_SUCCESS_TITLE = m.TIME_GRANTED
 CHILD_SUCCESS_COPY = m.TIME_GRANTED_CLOSE
 GATEWAY_EFFECT_FRAME_MS = 33
+STATIC_REQUEST_BACKDROP = Path('/etc/onpc-static-request-backdrop')
 # Temporarily disable the shared sound/lightning feature; retain its controls
 # and saved preferences so it can be restored in a future release.
 REQUEST_MEDIA_ENABLED = False
@@ -262,9 +263,24 @@ class GatewayBackground(Gtk.Widget):
     def __init__(self):
         super().__init__(hexpand=True, vexpand=True)
         self._started_at = GLib.get_monotonic_time() / 1_000_000
+        self._static = STATIC_REQUEST_BACKDROP.is_file()
         started = time.monotonic_ns()
         self._texture = self._load_texture()
         _log_timing('background', started)
+        self._frame_source_id = None
+        self._last_scene_layout = None
+        self._random = random.SystemRandom()
+        self._lightning_bolts = []
+        self._next_lightning_burst_at = 0.0
+        self._lightning_enabled = False
+        self._lightning_audio = None
+        if not self._static:
+            self._load_effects()
+            self._snowflakes = SnowflakeField()
+            self._frame_source_id = GLib.timeout_add(GATEWAY_EFFECT_FRAME_MS, self._next_frame)
+            self.connect("destroy", self._stop_animation)
+
+    def _load_effects(self):
         started = time.monotonic_ns()
         self._lava = LavaBands(self._texture, cached=True)
         _log_timing('lava', started)
@@ -273,17 +289,6 @@ class GatewayBackground(Gtk.Widget):
             self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
         )
         _log_timing('scenery', started)
-        self._snowflakes = SnowflakeField()
-        self._random = random.SystemRandom()
-        self._lightning_bolts = []
-        self._next_lightning_burst_at = 0.0
-        self._lightning_enabled = False
-        self._lightning_audio = None
-        self._last_scene_layout = None
-        self._frame_source_id = GLib.timeout_add(
-            GATEWAY_EFFECT_FRAME_MS, self._next_frame,
-        )
-        self.connect("destroy", self._stop_animation)
 
     @staticmethod
     def _load_texture(name="kiosk-background-still.png"):
@@ -299,10 +304,8 @@ class GatewayBackground(Gtk.Widget):
     def reload_texture(self):
         """Refresh the preview artwork without rebuilding the window."""
         self._texture = self._load_texture()
-        self._lava = LavaBands(self._texture, cached=True)
-        self._floating_islands = FloatingIslands(
-            self._texture, self._load_texture("kiosk-background-scenery-clear.png"),
-        )
+        if not self._static:
+            self._load_effects()
         self.queue_draw()
 
     def _next_frame(self):
@@ -339,17 +342,19 @@ class GatewayBackground(Gtk.Widget):
         if self._texture is None or width <= 0 or height <= 0:
             return
 
-        now = GLib.get_monotonic_time() / 1_000_000 - self._started_at
-        artwork = _gateway_artwork_geometry(width, height)
+        now = 0 if self._static else GLib.get_monotonic_time() / 1_000_000 - self._started_at
         regions = _gateway_scene_regions(width, height)
         for index, (clip, region) in enumerate(regions):
             snapshot.push_clip(Graphene.Rect().init(*clip))
             image_bounds = Graphene.Rect().init(*region)
-            if index == 1 or not self._floating_islands.ready:
+            if self._static or index == 1 or not self._floating_islands.ready:
                 snapshot.append_texture(self._texture, image_bounds)
-            if index != 1:
+            if not self._static and index != 1:
                 self._floating_islands.draw(snapshot, region, now)
             snapshot.pop()
+        if self._static:
+            self._draw_vignette(snapshot, bounds)
+            return
         if self._last_scene_layout != (width, height):
             LOG.debug(
                 "kiosk.003",
@@ -359,17 +364,17 @@ class GatewayBackground(Gtk.Widget):
                 scale_3=min(regions[2][1][2] / SOURCE_WIDTH, height / SOURCE_HEIGHT),
             )
             self._last_scene_layout = (width, height)
+        artwork = _gateway_artwork_geometry(width, height)
         self._lava.draw(snapshot, artwork, now)
 
-        # A low-opacity vignette preserves legibility while allowing the
-        # supplied artwork to remain prominent.
-        snapshot.append_color(
-            Gdk.RGBA(red=0.02, green=0.03, blue=0.09, alpha=0.24),
-            bounds,
-        )
+        self._draw_vignette(snapshot, bounds)
         self._snowflakes.configure(width, height, artwork)
         self._snowflakes.draw(snapshot.append_cairo(bounds), now)
         self._append_gateway_energy(snapshot, width, height, now)
+
+    @staticmethod
+    def _draw_vignette(snapshot, bounds):
+        snapshot.append_color(Gdk.RGBA(red=0.02, green=0.03, blue=0.09, alpha=0.24), bounds)
 
     def _new_lightning_bolt(self, starts_at):
         """Anchor an angular discharge to a crystal and the nearest gate rail."""

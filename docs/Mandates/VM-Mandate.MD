@@ -242,20 +242,24 @@ arguments and root privileges apply only in the guest. Reuse its private SSH
 identity, guarded transport, exclusive lease and observation; never restore the
 guest to inspect it or adopt another controller's running instance.
 
-During a test, `tools/test-vm --vm NAME probe memory` requests a fixed read-only
-sample from that VM's active owner. It acquires no checkout or controller lease,
+During a test, `tools/test-vm --vm NAME probe memory` or `probe cpu` requests a
+fixed read-only sample from that VM's active owner. It acquires no checkout or controller lease,
 opens no retention session and receives no SSH credentials or reservation receipt.
 Only the installed authenticated helper for the owner's caller may request it.
 For a remote VM, dispatch invokes that host's installed helper from its registered
 checkout directly, like artifact inspection; it never captures or transfers the
 repairing checkout's source. The SSH request has a 60-second deadline.
 The owner serializes probes using separate command state and guarded SSH; returns
-bounded memory, swap, page-fault, OOM and memory-pressure counters with run,
-domain-instance and boot identity; and publishes the result through shared Watch.
+bounded counters with run, domain-instance and boot identity. It publishes the
+result through shared Watch. The memory sample has instantaneous memory, swap,
+page-fault, OOM and memory-pressure counters. The CPU sample measures a fixed
+three-second interval of guest CPU ticks, CPU pressure and swap traffic. It lists
+up to twelve kernel process names by CPU ticks, using processes present at both
+ends of the interval with the same PID and start time. Aggregate ticks include
+short-lived processes and remain the authority for total guest CPU.
 Known lifecycle operations drain the probe before changing or releasing the VM.
 Guest-initiated transitions can make a sample unavailable; successful samples
-identify their observed boot and are instantaneous observations, not guarantees
-of future readiness. Missing owners/transports and probe failures refuse without
+identify their observed boot and observation time. Missing owners/transports and probe failures refuse without
 starting, restoring or repairing the guest or changing the test verdict.
 Arbitrary `exec`, test cases, preparation and recovery retain exclusive access.
 

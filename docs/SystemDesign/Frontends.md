@@ -384,6 +384,11 @@ fall back to the original calculation, including edited checkout previews.
 Missing or unreadable optional clear-scenery artwork retains the original static
 background and leaves requests available.
 
+The internal `/etc/onpc-static-request-backdrop` flag uses the still artwork on
+both request surfaces and disables the decorative backdrop effects together.
+The E2E runner can set the flag in a disposable guest before desktop input. The
+flag belongs to the attempt and is retired by the guest's snapshot restoration.
+
 ## Lightning audio
 
 Sound/lightning are currently disabled through `REQUEST_MEDIA_ENABLED`; the

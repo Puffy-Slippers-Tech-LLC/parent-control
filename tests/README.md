@@ -504,6 +504,9 @@ the original selected total in the dashboard, controller header and saved progre
 For example, after nine passes in a 100-case selection, completing the first retry
 shows `10/100`, not `1/91`. `fix-tests` uses the same counters for its resumed
 test runs and repair retries. A fresh verification pass starts its counts over.
+The shared runner counts the full launcher selection across categories, VM
+families and subcategories. A repair task limit restricts dispatch while keeping
+the original selection in the overall count.
 
 Only completed cases without a reported failure are retained as passes. Failed
 cases, interrupted cases and queued work run again; parallel workers retain

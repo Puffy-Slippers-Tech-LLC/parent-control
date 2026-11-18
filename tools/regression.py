@@ -25,6 +25,7 @@ from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECO
 from regression_ui import buckets as ui_buckets
 from regression_unit import buckets as unit_buckets
 from regression_cleanup import buckets as cleanup_buckets
+from test_progress import percentage
 
 
 CATEGORY_NAMES = {
@@ -81,6 +82,7 @@ class Category:
     resumed_nodeids: tuple[str, ...] = ()
     selection_args: tuple[str, ...] | None = None
     error_detail: str = ''  # Presentation only; never used for verdicts or retries.
+    inventory_preview: bool = False
 
     @property
     def progress_done(self):
@@ -105,6 +107,7 @@ class Dashboard:
 
     def __init__(self, categories, stream=None):
         self.categories = categories
+        self.additional_categories = []
         self.stream = stream or sys.stdout
         self.lines = 0
         self.terminal_size = None
@@ -243,17 +246,21 @@ class Dashboard:
                     lines.extend(self.branches(phase_items, now, item.phase))
             else:
                 lines.append(('│  ' if hosts else '') + self.category(item, now))
-        counted = [item for item in self.categories if item.phase != 'cleanup' and item.count_overall]
-        done = sum(item.progress_done for item in counted)
-        known = all(item.progress_total is not None for item in counted)
-        total = sum(item.progress_total or 0 for item in counted)
-        percent = str(int(100 * done / max(total, 1))) if known else '?'
+        counted = [item for item in (*self.categories, *self.additional_categories)
+                   if item.phase != 'cleanup' and item.count_overall]
+        failures = sum(sum(case in item.nodeids for case in item.failed_nodeids) if item.nodeids is not None
+                       else min(item.failures, item.progress_done) for item in counted)
+        passed = sum(max(0, item.progress_done - item.failures) for item in counted)
+        total = (None if any(item.progress_total is None for item in counted) else
+                 sum(item.progress_total for item in counted))
+        overall_counts = getattr(self.stream, 'overall_counts', None)
+        if overall_counts is not None:
+            passed, failures, total = overall_counts(passed, failures, total)
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
             '0' if all(c.state == 'Passed' for c in self.categories) else '97;1')
-        failures = sum(item.failures for item in counted)
         lines.append('')
-        lines.append(f'\033[{color}mOverall - {percent}% '
-                     + self.counts(done, failures, total if known else '?')
+        lines.append(f'\033[{color}mOverall - {percentage(passed, failures, total)}% '
+                     + self.counts(passed + failures, failures, '?' if total is None else total)
                      + f' - {duration_text(now - self.started)}\033[0m')
         if self.control is not None and (self.control.interrupted or
                                         self.control.stopped.is_set()):
@@ -787,7 +794,7 @@ class Execution:
             self.run.report.snapshot(self.run.categories, force=event['kind'] == 'failure')
             if event['kind'] == 'failure':
                 self.run.report.checkpoint(force=True)
-                if not self.run.continue_on_errors and not self.defer_failure_stop:
+                if not self.run.continue_on_errors and not (self.defer_failure_stop or item.inventory_preview):
                     self.run.control.fail()
             self.run.dashboard.draw()
             if self.fixture_failed and not self.defer_failure_stop:
@@ -864,7 +871,7 @@ class Execution:
                 from test_retention import preserve_for_recovery
                 preserve_for_recovery()
                 raise ValueError('test infrastructure failed; further host work refused')
-            if item.state == 'Failed' and not run.continue_on_errors:
+            if item.state == 'Failed' and not (run.continue_on_errors or item.inventory_preview):
                 run.report.checkpoint(force=True)
                 run.control.fail()
             return status, '\n'.join(self.captured)
@@ -1043,14 +1050,17 @@ class Run:
             return False
         item.state = 'Failed'
         item.failed_nodeids = (failure['case'],) if failure['case'] else ()
+        if item.failed_nodeids:
+            item.done = item.failures = 1
         item.error_detail = 'Retained failure selected for repair; no test was rerun.'
         return True
 
-    def command_environment(self, command):
+    def command_environment(self, command, *, use_checkpoint=True):
         environment = host.environment(self.root)
         kind = ('ui' if Path(command[0]).name == 'run-ui-tests' else
                 command[1] if Path(command[0]).name == 'run-tests' and len(command) > 1 else None)
-        if self.checkpoint is not None and kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage'):
+        if (use_checkpoint and self.checkpoint is not None
+                and kind in ('unit', 'component', 'ui', 'fixture-runtime', 'coverage')):
             from test_checkpoint import EXCLUDE, ONLY
             environment[EXCLUDE] = self.checkpoint.environment(kind)
             if self.checkpoint.retry_case:
@@ -1215,7 +1225,8 @@ class Run:
                     self.checkpoint.queue_vm_started = True
                     self.checkpoint.queue_vm_cleanup = False
                     self.checkpoint.queue_vm_interrupted = False
-            status = self.control.run(command, cwd=self.root, env=self.command_environment(command),
+            status = self.control.run(command, cwd=self.root,
+                                      env=self.command_environment(command, use_checkpoint=not item.inventory_preview),
                                       output=execution.output, cooperative=True,
                                       tick=tick, started=started,
                                       **({'preserve_exit': True} if vm_step else {}))
@@ -1624,7 +1635,8 @@ class Run:
 
 
 def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
-         continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None):
+         continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None,
+         accounting=None):
     import test_retention
     import test_activity
     root = root or Path(__file__).resolve().parents[1]
@@ -1646,12 +1658,13 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
                                    host_only=host_only, host_builds=host_builds,
                                    serial_builds=serial_builds, continue_on_errors=continue_on_errors,
                                    selections=selections, phases=phases, stop_on_error=stop_on_error,
-                                   checkpoint=checkpoint)
+                                   checkpoint=checkpoint, accounting=accounting)
         return 130 if storage_control.stopped.is_set() and status != 1 else status
 
 
 def retained_main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
-                  continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None):
+                  continue_on_errors=False, selections=None, phases=None, stop_on_error=False, checkpoint=None,
+                  accounting=None):
     root = root or Path(__file__).resolve().parents[1]
     report = None
     run = None
@@ -1669,7 +1682,8 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                           continue_on_errors=continue_on_errors, phases=phases)
             else:
                 from regression_selection import SelectedRun
-                run = SelectedRun(root, report, control, selections, stop_on_error=stop_on_error)
+                run = SelectedRun(root, report, control, selections, stop_on_error=stop_on_error,
+                                  accounting=accounting)
             run.checkpoint = checkpoint
             run.run()
             status = run.result_status()

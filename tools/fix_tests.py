@@ -172,9 +172,11 @@ def execute(root, run, owner, kind, command=None):
 def run_rounds(root, run, owner, request, *, operation=execute):
     from launcher_reload import STATUS as RELOAD_STATUS, replace, unaccepted
     from launcher_source_sync import STATUS as SYNC_STATUS
+    from test_progress import SELECTION
     from test_results import PENDING_STATUS, ResultStore, VARIABLE
     from vm_selection import execution_arguments, execution_binding
     inventory = repair_inventory(root, request.get('categories', []))
+    full_selection = [arg for category, spec in inventory.items() for arg in (category, *spec['args'])]
     rounds = request.get('rounds', 1)
     completed_tasks = sum(record.get('invocation') == run.name
         and record['family'] == 'selection' and not record['status'] and record.get('complete') is True
@@ -219,7 +221,12 @@ def run_rounds(root, run, owner, request, *, operation=execute):
             if execution_binding() is not None:
                 command += execution_arguments()
             results.begin()
-            status = operation(root, run, owner, 'test', command)
+            if len(pending) < len(inventory):
+                os.environ[SELECTION] = json.dumps(full_selection)
+            try:
+                status = operation(root, run, owner, 'test', command)
+            finally:
+                os.environ.pop(SELECTION, None)
             if status == 0:
                 for category in pending:
                     results.record(category, 'selection', '', 0, complete=True,

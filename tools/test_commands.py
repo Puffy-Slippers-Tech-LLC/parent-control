@@ -1253,7 +1253,7 @@ def plan(root, category, argv):
     raise ValueError('unknown test category; use --help or --list')
 
 
-def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstream_run=None):
+def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstream_run=None, accounting=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if '--reverse' in argv:
         os.environ['ONPC_TEST_REVERSE'] = '1'
@@ -1273,12 +1273,13 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
         return 0
     if not argv:
         argv = ['all']
-    if not is_inspection(argv) and not host_only_request(argv):
+    if not is_inspection(argv) and not host_only_request(accounting or argv):
         from vm_selection import BATCH
         if BATCH in os.environ:
             from vm_test_queue import run
             try:
                 return run(Path(__file__).resolve().parents[1], argv,
+                           **({'accounting': accounting} if accounting is not None else {}),
                            **({'reloading': True} if reloading else {}),
                            **({'upstream_run': upstream_run} if upstream_run is not None else {}))
             except (ValueError, OSError) as error:
@@ -1304,6 +1305,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
                 from regression import main as regression_main
                 return regression_main(root, selections=selected,
                                        **({'checkpoint': checkpoint} if checkpoint else {}),
+                                       **({'accounting': selections(root, accounting)} if accounting is not None else {}),
                                        **({'stop_on_error': True} if stop_on_error else {}))
         category, args = argv[0], argv[1:]
         if category in subcategory_aliases():

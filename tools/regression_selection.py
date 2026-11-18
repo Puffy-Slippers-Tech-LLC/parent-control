@@ -14,6 +14,10 @@ from test_commands import CATEGORIES, execution_selections
 CLEANUP_SELECTION = '__cleanup_prerequisites__'
 
 
+def execution_options(args):
+    return args[1:] if args[:1] == ['--unattended'] else args
+
+
 def e2e_case_ids(root, args):
     """Resolve the same host-safe selection before build or VM preparation."""
     runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
@@ -22,7 +26,7 @@ def e2e_case_ids(root, args):
 
 
 class SelectedRun(Run):
-    def __init__(self, root, report, control, selections, *, stop_on_error=False):
+    def __init__(self, root, report, control, selections, *, stop_on_error=False, accounting=None):
         selections = execution_selections(root, selections)
         includes_vm = any(kind in ('system', 'e2e') for kind, _ in selections)
         super().__init__(root, report, control, host_only=not includes_vm,
@@ -30,39 +34,74 @@ class SelectedRun(Run):
         self.serial_host = (len(selections) == 1 and selections[0][0] in ('unit', 'component', 'ui')
                             and selections[0][1][:1] == ['--unattended'])
         self.serial_status = None
-        self.selections = [(kind, args[1:] if args[:1] == ['--unattended'] else args)
-                           for kind, args in selections]
-        self.dashboard.controller_category = (self.selections[0][0], 1, len(self.selections))
+        self.selections = [(kind, execution_options(args)) for kind, args in selections]
+        if self.selections:
+            self.dashboard.controller_category = (self.selections[0][0], 1, len(self.selections))
         self.report.write('\nSelected categories: ' + ', '.join(kind for kind, _ in selections) + '\n')
         self.categories.clear()
-        for kind, args in self.selections:
-            name = ('Cleanup safety prerequisites' if kind == CLEANUP_SELECTION else
-                    CATEGORY_NAMES.get(kind, CATEGORIES[kind].description))
-            if kind == 'artifacts' and args == ['prepare']:
-                name = 'Package input preparation'
-            if kind in ('fixtures', 'artifacts') and args and args[0] not in ('build', 'prepare'):
-                name = ('Package reproducibility' if args[0] == 'compare' else
-                        'Package verification' if kind == 'artifacts' else 'Test fixture verification')
-            events = self.events(kind, args)
-            item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
-                            count_overall=not (kind == 'artifacts' and args == ['prepare']),
-                            host=kind not in ('system', 'e2e'),
-                            phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
-            if kind == 'artifacts' and not args:
-                item.total = 3  # Two builds and their reproducibility comparison.
-            elif kind == 'publish':
-                from test_commands import PUBLISH_CATEGORIES
-                item.total = len(PUBLISH_CATEGORIES)
-            item.selection_args = tuple(args)
-            if kind == 'system' and args and args[0].startswith('check_'):
-                item.name += ' — ' + args[0]
-                item.retry_category = kind
-            if kind == 'e2e' and events:
-                item.nodeids = e2e_case_ids(root, args)
-                item.total = len(item.nodeids)
-            self.categories.append(item)
+        self.categories.extend(self.category(kind, args) for kind, args in self.selections)
+        self.accounting = [(kind, args, self.category(kind, execution_options(args)))
+                           for kind, args in execution_selections(root, accounting or [])
+                           if (kind, execution_options(args)) not in self.selections]
+        self.dashboard.additional_categories = [item for _, _, item in self.accounting]
         if includes_vm:
             self.verification_mode = ('metadata-only; image contents are not scanned')
+
+    def category(self, kind, args):
+        name = ('Cleanup safety prerequisites' if kind == CLEANUP_SELECTION else
+                CATEGORY_NAMES.get(kind, CATEGORIES[kind].description))
+        if kind == 'artifacts' and args == ['prepare']:
+            name = 'Package input preparation'
+        if kind in ('fixtures', 'artifacts') and args and args[0] not in ('build', 'prepare'):
+            name = ('Package reproducibility' if args[0] == 'compare' else
+                    'Package verification' if kind == 'artifacts' else 'Test fixture verification')
+        events = self.events(kind, args)
+        item = Category(name, None if events or kind == CLEANUP_SELECTION else 1,
+                        count_overall=not (kind == 'artifacts' and args == ['prepare']),
+                        host=kind not in ('system', 'e2e'),
+                        phase='cleanup' if kind == CLEANUP_SELECTION else 'host')
+        if kind == 'artifacts' and not args:
+            item.total = 3  # Two builds and their reproducibility comparison.
+        elif kind == 'publish':
+            from test_commands import PUBLISH_CATEGORIES
+            item.total = len(PUBLISH_CATEGORIES)
+        item.selection_args = tuple(args)
+        if kind == 'system' and args and args[0].startswith('check_'):
+            item.name += ' — ' + args[0]
+            item.retry_category = kind
+        if kind == 'e2e' and events:
+            item.nodeids = e2e_case_ids(self.root, args)
+            item.total = len(item.nodeids)
+        return item
+
+    def discover_accounting(self):
+        """Count categories outside the current repair batch without running them."""
+        from test_progress import case_counts, recorded_cases
+        from test_results import ResultStore
+        if not self.accounting:
+            return
+        results = ResultStore()
+        passed, failed = recorded_cases(results.load())
+        for kind, args, item in self.accounting:
+            item.inventory_preview = True
+            if self.control.stopped.is_set():
+                return
+            options = execution_options(args)
+            if kind in ('unit', 'ui', 'component', 'fixture-runtime') and self.events(kind, options):
+                try:
+                    if self.collect_pytest(kind, item, options):
+                        return
+                except (OSError, ValueError):
+                    item.total = None
+                    continue  # The omitted suite owns its own collection verdict.
+            if item.nodeids is not None:
+                selected = {('host', kind, case) for case in item.nodeids}
+                passed_count, item.failures, _ = case_counts(selected, passed, failed)
+                item.done = passed_count + item.failures
+                item.failed_nodeids = tuple(sorted(case for _, _, case in failed & selected))
+            elif results.complete(kind, 'selection', args) and item.total is not None:
+                item.done = item.total
+        self.dashboard.draw(force=True)
 
     @staticmethod
     def events(kind, args):
@@ -102,7 +141,7 @@ class SelectedRun(Run):
                                  collect=True, events=True)
         if self.control.stopped.is_set():
             return 130
-        if self.serial_host and status:
+        if self.serial_host and status and not inventory.inventory_preview:
             # Direct launchers retain pytest's public exit codes, including 5.
             return self.pytest_result(inventory, status)
         if status or (not inventory.total and inventory.state != 'Passed'):
@@ -155,6 +194,7 @@ class SelectedRun(Run):
     def run(self):
         self.inputs = source_identity(self.root)
         self.report.write('\nInitial source inputs SHA-256 (informational): ' + self.inputs + '\n')
+        self.discover_accounting()
         selected = list(zip(self.categories, self.selections, strict=True))
         # Discover every selected host suite before dispatch, as the full host
         # aggregate does. Retain these inventories for execution so later suites

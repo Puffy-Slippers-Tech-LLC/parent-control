@@ -55,6 +55,11 @@ def pass_namespace(scope):
     return 'test-pass-' + hashlib.sha256(scope.encode()).hexdigest()[:24]
 
 
+def _family_passes(state, family, category):
+    partition = _mapping(_mapping(state.get('families')).get(family))
+    return _clear_cases(_mapping(partition.get('passed')).get(category))
+
+
 def _read_progress(store):
     with store.opened() as fd:
         try:
@@ -77,6 +82,17 @@ class PassCheckpoint:
         self.families, self.resume, self.identity = _copy(families), resume, identity
         self.store = Store(_state_directory(root) / pass_namespace(scope))
         self.resources = ExitStack()
+
+    @staticmethod
+    def retained_passes(root, scope, families):
+        """Read the saved case results for groups that have not started yet."""
+        try:
+            state = _read_progress(Store(_state_directory(root) / pass_namespace(scope)))
+        except (OSError, ValueError):
+            return set()
+        return {(family, category, case) for family, items in families.items()
+                for category in {work['category'] for work in items}
+                for case in _family_passes(state, family, category)}
 
     def __enter__(self):
         try:
@@ -110,8 +126,7 @@ class PassCheckpoint:
                     self.results.reconcile(category, family, cases, options=json.loads(options))
             for category in dict.fromkeys(work['category'] for work in items):
                 current = {case for item in items if item['category'] == category for case in item['cases']}
-                saved = _mapping(_mapping(_mapping(previous.get('families')).get(family)).get('passed')).get(category, [])
-                clear = _clear_cases(saved)
+                clear = _family_passes(previous, family, category)
                 if os.environ.get(VARIABLE):
                     clear |= self.results.passed(category, family)
                 passed[category] = sorted(clear & current)

@@ -321,16 +321,23 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     assert all([work['case'] for work in items] == ['E2E-001', 'E2E-002']
                for items in plan[-1].values())
 
-
     def validate_one(root, args):
         if any(arg in test_commands.CATEGORIES for arg in args[1:]):
             raise ValueError('split category selections')
     monkeypatch.setattr(test_commands, 'validate_one', validate_one)
+    configured.update({name: replace(vm, vm_tags=frozenset({'general', 'heavy'}))
+                       for name, vm in configured.items()})
     monkeypatch.setattr(runpy, 'run_path', lambda path: {
-        'preflight': lambda *args, **kwargs: dict(cases=[dict(subcategory='general')])})
+        'preflight': lambda *args, **kwargs: dict(cases=[dict(subcategory='general'),
+                                                         dict(subcategory='e2e-heavy')])})
+    def collect(root, category, options, **kwargs):
+        if category == 'system':
+            return [f'{options[0]}-{index}' for index in range(37)]
+        return ['E2E-002' if 'e2e-heavy' in options else 'E2E-001']
+    monkeypatch.setattr(vm_test_queue, 'case_inventory', collect)
     monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(launcher_reload, 'current', None)
-    active, executions = [], []
+    active, executions, totals = [], [], []
 
     @contextmanager
     def admit(candidates, *, handoff):
@@ -345,6 +352,15 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     def execute(root, args, **kwargs):
         assert active
         executions.append(list(args))
+        progress = kwargs['overall_counts']
+        if args[0] == 'system':
+            totals.append(progress(0, 0, 148))
+            totals.append(progress(148, 0, 148))
+        elif 'general' in args:
+            totals.append(progress(2, 0, 2))
+        else:
+            totals.append(progress(1, 1, 2))
+            totals.append(progress(2, 0, 2))
         return dict(status=0, cleanup_complete=True)
 
     monkeypatch.setattr(host_compute, 'launch', admit)
@@ -359,8 +375,16 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     assert vm_test_queue.run(tmp_path, requested) == 0
     assert not results.failures()
     assert executions == [['system', 'check_first', 'system', 'check_second'],
-                          ['e2e', '--subcategory', 'general']]
+                          ['e2e', '--subcategory', 'general'],
+                          ['e2e', '--subcategory', 'e2e-heavy']]
+    assert totals == [(0, 0, 152), (148, 0, 152), (150, 0, 152), (151, 1, 152), (152, 0, 152)]
     assert not active
+
+    totals.clear()
+    executions.clear()
+    assert vm_test_queue.run(tmp_path, requested[:-1], accounting=requested) == 0
+    assert executions == [requested[:-1]]
+    assert totals == [(0, 0, 152), (148, 0, 152)]
 
 
 

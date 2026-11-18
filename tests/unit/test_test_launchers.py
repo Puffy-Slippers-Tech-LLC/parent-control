@@ -335,14 +335,22 @@ def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monk
     assert request['categories'] == ['unit'] and options['resume']
     import vm_selection
     monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
-    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'unit': {'args': []}})
+    from test_progress import SELECTION, repair_selection
+    from test_results import REPAIR_QUEUE
+    monkeypatch.setenv(REPAIR_QUEUE, '1')
+    monkeypatch.delenv(SELECTION, raising=False)
+    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'unit': {'args': []},
+                                                                    'component': {'args': []}})
     calls = []
-    request = dict(categories=['unit'], rounds=2, tasks=1)
-    execute = lambda *args: calls.append('test') or 0
+    request = dict(categories=['unit', 'component'], rounds=2, tasks=1)
+    def execute(root, run, owner, kind, command):
+        calls.append((kind, command[2:], repair_selection()))
+        return 0
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
     # Re-entering the same invocation models worker replacement by --reload.
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert calls == ['test']
+    assert calls == [('test', ['unit'], ['unit', 'component'])]
+    assert SELECTION not in os.environ
 
 
 def test_requested_rounds_repeat_same_repair_workflow_and_resume(tmp_path, monkeypatch):

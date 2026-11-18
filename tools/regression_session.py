@@ -246,6 +246,9 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
+                from test_progress import SELECTION
+                if repair_supervisor() is not None and SELECTION in os.environ:
+                    environment[SELECTION] = os.environ[SELECTION]
                 # Only independent runs and the repair scheduler's test pass
                 # may update source. Nested validation owns its working edits.
                 if os.environ.get(REPAIR_QUEUE) == '1' or not any(
@@ -286,7 +289,8 @@ def follow(run, stream=None):
     from watch_output import JsonReader, snapshot
     stream = stream or sys.stdout
     from detached_launcher import WORKFLOW_DIRECTORY
-    destination = os.environ.get(FRAME_DIRECTORY) or os.environ.get(WORKFLOW_DIRECTORY)
+    direct = os.environ.get(FRAME_DIRECTORY)
+    destination = direct or os.environ.get(WORKFLOW_DIRECTORY)
     destination = Path(destination) if destination else None
     decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
     reader = JsonReader()
@@ -304,13 +308,16 @@ def follow(run, stream=None):
                     try:
                         steps = snapshot(run / 'controller.json', steps=True, reader=reader)
                         lines = snapshot(run / 'frame.json', reader=reader)
+                        if not direct and destination.parent.name in ('fix-tests', 'fix-tests-host'):
+                            from launcher_render import clean
+                            lines = [line for line in lines if not clean(line).startswith('Overall - ')]
                         if steps is not None and (steps, lines) != forwarded:
                             atomic(destination / 'frame.json', lines)
                             forwarded = (steps, lines)
                         # Only the direct runner owns overall repair totals.
                         # Read its retained publication independently of live
                         # frames, which may already have been cleared.
-                        if os.environ.get(FRAME_DIRECTORY):
+                        if direct:
                             totals = snapshot(run / 'test-frame.json', reader=reader) or lines
                             if totals and totals != forwarded_totals:
                                 atomic(destination / 'test-frame.json', totals)
@@ -534,7 +541,10 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
             before_run(root, argv, categories=categories)
         with recording(root, enabled='--record' in argv and BATCH not in os.environ
                        and not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
+            from test_progress import repair_selection
+            accounting = repair_selection()
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
+                           **({'accounting': accounting} if accounting is not None else {}),
                            **({'reloading': True} if continuing else {}),
                            **({'upstream_run': run} if BOUNDARY_AGENT_ENV in os.environ else {}))
     except ReloadRequested:

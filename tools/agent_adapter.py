@@ -11,8 +11,7 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
 ProfileRole = Literal['implementation', 'backend_reviewer', 'monitor',
-                      'worker', 'translator', 'commit_helper', 'conflict_resolver',
-                      'startup_pull_recovery']
+                      'worker', 'translator', 'commit_helper', 'conflict_resolver']
 
 
 @dataclass(frozen=True)

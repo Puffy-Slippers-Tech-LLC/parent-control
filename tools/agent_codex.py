@@ -133,7 +133,6 @@ class CodexAdapter:
         workflows = {
             'implementation': 'execute-plan', 'translator': 'sync-whatsnew',
             'commit_helper': 'commit-helper', 'conflict_resolver': 'conflict-resolver',
-            'startup_pull_recovery': 'startup-pull-recovery',
             'worker': 'plan-worker', 'monitor': 'plan-monitor',
             'backend_reviewer': 'backend-reviewer',
         }

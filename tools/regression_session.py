@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
 import test_activity
 import test_launcher
+from launcher_source_sync import BOUNDARY_AGENT_ENV, BOUNDARY_AGENT_ENV_KEYS
 
 _startup = threading.RLock()
 
@@ -103,7 +104,7 @@ def select(root, argv, *, reload=False, watch=None, implicit_default=False, resu
 
 def _select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
-    from test_results import VARIABLE
+    from test_results import REPAIR_QUEUE, VARIABLE
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
@@ -239,6 +240,13 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 from test_storage import scratch_descriptors
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
+                # Only independent runs and the repair scheduler's test pass
+                # may update source. Nested validation owns its working edits.
+                if not host_only and (os.environ.get(REPAIR_QUEUE) == '1' or not any(
+                        os.environ.get(name) for name in ('ONPC_LAUNCHER_CONTROLLER_ROOT',
+                            'ONPC_RUNNER_INVOCATION', VARIABLE, WORKFLOW_DIRECTORY))):
+                    environment[BOUNDARY_AGENT_ENV] = json.dumps({
+                        name: os.environ[name] for name in BOUNDARY_AGENT_ENV_KEYS if name in os.environ})
                 import watch_control
                 watch_control.initialize(run, watch or {}, inherit=bool(watch_control.environment()),
                                          record='--record' in requested)
@@ -505,7 +513,8 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
         with recording(root, enabled='--record' in argv and BATCH not in os.environ
                        and not host_only_selection([(kind, []) for kind in categories]), run=run) as media:
             status = _main(argv, detached=True, **({'checkpoint': checkpoint} if checkpoint else {}),
-                           **({'reloading': True} if continuing else {}))
+                           **({'reloading': True} if continuing else {}),
+                           **({'upstream_run': run} if BOUNDARY_AGENT_ENV in os.environ else {}))
     except ReloadRequested:
         reloading, status = True, RELOAD_STATUS
     except KeyboardInterrupt:

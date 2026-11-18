@@ -118,7 +118,7 @@ malformed configuration fails without hidden model defaults; native catalogue
 preflight still checks support.
 
 Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-helper`,
-`conflict-resolver`, `startup-pull-recovery`, `plan-worker`, `plan-monitor` and
+`conflict-resolver`, `plan-worker`, `plan-monitor` and
 `backend-reviewer`. Resolve selections in the executing checkout after dispatch,
 not at module import time. Plan admission pins its coordinator profile; translation
 admission pins its coordinator pair, and each new repair session resolves its
@@ -293,15 +293,20 @@ source lease. Every public job launcher uses this infrastructure, including
 `fix-tests`, `execute-plan`, `sync-whatsnew`, `run-tests`, `run-unit-tests` and
 `run-ui-tests`. There are no per-launcher startup synchronization exceptions.
 Nested test/validation calls belong to their existing controller and use its
-working source without a new upstream pull. Old repair journals or source fences
-have no admission authority.
+working source at startup. Independent VM runs and normal repair-queue passes
+also follow the [VM dispatch sync](../tests/README.md#vm-dispatch-and-upstream-sync)
+between bundles. Repair validation uses the agent's working source.
+Old repair journals or source fences have no admission authority.
 Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
 A saved reconciliation note about overlapping pre-existing changes does not
 represent a started Git transaction and does not freeze unrelated launchers.
-Ordinary pull failures retain their low-effort recovery agent;
-startup requires explicit success and a successful pull retry. Attachments and
+Ordinary pulls run through Git. The `conflict-resolver` profile is used when
+startup needs pull recovery or a pull leaves merge conflicts between VM test
+bundles. Execution continues only after recovery reports success and Git
+confirms synchronization.
+Resume uses a fast-forward-only pull. Attachments and
 controls keep their existing routes without mutating active source. Idle
 `--reload`, `--resume` and `--reset` invocations that start new jobs must synchronize too. A new job
 cannot fall back to stale imports when synchronization is busy.

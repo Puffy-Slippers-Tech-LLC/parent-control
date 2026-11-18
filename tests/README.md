@@ -302,6 +302,8 @@ The host-wide compute reservation remains the capacity limit. Controller-side
 resource waits retain a Watch tile and show their reason before guest observation
 starts, using the live controller report. Closed reports cannot keep tiles active.
 
+### VM dispatch and upstream sync
+
 VM tests default to every VM in `config/environment.json` whose `enabled` equals
 the string `"true"`.
 The [family configuration](integration/Environment.md#shared-vm-configuration)
@@ -403,6 +405,16 @@ from another execution supplies no credit. Clear completed passes and failures
 are retained; absent or incomplete results mean pending work. There is no source
 fingerprint, historical receipt or cleanup-journal qualification of a result.
 Input changes are picked up at dispatch boundaries without revoking passes.
+Before claiming a VM work item, an independent `run-tests` run or a normal
+`fix-tests` test pass fetches the controller checkout's upstream. Each system
+area or lifecycle history uses a single source capture. When upstream advances,
+dispatch pauses while active bundles finish and release their VM bookings. The
+controller then pulls under the shared checkout guards and captures the updated
+source for pending bundles. If the pull fails, one session
+uses the configured `agents.tools.conflict-resolver` profile in
+[`config/environment.json`](../config/environment.json). A clean pull runs
+without a session. If synchronization cannot complete, pending work stays
+pending and the runner reports a synchronization failure.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
@@ -577,6 +589,7 @@ An explicit case replay applies once per invocation; refreshing inputs preserves
 its selector without replaying a case that has already completed.
 Explicit validation uses the repair's current edits. Ordinary input capture
 remains with the common runner; there is no repair-group frozen inventory.
+The normal test pass uses the [VM dispatch sync](#vm-dispatch-and-upstream-sync).
 There are no automatic extra verification passes. `--rounds X` requests exactly
 X repetitions of the same test/repair workflow, defaulting to one. The selected
 inventory is resolved once for the invocation. Each round uses its own result

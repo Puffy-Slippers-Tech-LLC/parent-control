@@ -22,7 +22,6 @@
       "sync-whatsnew": { "model": "workhorse" },
       "commit-helper": { "model": "workhorse" },
       "conflict-resolver": { "model": "workhorse" },
-      "startup-pull-recovery": { "model": "bargain" },
       "plan-worker": { "model": "workhorse", "effort": "medium" },
       "plan-monitor": { "model": "bargain" },
       "backend-reviewer": { "model": "frontier" }

@@ -640,6 +640,10 @@ do not share the repair result store.
 
 Host-only and VM-containing selections retain separate detached launcher
 namespaces. Attach with the same scope to observe ongoing output.
+`--reload` closes admission in the repair launcher's active test runner. VM steps
+are interrupted cooperatively, and the runner saves completed cases and joins
+owned cleanup before the repair launcher reloads. An active repair agent
+finishes its session before replacement.
 `tools/fix-tests --stop` cancels active scopes; categories or `--vm` narrow the
 selection. Cancellation joins only the processes launched by this run. A killed
 controller's supervisor cancels its child. No previous run's cleanup transaction

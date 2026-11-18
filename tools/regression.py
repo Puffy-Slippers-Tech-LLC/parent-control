@@ -1208,18 +1208,23 @@ class Run:
             self.dashboard.draw()
 
         try:
+            vm_step = (self.checkpoint is not None and item.retry_category in ('system', 'e2e')
+                       and 'queue_assignment' in self.checkpoint.state)
             def started():
-                if self.checkpoint is not None and item.retry_category in ('system', 'e2e'):
+                if vm_step:
                     self.checkpoint.queue_vm_started = True
                     self.checkpoint.queue_vm_cleanup = False
                     self.checkpoint.queue_vm_interrupted = False
             status = self.control.run(command, cwd=self.root, env=self.command_environment(command),
                                       output=execution.output, cooperative=True,
-                                      tick=tick, started=started)
+                                      tick=tick, started=started,
+                                      **({'preserve_exit': True} if vm_step else {}))
+            if vm_step:
+                self.checkpoint.queue_vm_exit = status
             result = execution.finish(status)
             if item.retry_category == 'system' and system_check_selection(command[2:]):
                 case = system_check_selection(command[2:])
-                passed = item.state == 'Passed'
+                passed = item.state == 'Passed' or (vm_step and status == 0 and item.state == 'Interrupted')
                 if self.checkpoint is not None and (passed or not self.control.stopped.is_set()):
                     self.checkpoint.event('system',
                         dict(kind='finished' if passed else 'failure', nodeid=case), set())
@@ -1628,6 +1633,7 @@ def main(root=None, *, host_only=False, host_builds=False, serial_builds=False,
         checkpoint.queue_vm_cleanup = False
         checkpoint.queue_vm_interrupted = False
         checkpoint.queue_vm_started = False
+        checkpoint.queue_vm_exit = None
         checkpoint.queue_failures = []
     # Keep repeated interrupts cooperative through storage rotation/finalization,
     # including after the inner command controller has restored its handlers.

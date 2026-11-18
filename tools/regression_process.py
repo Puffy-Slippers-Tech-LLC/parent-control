@@ -180,7 +180,7 @@ class Control:
     def run(self, command, *, cwd, env, output=None, cooperative=False, tick=None,
             timeout=None, kill_after=30.0, cancel_signal=signal.SIGINT,
             stderr_output=None, owned_group=False, started=None, input_stream=None,
-            stdin_file=None, wait_on_cancel=False, **kwargs):
+            stdin_file=None, wait_on_cancel=False, preserve_exit=False, **kwargs):
         # The installed dispatcher loads this file before adding the validated
         # checkout tools directory for its deferred imports.
         import test_activity
@@ -223,7 +223,7 @@ class Control:
                     cooperative=cooperative, tick=tick, timeout=timeout, kill_after=kill_after,
                     cancel_signal=cancel_signal, stderr_output=stderr_output,
                     owned_group=owned_group, started=started, stdin_file=stdin_file,
-                    wait_on_cancel=wait_on_cancel, **kwargs)
+                    wait_on_cancel=wait_on_cancel, preserve_exit=preserve_exit, **kwargs)
         frames = None
         # Pipe workers (including the privileged dispatcher) relay frames;
         # the outer caller renders them or publishes to its session observer.
@@ -430,7 +430,7 @@ class Control:
                 raise ValueError('command input transfer failed') from upload_errors[0]
             if frames is not None:
                 frames.finish()
-            return (130 if self.stopped.is_set() else
+            return (130 if self.stopped.is_set() and not preserve_exit else
                     137 if timed_out and forced else 124 if timed_out else
                     125 if forced else status if status >= 0 else 128 - status)
         except BaseException:
@@ -523,7 +523,9 @@ def category_run(root, category, argv, *, pipe=True):
     import test_retention
     import test_commands
     import test_launcher as host
+    from vm_selection import WORKER
     commands, _ = test_commands.plan(root, category, argv)
+    preserve_exit = category in ('system', 'e2e') and os.environ.get(WORKER) == '1'
     if category in ('system', 'e2e'):
         from vm_selection import extract
         argv, _ = extract(argv, required=False)
@@ -596,6 +598,7 @@ def category_run(root, category, argv, *, pipe=True):
                         and test_retention.token() is not None):
                     command.insert(4, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged,
+                                 **({'preserve_exit': True} if preserve_exit else {}),
                                  **({'umask': 0o077} if category == 'coverage' else {}))
             if status:
                 return status

@@ -306,6 +306,8 @@ def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
 
 
 def run(entry):
+    from launcher_reload import STATUS as RELOAD_STATUS
+
     def admitted():
         try:
             import test_source
@@ -326,6 +328,6 @@ def run(entry):
         if error.code:
             print('\033[31mLauncher command failed.\033[0m', file=sys.stderr, flush=True)
         raise
-    if status:
+    if status and not (status == RELOAD_STATUS and Path(sys.argv[0]).name == 'run-tests'):
         print('\033[31mLauncher command failed.\033[0m', file=sys.stderr, flush=True)
     return status

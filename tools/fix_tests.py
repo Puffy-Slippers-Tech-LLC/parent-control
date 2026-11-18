@@ -170,9 +170,9 @@ def execute(root, run, owner, kind, command=None):
 
 
 def run_rounds(root, run, owner, request, *, operation=execute):
+    from launcher_reload import STATUS as RELOAD_STATUS, replace, unaccepted
     from launcher_source_sync import STATUS as SYNC_STATUS
-    from test_results import ResultStore, VARIABLE
-    from vm_test_queue import PENDING_STATUS
+    from test_results import PENDING_STATUS, ResultStore, VARIABLE
     from vm_selection import execution_arguments, execution_binding
     inventory = repair_inventory(root, request.get('categories', []))
     rounds = request.get('rounds', 1)
@@ -186,18 +186,16 @@ def run_rounds(root, run, owner, request, *, operation=execute):
         while True:
             if (run / 'cancel').exists():
                 raise launcher.Stopped()
-            reload_request = read_json(run / 'reload.json')
-            if reload_request is not None and reload_request != read_json(run / 'reload-accepted.json'):
+            requested_generation = unaccepted(run)
+            if requested_generation is not None:
                 from launcher_controller import synchronize_reload
                 synchronize_reload(root, run)
                 if (run / 'cancel').exists():
                     raise launcher.Stopped()
-                launcher.atomic(run / 'reload-accepted.json', reload_request)
-                for descriptor in (owner, *launcher.scratch_descriptors()):
-                    os.set_inheritable(descriptor, True)
-                sys.stdout.flush()
-                os.execv('/usr/bin/python3', ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
-                    '--worker', str(root), str(run), str(owner)])
+                print('fix-tests: reloading controller; completed work retained.', flush=True)
+                replace(['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
+                        '--worker', str(root), str(run), str(owner)],
+                        (owner, *launcher.scratch_descriptors()), requested_generation=requested_generation)
             pending = [name for name, spec in inventory.items()
                        if not results.complete(name, 'selection', spec['args'])]
             if not pending:
@@ -230,7 +228,7 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 continue
             elif status == 130:
                 raise launcher.Stopped()
-            elif status == PENDING_STATUS:
+            elif status in (PENDING_STATUS, RELOAD_STATUS):
                 continue
             elif status < 0 or status == SYNC_STATUS:
                 return status

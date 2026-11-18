@@ -106,7 +106,7 @@ Each profile has a `model` that names a selected-provider preset or a literal mo
 
 ```json
 "fix-tests": { "model": "workhorse" },
-"plan-worker": { "model": "workhorse", "effort": "medium" },
+"execution-plan-worker": { "model": "workhorse" },
 "custom-tool": { "model": "provider-model-id", "effort": "high" }
 ```
 
@@ -117,8 +117,8 @@ model/effort overrides take precedence over the resolved profile. Missing or
 malformed configuration fails without hidden model defaults; native catalogue
 preflight still checks support.
 
-Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-helper`,
-`conflict-resolver`, `startup-pull-recovery`, `plan-worker`, `plan-monitor` and
+Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-skill-driver`,
+`conflict-resolver`, `execution-plan-worker`, `execution-plan-monitor` and
 `backend-reviewer`. Resolve selections in the executing checkout after dispatch,
 not at module import time. Plan admission pins its coordinator profile; translation
 admission pins its coordinator pair, and each new repair session resolves its
@@ -206,11 +206,10 @@ coordinator under the existing response-recovery contract.
 Other queue and acceptance edits are consumed directly by ordinary launchers;
 they do not trigger snapshot comparisons or a change-acceptance log.
 
-Drive subagents using the configured helper profiles with appropriate reasoning efforts as needed
-to divide and conquer. Prefer lower-effort agents for routine monitoring and
-coverage refreshes: Low for read-only monitoring, Medium for settled routine
-implementation or coverage maintenance, High or above for difficult diagnosis,
-security, concurrency, ownership and independent review. Give bounded assignments,
+Use the `execution-plan-monitor` profile for routine read-only monitoring and
+`execution-plan-worker` for bounded implementation or coverage maintenance.
+Prefer `high` effort or above for difficult diagnosis, security, concurrency,
+ownership and independent review. Give bounded assignments,
 explicit paths and disjoint write ownership. Keep one editor for shared state.
 The coordinator owns task selection, resource/VM ownership, acceptance and
 close-out; join and close workers before handoff or releasing resources. A
@@ -293,15 +292,20 @@ source lease. Every public job launcher uses this infrastructure, including
 `fix-tests`, `execute-plan`, `sync-whatsnew`, `run-tests`, `run-unit-tests` and
 `run-ui-tests`. There are no per-launcher startup synchronization exceptions.
 Nested test/validation calls belong to their existing controller and use its
-working source without a new upstream pull. Old repair journals or source fences
-have no admission authority.
+working source at startup. Independent VM runs and normal repair-queue passes
+also follow the [VM dispatch sync](../tests/README.md#vm-dispatch-and-upstream-sync)
+between bundles. Repair validation uses the agent's working source.
+Old repair journals or source fences have no admission authority.
 Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
 A saved reconciliation note about overlapping pre-existing changes does not
 represent a started Git transaction and does not freeze unrelated launchers.
-Ordinary pull failures retain their low-effort recovery agent;
-startup requires explicit success and a successful pull retry. Attachments and
+Ordinary pulls run through Git. The `conflict-resolver` profile is used when
+startup needs pull recovery or a pull leaves merge conflicts between VM test
+bundles. Execution continues only after recovery reports success and Git
+confirms synchronization.
+Resume uses a fast-forward-only pull. Attachments and
 controls keep their existing routes without mutating active source. Idle
 `--reload`, `--resume` and `--reset` invocations that start new jobs must synchronize too. A new job
 cannot fall back to stale imports when synchronization is busy.
@@ -611,12 +615,12 @@ operations or Git changes. The shared ordinary-plan driver first pulls the curre
 branch's configured upstream with `git pull --no-rebase --ff --no-edit --no-autostash`,
 then validates the accepted task's explicit owned paths, captured session changes,
 and its master and queue, then invokes the repository's
-[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised `commit-helper`
-session with the suggested message `TA: Completed task ID`. The adapter's
-`commit_helper` profile supplies that pinned
-model/effort pair. Its supervised caller checks catalogue readiness before
-starting task supervision, retaining the executable check during preparation. Loading
-the shared Git modules or doing deterministic Git work requires no agent CLI.
+[`$commit` skill](../.agents/skills/commit/SKILL.md) in a supervised session with
+the suggested message `TA: Completed task ID`. The `commit-skill-driver` profile
+supplies the pinned model/effort pair. Its supervised caller checks catalogue
+readiness before starting task supervision, retaining the executable check during
+preparation. Loading the shared Git modules or doing deterministic Git work
+requires no agent CLI.
 The skill owns
 the commit, source push and
 [shared worktree propagation](#shared-worktree-propagation). `execute-plan`

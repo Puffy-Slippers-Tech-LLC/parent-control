@@ -132,9 +132,8 @@ class CodexAdapter:
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
         workflows = {
             'implementation': 'execute-plan', 'translator': 'sync-whatsnew',
-            'commit_helper': 'commit-helper', 'conflict_resolver': 'conflict-resolver',
-            'startup_pull_recovery': 'startup-pull-recovery',
-            'worker': 'plan-worker', 'monitor': 'plan-monitor',
+            'commit_helper': 'commit-skill-driver', 'conflict_resolver': 'conflict-resolver',
+            'worker': 'execution-plan-worker', 'monitor': 'execution-plan-monitor',
             'backend_reviewer': 'backend-reviewer',
         }
         if role not in workflows:

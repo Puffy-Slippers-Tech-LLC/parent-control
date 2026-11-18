@@ -20,11 +20,10 @@
       "fix-tests": { "model": "workhorse" },
       "execute-plan": { "model": "workhorse" },
       "sync-whatsnew": { "model": "workhorse" },
-      "commit-helper": { "model": "workhorse" },
+      "commit-skill-driver": { "model": "bargain" },
       "conflict-resolver": { "model": "workhorse" },
-      "startup-pull-recovery": { "model": "bargain" },
-      "plan-worker": { "model": "workhorse", "effort": "medium" },
-      "plan-monitor": { "model": "bargain" },
+      "execution-plan-worker": { "model": "workhorse" },
+      "execution-plan-monitor": { "model": "bargain" },
       "backend-reviewer": { "model": "frontier" }
     }
   },

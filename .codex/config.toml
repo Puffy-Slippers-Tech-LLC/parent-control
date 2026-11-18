@@ -1,6 +1,4 @@
 # Portable project defaults. Keep credentials, trust and desktop paths in CODEX_HOME.
-model = "gpt-6.1-sol"
-model_reasoning_effort = "low"
 service_tier = "default"
 
 # workspace-write already permits the current workspace; no absolute root needed.

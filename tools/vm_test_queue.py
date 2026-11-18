@@ -125,7 +125,7 @@ def source_identity(root):
 
 def execute_pass(root, plan, control, execute, *, host=None,
                  checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
-                 progress=None, retry_requested=True):
+                 progress=None, replayed_families=None, check_upstream=None):
     """Run current pending work, stop on failure and join all normal bookings."""
     from test_checkpoint import PassCheckpoint
     from test_results import ResultStore
@@ -136,19 +136,22 @@ def execute_pass(root, plan, control, execute, *, host=None,
     result_store = ResultStore()
     failed = threading.Event()
     changed = threading.Event()
+    upstream_changed = False
+    upstream_error = None
     inflight, results = {}, {}
     host_completed = []
     replay = next((arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')), None)
     focused = '--resume-case-only' in guest_args or '--resume-area-only' in guest_args
     focus_finished = set()
+    replayed_families = set() if replayed_families is None else replayed_families
     failed_work = set() if failed_work is None else failed_work
     deferred_work = set()
     selection = [['_host', host_args], ['_guest', guest_args]]
     with PassCheckpoint(root, selection, {vm.name: vm.family for vm in vms}, families,
                         resume='--resume' in (*host_args, *guest_args),
                         scope=checkpoint_scope) as checkpoint:
-        if replay and retry_requested:
-            for family in families:
+        if replay:
+            for family in families.keys() - replayed_families:
                 checkpoint.retry(family, replay, area='--resume-area-only' in guest_args)
 
         def publish_counts():
@@ -197,12 +200,26 @@ def execute_pass(root, plan, control, execute, *, host=None,
                         and not control.stopped.is_set() and bool(pending(vm.family)))
 
         def attempt(worker):
+            nonlocal upstream_changed, upstream_error
             vm = worker.vm
             with lock:
-                if sources is not None and sources.source != source_identity(root):
-                    changed.set()
                 available = pending(vm.family)
                 if not available or failed.is_set() or changed.is_set() or control.stopped.is_set():
+                    return dict(status=0, handoffs=[])
+                if check_upstream is not None:
+                    from launcher_source_sync import SyncError
+                    try:
+                        upstream_changed = check_upstream(control=control)
+                    except SyncError as error:
+                        upstream_error = str(error)
+                    if upstream_changed or upstream_error is not None:
+                        # Drain without cancelling bundles already running.
+                        changed.set()
+                        return dict(status=0, handoffs=[])
+                if sources is not None and sources.source != source_identity(root):
+                    changed.set()
+                    return dict(status=0, handoffs=[])
+                if control.stopped.is_set():
                     return dict(status=0, handoffs=[])
                 work = available[0]
                 execution = None
@@ -232,6 +249,8 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     result_store.record(work['category'], vm.family, case, 0, vm=vm.name,
                                         options=work['options'])
                 actual_failures = set(observed.get('failed', [])) & set(work['cases'])
+                if replay in observed.get('passed', []) or replay in actual_failures:
+                    replayed_families.add(vm.family)
                 for case in actual_failures:
                     result_store.record(work['category'], vm.family, case, 1, vm=vm.name,
                         options=work['options'], output_tail=value.get('output_tail', ''),
@@ -287,6 +306,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
         return dict(status=status, results=results, failures=failures,
                     cleanup_complete=all(value.get('cleanup', True) for value in results.values()),
                     completed_categories=host_completed, source_changed=changed.is_set(), pending=unfinished,
+                    upstream_changed=upstream_changed, upstream_error=upstream_error,
                     stopped=control.stopped.is_set() and not failed.is_set(),
                     run=checkpoint.state['run'], **{'pass': checkpoint.state['pass']})
 
@@ -347,7 +367,7 @@ def execution_groups(root, argv, vms):
     return groups
 
 
-def run(root, argv, *, reloading=False, return_outcome=False):
+def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None):
     """Run current ordered groups with ordinary capacity and VM ownership."""
     import host_compute
     from test_commands import selections
@@ -389,7 +409,8 @@ def run(root, argv, *, reloading=False, return_outcome=False):
                         args.insert(0, '--resume')
                     last = _run_group(root, args, reloading=reloading, return_outcome=True,
                                       checkpoint_scope='ordinary/' + group['key'],
-                                      continue_on_errors=continue_on_errors)
+                                      continue_on_errors=continue_on_errors,
+                                      **({'upstream_run': upstream_run} if upstream_run is not None else {}))
                 if media is not None and owner is not None:
                     media.write_index(owner, last['status'])
                 if admitted and owner is not None and last.get('cleanup_complete'):
@@ -427,32 +448,48 @@ def run(root, argv, *, reloading=False, return_outcome=False):
 
 
 def _run_group(root, argv, *, reloading=False, return_outcome=False,
-               checkpoint_scope='ordinary', continue_on_errors=False):
+               checkpoint_scope='ordinary', continue_on_errors=False, upstream_run=None):
     from contextlib import ExitStack
     from remote_sources import FrozenSources
     failed_work = set()
-    retry_requested = True
+    replayed_families = set()
     while True:
         with ExitStack() as inputs:
             with test_source.startup(root, argv):
                 plan = _plan(root, argv)
             sources = inputs.enter_context(FrozenSources(root)) if plan[1] else None
+            upstream = {}
+            if sources is not None and upstream_run is not None:
+                from launcher_source_sync import upstream_pending
+                upstream['check_upstream'] = lambda *, control: upstream_pending(root, control=control)
             outcome = _execute_group(root, plan, reloading=reloading, return_outcome=True,
                 checkpoint_scope=checkpoint_scope, sources=sources,
                 continue_on_errors=continue_on_errors, failed_work=failed_work,
-                retry_requested=retry_requested)
-        # A source refresh keeps the focused selector and all clear results.
-        # The caller's explicit replay applies once, before the first pass.
-        retry_requested = False
+                replayed_families=replayed_families, **upstream)
+        # A refresh keeps the focused selector and only waives replays that ran.
         if not (outcome.get('source_changed')
                 and (not outcome['status'] or continue_on_errors and outcome['status'] == 1)):
             return outcome if return_outcome else outcome['status']
+        from launcher_control import CancellationEvent
+        if CancellationEvent().is_set():
+            outcome.update(status=130, stopped=True)
+            return outcome if return_outcome else 130
+        launcher_reload.check()
+        if outcome.get('upstream_error') is not None:
+            from launcher_source_sync import SyncError
+            raise SyncError(outcome['upstream_error'])
+        if outcome.get('upstream_changed'):
+            if not outcome['cleanup_complete']:
+                from launcher_source_sync import SyncError
+                raise SyncError('active test bundles did not finish cleanup')
+            from launcher_controller import synchronize_boundary
+            synchronize_boundary(root, sources.branch, upstream_run)
         argv = ['--resume', *[argument for argument in argv if argument != '--resume']]
 
 
 def _execute_group(root, plan, *, reloading=False, return_outcome=False,
         checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
-        retry_requested=True):
+                   replayed_families=None, check_upstream=None):
     snapshot, vms, host_args, guest_args, guest_selection, families = plan
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
@@ -714,7 +751,8 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                 outcome = execute_pass(root, plan, control, execute_case, host=execute_host,
                                        checkpoint_scope=checkpoint_scope,
                                        continue_on_errors=continue_on_errors, sources=sources, failed_work=failed_work,
-                                       progress=progress, retry_requested=retry_requested)
+                                       progress=progress, replayed_families=replayed_families,
+                                       check_upstream=check_upstream)
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

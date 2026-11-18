@@ -72,8 +72,7 @@ def test_controller_startup_refreshes_before_workflow_import(checkout, monkeypat
     config = checkout / 'config'
     config.mkdir()
     (config / 'environment.json').write_text(json.dumps(dict(
-        agent='codex', agents=dict(codex={}, tools={
-            'startup-pull-recovery': dict(model='fixture-model', effort='low')}),
+        agent='codex', agents=dict(codex={}, tools={}),
         hosts=[dict(name='local', transport='local', enabled='true', max_compute_unit=1)],
         branches=[dict(name='main', host='local', repo_root=str(checkout))],
         families=[dict(family='ubuntu26.04-x86_64', vms=[])])))

@@ -224,7 +224,7 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         tmp_path, monkeypatch, changed_during, focused):
     import remote_sources
     import vm_test_queue
-    from test_results import VARIABLE
+    from test_results import ResultStore, VARIABLE
 
     monkeypatch.setenv(VARIABLE, str(tmp_path / 'results'))
     identity = {'digest': 'first'}
@@ -267,17 +267,21 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         return dict(status=0, handoffs=[], evidence=dict(assignment, passed=[case], failed=[], cleanup=True))
     def group(root, selected, **kwargs):
         return vm_test_queue.execute_pass(root, selected, SimpleNamespace(stopped=threading.Event()),
-            execute, sources=kwargs['sources'], retry_requested=kwargs['retry_requested'])
+            execute, sources=kwargs['sources'], replayed_families=kwargs['replayed_families'])
     monkeypatch.setattr(remote_sources, 'FrozenSources', Sources)
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     monkeypatch.setattr(vm_test_queue, '_plan', plan)
     monkeypatch.setattr(vm_test_queue, '_execute_group', group)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: dict(identity))
     monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
-    args = ['--resume-case=last', '--resume-case-only', 'e2e'] if focused else ['e2e']
+    if focused:
+        ResultStore().record('e2e', 'family', 'last', 0, options=[])
+        args = ['--resume', '--resume-case=last', '--resume-case-only', 'e2e']
+    else:
+        args = ['e2e']
     assert vm_test_queue._run_group(tmp_path, args, return_outcome=True)['status'] == 0
     assert captures == ['first', 'changed']
-    assert plans == [args, ['--resume', *args]]
+    assert plans == [args, ['--resume', *[argument for argument in args if argument != '--resume']]]
     assert executed == (['last'] if focused else ['first', 'last', 'added'])
 
 

@@ -170,6 +170,7 @@ def execute(root, run, owner, kind, command=None):
 
 
 def run_rounds(root, run, owner, request, *, operation=execute):
+    from launcher_source_sync import STATUS as SYNC_STATUS
     from test_results import ResultStore, VARIABLE
     from vm_test_queue import PENDING_STATUS
     from vm_selection import execution_arguments, execution_binding
@@ -227,7 +228,7 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 raise launcher.Stopped()
             elif status == PENDING_STATUS:
                 continue
-            elif status < 0:
+            elif status < 0 or status == SYNC_STATUS:
                 return status
             failure = results.failure()
             if failure is None:

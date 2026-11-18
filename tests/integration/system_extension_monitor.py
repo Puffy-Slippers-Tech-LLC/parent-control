@@ -1021,6 +1021,7 @@ def verify_failure_reporting(publish):
     accounts = identities()
     child = accounts['child']
     manager = installed_manager()
+    from oh_no_parent_control.extension_manager import COMMAND_TIMEOUT_SECONDS, _run_private_session
     from oh_no_parent_control.preferences import PreferenceStore
     account, _ = manager._account(child)
     store = PreferenceStore()
@@ -1281,11 +1282,16 @@ def verify_failure_reporting(publish):
         guest.require(guest.run(['systemctl', 'show', user_unit, '--property=ActiveState',
                                 '--value']) == 'inactive', 'extension:failure-user-manager-not-stopped')
         # The stopped manager may leave its old socket pathname. A separate
-        # public session avoids treating that stale socket as a live transport.
-        manager._run_as(account, 'dbus-run-session', '--', 'gsettings', 'set',
-                        'org.gnome.shell', 'disable-user-extensions', 'true')
-        guest.require(manager._run_as(account, 'dbus-run-session', '--', 'gsettings', 'get',
-                      'org.gnome.shell', 'disable-user-extensions').stdout.strip() == 'true',
+        # bus avoids the stale socket. Bound output capture to the launcher
+        # lifetime because activated services may keep its pipes open.
+        _, environment, _ = manager._command(account, ())
+        options = dict(env=environment, user=account.pw_uid, group=account.pw_gid,
+                       extra_groups=(), timeout=COMMAND_TIMEOUT_SECONDS)
+        settings = ['dbus-run-session', '--', 'gsettings']
+        switch = ['org.gnome.shell', 'disable-user-extensions']
+        _run_private_session([*settings, 'set', *switch, 'true'], **options)
+        persisted = _run_private_session([*settings, 'get', *switch], **options)
+        guest.require(persisted.stdout.strip() == 'true',
                       'extension:failure-offline-global-disable-not-saved')
         automatic_login(True)
         guest.prepare_activation_greeter()

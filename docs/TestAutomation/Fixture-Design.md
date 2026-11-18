@@ -55,6 +55,12 @@ OS, release, architecture and runtime dependencies separately from output digest
 Verify target ABI compatibility and recheck sources before publication to prevent
 mixed builds.
 
+The build release records provenance. A common fixture can serve guests across
+releases of the same distribution and architecture. Provisioning binds guest
+operations to the observed guest release and requires the live runtime witness
+before granting readiness. Fedora families can share `common/fedora/common`
+and select a release-specific fixture directory when their inputs need to differ.
+
 A bundle contains a versioned manifest, payload and completion marker. The
 manifest binds each member's length, checksum, mode, symbolic owner, finite
 destination ID, subset, absence controls and native actions. Paths derive from

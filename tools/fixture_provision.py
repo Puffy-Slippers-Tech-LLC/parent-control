@@ -74,6 +74,14 @@ def digest(value):
     return hashlib.sha256(fixture_manifest._canonical(value)).hexdigest()
 
 
+def require_compatible_target(build_target, guest_target):
+    # The build release is provenance. Readiness requires a runtime witness
+    # on the actual guest after placement and native activation.
+    require(guest_target['os'] == build_target['os']
+            and guest_target['architecture'] == build_target['architecture'],
+            'incompatible-target')
+
+
 def authenticated_bundle(selection):
     """Read the frozen selection and payload within one authenticated handoff.
 
@@ -411,7 +419,8 @@ class Provisioner:
                    'staging': '/run/onpc-fixture-' + digest(binding)}
         inspected = self._step('inspect', request)
         accounts = accepted_accounts(inspected['accounts'])
-        require(inspected['target'] == request['target'], 'incompatible-target')
+        require_compatible_target(request['target'], inspected['target'])
+        request['target'] = inspected['target']
         request['accounts'] = accounts
         for key in fixture_manifest.select(subsets):
             member = deepcopy(manifest['members'][key])
@@ -555,7 +564,7 @@ class Provisioner:
                 request['repeat'] = True
                 inspected = self._step('inspect', request)
                 require(accepted_accounts(inspected['accounts']) == request['accounts']
-                        and inspected['target'] == manifest['inputs']['target'], 'changed-environment')
+                        and inspected['target'] == request['target'], 'changed-environment')
                 require(self._step('preflight', request) == {'ok': True}, 'preflight')
                 self._readback(request)
                 return deepcopy(self._receipt)
@@ -566,7 +575,8 @@ class Provisioner:
                        'staging': '/run/onpc-fixture-' + digest(binding)}
             inspected = self._step('inspect', request)
             accounts = accepted_accounts(inspected['accounts'])
-            require(inspected['target'] == request['target'], 'incompatible-target')
+            require_compatible_target(request['target'], inspected['target'])
+            request['target'] = inspected['target']
             request['accounts'] = accounts
             for key in declared:
                 member = deepcopy(manifest['members'][key])

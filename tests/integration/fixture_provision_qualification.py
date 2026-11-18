@@ -158,7 +158,9 @@ def validate_readback(observed, manifest, subsets, binding, *, installed):
         'selinux_enforcing', 'labels', 'admissions', 'rule_sources', 'compiled',
         'compiled_previous', 'public_rules', 'rules_check'},
         'fixture-provisioning:audit-schema')
-    system.require(observed['platform'] == manifest['inputs']['target'],
+    vm_target = prepare_vm.vm_config.selected().require_build_target()
+    system.require(observed['platform'] == {'os': vm_target.distribution,
+                   'release': vm_target.version, 'architecture': vm_target.architecture},
                    'fixture-provisioning:platform-identity')
     accounts = fixture_provision.accepted_accounts(observed['accounts'])
     expected = selected_members(manifest, subsets, accounts)

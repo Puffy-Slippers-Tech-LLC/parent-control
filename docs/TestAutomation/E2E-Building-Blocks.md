@@ -323,10 +323,13 @@ tuple above.
 the greeter after the time-limit message has been verified. If GDM has already
 returned to a usable account list, no Escape is needed. A visible rejection or
 the same child's empty, focused masked prompt allows one Escape. Only a fresh
-empty prompt following Escape from the rejection allows a second Escape. The
-helper independently verifies the final usable account list. It waits through
-incomplete transition states within the existing deadline and refuses ambiguous
-or wrong owners and recipients. Credentials are never replayed.
+empty prompt following Escape from the rejection allows a second Escape. GDM
+may keep the old denial label in its accessibility tree after Cancel, so the
+renewed prompt is identified by its focused, sensitive, empty password field
+and bound child. The helper independently verifies the final usable account
+list. It waits through incomplete transition states within the existing
+deadline and refuses ambiguous or wrong owners and recipients. Credentials are
+never replayed.
 
 #### Jordan daily access qualification
 

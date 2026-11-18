@@ -10391,7 +10391,7 @@ class AccessibleUI:
         self.wait(denied, 'gdm-child-time-denied', prompt_in_predicate=True)
         return {'recipient': CHILD_IDENTITIES[child], 'reason': 'time-limit', 'desktop_access': False}
 
-    def gdm_denied_return_state(self, *, child=CHILD):
+    def gdm_denied_return_state(self, *, child=CHILD, after_cancel=False):
         """Read the current greeter destination after an independently observed denial."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
@@ -10415,8 +10415,11 @@ class AccessibleUI:
         # verification. Wait for a complete state before authorizing Escape.
         if not recipients:
             return None
-        if messages:
+        if messages and not after_cancel:
             return 'rejected-prompt'
+        # GDM can clear the message's opacity while keeping its label in the
+        # accessibility tree. After Cancel, a focused, sensitive, empty field
+        # for this child is the renewed prompt even if that label is still there.
         if fields:
             field = fields[0]
             if (self.has_state(field, self.api.StateType.SENSITIVE)
@@ -15929,10 +15932,9 @@ class AccessibleUI:
                 result['denial'] = self.gdm_child_time_denied(child=child)
             elif operation in GDM_DENIAL_OPERATIONS:
                 def return_state():
-                    state = self.gdm_denied_return_state(child=child)
+                    state = self.gdm_denied_return_state(child=child,
+                        after_cancel=operation != 'gdm-child-denied-return-ready')
                     if operation == 'gdm-child-denied-returned' and state != 'account-list':
-                        return None
-                    if operation == 'gdm-child-denied-return-state' and state == 'rejected-prompt':
                         return None
                     return state
 

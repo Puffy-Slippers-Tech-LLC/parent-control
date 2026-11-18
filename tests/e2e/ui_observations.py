@@ -336,6 +336,7 @@ OPERATION_LABELS = {
     'overlay-request-estimate': 'Reading the declared request and public time estimate',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
     'overlay-desktop': 'Checking the overlay closed and child desktop returned',
+    'overlay-closed': 'Waiting for the child request overlay to exit',
     'overlay-wrong-account-refused': 'Refusing overlay entry from another account',
     'standard-parent-closed': 'Checking denial dismissal returns to the standard desktop',
     'parent-empty': 'Checking the explanation for no eligible children',

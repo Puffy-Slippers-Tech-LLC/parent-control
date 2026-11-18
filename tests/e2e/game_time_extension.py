@@ -120,11 +120,12 @@ FULLSCREEN_PLAY = {**ENTRY, 'before-countdown': 'ui:child-countdown-present',
                               'capture': 'ui:game-fullscreen-activity'})}
 FULLSCREEN_REQUEST = {**overlay_entry('new', 'panel', form_operation='overlay-grant-form'),
                       **{stage: operation for stage, operation in REQUEST.items()
-                         if stage not in ('new-launch', 'new-form')},
-                      # Fullscreen hides Shell's Activities control. Verify the
-                      # child session here; returned-game independently proves
-                      # overlay closure and the original fullscreen activity.
-                      'returned': 'system:child-desktop-identity'}
+                         if stage not in ('new-launch', 'new-form', 'returned', 'countdown')},
+                      # Fullscreen hides Activities. Verify the child session
+                      # and wait for the overlay to exit before reading time.
+                      'returned': 'system:child-desktop-identity',
+                      'overlay-closed': 'ui:overlay-closed',
+                      'countdown': REQUEST['countdown']}
 FULLSCREEN_FINISH = {**FINISH, 'returned-game': 'ui:game-fullscreen-activity'}
 FULLSCREEN_SCREENS = {**FULLSCREEN_PROFILE, **FULLSCREEN_PLAY,
                       **FULLSCREEN_REQUEST, **FULLSCREEN_FINISH}

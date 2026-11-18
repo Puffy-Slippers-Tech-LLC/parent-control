@@ -1674,6 +1674,7 @@ sub game_time_extension {
     onpc_request_flow::prepare($journey, 'new', $mode eq 'fullscreen' ? 'open' : 'new', 'observed',
         'fixture-child', 'fixture-parent', 75, 0, 'overlay');
     onpc_request_flow::overlay_approve($journey, 'automatic');
+    $journey->seen('overlay-closed') if $mode eq 'fullscreen';
     $journey->seen('countdown');
     native_read_activity($journey, 'returned-game');
     $journey->seen($_) for qw(resume resumed resumed-capture);

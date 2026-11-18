@@ -356,7 +356,8 @@ CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-un
                             | PANEL_ANIMATION_OPERATIONS | COUNTDOWN_SESSION_OPERATIONS)
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
-    'overlay-qualification-cancel', 'overlay-desktop'})
+    'overlay-qualification-cancel', 'overlay-desktop', 'overlay-closed'})
+OPERATIONS |= {'overlay-closed'}
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
 CHILD_DESKTOP_OPERATIONS |= NATURAL_REMINDER_OPERATIONS
 CHILD_DESKTOP_OPERATIONS |= RILEY_SNAP_OPERATIONS
@@ -11045,6 +11046,43 @@ class AccessibleUI:
 
         self.wait(observe, 'overlay-desktop', prompt_in_predicate=True)
 
+    def overlay_closed(self, *, child=CHILD):
+        """Wait for the ordinary overlay endpoint to leave the child's session bus."""
+        self.require_child_overlay_session(child)
+        from gi.repository import Gio, GLib
+
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        loop = GLib.MainLoop()
+        disappeared = False
+
+        def vanished(connection, _name):
+            nonlocal disappeared
+            disappeared = connection is not None and not connection.is_closed()
+            loop.quit()
+
+        def timed_out(*_args):
+            loop.quit()
+            return GLib.SOURCE_REMOVE
+
+        # The watch reports both initial absence and later owner loss. A
+        # separate check before subscribing could miss the exit notification.
+        watch = Gio.bus_watch_name_on_connection(
+            bus, CHILD_APPLICATION, Gio.BusNameWatcherFlags.NONE, None, vanished)
+        timer = GLib.timeout_source_new_seconds(self.timeout)
+        timer.set_callback(timed_out)
+        timer.attach()
+        try:
+            loop.run()
+        finally:
+            timer.destroy()
+            Gio.bus_unwatch_name(watch)
+
+        require(disappeared, 'ui:overlay-exit-unobserved')
+        owned, = bus.call_sync('org.freedesktop.DBus', '/org/freedesktop/DBus',
+            'org.freedesktop.DBus', 'NameHasOwner', GLib.Variant('(s)', (CHILD_APPLICATION,)),
+            GLib.VariantType.new('(b)'), Gio.DBusCallFlags.NONE, 2000, None).unpack()
+        require(not owned, 'ui:overlay-owner-replaced')
+
     def request_surface(self, observation, *, overlay=False, child=CHILD):
         """Bind shared request IDs to the declared application before input."""
         require(type(overlay) is bool, 'ui:request-surface-binding')
@@ -16139,6 +16177,8 @@ class AccessibleUI:
             self._invoke_target(target)
         elif operation == 'overlay-desktop':
             self.overlay_desktop(child=bound_child)
+        elif operation == 'overlay-closed':
+            self.overlay_closed(child=bound_child)
         elif operation == 'overlay-wrong-account-refused':
             try:
                 self.require_child_overlay_session()

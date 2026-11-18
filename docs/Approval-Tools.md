@@ -255,7 +255,7 @@ Never copy private keys between hosts. Confirm
 [Watch SSH source](../vscode/onpc-watch/README.md#local-and-ssh-sources).
 The client SSH alias and Watch source settings remain client-owned.
 To refresh development helpers on a registered host using the invoking branch's
-current source, run `./setup.sh --test-tools-only --host HOST`. The shared source
+current source, run `./setup.sh --test-tools-only --vmhost HOST`. The shared source
 transfer runs the normal setup entry point in private scratch; it preserves the
 host's checkouts and existing authorization. This explicit setup route also
 updates older helpers before VM operations use transferred source.

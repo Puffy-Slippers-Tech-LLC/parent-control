@@ -9,7 +9,7 @@ another baseline, download a new image, or create a replacement domain.
 
 ### Creating a blank VM
 
-Run `tools/newvm --name NAME --host HOST --family FAMILY` from the checkout root.
+Run `tools/newvm --name NAME --vmhost HOST --family FAMILY` from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
 already exist in `config/environment.json`. FAMILY accepts a family name or ID,
 case-insensitively (for example, `u2604` selects `ubuntu26.04-x86_64` with the
@@ -132,7 +132,7 @@ descendant descriptors preserve active consumers, and the next allocation
 reclaims released copies, including after abrupt owner exits. The immediate SSH
 worker never deletes a source tree still needed by a privileged descendant.
 Installed helpers must include the scratch-lifetime resolver; refresh them with
-`./setup.sh --test-tools-only --host HOST` from the controller before using this
+`./setup.sh --test-tools-only --vmhost HOST` from the controller before using this
 route, or run `./setup.sh --test-tools-only` from an updated VM-host checkout.
 Only storage allocation uses the host's registered checkout. VM code comes from
 the transferred source, retaining the controller branch and verified destination

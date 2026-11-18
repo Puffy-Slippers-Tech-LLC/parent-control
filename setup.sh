@@ -7,7 +7,7 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
     cat <<'USAGE'
-Usage: ./setup.sh [MODE] [--vm NAME]
+Usage: ./setup.sh [MODE] [--vm NAME | --vmhost NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44/45 development machine (no VMs needed)
   --server              Set up an Ubuntu 26.04+ SSH automation and VM host; disable sleep
                        Includes libvirt/QEMU; no Codex CLI installation
@@ -18,7 +18,7 @@ Usage: ./setup.sh [MODE] [--vm NAME]
   --rpm-build-tools     Install RPM tools and prepare configured Fedora target builders
   --test-tools-only     Refresh test helpers/policies/rules, viewer icon and old bytecode ownership
                        Includes guarded root guest commands through tools/test-vm exec
-                       Add --host NAME to refresh a registered host using this checkout's current source
+                       Add --vmhost NAME to refresh a registered host using this checkout's current source
   --ui-tests-only       Prepare this checkout's UI test environment using installed host packages
   --watch               Install/update only the ONPC Watch VS Code editor extension
   --bootstrap-tools     Install setup authorization once, or refresh its existing grant
@@ -32,7 +32,7 @@ replacement is tools/prepare-vm. See tests/integration/Environment.md.
 USAGE
 }
 
-if (( $# == 3 )) && [[ ${1-} == --test-tools-only && ${2-} == --host && -n ${3-} ]]; then
+if (( $# == 3 )) && [[ ${1-} == --test-tools-only && ${2-} == --vmhost && -n ${3-} ]]; then
     exec /usr/bin/python3 -IB "$script_dir/tools/setup_server_connection.py" --refresh-tools "$3"
 fi
 if (( $# > 1 )) && [[ ${1-} != --replace-missing-baseline || $# != 3 || ${2-} != --vm || -z ${3-} ]]; then

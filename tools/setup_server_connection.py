@@ -103,7 +103,7 @@ if __name__ == '__main__':
         if len(sys.argv) == 3 and sys.argv[1] == '--refresh-tools':
             sys.exit(refresh_tools(sys.argv[2]))
         if sys.argv[1:]:
-            raise ValueError('use ./setup.sh --connect-server or --test-tools-only --host NAME')
+            raise ValueError('use ./setup.sh --connect-server or --test-tools-only --vmhost NAME')
         main()
     except (ValueError, OSError, KeyboardInterrupt) as error:
         # Avoid echoing server addresses or remote command arguments into logs.

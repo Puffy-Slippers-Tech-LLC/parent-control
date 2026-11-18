@@ -304,12 +304,13 @@ def main():
         return 0
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--name', required=True)
-    parser.add_argument('--host', required=True, help='Existing host name in config/environment.json')
+    parser.add_argument('--vmhost', required=True, metavar='HOST',
+                        help='Existing host name in config/environment.json')
     parser.add_argument('--family', required=True,
                         help='Existing family name or ID in config/environment.json (case-insensitive)')
     args = parser.parse_args()
     try:
-        create(args.name, args.host, args.family)
+        create(args.name, args.vmhost, args.family)
         print(f'\033[32mnewvm: SUCCESS: {args.name} created; powered off, enabled=true\033[0m', flush=True)
         return 0
     except (OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:

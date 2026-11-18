@@ -1190,15 +1190,21 @@ class Capture:
         require(self.inventory() == (inventory, True), 'guard:source-changed')
         require(self.source.baseline() == existing, 'snapshot:changed')
         self.source.delete_app_snapshots(inventory['layout'])
+        restored_marker_sha256 = None
         if mode == 'auto':
             self.source.restore_baseline(inventory['layout'], existing)
+            if self.state['phase'] == 'finalized':
+                restored_marker_sha256 = self.state['guest']['preparation_record_sha256']
         previous = self.state if recorded else None
         # Guest staging and watchvm bind to this operation and the current disks.
         self.state = {'schema_version': 2, 'phase': 'validation', 'directory': self.directory_identity,
                       'source': inventory, 'source_digests': None, 'guest': None,
                       'operation': uuid.uuid4().hex, 'proof': None, 'script_digest': self.script_digest}
         require(self.prepare_guest is not None, 'guest:preparation-unavailable')
-        self.prepare_guest(self)
+        if mode == 'auto':
+            self.prepare_guest(self, restored_marker_sha256=restored_marker_sha256)
+        else:
+            self.prepare_guest(self)
         self.revalidate(off=True)
         observed_guest = self.inspect(Path(inventory['layout']['disk']), self.script_digest)
         self.revalidate(off=True)
@@ -1467,8 +1473,8 @@ def main(argv=None):
             if recovered is False:
                 return 3
         capture = Capture(source, commands, inspect,
-                          prepare_guest=lambda held: prepare(held, modules['guestfs'], password,
-                                                             mode=args.mode or 'manual'))
+                          prepare_guest=lambda held, **kwargs: prepare(
+                              held, modules['guestfs'], password, mode=args.mode or 'manual', **kwargs))
         if args.replace_missing:
             capture.run(replace_missing=True)
         else:
@@ -1482,9 +1488,10 @@ def main(argv=None):
               file=sys.stderr)
         return 1
     except (Exception, KeyboardInterrupt) as error:
-        category = (str(error) if isinstance(error, (CaptureError, ForeignTrustMetadataError))
+        category = (str(error) if isinstance(error, (CaptureError, ForeignTrustMetadataError,
+                                                     guest_contract.PreparationError))
                     else "operation:failed-or-interrupted")
-        if not isinstance(error, (CaptureError, KeyboardInterrupt)):
+        if not isinstance(error, (CaptureError, guest_contract.PreparationError, KeyboardInterrupt)):
             # Report code locations, never exception text, source lines or locals:
             # guestfs/command errors can contain guest data or staged secrets.
             frames = traceback.extract_tb(error.__traceback__)

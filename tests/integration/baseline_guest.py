@@ -274,7 +274,7 @@ def configure_developer_share(g, root):
     label_preparation(g, [path, '/Data'])
 
 
-def prepare_source_retirement(g):
+def prepare_source_retirement(g, legacy_marker):
     """Prove old copied sources by their original marker-bound digest."""
     from baseline_fixtures import regular, write_record
     recover_source_staging(g)
@@ -291,17 +291,14 @@ def prepare_source_retirement(g):
                    or g.is_symlink(STAGE + '/checkout/' + path)]
         if not present:
             return
-        marker_path = str(prepare_vm.MARKER)
-        regular(g, marker_path, 0, 0, 0o600)
-        marker = json.loads(g.read_file(marker_path))
-        require(prepare_vm.fixture_boundary(marker) == 'legacy', 'guest:source-retirement-marker')
+        require(legacy_marker is not None, 'guest:source-retirement-marker')
         # Fedora's schema-3 sources also had a later environment declaration.
         # Select only these two known complete legacy shapes; the original
         # marker digest still proves every retained byte before any deletion.
         sources = prepare_vm.LEGACY_SCRIPT_FILES
         environment = 'tests/fixtures/baseline_environment.py'
-        if marker['schema_version'] == 3 and (g.exists(STAGE + '/checkout/' + environment)
-                                               or g.is_symlink(STAGE + '/checkout/' + environment)):
+        if legacy_marker['schema_version'] == 3 and (g.exists(STAGE + '/checkout/' + environment)
+                                                    or g.is_symlink(STAGE + '/checkout/' + environment)):
             sources = (*sources, environment)
         for relative in sources:
             path = STAGE + '/checkout/' + relative
@@ -310,7 +307,7 @@ def prepare_source_retirement(g):
         actual = prepare_vm.preparation_source_digest(
             lambda relative: g.read_file(STAGE + '/checkout/' + relative),
             sources)
-        require(actual == marker['preparation_script_sha256'], 'guest:source-retirement-digest')
+        require(actual == legacy_marker['preparation_script_sha256'], 'guest:source-retirement-digest')
         plan = {'purpose': 'onpc-preparation-source-retirement-v1',
                 'files': {relative: g.checksum('sha256', STAGE + '/checkout/' + relative)
                           for relative in paths}}
@@ -371,7 +368,7 @@ def verify_clean_sources(g):
 
 
 @observed('Preparing and validating the baseline VM')
-def prepare(capture, guestfs, password, *, mode='manual'):
+def prepare(capture, guestfs, password, *, mode='manual', restored_marker_sha256=None):
     from prepare_vm_host import built_artifacts
     import pwd
     caller = pwd.getpwuid(int(os.environ['PKEXEC_UID']))
@@ -393,26 +390,38 @@ def prepare(capture, guestfs, password, *, mode='manual'):
                 == hashes[flatpak_assets.MANIFEST], 'guest:flatpak-input-digest')
         with operation('Preparing and validating the baseline VM'):
             return prepare_with_snaps(capture, guestfs, password, mode=mode, snap_payload=payload,
-                                      flatpak_payload=flatpak_payload)
+                                      flatpak_payload=flatpak_payload,
+                                      restored_marker_sha256=restored_marker_sha256)
 
 
-def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpak_payload):
+def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpak_payload,
+                       restored_marker_sha256=None):
     """Operate only on the off, journal-bound source selected by the controller."""
     require(mode in ('auto', 'manual'), 'guest:preparation-mode')
     capture.revalidate(off=True)
     print('prepare-vm: Staging baseline setup on disk; VM is powered off', flush=True)
     with operation('Staging baseline setup on disk; VM is powered off'), mounted(guestfs, capture) as g:
         from baseline_console import reconcile as reconcile_console
+        from baseline_fixtures import (
+            RECORD, PURPOSE, reconcile_clean, _retirement_plan, refresh_clean_compiled, regular)
+        marker_path = str(prepare_vm.MARKER)
+        marker = None
+        legacy = False
+        if g.exists(marker_path) or g.is_symlink(marker_path):
+            regular(g, marker_path, 0, 0, 0o600)
+            raw = g.read_file(marker_path)
+            marker = json.loads(raw)
+            # A restored baseline may still carry the previous VM name. Only
+            # the exact marker from the verified snapshot can use that name.
+            hostname = None
+            if mode == 'auto' and hashlib.sha256(raw).hexdigest() == restored_marker_sha256:
+                hostname = g.read_file('/etc/hostname').decode().strip()
+            legacy = prepare_vm.fixture_boundary(marker, hostname=hostname) == 'legacy'
         reconcile_console(g)
         directory(g, STAGE)
         require(g.lstatns(STAGE)['st_mode'] & 0o077 == 0, 'guest:preparation-private')
         os_id, _ = prepare_vm.release_identity(prepare_vm.parse_os_release(
             g.read_file('/etc/os-release').decode()))
-        from baseline_fixtures import (
-            RECORD, PURPOSE, reconcile_clean, _retirement_plan, refresh_clean_compiled)
-        marker = (json.loads(g.read_file(str(prepare_vm.MARKER)))
-                  if g.exists(str(prepare_vm.MARKER)) else None)
-        legacy = marker and prepare_vm.fixture_boundary(marker) == 'legacy'
         if legacy:
             # Compiler outputs can archive fixture admissions. Refuse ambiguous
             # policy before retiring even the copied preparation sources.
@@ -425,7 +434,7 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
                 refresh_clean_compiled(g)
         elif marker:
             refresh_clean_compiled(g)
-        prepare_source_retirement(g)
+        prepare_source_retirement(g, marker if legacy else None)
         # Legacy retirement must precede new writers. A fresh guest has no
         # fixed accounts/native tools yet; its environment is reconciled
         # only after the guest setup below establishes those dependencies.

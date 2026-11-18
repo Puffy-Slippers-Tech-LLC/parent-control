@@ -235,7 +235,12 @@ class Checkpoint:
     @staticmethod
     def worker_result(root, binding):
         identity = hashlib.sha256(('run-tests:' + binding).encode()).hexdigest()[:24]
-        return _read_progress(Store(_state_directory(root) / ('runner-progress-' + identity))).get('queue_evidence')
+        store = Store(_state_directory(root) / ('runner-progress-' + identity))
+        try:
+            return _read_progress(store).get('queue_evidence')
+        except FileNotFoundError:
+            # Readiness can fail before the worker creates its checkpoint.
+            return None
 
     def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None):
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections

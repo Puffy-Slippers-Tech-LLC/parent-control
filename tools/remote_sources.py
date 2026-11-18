@@ -684,7 +684,6 @@ def run_worker(root, request_file, request, paths):
             started=lambda: event('started'), **request.get('execution', {}))
     if 'ONPC_TEST_FAMILY_WORK' in environment:
         from test_checkpoint import Checkpoint
-        from test_commands import selections
         work = json.loads(Path(environment['ONPC_TEST_FAMILY_WORK']).read_bytes())
         response['evidence'] = Checkpoint.worker_result(root, work['assignment']['vm'])
     # A private nonce separates host completion from arbitrary guest stdout.

@@ -143,10 +143,10 @@ def snapshot_source_projection(relative, contents):
     return '\n'.join(selected).encode()
 
 
-def fixture_boundary(marker):
+def fixture_boundary(marker, *, hostname=None):
     # Layout classification also runs before refreshing an old baseline.
     # Current dependency readiness is checked separately by capture inspection.
-    validate_marker(marker, current_dependencies=False)
+    validate_marker(marker, hostname=hostname, current_dependencies=False)
     return 'clean' if marker['schema_version'] == CLEAN_MARKER_VERSION else 'legacy'
 
 
@@ -849,7 +849,8 @@ def marker_document(
     return document
 
 
-def validate_marker(document: dict[str, object], *, os_id=None, current_dependencies=True) -> None:
+def validate_marker(document: dict[str, object], *, os_id=None, hostname=None,
+                    current_dependencies=True) -> None:
     if set(document) - {'snap_prepared'} != {"schema_version", "purpose", "guest", "preparation_script_sha256", "accounts", "test_dependencies"}:
         raise PreparationError("marker:schema", "preparation record has unexpected fields")
     # Earlier records came from a contract that always required Snap. Preserve
@@ -869,7 +870,8 @@ def validate_marker(document: dict[str, object], *, os_id=None, current_dependen
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
     if (platform not in ('ubuntu', 'fedora')
             or (document['schema_version'] == 3 and platform != 'fedora')
-            or guest['hostname'] != HOSTNAME or (os_id is not None and os_id != platform)):
+            or guest['hostname'] != (HOSTNAME if hostname is None else hostname)
+            or (os_id is not None and os_id != platform)):
         raise PreparationError("marker:schema", "preparation record guest identity is invalid")
     dependencies = document['test_dependencies']
     if (not isinstance(dependencies, dict)

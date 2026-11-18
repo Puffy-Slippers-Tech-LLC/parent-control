@@ -3206,12 +3206,18 @@ class UiObservations:
                                     for row, rule in zip(rows, rules)), 'ui:revoke-saved-rule')
                 balances = value['balances']
                 require(type(balances) is dict and set(balances) == {
-                    'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns'}
+                    'child', 'expanded', 'daily', 'one_time', 'total', 'observed_monotonic_ns',
+                    *({'read_started_ns'} if operation == 'revoke-balances' else set())}
                     and balances['child'] == value['settings']['child'] == accessible_ui.CHILD_IDENTITIES[
                         accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']]
                     and balances['expanded'] is True
                     and type(balances['observed_monotonic_ns']) is int
                     and 0 < balances['observed_monotonic_ns'] < 10**20, 'ui:revoke-response')
+                if operation == 'revoke-balances':
+                    started = balances['read_started_ns']
+                    require(type(started) is int and 0 < started <= balances['observed_monotonic_ns']
+                            and balances['observed_monotonic_ns'] - started <= 45_000_000_000,
+                            'ui:revoke-read-bounds')
                 for key in ('daily', 'one_time', 'total'):
                     item = balances[key]
                     require(type(item) is dict and set(item) == {'text', 'seconds', 'precision_seconds'}

@@ -31,7 +31,7 @@ sub log_out {
     return $journey->seen('gdm-logged-out');
 }
 
-# DESK06: no secret or empty submission. A fresh curtain proof guards one Space.
+# DESK06: reveal the challenge without entering or submitting anything.
 sub observe_lock {
     onpc_progress::operation('Revealing the bound lock challenge');
     my ($journey, $entry) = @_;
@@ -42,7 +42,7 @@ sub observe_lock {
     return reveal_lock($journey, 'challenge');
 }
 
-# A fresh curtain proof guards one Space; callers own the resulting surface.
+# A fresh curtain proof guards one nonprinting key; callers observe the result.
 sub reveal_lock {
     onpc_progress::operation('Revealing the bound locked surface');
     my ($journey, $result) = @_;
@@ -50,7 +50,8 @@ sub reveal_lock {
         && ($result eq 'challenge' || $result eq 'time-denied');
     $journey->consume_observation('curtain', $journey->seen('curtain'));
     $journey->consume_observation('reveal-ready', $journey->seen('reveal-ready'));
-    testapi::send_key('spc');
+    # GNOME Shell 51 forwards the printable Space into the password field.
+    testapi::send_key('up');
     return $journey->seen($result);
 }
 

@@ -9230,7 +9230,12 @@ class AccessibleUI:
                 urgency = self.snapshot_owned_target('child-time-notification-urgency',
                                                      observation=observation)
                 require(message is not None and urgency is not None, 'ui:natural-reminder-incomplete')
-                body, live, priority = message.getText(), message.getValue(), urgency.getValue()
+                # Text and remaining time change together on countdown ticks.
+                # Read them in one public snapshot to avoid mixing two ticks.
+                content = message.ui_element.snapshot()
+                require(content['visible'] is True, 'ui:natural-reminder-hidden')
+                body, live = content['text'], content['value']
+                priority = urgency.getValue()
                 require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
                 after = remaining.getValue()
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
@@ -9248,9 +9253,10 @@ class AccessibleUI:
                     expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
                     if live < 60:
                         expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
-                require(body == expected_body and priority == ('high' if fullscreen is False else 'critical')
-                        and after - 2 <= live <= seconds + 2,
-                        'ui:natural-reminder-content-or-balance')
+                require(body == expected_body, 'ui:natural-reminder-content')
+                require(priority == ('high' if fullscreen is False else 'critical'),
+                        'ui:natural-reminder-urgency')
+                require(after - 2 <= live <= seconds + 2, 'ui:natural-reminder-balance')
                 delivery_id = current_id
                 if new_delivery:
                     emission = {'delivery_id': current_id, 'body': body, 'urgency': priority,

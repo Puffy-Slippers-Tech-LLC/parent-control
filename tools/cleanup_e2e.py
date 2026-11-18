@@ -88,7 +88,8 @@ def main(argv=None):
             with (reservation(vms[0].name) if transferring else nullcontext()), \
                     test_activity.activity(root, includes_host=True):
                 from test_storage import named_input, directory
-                path = directory('allocations', root=root) / snapshot if snapshot else named_input(**options)
+                path = (directory('allocations', root=root) / snapshot if snapshot else
+                        named_input(**options, include_unpublished=bool(args.discard_unpublished_input)))
                 destination = test_retention.Store(test_activity.retention_path(root))
                 if transferring:
                     from test_input_transfer import transfer

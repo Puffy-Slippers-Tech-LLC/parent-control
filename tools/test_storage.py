@@ -207,7 +207,7 @@ def allocation_parent():
 
 def named_input(*, package_source=False, fixture_source=False, upgrade_source=False,
                 vm_source=False, no_action_source=False, process_source=False, session_source=False,
-                reboot_source=False):
+                reboot_source=False, include_unpublished=False):
     # Privileged qualifiers consume the caller's already frozen host bundle.
     # Every qualification must select current sources, including default callers.
     # package_source remains accepted for existing explicit callers.
@@ -239,7 +239,8 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     if vm is not None:
         prefix += vm.name + '-'
     base = storage_base() / ('host/allocations/' + prefix + identity)
-    result = named_input_slot(base)
+    paired = upgrade_source or no_action_source or process_source or session_source or reboot_source
+    result = named_input_slot(base, ignore_unpublished=not (paired or include_unpublished))
     # Diagnose producer/consumer locator differences without exposing paths or
     # source contents. Keep selection and all input validation unchanged.
     print('qualification-input: identity=' + json.dumps({
@@ -281,12 +282,12 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     return result
 
 
-def named_input_slot(path):
-    """Preserve empty reservations; select a fresh, independently registered slot.
+def named_input_slot(path, *, ignore_unpublished=False):
+    """Preserve reservations and unpublished builds when selecting a fresh slot.
 
     The execution activity lock serializes producers and consumers. Never adopt
     or delete an existing directory: even an empty one can be unregistered.
-    Nonempty inputs still undergo the consumer's complete manifest/tree checks.
+    Published and unexpected layouts still undergo full manifest/tree checks.
     """
     if __package__:
         from .test_retention import directory as open_directory
@@ -301,13 +302,16 @@ def named_input_slot(path):
             available = available or candidate
             continue
         try:
-            if os.listdir(fd):
+            entries = set(os.listdir(fd))
+            # A single-package build writes its manifest after both payloads.
+            # An interruption can leave either payload without publishing it.
+            if entries and not (ignore_unpublished and entries <= {'package', 'fixtures'}):
                 return candidate
         finally:
             os.close(fd)
     if available is not None:
         return available
-    raise ValueError('named input has too many empty reservations')
+    raise ValueError('named input has too many unpublished reservations')
 
 
 def _input_caller(caller_uid):

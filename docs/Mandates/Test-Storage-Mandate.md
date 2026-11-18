@@ -77,11 +77,12 @@ payloads, privileged/read-only routes and authenticated input guards remain
 unchanged. Foreign or otherwise writable ancestors refuse rather than being
 adopted or repaired.
 
-An empty named input is a reservation, not a verified bundle or permission to
-adopt its directory. `named_input()` preserves empty slots and selects a bounded
-fresh generation; the launcher registers that new allocation before building.
-Nonempty inputs retain normal manifest/tree verification and refusal, even when
-incomplete. Do not reclaim an empty slot without its recorded identity.
+`named_input()` preserves empty reservations and single-package slots containing
+only package or fixture payloads without a completion manifest. It reuses an
+existing published generation when available or selects a fresh slot within the
+bounded generation range. The launcher registers a fresh allocation before
+building. Published and unexpected layouts retain full manifest and tree
+verification. Reclaiming a slot requires its recorded identity.
 
 After retained evidence establishes an interrupted artifact build, recover its
 unpublished named input with `tools/cleanup-e2e --vm NAME --discard-unpublished-input CHECK`.

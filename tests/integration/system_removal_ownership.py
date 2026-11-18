@@ -29,6 +29,7 @@ OWNERSHIP_GROUPS = {
 COMMENT = b'\n# onpc removal ownership conflict\n'
 STATE = Path('/var/lib/oh-no-parent-control')
 FALLBACK_RULE = Path('/etc/fapolicyd/rules.d/99-oh-no-parent-control-allow.rules')
+MOUNTINFO_ESCAPES = str.maketrans({' ': r'\040', '\t': r'\011', '\n': r'\012', '\\': r'\134'})
 
 
 def ownership_targets(distribution):
@@ -115,6 +116,17 @@ def pinned(fd):
                    os.pread(fd, info.st_size + 1, 0))
 
 
+def mount_boundary(path, backup=None):
+    """Pin ancestor mounts and reject direct mounts on either fixture file."""
+    from system_removal import mount_inventory
+
+    namespace, mounts = mount_inventory()
+    ancestors = {str(parent).translate(MOUNTINFO_ESCAPES) for parent in path.parents}
+    files = {str(file).translate(MOUNTINFO_ESCAPES) for file in (path, backup) if file is not None}
+    require(not any(row[0][4] in files for row in mounts.values()), 'mounted-target')
+    return namespace, {key: row for key, row in mounts.items() if row[0][4] in ancestors}
+
+
 class Conflict:
     def __init__(self, variant, path, fd, original, original_times, namespace,
                  mounts, ancestors):
@@ -150,7 +162,6 @@ class Conflict:
                 'partial-original-changed')
 
     def boundary(self):
-        from system_removal import mount_inventory
         parents(self.path)
         current = tuple((p, metadata(p.lstat())) for p, _ in self.ancestors)
         try:
@@ -173,7 +184,7 @@ class Conflict:
                     changes.append(change)
             error.add_note('ancestor-metadata-deltas=' + json.dumps(changes, sort_keys=True))
             raise
-        namespace, mounts = mount_inventory()
+        namespace, mounts = mount_boundary(self.path, self.backup)
         require(namespace == self.namespace and mounts == self.mounts,
                 'mount-identity-changed')
 
@@ -291,9 +302,7 @@ def ownership_conflict(variant, target: Path, foreign_uid: int, record):
                  (type(document['expires']) is int and document['expires'] >= 0)) and
                 document['phase'] in ('quarantined', 'releasing'),
                 'unsafe-record-uid')
-    from system_removal import mount_inventory
-    namespace, mounts = mount_inventory()
-    require(not any(row[0][4] == str(target) for row in mounts.values()), 'mounted-target')
+    namespace, mounts = mount_boundary(target)
     ancestors = tuple((p, metadata(p.lstat())) for p in target.parents)
     fd = os.open(target, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
     conflict = Conflict(variant, target, fd, original,

@@ -78,6 +78,11 @@
         { "id": "103", "name": "onpc-Ubuntu26.04-103", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-103.qcow2", "owning_branch": "" },
         { "id": "104", "name": "onpc-Ubuntu26.04-104", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-104.qcow2", "owning_branch": "" },
         { "id": "105", "name": "onpc-Ubuntu26.04-105", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-105.qcow2", "owning_branch": "" },
+        { "id": "106", "name": "onpc-Ubuntu26.04-106", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-106.qcow2", "owning_branch": "" },
+        { "id": "107", "name": "onpc-Ubuntu26.04-107", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-107.qcow2", "owning_branch": "" },
+        { "id": "108", "name": "onpc-Ubuntu26.04-108", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-108.qcow2", "owning_branch": "" },
+        { "id": "109", "name": "onpc-Ubuntu26.04-109", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-109.qcow2", "owning_branch": "" },
+        { "id": "110", "name": "onpc-Ubuntu26.04-110", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2", "owning_branch": "" },
         { "id": "111", "name": "onpc-Ubuntu26.04-111", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-111.qcow2", "owning_branch": "" }
       ]
     },

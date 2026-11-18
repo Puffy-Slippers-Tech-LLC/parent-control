@@ -34,11 +34,30 @@ def remote_directory(anchor, controller, branch, *, create=True, caller_uid=None
     path = parent / key
     if create:
         path.mkdir(mode=0o700, exist_ok=True)
+    return _private_remote_root(path, uid)
+
+
+def _private_remote_root(path, uid):
     info = path.lstat()
     if (not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
             or stat.S_IMODE(info.st_mode) != 0o700 or path.resolve() != path):
         raise ValueError('unsafe remote operation storage')
     return path
+
+
+def remote_operation_roots(root):
+    """Find this checkout's private, durable transferred-operation roots."""
+    uid = os.geteuid()
+    try:
+        parent = _directory('remote', root=root, create=False, owner='host', uid=uid)
+    except FileNotFoundError:
+        return
+    for path in sorted(parent.iterdir()):
+        if re.fullmatch(r'[0-9a-f]{64}', path.name):
+            try:
+                yield _private_remote_root(path, uid)
+            except (OSError, ValueError):
+                continue
 
 
 def storage_root(root=None):

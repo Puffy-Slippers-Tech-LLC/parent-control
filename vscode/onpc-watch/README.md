@@ -465,8 +465,9 @@ rows. The footer shows the selected and total row counts. The trash button above
 the table deletes selected rows, and each row's final trash button deletes that
 row. Both require confirmation; bulk confirmation includes the selected row count.
 Deletion removes saved timing records for all VMs in those rows, including older
-duplicates in the displayed scope, while preserving recordings. Updated timings
-require a refresh before deletion. Older source adapters disable deletion until updated.
+duplicates of the displayed execution revision, while preserving recordings.
+Updated timings require a refresh before deletion. Older source adapters disable
+deletion until updated.
 Rows update only after all selected phases of a case finish. Unfinished attempts
 publish no partial row; an earlier completed duration remains until replaced.
 Case links open the existing case file in a new editor tab. The recording icon
@@ -483,8 +484,10 @@ runs. Changed combinations have an execution revision: older fragment timings
 and clips stay historical and do not appear under the new group's title. A
 single-owner lifecycle recording also includes the gaps between its phases,
 including real reboots, through final cleanup.
-Only executed, logged cases appear; this is not a test inventory. Small latest-only
-records live in the shared `state` directory under gitignored `output/test-runs/`.
+Only executed, logged cases appear. New durations from local and transferred
+workers share the executing host's Watch checkout `state` directory. Watch
+also includes timings already saved in that checkout's transferred operation
+storage.
 
 Each VM footer has an **SSH** toggle at the right, off by default. Turn it on
 to show the filtered command output above the footer. The choice is retained

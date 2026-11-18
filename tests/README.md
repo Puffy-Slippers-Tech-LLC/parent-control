@@ -1082,10 +1082,11 @@ This is development/test tooling only; package update activation is **none**.
 
 VM case start/finish events also update small latest-only duration records through
 `tools/vm_run_times.py` in the shared gitignored `state` storage directory. One
-record per category/case/VM keeps its latest execution duration; a new attempt
-replaces only that pair's predecessor. Legacy per-case records remain readable
-and are deduplicated against newer records for the same pair without rewriting
-history. The clock starts at the recording's preparation
+record keeps the latest duration for a category, case, VM, execution revision
+and source file. Transferred workers publish timings to
+the executing host's Watch checkout. Watch also reads previously saved timings
+from transferred operation storage and older per-case files, then keeps the
+latest duration for each pair. The clock starts at the recording's preparation
 event for the first selected case, including VM preparation before pytest starts.
 Later cases start at their own start event. Lifecycle phases within that attempt accumulate,
 while repair sessions and prior attempts do not. A new duration is published only

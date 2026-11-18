@@ -99,7 +99,7 @@ def request(endpoint, value, *, timeout=180):
     return reply
 
 
-def report_event(root, category, event):
+def report_event(root, category, event, *, timing_metadata=None):
     endpoint = os.environ.get(VARIABLE)
     from test_commands import CATEGORIES
     if not endpoint or category not in CATEGORIES or CATEGORIES[category].scope != 'vm':
@@ -123,6 +123,7 @@ def report_event(root, category, event):
     identity = case_identity(root, category, event)
     if identity is None:
         raise ValueError('recording: unregistered VM case')
+    timing = (timing_metadata or {}).get(event['nodeid'])
     pending = _phase_nodes.get(phase_key, {}).get(identity[0], set())
     attempt = _phase_attempts.get(phase_key)
     if event['kind'] == 'finished':
@@ -135,7 +136,7 @@ def report_event(root, category, event):
     reply = request(json.loads(endpoint), dict(op='event', vm=vm.name, category=category,
         id=identity[0], title=identity[1], kind=event['kind'], at_ns=time.monotonic_ns(),
         more_phases=bool(pending) if event['kind'] == 'finished' else False,
-        attempt=attempt))
+        attempt=attempt, execution_revision=timing.get('execution_revision', 1) if timing else None))
     record = reply.get('recording')
     if record:
         print(describe(record), flush=True)
@@ -541,8 +542,10 @@ class Session:
         from recording_storage import case_identity as valid_identity, _token
         category, identifier, vm = value['category'], value['id'], value['vm']
         kind, at_ns = value['kind'], value['at_ns']
+        revision = value.get('execution_revision')
         if (not _token(category) or not valid_identity(identifier)
                 or kind not in ('prepared', 'started', 'failure', 'finished')
+                or (revision is not None and (type(revision) is not int or revision < 1))
                 or type(at_ns) is not int or not 0 <= at_ns <= time.monotonic_ns()):
             raise ValueError('recording: invalid case event')
         key = category, identifier
@@ -571,6 +574,8 @@ class Session:
             ready = self.exchange(dict(op='begin', category=category, id=identifier, vm=vm, path=str(path)))
             self.cases[vm]['started_ns'] = ready['started_ns']
         case = self.cases[vm]
+        if revision is not None:
+            case.setdefault('execution_revision', revision)
         self.active[vm] = key
         if kind == 'failure' and not case['errors']:
             elapsed_ns = max(0, at_ns - case['started_ns'])
@@ -626,6 +631,8 @@ class Session:
         metadata = dict(title=case['title'], vm=vm, errors=case['errors'],
                         failed=bool(case['errors']), interrupted=case['interrupted'],
                         duration_seconds=case['duration_seconds'], fps=case['fps'])
+        if 'execution_revision' in case:
+            metadata['execution_revision'] = case['execution_revision']
         try:
             with self.store.begin(category, vm_case_id(identifier, vm)) as owner:
                 if len(case['parts']) == 1:

@@ -44,7 +44,7 @@ def inline_video(stream):
     return dict(kind='video', data=base64.b64encode(data).decode('ascii'))
 
 
-def recording_artifact(uri, anchor, host):
+def recording_artifact(uri, anchor, host, *, inline=True):
     """Read only a current publication in this host's remote operation store."""
     parsed = urlsplit(uri)
     path = Path(unquote(parsed.path))
@@ -59,7 +59,9 @@ def recording_artifact(uri, anchor, host):
         raise ValueError('Recording outside this host\'s managed remote storage.')
     from recording_storage import Store
     with Store(root=path.parents[3], create=False).open_published(path) as stream:
-        return inline_video(stream)
+        if inline:
+            return inline_video(stream)
+        return dict(kind='file', uri=path.as_uri(), media_type='video/webm')
 
 
 def remote_recording_artifact(uri):
@@ -413,7 +415,7 @@ class Viewer:
                     # Unrelated worktrees may retain an older registry schema.
                     # Only consult host metadata for a possible storage root.
                     if path.is_relative_to(root) and parsed.netloc == tool_host(root).name:
-                        return recording_artifact(uri, root, parsed.netloc)
+                        return recording_artifact(uri, root, parsed.netloc, inline=request['inline'])
                 return remote_recording_artifact(uri)
             if uri in self.case_links:
                 if not any(path.resolve().is_relative_to(root.resolve() / 'tests') for root in self.roots):

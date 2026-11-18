@@ -664,7 +664,8 @@ class Execution:
         from vm_recording import report_event
         self.run_times.event(dict(kind=kind, nodeid=self.recording_case))
         record = report_event(self.run.root, self.item.retry_category,
-                              dict(kind=kind, nodeid=self.recording_case))
+                              dict(kind=kind, nodeid=self.recording_case),
+                              timing_metadata=self.run_times.metadata)
         if kind == 'failure':
             self.recording_failed = True
         self.recording_result(record)
@@ -728,7 +729,8 @@ class Execution:
             if not self.collect:
                 from vm_recording import report_event
                 self.run_times.event(event)
-                self.recording_result(report_event(self.run.root, item.retry_category, event))
+                self.recording_result(report_event(self.run.root, item.retry_category, event,
+                                                   timing_metadata=self.run_times.metadata))
             if event['kind'] == 'collection':
                 if self.inventory_seen:
                     raise ValueError('duplicate test inventory event')

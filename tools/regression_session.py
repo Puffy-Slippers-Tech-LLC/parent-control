@@ -88,6 +88,12 @@ def current_session(directory):
         return run, busy(owner)
 
 
+def repair_supervisor():
+    from test_results import REPAIR_QUEUE
+    observer = os.environ.get(FRAME_DIRECTORY)
+    return Path(observer) if observer and os.environ.get(REPAIR_QUEUE) == '1' else None
+
+
 def select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
     # Activity descriptor state is process-local. Concurrent callers in this
     # process serialize only startup; detached host/VM workers remain independent.
@@ -254,7 +260,7 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 if test_source.VARIABLE in environment and test_source.WRITER not in environment:
                     environment[test_source.IMPORTS] = environment[test_source.VARIABLE]
                 from launcher_reload import ReloadRequest
-                ReloadRequest(run).inherit(environment)
+                ReloadRequest(run).inherit(environment, supervisor=repair_supervisor())
                 # Registration belongs to this public invocation. Test fixtures
                 # and further runner workers must not claim the agent's owner.
                 environment.pop(WORKFLOW_DIRECTORY, None)
@@ -374,6 +380,8 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
             run, started = start()
         from test_results import VARIABLE
         if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
+            from launcher_reload import STATUS as RELOAD_STATUS, unaccepted
+            supervisor = repair_supervisor()
             while run is not None and not started:
                 waiting, run = run, None
                 print('run-tests: waiting for the active test session before starting selected work.',
@@ -383,6 +391,8 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
                         time.sleep(.1)
                 if requested:
                     return 130
+                if supervisor is not None and unaccepted(supervisor) is not None:
+                    return RELOAD_STATUS
                 run, started = start()
         if run is None:
             from test_commands import is_inspection
@@ -426,14 +436,16 @@ def worker(root, argv, run, owner, *, reloading=False):
     regression_process.session_stop = CancellationEvent(run)
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
-    with watching(run), regression_process.Control().installed(), test_io.low_io(), \
+    with watching(run) as reload_request, regression_process.Control().installed(), test_io.low_io(), \
             ExitStack() as resources:
         try:
             return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
         except launcher_reload.ReloadRequested:
-            status = 130
+            status = launcher_reload.STATUS if reload_request.supervisor_pending() else 130
             try:
-                if not (run / 'cancel').exists() and not regression_process.session_stop.is_set():
+                if regression_process.session_stop.is_set():
+                    status = 130
+                elif status != launcher_reload.STATUS:
                     if BOUNDARY_AGENT_ENV in os.environ:
                         from launcher_controller import synchronize_reload
                         resources.close()
@@ -477,7 +489,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
         with ExitStack() as resources:
             return owned_worker(root, argv, run, owner, resources=resources, reloading=reloading)
     import regression_process
-    from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS
+    from launcher_reload import ReloadRequested, STATUS as RELOAD_STATUS, check as check_reload
     status = 1
     continuing = reloading
     reloading = False
@@ -485,6 +497,8 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
     original = sys.stdout
     sys.stdout = SessionOutput(run, original)
     try:
+        if not regression_process.session_stop.is_set():
+            check_reload()
         with test_source.reader(root, stopped=regression_process.session_stop.is_set):
             from test_commands import _main, selections, host_only_selection, host_only_request, includes_host_request
             from test_recovery import before_run

@@ -507,9 +507,9 @@ stay under their existing supervisor. Controllers reload only after
 their owned operations and cleanup finish. VM test coordinators interrupt guest
 steps through the [owned interruption route](../tests/README.md#scripted-repair-loop)
 instead of waiting for admitted groups to finish. Ordinary plans and E2E implementation
-retain session/task checkpoints; repair controllers finish their active operation
-and retain clear results before reloading;
-translations finish and retain their current batch.
+retain session/task checkpoints. Repair controllers join their test runner or
+let an active repair session finish before reloading. Translations finish and
+retain their current batch.
 The test scheduler stops admitting jobs, joins active work, saves completed cases
 and reloads with the original selectors and checkpoint. Cancellation takes precedence;
 cleanup/audit failures retain a failed result rather than being hidden by reload.

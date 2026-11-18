@@ -17,11 +17,16 @@ class ReloadRequested(Exception):
     """A child-free boundary can resume this run under fresh imports."""
 
 
-def generation(run):
+def generation(run, name='reload.json'):
     try:
-        return json.loads((run / 'reload.json').read_text())
+        return json.loads((run / name).read_text())
     except FileNotFoundError:
         return None
+
+
+def unaccepted(run):
+    requested = generation(run)
+    return requested if requested is not None and requested != generation(run, 'reload-accepted.json') else None
 
 
 def request(run):
@@ -35,25 +40,32 @@ class ReloadRequest:
     def __init__(self, run):
         self.run = run
         self.generation = generation(run)
+        self.supervisor = None
         inherited = json.loads(os.environ.get(BASELINE, 'null'))
         if inherited is not None and inherited['run'] == str(run):
             self.generation = inherited['generation']
-            # Fresh imports confirm replacement, including exec by an older
-            # controller that did not publish an acknowledgement. Never accept
-            # a newer request that arrived while this interpreter was starting.
+            if 'supervisor' in inherited:
+                self.supervisor = Path(inherited['supervisor'])
+            # Fresh imports confirm replacement for the generation carried across exec.
             if self.generation is not None and generation(run) == self.generation:
                 from detached_launcher import atomic
                 atomic(run / 'reload-accepted.json', self.generation)
 
+    def supervisor_pending(self):
+        return self.supervisor is not None and unaccepted(self.supervisor) is not None
+
     def pending(self):
-        return generation(self.run) != self.generation
+        return self.supervisor_pending() or generation(self.run) != self.generation
 
     def check(self):
         if self.pending():
             raise ReloadRequested()
 
-    def inherit(self, environment):
-        environment[BASELINE] = json.dumps(dict(run=str(self.run), generation=self.generation))
+    def inherit(self, environment, *, supervisor=None):
+        baseline = dict(run=str(self.run), generation=self.generation)
+        if supervisor is not None:
+            baseline['supervisor'] = str(supervisor)
+        environment[BASELINE] = json.dumps(baseline)
 
 
 def watch(run=None):
@@ -87,7 +99,7 @@ def check():
         current.check()
 
 
-def replace(command, descriptors):
+def replace(command, descriptors, *, requested_generation=None):
     """Exec without releasing the owner's lock or its inherited leases."""
     import vm_pool
     import test_source
@@ -107,7 +119,8 @@ def replace(command, descriptors):
             # Acknowledge only requests present before fresh imports start.
             # A second request arriving during startup stays pending.
             value = json.loads(baseline)
-            value['generation'] = generation(Path(value['run']))
+            value['generation'] = (requested_generation if requested_generation is not None
+                                   else generation(Path(value['run'])))
             os.environ[BASELINE] = json.dumps(value)
         if keeper is not None:
             os.environ[vm_pool.RELOAD_KEEPER] = json.dumps(keeper)

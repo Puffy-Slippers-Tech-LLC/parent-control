@@ -250,7 +250,11 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     return value
                 work = assignment['execution']
                 evidence = value.get('evidence')
-                accepted = checkpoint.accept(assignment, evidence, value['status'])
+                check_status = value['status']
+                reloading = check_status == 130 and launcher_reload.pending() and not control.stopped.is_set()
+                if reloading and isinstance(evidence, dict) and evidence.get('status') == 0:
+                    check_status = 0  # The assignment and its cleanup are still checked below.
+                accepted = checkpoint.accept(assignment, evidence, check_status)
                 observed = evidence if accepted is not None else {}
                 for case in set(observed.get('passed', [])) & set(work['cases']):
                     result_store.record(work['category'], vm.family, case, 0, vm=vm.name,
@@ -262,13 +266,23 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     result_store.record(work['category'], vm.family, case, 1, vm=vm.name,
                         options=work['options'], output_tail=value.get('output_tail', ''),
                         handoffs=value.get('handoffs', []))
+                if reloading and not actual_failures:
+                    worker_status = observed.get('status')
+                    cleanup = observed.get('cleanup') is True
+                    if cleanup and (worker_status == 0 or (
+                            worker_status == 130 and observed.get('interrupted') is True)):
+                        value = dict(value, status=launcher_reload.STATUS)
+                    else:
+                        value = dict(value, status=1, interrupted=False, cleanup=cleanup,
+                                     output_tail=value.get('output_tail', '') +
+                                     '\nVM reload could not confirm a successful or cleanly interrupted attempt.')
                 interrupted = value.get('interrupted') or value['status'] in (130, launcher_reload.STATUS)
                 complete = accepted is not None and (set(work['cases']) <= checkpoint.passed(vm.family, work['category'])
                             if work['cases'] else accepted is True)
                 if complete and not work['cases']:
                     result_store.record(work['category'], vm.family, '', 0, vm=vm.name,
                                         options=work['options'], complete=True)
-                if complete and not value['status']:
+                if complete and check_status == 0:
                     result_store.finish_command(work['category'], work['options'], family=vm.family, work=work)
                 if not value['status'] and not complete:
                     from vm_case_queue import work_key
@@ -609,8 +623,8 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                 if launcher_reload.pending():
                     return dict(status=launcher_reload.STATUS, handoffs=[])
                 environment = test_launcher.environment(root)
-                if launcher_reload.current is not None:
-                    launcher_reload.current.inherit(environment)
+                # The coordinator interrupts this attempt through its owned
+                # stop path so the worker always finalizes its attempt evidence.
                 environment.pop(BATCH, None)
                 # A worker starts its own retention session, never another VM's.
                 environment.pop(test_retention.VARIABLE, None)
@@ -686,10 +700,11 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                         status = 130
                     elif detached:
                         status = route.run(attempt_control, command, cwd=root, env=environment,
-                            output=output, cooperative=True, tick=interrupt, started=started)
+                            output=output, cooperative=True, tick=interrupt, started=started,
+                            preserve_exit=True)
                     else:
                         status = attempt_control.run(command, cwd=root, env=environment, output=output,
-                            cooperative=True, tick=interrupt, started=started)
+                            cooperative=True, tick=interrupt, started=started, preserve_exit=True)
                     if pending:
                         with output_lock:
                             print(f'[{vm.name}] ' + pending.decode('utf-8', errors='replace'), flush=True)
@@ -720,24 +735,23 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                         handoffs.append(str(path))
                 elif ready:
                     evidence = Checkpoint.worker_result(root, vm.name)
-                if refused_start or (route is None and attempt_control.stopped.is_set() and not spawned):
-                    # A refused invocation or a local Popen that never happened
-                    # proves no start. Missing remote acknowledgement does not.
-                    evidence = dict(assignment, passed=[], failed=[], cleanup=True,
+                if (status == 130 and attempt_control.stopped.is_set() and not spawned
+                        and (refused_start or route is None or route.result)):
+                    # The remote completion receipt also confirms no start
+                    # when it arrives without a preceding worker start event.
+                    evidence = dict(assignment, status=130, passed=[], failed=[], cleanup=True,
                                     interrupted=True, diagnostic=False)
                 with (directory / (vm.name + '.log')).open('rb') as log:
                     log.seek(0, os.SEEK_END)
                     log.seek(max(attempt_output_start, log.tell() - 16000))
                     output_tail = log.read(16000).decode('utf-8', errors='replace')
                 result = dict(status=status, handoffs=handoffs, evidence=evidence, output_tail=output_tail)
-                if attempt_control.stopped.is_set() and evidence is None:
-                    result.update(status=130, interrupted=True)
-                if (attempt_control.stopped.is_set() and isinstance(evidence, dict)
+                if (status == 130 and attempt_control.stopped.is_set() and isinstance(evidence, dict)
                         and evidence.get('interrupted') is True and not evidence.get('failed', [])):
                     # The coordinator validates the exact assignment and cleanup
                     # before returning unfinished work to pending. No synthetic
                     # failure or passing attempt is created by preemption.
-                    result.update(status=130, interrupted=True, handoffs=[])
+                    result.update(interrupted=True, handoffs=[])
                 for path in handoffs:
                     try:
                         failed = json.loads(Path(path).read_text()).get('failures', [])
@@ -911,13 +925,12 @@ def _worker(argv, finished, *, cleanup_only=False):
     os.environ.pop(test_activity.VARIABLE, None)
     sys.stdout.frame(['Queued (waiting for VM checkout)'])
     from prepare_appsnapshot import snap_ready_reservation
-    from launcher_control import watching
     control = Control()
     if cleanup_only:
         control.stopped = threading.Event()
     owner = (reservation(name, stopped=control.stopped) if cleanup_only else
              snap_ready_reservation(root, name, control))
-    with watching(), control.installed(pipe=not cleanup_only), owner, \
+    with control.installed(pipe=not cleanup_only), owner, \
             test_activity.activity(root, named_vm=True), test_source.reader(root, stopped=control.stopped.is_set):
         # Nested aggregate controllers observe the same parent cancellation.
         import regression_process
@@ -951,7 +964,7 @@ def _worker(argv, finished, *, cleanup_only=False):
             checkpoint.save()
             print(CHECKPOINT_READY + assignment['attempt'], flush=True)
             if cleanup_only:
-                finished.append((checkpoint, dict(assignment, passed=[], failed=[], cleanup=True,
+                finished.append((checkpoint, dict(assignment, status=130, passed=[], failed=[], cleanup=True,
                                                    interrupted=True, diagnostic=False)))
                 return 130
         if cleanup_only:
@@ -964,10 +977,7 @@ def _worker(argv, finished, *, cleanup_only=False):
             area = '--resume-area-only' in args
             # Family admission already applies the caller's explicit replay.
             checkpoint.retry(groups[0][0], replay[0], area=area, clear_pass=not (work and area))
-        try:
-            status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
-        except launcher_reload.ReloadRequested:
-            return launcher_reload.STATUS
+        status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
         if work:
             # An inherited pass is never evidence that this attempt executed it.
             # The report owns case teardown; main returns through retained-output
@@ -975,13 +985,20 @@ def _worker(argv, finished, *, cleanup_only=False):
             category = assignment['work']['category']
             executed = assignment.get('execution', assignment['work'])
             observed = checkpoint.executed_passes.get(category, set()) & set(executed['cases'])
-            evidence = dict(assignment, passed=sorted(observed),
-                cleanup=bool(getattr(checkpoint, 'queue_finalized', False)) and (
+            finalized = getattr(checkpoint, 'queue_finalized', False)
+            started = getattr(checkpoint, 'queue_vm_started', False)
+            vm_exit = getattr(checkpoint, 'queue_vm_exit', None)
+            # The enclosing control may see STOP after the suite has already
+            # exited successfully. Its final report still has to close cleanly.
+            verdict = 0 if status == 130 and finalized and vm_exit == 0 else status
+            cleanup = finalized and (verdict == 0 or
                     not control.stopped.is_set() or getattr(checkpoint, 'queue_vm_cleanup', False)
-                    or not getattr(checkpoint, 'queue_vm_started', False)),
+                    or not started)
+            if status == 130 and not cleanup and (not started or vm_exit == 130):
+                return status  # Join the existing guarded interruption recovery.
+            evidence = dict(assignment, status=verdict, passed=sorted(observed), cleanup=cleanup,
                 failed=getattr(checkpoint, 'queue_failures', []),
-                interrupted=getattr(checkpoint, 'queue_vm_interrupted', False) or (
-                    control.stopped.is_set() and not getattr(checkpoint, 'queue_vm_started', False)),
+                interrupted=getattr(checkpoint, 'queue_vm_interrupted', False) or (status == 130 and not started),
                 diagnostic=False)
             finished.append((checkpoint, evidence))
         return status

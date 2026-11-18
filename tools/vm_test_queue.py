@@ -202,20 +202,27 @@ def execute_pass(root, plan, control, execute, *, host=None,
         def attempt(worker):
             nonlocal upstream_changed, upstream_error
             vm = worker.vm
+            if check_upstream is not None:
+                if not needed(vm):
+                    return dict(status=0, handoffs=[])
+                from launcher_source_sync import SyncError
+                try:
+                    pending_update = check_upstream(control=control)
+                except SyncError as error:
+                    with lock:
+                        upstream_error = str(error)
+                        changed.set()
+                    return dict(status=0, handoffs=[])
+                if pending_update:
+                    # Drain without cancelling bundles already running.
+                    with lock:
+                        upstream_changed = True
+                        changed.set()
+                    return dict(status=0, handoffs=[])
             with lock:
                 available = pending(vm.family)
                 if not available or failed.is_set() or changed.is_set() or control.stopped.is_set():
                     return dict(status=0, handoffs=[])
-                if check_upstream is not None:
-                    from launcher_source_sync import SyncError
-                    try:
-                        upstream_changed = check_upstream(control=control)
-                    except SyncError as error:
-                        upstream_error = str(error)
-                    if upstream_changed or upstream_error is not None:
-                        # Drain without cancelling bundles already running.
-                        changed.set()
-                        return dict(status=0, handoffs=[])
                 if sources is not None and sources.source != source_identity(root):
                     changed.set()
                     return dict(status=0, handoffs=[])
@@ -378,6 +385,18 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None)
         vms = [configured[name] for name in snapshot['vms']]
         groups = execution_groups(root, argv, vms)
         selection = selections(root, argv)
+
+    def validate_routing():
+        from launcher_source_sync import SyncError
+        with test_source.startup(root, argv):
+            current = vm_config.registry()
+            try:
+                current_groups = execution_groups(root, argv, [current[vm.name] for vm in vms])
+            except (KeyError, ValueError) as error:
+                raise SyncError(f'cannot route the selected VM groups after pulling: {error}; resume to reselect') from error
+        if current_groups != groups:
+            raise SyncError('the selected VM group routing changed after pulling; resume to use the new routing')
+
     original = {key: os.environ.get(key) for key in (BATCH, VARIABLE)}
     continue_on_errors = '--continue-on-errors' in argv
     outcomes = []
@@ -410,7 +429,8 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None)
                     last = _run_group(root, args, reloading=reloading, return_outcome=True,
                                       checkpoint_scope='ordinary/' + group['key'],
                                       continue_on_errors=continue_on_errors,
-                                      **({'upstream_run': upstream_run} if upstream_run is not None else {}))
+                                      **(dict(upstream_run=upstream_run, validate_routing=validate_routing)
+                                         if upstream_run is not None else {}))
                 if media is not None and owner is not None:
                     media.write_index(owner, last['status'])
                 if admitted and owner is not None and last.get('cleanup_complete'):
@@ -448,12 +468,17 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None)
 
 
 def _run_group(root, argv, *, reloading=False, return_outcome=False,
-               checkpoint_scope='ordinary', continue_on_errors=False, upstream_run=None):
+               checkpoint_scope='ordinary', continue_on_errors=False, upstream_run=None,
+               validate_routing=None):
     from contextlib import ExitStack
     from remote_sources import FrozenSources
     failed_work = set()
     replayed_families = set()
+    stopped = Control().stopped
     while True:
+        if stopped.is_set():
+            return dict(status=130, stopped=True, cleanup_complete=True) if return_outcome else 130
+        launcher_reload.check()
         with ExitStack() as inputs:
             with test_source.startup(root, argv):
                 plan = _plan(root, argv)
@@ -470,20 +495,29 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
         if not (outcome.get('source_changed')
                 and (not outcome['status'] or continue_on_errors and outcome['status'] == 1)):
             return outcome if return_outcome else outcome['status']
-        from launcher_control import CancellationEvent
-        if CancellationEvent().is_set():
+        if stopped.is_set():
             outcome.update(status=130, stopped=True)
             return outcome if return_outcome else 130
         launcher_reload.check()
-        if outcome.get('upstream_error') is not None:
-            from launcher_source_sync import SyncError
-            raise SyncError(outcome['upstream_error'])
-        if outcome.get('upstream_changed'):
-            if not outcome['cleanup_complete']:
-                from launcher_source_sync import SyncError
-                raise SyncError('active test bundles did not finish cleanup')
-            from launcher_controller import synchronize_boundary
-            synchronize_boundary(root, sources.branch, upstream_run)
+        from launcher_source_sync import SyncError, STATUS as SYNC_STATUS
+        try:
+            if outcome.get('upstream_error') is not None:
+                raise SyncError(outcome['upstream_error'])
+            if outcome.get('upstream_changed'):
+                if not outcome['cleanup_complete']:
+                    raise SyncError('active test bundles did not finish cleanup')
+                from launcher_controller import synchronize_boundary
+                synchronize_boundary(root, sources.branch, upstream_run)
+                if not stopped.is_set() and validate_routing is not None:
+                    launcher_reload.check()
+                    validate_routing()
+        except SyncError as error:
+            print(f'run-tests: upstream synchronization failed: {error}', file=sys.stderr, flush=True)
+            outcome['status'] = SYNC_STATUS
+            return outcome if return_outcome else SYNC_STATUS
+        except KeyboardInterrupt:
+            outcome.update(status=130, stopped=True)
+            return outcome if return_outcome else 130
         argv = ['--resume', *[argument for argument in argv if argument != '--resume']]
 
 
@@ -927,7 +961,9 @@ def _worker(argv, finished, *, cleanup_only=False):
             groups = selections(root, args)
             if len(groups) != 1:
                 raise ValueError('case retry requires one category')
-            checkpoint.retry(groups[0][0], replay[0], area='--resume-area-only' in args)
+            area = '--resume-area-only' in args
+            # Family admission already applies the caller's explicit replay.
+            checkpoint.retry(groups[0][0], replay[0], area=area, clear_pass=not (work and area))
         try:
             status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
         except launcher_reload.ReloadRequested:

@@ -87,9 +87,9 @@ def _early_sync(root, branch, arguments, *, boundary_run=None):
                 owner_path = (previous / 'owner' if kind.startswith('sessions') and previous
                               else scope / 'owner')
                 owner = locks.enter_context(lock(owner_path))
-                if not (boundary_run is not None and (
-                        (kind.startswith('sessions') and previous == boundary_run)
-                        or (kind.startswith('fix-tests') and previous == repair_run))):
+                if not (previous is not None and (
+                        (previous == boundary_run and kind.startswith(('sessions', 'fix-tests')))
+                        or (previous == repair_run and kind.startswith('fix-tests')))):
                     live |= busy(owner)
                 # Repair resume retains results, never historical startup/Git
                 # transactions. Its live owner still protects active edits.
@@ -110,6 +110,17 @@ def synchronize_boundary(root, branch, run):
         raise SyncError(str(error)) from error
     if synchronized is None:
         raise SyncError('checkout synchronization is busy; resume after the other checkout owner finishes')
+
+
+def synchronize_reload(root, run):
+    """Handle the current reload before restarting the joined worker."""
+    import launcher_reload
+    previous = launcher_reload.current
+    launcher_reload.current = None
+    try:
+        synchronize_boundary(root, _git(root, 'symbolic-ref', '--quiet', '--short', 'HEAD'), run)
+    finally:
+        launcher_reload.current = previous
 
 
 def _remote(host, branch, arguments, public_argv):

@@ -1276,15 +1276,11 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
     if not is_inspection(argv) and not host_only_request(argv):
         from vm_selection import BATCH
         if BATCH in os.environ:
-            from launcher_source_sync import SyncError, STATUS as SYNC_STATUS
             from vm_test_queue import run
             try:
                 return run(Path(__file__).resolve().parents[1], argv,
                            **({'reloading': True} if reloading else {}),
                            **({'upstream_run': upstream_run} if upstream_run is not None else {}))
-            except SyncError as error:
-                print(f'run-tests: upstream synchronization failed: {error}', file=sys.stderr, flush=True)
-                return SYNC_STATUS
             except (ValueError, OSError) as error:
                 detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
                 print('run-tests: ' + detail, file=sys.stderr)

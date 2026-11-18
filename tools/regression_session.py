@@ -242,9 +242,9 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 environment = test_launcher.environment(root)
                 # Only independent runs and the repair scheduler's test pass
                 # may update source. Nested validation owns its working edits.
-                if not host_only and (os.environ.get(REPAIR_QUEUE) == '1' or not any(
+                if os.environ.get(REPAIR_QUEUE) == '1' or not any(
                         os.environ.get(name) for name in ('ONPC_LAUNCHER_CONTROLLER_ROOT',
-                            'ONPC_RUNNER_INVOCATION', VARIABLE, WORKFLOW_DIRECTORY))):
+                            'ONPC_RUNNER_INVOCATION', VARIABLE, WORKFLOW_DIRECTORY)):
                     environment[BOUNDARY_AGENT_ENV] = json.dumps({
                         name: os.environ[name] for name in BOUNDARY_AGENT_ENV_KEYS if name in os.environ})
                 import watch_control
@@ -434,6 +434,12 @@ def worker(root, argv, run, owner, *, reloading=False):
             status = 130
             try:
                 if not (run / 'cancel').exists() and not regression_process.session_stop.is_set():
+                    if BOUNDARY_AGENT_ENV in os.environ:
+                        from launcher_controller import synchronize_reload
+                        resources.close()
+                        synchronize_reload(root, run)
+                        if regression_process.session_stop.is_set():
+                            return 130
                     options = argv if '--resume' in argv else ['--resume', *argv]
                     print('run-tests: reloading controller; completed work retained.', flush=True)
                     os.environ.update(test_activity.environment(reloading=True))
@@ -448,6 +454,8 @@ def worker(root, argv, run, owner, *, reloading=False):
                         finally:
                             if temporary:
                                 os.environ.pop(test_source.IMPORTS, None)
+            except KeyboardInterrupt:
+                status = 130
             except (OSError, ValueError) as error:
                 status = 1
                 print(f'run-tests: controller reload failed: {error}; resume the retained run.', flush=True)

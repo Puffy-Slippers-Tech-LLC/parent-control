@@ -291,7 +291,7 @@ class Checkpoint:
     def entry(self, kind):
         return self.state['categories'].get(kind) if kind in self.selected else None
 
-    def retry(self, kind, case, *, area=False):
+    def retry(self, kind, case, *, area=False, clear_pass=True):
         completed_cases(json.dumps([case]))
         if self.selected != {kind}:
             raise ValueError('case retry requires one category')
@@ -301,9 +301,10 @@ class Checkpoint:
         self.retry_case = case
         self.retry_area = phase if area else None
         self.entry(kind)['complete'] = False
-        self.entry(kind)['passed'] = sorted(self.passed(kind) - {case})
-        self.excluded[kind].discard(case)
-        self.snapshot(kind)
+        if clear_pass:
+            self.entry(kind)['passed'] = sorted(self.passed(kind) - {case})
+            self.excluded[kind].discard(case)
+            self.snapshot(kind)
 
     def passed(self, kind):
         entry = self.entry(kind)

@@ -301,13 +301,12 @@ startup fetches and verifies that source already contains upstream, refusing
 before changing HEAD if an update would supersede their recorded recovery.
 A saved reconciliation note about overlapping pre-existing changes does not
 represent a started Git transaction and does not freeze unrelated launchers.
-Ordinary pulls run through Git. The `conflict-resolver` profile is used when
-startup needs pull recovery or a pull leaves merge conflicts between VM test
-bundles. Execution continues only after recovery reports success and Git
-confirms synchronization.
-Resume uses a fast-forward-only pull. Attachments and
-controls keep their existing routes without mutating active source. Idle
-`--reload`, `--resume` and `--reset` invocations that start new jobs must synchronize too. A new job
+Ordinary pulls run through Git. A pull that leaves merge conflicts uses the
+`conflict-resolver` profile. Execution continues only after recovery reports
+success and Git confirms synchronization. Idle `--resume`, `--reload` and
+`--reset` synchronize before starting a new job. A live test controller
+honors `--reload` by synchronizing at its joined boundary before replacement.
+A new job
 cannot fall back to stale imports when synchronization is busy.
 Independent host/VM scopes can start while another scope is active if a
 fetch-only check confirms that their shared source already contains upstream.

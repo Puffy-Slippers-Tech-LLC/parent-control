@@ -188,6 +188,10 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 raise launcher.Stopped()
             reload_request = read_json(run / 'reload.json')
             if reload_request is not None and reload_request != read_json(run / 'reload-accepted.json'):
+                from launcher_controller import synchronize_reload
+                synchronize_reload(root, run)
+                if (run / 'cancel').exists():
+                    raise launcher.Stopped()
                 launcher.atomic(run / 'reload-accepted.json', reload_request)
                 for descriptor in (owner, *launcher.scratch_descriptors()):
                     os.set_inheritable(descriptor, True)

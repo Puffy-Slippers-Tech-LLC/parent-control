@@ -415,6 +415,8 @@ uses the configured `agents.tools.conflict-resolver` profile in
 [`config/environment.json`](../config/environment.json). A clean pull runs
 without a session. If synchronization cannot complete, pending work stays
 pending and the runner reports a synchronization failure.
+When a pull changes VM group routing, the runner retains completed results and
+asks for `--resume` to resolve the selection with the updated routing.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
@@ -783,6 +785,8 @@ receive and display its output and progress.
 are interrupted through the [repair interruption route](#scripted-repair-loop);
 replacement waits for owned cleanup, not completion of the admitted case group.
 Controllers join admitted work and preserve completed cases before replacement.
+Independent test runs and `fix-tests` synchronize upstream at this boundary.
+Repair validation reloads from the agent's working checkout.
 Source edits alone never trigger reload. When idle, `--reload` starts normally.
 `--watch-ssh on|off` and `--watch-view on|off` change actual Watch collection
 while the selected owner continues running. New independent runs default to

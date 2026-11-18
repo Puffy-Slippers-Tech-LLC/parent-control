@@ -1,5 +1,7 @@
 """Noninteractive upstream synchronization shared by launcher admission and execution."""
 
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -39,27 +41,63 @@ def _check(result):
                         or f'git exited with status {result.returncode}')
 
 
-def upstream_pending(root, *, descriptors=(), control=None):
-    """Fetch tracking refs and check whether the working branch needs an update."""
-    try:
-        _check(_run(root, ['fetch', '--no-tags'], descriptors, control=control))
-        comparison = _run(root, ['merge-base', '--is-ancestor', '@{upstream}', 'HEAD'],
-                          descriptors, control=control)
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise SyncError(str(error)) from error
+@contextmanager
+def _git_transaction(root):
+    from test_source import _lock
+    common = Path(git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
+    with _lock(common / 'onpc-worktree-propagation.lock') as descriptor:
+        yield descriptor
+
+
+def _upstream_pending(root, descriptors, control):
+    _check(_run(root, ['fetch', '--no-tags'], descriptors, control=control))
+    comparison = _run(root, ['merge-base', '--is-ancestor', '@{upstream}', 'HEAD'],
+                      descriptors, control=control)
     if comparison.returncode != 1:
         _check(comparison)
     return comparison.returncode == 1
 
 
-def pull(root, *, recovery=False, frozen=False, boundary=False, descriptors=(),
-         before_change=lambda: None):
-    if not upstream_pending(root, descriptors=descriptors):
+def upstream_pending(root, *, control=None):
+    """Fetch tracking refs under the same Git guard used by pulls."""
+    try:
+        with _git_transaction(root) as transaction:
+            if control is None:
+                fcntl.flock(transaction, fcntl.LOCK_EX)
+            else:
+                import launcher_reload
+                while True:
+                    launcher_reload.check()
+                    try:
+                        fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        if control.stopped.wait(.1):
+                            raise SyncError('upstream check cancelled')
+            return _upstream_pending(root, (transaction,), control)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        raise SyncError(str(error)) from error
+
+
+def pull(root, *, recovery=False, frozen=False, descriptors=(),
+         before_change=lambda: None, control=None):
+    try:
+        pending = _upstream_pending(root, descriptors, control)
+    finally:
+        if control is not None and control.stopped.is_set():
+            raise KeyboardInterrupt
+    if not pending:
         return
     if frozen:
         raise SyncError('pushed source cannot be applied over a live owner or retained Git transaction')
     before_change()
-    strategy = ['--ff-only'] if recovery else (['--no-rebase', '--ff', '--no-edit'] if boundary else [])
+    strategy = ['--ff-only'] if recovery else ['--no-rebase', '--ff', '--no-edit']
+    if control is not None:
+        import launcher_reload
+        launcher_reload.check()
+        if control.stopped.is_set():
+            raise KeyboardInterrupt
+    # Let an in-progress Git mutation finish while its transaction stays locked.
     _check(_run(root, ['pull', '--no-autostash', *strategy], descriptors))
 
 
@@ -77,6 +115,7 @@ def recover_pull(root, diagnostic, selection, profile, *, descriptors=(), bounda
         'Do not reset, clean, discard work, push, change Git configuration, retry denied '
         'authentication, run jobs/tests/setup, or edit unrelated files. If safe recovery '
         f'is impossible, report the blocker and stop. Git diagnostic: {diagnostic}')
+    control = None
     with TemporaryDirectory(prefix='launcher-pull-', dir=scratch_directory()) as temporary:
         run = Path(temporary)
         schema = run / 'response.schema.json'
@@ -94,10 +133,11 @@ def recover_pull(root, diagnostic, selection, profile, *, descriptors=(), bounda
         session.preflight()
         if boundary:
             from regression_process import Control
+            control = Control()
             with (run / 'prompt.txt').open('w+', encoding='utf-8') as stream:
                 stream.write(prompt)
                 stream.seek(0)
-                status = Control().run(session.argv, cwd=session.cwd, env=session.environment,
+                status = control.run(session.argv, cwd=session.cwd, env=session.environment,
                     stdin_file=stream, timeout=1200, cancel_signal=signal.SIGTERM, pass_fds=descriptors)
             if status == 130:
                 raise KeyboardInterrupt
@@ -120,7 +160,7 @@ def recover_pull(root, diagnostic, selection, profile, *, descriptors=(), bounda
             raise SyncError('pull left an unfinished Git operation')
     git(root, 'merge-base', '--is-ancestor', '@{upstream}', 'HEAD')
     # Confirm remote synchronization before admitting execution.
-    pull(root, recovery=boundary, descriptors=descriptors)
+    pull(root, recovery=boundary, descriptors=descriptors, control=control)
 
 
 def _pending_git(previous):
@@ -141,15 +181,13 @@ def _pending_git(previous):
 def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_start=False,
                          live=False, on_boundary_admitted=None):
     """Pull under shared source guards; report whether imports need replacing."""
-    import fcntl
     from test_source import SourceProtection, source_directory, finish_admission, _lock
     boundary = on_boundary_admitted is not None
     finish_admission()
     protection = SourceProtection(source_directory(root))
-    common = Path(git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
     # Share the propagation lock and source lease, so no pull runs over active
     # sessions/tests or another Git transaction. No stash or new journal needed.
-    with _lock(common / 'onpc-worktree-propagation.lock') as transaction:
+    with _git_transaction(root) as transaction:
         try:
             fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
@@ -171,14 +209,17 @@ def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_
                     except BlockingIOError:
                         return None
                 frozen = any(_pending_git(run) for run in previous_runs)
-                recovery = '--resume' in arguments or frozen or retained_start
+                recovery = frozen or retained_start
             if live:
                 try:
                     pull(root, frozen=True, descriptors=(source, transaction))
                 except (OSError, ValueError, subprocess.TimeoutExpired):
                     return None  # Attachment remains available; new jobs refuse.
                 return False
+            control = None
             if boundary:
+                from regression_process import Control
+                control = Control()
                 require_checkout(root, branch)
                 # The repository and source locks now guard mutation. Let control
                 # commands reach the live owner while the pull or resolver runs.
@@ -211,15 +252,17 @@ def synchronize_checkout(root, branch, arguments, *, previous_runs=(), retained_
 
             try:
                 pull(root, recovery=recovery, frozen=frozen, descriptors=(source, transaction),
-                     boundary=boundary, before_change=before_pull)
+                     before_change=before_pull, control=control)
             except (OSError, SyncError, subprocess.TimeoutExpired) as error:
+                if control is not None and control.stopped.is_set():
+                    raise KeyboardInterrupt from error
                 if recovery:
                     raise ValueError('controller source synchronization failed; retained repair '
                                      'ownership, edits and checkpoints were preserved: ' + str(error)) from error
                 if not pull_attempted:
                     raise
-                if boundary and (not (root / git(root, 'rev-parse', '--git-path', 'MERGE_HEAD')).exists()
-                                 or not git(root, 'diff', '--name-only', '--diff-filter=U')):
+                if (not (root / git(root, 'rev-parse', '--git-path', 'MERGE_HEAD')).exists()
+                        or not git(root, 'diff', '--name-only', '--diff-filter=U')):
                     raise
                 if profile_error is not None:
                     raise SyncError(f'{error}; cannot start conflict resolution: {profile_error}') from error

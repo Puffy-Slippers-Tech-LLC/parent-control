@@ -13169,11 +13169,12 @@ class AccessibleUI:
         require(binding is None or binding in MULTIPLE_MATE_BINDINGS and not refusals,
                 'ui:mate-binding')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
+        estimate_prefix = 'Estimated remaining time: '
 
         def estimate_kind(message):
             return ('missing' if message is None else
-                    'estimated' if message.startswith('Estimated remaining time: ') else
-                    'calculating' if message == 'Calculating time estimate…' else
+                    'estimated' if message.startswith(estimate_prefix) else
+                    'calculating' if message in ('Calculating time estimate…', estimate_prefix.rstrip()) else
                     'waiting' if message == 'Waiting for approval…' else
                     'unavailable' if message == 'Time estimate unavailable' else
                     'denied' if message == 'Request denied' else 'other')
@@ -13202,8 +13203,8 @@ class AccessibleUI:
                 kind = estimate_kind(message)
                 diagnose_estimate(phase, kind)
                 # REQUEST-017 permits loading while the asynchronous estimate
-                # refresh completes. Cancel queues that refresh after returning
-                # the form; prompt absence alone is not its completion witness.
+                # refresh completes. Cancel returns the form and clears the
+                # displayed duration while the debounced refresh is pending.
                 if phase == 'after-cancel' and kind == 'calculating':
                     return None
                 if kind != 'estimated':

@@ -199,12 +199,39 @@ class ExtensionManager:
         context = _command_diagnostics(arguments)
         LOG.info("extension-manager.command", operation=operation, transport=transport,
                  tool=context["tool"], key=context["key"])
+        # Most settings reads need only the local dconf database. A service-db
+        # profile can need the bus to populate its cache before reading.
+        offline_read = transport == "offline" and context["tool"] == "gsettings" and operation == "get"
+        attempts = [(command, environment)]
+        if offline_read:
+            # Prevent GLib from discovering a child-owned cache socket before
+            # dconf can report that the service database needs initialization.
+            read_env = dict(environment, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+            attempts.insert(0, (list(arguments), read_env))
+        # Without XDG_RUNTIME_DIR, GLib uses the user's cache directory. Other
+        # dconf databases emit the same warning and cannot be fixed by the bus.
+        cache_warning = f"unable to open file '{account.pw_dir.rstrip('/')}/.cache/dconf-service/"
+        deadline = time.monotonic() + timeout
+        if budget is not None:
+            deadline = min(deadline, budget[0])
         try:
-            result = subprocess.run(
-                command, check=True, text=True, capture_output=True,
-                env=environment, user=account.pw_uid, group=account.pw_gid,
-                extra_groups=(), timeout=timeout,
-            )
+            for attempt, attempt_env in attempts:
+                result = subprocess.run(
+                    attempt, check=True, text=True, capture_output=True,
+                    env=attempt_env, user=account.pw_uid, group=account.pw_gid,
+                    extra_groups=(), timeout=timeout,
+                )
+                self._log_stderr(result.stderr, operation, transport, context)
+                if not (offline_read and any(
+                        cache_warning in line and line.endswith("; expect degraded performance")
+                        for line in (result.stderr or "").splitlines())):
+                    break
+                # dconf can exit successfully with defaults after this warning.
+                timeout = deadline - time.monotonic()
+                if timeout <= 0 or (budget is not None and cancelled.is_set()):
+                    raise TimeoutError("child extension operation was interrupted")
+            else:
+                raise OSError("dconf settings database is unavailable")
         except (OSError, subprocess.SubprocessError) as error:
             self._log_stderr(getattr(error, "stderr", None), operation, transport, context)
             LOG.error(
@@ -214,7 +241,6 @@ class ExtensionManager:
                 error_type=error_code(error),
             )
             raise RuntimeError("child GNOME interface is unavailable") from error
-        self._log_stderr(result.stderr, operation, transport, context)
         LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
 

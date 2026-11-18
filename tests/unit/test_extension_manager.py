@@ -515,15 +515,44 @@ class ExtensionManagerTests(unittest.TestCase):
         self.manager._run_as(self.account, "gsettings", "get", "schema", "key")
 
         arguments, = run.call_args.args
-        self.assertEqual(arguments, [
-            "dbus-run-session", "--", "gsettings", "get", "schema", "key",
-        ])
+        self.assertEqual(arguments, ["gsettings", "get", "schema", "key"])
         self.assertEqual(run.call_args.kwargs["user"], 1001)
         self.assertEqual(run.call_args.kwargs["group"], 1001)
         self.assertEqual(run.call_args.kwargs["extra_groups"], ())
         self.assertEqual(run.call_args.kwargs["timeout"], 10)
         self.assertEqual(run.call_args.kwargs["env"]["HOME"], "/home/child")
-        self.assertNotIn("DBUS_SESSION_BUS_ADDRESS", run.call_args.kwargs["env"])
+        self.assertEqual(run.call_args.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/dev/null")
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_offline_settings_read_initializes_service_database_when_needed(self, run):
+        cache = "/home/child/.cache/dconf-service/keyfile/user"
+        warning = f"dconf-WARNING: unable to open file '{cache}': missing; expect degraded performance"
+        degraded = subprocess.CompletedProcess([], 0, stdout="@as []\n", stderr=warning)
+        loaded = subprocess.CompletedProcess([], 0, stdout=repr([UUID]), stderr="")
+        run.side_effect = [degraded, loaded, degraded, degraded]
+
+        with self.assertLogs("onpc", "INFO") as logs:
+            self.assertEqual(self.manager._list(self.account, ENABLED_KEY), [UUID])
+            with self.assertRaisesRegex(RuntimeError, "GNOME interface is unavailable"):
+                self.manager._list(self.account, ENABLED_KEY)
+
+        read = ["gsettings", "get", "org.gnome.shell", ENABLED_KEY]
+        self.assertEqual([call.args[0] for call in run.call_args_list],
+                         [read, ["dbus-run-session", "--", *read]] * 2)
+        for first, retry in (run.call_args_list[:2], run.call_args_list[2:]):
+            self.assertEqual(first.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/dev/null")
+            self.assertNotIn("DBUS_SESSION_BUS_ADDRESS", retry.kwargs["env"])
+            self.assertGreater(retry.kwargs["timeout"], 0)
+            self.assertLessEqual(retry.kwargs["timeout"], first.kwargs["timeout"])
+        self.assertNotIn(cache, "\n".join(logs.output))
+
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_offline_settings_read_keeps_result_when_system_database_is_missing(self, run):
+        run.return_value = subprocess.CompletedProcess([], 0, stdout=repr([UUID]), stderr=(
+            "dconf-WARNING: unable to open file '/etc/dconf/db/local': missing; expect degraded performance"))
+
+        self.assertEqual(self.manager._list(self.account, ENABLED_KEY), [UUID])
+        run.assert_called_once()
 
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
     def test_settings_failure_is_reported_as_extension_error(self, run):
@@ -534,7 +563,7 @@ class ExtensionManagerTests(unittest.TestCase):
         with self.assertLogs("onpc", "ERROR") as logs:
             with self.assertRaisesRegex(RuntimeError, "GNOME interface is unavailable"):
                 self.manager._run_as(
-                    self.account, "gsettings", "get", "schema", "key"
+                    self.account, "gsettings", "set", "schema", "key", "[]"
                 )
 
         self.assertIn("error_type=CalledProcessError", logs.output[-1])
@@ -548,6 +577,9 @@ class ExtensionManagerTests(unittest.TestCase):
         with self.assertLogs("onpc", "INFO") as logs:
             result = self.manager._run_as(
                 self.account, "gsettings", "set", "org.gnome.shell", ENABLED_KEY, repr([secret]))
+        self.assertEqual(run.call_args.args[0], [
+            "dbus-run-session", "--", "gsettings", "set", "org.gnome.shell", ENABLED_KEY, repr([secret]),
+        ])
         self.assertEqual(result.returncode, 0)
         payloads = [decode(record.onpc_payload) for record in logs.records]
         warning = next(item for item in payloads if item["event"] == "extension-manager.command-warning")
@@ -591,7 +623,7 @@ class ExtensionManagerTests(unittest.TestCase):
             1, [], stderr="dbus-run-session: dbus-daemon exited with code 1 private@example.test")
         with self.assertLogs("onpc", "INFO") as logs:
             with self.assertRaisesRegex(RuntimeError, "interface is unavailable"):
-                self.manager._run_as(self.account, "gsettings", "get", "org.gnome.shell", ENABLED_KEY)
+                self.manager._run_as(self.account, "gsettings", "set", "org.gnome.shell", ENABLED_KEY, "[]")
         payloads = [decode(record.onpc_payload) for record in logs.records]
         failure = next(item for item in payloads if item["event"] == "extension-manager.session-bus-failure")
         self.assertEqual(failure["fields"]["reason"], "startup-failed")

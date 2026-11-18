@@ -1273,10 +1273,12 @@ qualification, separate from customer product acceptance.
 The adapter reconnects the existing `sut` console after controller readiness,
 before its first input or recipient proof. At `vt6-provider-inspected`, the
 controller selects VT6 once with `vt6_authentication.select_console` through
-the owned SSH transport and the public `chvt` command. A Fedora failure retained
-an unchanged active console and blank VT6 after Ctrl+Alt+F6 even with a fresh VNC
-connection. Console navigation therefore uses the system command; login and the
-independently verified shell command still require real VNC keyboard input.
+the owned SSH transport and the public `chvt` command, then starts the stock
+`getty@tty6.service`. If systemd maps the VT6 automatic console to KMSCON,
+the controller masks that KMSCON instance and its `autovt@tty6.service` alias
+for the test boot before selecting VT6. The alias can activate KMSCON and stop
+the stock getty during login even when the canonical unit name is masked. Login
+and the independently verified shell command use VNC keyboard input.
 The rebind remains separate from HAR01's ordinary selection. Neither action
 retries uncertain input or grants recipient authority. Getty executable
 checks resolve both the running and expected paths, preserving exact identity

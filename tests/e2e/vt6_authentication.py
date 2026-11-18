@@ -42,13 +42,22 @@ REFUSALS = frozenset('vt6-auth:' + code + '-refused'
 
 
 def select_console(transport):
-    """Select VT6 once through the owned transport before recipient proofs.
+    """Select VT6 and start its stock getty before recipient proofs.
 
     Console navigation is setup, separate from the real keyboard login. The
     caller's one-use stage owns this action; never retry an uncertain command.
     Command completion grants no account or password input authority.
     """
+    provider = transport.call(['/usr/bin/systemctl', 'show', '--property=Id',
+                               '--value', 'autovt@tty6.service'], timeout=30)
+    if provider.strip() == b'kmsconvt@tty6.service':
+        # Fedora can reactivate KMSCON during login and stop the stock getty.
+        # Mask both names because logind can start the template via its alias.
+        transport.call(['/usr/bin/systemctl', 'mask', '--runtime', '--now',
+                        'kmsconvt@tty6.service', 'autovt@tty6.service'], timeout=30)
     transport.call(['/usr/bin/chvt', '6'], timeout=30)
+    # Selecting VT6 does not guarantee that logind starts a getty there.
+    transport.call(['/usr/bin/systemctl', 'start', 'getty@tty6.service'], timeout=30)
 
 
 class Authentication:

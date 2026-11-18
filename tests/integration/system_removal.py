@@ -15,6 +15,7 @@ import pwd
 import re
 import runpy
 import stat
+from subprocess import CalledProcessError
 import sys
 import tempfile
 import threading
@@ -1204,11 +1205,10 @@ def interrupted_finalization_retry(record, variant):
                           'finalization:account-callback-not-interrupted')
             verify_durable_interval(state, recovery, saved, record)
         else:
-            # The lifecycle helper captures usermod's stderr. The exact fault
-            # invocation is verified above through its owned witness; the
-            # package transaction reports the helper's CalledProcessError.
-            failure = (b"kiosk-lifecycle: Command '['usermod', '--expiredate', '1', "
-                       b"'oh-no-parent-control']' returned non-zero exit status 79.")
+            # The lifecycle helper reports CalledProcessError through the same
+            # guest Python. Its command quoting varies across Python versions.
+            error = CalledProcessError(79, ['usermod', '--expiredate', '1', PRODUCT])
+            failure = f'kiosk-lifecycle: {error}'.encode()
             guest.require(status != 0 and not package_absent() and failure in output,
                           'finalization:preerase-callback-not-interrupted')
             guest.verify_package_payload()

@@ -106,7 +106,7 @@ Each profile has a `model` that names a selected-provider preset or a literal mo
 
 ```json
 "fix-tests": { "model": "workhorse" },
-"plan-worker": { "model": "workhorse", "effort": "medium" },
+"execution-plan-worker": { "model": "workhorse" },
 "custom-tool": { "model": "provider-model-id", "effort": "high" }
 ```
 
@@ -118,7 +118,7 @@ malformed configuration fails without hidden model defaults; native catalogue
 preflight still checks support.
 
 Profiles cover `fix-tests`, `execute-plan`, `sync-whatsnew`, `commit-helper`,
-`conflict-resolver`, `plan-worker`, `plan-monitor` and
+`conflict-resolver`, `execution-plan-worker`, `execution-plan-monitor` and
 `backend-reviewer`. Resolve selections in the executing checkout after dispatch,
 not at module import time. Plan admission pins its coordinator profile; translation
 admission pins its coordinator pair, and each new repair session resolves its
@@ -206,11 +206,10 @@ coordinator under the existing response-recovery contract.
 Other queue and acceptance edits are consumed directly by ordinary launchers;
 they do not trigger snapshot comparisons or a change-acceptance log.
 
-Drive subagents using the configured helper profiles with appropriate reasoning efforts as needed
-to divide and conquer. Prefer lower-effort agents for routine monitoring and
-coverage refreshes: Low for read-only monitoring, Medium for settled routine
-implementation or coverage maintenance, High or above for difficult diagnosis,
-security, concurrency, ownership and independent review. Give bounded assignments,
+Use the `execution-plan-monitor` profile for routine read-only monitoring and
+`execution-plan-worker` for bounded implementation or coverage maintenance.
+Prefer `high` effort or above for difficult diagnosis, security, concurrency,
+ownership and independent review. Give bounded assignments,
 explicit paths and disjoint write ownership. Keep one editor for shared state.
 The coordinator owns task selection, resource/VM ownership, acceptance and
 close-out; join and close workers before handoff or releasing resources. A

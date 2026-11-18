@@ -174,6 +174,31 @@ def provision(request):
     return {'disk': str(disk), 'iso': str(iso), 'uuid': request['uuid']}
 
 
+def format_environment(document):
+    """Keep registry rows and agent presets on one line, as in the source config."""
+    def render(value, path=()):
+        if isinstance(value, dict):
+            compact = (path == ('agents', 'tools') or path[-1:] == ('defaults',))
+            if path[-1:] == ('capacity_fallbacks',) and value:
+                return '{ ' + json.dumps(value)[1:-1] + ' }'
+            rows = []
+            for key, item in value.items():
+                encoded = ('{ ' + json.dumps(item)[1:-1] + ' }'
+                           if compact and isinstance(item, dict) else render(item, path + (key,)))
+                rows.append('  ' * (len(path) + 1) + json.dumps(key) + ': ' + encoded)
+            return '{\n' + ',\n'.join(rows) + '\n' + '  ' * len(path) + '}' if rows else '{}'
+        if isinstance(value, list):
+            rows = [('  ' * (len(path) + 1) +
+                     ('{ ' + json.dumps(item)[1:-1] + ' }'
+                      if path[-1:] in (('branches',), ('launchers',), ('vms',))
+                      and isinstance(item, dict) else render(item, path + (index,))))
+                    for index, item in enumerate(value)]
+            return '[\n' + ',\n'.join(rows) + '\n' + '  ' * len(path) + ']' if rows else '[]'
+        return json.dumps(value)
+
+    return render(document) + '\n'
+
+
 def create(name, host_name, family_name, *, root=ROOT):
     config = root / 'config/environment.json'
     # A directory lock remains stable across atomic registry replacements.
@@ -241,7 +266,7 @@ def create(name, host_name, family_name, *, root=ROOT):
         entry = dict(id=vm_id, name=name, enabled='true', host=host_name,
                      disk_anchor=str(Path(host['virt-manager']) / (name + '.qcow2')), owning_branch='')
         family['vms'].append(entry)
-        updated = (json.dumps(document, indent=2) + '\n').encode()
+        updated = format_environment(document).encode()
         # Reserve registry staging before any external mutation.
         fd, staging = tempfile.mkstemp(prefix='.environment-', suffix='.json', dir=config.parent)
         try:

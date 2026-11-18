@@ -2313,12 +2313,12 @@ class AccessibleUI:
                 self._projection_cache.clear()
 
     def nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
-              snapshot=None, facts=None, identities=None):
+              snapshot=None, facts=None, identities=None, defer_names=False):
         """Discard interrupted reads, including deferred public-label projections."""
         try:
             yield from self._observed_nodes(
                 root, strict=strict, protected_ids=protected_ids, protect_text=protect_text,
-                snapshot=snapshot, facts=facts, identities=identities)
+                snapshot=snapshot, facts=facts, identities=identities, defer_names=defer_names)
         except getattr(self.api, 'read_errors', ()) as error:
             self.invalidate_observation()
             raise UiError('ui:incomplete-tree') from error
@@ -2339,18 +2339,19 @@ class AccessibleUI:
             raise
 
     def _observed_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
-                        snapshot=None, facts=None, identities=None):
+                        snapshot=None, facts=None, identities=None, defer_names=False):
         """Reuse complete reads only within an explicit observation boundary."""
         protected_ids = frozenset(protected_ids)
         if self._observation_cache is None:
             yield from self._read_nodes(
                 root, strict=strict, protected_ids=protected_ids, protect_text=protect_text,
-                snapshot=snapshot, facts=facts, identities=identities)
+                snapshot=snapshot, facts=facts, identities=identities, defer_names=defer_names)
             return
         root = root if root is not None else self.root()
-        protection = (frozenset(protected_ids), protect_text)
+        protection = (protected_ids, protect_text, defer_names)
         for policy, read_nodes, edges, read_facts, read_ids in reversed(self._observation_cache):
-            if policy == protection and root in edges:
+            if (policy[:2] == protection[:2] and (defer_names or not policy[2])
+                    and root in edges):
                 selected = (read_nodes if root == read_nodes[0] else
                             self.snapshot_scope(read_nodes, edges, root))
                 if not strict and not self.include_text_children:
@@ -2372,13 +2373,13 @@ class AccessibleUI:
                 # therefore can never seed a later complete observation.
                 yield from self._read_nodes(
                     root, strict=False, protected_ids=protected_ids, protect_text=protect_text,
-                    snapshot=snapshot, facts=facts, identities=identities)
+                    snapshot=snapshot, facts=facts, identities=identities, defer_names=defer_names)
                 return
             edges, read_facts, read_ids = {}, {}, {}
             try:
                 selected = list(self._read_nodes(
                     root, strict=True, protected_ids=protected_ids, protect_text=protect_text,
-                    snapshot=edges, facts=read_facts, identities=read_ids))
+                    snapshot=edges, facts=read_facts, identities=read_ids, defer_names=defer_names))
             except BaseException:
                 self.invalidate_observation()
                 raise
@@ -2404,7 +2405,7 @@ class AccessibleUI:
             identities.update({node: read_ids[node] for node in selected})
         yield from selected
 
-    def read_snapshot(self, root=None, *, protected_ids=(), protect_text=False):
+    def read_snapshot(self, root=None, *, protected_ids=(), protect_text=False, defer_names=False):
         """Return an immutable complete observation, reusable until input/retry.
 
         Public nodes() projections may be edited by their caller. Only this
@@ -2412,20 +2413,21 @@ class AccessibleUI:
         """
         root = self.root() if root is None else root
         protected_ids = frozenset(protected_ids)
-        policy = (protected_ids, protect_text)
+        policy = (protected_ids, protect_text, defer_names)
         with self.observation():
             for protection, nodes, edges, facts, identities in reversed(self._observation_cache):
-                if protection == policy and root in edges:
+                if (protection[:2] == policy[:2] and (defer_names or not protection[2])
+                        and root in edges):
                     break
             else:
                 tuple(self.nodes(root, strict=True, protected_ids=protected_ids,
-                                 protect_text=protect_text))
+                                 protect_text=protect_text, defer_names=defer_names))
                 protection, nodes, edges, facts, identities = self._observation_cache[-1]
             selected = nodes if root == nodes[0] else self.snapshot_scope(nodes, edges, root)
             return selected, edges, identities, facts
 
     def _read_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
-                    snapshot=None, facts=None, identities=None):
+                    snapshot=None, facts=None, identities=None, defer_names=False):
         started = time.monotonic() if self._timing is not None else None
         generation = self._observation_generation
         count = 0
@@ -2439,7 +2441,7 @@ class AccessibleUI:
             with boundary():
                 for node in self._walk_nodes(root, strict=strict, protected_ids=protected_ids,
                                              protect_text=protect_text, snapshot=snapshot,
-                                             facts=facts, identities=identities):
+                                             facts=facts, identities=identities, defer_names=defer_names):
                     require(generation == self._observation_generation, 'ui:incomplete-tree')
                     count += 1
                     yield node
@@ -2451,7 +2453,12 @@ class AccessibleUI:
                 self._timing['reader_ms'] += (time.monotonic() - started) * 1000
 
     def _walk_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
-                    snapshot=None, facts=None, identities=None):
+                    snapshot=None, facts=None, identities=None, defer_names=False):
+        if defer_names:
+            try:
+                from application_ui import ObservationFacts
+            except ImportError:
+                from tests.e2e.application_ui import ObservationFacts
         diagnostic = self.kiosk_diagnostic
         if diagnostic is not None:
             diagnostic.check()
@@ -2493,7 +2500,7 @@ class AccessibleUI:
             for external_root in external_roots:
                 prepare(external_root, descend=prepare_descend,
                     checkpoint=diagnostic.check if diagnostic is not None else None,
-                    names=facts is not None)
+                    names=facts is not None and not defer_names, states=facts is not None)
         while pending:
             if diagnostic is not None:
                 diagnostic.check()
@@ -2532,15 +2539,16 @@ class AccessibleUI:
                         facts[node] = product_facts()
                     else:
                         states = getattr(node, 'snapshot_state_set', node.get_state_set)()
-                        facts[node] = {
-                            'identity': identity,
-                            'role': role,
-                            'name': getattr(node, 'snapshot_name', node.get_name)(),
-                            'showing': (states.contains(self.api.StateType.SHOWING)
-                                        and states.contains(self.api.StateType.VISIBLE)
-                                        and not states.contains(self.api.StateType.DEFUNCT)),
-                            'modal': states.contains(self.api.StateType.MODAL),
-                        }
+                        showing = (states.contains(self.api.StateType.SHOWING)
+                                   and states.contains(self.api.StateType.VISIBLE)
+                                   and not states.contains(self.api.StateType.DEFUNCT))
+                        modal = states.contains(self.api.StateType.MODAL)
+                        if defer_names:
+                            facts[node] = ObservationFacts(identity=identity, role=role,
+                                showing=showing, modal=modal, read_name=node.get_name)
+                        else:
+                            facts[node] = {'identity': identity, 'role': role, 'showing': showing,
+                                'modal': modal, 'name': getattr(node, 'snapshot_name', node.get_name)()}
                 yield node
                 if diagnostic is not None:
                     diagnostic.check()
@@ -10673,7 +10681,8 @@ class AccessibleUI:
             diagnostic.ids = {}
             diagnostic.emit('public-tree')
             try:
-                public_nodes, snapshot, identity_by_node, _facts = self.read_snapshot()
+                public_nodes, snapshot, identity_by_node, facts = self.read_snapshot(defer_names=True)
+                self.handle_system_prompt(observation=(public_nodes, snapshot, facts))
                 diagnostic.emit('public-ids')
                 counts = dict.fromkeys(KIOSK_DIAGNOSTIC_IDS, 0)
                 for node in public_nodes:
@@ -10886,7 +10895,7 @@ class AccessibleUI:
                 return None
             return projection
         try:
-            result = self.wait(observe, 'kiosk-request-form')
+            result = self.wait(observe, 'kiosk-request-form', prompt_in_predicate=True)
             diagnostic.emit(status='passed')
             return result
         except BaseException:

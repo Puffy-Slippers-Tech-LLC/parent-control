@@ -152,21 +152,41 @@ def runtime_inputs(root):
     return result
 
 
-def capture(builder):
+def rpm_container_inputs(root, target):
+    from e2e_startup_cache import file_digest
+    from tools.rpm_builder import require_image
+    podman = shutil.which('podman')
+    if podman is None or shutil.which('mock') is not None:
+        raise ValueError('startup cache: RPM container backend changed during preparation')
+    image = require_image(root, target=target.name, architecture=target.architecture)
+    result = subprocess.run([podman, 'image', 'inspect', '--format', '{{.Id}}', image],
+                            check=True, capture_output=True, text=True)
+    image_id = result.stdout.strip()
+    if re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', image_id) is None:
+        raise ValueError('startup cache: RPM build image identity is invalid')
+    return {'image_id': image_id, 'podman': [podman, file_digest(Path(podman).resolve())]}
+
+
+def capture(builder, target):
     from e2e_startup_cache import digest
     root = builder.REPOSITORY
     paths = builder.package_inputs.paths(root)
-    metadata = builder._metadata(paths, builder.package_inputs.digest(root, paths))
+    metadata = builder._target_metadata(
+        builder._metadata(paths, builder.package_inputs.digest(root, paths)), root, target)
     runtime = runtime_inputs(root)
     shared = source_files(root, ('tools/build_test_artifacts.py', 'tools/artifact_inputs.py'),
                           imports=('tools/artifact_inputs.py',))
+    backend = (('tools/build_rpm.py', 'tools/rpm_builder.py') if target.package_format == 'rpm'
+               else ('tools/deb_builder.py',))
     inputs = {
         'package': {'source': digest(metadata['source']), 'build': digest(metadata['build_inputs']),
                     'builder': source_files(root, ('tools/package_inputs.py', 'tools/build_package.py',
-                                                   'tools/build_targets.py', 'tools/deb_builder.py'),
-                                            imports=('tools/package_inputs.py',)),
+                                                   'tools/build_targets.py', *backend),
+                                            imports=('tools/package_inputs.py', *backend)),
                     'shared': shared, **runtime['package']},
         'fixtures': {'source': source_files(root, FIXTURE_SOURCES, imports=FIXTURE_IMPORTS),
                      'shared': shared, **runtime['fixtures']},
     }
+    if target.package_format == 'rpm':
+        inputs['package']['container'] = rpm_container_inputs(root, target)
     return inputs, metadata

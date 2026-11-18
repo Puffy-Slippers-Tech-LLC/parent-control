@@ -134,12 +134,11 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
     if output is None:
         output = test_retention.allocate(tempfile.mkdtemp, prefix='onpc-test-artifacts-')
         print('run-tests: output=' + str(output), flush=True)
-    # The existing reuse cache is DEB-specific. RPM uses its maintained builder.
     return control.run(['/usr/bin/python3', '-B', str(root / 'tools/build_test_artifacts.py'),
         *(['--reboot-inputs'] if reboot_inputs else ['--session-inputs'] if session_inputs else
           ['--process-inputs'] if process_inputs else ['--no-action-inputs'] if no_action_inputs else
           ['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
-          else ['--reuse'] if package_format == 'deb' else []),
+          else ['--reuse']),
         '--package-format', package_format, '--build-target', target.name,
         '--architecture', target.architecture, '--output', str(output)],
         cwd=root, env=environment)

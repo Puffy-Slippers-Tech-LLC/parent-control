@@ -169,10 +169,10 @@ def cache_path(root):
 
 
 @contextmanager
-def receipt(root, name):
+def receipt(root, name, *, lock='cache.lock'):
     store = test_retention.Store(cache_path(root))
     test_retention.ensure_directory(store.path)
-    with store.opened() as fd, store.locked(fd, 'cache.lock'):
+    with store.opened() as fd, store.locked(fd, lock):
         try:
             source = os.open(name + '.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                              dir_fd=fd)
@@ -238,13 +238,9 @@ def qualified_cleanup(root, run):
         return status
 
 
-def artifact_identity(builder):
-    from artifact_inputs import capture
-    return capture(builder)
-
-
-def prepare_artifacts(builder, output):
+def prepare_artifacts(builder, output, target):
     """Build on a miss; never publish partial output or reuse unchecked metadata."""
+    from artifact_inputs import capture
     if test_retention.token() is None:
         raise ValueError('startup cache: preparation requires a retained launcher run')
     output = builder._require_empty_output(output)
@@ -252,10 +248,12 @@ def prepare_artifacts(builder, output):
     # owns no payload generations outside the established retention journal.
     test_retention.retain(output)
     from test_storage import scratch_directory
+    cache = ({'name': 'artifacts-' + target.name, 'lock': 'artifacts-' + target.name + '.lock'}
+             if target.package_format == 'rpm' else {'name': 'artifacts'})
     with tempfile.TemporaryDirectory(prefix='onpc-artifact-reuse-', dir=scratch_directory()) as temporary, \
-            receipt(builder.REPOSITORY, 'artifacts') as (record, save):
+            receipt(builder.REPOSITORY, **cache) as (record, save):
         started = time.monotonic()
-        captured, metadata = artifact_identity(builder)
+        captured, metadata = capture(builder, target)
         before = digest(captured)
         reuse = {}
         previous = record.get('inputs', {}) if record else {}
@@ -306,14 +304,15 @@ def prepare_artifacts(builder, output):
                 raise ValueError('startup cache: payload changed during copy')
             print('run-tests: verified artifact bundle reused; content identity=' + before, flush=True)
         else:
-            builder.build(output, package_format='deb', reuse=reuse)
+            builder.build(output, package_format=target.package_format, build_target=target.name,
+                          architecture=target.architecture, reuse=reuse)
             for part, path in reuse.items():
                 if tree_digest(output / part) != tree_digest(path):
                     raise ValueError('startup cache: payload changed during copy')
             if reuse and tree_digest(source) != record['payload']:
                 raise ValueError('startup cache: payload changed during copy')
         manifest = builder.verify(output)
-        after, after_metadata = artifact_identity(builder)
+        after, _ = capture(builder, target)
         if after != captured or any(manifest.get(k) != v for k, v in metadata.items()):
             # Keep refusal evidence in the launcher's retained log. The cache
             # receipt remains invalid, and no extra payload lifetime is needed.

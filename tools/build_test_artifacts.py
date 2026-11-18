@@ -229,6 +229,17 @@ def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None,
                   reuse=reuse, package_format=package_format, build_target=build_target, architecture=architecture)
 
 
+def _target_metadata(metadata, source_root, target, rpm_release='0.1.dev'):
+    metadata['build_inputs'].update(build_target=target.name, target_architecture=target.architecture)
+    if target.package_format == 'rpm':
+        from tools.build_rpm import metadata as rpm_metadata
+        metadata['build_inputs'].update(package_format='rpm', architecture=target.architecture,
+                                       source_date_epoch=rpm_metadata(source_root, rpm_release)[1],
+                                       rpm_release=rpm_release,
+                                       package_command=['tools/build_rpm.py'])
+    return metadata
+
+
 def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None,
            rpm_release='0.1.dev', build_target=None, architecture='x86_64'):
     if package_format not in ('deb', 'rpm'):
@@ -237,13 +248,7 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                                architecture, package_format)
     output = _require_empty_output(output)
     reuse = reuse or {}
-    metadata['build_inputs'].update(build_target=target.name, target_architecture=target.architecture)
-    if package_format == 'rpm':
-        from tools.build_rpm import metadata as rpm_metadata
-        metadata['build_inputs'].update(package_format='rpm', architecture='x86_64',
-                                       source_date_epoch=rpm_metadata(source_root, rpm_release)[1],
-                                       rpm_release=rpm_release,
-                                       package_command=['tools/build_rpm.py'])
+    _target_metadata(metadata, source_root, target, rpm_release)
     _log("build", "started", revision=metadata["source"]["revision"][:12])
     from tools.test_storage import scratch_directory
     with tempfile.TemporaryDirectory(prefix="onpc-package-build-", dir=scratch_directory()) as temporary_name:
@@ -863,9 +868,9 @@ def main() -> int:
         parser.error('--package-format deb|rpm is required when building')
     try:
         if arguments.package_format:
-            build_targets.get(arguments.build_target or
-                              ('fedora44' if arguments.package_format == 'rpm' else 'ubuntu26.04'),
-                              arguments.architecture, arguments.package_format)
+            target = build_targets.get(arguments.build_target or
+                ('fedora44' if arguments.package_format == 'rpm' else 'ubuntu26.04'),
+                arguments.architecture, arguments.package_format)
         if arguments.matrix:
             if (arguments.output is None or arguments.package_format or arguments.build_target
                     or arguments.reuse or arguments.upgrade_inputs or arguments.no_action_inputs
@@ -909,19 +914,18 @@ def main() -> int:
             build_upgrade(arguments.output, package_format=arguments.package_format,
                           build_target=arguments.build_target, architecture=arguments.architecture)
         elif arguments.reuse:
-            if arguments.package_format != 'deb':
-                raise ArtifactError('--reuse currently requires Debian artifacts')
             if arguments.output is None or arguments.verify or arguments.compare:
                 raise ArtifactError('--reuse requires only --output')
-            # The existing cache fingerprints the native Ubuntu toolchain.
-            # Other hosts use the shared target builder without that cache.
-            if not build_targets.get('ubuntu26.04', arguments.architecture).native():
-                build(arguments.output, package_format='deb', build_target='ubuntu26.04',
-                      architecture=arguments.architecture)
+            native_ubuntu = build_targets.get('ubuntu26.04', target.architecture).native()
+            container_rpm = (target.package_format == 'rpm' and shutil.which('mock') is None
+                             and shutil.which('podman') is not None)
+            if not native_ubuntu or (target.package_format == 'rpm' and not container_rpm):
+                build(arguments.output, package_format=target.package_format,
+                      build_target=target.name, architecture=target.architecture)
                 return 0
             # Import by the same tools path used by the maintained launchers.
             from e2e_startup_cache import prepare_artifacts
-            prepare_artifacts(sys.modules[__name__], arguments.output.resolve(strict=True))
+            prepare_artifacts(sys.modules[__name__], arguments.output.resolve(strict=True), target)
         elif arguments.compare:
             compare(arguments.compare[0].resolve(strict=True), arguments.compare[1].resolve(strict=True))
         elif arguments.verify:

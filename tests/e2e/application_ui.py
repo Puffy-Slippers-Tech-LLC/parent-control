@@ -1,9 +1,9 @@
 """Product API inventory beside external desktop providers in installed tests."""
 
 try:
-    from application_ui_support import ApplicationUI, ApplicationNode, PRODUCT_APPLICATIONS, UIClientError
+    from application_ui_support import ApplicationUI, ApplicationNode, ObservationFacts, PRODUCT_APPLICATIONS, UIClientError
 except ImportError:
-    from tests.support.application_ui import ApplicationUI, ApplicationNode, PRODUCT_APPLICATIONS, UIClientError
+    from tests.support.application_ui import ApplicationUI, ApplicationNode, ObservationFacts, PRODUCT_APPLICATIONS, UIClientError
 
 
 class InterfaceCalls:

@@ -456,7 +456,7 @@ class PublicAtspi:
             context.pop_thread_default()
         return results
 
-    def prepare_nodes(self, nodes, *, descend=None, names=False):
+    def prepare_nodes(self, nodes, *, descend=None, names=False, states=False):
         """Read identities of already discovered siblings in bounded batches.
 
         Never enumerate speculative descendants or query text interfaces. The traversal
@@ -469,6 +469,7 @@ class PublicAtspi:
             return
         nodes = list(dict.fromkeys(node for node in nodes if node is not None))[:32]
         names = names and self._names is not None
+        states = (states or names) and self._states is not None
         queries, keys = [], []
         for node in nodes:
             key = (node.bus, node.path)
@@ -496,10 +497,9 @@ class PublicAtspi:
                 name_index = len(queries)
                 queries.append((node.bus, node.path, 'org.freedesktop.DBus.Properties',
                                 'Get', 'ss', (PREFIX + 'Accessible', 'Name')))
-                if record is None:
-                    state_index = len(queries)
-                    queries.append((node.bus, node.path, PREFIX + 'Accessible',
-                                    'GetState', '', ()))
+            if states and record is None:
+                state_index = len(queries)
+                queries.append((node.bus, node.path, PREFIX + 'Accessible', 'GetState', '', ()))
             keys.append((key, start, record is None, name_index, state_index))
         values = []
         for offset in range(0, len(queries), 64):
@@ -545,7 +545,7 @@ class PublicAtspi:
             raise value
         return value
 
-    def prepare_tree(self, root, *, descend, checkpoint=None, names=False):
+    def prepare_tree(self, root, *, descend, checkpoint=None, names=False, states=False):
         """Discover breadth first so separate branches can share an RPC batch.
 
         Consumers still iterate in their original order. Every edge is counted
@@ -568,7 +568,7 @@ class PublicAtspi:
                         batch.append(node)
                 if len(seen) > LIMIT:
                     raise ValueError('public-atspi:tree-bound')
-                self.prepare_nodes(batch, descend=descend, names=names)
+                self.prepare_nodes(batch, descend=descend, names=names, states=states)
                 for node in batch:
                     if descend(node):
                         children = node.children()

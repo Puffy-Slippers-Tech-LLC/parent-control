@@ -120,7 +120,7 @@ def utf16_index(text, offset):
     raise UIClientError('InvalidResponse')
 
 
-class _ObservationFacts(Mapping):
+class ObservationFacts(Mapping):
     """Immutable inventory facts with on-demand public label observation.
 
     Native inventory already supplies topology, role and logical availability.
@@ -129,14 +129,12 @@ class _ObservationFacts(Mapping):
     consumer actually requests them; each facts record retains that observation.
     """
 
-    def __init__(self, node):
-        self.node = node
+    def __init__(self, *, identity, role, showing, modal, read_name):
+        self._read_name = read_name
         self._name_read = False
         self._name = None
         self.fields = {
-            'identity': node.identity, 'role': node.get_role_name(),
-            'showing': bool(node.metadata.get('visible')),
-            'modal': bool(node.surface_metadata.get('modal')),
+            'identity': identity, 'role': role, 'showing': showing, 'modal': modal,
         }
 
     def __iter__(self):
@@ -149,7 +147,7 @@ class _ObservationFacts(Mapping):
         if key != 'name':
             return self.fields[key]
         if not self._name_read:
-            self._name = self.node.get_name()
+            self._name = self._read_name()
             self._name_read = True
         return self._name
 
@@ -510,7 +508,9 @@ class ApplicationNode:
 
     def observation_facts(self):
         if self.metadata.get('type') != 'document-element':
-            return _ObservationFacts(self)
+            return ObservationFacts(identity=self.identity, role=self.get_role_name(),
+                showing=bool(self.metadata.get('visible')),
+                modal=bool(self.surface_metadata.get('modal')), read_name=self.get_name)
         # Virtual controls must retain document readiness, precise capabilities
         # and visibility rather than using their WebKit host's inventory state.
         states = self.get_state_set()

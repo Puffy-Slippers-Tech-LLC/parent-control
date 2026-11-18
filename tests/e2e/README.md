@@ -119,6 +119,11 @@ and recording to assess the gaps between visible customer actions; keep those
 measurements separate from reader cost. Host callers can inject the same timing
 callback without changing their input or result guards.
 
+The shared request-form observer reads the complete tree and fetches external
+labels on demand for prompt classification. The same observation supplies the
+public form IDs, ownership and visibility checks. `kiosk-form-observation`
+records the elapsed time and node count for this path.
+
 ### Shared system and account entry helpers
 
 [`session_control.py`](session_control.py) owns fixed fixture lock, switch-user
@@ -447,6 +452,10 @@ Both include their builder modules and only those modules' bytecode, interpreter
 and standard-library bytes, relevant tools and installed Debian dependency
 closures (including virtual providers). Package builds also include Essential
 packages. A pending package transaction refuses preparation.
+On the native Ubuntu build host, Fedora artifacts built with Podman also use
+this cache. Each Fedora target has its own receipt and lock. The RPM key also
+includes the Podman binary, exact builder image ID, and RPM builder sources.
+Native and mock-backed RPM builds use the ordinary fresh builder.
 Cleanup code, retention code, scenario/test edits, fixture prose, unrelated
 `tools/` bytecode, desktop settings, boot identity, installed test helpers and
 unrelated installed packages do not invalidate artifacts. Build processes use
@@ -474,12 +483,12 @@ that would themselves need cleanup. Required VM restoration and owned child
 settlement still finish in full. Cleanup regressions remain in explicit unit,
 host and all selections; package preparation keeps its separate verified cache.
 
-Storage is bounded: one artifact receipt and one safety receipt per checkout/user
-are atomically replaced in a private `/tmp/onpc-startup-cache-*` directory. The
-cache stores no payload copies of its own. Every prepared bundle, including a
-failed preparation, is registered with the existing three-run retention policy
-per scope. Old bundles rotate normally; a receipt pointing at removed storage is
-a cache miss. Preparation refuses without an active retention session.
+The private test storage cache atomically replaces one receipt per supported
+artifact target and one safety receipt per checkout and user. The cache stores
+only receipts. Every prepared bundle, including a failed preparation, is
+registered with ordinary test retention. Old bundles rotate normally. A receipt
+pointing at removed storage is a cache miss. Preparation requires an active
+retention session.
 
 Cache receipts are coordination evidence within the trusted development checkout,
 not privileged authorization. Each attempt still checks current VM ownership,

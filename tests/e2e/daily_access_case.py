@@ -53,7 +53,8 @@ for name in TRANSITIONS:
     screens = {
         **edits,
         name + '-settings': 'ui:retained-parent-read',
-        name + '-balance': 'ui:time-explanation-reach-read',
+        name + '-balance': ('ui:time-explanation-refresh-read' if name == 'forty'
+                            else 'ui:time-explanation-reach-read'),
         **prefixed_stages(name + '-leave', {
             'desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
             'gdm-switched': 'ui:gdm-returned'}),
@@ -74,7 +75,8 @@ for name in TRANSITIONS:
         **prefixed_stages(name + '-return', returned),
         **prefixed_stages(name + '-supplied', retained_parent_entry(
             source='same-user', desktop_observation=False)),
-        name + '-returned-balance': 'ui:time-explanation-reach-read',
+        name + '-returned-balance': ('ui:time-explanation-refresh-read' if name == 'enabled'
+                                     else 'ui:time-explanation-reach-read'),
     })
     SCREENS.update(screens)
     PHASES.update({stage: phase for stage in screens})
@@ -197,6 +199,7 @@ class DailyAccessJourney(AppPolicyJourney):
         self.parent_window = None
         self.saved = {}
         self.balances = {}
+        self.enabled_return_read_started_ns = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -231,13 +234,17 @@ class DailyAccessJourney(AppPolicyJourney):
                         'daily-access:initial-daily-balance')
             elif stage == 'forty-balance':
                 before = self.balances['enabled-returned-balance']
-                elapsed = (value['observed_monotonic_ns'] - before['observed_monotonic_ns']) / 1e9
+                # Fresh calculations can precede the label reads. Bound elapsed
+                # time from the start of the earlier refresh to the later reply.
+                elapsed = (self.ui.read_bounds[1] - self.enabled_return_read_started_ns) / 1e9
                 delta = value['daily']['seconds'] - before['daily']['seconds']
                 tolerance = value['daily']['precision_seconds'] + before['daily']['precision_seconds']
                 require(0 < elapsed <= 300 and 600 - elapsed - tolerance <= delta <= 600 + tolerance,
                         'daily-access:allowance-increase')
             else:
                 require(value['daily']['seconds'] > 0, 'daily-access:positive-daily-time')
+            if stage == 'enabled-returned-balance':
+                self.enabled_return_read_started_ns = self.ui.read_bounds[0]
             self.balances[stage] = deepcopy(value)
         if stage in ('enabled-countdown', 'forty-countdown'):
             before = self.balances[stage.removesuffix('-countdown') + '-balance']

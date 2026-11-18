@@ -15317,7 +15317,8 @@ class AccessibleUI:
             else:
                 raise UiError('ui:native-refusal-missing')
         elif operation == 'native-close':
-            self.native_app_snapshot('ONPC fixture draft')
+            self.wait(lambda: self.native_app_snapshot('ONPC fixture draft'),
+                      'native-close-ready', prompt_in_predicate=True)
             self.activate_id('onpc-fixture-native-primary-close')
 
     def search_absence(self, product, *, stable_seconds):

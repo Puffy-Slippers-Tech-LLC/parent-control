@@ -1430,10 +1430,10 @@ def overlay_request_values(value):
             PARENT if parent == 'parent' else OTHER_PARENT, seconds, soft)
 
 
-KIOSK_REQUEST_MINUTES = {**OVERLAY_REQUEST_MINUTES, 0: None, 6: '0.1', 240: '4', 600: '10',
+KIOSK_REQUEST_MINUTES = {**OVERLAY_REQUEST_MINUTES, 0: None, 6: '0.1', 240: '4', 480: '8', 600: '10',
                          1200: '20', 7200: '120'}
 KIOSK_REQUEST_DURATIONS = {**OVERLAY_REQUEST_DURATIONS, 0: 'Rest of the day', 6: '6 seconds', 240: '4 minutes',
-                          600: '10 minutes', 1200: '20 minutes', 7200: '2 hours'}
+                          480: '8 minutes', 600: '10 minutes', 1200: '20 minutes', 7200: '2 hours'}
 BOUND_MATE_ORDER = tuple('kiosk-bound-mate-' + suffix for suffix in
                         ('open', 'qualified', 'rechecked', 'submit-success'))
 KIOSK_BOUND_OPERATIONS = frozenset({*BOUND_MATE_ORDER, 'kiosk-request-select',
@@ -7689,19 +7689,22 @@ class AccessibleUI:
         self.reveal_id('parent-filter-match-rule', root=root)
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
-    def app_rows(self, child, *, maximum=256, expected_ids=None, include_names=False):
-        """PARENT12/UI13: complete public row projection, without policy expectations.
+    def app_rows(self, child, *, maximum=256, expected_ids=None, include_names=False,
+                 selected_app=None):
+        """PARENT12/UI13: public row projection, without policy expectations.
 
         Off-viewport controls remain readable through the App UI API. Visibility means
         application visibility, not viewport clipping; no scroll-position inference
         or catalogue/backend query is used. Return immutable (ID, access, match)
-        tuples only after a complete owned traversal and loaded-page check.
+        tuples only after a complete owned traversal and loaded-page check. A
+        single-row read projects only that app's controls from the traversal.
         """
         deadline = time.monotonic() + 45
         for attempt in range(2):
             try:
                 return self._app_rows(child, maximum=maximum, expected_ids=expected_ids,
-                                      include_names=include_names, deadline=deadline)
+                                      include_names=include_names, selected_app=selected_app,
+                                      deadline=deadline)
             except _AppRowVisibilityPending as error:
                 self.invalidate_observation()
                 if attempt:
@@ -7710,7 +7713,7 @@ class AccessibleUI:
                 # changes. Reacquire the entire projection once; a stable
                 # hidden control still fails, and no input is replayed.
 
-    def _app_rows(self, child, *, maximum, expected_ids, include_names, deadline):
+    def _app_rows(self, child, *, maximum, expected_ids, include_names, selected_app, deadline):
         require(child in CHILD_IDENTITIES and type(include_names) is bool and type(maximum) is int
                 and 0 <= maximum <= 256, 'ui:app-row-binding')
         require(expected_ids is None or (type(expected_ids) is tuple
@@ -7718,6 +7721,8 @@ class AccessibleUI:
                 and all(type(value) is str and re.fullmatch(
                     r'parent-app-[0-9a-f]{16}', value) for value in expected_ids)),
                 'ui:app-row-binding')
+        require(selected_app is None or (expected_ids is None and type(selected_app) is str
+                and re.fullmatch(r'parent-app-[0-9a-f]{16}', selected_app)), 'ui:app-row-binding')
         def check_deadline():
             require(time.monotonic() < deadline, 'ui:app-row-deadline')
         edges, identities, facts = {}, {}, {}
@@ -7779,6 +7784,8 @@ class AccessibleUI:
         visibility = {}
         for row in rows:
             identity = identities[row]
+            if selected_app is not None and identity != selected_app:
+                continue
             visibility[row] = self.has_state(row, self.api.StateType.VISIBLE)
             if not visibility[row]:
                 continue  # Explicitly filtered out, not clipped by the viewport.
@@ -7928,7 +7935,7 @@ class AccessibleUI:
                         SNAP_POLICY_APP, *FLATPAK_POLICY_APPS.values()),
                 'ui:access-binding')
         def read():
-            rows = self.app_rows(child)
+            rows = self.app_rows(child, selected_app=app)
             values = [access for identity, access, _ in rows if identity == app]
             require(len(values) == 1, 'ui:access-row')
             return {'app': app, 'choice': values[0]}
@@ -12433,7 +12440,7 @@ class AccessibleUI:
                 and type(request.get('duration_seconds')) is int
                 and type(request.get('allow_soft')) is bool), 'ui:mate-request-binding')
         require(language != 'de' or (request is not None and request == bound_request
-                and request['duration_seconds'] in (240, 600)), 'ui:mate-request-language')
+                and request['duration_seconds'] in (240, 480, 600)), 'ui:mate-request-language')
         child, approver = MULTIPLE_MATE_BINDINGS[binding] if binding else (CHILD, PARENT)
         if request is not None and request == bound_request:
             child, approver = self.kiosk_bound_values()[:2]

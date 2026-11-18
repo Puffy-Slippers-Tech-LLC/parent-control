@@ -12,6 +12,8 @@ use onpc_allowance_selection ();
 use onpc_lifecycle ();
 use onpc_progress ();
 
+use constant EXPIRY_GRANT_SECONDS => 480;
+
 sub entry {
     my ($journey, $prefix, $account, $retained, $expected) = @_;
     onpc_desktop_session::enter_desktop($journey, 'gdm', $account,
@@ -184,7 +186,7 @@ sub run {
         entry($journey, "$root-denied", 'other-child', !$fresh, 'time-denied');
         onpc_gdm::return_from_time_denial($journey, map { "$root-entry-$_" }
             qw(denied-return-ready denied-return-state denied-returned));
-        approval($journey, "$root-visit", 'kiosk', $first, 600, $cycle == 1 ? 1 : 0);
+        approval($journey, "$root-visit", 'kiosk', $first, EXPIRY_GRANT_SECONDS, $cycle == 1 ? 1 : 0);
         work($journey, "$root-visit-reopened", qw(open opened submit submitted capture)) if $fresh;
         work($journey, "$root-visit-work", qw(capture resubmit submitted));
         if ($cycle == 1) {

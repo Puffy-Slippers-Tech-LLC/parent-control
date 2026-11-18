@@ -119,7 +119,7 @@ sub homework_request {
     my %rows = (
         earn => ['overlay', $first, 60, 1], more => ['kiosk', $second, 30, 1],
         home => ['overlay', $first, 30, 0], break => ['kiosk', $second, 30, 1],
-        visit => ['kiosk', $first, 600, $cycle == 1 ? 1 : 0],
+        visit => ['kiosk', $first, 480, $cycle == 1 ? 1 : 0],
         recovery => ['kiosk', $second, 1200, $cycle == 2 ? 1 : 0]);
     my ($expected_surface, @expected) = @{$rows{$row}};
     my $request = $journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'};
@@ -254,7 +254,7 @@ sub enter_kiosk_mate_password {
             my $reminders = ($journey->{prefix} // '') =~ /\Areminder-notifications-(first|enabled|disabled|after)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
-                    ($1 eq 'first' ? 'child,parent,240,1' : 'child,parent,600,1');
+                    ($1 eq 'first' ? 'child,parent,240,1' : 'child,parent,480,1');
             $game ||= ($journey->{prefix} // '') =~ /\Agame-access-(request|recovery)\z/
                 && ($journey->{stage_prefix} // '') eq $1 . '-'
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
@@ -264,13 +264,15 @@ sub enter_kiosk_mate_password {
                 && ref($request) eq 'ARRAY' && join(',', @$request) eq
                     ($1 eq 'request' ? 'other-child,parent,600,1' : 'other-child,parent,1200,1');
             $game ||= game_permission_request($journey, 'kiosk');
-            die 'secret:challenge' unless (family_request($journey, 'kiosk') || homework_request($journey, 'kiosk') || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work ||
+            my $homework = homework_request($journey, 'kiosk');
+            die 'secret:challenge' unless (family_request($journey, 'kiosk') || $homework || $temporary_access || $delayed || $grant_access || $app_restart || $idle || $app_transition || $process_update || $work_recovery || $expired_restart || $expired_daily || $daily_soft || $offline || $station_close || $calendar || $game || $reminders || $saved_work ||
                     ($journey->{prefix} // '') =~ /\Akiosk-(?:fresh|retained)-return\z/
                     && ($journey->{stage_prefix} // '') eq '')
                 && ref($request) eq 'ARRAY' && @$request == 4
                 && $request->[0] =~ /\A(?:child|other-child)\z/
                 && $request->[1] =~ /\A(?:parent|other-parent)\z/
                 && ($request->[2] =~ /\A(?:30|60|75|120|150|180|240|300|600|900|1200|7200)\z/
+                    || ($homework || $reminders) && $request->[2] == 480
                     || $daily_soft && $request->[2] == 6 || $calendar && $request->[2] == 0)
                 && ($request->[3] == 0 || $request->[3] == 1);
             $role = $request->[1];

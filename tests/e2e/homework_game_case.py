@@ -26,6 +26,11 @@ from synthetic_files import work_document_actions
 from ui_observations import SettingsObservation
 
 
+# Leave three minutes for approval-to-entry overhead and a slow guest before
+# the required five minutes of usable time at the public countdown read.
+EXPIRY_GRANT_SECONDS = 480
+
+
 def build_plan(*, fresh=False):
     """Keep both histories in one composition, declaring each work lifetime."""
     # The declarations below are local to this binding, including remembered
@@ -221,7 +226,7 @@ def build_plan(*, fresh=False):
             root + '-on-balance': 'ui:time-explanation-refresh-read', **leave(root + '-on-parent', 'parent'),
             **entry(root + '-denied', 'other-child', not fresh, expected='time-denied'),
             **prefixed_stages(root + '-entry', rejected_gdm_return()),
-            **approval(root + '-visit', 'kiosk', first_parent, 600, cycle == 1, work_capture)})
+            **approval(root + '-visit', 'kiosk', first_parent, EXPIRY_GRANT_SECONDS, cycle == 1, work_capture)})
         if fresh:
             screens.update(reopen_work(root + '-visit-reopened', resumed, work_capture))
             work_capture = root + '-visit-reopened-capture'

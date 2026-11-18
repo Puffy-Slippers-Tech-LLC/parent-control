@@ -83,7 +83,7 @@ defaults are checked without waiting for their delivery.
 
 Before further approvals, save Riley's sole 15-second reminder with literal
 `Save your game now`. Independently read it across English/German saves and
-require Jordan's entire original list unchanged. Renew ten minutes for each of
+require Jordan's entire original list unchanged. Renew eight minutes for each of
 two intervals: fullscreen enabled/Critical/visible, then disabled/High/suppressed.
 Reuse the same owned game and its qualified single normal fullscreen transition
 within each interval; require independent banner visibility, the current warning's
@@ -95,7 +95,9 @@ for the same saved reminder, with no duplicate during an unchanged countdown.
 Save Jordan's empty list and retain Riley's German custom list/fullscreen false.
 Reboot normally from Jamie's desktop and independently observe a changed boot.
 Read both saved choices before edits or approval; require no restored presets.
-Renew Riley's ten-minute access and observe the retained custom warning again.
+Renew Riley's eight-minute access and observe the retained custom warning again.
+All three renewals still require five minutes remaining when the observer is
+ready. The other three minutes cover approval return, entry and game setup.
 Compare both children's original saved zero-daily policies and app rules, with
 zero remaining grants after natural exhaustion; finish at usable sign-in.
 The two-hour functional budget covers all four real intervals, account/approval
@@ -2488,7 +2490,7 @@ qualification history.
 | 4 Return to homework | request-entry(first) → FLOW20(0.5,exclude) → APP02(S closed) → FLOW08(S denied); FILE08(W) if this case's logout ended that window; FILE09(W,`work again cycle N`,Save). | Same-session/retained S closes; after fresh departure verify denied new launch, not closure by approval. Work remains usable. |
 | 5 Grant-only game break | request-entry(second) → FLOW20(0.5,include) → FLOW08(S usable) → APP04; P → PARENT06(60×cycle+1) → PARENT08/PARENT09 → PARENT06(0) → PARENT08/PARENT09 → C. | Both enabled allowance edits preserve the original grant deadline; D becomes zero. Existing retained S stays open, new S/H launches are denied. Check this before another approval. |
 | 6 Turn limits off, then on | P → UI17(off) → PARENT08 → C → TIME01(absent) → FLOW08(H/S denied); P → UI17(on) → PARENT08/PARENT09 → C(time denial). | Off removes time restriction but preserves app blocks. On with saved zero clears all old grant time; correct credentials alone cannot enter. No hidden-app claim behind the lock. |
-| 7 Short approved visit to natural exhaustion | With W file, game route/mode and TIME04 observer ready, G → FLOW20(kiosk,10 minutes,include in cycle 1; exclude in cycle 2) → FILE08/APP04(W) → FLOW08(S expected) → APP03 → TIME04 → DESK08(time denial). | Require at least 300 seconds on child entry for the work/game checks. Actual activity ends in a natural lock at this original deadline. A retained work window is still not inspected behind that lock. |
+| 7 Short approved visit to natural exhaustion | With W file, game route/mode and TIME04 observer ready, G → FLOW20(kiosk,8 minutes,include in cycle 1; exclude in cycle 2) → FILE08/APP04(W) → FLOW08(S expected) → APP03 → TIME04 → DESK08(time denial). | Require at least 300 seconds on child entry for the work/game checks. Actual activity ends in a natural lock at this original deadline. A retained work window is still not inspected behind that lock. |
 | 8 Recover, then finish this cycle | G → FLOW20(kiosk,20 minutes,opposite soft choice to row 7,retained unlock) → APP04(W captured in row 7) → APP03; APP02(S closed) when row 7 left S open and replacement excludes it; FLOW08(S expected,H denied). Then leave-child → P → PARENT17/PARENT18(confirm) → PARENT09 → C(time denial) → G → FLOW09(Riley). | Both variants retain their row-7 work through this natural lock. Replacement permission has the declared game result; unused positive grant is explicitly revoked to leave D=G=0. Riley's same activity works. No grant is carried into the next cycle and no recovery-expiry wait is added. |
 
 At **each departure from Jordan to another account/station**, retained uses

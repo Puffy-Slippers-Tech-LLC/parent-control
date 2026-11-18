@@ -10,6 +10,9 @@ use onpc_request_flow ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
 
+use constant DEFAULT_GRANT_SECONDS => 240;
+use constant RENEWAL_GRANT_SECONDS => 480;
+
 sub run {
     onpc_progress::operation('Qualifying child-bound reminder saves across request surfaces');
     my ($exchange, $invocations, $challenges) = @_;
@@ -198,7 +201,7 @@ sub notifications {
     $journey->seen($_) for ('jordan-zero', 'jordan-policy-before', 'parent-logout', 'parent-greeter');
     for my $name ('first', 'enabled', 'disabled') {
         my $request = $journey->scope($name);
-        my $seconds = $name eq 'first' ? 240 : 600;
+        my $seconds = $name eq 'first' ? DEFAULT_GRANT_SECONDS : RENEWAL_GRANT_SECONDS;
         $request->{kiosk_request} = ['child', 'parent', $seconds, 1];
         onpc_request_flow::obtain_time($request, 'observed',
             'fixture-child', 'fixture-parent', $seconds, 1, 'automatic');
@@ -208,17 +211,17 @@ sub notifications {
         $journey->seen($_) for ("$name-warning", "$name-leave-lock", "$name-greeter");
     }
     my $persistence = $journey->scope('persistence');
-    $persistence->{kiosk_request} = ['child', 'parent', 600, 1];
+    $persistence->{kiosk_request} = ['child', 'parent', RENEWAL_GRANT_SECONDS, 1];
     onpc_request_flow::prepare($persistence, 'new', 'new', 'observed',
-        'fixture-child', 'fixture-parent', 600, 1, 'kiosk');
+        'fixture-child', 'fixture-parent', RENEWAL_GRANT_SECONDS, 1, 'kiosk');
     $journey->seen($_) for ('persistence-cancel', 'persistence-returned');
     onpc_gdm::sign_in_challenge($journey, 'reboot-parent',
         'reboot-parent-installed-greeter', 'reboot-parent-parent-focused', 'reboot-parent-desktop');
     $journey->seen($_) for ('reboot-requested', 'reboot-greeter');
     my $after = $journey->scope('after');
-    $after->{kiosk_request} = ['child', 'parent', 600, 1];
+    $after->{kiosk_request} = ['child', 'parent', RENEWAL_GRANT_SECONDS, 1];
     onpc_request_flow::obtain_time($after, 'observed',
-        'fixture-child', 'fixture-parent', 600, 1, 'automatic');
+        'fixture-child', 'fixture-parent', RENEWAL_GRANT_SECONDS, 1, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'after-child');
     $journey->seen($_) for ('after-warning', 'after-leave-lock', 'after-greeter');
     $desktop = onpc_gdm::sign_in_challenge($journey, 'return',

@@ -10,6 +10,11 @@ from overlay_reminders import DEFAULTS
 from private_artifacts import require
 
 
+DEFAULT_GRANT_SECONDS = 240
+# Keep five minutes at observer readiness, with three minutes available for
+# returning from approval, desktop entry and the real game's launch and setup.
+RENEWAL_GRANT_SECONDS = 480
+
 SCREENS = {
     **fresh_desktop('parent'), **parent_management(),
     'riley-zero': 'ui:time-explanation-setup-zero-read',
@@ -25,8 +30,9 @@ ACTIONS = {'desktop': 'native-verify', 'first-new-estimate': 'prepare-defaults',
            'disabled-new-estimate': 'disable-fullscreen',
            'after-new-estimate': 'check-persistence',
            'persistence-new-estimate': 'save-final-preferences'}
-for name, seconds, entry in (('first', 240, 'fresh'), ('enabled', 600, 'retained'),
-                             ('disabled', 600, 'retained')):
+for name, seconds, entry in (('first', DEFAULT_GRANT_SECONDS, 'fresh'),
+                             ('enabled', RENEWAL_GRANT_SECONDS, 'retained'),
+                             ('disabled', RENEWAL_GRANT_SECONDS, 'retained')):
     SCREENS.update(prefixed_stages(name, obtain_time(initial='observed',
         child='fixture-child', approver='fixture-parent', duration_seconds=seconds,
         allow_soft=True, exit='automatic')))
@@ -42,7 +48,7 @@ for name, seconds, entry in (('first', 240, 'fresh'), ('enabled', 600, 'retained
 
 # Save independent final choices before reboot, without another grant.
 SCREENS.update(prefixed_stages('persistence', obtain_time(initial='observed',
-    child='fixture-child', approver='fixture-parent', duration_seconds=600,
+    child='fixture-child', approver='fixture-parent', duration_seconds=RENEWAL_GRANT_SECONDS,
     allow_soft=True, exit='automatic')))
 for stage in tuple(SCREENS):
     if stage.startswith('persistence-approval-') or stage == 'persistence-new-returned':
@@ -54,7 +60,7 @@ SCREENS.update({'persistence-cancel': 'ui:kiosk-request-cancel',
                 'reboot-greeter': 'ui:gdm-list'})
 LOGINS['reboot-parent'] = 'parent'
 SCREENS.update(prefixed_stages('after', obtain_time(initial='observed',
-    child='fixture-child', approver='fixture-parent', duration_seconds=600,
+    child='fixture-child', approver='fixture-parent', duration_seconds=RENEWAL_GRANT_SECONDS,
     allow_soft=True, exit='automatic')))
 SCREENS.update({**prefixed_stages('after-child', desktop_entry('child', source='gdm', entry='fresh')),
     'after-warning': 'ui:child-countdown-present',
@@ -79,8 +85,8 @@ PLAN = JourneyPlan(prefix='reminder-notifications', worker_mode='reminder_notifi
         (prefix + '-' if prefix else '') + ('child-recipient-rechecked' if role == 'child' else 'recipient-rechecked'))
         for prefix, role in LOGINS.items()},
     child_bindings={'jordan-zero': 'existing'},
-    kiosk_request=('child', 'parent', 600, True),
-    kiosk_requests={stage: ('child', 'parent', 240, True) for stage, tag in SCREENS.items()
+    kiosk_request=('child', 'parent', RENEWAL_GRANT_SECONDS, True),
+    kiosk_requests={stage: ('child', 'parent', DEFAULT_GRANT_SECONDS, True) for stage, tag in SCREENS.items()
                     if stage.startswith('first-') and tag[3:] in (
                         'kiosk-request-select', 'kiosk-request-estimate',
                         'kiosk-bound-mate-open', 'kiosk-bound-mate-qualified',
@@ -121,7 +127,7 @@ class ReminderNotificationsJourney(InstalledJourney):
         guard()
         return value
 
-    def select(self, guard, child, seconds=600):
+    def select(self, guard, child, seconds=RENEWAL_GRANT_SECONDS):
         guard()
         self.ui.kiosk_request = ('child' if child == 'riley' else 'other-child', 'parent', seconds, True)
         self.ui.observe('kiosk-request-select')
@@ -144,7 +150,7 @@ class ReminderNotificationsJourney(InstalledJourney):
         journey.select(guard, 'jordan', 1200)
         journey.jordan_defaults = journey.saved(guard, child='jordan')
         require(journey.jordan_defaults == before, 'reminder-notifications:untouched-jordan-defaults')
-        journey.select(guard, 'riley', 240)
+        journey.select(guard, 'riley', DEFAULT_GRANT_SECONDS)
         journey.reminder(guard, 'open')
         journey.reminder(guard, 'language-de')
         journey.reminder(guard, 'save')

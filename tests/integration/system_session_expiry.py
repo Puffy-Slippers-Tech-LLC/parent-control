@@ -117,8 +117,11 @@ def verify_usage_reader_recovery(record):
         # systemd's native 90-second stop budget plus transport headroom rather
         # than racing that normal exit with a 30-second command deadline.
         guest.run(['systemctl', 'stop', unit])
-        guest.require(guest.run(['systemctl', 'show', unit, '--property=ActiveState', '--value'])
-                      == 'inactive', 'usage-read:service-not-stopped')
+        stopped = guest.parse_properties(guest.run([
+            'systemctl', 'show', unit, '-p', 'ActiveState', '-p', 'MainPID']),
+            ('ActiveState', 'MainPID'), category='usage-read:service-state')
+        guest.require(stopped['ActiveState'] in ('inactive', 'failed') and stopped['MainPID'] == '0',
+                      'usage-read:service-not-stopped')
         reply = call(parent, *operation)
         guest.require(reply == {'error': guest.BUS + '.Error.BackendFailure'},
                       'usage-read:outage-not-refused')

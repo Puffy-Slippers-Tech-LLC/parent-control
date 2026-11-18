@@ -1800,6 +1800,7 @@ EXTERNAL_PROVIDER_CONTRACTS = {
 LOCK_RECIPIENT_OPERATIONS = frozenset((
     'parent-lock-recipient-qualified', 'parent-lock-recipient-rechecked'))
 LOCK_RECIPIENT_REFUSALS = ('session', 'recipient', 'field-state', 'field-not-empty', 'owner')
+SHELL_LOCK_KEY_HINTS = frozenset({'Click or press a key to unlock', 'Click or press a key'})
 LOCK_SURFACE_OPERATIONS = LOCK_RECIPIENT_OPERATIONS | frozenset((
     'parent-lock-curtain', 'parent-lock-reveal-ready', 'parent-lock-challenge',
     'parent-lock-refusals', 'parent-lock-unlocked-refused', 'parent-lock-recipient-refusals'))
@@ -8680,7 +8681,7 @@ class AccessibleUI:
             'visible_dialogs': min(16, sum(item['role'] in ('dialog', 'alert') for item in visible)),
             'visible_activities': min(16, sum(item['role'] == 'toggle button'
                                              and item['name'] == 'Activities' for item in visible)),
-            'unlock_hint': 'Click or press a key to unlock' in labels,
+            'unlock_hint': bool(SHELL_LOCK_KEY_HINTS & labels),
             'time_restriction': 'Screen Time Limit Reached' in labels,
             'unlock_action': any(item['role'] in ('push button', 'button')
                                  and item['name'] == 'Unlock' for item in visible),
@@ -9451,7 +9452,7 @@ class AccessibleUI:
                 'own_focused': sum(self.has_state(node, self.api.StateType.FOCUSED)
                                    for node in showing),
                 'own_hints': sum(facts[node]['role'] == 'label' and facts[node]['name']
-                                 == 'Click or press a key to unlock' for node in showing),
+                                 in SHELL_LOCK_KEY_HINTS for node in showing),
                 'own_parent_labels': sum(facts[node]['role'] == 'label'
                                          and facts[node]['name'] == PARENT for node in showing),
                 'own_password_fields': sum(facts[node]['role'] == 'password text'
@@ -9478,7 +9479,7 @@ class AccessibleUI:
             return facts[node]['showing'] and (
                 facts[node]['role'] == 'password text'
                 or (facts[node]['role'] == 'label' and facts[node]['name'] in (
-                    'Click or press a key to unlock', 'Screen Time Limit Reached', *GREETER_IDENTITIES)))
+                    *SHELL_LOCK_KEY_HINTS, 'Screen Time Limit Reached', *GREETER_IDENTITIES)))
 
         candidates = []
         for window, scope in scopes.items():
@@ -9516,12 +9517,13 @@ class AccessibleUI:
         return window
 
     def shell_lock_snapshot(self, uid, entry, *, observation=None):
-        """DESK06, Shell 50 English provider semantics; no secret authorization.
+        """DESK06, Shell 50 and 51 English provider semantics; no secret authorization.
 
         unlockDialog.js exposes a WINDOW with a clock hint or an AuthPrompt.
         These are provider semantics, not public automation IDs. Only the curtain
         branch can guard a single nonprinting normal-key reveal in the worker.
         https://github.com/GNOME/gnome-shell/blob/50.1/js/ui/unlockDialog.js
+        https://github.com/GNOME/gnome-shell/blob/51.1/js/ui/unlockDialog.js
         """
         require(entry in ('curtain', 'challenge', 'restriction'), 'ui:lock-entry')
         require(entry != 'restriction' or getattr(self, 'lock_role', 'parent') == 'child',
@@ -9612,7 +9614,7 @@ class AccessibleUI:
             require(not fields, 'ui:lock-not-curtain')
             hints = [node for node in controls if facts[node]['role'] == 'label'
                      and facts[node]['showing']
-                     and facts[node]['name'] == 'Click or press a key to unlock']
+                     and facts[node]['name'] in SHELL_LOCK_KEY_HINTS]
             require(len(hints) <= 1, 'ui:lock-hint-ambiguous')
             if not hints:
                 return None
@@ -15690,7 +15692,7 @@ class AccessibleUI:
                                                 and facts[node]['showing'] for node in descendants),
                         'lock_marker_showing': any(facts[node]['showing']
                             and facts[node]['role'] == 'label' and facts[node]['name'] in (
-                                'Click or press a key to unlock', 'Screen Time Limit Reached')
+                                *SHELL_LOCK_KEY_HINTS, 'Screen Time Limit Reached')
                             for node in application_nodes),
                     })
         if len(candidates) > 1:

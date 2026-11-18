@@ -127,10 +127,11 @@ def prepare():
     accounts = identities()
     guest.require(not FIXTURE.exists() and not FIXTURE.is_symlink()
                   and not SEED.exists() and not SEED.is_symlink(), 'expiry:graphical-fixture-collision')
-    info = PAM.lstat()
+    pam_source = guest.pam_service_path(PAM.name)
+    info = pam_source.lstat()
     guest.require(stat.S_ISREG(info.st_mode) and info.st_uid == 0,
                   'expiry:gdm-pam-file')
-    original = PAM.read_text()
+    original = pam_source.read_text()
     fedora = guest.package_path().suffix == '.rpm'
     seeded_stack = seed_account_stack(original, fedora=fedora)
     accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (accounts['child'], True, 0)))
@@ -141,7 +142,7 @@ def prepare():
     FIXTURE.mkdir(mode=0o700)
     (FIXTURE / 'prepared.json').write_text(json.dumps({
         'run': marker['run'], 'boot': Path('/proc/sys/kernel/random/boot_id').read_text(),
-        'pam_sha256': guest.sha(PAM),
+        'pam_sha256': guest.sha(pam_source),
     }))
     prepare_broker_boot(fedora=fedora)
     # Fixed root-owned wrapper, installed only in this guest attempt. Its run
@@ -151,7 +152,9 @@ def prepare():
                     f'sys.path.insert(0, {str(guest.PAYLOAD)!r})\n'
                     'from system_graphical_expiry import seed\nseed()\n')
     SEED.chmod(0o700)
-    PAM.write_text(seeded_stack)
+    # Vendor-only stacks get an attempt-local override, leaving the package file intact.
+    with PAM.open('w' if pam_source == PAM else 'x') as stream:
+        stream.write(seeded_stack)
     if fedora:
         guest.run(['restorecon', str(SEED), str(PAM)])
     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',

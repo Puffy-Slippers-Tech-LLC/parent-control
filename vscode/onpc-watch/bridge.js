@@ -92,6 +92,12 @@ function validate(snapshot) {
             point.length === 2 && point.every(Number.isFinite)));
     const chart = value => value && segments(value.segments) &&
         (value.host_segments === undefined || segments(value.host_segments));
+    const modelSelection = value => value && identifier(value.model) &&
+        (value.effort === null || identifier(value.effort)) && Array.isArray(value.options) &&
+        value.options.every(option => option && identifier(option.model) &&
+            (option.label === undefined || identifier(option.label)) &&
+            Array.isArray(option.efforts) && option.efforts.every(identifier) &&
+            (option.efforts.length ? option.efforts.includes(option.default) : option.default === null));
     if (snapshot?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; update the adapter (protocol 1 required).');
     if (typeof snapshot.watch_ssh !== 'boolean') {
         throw new Error('Invalid Watch SSH policy.');
@@ -130,7 +136,9 @@ function validate(snapshot) {
             (run.session !== null && !identifier(run.session)) ||
             ['session_active', 'session_inactive', 'session_waiting'].some(field => typeof run[field] !== 'boolean') ||
             !rows(run.rows) || !rows(run.error_rows) || (run.session_view &&
-                (!rows(run.session_view.rows) || typeof run.session_view.input_enabled !== 'boolean'))) ||
+                (!rows(run.session_view.rows) || typeof run.session_view.input_enabled !== 'boolean' ||
+                    (Object.hasOwn(run.session_view, 'model_selection') &&
+                        !modelSelection(run.session_view.model_selection))))) ||
         snapshot.resource_charts.some(value => !chart(value) || typeof value.label !== 'string' || typeof value.text !== 'string') ||
         snapshot.checkouts.some(checkout => !checkout || !identifier(checkout.id) || checkout.id === 'all' || typeof checkout.label !== 'string') ||
         !unique(snapshot.entries) || !unique(snapshot.runs) || !unique(snapshot.checkouts)) {

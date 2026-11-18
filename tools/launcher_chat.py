@@ -7,6 +7,7 @@ Observers never signal agent PIDs.
 
 import fcntl
 import json
+import re
 import time
 
 from agent_adapter import SessionEvent
@@ -17,6 +18,7 @@ from launcher_runtime import AgentCapacityUnavailable
 
 MAX_INPUT = 64 * 1024
 MAX_QUEUE = 256 * 1024
+MODEL_COMMAND = re.compile(r'\s*/model(?=\s|$)')
 STATUS_PREFIX = 'LAUNCHER_STATUS '
 TASK_STATUSES = (
     'Investigating',
@@ -140,14 +142,17 @@ def read_state(run):
         return {'session': None, 'status': 'starting'}
 
 
-def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None):
-    if kind not in ('message', 'interrupt') or len(text.encode('utf-8')) > MAX_INPUT:
+def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None, model_session=None):
+    if kind not in ('message', 'interrupt', 'model') or len(text.encode('utf-8')) > MAX_INPUT:
         raise ValueError('chat message is too large or invalid')
     with launcher.lock(run / 'chat-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         state = read_state(run)
         if expected_session is not None and state.get('session') != expected_session:
             raise ValueError('Session changed; review the current session before sending.')
+        if kind == 'model' and (model_session is None or state.get('model_session') != model_session
+                                or state['status'] not in ('running', 'waiting')):
+            raise ValueError('Model selection is unavailable for this session.')
         if kind == 'interrupt' and state['status'] in ('interrupting', 'cleaning'):
             # A second Ctrl+C cancels the workflow, even before turn cleanup
             # finishes. Repeated Escape only interrupts the current turn.
@@ -165,26 +170,57 @@ def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None
             if cancel_waiting:
                 (run / 'cancel').touch(mode=0o600)
             return
-        entries.append({'kind': kind, 'text': text, 'session': state['session'],
-                        'cancel_waiting': cancel_waiting})
+        entry = {'kind': kind, 'text': text, 'session': state['session'], 'cancel_waiting': cancel_waiting}
+        if kind == 'model':
+            entry['model_session'] = model_session
+        entries.append(entry)
         if len(json.dumps(entries).encode('utf-8')) > MAX_QUEUE:
             raise ValueError('chat queue is full; wait for the agent to read it')
         launcher.atomic(path, entries)
 
 
-def take_input(run):
+def take_input(run, *, models_only=False):
     with launcher.lock(run / 'chat-gate') as gate:
         fcntl.flock(gate, fcntl.LOCK_EX)
         path = run / 'chat-inbox.json'
         entries = json.loads(path.read_text()) if path.exists() else []
+        if models_only:
+            models = [entry for entry in entries if entry['kind'] == 'model']
+            if models:
+                launcher.atomic(path, [entry for entry in entries if entry['kind'] != 'model'])
+            return models
         if entries:
             launcher.atomic(path, [])
         return entries
 
 
+def model_input(protocol, renderer, entry, session):
+    if session is not None and entry.get('model_session') == session:
+        try:
+            if entry['text'].strip() == '/model':
+                protocol.list_models()
+            else:
+                protocol.change_model(entry['text'])
+        except ValueError as error:
+            renderer.message(str(error), 'Session')
+
+
+def model_notice(renderer, data):
+    effort = f" with {data['effort']} reasoning" if data['effort'] else ''
+    renderer.message(f"Model set to {data['model']}{effort} for subsequent turns.", 'Session')
+
+
+def close_model_input(run, state):
+    with launcher.lock(run / 'chat-gate') as gate:
+        fcntl.flock(gate, fcntl.LOCK_EX)
+        launcher.atomic(run / 'chat-state.json', dict(state, status='finished'))
+    return any(entry.get('model_session') == state['model_session'] and entry['text'].strip() != '/model'
+               for entry in take_input(run, models_only=True))
+
+
 class AppSession:
     def __init__(self, root, run, command, renderer, *, on_interrupted=None,
-                 session_state=None):
+                 session_state=None, view_identity=None):
         self.root, self.run, self.renderer = root, run, renderer
         state = (session_state if session_state is not None else
                  json.loads((run / 'checkpoint.json').read_text()))
@@ -201,6 +237,8 @@ class AppSession:
         self.protocol = command.protocol
         if self.protocol is None:
             raise ValueError('interactive agent session requires a protocol handler')
+        self.model_session = view_identity if hasattr(self.protocol, 'list_models') else None
+        self.model_options = []
         self.outgoing = self.protocol.outgoing
         self.messages = []
         self.recovered_input = None
@@ -229,12 +267,15 @@ class AppSession:
             self.publish_locked(status)
 
     def publish_locked(self, status):
+        self.status = status
         state = {
             'session': self.session, 'task_session': self.task_session,
             'task_id': self.task, 'status': status, 'started_at': self.started_at,
             'model': self.model, 'effort': self.effort,
             'agent': self.agent, 'logical_tier': self.logical_tier,
             'progress_key': self.progress_key}
+        if self.model_session is not None:
+            state.update(model_session=self.model_session, model_options=self.model_options)
         if status == 'running' and self.turn_started_at is not None:
             state['turn_started_at'] = self.turn_started_at
         if status == 'finished':
@@ -279,8 +320,13 @@ class AppSession:
     def poll(self):
         if self.done:
             return
-        self.protocol.poll()
+        notice = self.protocol.poll()
+        if notice is not None:
+            self.event(notice)
         for entry in take_input(self.run):
+            if entry['kind'] == 'model':
+                model_input(self.protocol, self.renderer, entry, self.model_session)
+                continue
             if entry['session'] not in (None, self.session):
                 # Text submitted at a session boundary still reaches the next
                 # agent. An old interrupt must never stop that new session.
@@ -393,6 +439,15 @@ class AppSession:
                     key=self.continuation_key, thread_id=thread_id,
                     root=str(self.root.resolve()), agent=self.agent))
             self.start_turn(self.prompt)
+            if self.model_session is not None:
+                self.protocol.list_models()
+        elif kind == 'model_options' and not self.done:
+            self.model_options = data['options']
+            self.publish(self.status)
+        elif kind == 'model_changed' and not self.done:
+            self.model, self.effort = data['model'], data['effort']
+            self.publish(self.status)
+            model_notice(self.renderer, data)
         elif kind == 'retry_input':
             if data.get('recovered'):
                 # Check the observer mailbox before replaying recovered work;

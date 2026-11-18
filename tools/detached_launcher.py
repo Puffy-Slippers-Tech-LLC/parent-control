@@ -313,6 +313,7 @@ class _GoalSession:
         self.protocol, self.renderer = command.protocol, renderer
         self.run = run
         self.session_view = session_view
+        self.ready = False
         self.prompt = (run / 'prompt.txt').read_text()
         self.outgoing = self.protocol.outgoing
         _optional_observation(atomic, run / 'chat-state.json', self.session_view)
@@ -322,29 +323,65 @@ class _GoalSession:
     def done(self):
         return self.protocol.done
 
+    def close(self):
+        if 'model_session' not in self.session_view or self.session_view['status'] == 'finished':
+            return
+        from launcher_chat import close_model_input
+        undelivered = close_model_input(self.run, self.session_view)
+        self.session_view['status'] = 'finished'
+        if undelivered:
+            self.renderer.message('The session ended before it could apply the queued model change.', 'Session')
+
     def poll(self):
-        self.protocol.poll()
+        notice = self.protocol.poll()
+        if notice is not None:
+            _optional_observation(self.renderer.event, notice)
+        if self.done:
+            _optional_observation(self.close)
+            return
+        if not self.ready:
+            return
         # Native goal continuation owns turn creation. Keep input queued between
         # turns, and steer only the live turn rather than starting another one.
-        if self.done or self.protocol.turn is None or any(
+        chat_ready = self.protocol.turn is not None and not any(
                 method in ('turn/start', 'turn/steer')
-                for method, _params in self.protocol.requests.values()):
+                for method, _params in self.protocol.requests.values())
+        model_session = self.session_view.get('model_session')
+        if not chat_ready and model_session is None:
             return
-        from launcher_chat import take_input
-        messages = [entry['text'] for entry in take_input(self.run)
-                    if entry['kind'] == 'message'
-                    and entry['session'] == self.session_view['session']]
+        from launcher_chat import model_input, take_input
+        messages = []
+        for entry in take_input(self.run, models_only=not chat_ready):
+            if entry['kind'] == 'model':
+                _optional_observation(model_input, self.protocol, self.renderer, entry, model_session)
+            elif entry['kind'] == 'message' and entry['session'] == self.session_view['session']:
+                messages.append(entry['text'])
         if messages:
             text = '\n\n'.join(messages)
             self.protocol.steer(text)
             _optional_observation(self.renderer.message, text, 'You')
 
     def feed(self, data):
+        from launcher_chat import model_notice
         for event in self.protocol.feed(data):
             if event.kind == 'ready':
+                self.ready = True
                 self.protocol.start_turn(self.prompt)
+                if 'model_session' in self.session_view:
+                    self.protocol.list_models()
+            elif event.kind in ('model_options', 'model_changed'):
+                if self.done:
+                    continue
+                if event.kind == 'model_options':
+                    self.session_view['model_options'] = event.data['options']
+                else:
+                    self.session_view.update(event.data)
+                    _optional_observation(model_notice, self.renderer, event.data)
+                _optional_observation(atomic, self.run / 'chat-state.json', self.session_view)
             elif event.kind != 'text_delta':
                 _optional_observation(self.renderer.event, event)
+        if self.done:
+            _optional_observation(self.close)
 
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
@@ -485,6 +522,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         # terminal history across their agent sessions within this allocation.
         fresh_transcript = run.parent.name in ('fix-tests', 'fix-tests-host')
         session_view['fresh_transcript'] = fresh_transcript
+        if plain and fresh_transcript and hasattr(command.protocol, 'list_models'):
+            session_view['model_session'] = session_view['session']
         session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run,
                                                    reset=fresh_transcript)
                               if plain else SessionTranscript(sys.stdout, run,
@@ -528,7 +567,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 thread_id = retained['thread_id']
         command = command.revised(interactive=True, thread_id=thread_id)
         conversation = AppSession(root, run, command, renderer, on_interrupted=interrupted_cleanup,
-                                  session_state=session_state)
+                                  session_state=session_state, view_identity=session_view['session'])
     goal_session = _GoalSession(command, run, renderer, session_view) if plain else None
     transport = goal_session or conversation
     source = (run / 'prompt.txt').open('rb') if kind == 'agent' and transport is None else None
@@ -719,6 +758,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             log.close()
             atomic(run / 'frame.json', [])
         try:
+            if goal_session is not None:
+                _optional_observation(goal_session.close)
             if nested:
                 finish_nested(root, run)  # Exceptions, rather than active owners, mean cleanup failed.
             if conversation:
@@ -733,6 +774,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                                               dict(session_view, status='finished'))
                     else:
                         session_transcript.close()
+                        if conversation is not None:
+                            session_view.update(model=conversation.model, effort=conversation.effort)
                         atomic(run / 'session-view.json', dict(session_view, status='finished'))
             finally:
                 os.close(owner)

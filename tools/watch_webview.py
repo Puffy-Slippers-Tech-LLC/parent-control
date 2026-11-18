@@ -628,6 +628,11 @@ class Viewer:
                 transcript = session_view.pop('lines')
                 session_view['rows'] = self.cached_spans(root, 'session', transcript)
                 session_view['input_enabled'] = session.input_enabled
+                chat = session.panel.chat_state
+                if (session.panel.input_mode == 'chat' and chat.get('status') in ('running', 'waiting')
+                        and chat.get('model_session') == session.identity):
+                    session_view['model_selection'] = dict(model=chat['model'], effort=chat['effort'],
+                                                           options=chat.get('model_options', []))
             sections.append(dict(id=str(root), checkout=str(output.root), label=f'[{branch}]' +
                 (f' {label}' + (f' ({status})' if status else '') if label else ''),
                 active=active or session.active, closed=closed, status=status, rows=self.status_cache[root][1],

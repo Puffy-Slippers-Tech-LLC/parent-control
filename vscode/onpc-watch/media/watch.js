@@ -88,7 +88,10 @@
             if (node.parentElement !== parent) parent.append(node);
             node.hidden = section.view !== view && !(section.view === 'status' && embedded === view);
         }
-        if (section.session.hidden) section.fileCompletion.reset();
+        if (section.session.hidden) {
+            section.fileCompletion.reset();
+            section.modelPicker.close();
+        }
     }
 
     function tabLabel(entry, view) {
@@ -503,18 +506,22 @@
         return span;
     }
 
-    function sessionAction(section, kind) {
+    function sessionAction(section, kind, command) {
         if ((section.pending && kind !== 'extend') || !section.entry.session || actions.size >= 16) return;
         if (kind === 'send' && (section.input.disabled || !section.input.value.trim())) return;
         const id = crypto.randomUUID();
-        const text = kind === 'send' ? section.input.value :
+        const draft = section.input.value;
+        const text = kind === 'send' ? command ?? draft :
             kind === 'extend' ? section.entry.session_question : '';
-        if (kind !== 'extend') section.pending = id;
+        const refreshModels = command === '/model';
+        if (kind !== 'extend' && !refreshModels) section.pending = id;
         if (kind === 'send') section.fileCompletion.reset();
-        actions.set(id, { section, kind, text });
+        actions.set(id, { section, draft: kind === 'send' && !refreshModels ? draft : undefined,
+            session: section.entry.session });
         section.error.textContent = '';
         vscode.postMessage({ type: 'sessionAction', id, kind, root: section.entry.id,
             session: section.entry.session, question: section.entry.session_question || '', text });
+        return true;
     }
 
     function sessionPrompt(parent, text) {
@@ -705,6 +712,122 @@
         return { handleKey, reset, show };
     }
 
+    function modelPicker(section) {
+        const picker = element('form', 'session-model-picker', section.session);
+        section.session.insertBefore(picker, section.composer);
+        picker.hidden = true;
+        picker.setAttribute('aria-label', 'Session model selection');
+        const loading = element('div', '', picker);
+        loading.textContent = 'Waiting for the model list. Reopen to refresh.';
+        loading.setAttribute('role', 'status');
+        const models = element('select', '', picker);
+        models.setAttribute('aria-label', 'Model');
+        models.setAttribute('aria-description', 'Use Up and Down for model, Left and Right for reasoning effort.');
+        const footer = element('div', 'session-model-actions', picker);
+        const label = element('label', '', footer);
+        label.append('Reasoning effort ');
+        const efforts = element('select', '', label);
+        const apply = element('button', '', footer);
+        apply.type = 'submit';
+        apply.textContent = 'Apply';
+        const cancel = element('button', '', footer);
+        cancel.type = 'button';
+        cancel.textContent = 'Cancel';
+        let owner, selection, signature;
+
+        function close(focus = false) {
+            if (picker.hidden) return false;
+            picker.hidden = true;
+            if (focus) section.input.focus();
+            return true;
+        }
+
+        function addOption(select, value, label = value) {
+            const option = element('option', '', select);
+            option.value = value;
+            option.textContent = label;
+        }
+
+        function showEfforts(preferred) {
+            const choice = selection.options[models.selectedIndex];
+            efforts.replaceChildren();
+            for (const effort of choice?.efforts || []) addOption(efforts, effort);
+            label.hidden = efforts.options.length === 0;
+            if (label.hidden) return;
+            const effort = preferred ?? (choice.model === selection.model ? selection.effort : null);
+            efforts.value = choice.efforts.includes(effort) ? effort : choice.default;
+        }
+
+        function showOptions(next, keepSelection) {
+            const selected = keepSelection ? models.value : '';
+            const effort = efforts.value;
+            const scroll = models.scrollTop;
+            selection = next;
+            signature = JSON.stringify(next.options);
+            models.replaceChildren();
+            for (const choice of selection.options) addOption(models, choice.model, choice.label);
+            loading.hidden = models.options.length > 0;
+            apply.disabled = models.hidden = !loading.hidden;
+            models.size = Math.max(2, Math.min(7, models.options.length));
+            models.value = selection.options.some(choice => choice.model === selected) ? selected : selection.model;
+            if (models.selectedIndex === -1) models.selectedIndex = 0;
+            showEfforts(models.value === selected ? effort : undefined);
+            if (keepSelection) models.scrollTop = scroll;
+        }
+
+        function open() {
+            if (picker.hidden || !current()) {
+                owner = section.entry.session;
+                sessionAction(section, 'send', '/model');
+                showOptions(section.entry.session_view.model_selection, false);
+            }
+            picker.hidden = false;
+            (models.hidden ? cancel : models).focus();
+        }
+
+        function current() {
+            return !section.input.disabled && owner === section.entry?.session &&
+                !section.entry.session_question && section.input.value.trim() === '/model' &&
+                section.entry.session_view?.model_selection;
+        }
+
+        function refresh() {
+            if (picker.hidden) return;
+            const next = current();
+            if (!next) return close();
+            if (JSON.stringify(next.options) === signature) return;
+            const waiting = models.hidden && document.activeElement === cancel;
+            showOptions(next, true);
+            if (waiting && !models.hidden) models.focus();
+        }
+
+        models.addEventListener('change', () => showEfforts());
+        picker.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                close(true);
+            } else if (event.target === models && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                if (!efforts.options.length) return;
+                event.preventDefault();
+                const offset = event.key === 'ArrowLeft' ? -1 : 1;
+                efforts.selectedIndex = Math.max(0, Math.min(efforts.options.length - 1, efforts.selectedIndex + offset));
+            } else if (event.key === 'Enter' && (event.target === models || event.target === efforts)) {
+                event.preventDefault();
+                picker.requestSubmit();
+            }
+        });
+        picker.addEventListener('submit', event => {
+            event.preventDefault();
+            if (!current()) return close();
+            if (!models.value) return;
+            const reasoning = efforts.value ? ` --reasoning=${efforts.value}` : '';
+            if (sessionAction(section, 'send', `/model ${models.value}${reasoning}`)) close(true);
+        });
+        cancel.addEventListener('click', () => close(true));
+        section.input.addEventListener('input', refresh);
+        return { open, refresh, close };
+    }
+
     function sessionPanel(body) {
         const session = element('div', 'session-view', body);
         session.hidden = true;
@@ -728,7 +851,12 @@
         section.toggle.disabled = true;
         section.toggle.addEventListener('click', () => sessionAction(section, 'simplified'));
         section.fileCompletion = fileCompletion(section);
+        section.modelPicker = modelPicker(section);
         input.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !event.isComposing && section.modelPicker.close()) {
+                event.preventDefault();
+                return;
+            }
             if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey &&
                     !event.isComposing && event.key.toLowerCase() === 'u') {
                 event.preventDefault();
@@ -743,6 +871,17 @@
             if (section.fileCompletion.handleKey(event)) return;
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
                 event.preventDefault();
+                const text = input.value.trim();
+                if (!section.entry?.session_question && /^\/model(?:\s|$)/u.test(text)) {
+                    if (!section.entry?.session_view?.model_selection) {
+                        section.error.textContent = 'Model selection is unavailable for this session.';
+                        return;
+                    }
+                    if (text === '/model' && !section.pending) {
+                        section.modelPicker.open();
+                        return;
+                    }
+                }
                 sessionAction(section, 'send');
             }
         });
@@ -1581,6 +1720,7 @@
                 section.toggle.disabled = true;
                 section.model.textContent = '';
             }
+            section.modelPicker.refresh();
             if (section.launcherText !== entry.launcher_output || section.launcherRows !== entry.launcher_rows) {
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
                 section.launcherText = entry.launcher_output;
@@ -2032,10 +2172,10 @@
     async function render(snapshot) {
         for (const result of snapshot.session_results || []) {
             if (!actions.has(result.id)) continue;
-            const { section, kind, text } = actions.get(result.id);
+            const { section, draft, session } = actions.get(result.id);
             actions.delete(result.id);
-            if (kind !== 'extend') section.pending = undefined;
-            if (result.ok && kind === 'send' && section.input.value === text) {
+            if (section.pending === result.id) section.pending = undefined;
+            if (result.ok && section.entry.session === session && section.input.value === draft) {
                 section.input.value = '';
                 section.fitInput();
             }

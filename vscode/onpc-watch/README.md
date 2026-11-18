@@ -375,6 +375,15 @@ on an SSH source. Type part of a name or path to narrow the list in place. Use â
 and â†“ to move, Tab or Enter to insert the relative path, or click a result.
 Escape dismisses the picker without changing the draft. Enter sends the draft
 when the picker is closed and no search is pending.
+In an active repair or execution-plan chat, enter `/model` to open the model
+picker. Use Up/Down to choose a model and Left/Right to adjust its reasoning
+effort. Enter applies the selection and Escape closes the picker. The options
+come from the source session's agent adapter and refresh when you reopen the
+picker. You can also enter `/model <model>`
+to use that model's default effort, or `/model [model] --reasoning=<level>` to
+choose a specific level. Watch confirms the change in the transcript and updates
+the footer after the agent accepts it. The change applies to subsequent turns
+of that session. Each new session uses the launcher-selected model and effort.
 Native goal repair sessions accept chat on their current turn. Messages wait in
 the session mailbox between automatic goal turns; Watch does not start extra
 turns. A rejected delivery appears in the transcript with the message text and

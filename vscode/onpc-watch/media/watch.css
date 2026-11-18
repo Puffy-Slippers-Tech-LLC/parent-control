@@ -227,6 +227,26 @@ nav button { flex-shrink: 0; }
     font: var(--vscode-editor-font-size) var(--vscode-editor-font-family);
 }
 .session-composer { margin: 0 8px; }
+.session-model-picker {
+    flex: 0 1 auto; min-height: 0; max-height: 60%; overflow: auto;
+    margin: 0 8px 4px; padding: 6px; border: 1px solid var(--vscode-editorSuggestWidget-border);
+    background: var(--vscode-editorSuggestWidget-background);
+    color: var(--vscode-editorSuggestWidget-foreground);
+}
+.session-model-picker select {
+    font: inherit; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+}
+.session-model-picker > select { width: 100%; }
+.session-model-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.session-model-actions label { margin-right: auto; }
+.session-model-actions button {
+    padding: 3px 8px; border: 0;
+    background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
+}
+.session-model-actions button[type='submit'] {
+    background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+}
 .session-file-suggestions {
     position: fixed; inset: auto; margin: 0; max-height: 192px;
     overflow: auto; padding: 2px; border: 1px solid var(--vscode-editorSuggestWidget-border);

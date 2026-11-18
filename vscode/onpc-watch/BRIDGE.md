@@ -160,6 +160,11 @@ recording links, preserving its line breaks. Older adapters omit it and the
 Launcher tab displays `launcher_output` as plain text.
 `session_view` is null or `{rows, input_enabled, working, model, simplified}`.
 `input_enabled` and `simplified` are booleans; `working` and `model` are strings.
+When the active agent provides a model catalogue, `session_view.model_selection`
+contains `{model, effort, options}`. Each option is `{model, label?, efforts, default}`.
+Model IDs and effort levels are strings. An adapter can use an empty `efforts`
+array and a null `default` for a model without an effort control. The `options`
+array may be empty while the catalogue is unavailable.
 Status requests the same transcript body as Session when embedding an active session.
 Only requested runs need transcript bodies. An idle run must keep its retained
 contents and disable input when its owner exits. Final status updates remain
@@ -207,6 +212,9 @@ refusals; snapshots without an action omit `session_result` or set it to null.
 The bridge routes actions only to their displayed source/session.
 Disconnected sources disable input while retaining the observed transcript.
 Fresh snapshots update their retained panels after reconnecting.
+The model picker sends `/model` as a `send` action to refresh the source catalogue.
+It sends `/model <model> [--reasoning=<level>]` to apply a selection. The owning
+session validates the choice and confirms application in its transcript.
 
 Actions are never retried automatically. Losing a response leaves delivery
 unknown; inspect the authoritative transcript before submitting again. Exactly

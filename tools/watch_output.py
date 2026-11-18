@@ -542,7 +542,7 @@ class SessionOutput:
             return False
 
     def send(self, text):
-        from launcher_chat import send_input
+        from launcher_chat import MODEL_COMMAND, send_input
         from launcher_question import submit
         if not self.current():
             raise ValueError('Session changed; review the current session before sending.')
@@ -552,8 +552,10 @@ class SessionOutput:
             choice = int(text.strip()) - 1 if text.strip() in ('1', '2', '3') else len(options)
             submit(self.run, question['id'], min(choice, len(options)), text)
         elif self.panel.input_mode == 'chat':
-            send_input(self.run, 'message', text,
-                       expected_session=self.panel.chat_state.get('session'))
+            model = MODEL_COMMAND.match(text)
+            send_input(self.run, 'model' if model else 'message', text,
+                       expected_session=self.panel.chat_state.get('session'),
+                       model_session=self.identity if model else None)
         else:
             raise ValueError('This session accepts input when a developer decision is pending.')
 

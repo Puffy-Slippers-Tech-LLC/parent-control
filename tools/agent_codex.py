@@ -16,6 +16,7 @@ from agent_adapter import (AgentSelection, ModelProfile, PreparedSession, Profil
 SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions that simplify '
                 'the resulting codebase as a whole, not merely minimize the patch. '
                 'Keep refactoring within the task’s scope.')
+MODEL_REQUEST_TIMEOUT = 10
 
 GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
 Codex goal state. If absent or complete, call create_goal with objective:
@@ -371,6 +372,13 @@ class CodexWire:
         self.requests = {}
         self.counter = 0
         self.outgoing = bytearray()
+        self.model, self.effort = request.model, request.effort
+        self.model_provider = None
+        self.model_options = {}
+        self.model_pages = []
+        self.model_list_request = None
+        self.model_change_request = None
+        self.applied_model_request = 0
 
     def encode(self, packet):
         self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
@@ -379,12 +387,101 @@ class CodexWire:
         self.counter += 1
         self.requests[self.counter] = (method, params)
         self.encode({'id': self.counter, 'method': method, 'params': params})
+        return self.counter
+
+    def model_rpc(self, method, params):
+        return self.rpc(method, params), time.monotonic() + MODEL_REQUEST_TIMEOUT
 
     def feed(self, data):
         lines = (self.pending + data).split(b'\n')
         self.pending = lines.pop()
         for line in lines:
             yield from self.event(json.loads(line))
+
+    def list_models(self):
+        if self.model_list_request is None:
+            self.model_pages.clear()
+            self.model_list_request = self.model_rpc('model/list', {'modelProvider': self.model_provider,
+                                                                   'limit': 100})
+
+    def change_model(self, text):
+        if self.model_change_request is not None:
+            raise ValueError('A model change is already pending.')
+        match = re.fullmatch(r'/model(?:[ \t]+([^\s-][^\s]*))?(?:[ \t]+--reasoning(?:=|[ \t]+)(\S+))?',
+                             text.strip())
+        if not match or not any(match.groups()):
+            raise ValueError('Use /model, /model <model>, or /model [model] --reasoning=<level>.')
+        model, effort = match.groups()
+        choice = self.model_options.get(model or self.model)
+        if choice is None:
+            raise ValueError('Choose a model from the /model picker.')
+        effort = effort or choice['default']
+        if effort not in choice['efforts']:
+            raise ValueError(f"Choose a reasoning level for {choice['model']}: {', '.join(choice['efforts'])}.")
+        self.model_change_request = self.model_rpc('thread/settings/update', {
+            'threadId': self.thread, 'model': choice['model'], 'effort': effort})
+
+    def poll_model_requests(self):
+        now = time.monotonic()
+        if self.model_change_request is not None and now >= self.model_change_request[1]:
+            self.model_change_request = None
+            return SessionEvent('notice', {'text': 'Codex has not confirmed the model change. '
+                                                   'Use /model to try again.'})
+        if self.model_list_request is not None and now >= self.model_list_request[1]:
+            self.model_list_request = None
+            self.model_pages.clear()
+            return SessionEvent('notice', {'text': 'Codex did not return the model list. Reopen /model to retry.'})
+
+    def model_reply(self, method, params, packet):
+        request = packet['id']
+        if method == 'model/list':
+            if self.model_list_request is None or self.model_list_request[0] != request:
+                return None  # The listing expired and may have been replaced.
+            self.model_list_request = None
+            if 'error' in packet:
+                self.model_pages.clear()
+                return SessionEvent('notice', {'text': 'Could not load Codex models. ' +
+                                               str(packet['error'].get('message', ''))})
+            result = packet['result']
+            self.model_pages.extend(result['data'])
+            if result.get('nextCursor'):
+                self.model_list_request = self.model_rpc(method, dict(params, cursor=result['nextCursor']))
+                return None
+            return self.publish_models()
+        pending = self.model_change_request is not None and self.model_change_request[0] == request
+        if pending:
+            self.model_change_request = None
+        if 'error' in packet:
+            if pending:
+                return SessionEvent('notice', {'text': 'Model change rejected by Codex. ' +
+                                               str(packet['error'].get('message', ''))})
+            return None
+        # Codex serializes updates by thread. An old acknowledgement must not
+        # replace a confirmed newer selection if it arrives after a retry.
+        if request <= self.applied_model_request:
+            return None
+        self.applied_model_request = request
+        self.model, self.effort = params['model'], params['effort']
+        return SessionEvent('model_changed', {'model': self.model, 'effort': self.effort})
+
+    def publish_models(self):
+        options = {}
+        for entry in self.model_pages:
+            model = entry['model']
+            default = entry['defaultReasoningEffort']
+            if (entry.get('hidden') or not model.isprintable()
+                    or not re.fullmatch(r'[^\s-]\S{0,127}', model)):
+                continue
+            # Ultra enables proactive delegation. Keep the launcher policy.
+            efforts = [level['reasoningEffort'] for level in entry['supportedReasoningEfforts']] or [default]
+            if self.request.effort != 'ultra':
+                efforts = [effort for effort in efforts if effort != 'ultra']
+            if efforts:
+                options[model] = dict(model=model, label=entry['displayName'] or model,
+                    efforts=efforts, default=default if default in efforts else efforts[0])
+        self.model_options = options
+        self.model_pages.clear()
+        return SessionEvent('model_options', {'options': list(options.values())})
 
     def failure(self, context, error):
         code = error.get('codexErrorInfo') if isinstance(error, dict) else None
@@ -429,6 +526,7 @@ class CodexProtocol(CodexWire):
 
     def __init__(self, request):
         super().__init__(request)
+        self.started = False
         self.completed = False
         self.recovery = None
         self.schema_retried = False
@@ -445,8 +543,9 @@ class CodexProtocol(CodexWire):
 
     @property
     def turn_requests_pending(self):
-        return self.recovery is not None or any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
-                   for method, _ in self.requests.values())
+        return (self.recovery is not None or (self.turn is None and self.model_change_request is not None)
+                or any(method in ('turn/start', 'turn/steer', 'turn/interrupt')
+                       for method, _ in self.requests.values()))
 
     def start(self):
         self.schema = json.loads(self.request.schema.read_text())
@@ -457,9 +556,14 @@ class CodexProtocol(CodexWire):
     def start_turn(self, text):
         self.completed = False
         self.interrupted = False
-        self.rpc('turn/start', {'threadId': self.thread,
-                 'input': [{'type': 'text', 'text': text}], 'outputSchema': self.schema,
-                 'model': self.request.model, 'effort': self.request.effort})
+        params = {'threadId': self.thread, 'input': [{'type': 'text', 'text': text}],
+                  'outputSchema': self.schema}
+        if not self.started:
+            params.update(model=self.request.model, effort=self.request.effort)
+            self.started = True
+        # Later turns inherit the native settings. Sending a client-side copy
+        # could overwrite a model change whose acknowledgement arrived late.
+        self.rpc('turn/start', params)
 
     def steer(self, text):
         self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
@@ -490,10 +594,16 @@ class CodexProtocol(CodexWire):
     def poll(self):
         if self.recovery is not None and time.monotonic() >= self.recovery['deadline']:
             raise ValueError('Codex active-turn recovery timed out; saved input and conversation were retained')
+        return self.poll_model_requests()
 
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
+            if method in ('model/list', 'thread/settings/update'):
+                event = self.model_reply(method, params, packet)
+                if event is not None:
+                    yield event
+                return
             if 'error' in packet:
                 if (method == 'turn/start' and not self.schema_retried
                         and 'ActiveTurnOutputSchemaMismatch' in str(packet['error'].get('message', ''))):
@@ -554,11 +664,13 @@ class CodexProtocol(CodexWire):
                     self.rpc('thread/start', dict(params, ephemeral=False))
                 else:
                     self.rpc('thread/resume', dict(params, threadId=self.request.thread_id,
+                                                   config={'model_reasoning_effort': self.request.effort},
                                                    excludeTurns=True))
             elif method in ('thread/start', 'thread/resume'):
                 self.thread = result['thread']['id']
                 if self.request.thread_id is not None and self.thread != self.request.thread_id:
                     raise ValueError('resumed agent thread identity changed')
+                self.model_provider = result.get('modelProvider')
                 yield SessionEvent('ready', {'thread_id': self.thread})
             elif method == 'turn/start':
                 self.schema_retried = False
@@ -651,14 +763,19 @@ class CodexGoalProtocol(CodexWire):
                  'model': self.request.model, 'effort': self.request.effort})
 
     def poll(self):
-        pass
+        event = self.poll_model_requests()
+        if event is not None:
+            self.settle()
+        return event
 
     def steer(self, text):
         self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
                  'input': [{'type': 'text', 'text': text}]})
 
     def settle(self):
-        if not self.done and self.completed and self.turn is None and not self.requests:
+        if (not self.done and self.completed and self.turn is None
+                and self.model_change_request is None
+                and all(method in ('model/list', 'thread/settings/update') for method, _ in self.requests.values())):
             # Native continuation owns active goals. An ordinary session end
             # supplies no test verdict; the runner's results decide what remains.
             self.done = self.goal is None or self.goal.get('status') != 'active'
@@ -668,6 +785,12 @@ class CodexGoalProtocol(CodexWire):
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
+            if method in ('model/list', 'thread/settings/update'):
+                event = self.model_reply(method, params, packet)
+                if event is not None:
+                    yield event
+                self.settle()
+                return
             if 'error' in packet:
                 if method == 'turn/steer':
                     # A turn may end after the mailbox is drained. Do not
@@ -691,6 +814,7 @@ class CodexGoalProtocol(CodexWire):
                     'ephemeral': False})
             elif method == 'thread/start':
                 self.thread = result['thread']['id']
+                self.model_provider = result.get('modelProvider')
                 yield SessionEvent('ready', {'thread_id': self.thread})
             elif method == 'turn/start':
                 if not self.completed:

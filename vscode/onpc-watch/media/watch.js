@@ -602,11 +602,14 @@
             if (event.isComposing) return;
             const current = currentToken();
             if (sameToken(current)) return;
-            reset();
-            if (!current) return;
+            if (!current) return reset();
+            // Keep the existing list visible while searching within the same @ mention.
+            if (token && (token.session !== current.session || token.start !== current.start)) hide();
+            clearTimeout(timer);
             token = current;
             const id = crypto.randomUUID();
             request = id;
+            if (menu.matches(':popover-open')) positionMenu();
             timer = setTimeout(() => {
                 if (!sameToken(currentToken())) return reset();
                 vscode.postMessage({ type: 'fileSearch', id, root: section.entry.id,
@@ -625,6 +628,7 @@
         }
 
         function choose(path) {
+            if (request) return;
             if (!sameToken(currentToken())) return reset();
             const text = /[\s"\\]/u.test(path) ? JSON.stringify(path) : path;
             const space = /[\s)\]},.;:!?]/u.test(input.value.charAt(token.end)) ? '' : ' ';
@@ -633,14 +637,27 @@
             section.fitInput();
         }
 
+        function positionMenu() {
+            const bounds = composer.getBoundingClientRect();
+            menu.style.left = `${bounds.left}px`;
+            menu.style.width = `${bounds.width}px`;
+            const above = bounds.top - 8;
+            const below = window.innerHeight - bounds.bottom - 8;
+            const openAbove = above >= menu.scrollHeight || above >= below;
+            menu.style.maxHeight = `${Math.min(192, Math.max(0, openAbove ? above : below))}px`;
+            menu.style.top = `${openAbove ? bounds.top - menu.offsetHeight - 4 : bounds.bottom + 4}px`;
+        }
+
         function show({ id, paths }) {
             if (request !== id) return;
             if (!sameToken(currentToken())) return reset();
             clearTimeout(timer);
             request = undefined;
-            if (!paths.length) return;
+            if (!paths.length) return hide();
+            const previous = menu.children[selected]?.textContent;
+            const options = document.createDocumentFragment();
             paths.forEach((path, index) => {
-                const option = element('div', 'session-file-option', menu);
+                const option = element('div', 'session-file-option', options);
                 option.id = `${menu.id}-${index}`;
                 option.setAttribute('role', 'option');
                 option.setAttribute('aria-selected', 'false');
@@ -648,18 +665,14 @@
                 option.addEventListener('mousedown', event => event.preventDefault());
                 option.addEventListener('click', () => choose(path));
             });
-            const bounds = composer.getBoundingClientRect();
-            menu.style.left = `${bounds.left}px`;
-            menu.style.width = `${bounds.width}px`;
-            menu.showPopover();
-            const above = bounds.top - 8;
-            const below = window.innerHeight - bounds.bottom - 8;
-            const openAbove = above >= menu.scrollHeight || above >= below;
-            menu.style.maxHeight = `${Math.min(192, Math.max(0, openAbove ? above : below))}px`;
-            menu.style.top = `${openAbove ? bounds.top - menu.offsetHeight - 4 : bounds.bottom + 4}px`;
-            window.addEventListener('resize', hide);
-            window.addEventListener('scroll', closeOnScroll, { capture: true, passive: true });
-            highlight(0);
+            menu.replaceChildren(options);
+            if (!menu.matches(':popover-open')) {
+                menu.showPopover();
+                window.addEventListener('resize', hide);
+                window.addEventListener('scroll', closeOnScroll, { capture: true, passive: true });
+            }
+            positionMenu();
+            highlight(Math.max(0, paths.indexOf(previous)));
         }
 
         function handleKey(event) {
@@ -671,7 +684,7 @@
             const open = menu.matches(':popover-open');
             if (event.key === 'Escape' && (request || open)) {
                 hide();
-            } else if (!open) {
+            } else if (request || !open) {
                 return false;
             } else if (event.key === 'Enter' || event.key === 'Tab') {
                 choose(menu.children[selected].textContent);
@@ -716,6 +729,17 @@
         section.toggle.addEventListener('click', () => sessionAction(section, 'simplified'));
         section.fileCompletion = fileCompletion(section);
         input.addEventListener('keydown', event => {
+            if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey &&
+                    !event.isComposing && event.key.toLowerCase() === 'u') {
+                event.preventDefault();
+                const caret = input.selectionDirection === 'backward' ? input.selectionStart : input.selectionEnd;
+                const start = input.value.lastIndexOf('\n', caret - 1) + 1;
+                if (caret > start) {
+                    input.setRangeText('', start, caret, 'end');
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                return;
+            }
             if (section.fileCompletion.handleKey(event)) return;
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
                 event.preventDefault();

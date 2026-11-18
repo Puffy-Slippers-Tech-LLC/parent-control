@@ -367,13 +367,14 @@ Click **Status** to return to run status and its waiting countdown.
 The space before each link is outside its underline.
 Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
-Alt+Enter inserts a new line. Input is
-routed only to the displayed, still-current launcher session.
+Alt+Enter inserts a new line. Ctrl+U deletes from the start of the current line
+up to the cursor, leaving the character at the cursor and the rest of the line.
+Input is routed only to the displayed, still-current launcher session.
 Type `@` in the chat draft to search files in that session's checkout, including
-on an SSH source. Type part of a name or path to narrow the list. Use ↑ and ↓ to
-move, Tab or Enter to insert the relative path, or click a result. Escape dismisses
-the picker without changing the draft. Enter sends the draft when the picker is
-closed and no search is pending.
+on an SSH source. Type part of a name or path to narrow the list in place. Use ↑
+and ↓ to move, Tab or Enter to insert the relative path, or click a result.
+Escape dismisses the picker without changing the draft. Enter sends the draft
+when the picker is closed and no search is pending.
 Native goal repair sessions accept chat on their current turn. Messages wait in
 the session mailbox between automatic goal turns; Watch does not start extra
 turns. A rejected delivery appears in the transcript with the message text and

@@ -11352,13 +11352,13 @@ class AccessibleUI:
                 'ui:reminder-binding')
 
     def _overlay_reminder_state(self, *, editor=False, require_tab=True, source=None,
-                                surface='overlay', child=CHILD):
+                                surface='overlay', child=CHILD, wait_for_load=False):
         """Fresh child, modal, draft and control proofs for reminder operations."""
         self._reminder_binding(surface, child)
         if surface == 'overlay':
             self.require_child_overlay_session(child)
         observation = self.read_snapshot()
-        nodes, edges, identities, _facts = observation
+        nodes, edges, identities, facts = observation
         window = self.request_surface(observation, overlay=surface == 'overlay', child=child)
         self.initial_kiosk_child(observation, window, child=child)
         application = self.snapshot_matches(CHILD_APPLICATION if surface == 'overlay' else
@@ -11381,13 +11381,21 @@ class AccessibleUI:
         require(not editor or self.has_state(modal, self.api.StateType.MODAL),
                 'ui:reminder-editor-entry')
 
-        def target(identity, *, sensitive=False):
+        if wait_for_load:
+            # Use status from the inventory that supplies the row controls. A
+            # later live status read may see loading finish after that capture.
+            status = self.snapshot_owned_target('reminder-status', root=dialog,
+                                                showing=False, observation=observation)
+            if status is not None and facts[status]['showing']:
+                return None
+
+        def target(identity, *, sensitive=False, pending=False):
             root = modal if owned_surface_id(identity) == 'reminder-editor-dialog' else dialog
             node = self.snapshot_owned_target(identity, root=root, showing=False,
                                                observation=observation)
             require(node is not None and self.has_state(node, self.api.StateType.VISIBLE)
                     and (not sensitive or self.has_state(node, self.api.StateType.SENSITIVE)),
-                    'ui:reminder-unavailable')
+                    'ui:incomplete-tree' if pending else 'ui:reminder-unavailable')
             return node
 
         # Main Save and tab availability distinguish loaded idle preferences
@@ -11403,8 +11411,9 @@ class AccessibleUI:
         if not require_tab:
             return {'target': target, 'window': window, 'dialog': dialog}
         require(tabs.getValue() == 'reminders', 'ui:reminder-tab')
-        records = target('reminder-list', sensitive=True).getValue()
-        choices = target('reminder-list').getChoices()
+        reminder_list = target('reminder-list', sensitive=True, pending=wait_for_load)
+        records = reminder_list.getValue()
+        choices = reminder_list.getChoices()
         require(type(records) is list and len(records) <= 64 and type(choices) is list,
                 'ui:reminder-records')
         identifiers, seconds = [], []
@@ -11424,8 +11433,8 @@ class AccessibleUI:
         require(len(set(identifiers)) == len(identifiers) and choices == identifiers
                 and seconds == sorted(seconds), 'ui:reminder-ambiguous-records')
         for row in records:
-            caption = target(f"reminder-{row['id']}-text")
-            target(f"reminder-{row['id']}-trigger")
+            caption = target(f"reminder-{row['id']}-text", pending=wait_for_load)
+            target(f"reminder-{row['id']}-trigger", pending=wait_for_load)
             if row['text']:
                 require(caption.getText() == row['text'], 'ui:reminder-literal')
         fullscreen = target('reminder-show-in-fullscreen')
@@ -11496,10 +11505,9 @@ class AccessibleUI:
             # The tab starts an asynchronous read. Reacquire only observations;
             # never retry the setter when loading or transport is uncertain.
             def loaded():
-                state = self._overlay_reminder_state(require_tab=False, surface=surface, child=child)
-                status = self.snapshot_owned_target('reminder-status', root=state['dialog'])
-                return None if status is not None else self._overlay_reminder_state(
-                    surface=surface, child=child)['payload']
+                state = self._overlay_reminder_state(surface=surface, child=child,
+                                                     wait_for_load=True)
+                return state['payload'] if state is not None else None
             result = self.wait(loaded, 'overlay-reminder-loaded')
             self.input_uncertain = False
             return result

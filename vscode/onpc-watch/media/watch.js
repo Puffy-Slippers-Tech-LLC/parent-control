@@ -88,6 +88,7 @@
             if (node.parentElement !== parent) parent.append(node);
             node.hidden = section.view !== view && !(section.view === 'status' && embedded === view);
         }
+        if (section.session.hidden) section.fileCompletion.reset();
     }
 
     function tabLabel(entry, view) {
@@ -509,6 +510,7 @@
         const text = kind === 'send' ? section.input.value :
             kind === 'extend' ? section.entry.session_question : '';
         if (kind !== 'extend') section.pending = id;
+        if (kind === 'send') section.fileCompletion.reset();
         actions.set(id, { section, kind, text });
         section.error.textContent = '';
         vscode.postMessage({ type: 'sessionAction', id, kind, root: section.entry.id,
@@ -548,6 +550,148 @@
         return { composer, input, fitInput, inputObserver };
     }
 
+    function fileCompletion(section) {
+        const { composer, input } = section;
+        const menu = element('div', 'session-file-suggestions', composer);
+        menu.id = `session-files-${crypto.randomUUID()}`;
+        menu.setAttribute('popover', 'manual');
+        menu.setAttribute('role', 'listbox');
+        menu.setAttribute('aria-label', 'Matching files');
+        input.setAttribute('aria-controls', menu.id);
+        input.setAttribute('aria-autocomplete', 'list');
+        let token, request, timer, selected;
+
+        function currentToken() {
+            const entry = section.entry;
+            if (document.activeElement !== input || input.disabled || section.session.hidden ||
+                    !entry?.session_file_search || entry.session_waiting || input.selectionStart !== input.selectionEnd) return;
+            const caret = input.selectionStart;
+            const match = input.value.slice(0, caret).match(/(?:^|[\s([{])@([^\s@)\]},;:!?]*)$/u);
+            if (!match || match[1].length > 512) return;
+            const suffix = input.value.slice(caret).match(/^[^\s@)\]},;:!?]*/u)[0].replace(/\.+$/u, '');
+            return { session: entry.session, query: match[1], start: caret - match[1].length - 1,
+                end: caret + suffix.length };
+        }
+
+        function sameToken(current) {
+            return token && current && token.session === current.session && token.start === current.start &&
+                token.end === current.end && token.query === current.query;
+        }
+
+        function hide() {
+            clearTimeout(timer);
+            request = undefined;
+            if (!menu.firstElementChild) return;
+            if (menu.matches(':popover-open')) menu.hidePopover();
+            window.removeEventListener('resize', hide);
+            window.removeEventListener('scroll', closeOnScroll, true);
+            menu.replaceChildren();
+            input.removeAttribute('aria-activedescendant');
+        }
+
+        function closeOnScroll(event) {
+            if (event.target === window || event.target.contains?.(composer)) hide();
+        }
+
+        function reset() {
+            hide();
+            token = undefined;
+        }
+
+        function refresh(event) {
+            if (event.isComposing) return;
+            const current = currentToken();
+            if (sameToken(current)) return;
+            reset();
+            if (!current) return;
+            token = current;
+            const id = crypto.randomUUID();
+            request = id;
+            timer = setTimeout(() => {
+                if (!sameToken(currentToken())) return reset();
+                vscode.postMessage({ type: 'fileSearch', id, root: section.entry.id,
+                    session: current.session, query: current.query });
+                timer = setTimeout(hide, 10000);
+            }, 150);
+        }
+
+        function highlight(index) {
+            menu.children[selected]?.setAttribute('aria-selected', 'false');
+            selected = index;
+            const option = menu.children[selected];
+            option.setAttribute('aria-selected', 'true');
+            input.setAttribute('aria-activedescendant', option.id);
+            option.scrollIntoView({ block: 'nearest' });
+        }
+
+        function choose(path) {
+            if (!sameToken(currentToken())) return reset();
+            const text = /[\s"\\]/u.test(path) ? JSON.stringify(path) : path;
+            const space = /[\s)\]},.;:!?]/u.test(input.value.charAt(token.end)) ? '' : ' ';
+            input.setRangeText(text + space, token.start, token.end, 'end');
+            reset();
+            section.fitInput();
+        }
+
+        function show({ id, paths }) {
+            if (request !== id) return;
+            if (!sameToken(currentToken())) return reset();
+            clearTimeout(timer);
+            request = undefined;
+            if (!paths.length) return;
+            paths.forEach((path, index) => {
+                const option = element('div', 'session-file-option', menu);
+                option.id = `${menu.id}-${index}`;
+                option.setAttribute('role', 'option');
+                option.setAttribute('aria-selected', 'false');
+                option.title = option.textContent = path;
+                option.addEventListener('mousedown', event => event.preventDefault());
+                option.addEventListener('click', () => choose(path));
+            });
+            const bounds = composer.getBoundingClientRect();
+            menu.style.left = `${bounds.left}px`;
+            menu.style.width = `${bounds.width}px`;
+            menu.showPopover();
+            const above = bounds.top - 8;
+            const below = window.innerHeight - bounds.bottom - 8;
+            const openAbove = above >= menu.scrollHeight || above >= below;
+            menu.style.maxHeight = `${Math.min(192, Math.max(0, openAbove ? above : below))}px`;
+            menu.style.top = `${openAbove ? bounds.top - menu.offsetHeight - 4 : bounds.bottom + 4}px`;
+            window.addEventListener('resize', hide);
+            window.addEventListener('scroll', closeOnScroll, { capture: true, passive: true });
+            highlight(0);
+        }
+
+        function handleKey(event) {
+            if (event.isComposing || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
+            if (event.key === 'Enter' && request) {
+                event.preventDefault();
+                return true;
+            }
+            const open = menu.matches(':popover-open');
+            if (event.key === 'Escape' && (request || open)) {
+                hide();
+            } else if (!open) {
+                return false;
+            } else if (event.key === 'Enter' || event.key === 'Tab') {
+                choose(menu.children[selected].textContent);
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                const count = menu.children.length;
+                highlight((selected + count + (event.key === 'ArrowDown' ? 1 : -1)) % count);
+            } else {
+                return false;
+            }
+            event.preventDefault();
+            return true;
+        }
+
+        for (const event of ['input', 'keyup', 'click', 'focus', 'compositionend']) {
+            input.addEventListener(event, refresh);
+        }
+        input.addEventListener('blur', reset);
+        return { handleKey, reset, show };
+    }
+
     function sessionPanel(body) {
         const session = element('div', 'session-view', body);
         session.hidden = true;
@@ -570,7 +714,9 @@
         section.toggle.setAttribute('aria-checked', 'true');
         section.toggle.disabled = true;
         section.toggle.addEventListener('click', () => sessionAction(section, 'simplified'));
+        section.fileCompletion = fileCompletion(section);
         input.addEventListener('keydown', event => {
+            if (section.fileCompletion.handleKey(event)) return;
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
                 event.preventDefault();
                 sessionAction(section, 'send');
@@ -659,6 +805,9 @@
         section.toggle.setAttribute('aria-checked', String(view.simplified));
         section.toggle.disabled = !section.entry.session || !section.entry.connected || Boolean(view.unavailable);
         section.input.disabled = !view.input_enabled || !section.entry.connected;
+        if (section.input.disabled || !section.entry.session_file_search || section.entry.session_waiting) {
+            section.fileCompletion.reset();
+        }
     }
 
     function persist() {
@@ -1320,6 +1469,7 @@
         }
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
+                section.fileCompletion.reset();
                 section.inputObserver.disconnect();
                 section.statusObserver.disconnect();
                 section.previewObserver.disconnect();
@@ -1388,6 +1538,7 @@
             }
             if (maximizedRun) section.collapsed = entry.id !== maximizedRun;
             section.entry = entry;
+            if (previous?.session !== entry.session || !entry.connected) section.fileCompletion.reset();
             if (!previous || previous.run !== entry.run) section.followStatus = true;
             if (!entry.connected) {
                 section.input.disabled = true;
@@ -1872,6 +2023,7 @@
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
         runStatus(snapshot.runs);
+        for (const result of snapshot.file_suggestions || []) sections.get(result.root)?.fileCompletion.show(result);
         tabs(viewers, [{ id: 'all', label: 'VM Viewer', active: true },
             { id: 'run-time', label: 'Run Time', active: true }],
             state.selected === 'run-time' ? 'run-time' : 'all', selected => {

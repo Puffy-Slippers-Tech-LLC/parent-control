@@ -118,6 +118,43 @@ def branch_names(root):
     return names
 
 
+def matching_files(root, query):
+    """Rank checkout paths without reading file contents or traversing ignored files."""
+    result = subprocess.run(['git', '-C', str(root), 'ls-files', '-z', '--cached',
+                             '--others', '--exclude-standard', '--deduplicate'],
+                            capture_output=True, timeout=2, check=True)
+    query = query.casefold()
+    candidates = []
+    for path in set(os.fsdecode(result.stdout).split('\0')):
+        if not path or re.search(r'[\x00-\x1f\x7f\ud800-\udfff]', path):
+            continue
+        folded = path.casefold()
+        name = folded.rsplit('/', 1)[-1]
+        if not query or query == folded or query == name:
+            rank = 0
+        elif name.startswith(query) or folded.startswith(query):
+            rank = 1
+        elif query in folded:
+            rank = 2
+        else:
+            remaining = iter(folded)
+            if not all(character in remaining for character in query):
+                continue
+            rank = 3
+        candidates.append((rank, len(path), path))
+    matches = []
+    for _, _, path in sorted(candidates):
+        try:
+            target = (root / path).resolve()
+            if target.is_relative_to(root) and target.is_file():
+                matches.append(path)
+        except (OSError, RuntimeError):
+            continue
+        if len(matches) == 12:
+            break
+    return matches
+
+
 class Discovery:
     """Git waits stay outside GTK. Registered roots survive idle periods."""
 

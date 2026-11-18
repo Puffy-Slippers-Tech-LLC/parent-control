@@ -213,6 +213,18 @@ unknown; inspect the authoritative transcript before submitting again. Exactly
 once delivery across a client reboot is not claimed. Snapshot polling and
 reconnection must never replay an action, start, stop or restore test execution.
 
+## File suggestions
+
+Adapters advertising `capabilities.file_search: true` accept an optional
+`file_search` field on snapshot requests. It contains `{id, root, session, query}`
+for a displayed chat session. IDs and session routing follow Session actions.
+The query is at most 512 characters and may be empty for initial suggestions.
+The reader checks the current session and searches its checkout on the source
+host. It returns `file_suggestions` with `{id, paths}`, where `paths` contains
+up to 12 matching relative file paths. An unavailable session or zero matches
+returns an empty list. Results contain filenames only. Watch inserts a selected
+path into the draft and sends it through the existing chat action.
+
 ## Launcher commands
 
 Runs may publish optional `launcher_controls: true` when their original public

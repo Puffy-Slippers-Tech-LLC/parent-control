@@ -366,6 +366,13 @@ function activate(context) {
                     bridge.revision++;
                 }
                 poll();
+            } else if (message?.type === 'fileSearch' && sessions.has(message.root) &&
+                       sessions.get(message.root) === message.session && sessionRoots.has(message.root) &&
+                       typeof message.id === 'string' && message.id.length > 0 && message.id.length <= 128 &&
+                       typeof message.query === 'string' && message.query.length <= 512 &&
+                       !/[\u0000-\u001f\u007f\ud800-\udfff]/u.test(message.query)) {
+                bridge?.searchFiles(message);
+                poll();
             } else if (message?.type === 'openRunFile' && typeof message.uri === 'string') {
                 void openArtifact(message.uri);
             } else if (message?.type === 'deleteRunTimes' && Array.isArray(message.tokens) &&

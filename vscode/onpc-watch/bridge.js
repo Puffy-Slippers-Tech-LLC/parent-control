@@ -231,6 +231,7 @@ class Source {
             retry = false;
         }
         const pending = this.pending;
+        this.fileSearch = this.fileSuggestions = undefined;
         this.log(`${message} Reader pid ${this.child?.pid ?? 'unavailable'}.` +
             (pending ? ` Operation: ${pending.operation}; elapsed: ${Math.round(performance.now() - pending.started)} ms; received: ${pending.bytes} bytes.` : '') +
             (retry ? ` Retry in ${this.backoff} ms.` : ' Manual reconnect required.'));
@@ -301,6 +302,17 @@ class Source {
                     (!value.session_result.ok && typeof value.session_result.error !== 'string')) : value.session_result != null) {
                 throw new Error('Invalid session acknowledgement.');
             }
+            if (pending.fileSearch) {
+                const result = value.file_suggestions;
+                if (result?.id !== pending.fileSearch.id || !Array.isArray(result.paths) ||
+                        result.paths.length > 12 || result.paths.some(path => typeof path !== 'string' ||
+                            path.length > 4096 || /[\u0000-\u001f\u007f]/u.test(path) ||
+                            path.split('/').some(part => !part || part === '.' || part === '..'))) {
+                    throw new Error('Invalid Watch file suggestions.');
+                }
+                this.fileSuggestions = { id: result.id, paths: result.paths,
+                    root: key(this.config.id, pending.fileSearch.root) };
+            }
             const producers = new Map(this.snapshot?.entries.map(entry => [entry.id, entry.source]));
             for (const entry of value.entries) {
                 if (producers.get(entry.id) !== entry.source) {
@@ -343,9 +355,12 @@ class Source {
             return;
         }
         const action = this.actions.shift();
+        const fileSearch = this.fileSearch;
+        this.fileSearch = undefined;
         this.send({ ...request, reset: !this.snapshot || this.status !== 'Connected',
             ...(this.snapshot?.capabilities.updates === true ? { updates: true } : {}),
-            ...(action ? { session_action: action } : {}) }, { action });
+            ...(action ? { session_action: action } : {}),
+            ...(fileSearch ? { file_search: fileSearch } : {}) }, { action, fileSearch });
     }
 
     artifact(uri) {
@@ -426,6 +441,16 @@ class Bridge {
         source.actions.push({ ...action, root: route.id });
     }
 
+    searchFiles({ root, session, query, id }) {
+        const route = this.roots.get(root);
+        const source = route?.source;
+        const run = source?.snapshot?.runs.find(run => run.id === route.id);
+        if (source?.status === 'Connected' && source.snapshot.capabilities.file_search === true &&
+                run?.session === session && run.session_view?.input_enabled && !run.session_waiting) {
+            source.fileSearch = { root: route.id, session, query, id };
+        }
+    }
+
     tick(request) {
         this.sessionRoots = new Set(request.session_roots || (request.session_root ? [request.session_root] : []));
         for (const source of this.resourceSources) {
@@ -455,7 +480,7 @@ class Bridge {
     }
 
     snapshot(request) {
-        const entries = [], runs = [], checkouts = [], hosts = [], run_times = [];
+        const entries = [], runs = [], checkouts = [], hosts = [], run_times = [], fileSuggestions = [];
         const servers = new Map();
         this.serverErrors = new Map();
         for (const source of [...this.resourceSources, ...this.sources]) {
@@ -494,6 +519,10 @@ class Bridge {
             const { id, label } = source.config;
             const value = source.snapshot;
             const connected = source.status === 'Connected';
+            if (source.fileSuggestions) {
+                fileSuggestions.push(source.fileSuggestions);
+                source.fileSuggestions = undefined;
+            }
             if (selected === 'run-time' && (!scope || scope.source === source)) {
                 for (const row of value?.run_times || []) {
                     const routeLink = uri => {
@@ -539,6 +568,7 @@ class Bridge {
                     connected,
                     session_active: connected && run.session_active,
                     session_waiting: connected && run.session_waiting,
+                    session_file_search: connected && value.capabilities.file_search === true,
                     session_view: sessionView && { ...sessionView,
                         input_enabled: connected && sessionView.input_enabled,
                         rows: rows(sessionView.rows) },
@@ -616,7 +646,7 @@ class Bridge {
         return { entries, runs: updates, checkouts, hosts, servers: [...servers.values()], connections, run_times: times,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
-            session_results: this.results.splice(0) };
+            session_results: this.results.splice(0), file_suggestions: fileSuggestions };
     }
 
     async artifact(token) {

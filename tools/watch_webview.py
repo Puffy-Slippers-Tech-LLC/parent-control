@@ -14,6 +14,7 @@ import re
 import shlex
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import time
 from urllib.parse import unquote, urlsplit
@@ -23,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAITING, CONNECTED
 from ui_watch_transport import Feeds, label
-from watch_checkouts import Discovery, checkout, identity
+from watch_checkouts import Discovery, checkout, identity, matching_files
 from watch_model import ResourceUsage, VMMemory, viewer_entries
 from watch_output import Output, SessionOutput, JsonReader, active_launchers, watch_closed, TAIL_BYTES
 from tests.integration.watch_activity import TerminalControls
@@ -727,6 +728,23 @@ class Viewer:
                 y=meta['cursor_y'] - meta['hot_y'], width=meta['cursor_width'], height=meta['cursor_height'])
         return {'screen': image}
 
+    def file_search(self, search):
+        root = search['root']
+        paths = []
+        try:
+            published = self.sent_runs.get(root)
+            session = self.sessions.get(Path(root))
+            if (published and published['session'] == search['session']
+                    and published['session_view'] and published['session_view']['input_enabled']
+                    and session and session.identity == search['session'] and session.panel
+                    and session.panel.input_mode == 'chat' and session.current()):
+                matches = matching_files(session.output.root, search['query'])
+                if session.current():
+                    paths = matches
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        return dict(id=search['id'], paths=paths)
+
     def snapshot(self, request):
         # A partial first inventory would remove retained panels after reconnect.
         # Leave time within the bridge's ten-second request deadline for rendering.
@@ -761,6 +779,8 @@ class Viewer:
                 result = dict(id=action['id'], ok=False, error=str(error))
         if request.get('reset'):
             self.images.clear()
+        search = request.get('file_search')
+        file_suggestions = self.file_search(search) if search else None
         self.roots.update(self.discovery.poll() or {})
         changed = self.discovery.poll_vms()
         if changed is not None:
@@ -900,7 +920,7 @@ class Viewer:
         policies.extend(controlled_ssh)
         watch_ssh = any(policies) if policies else True
         response = dict(protocol=1, capabilities=dict(sessions=True, session_roots=True, updates=True,
-                    artifacts=True, delete_run_times=True),
+                    artifacts=True, delete_run_times=True, file_search=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times,
                     runs=runs, session_result=result,
@@ -914,6 +934,8 @@ class Viewer:
                     resources=self.resources.text(enabled=request.get('resources', True)),
                     resource_sample=self.resources.last,
                     resource_charts=self.resources.charts)
+        if file_suggestions is not None:
+            response['file_suggestions'] = file_suggestions
         # Keep full state internally for input/artifact guards. Only the wire
         # representation omits unchanged bodies, and only after negotiation.
         previous_runs = self.sent_runs if not request.get('reset') else {}
@@ -997,7 +1019,8 @@ def main():
                 print(json.dumps(dict(protocol=1, artifact_result=result),
                                  separators=(',', ':')), flush=True)
                 continue
-            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'resources', 'session_root', 'session_roots', 'session_action'} or
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'resources',
+                                'session_root', 'session_roots', 'session_action', 'file_search'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
                     type(request.get('session_roots', [])) is not list or
@@ -1015,6 +1038,14 @@ def main():
                     or action['kind'] not in ('send', 'simplified', 'extend')
                     or len(action['text'].encode('utf-8')) > 65536):
                 raise ValueError('watch: invalid session action')
+            search = request.get('file_search')
+            if search is not None and (type(search) is not dict
+                    or set(search) != {'root', 'session', 'query', 'id'}
+                    or any(type(value) is not str for value in search.values())
+                    or any(not 0 < len(search[key]) <= 4096 for key in ('root', 'session'))
+                    or not 0 < len(search['id']) <= 128 or len(search['query']) > 512
+                    or re.search(r'[\x00-\x1f\x7f\ud800-\udfff]', search['query'])):
+                raise ValueError('watch: invalid file search')
             print(json.dumps(viewer.snapshot(request), separators=(',', ':')), flush=True)
     except BrokenPipeError:
         pass

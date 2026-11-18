@@ -195,7 +195,8 @@ def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False
     def preflight():
         import prepare_vm
         system.require(os.geteuid() == 0, 'lunar-profile:root-required')
-        system.require(prepare_vm.vm_config.selected().name == 'onpc-Ubuntu26.04-110',
+        vm = prepare_vm.vm_config.selected()
+        system.require(vm.family == 'ubuntu26.04-x86_64' and 'heavy' in vm.vm_tags,
                        'lunar-profile:target-not-qualified')
     if denial or login_denial or minecraft_access:
         from e2e_fixture_preparation import validate_input

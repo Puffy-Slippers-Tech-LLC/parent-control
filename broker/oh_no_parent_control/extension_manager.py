@@ -8,6 +8,7 @@ from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_c
 import os
 import pwd
 import re
+import selectors
 import stat
 import subprocess
 import threading
@@ -25,6 +26,7 @@ DISABLE_ALL_KEY = "disable-user-extensions"
 DISABLE_VERSION_CHECK_KEY = "disable-extension-version-validation"
 COMMAND_TIMEOUT_SECONDS = 10
 LIVE_SETTINGS_TIMEOUT_SECONDS = 4
+PRIVATE_SESSION_OUTPUT_LIMIT = 1024 * 1024
 LOG = get_logger("extension-manager")
 LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": "diagnostic-events"}
 
@@ -102,6 +104,59 @@ def _stderr_reason(value):
     if "dconf will not work properly" in value:
         return "dconf-runtime-unavailable"
     return "other"
+
+
+def _run_private_session(command, *, timeout, **options):
+    """Capture bounded output until the private session launcher exits."""
+    deadline = time.monotonic() + timeout
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          text=True, **options) as process:
+        try:
+            with selectors.DefaultSelector() as ready, os.fdopen(os.pidfd_open(process.pid), "rb") as exited:
+                ready.register(exited, selectors.EVENT_READ)
+                output = {process.stdout: bytearray(), process.stderr: bytearray()}
+                for stream in output:
+                    ready.register(stream, selectors.EVENT_READ)
+                running = True
+                oversized = set()
+                while ready.get_map() and (running or not oversized):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise subprocess.TimeoutExpired(command, timeout, stderr=(
+                            output[process.stderr].decode(process.stderr.encoding, errors="replace")))
+                    events = ready.select(remaining if running else 0)
+                    # Activated services can retain the pipes. Once the
+                    # launcher exits, drain available bytes without waiting for EOF.
+                    if not events and not running:
+                        break
+                    for key, _ in events:
+                        stream = key.fileobj
+                        if stream is exited:
+                            running = False
+                            ready.unregister(exited)
+                            continue
+                        chunk = os.read(key.fd, 65536)
+                        if not chunk:
+                            ready.unregister(stream)
+                        elif stream not in oversized:
+                            buffer = output[stream]
+                            if len(buffer) + len(chunk) > PRIVATE_SESSION_OUTPUT_LIMIT:
+                                # Let the launcher shut down its bus before
+                                # rejecting the result. Discard further output.
+                                oversized.add(stream)
+                            else:
+                                buffer.extend(chunk)
+                returncode = process.wait()
+        except BaseException:
+            process.kill()
+            raise
+        if oversized:
+            raise OSError("private GNOME command output is too large")
+        result = subprocess.CompletedProcess(
+            command, returncode, output[process.stdout].decode(process.stdout.encoding),
+            output[process.stderr].decode(process.stderr.encoding, errors="replace"))
+    result.check_returncode()
+    return result
 
 
 class ExtensionManager:
@@ -216,11 +271,13 @@ class ExtensionManager:
             deadline = min(deadline, budget[0])
         try:
             for attempt, attempt_env in attempts:
-                result = subprocess.run(
-                    attempt, check=True, text=True, capture_output=True,
-                    env=attempt_env, user=account.pw_uid, group=account.pw_gid,
-                    extra_groups=(), timeout=timeout,
-                )
+                options = dict(env=attempt_env, user=account.pw_uid, group=account.pw_gid,
+                               extra_groups=(), timeout=timeout)
+                if transport == "offline" and attempt is command:
+                    result = _run_private_session(attempt, **options)
+                else:
+                    result = subprocess.run(attempt, check=True, text=True, capture_output=True,
+                                            **options)
                 self._log_stderr(result.stderr, operation, transport, context)
                 if not (offline_read and any(
                         cache_warning in line and line.endswith("; expect degraded performance")

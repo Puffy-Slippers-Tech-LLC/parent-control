@@ -59,8 +59,9 @@ The offline-stop extension uses the same private checkout locks and a local
 capacity-admission double; it opens no live pool or libvirt connection.
 
 The extension-manager transport cases own private Unix socketpairs/pipes and
-GLib sources; their credential-drop subprocess is mocked. Every descriptor and
-source is released within its case; no live bus, account or shared path is used.
+GLib sources. Offline command capture runs bounded, reaped Python children
+with mocked credential changes. Every descriptor and source is released within
+its case; no live bus, account or shared path is used.
 Version-check reload cases dispatch private GLib sources with a mocked child
 connection and settings commands; subscription and close ownership stay local.
 

@@ -3,6 +3,7 @@ import array
 import os
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -523,13 +524,15 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["HOME"], "/home/child")
         self.assertEqual(run.call_args.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/dev/null")
 
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
-    def test_offline_settings_read_initializes_service_database_when_needed(self, run):
+    def test_offline_settings_read_initializes_service_database_when_needed(self, run, private_session):
         cache = "/home/child/.cache/dconf-service/keyfile/user"
         warning = f"dconf-WARNING: unable to open file '{cache}': missing; expect degraded performance"
         degraded = subprocess.CompletedProcess([], 0, stdout="@as []\n", stderr=warning)
         loaded = subprocess.CompletedProcess([], 0, stdout=repr([UUID]), stderr="")
-        run.side_effect = [degraded, loaded, degraded, degraded]
+        run.side_effect = [degraded, degraded]
+        private_session.side_effect = [loaded, degraded]
 
         with self.assertLogs("onpc", "INFO") as logs:
             self.assertEqual(self.manager._list(self.account, ENABLED_KEY), [UUID])
@@ -537,9 +540,10 @@ class ExtensionManagerTests(unittest.TestCase):
                 self.manager._list(self.account, ENABLED_KEY)
 
         read = ["gsettings", "get", "org.gnome.shell", ENABLED_KEY]
-        self.assertEqual([call.args[0] for call in run.call_args_list],
-                         [read, ["dbus-run-session", "--", *read]] * 2)
-        for first, retry in (run.call_args_list[:2], run.call_args_list[2:]):
+        self.assertEqual([call.args[0] for call in run.call_args_list], [read] * 2)
+        self.assertEqual([call.args[0] for call in private_session.call_args_list],
+                         [["dbus-run-session", "--", *read]] * 2)
+        for first, retry in zip(run.call_args_list, private_session.call_args_list):
             self.assertEqual(first.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/dev/null")
             self.assertNotIn("DBUS_SESSION_BUS_ADDRESS", retry.kwargs["env"])
             self.assertGreater(retry.kwargs["timeout"], 0)
@@ -554,7 +558,58 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertEqual(self.manager._list(self.account, ENABLED_KEY), [UUID])
         run.assert_called_once()
 
-    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def private_settings_command(self, script, *, pass_fds=()):
+        popen = subprocess.Popen
+
+        def start(command, *, user, group, extra_groups, **options):
+            self.assertEqual(command[:3], ["dbus-run-session", "--", "gsettings"])
+            self.assertEqual((user, group, extra_groups), (1001, 1001, ()))
+            return popen([sys.executable, "-c", script, *map(str, pass_fds)],
+                         pass_fds=pass_fds, **options)
+
+        return mock.patch("oh_no_parent_control.extension_manager.subprocess.Popen", start)
+
+    def test_offline_settings_complete_when_output_descriptors_remain_open(self):
+        # The socket queue retains both write ends until the test closes it.
+        # This reproduces a surviving service without spawning a grandchild.
+        script = ("import array, socket, sys\n"
+                  "with socket.socket(fileno=int(sys.argv[1])) as sender:\n"
+                  "    sender.sendmsg([b'x'], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [1, 2]))])\n"
+                  "print('finished')\n"
+                  "print('No such schema', file=sys.stderr)\n")
+        sender, receiver = socket.socketpair()
+        with (sender, receiver, self.private_settings_command(script, pass_fds=(sender.fileno(),)),
+              self.assertLogs("onpc", "WARNING") as logs):
+            result = self.manager._run_command(
+                self.account, ("gsettings", "set", "schema", "key", "[]"), timeout=3)
+
+        self.assertEqual(result.stdout, "finished\n")
+        self.assertTrue(any("reason=settings-schema-missing" in row for row in logs.output))
+
+    def test_offline_settings_reject_oversized_output_after_foreground_cleanup(self):
+        script = ("import os, sys\n"
+                  "print('x' * (2 * 1024 * 1024), flush=True)\n"
+                  "os.write(int(sys.argv[1]), b'finished')\n")
+        sender, receiver = socket.socketpair()
+        with sender, receiver, self.private_settings_command(script, pass_fds=(sender.fileno(),)):
+            with self.assertRaises(RuntimeError) as failed:
+                self.manager._run_command(
+                    self.account, ("gsettings", "set", "schema", "key", "[]"), timeout=5)
+            self.assertEqual(receiver.recv(16, socket.MSG_DONTWAIT), b"finished")
+        self.assertIsInstance(failed.exception.__cause__, OSError)
+
+    def test_offline_settings_require_successful_foreground_exit(self):
+        for script, expected, timeout in (
+            ("import time; time.sleep(10)", subprocess.TimeoutExpired, 0.5),
+            ("raise SystemExit(1)", subprocess.CalledProcessError, 3),
+        ):
+            with (self.subTest(expected=expected), self.private_settings_command(script),
+                  self.assertRaises(RuntimeError) as failed):
+                self.manager._run_command(
+                    self.account, ("gsettings", "set", "schema", "key", "[]"), timeout=timeout)
+            self.assertIsInstance(failed.exception.__cause__, expected)
+
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     def test_settings_failure_is_reported_as_extension_error(self, run):
         run.side_effect = subprocess.CalledProcessError(
             1, ["dbus-run-session"], stderr="session bus failed",
@@ -569,7 +624,7 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertIn("error_type=CalledProcessError", logs.output[-1])
         self.assertNotIn("session bus failed", logs.output[-1])
 
-    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     def test_successful_exit_retains_commit_warning_without_private_text(self, run):
         secret = "/home/private-child/private-file private@example.test"
         run.return_value = subprocess.CompletedProcess(
@@ -590,7 +645,7 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
         self.assertEqual(run.call_args.kwargs["env"]["LC_MESSAGES"], "C")
 
-    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     def test_successful_exit_preserves_offline_bus_root_cause_and_commit_failure(self, run):
         secret = "/home/private-child/private-file private@example.test"
         run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr=(
@@ -617,7 +672,7 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertNotIn("987654", "\n".join(logs.output))
         self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
 
-    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     def test_failed_exit_preserves_bus_failure_without_inventing_netlink_cause(self, run):
         run.side_effect = subprocess.CalledProcessError(
             1, [], stderr="dbus-run-session: dbus-daemon exited with code 1 private@example.test")

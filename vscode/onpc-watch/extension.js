@@ -342,6 +342,11 @@ function activate(context) {
                     }
                 },
                     error => errors.report('Cannot copy tab content', error));
+            } else if (message?.type === 'copyRunTimes' && selection.selected === 'run-time' &&
+                       typeof message.text === 'string') {
+                void vscode.env.clipboard.writeText(message.text).then(() => {
+                    vscode.window.setStatusBarMessage('Run time rows copied as Markdown', 1500);
+                }, error => errors.report('Cannot copy run time rows', error));
             } else if (message?.type === 'sessionView' &&
                        Array.isArray(message.roots) && message.roots.length <= runRoots.size &&
                        message.roots.every(id => runRoots.has(id))) {

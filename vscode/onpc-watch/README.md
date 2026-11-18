@@ -470,10 +470,15 @@ The last system case in an attempt includes collection, restoration and cleanup;
 its completion waits for those checks. A focused combined case has one recording
 of setup, every validation step and cleanup. In shared attempts, the first case
 owns setup and the last owns cleanup, without repeating footage in other clips.
-The first column selects case rows; its header checkbox selects all available
-rows. The footer shows the selected and total row counts. The trash button above
-the table deletes selected rows, and each row's final trash button deletes that
-row. Both require confirmation; bulk confirmation includes the selected row count.
+The first column selects case rows. Its header checkbox selects all visible
+rows, and the footer shows the selected and total row counts. **Copy** in the
+upper right copies the selected rows to the clipboard as a Markdown table.
+The table lists each VM and its duration in a separate row, with the full
+description, steps, and expected results on the first row for each case.
+
+The trash button above the table deletes selected rows when every selected row
+supports deletion. Each row's final trash button deletes that row. Both require
+confirmation, and bulk confirmation includes the selected row count.
 Deletion removes saved timing records for all VMs in those rows, including older
 duplicates of the displayed execution revision, while preserving recordings.
 Updated timings require a refresh before deletion. Older source adapters disable

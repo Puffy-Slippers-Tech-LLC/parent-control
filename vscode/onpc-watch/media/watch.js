@@ -1225,7 +1225,7 @@
 
     function select(scope, selected) {
         if (selected !== 'run-time') {
-            grid.querySelector('.run-time-search')?.remove();
+            grid.querySelector('.run-time-toolbar')?.remove();
             grid.querySelector('.run-times')?.remove();
             grid.classList.remove('runtime-body');
         }
@@ -1930,14 +1930,56 @@
         }
     }
 
+    const runTimeColumns = ['Case ID / Title', 'VM name', 'Run Time', 'Description'];
+
+    function runTimeTitle(row) {
+        const category = row.category === 'e2e' ? 'E2E' : row.category;
+        const title = Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title;
+        return `[${category}] ${title}`;
+    }
+
+    function runTimeDuration(seconds) {
+        return seconds < 60 ? `${Math.max(1, Math.round(seconds))}s` : `${Math.floor(seconds / 60 + .5)}m`;
+    }
+
+    function runTimeDescriptionSections(row) {
+        const expected = Array.isArray(row.expected) ? row.expected : [row.expected].filter(Boolean);
+        return [['Steps:', row.steps || []], ['Expected:', expected]].filter(([, items]) => items.length);
+    }
+
+    function runTimesMarkdown(groups) {
+        const escape = value => String(value)
+            .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+            .replaceAll('\\', '&#92;').replace(/[|`*_\[\]~]/g, '\\$&').replace(/\r\n?|\n/g, '<br>');
+        const line = cells => `| ${cells.join(' | ')} |`;
+        const lines = [line(runTimeColumns), line(runTimeColumns.map(() => '---'))];
+        for (const variants of groups) {
+            const row = variants[0];
+            const title = escape(runTimeTitle(row));
+            const description = [escape(row.description)];
+            for (const [label, items] of runTimeDescriptionSections(row)) {
+                description.push(`**${label}**`);
+                for (const item of items) description.push(`- ${escape(item)}`);
+            }
+            const details = description.join('<br>');
+            for (const [index, variant] of variants.entries()) {
+                lines.push(line([
+                    title, escape(variant.vm), runTimeDuration(variant.seconds), index === 0 ? details : '',
+                ]));
+            }
+        }
+        return lines.join('\n');
+    }
+
     function runTimes(rows) {
         runTimeRows = rows;
         grid.classList.add('runtime-body');
         grid.querySelector('.empty')?.remove();
-        if (!grid.querySelector('.run-time-search')) {
-            const search = document.createElement('input');
+        let toolbar = grid.querySelector('.run-time-toolbar');
+        if (!toolbar) {
+            toolbar = element('div', 'run-time-toolbar', grid);
+            const search = element('input', 'run-time-search', toolbar);
             search.type = 'search';
-            search.className = 'run-time-search';
             search.placeholder = 'Search case ID, title, VM name, description or category';
             search.setAttribute('aria-label', search.placeholder);
             search.value = runTimeQuery;
@@ -1945,7 +1987,11 @@
                 runTimeQuery = search.value;
                 runTimes(runTimeRows);
             };
-            grid.prepend(search);
+            const copy = element('button', 'copy-run-times', toolbar);
+            copy.type = 'button';
+            copy.textContent = 'Copy';
+            copy.title = 'Copy selected run time rows as Markdown';
+            grid.prepend(toolbar);
         }
         const query = runTimeQuery.trim().toLowerCase();
         const signature = JSON.stringify([rows, query]);
@@ -1962,7 +2008,7 @@
         selectAll.setAttribute('aria-label', 'Select all run time rows');
         selectHeading.append(selectAll);
         heading.append(selectHeading);
-        for (const label of ['Case ID / Title', 'VM name', 'Run Time', 'Description']) {
+        for (const label of runTimeColumns) {
             const th = document.createElement('th');
             th.textContent = label;
             heading.append(th);
@@ -1982,8 +2028,6 @@
             cell.append(a);
             return a;
         };
-        const duration = seconds => seconds < 60
-            ? `${Math.max(1, Math.round(seconds))}s` : `${Math.floor(seconds / 60 + .5)}m`;
         const play = (cell, row) => {
             if (!row.recording) return;
             cell.append(' | ');
@@ -2006,6 +2050,11 @@
             b[1][0].seconds - a[1][0].seconds || a[1][0].title.localeCompare(b[1][0].title));
         const visibleKeys = new Set(ordered.map(([key]) => key));
         for (const key of selectedRunTimes) if (!visibleKeys.has(key)) selectedRunTimes.delete(key);
+        const copy = toolbar.querySelector('.copy-run-times');
+        copy.onclick = () => {
+            const selected = ordered.filter(([key]) => selectedRunTimes.has(key)).map(([, variants]) => variants);
+            if (selected.length) vscode.postMessage({ type: 'copyRunTimes', text: runTimesMarkdown(selected) });
+        };
         const controls = table.createTHead().insertRow(0).insertCell();
         controls.colSpan = 6;
         const deleteButton = (label, action) => {
@@ -2024,7 +2073,9 @@
             button.onclick = action;
             return button;
         };
+        const eligible = key => groups.get(key).every(row => row.deletable);
         const requestDelete = keys => {
+            if (!keys.length || !keys.every(eligible)) return;
             const tokens = [...new Set(keys.flatMap(key => groups.get(key).flatMap(row => row.delete_tokens || [])))];
             vscode.postMessage({ type: 'deleteRunTimes', tokens, rows: keys.length });
         };
@@ -2033,20 +2084,19 @@
         const footer = table.createTFoot().insertRow().insertCell();
         footer.colSpan = 6;
         const checkboxes = new Map();
-        const eligible = key => groups.get(key).every(row => row.deletable);
-        for (const key of selectedRunTimes) if (!eligible(key)) selectedRunTimes.delete(key);
         const updateSelection = () => {
-            const keys = [...visibleKeys].filter(eligible);
-            selectAll.disabled = !keys.length;
-            selectAll.checked = keys.length > 0 && keys.every(key => selectedRunTimes.has(key));
-            selectAll.indeterminate = selectedRunTimes.size > 0 && !selectAll.checked;
+            const count = selectedRunTimes.size;
+            selectAll.disabled = !visibleKeys.size;
+            selectAll.checked = count > 0 && count === visibleKeys.size;
+            selectAll.indeterminate = count > 0 && !selectAll.checked;
             for (const [key, checkbox] of checkboxes) checkbox.checked = selectedRunTimes.has(key);
-            bulkDelete.disabled = !selectedRunTimes.size;
-            footer.textContent = `${selectedRunTimes.size} of ${visibleKeys.size} rows selected`;
+            copy.disabled = count === 0;
+            bulkDelete.disabled = count === 0 || ![...selectedRunTimes].every(eligible);
+            footer.textContent = `${count} of ${visibleKeys.size} rows selected`;
         };
         selectAll.onchange = () => {
             selectedRunTimes.clear();
-            if (selectAll.checked) for (const key of visibleKeys) if (eligible(key)) selectedRunTimes.add(key);
+            if (selectAll.checked) for (const key of visibleKeys) selectedRunTimes.add(key);
             updateSelection();
         };
         for (const [key, variants] of ordered) {
@@ -2054,7 +2104,6 @@
             const tr = body.insertRow();
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.disabled = !eligible(key);
             checkbox.setAttribute('aria-label', `Select ${row.title}`);
             checkbox.onchange = () => {
                 if (checkbox.checked) selectedRunTimes.add(key);
@@ -2071,9 +2120,7 @@
                 expand.className = 'vm-runs-toggle';
                 title.append(expand, ' ');
             }
-            const category = row.category === 'e2e' ? 'E2E' : row.category;
-            const caseTitle = Number.isInteger(row.id) ? `${row.id}: ${row.title}` : row.title;
-            link(title, `[${category}] ${caseTitle}`, row.case_link);
+            link(title, runTimeTitle(row), row.case_link);
             const rootRecording = document.createElement('span');
             play(rootRecording, row);
             title.append(rootRecording);
@@ -2082,7 +2129,7 @@
                 children.className = 'vm-runs';
                 for (const variant of variants) {
                     const child = document.createElement('li');
-                    child.append(`${variant.vm} | ${duration(variant.seconds)}`);
+                    child.append(`${variant.vm} | ${runTimeDuration(variant.seconds)}`);
                     play(child, variant);
                     children.append(child);
                 }
@@ -2104,7 +2151,7 @@
                 title.append(children);
             }
             tr.insertCell().textContent = row.vm;
-            tr.insertCell().textContent = duration(row.seconds);
+            tr.insertCell().textContent = runTimeDuration(row.seconds);
             const description = tr.insertCell();
             description.className = 'run-description';
             const summary = document.createElement('div');
@@ -2124,25 +2171,11 @@
             toggle.append(icon);
             const text = document.createElement('div');
             text.hidden = true;
-            const stepsLabel = document.createElement('p');
-            stepsLabel.textContent = 'Steps:';
-            const steps = document.createElement('ul');
-            for (const step of row.steps || []) {
-                const item = document.createElement('li');
-                item.textContent = step;
-                steps.append(item);
-            }
-            if (row.steps?.length) text.append(stepsLabel, steps);
-            if (row.expected) {
-                const expectedLabel = document.createElement('p');
-                expectedLabel.textContent = 'Expected:';
-                const expected = document.createElement('ul');
-                for (const outcome of Array.isArray(row.expected) ? row.expected : [row.expected]) {
-                    const item = document.createElement('li');
-                    item.textContent = outcome;
-                    expected.append(item);
-                }
-                text.append(expectedLabel, expected);
+            const sections = runTimeDescriptionSections(row);
+            for (const [label, items] of sections) {
+                element('p', '', text).textContent = label;
+                const list = element('ul', '', text);
+                for (const item of items) element('li', '', list).textContent = item;
             }
             toggle.onclick = () => {
                 text.hidden = !text.hidden;
@@ -2152,7 +2185,7 @@
                 toggle.setAttribute('aria-expanded', String(!text.hidden));
             };
             toggle.setAttribute('aria-expanded', 'false');
-            if (row.steps?.length || row.expected) {
+            if (sections.length) {
                 summary.append(' ', toggle);
                 description.append(text);
             }
@@ -2213,7 +2246,7 @@
             runTimes(snapshot.run_times || []);
             return;
         }
-        grid.querySelector('.run-time-search')?.remove();
+        grid.querySelector('.run-time-toolbar')?.remove();
         grid.querySelector('.run-times')?.remove();
         grid.classList.remove('runtime-body');
         if (!shown.length) {

@@ -1027,6 +1027,7 @@ GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
+GDM_TIME_DENIAL = 'Your account was given a time limit that’s now passed.'
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
     'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
 SECOND_PARENT_GREETER_OPERATIONS = frozenset('gdm-second-parent-' + suffix
@@ -10012,8 +10013,8 @@ class AccessibleUI:
             },
         }
 
-    def gdm_semantic_rows(self, expected, *, excluded=(), pending_child_prompt=False,
-                          pending_missing=False):
+    def gdm_semantic_rows(self, expected, *, excluded=(), pending_missing=False,
+                          snapshot=None):
         """Return declared rows; optionally leave absent rows pending, never ambiguity."""
         require(type(expected) is tuple and expected
                 and len(set(expected)) == len(expected)
@@ -10023,25 +10024,12 @@ class AccessibleUI:
                 and set(excluded) <= {PARENT, OTHER_PARENT, EXISTING_CHILD, KIOSK}
                 and not set(expected) & set(excluded),
                 'ui:gdm-account-binding')
-        require(type(pending_child_prompt) is bool and (not pending_child_prompt
-                or expected in ((PARENT, KIOSK, CHILD), (PARENT, KIOSK, EXISTING_CHILD))
-                and not excluded), 'ui:gdm-account-binding')
         require(type(pending_missing) is bool, 'ui:gdm-account-binding')
-        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
+        owner, nodes = (self.gdm_semantic_nodes(protect_text=True)
+                        if snapshot is None else snapshot)
         showing = [node for node in nodes if self.showing(node)]
-        fields = [node for node in showing if node.get_role_name() == 'password text']
-        if fields and pending_child_prompt:
-            # After guarded cancellation, the rejected child's prompt may
-            # still be present. It is pending, never a successful list result.
-            # Mixed list/prompt, wrong recipient and ambiguity still refuse.
-            require(not self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)),
-                    'ui:gdm-list-prompt-overlap')
-            recipients = [self.gdm_semantic_name(node) for node in showing
-                          if node.get_role_name() == 'label'
-                          and self.gdm_semantic_name(node) in GREETER_IDENTITIES]
-            require(recipients == [expected[-1]] and len(fields) == 1, 'ui:gdm-denial-recipient')
-            return None
-        require(not fields, 'ui:gdm-list-prompt-overlap')
+        require(not any(node.get_role_name() == 'password text' for node in showing),
+                'ui:gdm-list-prompt-overlap')
 
         bindings = {
             PARENT: (PARENT,),
@@ -10390,8 +10378,7 @@ class AccessibleUI:
             require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) == child,
                     'ui:gdm-denial-recipient')
             messages = [node for node in showing if node.get_role_name() == 'label'
-                        and self.gdm_semantic_name(node) ==
-                        'Your account was given a time limit that’s now passed.']
+                        and self.gdm_semantic_name(node) == GDM_TIME_DENIAL]
             require(len(messages) <= 1, 'ui:gdm-denial-ambiguous')
             return bool(messages)
 
@@ -10399,19 +10386,40 @@ class AccessibleUI:
         return {'recipient': CHILD_IDENTITIES[child], 'reason': 'time-limit', 'desktop_access': False}
 
     def gdm_denied_return_state(self, *, child=CHILD):
-        """Observe the list or guard the remaining empty child challenge.
-
-        GNOME can cancel in-progress verification by beginning a new challenge
-        for the same user. This is a separate, bounded navigation decision,
-        never permission to retry a credential or accept the prompt as a list.
-        """
+        """Read the current greeter destination after an independently observed denial."""
         require(not self.input_uncertain, 'ui:uncertain-input')
         require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
-        rows = self.gdm_semantic_rows((PARENT, KIOSK, child), pending_child_prompt=True)
-        if rows is not None:
-            return 'account-list'
-        require(self.password_recipient(child), 'ui:gdm-return-password-recipient')
-        return 'child-prompt'
+        owner, nodes = self.gdm_semantic_nodes(protect_text=True)
+        showing = [node for node in nodes if self.showing(node)]
+        labels = [self.gdm_semantic_name(node) for node in showing
+                  if node.get_role_name() == 'label']
+        messages = labels.count(GDM_TIME_DENIAL)
+        fields = [node for node in showing if node.get_role_name() == 'password text']
+        if self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)):
+            require(not fields and not messages, 'ui:gdm-list-prompt-overlap')
+            if self.gdm_semantic_rows((PARENT, KIOSK, child), pending_missing=True,
+                                      snapshot=(owner, showing)):
+                return 'account-list'
+            return None
+
+        recipients = [label for label in labels if label in GREETER_IDENTITIES]
+        require(not recipients or recipients == [child], 'ui:gdm-denial-recipient')
+        require(messages <= 1 and len(fields) <= 1, 'ui:gdm-denial-ambiguous')
+        # GDM can briefly hide both surfaces while replacing the rejected
+        # verification. Wait for a complete state before authorizing Escape.
+        if not recipients:
+            return None
+        if messages:
+            return 'rejected-prompt'
+        if fields:
+            field = fields[0]
+            if (self.has_state(field, self.api.StateType.SENSITIVE)
+                    and self.has_state(field, self.api.StateType.FOCUSED)):
+                interface = field.get_text_iface()
+                require(interface is not None and self.api.Text.get_character_count(interface) == 0,
+                        'ui:gdm-return-password-recipient')
+                return 'child-prompt'
+        return None
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""
@@ -15911,15 +15919,20 @@ class AccessibleUI:
             else:
                 result['initial'] = self.cancel_initial_language()
         elif operation in GREETER_OPERATIONS:
-            if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
+            if operation == 'gdm-child-time-denied':
                 result['denial'] = self.gdm_child_time_denied(child=child)
-            elif operation == 'gdm-child-denied-return-state':
-                result['return_state'] = self.wait(lambda: self.gdm_denied_return_state(child=child),
-                    'gdm-child-denied-return-state', prompt_in_predicate=True)
-            elif operation == 'gdm-child-denied-returned':
-                self.wait(lambda: self.greeter_list(child) if self.gdm_nonsecret_has_id_route()
-                          else self.gdm_semantic_rows((PARENT, KIOSK, child), pending_child_prompt=True),
-                          'gdm-child-denied-returned', prompt_in_predicate=True)
+            elif operation in GDM_DENIAL_OPERATIONS:
+                def return_state():
+                    state = self.gdm_denied_return_state(child=child)
+                    if operation == 'gdm-child-denied-returned' and state != 'account-list':
+                        return None
+                    if operation == 'gdm-child-denied-return-state' and state == 'rejected-prompt':
+                        return None
+                    return state
+
+                state = self.wait(return_state, operation, prompt_in_predicate=True)
+                if operation != 'gdm-child-denied-returned':
+                    result['return_state'] = state
             elif operation == 'gdm-installed-accounts':
                 self.gdm_semantic_rows((PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD, KIOSK))
             elif operation == 'gdm-product-free-provider':

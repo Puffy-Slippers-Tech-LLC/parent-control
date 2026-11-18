@@ -320,13 +320,13 @@ generic failed authentication is insufficient. The tuple is the fresh-child
 tuple above.
 
 `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` freshly observe
-and consume the rejected prompt before one Escape. The next public state must
-be a usable account list or that child's empty, focused masked prompt; only the
-latter authorizes one additional Escape. Final usable account-list observation
-is mandatory. Discard transition scopes containing defunct nodes and reacquire
-within the existing deadline. Persistent stale state, wrong/ambiguous owners or
-recipients refuse before input/acknowledgement. Never replay credentials or
-accept a prompt as the final destination. Retained lock/unlock remains separate.
+the greeter after the time-limit message has been verified. If GDM has already
+returned to a usable account list, no Escape is needed. A visible rejection or
+the same child's empty, focused masked prompt allows one Escape. Only a fresh
+empty prompt following Escape from the rejection allows a second Escape. The
+helper independently verifies the final usable account list. It waits through
+incomplete transition states within the existing deadline and refuses ambiguous
+or wrong owners and recipients. Credentials are never replayed.
 
 #### Jordan daily access qualification
 

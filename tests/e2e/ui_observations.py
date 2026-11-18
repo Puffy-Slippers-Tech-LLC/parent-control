@@ -176,7 +176,7 @@ OPERATION_LABELS = {
     'child-countdown-animation-off': 'Disabling the child countdown animation preference',
     'child-countdown-animation-wrong-account-refused': 'Refusing countdown preference input on another account',
     'gdm-child-time-denied': 'Observing the intended child’s specific time-limit rejection',
-    'gdm-child-denied-return-ready': 'Reobserving the rejected child prompt before normal return',
+    'gdm-child-denied-return-ready': 'Checking the current greeter state after the child time denial',
     'gdm-child-denied-return-state': 'Checking the account list or a fresh empty child prompt after Cancel',
     'gdm-child-denied-returned': 'Observing the usable account list after rejection',
     **{operation: 'Reviewing the automatic Parent error report without sending it'
@@ -3387,7 +3387,7 @@ class UiObservations:
                 'child': accessible_ui.CHILD_IDENTITIES[ready_child], 'ready': True},
                 'ui:request-readiness-response')
             expected['request_readiness'] = result['request_readiness']
-        if operation in ('gdm-child-time-denied', 'gdm-child-denied-return-ready'):
+        if operation == 'gdm-child-time-denied':
             require(type(result) is dict and set(result) == {*expected, 'denial'}
                     and type(result['denial']) is dict
                     and result['denial'] == {'recipient': accessible_ui.CHILD_IDENTITIES[
@@ -3395,8 +3395,11 @@ class UiObservations:
                         'reason': 'time-limit', 'desktop_access': False}
                     and result['denial']['desktop_access'] is False, 'ui:time-denial')
             expected['denial'] = result['denial']
-        if operation == 'gdm-child-denied-return-state':
-            require(result.get('return_state') in ('account-list', 'child-prompt'), 'ui:denial-return-state')
+        if operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-return-state'):
+            states = ('account-list', 'child-prompt')
+            if operation == 'gdm-child-denied-return-ready':
+                states += ('rejected-prompt',)
+            require(result.get('return_state') in states, 'ui:denial-return-state')
             expected['return_state'] = result['return_state']
         require(result == expected, 'ui:response')
         if operation == 'gdm-wrong-recipient-refused':

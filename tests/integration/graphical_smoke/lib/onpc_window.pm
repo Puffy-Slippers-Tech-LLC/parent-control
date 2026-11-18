@@ -5,7 +5,7 @@ use onpc_progress ();
 use testapi ();
 
 # UI18: consume the registered surface proof before its normal close operation.
-# Product closes use the App UI API; external windows retain guarded Alt-F4.
+# Product closes use the App UI API; game launchers use their command adapter.
 # The result checkpoint independently checks absence and the underlying surface.
 sub close {
     onpc_progress::operation('Closing the current window');
@@ -31,7 +31,8 @@ sub close {
     $before = $invocation . $before;
     $after = $invocation . $after;
     $journey->consume_observation($before, $proof);
-    testapi::send_key('alt-f4') if $window eq 'license' || $window eq 'minecraft';
+    testapi::send_key('alt-f4') if $window eq 'license';
+    $journey->seen($invocation . 'minecraft-stop') if $window eq 'minecraft';
     return $journey->seen($after);
 }
 

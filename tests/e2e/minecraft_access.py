@@ -13,6 +13,7 @@ def launcher(prefix):
     return prefixed_stages(prefix, {
         'launch': 'ui:minecraft-launch', 'opened': 'ui:minecraft-opened',
         'minecraft-close-ready': 'ui:minecraft-close-ready',
+        'minecraft-stop': 'ui:minecraft-stop',
         'minecraft-closed': 'ui:minecraft-closed'})
 
 

@@ -959,7 +959,7 @@ def observe_maintenance(lease, *, check, label, intention, ui_operation, child=N
 
 
 def reproduce_lunar_access(lease, fixture_selection):
-    """Retain case 253's child return before the replacement-grant reboot."""
+    """Retain the first Lunar startup for command-lifecycle diagnosis."""
     sys.path.insert(0, str(system.ROOT / 'tests/e2e'))
     from lunar_access_case import LunarAccessJourney, PLAN
     from tools.test_storage import named_input
@@ -967,8 +967,8 @@ def reproduce_lunar_access(lease, fixture_selection):
     assets = named_input(vm_source=True, package_source=True, fixture_source=True)
     system.require(assets.is_dir(), 'diagnosis:fixture-inputs-required')
     return reproduce_denial(lease, LunarAccessJourney, PLAN,
-        'replacement-before-child-desktop', 'lunar-access', assets=assets,
-        boundary_operation='standard-desktop', fixture_selection=selection, timeout=1800)
+        'initial-hidden-present', 'lunar-access', assets=assets,
+        fixture_selection=selection, timeout=1800)
 
 
 def probe_minecraft_close(lease):
@@ -1007,7 +1007,7 @@ def probe_lunar_launch_quit(lease):
 
         ui = UiObservations(DiagnosticTransport())
         for action in ('observer-ready', 'quit', 'closed', 'launch', 'opened',
-                       'snapshot', 'settings', 'settings-opened', 'quit', 'closed'):
+                       'snapshot', 'quit', 'closed'):
             print('lunar-probe: operation=' + action, flush=True)
             result = ui.observe('lunar-' + action)
             if 'lunar' in result:
@@ -2138,8 +2138,9 @@ def reproduce_denial(lease, journey_type, plan, boundary, surface, *, boundary_o
             and boundary == 'logout' and boundary_operation == 'system:parent-logout')
         lunar_access = (surface == 'lunar-access'
             and journey_type is LunarAccessJourney and plan is LUNAR_ACCESS_PLAN
-            and boundary == 'replacement-before-child-desktop'
-            and boundary_operation == 'standard-desktop')
+            and ((boundary == 'replacement-before-child-desktop'
+                  and boundary_operation == 'standard-desktop')
+                 or (boundary == 'initial-hidden-present' and boundary_operation is None)))
         system.require(selected_setup and (ineligible_approver or remove_selected or remove_last_child or restoration or natural_access or natural_expiry or natural_reminder or fullscreen_return or fullscreen_request or rest_of_day or countdown_grant or suspend_active_grant or suspend_expired_grant or overlay_activity or overlay_return or panel_request or native_denial or native_files or native_desktop or native_desktop_new_window or grant_logout or match_editor or policy_legend or app_rule_return or revocation_return or overlay_lock_case or app_restart_choices or reboot_context or flatpak_grid or flatpak_temporary_access or native_temporary_access or native_desktop_access or expired_sign_out or daily_soft_balance or versioned_assets or lunar_access)
             and assets is not None and actions is None and not native_log and not unlock_capture
             and type(timeout) is int and timeout == 1800, 'diagnosis:restoration-binding')

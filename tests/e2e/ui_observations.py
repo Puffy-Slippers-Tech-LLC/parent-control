@@ -24,7 +24,7 @@ UI_PROGRAM_SOURCES = {
     **{name: f'tests/e2e/{name}.py' for name in (
         'application_ui', 'session_control', 'public_atspi', 'block_semantics',
         'feedback_formats', 'download_destination', 'fixture_ui',
-        'guest_files', 'lunar_profile_guest', 'lunar_ui', 'minecraft_ui')},
+        'guest_files', 'flatpak_launcher', 'lunar_profile_guest', 'launcher_commands')},
 }
 
 
@@ -73,18 +73,17 @@ OPERATION_LABELS = {
         ('observer-ready', 'Preparing public Minecraft launcher observations for [Child user]'),
         ('launch', 'Opening the supplied separate Minecraft launcher for [Child user]'),
         ('command-blocked', 'Checking that the parent’s block refuses Minecraft'),
-        ('opened', 'Reading the usable signed-out Minecraft launcher'),
-        ('close-ready', 'Checking the Minecraft window before normal closure'),
+        ('opened', 'Reading the running Minecraft launcher through Flatpak'),
+        ('close-ready', 'Checking the owned Minecraft instance before stopping it'),
+        ('stop', 'Stopping the verified Minecraft instance through Flatpak'),
         ('closed', 'Checking complete public Minecraft launcher absence'))},
     **{'lunar-' + action: label for action, label in (
         ('observer-ready', 'Preparing public launcher observations for [Child user]'),
         ('launch', 'Opening the supplied original Lunar launcher for [Child user]'),
         ('command-blocked', 'Checking that the parent’s block refuses the original Lunar launcher'),
-        ('opened', 'Reading the usable signed-out Lunar launcher'),
-        ('snapshot', 'Reading the child’s Lunar window and tray entry'),
-        ('settings', 'Opening Lunar settings through its normal menu'),
-        ('settings-opened', 'Reading Lunar settings without changing them'),
-        ('quit', 'Choosing Lunar Quit Launcher'),
+        ('opened', 'Reading the running Lunar launcher through system commands'),
+        ('snapshot', 'Reading the child’s running Lunar launcher through system commands'),
+        ('quit', 'Stopping the verified Lunar launcher through system commands'),
         ('closed', 'Checking complete public Lunar absence for [Child user]'))},
     **{operation: 'Checking the remembered parent and the eligible replacement'
        for operation in accessible_ui.APPROVER_CHANGE_OPERATIONS},
@@ -1901,21 +1900,10 @@ class UiObservations:
         expected = {'operation': operation, 'outcome': 'passed', 'interface': 'ApplicationUI+external-provider'}
         if parent is not None:
             expected['management_parent'] = parent
-        if operation in ('minecraft-opened', 'minecraft-close-ready'):
+        if operation in ('minecraft-opened', 'minecraft-close-ready', 'minecraft-stop'):
+            from launcher_commands import validate_receipt
             value = result.get('minecraft')
-            require(type(value) is dict and set(value) == {'owner', 'window', 'provider'},
-                    'ui:minecraft-response')
-            owner, window = value['owner'], value['window']
-            require(type(owner) is list and len(owner) == 3
-                    and type(owner[0]) is int and owner[0] > 0
-                    and all(type(item) is str and item.isascii() and item.isdecimal()
-                            for item in owner[1:])
-                    and type(window) is list and len(window) == 2
-                    and type(window[0]) is str and re.fullmatch(r':[0-9]+\.[0-9]+', window[0])
-                    and type(window[1]) is str and re.fullmatch(r'/[A-Za-z0-9_/]+', window[1])
-                    and value['provider'] == {'version': '3.43.21', 'flatpak': '1.16.6',
-                                             'locale': 'en-US', 'keyboard': [['xkb', 'us']]},
-                    'ui:minecraft-response')
+            validate_receipt(value, 'minecraft', require)
             expected['minecraft'] = value
         if operation == 'minecraft-command-blocked':
             require(result.get('minecraft') == {'denial': 'administrator-policy'},
@@ -1924,24 +1912,14 @@ class UiObservations:
         if operation == 'lunar-command-blocked':
             value = result.get('lunar')
             require(type(value) is dict and set(value) == {'denial'}
-                    and value['denial'] in ('permission-denied', 'operation-not-permitted'),
+                    and value['denial'] in ('permission-denied', 'operation-not-permitted',
+                                            'administrator-policy'),
                     'ui:lunar-denial-response')
             expected['lunar'] = value
         if operation in ('lunar-opened', 'lunar-snapshot'):
+            from launcher_commands import validate_receipt
             value = result.get('lunar')
-            require(type(value) is dict and set(value) == {'owner', 'tray', 'window'},
-                    'ui:lunar-response')
-            owner, tray, window = value['owner'], value['tray'], value['window']
-            require(type(owner) is list and len(owner) == 3
-                    and type(owner[0]) is int and owner[0] > 0
-                    and type(owner[1]) is str and owner[1].isascii() and owner[1].isdecimal()
-                    and type(owner[2]) is int and owner[2] > 0, 'ui:lunar-response')
-            def endpoint(value):
-                return (type(value) is list and len(value) == 2
-                        and type(value[0]) is str and re.fullmatch(r':[0-9]+\.[0-9]+', value[0])
-                        and type(value[1]) is str and re.fullmatch(r'/[A-Za-z0-9_/]+', value[1]))
-            require(endpoint(tray) and (window is None or endpoint(window)), 'ui:lunar-response')
-            require(window is not None or operation == 'lunar-snapshot', 'ui:lunar-response')
+            validate_receipt(value, 'lunar', require)
             expected['lunar'] = value
         if operation in ('child-natural-reminder-wait', 'child-reminder-history-wait'):
             value = result.get('natural_reminder')

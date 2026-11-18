@@ -9,7 +9,7 @@ from watch_activity import operation
 def guest_source():
     root = Path(__file__).parent
     source = 'import sys, types\n'
-    for name in ('guest_files', 'session_control'):
+    for name in ('guest_files', 'session_control', 'flatpak_launcher'):
         source += (f'm = types.ModuleType({name!r}); sys.modules[{name!r}] = m\n'
                    f'exec({(root / (name + ".py")).read_text()!r}, m.__dict__)\n')
     return source.encode() + (root / 'lunar_profile_guest.py').read_bytes()
@@ -24,7 +24,8 @@ class LunarProfile(PackagedFixtures):
         self.used = True
         with operation("Checking the supplied launchers and autostart settings for [Child user]"):
             first = self.read('read')
-            require(first.get('profile') == 'lunar-manual' and first.get('autostart') == 'DOCKED'
-                    and first.get('after_launch') == 'HIDE', 'lunar-profile:receipt')
+            require((first.get('profile'), first.get('autostart')) in (
+                ('lunar-flatpak', 'flatpak-login'), ('lunar-manual', 'desktop-login')),
+                'lunar-profile:receipt')
             require(self.read('read') == first, 'lunar-profile:independent-readback')
             return {**first, 'independent_readback': True}

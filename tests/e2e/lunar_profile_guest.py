@@ -1,4 +1,4 @@
-"""Read only the supplied Jordan launcher profile. Never install or repair it."""
+"""Verify supplied launchers; Fedora's attempt owns its standard autostart entry."""
 import configparser
 import hashlib
 import json
@@ -10,32 +10,12 @@ import stat
 import subprocess
 import sys
 
-from guest_files import directory, identity, read_regular
+from guest_files import directory, identity, read_regular, write_exclusive
+import flatpak_launcher
 import session_control
 
-APPIMAGE = 'Applications/Lunar Client-3.7.36-ow_62fe2fee4e3cba848dfd2426f875152f.AppImage'
-APPIMAGE_SHA256 = 'cc190995a67db7f27eb438af62d0fb67288dee6b5c66a7b2bf9d4fd9888777e2'
-INTEGRATED = 'appimagekit_349c057c5506142f859a39412c2722d9-Lunar_Client.desktop'
+APPIMAGE_PATTERN = 'Lunar Client-*.AppImage'
 MINECRAFT = 'com.mojang.Minecraft'
-MINECRAFT_COMMIT = 'ae896ae7bb78f075463a380d85694caad4f7d3adae8cdee7ad3dd2e3850d89a5'
-# Essential launcher/Chromium inputs from the pinned bootstrap/core manifests
-# https://redstone-launcher.mojang.com/release/v2/packages/af22922eacb22d1ad5017ef0fa30a8c471556790/manifest.json
-# https://redstone-launcher.mojang.com/release/v2/packages/519febb9e10f895d024c62052b2ed21a8341a869/manifest.json
-# No games, extensions or full locale/media inventory.
-MINECRAFT_FILES = {
-    'minecraft-launcher': ('724e2eb4ea55c07cd955f07537a06ce9512a5960', 3272968, 0o755),
-    'liblauncher.so': ('34671083229495fe9ac656829a69d34642b1422a', 33837872, 0o644),
-    'libcef.so': ('6fc6e59c8f67e52ab49aa6979e75376f8ccae1b1', 218760864, 0o755),
-    'libEGL.so': ('4a4ff5fe557713f4d924ae9b3428822e069b19a8', 913288, 0o755),
-    'libGLESv2.so': ('01ed939e9529dae5cd9de13459f2bdc1997767d5', 26950080, 0o755),
-    'icudtl.dat': ('99f545bc396878c7a53e98a79017d9531af7c1f5', 10468208, 0o644),
-    'resources.pak': ('4dfe88c0a36a205b48105eee834fa933b5bebe07', 8816122, 0o644),
-    'chrome_100_percent.pak': ('8f463534b3b29f37fb802a940ba537bac271029f', 680941, 0o644),
-    'chrome_200_percent.pak': ('40bc019888bb7dfb2bb230fc365adff789114691', 1064895, 0o644),
-    'snapshot_blob.bin': ('3315cf6a79a2c6be1af63bec450bb35a3058cf3a', 317550, 0o755),
-    'v8_context_snapshot.bin': ('6e235702cdf292ab3820d22e21a24a277f329c86', 671997, 0o755),
-    'locales/en-US.pak': ('81e2ca4aee93e0b0103270f263eafc06397894db', 478405, 0o644),
-}
 
 
 def require(value, code):
@@ -50,8 +30,44 @@ def command(argv, *, code):
     return result.stdout.strip()
 
 
+def appimage_path(home):
+    """Follow the supplied stable desktop alias, within its version wildcard."""
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read_string((home / '.local/share/applications/lunarclient.desktop').read_text())
+    path = Path(parser['Desktop Entry']['TryExec'])
+    require(path.parent == home / 'Applications' and path.match(APPIMAGE_PATTERN)
+            and path.is_file() and not path.is_symlink(), 'appimage-route')
+    return path
+
+
+def prepare_integration(child, home, read, original=None):
+    """Shared optional AppImageLauncher setup, independent of the OS."""
+    cli = Path('/usr/bin/ail-cli')
+    if not cli.exists():
+        require(original is None, 'desktop-integration-tool')
+        return
+    require(cli.resolve().is_file() and cli.resolve().stat().st_uid == 0
+            and not cli.resolve().stat().st_mode & 0o022, 'desktop-integration-tool')
+    require(not any(session.get('User') == str(child.pw_uid)
+                    for session in session_control.sessions().values()), 'integration-active-child')
+    # The public CLI is idempotent. A missing first-run configuration otherwise
+    # opens a dialog even for an integrated image. Snapshot cleanup owns this
+    # finite default; existing user preferences remain in place.
+    with directory(home / '.config', child, private_group=True) as (fd, guard):
+        if not os.path.lexists(home / '.config/appimagelauncher.cfg'):
+            write_exclusive(fd, 'appimagelauncher.cfg',
+                b'[AppImageLauncher]\nask_to_move=false\n', owner=child.pw_uid,
+                group=child.pw_gid, mode=0o600)
+        guard()
+    read('.config/appimagelauncher.cfg')
+    if original is not None:
+        command(['/usr/sbin/runuser', '-u', child.pw_name, '--', str(cli),
+                 'integrate', str(original)], code='desktop-integration')
+        require(appimage_path(home) == original, 'integration-route-changed')
+
+
 def verify(action, preparation):
-    require(os.geteuid() == 0 and action == 'read', 'authority')
+    require(os.geteuid() == 0 and action in ('read', 'prepare'), 'authority')
     child = pwd.getpwnam(session_control.ACCOUNTS['standard'])
     home = Path(child.pw_dir)
     require(child.pw_uid >= 1000 and child.pw_gid >= 1000, 'child-account')
@@ -80,8 +96,16 @@ def verify(action, preparation):
     # The guarded transport already binds the restored VM/run; bind its baseline too.
     marker = json.loads(Path('/etc/oh-no-parent-control-test-baseline.json').read_text())
     require(marker['preparation_script_sha256'] == preparation, 'stale-baseline')
-    appimage = read(APPIMAGE, modes=(0o700, 0o755, 0o775), limit=512 * 1024 * 1024)
-    require(hashlib.sha256(appimage).hexdigest() == APPIMAGE_SHA256, 'original-appimage-digest')
+    fedora = flatpak_launcher.fedora()
+    original = None if fedora else appimage_path(home)
+    if action == 'prepare':
+        prepare_integration(child, home, read, original)
+    minecraft_commit = verify_flatpak(MINECRAFT, 'minecraft', home)
+    if fedora:
+        return verify_fedora(action, child, home, read, files, minecraft_commit)
+    appimage = read(str(original.relative_to(home)), modes=(0o700, 0o755, 0o775),
+                    limit=512 * 1024 * 1024)
+    require(appimage[:4] == b'\x7fELF' and appimage[8:11] == b'AI\x02', 'appimage-format')
     del appimage
     package = command(['/usr/bin/dpkg-query', '--show', '--showformat=${Version}', 'appimagelauncher'],
                       code='appimagelauncher-package')
@@ -108,70 +132,88 @@ def verify(action, preparation):
         parser = configparser.ConfigParser(interpolation=None, strict=True)
         parser.read_string(read(relative, modes=(0o600, 0o644, 0o664, 0o700, 0o755, 0o775)).decode())
         entry = parser['Desktop Entry']
-        expected = [str(home / APPIMAGE), '--no-sandbox'] + (['--hidden'] if hidden else ['%U'])
+        expected = [str(original), '--no-sandbox'] + (['--hidden'] if hidden else ['%U'])
         require(entry['Type'] == 'Application' and shlex.split(entry['Exec']) == expected
-                and entry.get('TryExec') == str(home / APPIMAGE)
+                and entry.get('TryExec') == str(original)
                 and entry.get('Hidden', 'false') == 'false'
                 and entry.get('X-GNOME-Autostart-enabled', 'true') == 'true'
                 and entry.get('Terminal', 'false') == 'false', 'launcher-route')
         return entry
 
-    integrated = desktop('.local/share/applications/' + INTEGRATED)
-    require(integrated['X-AppImage-Version'] == '3.7.36-ow'
-            and integrated['Icon'] == 'appimagekit_349c057c5506142f859a39412c2722d9_lunarclient',
-            'integrated-version-icon')
-    icon = str(home / '.local/share/icons/hicolor/512x512/apps/lunarclient.png')
-    require(desktop('.local/share/applications/lunarclient.desktop')['Icon'] == icon
-            and desktop('.config/autostart/lunarclient.desktop', hidden=True)['Icon'] == icon,
-            'launcher-icon-route')
-    for icon in ('1024x1024/apps/appimagekit_349c057c5506142f859a39412c2722d9_lunarclient.png',
-                 '512x512/apps/lunarclient.png'):
-        require(read('.local/share/icons/hicolor/' + icon, limit=1024 * 1024).startswith(
-            b'\x89PNG\r\n\x1a\n'), 'launcher-icon')
-    settings = json.loads(read('.lunarclient/settings/launcher.json'))['settings']
-    require(settings['computerStartup'] == 'DOCKED' and settings['afterLaunchAction'] == 'HIDE',
-            'autostart-tray-settings')
+    integrated = (home / '.local/share/applications').glob('appimagekit_*-Lunar_Client.desktop')
+    matching = []
+    for path in integrated:
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read_string(read(str(path.relative_to(home)),
+            modes=(0o600, 0o644, 0o664, 0o700, 0o755, 0o775)).decode())
+        if parser['Desktop Entry'].get('TryExec') == str(original):
+            matching.append(path)
+    require(len(matching) == 1, 'integrated-launcher')
+    integrated_name = matching[0].name
+    desktop('.local/share/applications/' + integrated_name)
+    desktop('.local/share/applications/lunarclient.desktop')
+    desktop('.config/autostart/lunarclient.desktop', hidden=True)
+    return {'profile': 'lunar-manual', 'files': files,
+            'appimagelauncher': package, 'minecraft_commit': minecraft_commit,
+            'autostart': 'desktop-login',
+            'targets': {'original_appimage': str(original),
+                        'version_pattern': str(home / 'Applications/Lunar Client-*.AppImage'),
+                        'integrated_launcher': integrated_name,
+                        'minecraft_launcher': MINECRAFT + '.desktop'}}
 
-    info = lambda option, app=MINECRAFT: command(['/usr/bin/flatpak', 'info', '--system', option, app],
-                                                code='minecraft-installed:' + app + ':' + option)
-    require(info('--show-commit') == MINECRAFT_COMMIT
-            and info('--show-ref') == 'app/com.mojang.Minecraft/x86_64/stable', 'minecraft-identity')
+
+def verify_flatpak(app, executable, home):
+    """Verify the current system deployment and its normal exported command."""
+    info = lambda option: command(['/usr/bin/flatpak', 'info', '--system', option, app],
+                                  code='flatpak-input:' + app + ':' + option)
+    commit = info('--show-commit')
+    require(len(commit) == 64 and all(c in '0123456789abcdef' for c in commit)
+            and info('--show-ref') == 'app/' + app + '/x86_64/stable', 'flatpak-identity')
     metadata = configparser.ConfigParser(interpolation=None)
     metadata.read_string(info('--show-metadata'))
-    require(metadata['Application']['runtime'] == 'org.freedesktop.Platform/x86_64/25.08'
-            and metadata['Application']['command'] == 'minecraft', 'minecraft-runtime')
-    runtime = info('--show-commit', 'org.freedesktop.Platform/x86_64/25.08')
-    require(len(runtime) == 64 and all(c in '0123456789abcdef' for c in runtime), 'minecraft-runtime')
-    desktop_path = Path('/var/lib/flatpak/exports/share/applications/com.mojang.Minecraft.desktop')
-    deployment = Path(info('--show-location'))
-    require(deployment == Path('/var/lib/flatpak/app/com.mojang.Minecraft/x86_64/stable')
-            / MINECRAFT_COMMIT and desktop_path.resolve() == deployment
-            / 'export/share/applications/com.mojang.Minecraft.desktop', 'minecraft-desktop-target')
-    entry = configparser.ConfigParser(interpolation=None)
-    entry.read_string(command(['/usr/bin/cat', str(desktop_path)], code='minecraft-desktop-route'))
-    require(entry['Desktop Entry']['Type'] == 'Application'
-            and shlex.split(entry['Desktop Entry']['Exec']) == ['/usr/bin/flatpak', 'run',
-                '--branch=stable', '--arch=x86_64', '--command=minecraft', MINECRAFT]
-            and entry['Desktop Entry'].get('Hidden', 'false') == 'false', 'minecraft-desktop-route')
-    # Reject user-scope shadowing of the supplied system app/command route.
-    for relative in ('.local/share/flatpak/app/' + MINECRAFT,
+    require(metadata['Application']['command'] == executable, 'flatpak-command')
+    deployment = Path('/var/lib/flatpak/app') / app / 'x86_64/stable' / commit
+    desktop = Path('/var/lib/flatpak/exports/share/applications') / (app + '.desktop')
+    require(info('--show-location') == str(deployment) and desktop.resolve() ==
+            deployment / 'export/share/applications' / (app + '.desktop'), 'flatpak-export')
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read_string(desktop.read_text())
+    entry = parser['Desktop Entry']
+    require(entry['Type'] == 'Application' and entry['X-Flatpak'] == app
+            and entry.get('Hidden', 'false') == 'false'
+            and shlex.split(entry['Exec']) == ['/usr/bin/flatpak', 'run', '--branch=stable',
+                '--arch=x86_64', '--command=' + executable, app], 'flatpak-launcher')
+    for relative in ('.local/share/flatpak/app/' + app,
                      '.local/share/flatpak/overrides/global',
-                     '.local/share/flatpak/overrides/' + MINECRAFT,
-                     '.local/share/applications/' + MINECRAFT + '.desktop'):
-        require(not os.path.lexists(home / relative), 'minecraft-user-shadow')
-    launcher = '.var/app/com.mojang.Minecraft/.minecraft/launcher/'
-    require(read(launcher + 'bootstrap.version').strip() == b'2.6.12'
-            and read(launcher + '.version').strip() == b'3.43.21', 'minecraft-version')
-    for name, (sha1, size, mode) in MINECRAFT_FILES.items():
-        content = read(launcher + name, modes=(mode,), limit=size)
-        require(len(content) == size and hashlib.sha1(content).hexdigest() == sha1,
-                'minecraft-file-digest:' + name)
-    return {'profile': 'lunar-manual', 'files': files,
-            'appimagelauncher': package, 'minecraft_commit': MINECRAFT_COMMIT,
-            'minecraft_runtime_commit': runtime, 'autostart': 'DOCKED', 'after_launch': 'HIDE',
-            'targets': {'original_appimage': str(home / APPIMAGE),
-                        'version_pattern': str(home / 'Applications/Lunar Client-*.AppImage'),
-                        'integrated_launcher': INTEGRATED,
+                     '.local/share/flatpak/overrides/' + app,
+                     '.local/share/applications/' + app + '.desktop'):
+        require(not os.path.lexists(home / relative), 'flatpak-user-shadow')
+    return commit
+
+
+def verify_fedora(action, child, home, read, files, minecraft_commit):
+    """Verify supplied system Flatpaks; the attempt owns only its autostart entry."""
+    lunar_commit = verify_flatpak(flatpak_launcher.LUNAR, 'lunarclient', home)
+    name = 'onpc-test-lunar-flatpak.desktop'
+    content = ('[Desktop Entry]\nType=Application\nName=Lunar Client\n'
+               'Exec=/usr/bin/flatpak run --branch=stable --arch=x86_64 '
+               '--command=lunarclient ' + flatpak_launcher.LUNAR + '\n'
+               'X-GNOME-Autostart-enabled=true\n').encode()
+    if action == 'prepare':
+        require(not any(session.get('User') == str(child.pw_uid)
+                        for session in session_control.sessions().values()), 'autostart-active-child')
+        with directory(home / '.config/autostart', child, private_group=True) as (fd, guard):
+            if not os.path.lexists(home / '.config/autostart' / name):
+                write_exclusive(fd, name, content, owner=child.pw_uid,
+                                group=child.pw_gid, mode=0o600)
+            guard()
+    require(read('.config/autostart/' + name, modes=(0o600,)) == content, 'flatpak-autostart')
+    lunar_id = 'parent-app-' + hashlib.sha256(
+        (flatpak_launcher.LUNAR + '.desktop').encode()).hexdigest()[:16]
+    return {'profile': 'lunar-flatpak', 'files': files, 'autostart': 'flatpak-login',
+            'lunar_commit': lunar_commit, 'minecraft_commit': minecraft_commit,
+            'targets': {'lunar_policy_app': lunar_id,
+                        'lunar_launcher': flatpak_launcher.LUNAR + '.desktop',
                         'minecraft_launcher': MINECRAFT + '.desktop'}}
 
 

@@ -2033,8 +2033,7 @@ coexist. Reacquire read-only within the existing functional deadline until one
 complete owned surface is ready; ambiguity never authorizes input. An ordinary
 non-secret dialog may need an explicit prompt-guard exception, scoped to its
 owned surface and public controls, while password and unknown-prompt refusals
-remain active. The [Lunar adapter](../e2e/lunar_ui.py) demonstrates both boundaries;
-diagnose the actual provider state before changing selectors or adding retries.
+remain active. Diagnose the actual provider state before changing selectors or adding retries.
 
 External launcher adapters share `AccessibleUI.enable_screen_reader` for ordinary
 accessibility activation and `desktop_applications` for the complete bounded
@@ -2042,8 +2041,11 @@ registry read. Activate accessibility in the bound desktop only after the
 provider's prompt guard; keep provider identity, readiness, ambiguity and
 independent absence checks in the adapter. A missing application in an
 incomplete registry is never absence.
-Lunar and Minecraft reuse these mechanics without sharing their distinct
-AppImage/tray and Flatpak ownership qualifications.
+Lunar and Minecraft instead use [command-only launcher operations](../e2e/launcher_commands.py)
+for launch, status, policy denial and owned stop. They require no game accessibility
+tree, tray service, GUI close action or screen-reader setting.
+Ubuntu's current version is resolved through its stable desktop alias
+and same-directory wildcard; idempotent CLI integration handles first-run setup.
 
 When composing `desktop_entry`, declare only its sign-in observations in the
 ordered `invocations`: `source-desktop` and `source-greeter` belong to the source

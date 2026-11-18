@@ -2598,57 +2598,57 @@ and retain the independent owner/window binding on both parents' returns.
 ### E2E-052
 
 **Implementation:** `tests/e2e/lunar_access_case.py` / `onpc_app_rows::lunar_access`;
-complete public access history. **Lunar Client login autostart cannot bypass an
-ungranted soft block.** Case 253, route `appimagelauncher-login-autostart`;
-one independent 1800-second customer attempt.
+case 253, historical selector `appimagelauncher-login-autostart`, one independent
+1800-second attempt. The same case uses OS-specific supplied packages and shared
+command-only game operations.
 
-Use Jamie/Jordan fixture roles and the
-[manually supplied launcher profile](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate)
-after ordinary restore. Bind Lunar's original AppImage, integrated launcher,
-same-directory `Lunar Client-*.AppImage` pattern and supplied autostart settings,
-plus the separate normal Minecraft launcher and its policy target. Report actual
-input drift before setup changes; do not install, download or reconstruct either app.
+Use Jamie/Jordan fixture roles after ordinary installed-snapshot restore.
+Ubuntu retains the original Lunar AppImage, AppImageLauncher integration,
+same-directory version pattern and supplied login autostart. Fedora uses the
+installed system Flatpaks `com.lunarclient.LunarClient` and
+`com.mojang.Minecraft`; both have precise policy identities. Fedora setup creates
+only its finite attempt-owned standard Lunar autostart entry, refusing unsafe
+or mismatching files; outer snapshot restoration removes it. Neither route
+installs games or forces upgrades. Ubuntu resolves the stable
+desktop alias within `Applications/Lunar Client-*.AppImage`, accepting newer supplied
+versions. Its idempotent CLI integration and missing first-run configuration
+handling prevent optional AppImageLauncher dialogs before login. Normal vendor
+auto-updates remain enabled; the wildcard accepts replacement Lunar versions.
+Verify the supplied
+[profiles and command ownership](E2E-Building-Blocks.md#lunar-client-preparation-and-observation-gate).
 
-On 2026-11-13 the developer narrowed this group to app allow/block enforcement.
-A ready signed-out launcher proves allowed command access. Owned public Lunar
-application/tray presence proves the supplied hidden autostart is running.
-Specific public policy denial plus complete public app/tray absence proves
-blocked command access. Do not add Settings, tray hide/restore, vendor accounts,
-game menus, inner-Java invocation, gameplay, game internals, a new continuous
-game-specific observer or a zero-transient-window guarantee.
+Game launch, running/absent status, policy denial and stop use commands and OS
+interfaces. Flatpak status binds the stable app ID, instance and owner;
+Ubuntu's native Lunar status binds the verified AppImageLauncher parent,
+mounted executable and process start times. Stop exactly that observed instance,
+then independently require absence. No game GUI, tray, accessibility tree,
+screen-reader setting, window keyboard input, signed-out surface, vendor account,
+Settings or gameplay check belongs to this case. Parent policy and real approval
+continue through the product Application UI API. N remains the unrelated allowed
+native fixture with its existing normal input/result.
 
-Use the original Lunar AppImage through the shared direct command as Jordan;
-preserve AppImageLauncher integration and the same bytes/route at every command
-checkpoint. The separate Minecraft launcher uses its declared normal command.
-N is the existing unrelated allowed native app with its normal input/result.
-
-| Step | Composition and required public result |
+| Step | Composition and required result |
 | --- | --- |
-| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads daily remaining and zero grant; both launchers Allowed. G → C(fresh). Launch each normal command to its ready signed-out surface, then exit normally and observe absence. LIFE02 → child-first normal login. Observe owned Lunar application/tray presence within the 180-second functional startup budget, then genuinely Quit and observe complete absence. |
-| 2 — soft, no grant | G → P(fresh/new after reboot) → FLOW03(Lunar,saved version pattern,Soft) and FLOW03(separate Minecraft target,Soft) → PARENT12/PARENT09 confirm both Soft and zero grant. G → C(retained). Invoke each same command once; require specific public policy denial and complete application absence, including Lunar's tray. FLOW08(N,usable); daily time keeps the desktop usable. |
-| 3 — active time-only reboot | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Visit Parent read-only to establish the positive grant, return to Jordan and reboot through LIFE02. Jordan signs in first through the normal guarded route. Require complete public Lunar application/tray absence, both same-command specific denials with independent absence, and usable N. Only afterward visit Parent read-only to confirm the original grant remains positive, then return to Jordan. |
-| 4 — explicit soft permission | FLOW20(overlay,Jordan,Jamie,15,include,same child). Invoke both same normal commands and require ready signed-out launcher surfaces. Exit normally and independently observe both absent. No app-policy or allowance edit. |
-| 5 — replacement exclusion | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Repeat step 3's read-only balance visits, reboot, child-first normal login, complete Lunar absence, both specific command denials and usable N. The grant stays active; exclusion must restore blocking despite positive desktop time. |
+| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads positive daily time and zero grant; both launchers Allowed. G → C(fresh). Observe Lunar's login-started owned instance, stop it and independently require absence. Launch each normal command once, independently require the expected running identity, stop each and require absence. LIFE02 → child-first normal login. Independently require Lunar autostart within 180 seconds, then stop and require absence. |
+| 2 — soft, no grant | G → P(fresh after reboot) → FLOW03(Lunar,version pattern on Ubuntu or precise Flatpak identity on Fedora,Soft) and FLOW03(Minecraft,Soft). PARENT12/PARENT09 confirm both Soft and zero grant. G → C(retained). Invoke each same command once; require specific public policy denial and independent absence. FLOW08(N,usable); daily time keeps the desktop usable. |
+| 3 — active time-only reboot | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Visit Parent read-only to establish the positive grant, return to Jordan and reboot through LIFE02. Jordan signs in first, without opening Parent or changing policy. Require Lunar absent, both same-command specific denials and independent absence, then usable N. Only afterward visit Parent read-only to confirm the original grant remains positive, then return to Jordan. |
+| 4 — explicit soft permission | FLOW20(overlay,Jordan,Jamie,15,include,same child). Invoke both same normal commands; independently require their expected running identities. Stop them by command and require absence. No app-policy or allowance edit. |
+| 5 — replacement exclusion | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Repeat step 3's read-only balance visits, reboot, child-first normal login, Lunar absence, both specific denials and usable N before revisiting Parent. The original grant remains positive. |
 
-Keep fresh observations and unique stages for repeated results. Before each
-denied reboot require more than 600 actual grant seconds for slow reboot,
-authentication and both app checks. Preserve the same deadline; read its positive
-balance again only after the blocked results. Requests can add to a larger
-balance, so do not assert a 15-minute total or reset the grant after boot.
+Ubuntu denial is EACCES/EPERM for the exact original AppImage through
+AppImageLauncher. Flatpak denial is its explicit administrator-policy message,
+with a failing command result. Neither generic startup failure nor an absent
+instance alone proves enforcement. Preserve the working Allowed/autostart and
+explicit-soft-approval controls so missing inputs cannot masquerade as denial.
 
-Do not open Parent, resave policy, toggle limits or issue another approval between
-reboot and Jordan's blocked checks. Keep the allowed-autostart and explicit-soft
-approval controls so unavailable inputs cannot masquerade as enforcement.
-A missing tray, hidden launcher, command echo, generic failure, process/rule
-probe or incomplete public read cannot pass. Each allowed launcher opening has
-a 180-second readiness budget; do not replay uncertain input or download a repair.
-
-Reuse ordinary session readiness, the shared app readers, watch, credential
-guards and owned cleanup. This case adds the supplied launch routes and
-sign-in/reboot enforcement; it does not qualify continuous observation or
-game behavior. E2E-019 retains generic route/isolation coverage, case 189 version
-patterns and E2E-022 general lifecycle persistence. No backend assertion,
-synthetic grant, mid-journey clock change or service restart supplies acceptance.
+Before each denied reboot require more than 600 actual grant seconds for slow
+reboot, authentication and both checks. Preserve the original deadline; read its
+positive balance again only after the blocked results. Requests can add to a
+larger balance, so do not assert a 15-minute total or renew the grant after boot.
+Do not open Parent, resave policy, toggle limits or issue approval between reboot
+and the blocked checks. No private product probe, synthetic grant, mid-journey
+clock change or service restart supplies acceptance. Reuse ordinary account
+readiness, fresh credential proofs, watch and owned cleanup.
 
 ## Additional finite branch recipes
 

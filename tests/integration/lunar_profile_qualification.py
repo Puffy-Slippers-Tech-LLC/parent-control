@@ -87,10 +87,9 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
     from ui_observations import UiObservations
 
     initial = ('observer-ready', 'quit', 'closed', 'launch', 'opened')
-    # The app-presence slice needs no launcher-feature exercise. Preserve the
-    # existing Settings regression only for its separate launch/Quit selector.
+    # Both selectors observe command-only lifecycle results, without app features.
     independent_actions = (('snapshot', 'quit', 'closed') if tray else (
-        'opened', 'settings', 'settings-opened', 'quit', 'closed'))
+        'opened', 'quit', 'closed'))
     operations = ['lunar-' + action for action in initial + independent_actions]
 
     def exercise(journey, guard):
@@ -100,8 +99,7 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
         for action in initial:
             guard()
             results.append(ui.observe('lunar-' + action))
-        # A fresh consumer accepts the independently supplied usable launcher;
-        # no launch history, window cache or process result supplies readiness.
+        # A fresh consumer independently reads the running launcher identity.
         independent = UiObservations(transport)
         independent.boot_guard = journey.boot
         original = results[-1]['lunar']
@@ -154,12 +152,13 @@ def qualify_minecraft_entry_exit(directory, lease, transport, verified):
     label = 'minecraft-entry-exit'
     screens = {**STANDARD_PLAN.screen_tags,
                'minecraft-close-ready': 'ui:minecraft-close-ready',
+               'minecraft-stop': 'ui:minecraft-stop',
                'minecraft-closed': 'ui:minecraft-closed'}
     plan = replace(STANDARD_PLAN, worker_mode='minecraft_entry_exit', screen_tags=screens,
                    phases={**STANDARD_PLAN.phases, 'minecraft-close-ready': 'step-1',
+                           'minecraft-stop': 'step-1',
                            'minecraft-closed': 'step-1'}, stage_actions={'desktop': label})
-    # Compare the fresh close recipient with the independently accepted window
-    # before the controller releases the worker's single Alt-F4 input.
+    # Compare the independently observed instance before its command-only stop.
     class MinecraftJourney(InstalledJourney):
         def check_settings(self, stage, observed):
             super().check_settings(stage, observed)

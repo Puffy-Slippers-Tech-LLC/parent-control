@@ -1,8 +1,9 @@
 """Case 253: Jordan's launcher access follows Jamie's approvals across reboot."""
 from copy import deepcopy
+from dataclasses import replace
 import time
 
-from accessible_ui import (LUNAR_POLICY_APP, MINECRAFT_POLICY_APP,
+from accessible_ui import (LUNAR_POLICY_APP, LUNAR_FLATPAK_POLICY_APP, MINECRAFT_POLICY_APP,
                            NAMED_CHILD_OPERATIONS, OVERLAY_BOUND_OPERATIONS)
 from calendar_fixture import preset_ordinary_daytime
 from installed_journey import JourneyPlan, record_installed_journey
@@ -188,6 +189,16 @@ PLAN = JourneyPlan(
 
 class LunarAccessJourney(MinecraftAccessJourney):
     def __init__(self, context, progress, plan, *, actions=None):
+        from e2e_fixture_preparation import guest_target
+        if guest_target(context.lease.capture.state['guest']) == 'fedora':
+            plan = replace(plan,
+                screen_tags={stage: tag.replace('ui:text-catalogue-lunar-',
+                                                'ui:text-catalogue-lunar-flatpak-')
+                                      .replace('ui:access-lunar-', 'ui:access-lunar-flatpak-')
+                             for stage, tag in plan.screen_tags.items()},
+                access_checks={stage: (LUNAR_FLATPAK_POLICY_APP if target == LUNAR_POLICY_APP
+                                      else target, choice)
+                               for stage, (target, choice) in plan.access_checks.items()})
         super().__init__(context, progress, plan, actions=actions)
         self.profile = None
         self.saved_policy = None
@@ -201,11 +212,15 @@ class LunarAccessJourney(MinecraftAccessJourney):
                     'limit_enabled': True, 'allowance': ['2 hours']}, 'lunar-access:settings')
             rows = {row[0]: row[1:] for row in policy['apps']}
             choice = 'allowed' if stage == 'allowed-policy' else 'conditional'
-            require(rows.get(LUNAR_POLICY_APP) == [choice, 'pattern']
+            require(self.profile is not None, 'lunar-access:profile')
+            flatpak = self.profile['profile'] == 'lunar-flatpak'
+            lunar = self.profile['targets']['lunar_policy_app'] if flatpak else LUNAR_POLICY_APP
+            require(rows.get(lunar) == [choice, 'precise' if flatpak else 'pattern']
                     and rows.get(MINECRAFT_POLICY_APP) == [choice, 'precise'],
                     'lunar-access:saved-choices')
-            require(self.profile is not None and dict(policy['rules']).get(LUNAR_POLICY_APP)
-                    == self.profile['targets']['version_pattern'], 'lunar-access:version-pattern')
+            if not flatpak:
+                require(dict(policy['rules']).get(LUNAR_POLICY_APP)
+                        == self.profile['targets']['version_pattern'], 'lunar-access:version-pattern')
             saved = {key: deepcopy(policy[key]) for key in ('settings', 'apps', 'rules')}
             if stage == 'soft-policy':
                 self.saved_policy = saved
@@ -242,7 +257,9 @@ class LunarAccessJourney(MinecraftAccessJourney):
 
 def prepare(journey, guard):
     guard()
-    journey.profile = LunarProfile(journey.transport, journey.context.verified).verify()
+    reader = LunarProfile(journey.transport, journey.context.verified)
+    reader.read('prepare')
+    journey.profile = reader.verify()
     guard()
     return {'profile': journey.profile, 'daytime': preset_ordinary_daytime(journey, guard)}
 

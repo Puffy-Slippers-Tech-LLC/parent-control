@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">6065</span>/<span style="color: gray">0</span>/6065 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">6077</span>/<span style="color: gray">0</span>/6077 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">308</span>/<span style="color: gray">0</span>/308 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -16,7 +16,7 @@
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
 | E2E | <span style="color: green">153</span>/<span style="color: gray">45</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6833</span>/<span style="color: gray">45</span>/6878** | All test cases across the categories above, including pending E2E scenarios. |
+| **Total** | **<span style="color: green">6845</span>/<span style="color: gray">45</span>/6890** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -2216,11 +2216,11 @@ Variant: route: appimagelauncher login autostart
 
 **Steps:**
 
-- Through Parent enable 120 daily minutes and confirm no grant, leaving both launchers Allowed. As Jordan invoke each same normal command to its ready signed-out launcher, then exit normally and observe complete absence. Reboot through shared LIFE02 and sign Jordan in first without opening Parent. Observe owned Lunar application/tray presence within the 180-second functional startup budget, then genuinely Quit and observe complete absence. No tray hide/restore or launcher-feature exercise.
-- As the parent save Lunar as Soft Blocked with its declared same-directory version pattern and the separate Minecraft launcher policy target as Soft Blocked; read both saved choices. Return to the child's usable desktop with no grant and attempt each declared normal launch command once through the shared SSH helper as the active child desktop user. Require a specific access denial and complete launcher absence for each, and continued use of the declared unrelated allowed app.
-- Request 15 minutes with soft apps explicitly excluded and obtain real approval. Read the positive grant through Parent, return to Jordan, reboot normally and sign Jordan in first without opening Parent or changing policy. After normal desktop readiness require complete public Lunar application/tray absence. Invoke each same normal launcher command once; require specific public policy denial and independent complete absence, and use unrelated allowed app N. Only afterward visit Parent read-only to confirm the original grant stayed positive, then return to Jordan.
-- On the same child desktop request 15 minutes with soft apps explicitly included and obtain real approval. Invoke each same normal launcher command and observe its ready signed-out surface. Exit normally and independently observe complete absence. No app-policy or allowance edit or launcher-feature exercise.
-- Request another 15 minutes with soft apps explicitly excluded and obtain real approval. Repeat the read-only grant checks around reboot and Jordan-first normal login. Require complete public Lunar application/tray absence, both same-command specific denials with independent absence, and usable unrelated app N before revisiting Parent. The original grant remains positive. No policy repair after boot, continuous game-specific observer or zero-transient-window claim.
+- Through Parent enable 120 daily minutes and confirm zero grant, leaving both launchers Allowed. As Jordan independently observe the login-started Lunar instance, stop it by command and require absence. Launch both normal commands once, independently require their owned running identities, stop them and require absence. Reboot normally and sign Jordan in first without opening Parent. Require the owned Lunar autostart within 180 seconds, then command stop and absence.
+- As Parent save Lunar Soft Blocked with its version pattern on Ubuntu or precise Flatpak identity on Fedora, and Minecraft Soft Blocked; independently read both saved choices. Return to Jordan with no grant. Invoke each same normal command once; require specific public policy denial and independent absence. Daily time and unrelated allowed N remain usable.
+- Request 15 minutes excluding soft apps and obtain real approval. Read the positive grant through Parent, return to Jordan, reboot and sign Jordan in first without changing policy or opening Parent. Require Lunar absent, both same-command specific denials and independent absence, then usable N. Only afterward read Parent to confirm the original grant remains positive, then return to Jordan.
+- Request 15 minutes explicitly including soft apps and obtain real approval. Launch both same normal commands, independently require their expected owned running identities, stop them by command and require absence. No app-policy or allowance edit or game-GUI interaction.
+- Replace approval with soft apps excluded. Repeat the read-only grant visits around reboot and Jordan-first login. Require Lunar absent, both same-command specific denials and independent absence, and usable N before revisiting Parent. The original grant remains positive; no policy repair or grant renewal after boot.
 
 ### Scenario 254
 

@@ -1389,7 +1389,7 @@ def _native_policy_transition(accounts, record, variant, caller):
                     rule_bytes = tuple(path.read_bytes() for path in (early, RULES, COMPILED_RULES))
                     previous_events = {(row['segment'], row['sequence'])
                                        for row in read_events('broker')}
-                    channel = Path('/run/fapolicyd/fapolicyd.fifo')
+                    channel = Path('/run/fapolicyd/fapolicyd-update.fifo')
                     # Vendor tmpfiles declares root:fapolicyd 0770, while
                     # systemd's RuntimeDirectory=fapolicyd can recreate it as
                     # root:root 0755. Accept only these exact layouts; keep
@@ -1409,7 +1409,13 @@ def _native_policy_transition(accounts, record, variant, caller):
                                    stat.S_IMODE(directory_metadata[4])) in
                                   ((0, 0, 0o755), (0, grp.getgrnam('fapolicyd').gr_gid, 0o770)),
                                   'enforcement:reload-directory-identity')
-                    original_metadata = metadata(channel.lstat())
+                    # Match fapolicyd-cli: prefer the RPM plugin's update FIFO
+                    # and fall back to the legacy name only if it is absent.
+                    try:
+                        original_metadata = metadata(channel.lstat())
+                    except FileNotFoundError:
+                        channel = channel.with_name('fapolicyd.fifo')
+                        original_metadata = metadata(channel.lstat())
                     mode = stat.S_IMODE(original_metadata[4])
                     guest.require(stat.S_ISFIFO(original_metadata[4]) and mode == 0o660
                                   and original_metadata[2] == 0 and original_metadata[5] == 1,

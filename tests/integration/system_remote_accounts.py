@@ -21,19 +21,24 @@ IDENTITIES = {'child': ('onpc-remote-child', 24001),
 BASE = 'dc=onpc,dc=invalid'
 
 
-def nss_configuration(original):
+def nss_configuration(template, *, effective=None):
     """Preserve every existing source/action and enable only passwd/group NSS."""
-    lines, found = [], set()
-    for line in original.splitlines():
+    needs_sss = {}
+    for line in (template if effective is None else effective).splitlines():
+        database, colon, sources = line.partition('#')[0].partition(':')
+        database = database.strip()
+        if colon and database in {'passwd', 'group'}:
+            guest.require(database not in needs_sss, 'remote:nss-duplicate-database')
+            needs_sss[database] = 'sss' not in sources.split()
+    guest.require(needs_sss.keys() == {'passwd', 'group'}, 'remote:nss-missing-database')
+
+    lines = []
+    for line in template.splitlines():
         body, separator, comment = line.partition('#')
-        database, colon, sources = body.partition(':')
-        if colon and database.strip() in {'passwd', 'group'}:
-            guest.require(database.strip() not in found, 'remote:nss-duplicate-database')
-            found.add(database.strip())
-            if 'sss' not in sources.split():
-                body = body.rstrip() + ' sss '
+        database, colon, _ = body.partition(':')
+        if colon and needs_sss.get(database.strip()):
+            body = body.rstrip() + ' sss '
         lines.append(body + separator + comment)
-    guest.require(found == {'passwd', 'group'}, 'remote:nss-missing-database')
     return '\n'.join(lines) + '\n'
 
 
@@ -141,7 +146,10 @@ def configure_fedora_nss(restoration):
     metadata = nss.lstat()
     guest.require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0
                   and not metadata.st_mode & 0o022, 'remote:authselect-profile')
-    nss.write_text(nss_configuration(nss.read_text()))
+    # Authselect resolves conditional rows in the live file and discovers
+    # supported features from the template that must remain in the clone.
+    nss.write_text(nss_configuration(nss.read_text(),
+                                     effective=Path('/etc/nsswitch.conf').read_text()))
     restoration['profile_sha256'] = guest.sha(nss)
     guest.run(['authselect', 'select', 'custom/onpc-remote-fixture', *original[1:]])
     guest.run(['authselect', 'check'])

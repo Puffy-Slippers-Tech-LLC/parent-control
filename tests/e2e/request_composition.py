@@ -90,8 +90,13 @@ class KioskRequestJourney(InstalledJourney):
             return
         require(self.balance is not None, 'kiosk-valid:missing-balance')
         require(choice['request']['child'] == self.balance['child'], 'kiosk-valid:wrong-child-balance')
-        elapsed = (choice['observed_monotonic_ns'] - self.balance['observed_monotonic_ns']) / 1e9
-        require(0 <= elapsed <= 600, 'kiosk-valid:elapsed-bound')
+        observed_at = self.balance['observed_monotonic_ns']
+        # The refreshed Parent grant was sampled during the status reload,
+        # so the lower bound must allow elapsed time from its earliest sample.
+        read_started = self.balance.get('read_started_ns', observed_at)
+        elapsed = (choice['observed_monotonic_ns'] - read_started) / 1e9
+        require(observed_at <= choice['observed_monotonic_ns'] and 0 <= elapsed <= 600,
+                'kiosk-valid:elapsed-bound')
         if choice['estimate']['kind'] == 'fixed':
             daily, grant = (self.balance[key]['seconds'] for key in ('daily', 'one_time'))
             requested = choice['request']['duration_seconds']

@@ -7077,8 +7077,13 @@ class AccessibleUI:
         if operation == 'revoke-confirm':
             return self.confirm_revoke(child, confirm=True)
         if operation == 'revoke-balances':
-            return {'settings': self.reload_revoke_settings(child),
-                    'balances': self.reach_time_explanation(child)}
+            # Reselecting the child refreshes the status before the label read.
+            # Both endpoints must use the guest clock for later comparisons.
+            started = time.monotonic_ns()
+            settings = self.reload_revoke_settings(child)
+            balances = self.reach_time_explanation(child)
+            return {'settings': settings,
+                    'balances': {**balances, 'read_started_ns': started}}
         if operation in ('revoke-wrong-child', 'revoke-wrong-confirmation'):
             try:
                 self.cancel_revoke(EXISTING_CHILD if operation.endswith('child') else CHILD,

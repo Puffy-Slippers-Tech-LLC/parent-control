@@ -70,9 +70,9 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
         None if branch_by_root.get(root) == name else pytest.fail('wrong local controller'))
     synchronized = []
     def synchronize(*args, **kwargs):
-        assert args == (destination, branch, ['--vm', ','.join(
-            'Guest-' + str(index) for index in targets), 'system'])
-        assert kwargs == dict(previous_runs=[], retained_start=False, live=False)
+        assert args == (destination, branch)
+        assert kwargs == dict(previous_runs=[], retained_start=False, live=False,
+                             on_boundary_admitted=None, check_only=False)
         synchronized.append(launcher)
         return False
     monkeypatch.setattr(launcher_controller, '_startup_sync', synchronize)
@@ -95,6 +95,9 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
     monkeypatch.setattr(remote_sources.RemoteVM, 'run', remote_vm)
 
     def entry():
+        assert synchronized == [launcher]
+        assert launcher_controller.public_arguments(launcher) == [
+            '--branch', branch, '--vm', selector, 'system']
         _, vms = vm_config.execution(selector, destination / 'config/environment.json', remote=True)
         for vm in vms:
             status = host_dispatch.vm_tool(destination, vm, 'test-vm', ['--vm', vm.name, 'status'])
@@ -123,7 +126,6 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
 
     monkeypatch.setattr(launcher_controller.subprocess, 'run', ssh_controller)
     assert launcher_controller.dispatch(entry) == 0
-    assert synchronized == [launcher]
     assert operations == [('Guest-' + str(index), 'local' if index == controller else 'ssh')
                           for index in targets]
     assert hops == ([ (names[0], names[controller]) ] if controller else []) + [

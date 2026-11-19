@@ -1747,8 +1747,7 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         assert result == 0
         assert control.run.call_args.args[0] == [
             '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
-            *(['--reuse'] if package_format == 'deb' else []),
-            '--package-format', package_format, '--build-target', target.name,
+            '--reuse', '--package-format', package_format, '--build-target', target.name,
             '--architecture', target.architecture, '--output', str(output)]
         allocate.assert_called_once()
 

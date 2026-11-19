@@ -8442,12 +8442,35 @@ class AccessibleUI:
         """
         require(not self.input_uncertain, 'ui:uncertain-input')
         require_active_launch_session()
-        self.desktop_result(EXISTING_CHILD if standard else getattr(self, 'management_parent', PARENT), 'success')
+
         def prompt_free():
             self.invalidate_observation()
             self.handle_system_prompt()
             return True
-        self.wait(prompt_free, 'parent-launch-prompt', prompt_in_predicate=True)
+
+        startup_prompt = None
+
+        def ready_for_launch():
+            nonlocal startup_prompt
+            try:
+                return prompt_free()
+            except UiError as error:
+                if str(error) != 'ui:system-prompt-refused:desktop:unknown' or any(
+                        prompt['password_control'] or prompt['authentication_title']
+                        for prompt in error.system_prompts):
+                    raise
+                # A fresh desktop can expose a short-lived alert. Wait for a
+                # complete prompt-free read before making any desktop change.
+                startup_prompt = error
+                return False
+
+        try:
+            self.wait(ready_for_launch, 'parent-launch-prompt', prompt_in_predicate=True)
+        except UiError as error:
+            if str(error) == 'ui:timeout:parent-launch-prompt' and startup_prompt is not None:
+                raise startup_prompt from error
+            raise
+        self.desktop_result(EXISTING_CHILD if standard else getattr(self, 'management_parent', PARENT), 'success')
         self.prepare_launch_desktop()
         require_active_launch_session()
         self.wait(prompt_free, 'parent-launch-final-prompt', prompt_in_predicate=True)

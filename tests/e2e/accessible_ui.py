@@ -3092,7 +3092,7 @@ class AccessibleUI:
             except UiError as error:
                 if str(error) not in (
                         'ui:incomplete-tree', 'ui:stale-picker', 'ui:stale-request-form',
-                        'ui:gdm-stale-tree', 'ui:language-stale',
+                        'ui:gdm-stale-tree', 'ui:station-stale-tree', 'ui:language-stale',
                         'ui:system-prompt-observation-failed'):
                     raise
                 # Discard the entire observation. A child can disappear between
@@ -3100,6 +3100,7 @@ class AccessibleUI:
                 # GTK can likewise leave a defunct picker node in one AT-SPI
                 # snapshot while removing a closed popover. GDM can leave a
                 # defunct node while replacing its authentication prompt.
+                # The station desktop can also change during passwordless entry.
                 # Request account reads also require every node to be live;
                 # discard a stale read before resolving or acting on a selector.
                 # Language chooser reads use the same rule during startup and
@@ -3130,7 +3131,8 @@ class AccessibleUI:
                     checkpoint('timeout', attempt)
                 if incomplete is not None and str(incomplete) in (
                         'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
-                        'ui:language-stale', 'ui:system-prompt-observation-failed'):
+                        'ui:station-stale-tree', 'ui:language-stale',
+                        'ui:system-prompt-observation-failed'):
                     raise incomplete
                 raise UiError('ui:timeout:' + code) from incomplete
             if checkpoint is not None:

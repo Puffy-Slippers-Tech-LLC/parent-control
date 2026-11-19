@@ -6,7 +6,6 @@ Exec=gnome-session --session oh-no-parent-control
 TryExec=gnome-session
 Icon=com.puffyslippers.OhNoParentControl
 Type=Application
-NoDisplay=true
 DesktopNames=GNOME-Kiosk;GNOME;
 X-GDM-SessionRegisters=false
 X-GDM-CanRunHeadless=true

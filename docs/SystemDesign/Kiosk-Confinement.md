@@ -312,6 +312,11 @@ saved default, resolves the desktop file and passes its command to the session
 worker after PAM. The login shell becomes an environment value rather than the
 graphical launcher. Chooser cancellation resets GDM's selection.
 
+Keep the station's desktop entry visible in GDM's session menu. GNOME Shell 51
+can turn the fallback desktop into an explicit selection when marking the menu
+item active. The saved station session must be available in that menu to replace
+the fallback during passwordless entry. [GNOME Shell session menu change](https://github.com/GNOME/gnome-shell/commit/e2aa1ff1d4)
+
 Native PAM receives no selected-command input. Do not infer a desktop barrier
 from `PAM_SERVICE`, saved routing or `XDG_SESSION_TYPE`. Public chooser
 reachability and independently observed execution are separate requirements.

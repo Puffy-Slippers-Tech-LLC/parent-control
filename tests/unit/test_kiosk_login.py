@@ -26,6 +26,7 @@ def test_selected_session_preserves_release_identity_and_kiosk_selection():
     assert shlex.split(desktop['Exec']) == [
         'gnome-session', '--session', 'oh-no-parent-control']
     assert desktop['TryExec'] == 'gnome-session'
+    assert not desktop.getboolean('NoDisplay', fallback=False)
     assert desktop['DesktopNames'] == 'GNOME-Kiosk;GNOME;'
     assert desktop['X-GDM-SessionRegisters'] == 'false'
     assert desktop['X-GDM-CanRunHeadless'] == 'true'

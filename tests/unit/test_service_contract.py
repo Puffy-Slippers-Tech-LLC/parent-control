@@ -75,6 +75,31 @@ def test_extension_monitor_retains_cheap_busy_retry_without_session_probes():
     monitor._reconcile.assert_not_called()
 
 
+@pytest.mark.parametrize("history", (
+    {}, {"last_recovery": 10}, {"reported": True, "failure_time": 10},
+), ids=("clean", "expired-recovery-guard", "expired-report-cooldown"))
+def test_healthy_extension_observation_leaves_the_policy_transaction_slot_free(history):
+    import threading
+
+    monitor = ExtensionMonitor.__new__(ExtensionMonitor)
+    monitor._stopped = threading.Event()
+    monitor._later = mock.Mock()
+    monitor.manager = mock.Mock()
+    monitor.broker = mock.Mock()
+    monitor.broker.extension_reconciliation_busy.return_value = False
+    monitor._observe = mock.Mock(return_value=({"state": 1, "enabled": True}, True))
+    watch = _Watch(1001, connection=object(), shell_present=True, failures=2, **history)
+    monitor.watches = {1001: watch}
+
+    with mock.patch("oh_no_parent_control.extension_monitor.time.monotonic", return_value=100):
+        monitor._check(watch)
+
+    assert watch.observed_state == (1, True)
+    assert watch.failures == 0
+    monitor.broker.reconcile_enabled_child.assert_not_called()
+    assert monitor.manager.mock_calls == []
+
+
 @pytest.mark.parametrize("active_after_failure", [False, True])
 def test_extension_monitor_retries_failed_activation_indefinitely_with_capped_failure_delay(active_after_failure):
     import threading

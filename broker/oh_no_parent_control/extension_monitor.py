@@ -27,6 +27,7 @@ MAX_BACKOFF_LEVEL = 7
 MAX_BACKOFF_SECONDS = 30
 # GNOME keeps its startup crash-protection marker for sixty seconds.
 RECOVERY_GUARD_SECONDS = 60
+REPORT_COOLDOWN_SECONDS = 60
 
 
 class _ChangingState(Exception):
@@ -342,7 +343,7 @@ class ExtensionMonitor:
     def _fault(watch):
         watch.fault_generation += 1
         if not watch.failed:
-            if time.monotonic() - watch.failure_time >= 60:
+            if time.monotonic() - watch.failure_time >= REPORT_COOLDOWN_SECONDS:
                 watch.reported = False
             watch.failure_time = time.monotonic()
         watch.failed = True
@@ -376,11 +377,8 @@ class ExtensionMonitor:
                 raise _ChangingState()
         return info, enabled
 
-    def _reconcile(self, watch, info, enabled):
-        if self._stopped.is_set():
-            return
+    def _record_observation(self, watch, info, enabled):
         state = info["state"]
-        now = time.monotonic()
         # GNOME's public enabled detail is the effective selection after the
         # global switch and both lists, not an attribution to a settings writer.
         value = info.get("enabled")
@@ -408,6 +406,13 @@ class ExtensionMonitor:
             except Exception:
                 pass
             watch.observed_state = observed
+
+    def _reconcile(self, watch, info, enabled):
+        if self._stopped.is_set():
+            return
+        self._record_observation(watch, info, enabled)
+        state = info["state"]
+        now = time.monotonic()
         if state == 3:
             fields = _load_error_fields(info)
             LOG.error("extension-manager.load-state", state=fields["state"],
@@ -503,6 +508,20 @@ class ExtensionMonitor:
             # reloads the current account/roles/preferences before any effect.
             info, user_extensions_enabled = self._observe(watch)
             watch.probe_stage = "none"
+            # A healthy observation with no live recovery or report state is
+            # diagnostic only. Leave the transaction slot free for approvals.
+            now = time.monotonic()
+            guarding_recovery = (watch.last_recovery and
+                                 now - watch.last_recovery < RECOVERY_GUARD_SECONDS)
+            suppressing_report = (watch.reported and
+                                  now - watch.failure_time < REPORT_COOLDOWN_SECONDS)
+            if (info["state"] == 1 and user_extensions_enabled and not (
+                    watch.failed or watch.report_pending or watch.recovery_pending or
+                    watch.recovery_interrupted or guarding_recovery or suppressing_report)):
+                self._record_observation(watch, info, user_extensions_enabled)
+                self._decision(watch, "healthy", "unchanged")
+                watch.failures = 0
+                return
             with self.manager.command_budget(3, self._stopped):
                 enabled = self.broker.reconcile_enabled_child(watch.uid,
                     lambda: self._reconcile(watch, info, user_extensions_enabled),

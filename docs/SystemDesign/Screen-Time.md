@@ -216,7 +216,8 @@ child's existing session bus. Individual disablement or the global disable
 switch schedules coalesced recovery for saved-enabled controls. Recovery clears
 the global switch when necessary and enables the product extension while
 preserving other extensions' individual choices. Healthy sessions wait for
-notifications rather than repeatedly running extension-management commands.
+notifications. A healthy observation with no active recovery or report state to
+reconcile records diagnostics without taking the policy transaction lock.
 
 A bounded helper authenticates as the selected child and hands its authenticated
 Unix socket to the root worker. The worker reaps that helper before using the

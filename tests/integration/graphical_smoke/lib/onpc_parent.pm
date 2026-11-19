@@ -495,7 +495,7 @@ sub grant_only_time_profile {
         && defined($daily_minutes) && $daily_minutes =~ /\A(?:0|4|10|30)\z/
         && ($daily_minutes != 30 || !$initial)
         && ($initial eq '0' || $initial eq '1') && ($revoke eq '0' || $revoke eq '1')
-        && $seconds =~ /\A(?:6|120|180|240|600|1200)\z/
+        && $seconds =~ /\A(?:6|120|180|240|480|600|1200)\z/
         && ($request_initial eq 'default' || $request_initial eq 'selected' || $request_initial eq 'observed')
         && (($seconds == 6) == ($request_initial eq 'observed'))
         && ($seconds != 6 || $daily_minutes == 10 && !$revoke)

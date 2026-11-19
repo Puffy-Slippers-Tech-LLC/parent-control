@@ -41,6 +41,19 @@ def entry(prefix, account, *, source, source_account=None, fresh=False):
     return prefixed_stages(prefix, screens)
 
 
+def riley_visit(name, source_account):
+    prefix = name + '-riley'
+    ENTRIES[prefix] = ('child', desktop_entry('child', source='desktop', entry='retained',
+                                            source_account=source_account))
+    ACTIVITY_ENTRIES[prefix + '-source-desktop'] = 'riley-activity-capture'
+    ACTIVITIES[prefix + '-activity-opened'] = ('riley-activity-capture', 'same')
+    ACTIVITIES[prefix + '-usable'] = ('riley-activity-capture', 'same')
+    SESSION_CHECKS[prefix + '-entry-guard'] = 'riley-desktop-identity'
+    return {**retained_app_visit(prefix, account='child', source='desktop',
+                                 source_account=source_account),
+            prefix + '-usable': 'ui:overlay-native-activity'}
+
+
 SCREENS.update({
     **entry('jordan', 'other-child', source='gdm', fresh=True),
     **native_activity_entry('initial-matching', child='other-child', binding='policy'),
@@ -54,21 +67,19 @@ matching_capture = 'initial-matching-capture'
 nonmatching_capture = 'initial-nonmatching-capture'
 for name, access in ROUNDS:
     group = {}
-    if name in ('soft-hard', 'allowed-hard'):
-        if name == 'soft-hard':
-            # Read the actual remaining daily margin before a real 75-second
-            # soft-included approval. No synthetic grant or revoke-first setup.
-            group.update({
-                'soft-opening-balance': 'ui:time-explanation-refresh-read',
-                'soft-opening-desktop': 'ui:desktop',
-                'soft-opening-switch': 'system:parent-switch-user',
-                'soft-opening-greeter': 'ui:gdm-returned',
-                **prefixed_stages('soft-opening', obtain_time(
-                    initial='observed', **CHOICES, exit='automatic')),
-            })
-        group.update(entry(name + '-prepare', 'other-child',
-            source='gdm' if name == 'soft-hard' else 'desktop',
-            source_account=None if name == 'soft-hard' else 'parent'))
+    carry_matching = name == 'soft-allowed'
+    if name == 'soft-hard':
+        # Read the actual remaining daily margin before a real 75-second
+        # soft-included approval. No synthetic grant or revoke-first setup.
+        group.update({
+            'soft-opening-balance': 'ui:time-explanation-refresh-read',
+            'soft-opening-desktop': 'ui:desktop',
+            'soft-opening-switch': 'system:parent-switch-user',
+            'soft-opening-greeter': 'ui:gdm-returned',
+            **prefixed_stages('soft-opening', obtain_time(
+                initial='observed', **CHOICES, exit='automatic')),
+        })
+        group.update(entry(name + '-prepare', 'other-child', source='gdm'))
         group.update(native_activity_entry(name + '-opening', child='other-child', binding='policy'))
         matching_capture = name + '-opening-capture'
         group.update(entry(name + '-save-parent', 'parent', source='desktop', source_account='other-child'))
@@ -79,13 +90,22 @@ for name, access in ROUNDS:
                   name + '-match': 'ui:match-row'})
     ACCESSES[name + '-access'] = (MATCH_APPS['A'], access)
     MATCHES[name + '-match'] = (MATCH_APPS['A'], MATCH_RULES[0])
-    group.update(entry(name + '-result', 'other-child', source='desktop', source_account='parent'))
-    ACTIVITY_ENTRIES[name + '-result-source-desktop'] = nonmatching_capture
+    if carry_matching:
+        # Visit Riley first so the matching app can be opened and captured in
+        # the final Jordan visit before Parent saves Allowed → Hard.
+        group.update(riley_visit(name, 'parent'))
+    group.update(entry(name + '-result', 'other-child', source='desktop',
+                       source_account='child' if carry_matching else 'parent'))
+    ACTIVITY_ENTRIES[name + '-result-source-desktop'] = (
+        'riley-activity-capture' if carry_matching else nonmatching_capture)
     SESSION_CHECKS[name + '-result-entry-guard'] = 'jordan-session'
     if access != 'allowed':
         group[name + '-closed'] = 'ui:native-policy-closed'
         ACTIVITIES[name + '-closed'] = (matching_capture, 'closed')
         group.update(prefixed_stages(name + '-matching', native_blocked_app('A')))
+    elif carry_matching:
+        group.update(native_activity_entry(name + '-matching', child='other-child', binding='policy'))
+        matching_capture = name + '-matching-capture'
     else:
         group.update(prefixed_stages(name + '-matching', {
             **native_usable_app('command'), 'close': 'ui:native-close', 'closed': 'ui:native-closed'}))
@@ -100,16 +120,15 @@ for name, access in ROUNDS:
                                           binding='unmatched-soft')})
     ACTIVITIES[name + '-nonmatching-retained'] = (nonmatching_capture, 'same')
     nonmatching_capture = name + '-nonmatching-new-capture'
-    group.update(retained_app_visit(name + '-riley', account='child', source='desktop',
-                                    source_account='other-child'))
-    ENTRIES[name + '-riley'] = ('child', desktop_entry('child', source='desktop', entry='retained',
-                                                     source_account='other-child'))
-    ACTIVITY_ENTRIES[name + '-riley-source-desktop'] = 'riley-activity-capture'
-    ACTIVITIES[name + '-riley-activity-opened'] = ('riley-activity-capture', 'same')
-    group[name + '-riley-usable'] = 'ui:overlay-native-activity'
-    ACTIVITIES[name + '-riley-usable'] = ('riley-activity-capture', 'same')
-    SESSION_CHECKS[name + '-riley-entry-guard'] = 'riley-desktop-identity'
-    group.update(entry(name + '-parent', 'parent', source='desktop', source_account='child'))
+    if carry_matching:
+        group[name + '-matching-retained'] = 'ui:native-policy-activity'
+        ACTIVITIES[name + '-matching-retained'] = (matching_capture, 'same')
+        matching_capture = name + '-matching-retained'
+        ACTIVITY_ENTRIES[name + '-parent-source-desktop'] = matching_capture
+    else:
+        group.update(riley_visit(name, 'other-child'))
+    group.update(entry(name + '-parent', 'parent', source='desktop',
+                       source_account='other-child' if carry_matching else 'child'))
     SCREENS.update(group)
     PHASES.update({stage: 'step-2' for stage in group})
 

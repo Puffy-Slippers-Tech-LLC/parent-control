@@ -3,7 +3,8 @@
 import datetime
 from zoneinfo import ZoneInfo
 
-from calendar_fixture import preset_ordinary_midnight
+from calendar_fixture import (DAILY_RESET_LEAD_MINUTES, ORDINARY_READBACK_MARGIN_MINUTES,
+                              preset_ordinary_midnight)
 from countdown import CountdownSample, check_countdown_balance
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (daily_time_profile, desktop_entry, fresh_desktop,
@@ -32,7 +33,7 @@ SETUP = {
 }
 # One bounded TIME03 interval per worker rendezvous. No reply waits for the
 # whole midnight window, and read-only TIME05 independently witnesses crossing.
-WAITS = {f'midnight-wait-{index}': 'ui:desktop' for index in range(1, 7)}
+WAITS = {f'midnight-wait-{index}': 'ui:desktop' for index in range(1, 4)}
 RENEWED = {
     'renewed-balance': 'ui:time-explanation-refresh-read',
     'parent-switch': 'system:parent-switch-user',
@@ -53,7 +54,7 @@ PLAN = JourneyPlan(
             **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in WAITS},
             **{stage: 'step-3' for stage in RENEWED}},
-    advance_after={'exhausted-balance': 'step-2', 'midnight-wait-6': 'step-3'},
+    advance_after={'exhausted-balance': 'step-2', 'midnight-wait-3': 'step-3'},
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES
                       or stage in ('natural-expiry', 'renewed-countdown')),
     challenges={
@@ -125,10 +126,13 @@ class DailyResetJourney(DailyTimeProfileJourney):
                 'daily-reset:not-an-ordinary-day')
         boundary = int(midnight.timestamp()) * 1_000_000_000
         remaining = (boundary - value['readback']['epoch_ns']) / 1e9
-        require(1200 <= remaining <= 1800, 'daily-reset:scheduled-window-unavailable')
+        lead = DAILY_RESET_LEAD_MINUTES
+        latest_start = lead - ORDINARY_READBACK_MARGIN_MINUTES
+        require(latest_start * 60 <= remaining <= lead * 60,
+                'daily-reset:scheduled-window-unavailable')
         journey.window = {'date': local.date().isoformat(), 'timezone': value['timezone'],
-            'window_start': (midnight - datetime.timedelta(minutes=30)).isoformat(),
-            'window_end': (midnight - datetime.timedelta(minutes=20)).isoformat(),
+            'window_start': (midnight - datetime.timedelta(minutes=lead)).isoformat(),
+            'window_end': (midnight - datetime.timedelta(minutes=latest_start)).isoformat(),
             'midnight': midnight.isoformat(), 'midnight_epoch_ns': boundary,
             'daily_allowance_seconds': 60, 'grant_seconds': 0,
             'clock_precision_seconds': 1, 'balance_maximum_precision_seconds': 60,
@@ -141,7 +145,7 @@ class DailyResetJourney(DailyTimeProfileJourney):
             self.balance = observed['ui']['time_explanation']
         if stage == 'profile-settings':
             value = self.calendar()
-            require(value['readback']['epoch_ns'] + 600_000_000_000
+            require(value['readback']['epoch_ns'] + 420_000_000_000
                     < self.window['midnight_epoch_ns'], 'daily-reset:preparation-margin')
             observed['calendar'] = value
         if stage == 'natural-expiry':

@@ -354,7 +354,8 @@ PANEL_ANIMATION_OPERATIONS = frozenset({'child-countdown-animation-read',
     'child-countdown-animation-on', 'child-countdown-animation-off'})
 CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-unlock-diagnostic'}) | COUNTDOWN_OPERATIONS
                             | PANEL_ANIMATION_OPERATIONS | COUNTDOWN_SESSION_OPERATIONS)
-OVERLAY_OPERATIONS = frozenset({'overlay-request-form', 'overlay-grant-form', 'overlay-panel-ready',
+OVERLAY_GRANT_FORM_SECONDS = {'overlay-grant-form': 600, 'overlay-grant-480-form': 480}
+OVERLAY_OPERATIONS = frozenset({'overlay-request-form', *OVERLAY_GRANT_FORM_SECONDS, 'overlay-panel-ready',
     'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop', 'overlay-closed'})
 OPERATIONS |= {'overlay-closed'}
@@ -1233,7 +1234,7 @@ KIOSK_VALID_REQUESTS.update({f'kiosk-long-request-{choice}-{action}': (600, '10'
 KIOSK_VALID_REQUESTS['kiosk-long-included-duration-select'] = (600, '10', True)
 # Caller-owned finite recipe durations. These use the same custom-duration,
 # independent form read and native authentication operations as the 600s leaf.
-PROFILE_REQUEST_SECONDS = (120, 180, 240, 600, 1200)
+PROFILE_REQUEST_SECONDS = (120, 180, 240, 480, 600, 1200)
 PROFILE_REQUESTS = {
     f'kiosk-request-{seconds}-{choice}-{action}': (seconds, str(seconds // 60), soft)
     for seconds in PROFILE_REQUEST_SECONDS
@@ -16169,9 +16170,10 @@ class AccessibleUI:
             self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
         elif operation == 'overlay-request-form':
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
-        elif operation == 'overlay-grant-form':
+        elif operation in OVERLAY_GRANT_FORM_SECONDS:
+            seconds = OVERLAY_GRANT_FORM_SECONDS[operation]
             result['request'] = self.kiosk_request_form(enabled=True, overlay=True,
-                duration_seconds=600, custom_text='10', overlay_child=bound_child)
+                duration_seconds=seconds, custom_text=str(seconds // 60), overlay_child=bound_child)
         elif operation == 'overlay-qualification-cancel':
             self.require_child_overlay_session(bound_child)
             nodes, edges, identities, facts = self.read_snapshot(protect_text=True)

@@ -678,7 +678,7 @@ compositions are qualified on Ubuntu 26.04.
 Bindings: control = enabled / disabled; match = precise / pattern.
 
 1. P0 → FLOW02(control, usable allowance) → FLOW03(permissive match setup) → G → FLOW14(child,Riley activities) → P.
-2. For each transition in the app table, prepare its explicitly required open activity, then P → PARENT16 → PARENT08 → C(retained) → APP02(existing result) → FLOW08(matching and nonmatching) → FLOW09(Riley). Finish each iteration's checks before the next save; phase step-2 owns the entire finite loop.
+2. For each transition in the app table, P → PARENT16 → PARENT08, then check the retained child sessions through APP02, FLOW08 (matching and nonmatching) and FLOW09 (Riley). In Soft→Allowed, visit Riley before Jordan and leave Jordan's successfully launched A open. Compare that same A again immediately before returning to Parent for Allowed→Hard, then check its closure and denied relaunch after the save. Prepare the open A for Soft→Hard through the separately declared approval. Finish each iteration's checks before the next save; phase step-2 owns the entire finite loop.
 3. P → LIFE01(Parent) → PARENT02 → PARENT12 → UI12(final Allowed rule). This phase does not replay the transitions.
 
 Cases 13/14 use `app_rule_changes_case.PLAN` / `PATTERN_PLAN` and
@@ -1679,7 +1679,7 @@ required, with unchanged game progress through the extended natural expiry.
 3. DESK10(game) → APP04(compare) → APP03 → TIME04(extended natural expiry).
 
 Resolve game assets/mode and arm observers before issuance. Case 131 uses the
-finite daily-10/addition-10 grant-dominant profile; case 128 uses grant-10 then
+finite daily-10/addition-8 grant-dominant profile; case 128 uses grant-10 then
 daily-15. Require at least 300 seconds of each positive operand and a dominance
 gap exceeding 90 seconds before the request, so setup cannot erase the original
 inequality. Both cases retain actual gameplay through extended natural expiry.
@@ -2909,7 +2909,11 @@ restored guest's normal setup and before any parent/child input, the shared
 [`calendar_fixture.preset_ordinary_midnight`](../../tests/e2e/calendar_fixture.py)
 disables network time synchronization through `timedatectl` and sets the clock
 on the next future ordinary day in the unchanged timezone. Cases 196 and 197
-start at 23:35, and case 198 starts at 23:42, leaving eight minutes for setup
+start at 23:48 and 23:45, respectively. Case 196 requires seven minutes at
+allowance readback to finish the initial child session and exhausted-balance
+checks. Case 197 requires ten minutes at allowance readback, eight minutes at
+approval and five minutes at the initial countdown. Case 198 starts at 23:42,
+leaving eight minutes for setup
 before the fixed-grant approval window opens. Cases 200 and 203 use the same
 module's `preset_spring_forward` and `preset_fall_back` to start twenty elapsed
 minutes before the next real one-hour offset change. The unchanged timezone,

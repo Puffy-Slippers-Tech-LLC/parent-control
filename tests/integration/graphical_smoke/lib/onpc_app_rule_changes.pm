@@ -46,29 +46,23 @@ sub run {
                    ['hard-soft', 'conditional'], ['soft-allowed', 'allowed'],
                    ['allowed-hard', 'permanent'], ['hard-allowed', 'allowed']) {
         my ($name, $access) = @$round;
-        if ($name eq 'soft-hard' || $name eq 'allowed-hard') {
-            if ($name eq 'soft-hard') {
-                if ($disabled) {
-                    $journey->seen($_) for qw(soft-opening-settings soft-opening-enable soft-opening-enabled);
-                }
-                $journey->seen($_) for qw(soft-opening-balance soft-opening-desktop
-                                        soft-opening-switch soft-opening-greeter);
-                my $approval = $journey->scope('soft-opening');
-                $approval->{kiosk_request} = $request;
-                onpc_request_flow::obtain_time($approval, 'observed',
-                    'existing-fixture-child', 'fixture-parent', 75, 1, 'automatic');
+        my $carry_matching = $name eq 'soft-allowed';
+        if ($name eq 'soft-hard') {
+            if ($disabled) {
+                $journey->seen($_) for qw(soft-opening-settings soft-opening-enable soft-opening-enabled);
             }
-            if ($name eq 'soft-hard') {
-                onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success',
-                                                  $name . '-prepare');
-            } else {
-                onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success',
-                                                  $name . '-prepare', 'parent');
-            }
+            $journey->seen($_) for qw(soft-opening-balance soft-opening-desktop
+                                     soft-opening-switch soft-opening-greeter);
+            my $approval = $journey->scope('soft-opening');
+            $approval->{kiosk_request} = $request;
+            onpc_request_flow::obtain_time($approval, 'observed',
+                'existing-fixture-child', 'fixture-parent', 75, 1, 'automatic');
+            onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'retained', 'success',
+                                              $name . '-prepare');
             onpc_app_rows::native_activity_entry($journey, $name . '-opening', 'command', 'other-child', 1, 'policy');
             onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
                                               $name . '-save-parent', 'other-child');
-            if ($disabled && $name eq 'soft-hard') {
+            if ($disabled) {
                 $journey->seen($_) for qw(soft-opening-disable-page soft-opening-disable);
                 onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success',
                                                   'soft-opening-disabled-child', 'parent');
@@ -80,12 +74,15 @@ sub run {
         $journey->seen($name . '-' . $_) for qw(settings apps);
         onpc_app_rows::access_choice($journey, $name . '-save', $name . '-access');
         $journey->seen($name . '-match');
+        visit_riley($journey, $name, 'parent') if $carry_matching;
         onpc_desktop_session::enter_desktop($journey, 'desktop', 'other-child', 'retained', 'success',
-                                          $name . '-result', 'parent');
+                                          $name . '-result', $carry_matching ? 'child' : 'parent');
         my $matching = $journey->scope($name . '-matching');
         if ($access ne 'allowed') {
             onpc_app_rows::native_read_activity($journey, $name . '-closed');
             onpc_app_rows::native_blocked_app($matching, 'A');
+        } elsif ($carry_matching) {
+            onpc_app_rows::native_activity_entry($journey, $name . '-matching', 'command', 'other-child', 1, 'policy');
         } else {
             onpc_app_rows::native_usable_app($matching, 'command', $matching->seen('desktop'), 'other-child');
             onpc_app_rows::native_finish_app($matching);
@@ -93,10 +90,10 @@ sub run {
         onpc_app_rows::native_read_activity($journey, $name . '-nonmatching-retained');
         $journey->seen($name . '-nonmatching-' . $_) for qw(resubmit submitted close closed);
         onpc_app_rows::native_activity_entry($journey, $name . '-nonmatching-new', 'command', 'other-child', 1, 'unmatched-soft');
-        onpc_app_rows::retained_app_visit($journey, $name . '-riley', 'child', 'desktop', 'other-child');
-        onpc_app_rows::native_read_activity($journey, $name . '-riley-usable');
+        onpc_app_rows::native_read_activity($journey, $name . '-matching-retained') if $carry_matching;
+        visit_riley($journey, $name, 'other-child') unless $carry_matching;
         onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained', 'success',
-                                          $name . '-parent', 'child');
+                                          $name . '-parent', $carry_matching ? 'other-child' : 'child');
     }
     my $final = $journey->scope('final-reopen');
     $final->consume_observation('initial-selection', onpc_lifecycle::reopen(
@@ -107,6 +104,12 @@ sub run {
         'child-picker-opened', 'child-choice-highlighted', 'parent-selected'));
     $journey->seen($_) for qw(final-apps final-match final-access);
     $journey->finish();
+}
+
+sub visit_riley {
+    my ($journey, $name, $source) = @_;
+    onpc_app_rows::retained_app_visit($journey, $name . '-riley', 'child', 'desktop', $source);
+    onpc_app_rows::native_read_activity($journey, $name . '-riley-usable');
 }
 
 1;

@@ -332,6 +332,7 @@ OPERATION_LABELS = {
     'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
     'overlay-grant-form': 'Reading the child request after the real ten-minute approval',
+    'overlay-grant-480-form': 'Reading the child request after the real eight-minute approval',
     'overlay-request-select': 'Choosing the declared child request and eligible parent',
     'overlay-request-estimate': 'Reading the declared request and public time estimate',
     'overlay-qualification-cancel': 'Closing the qualification overlay with Cancel',
@@ -737,6 +738,7 @@ class RequestObservation:
                 'ui:request')
             return observation
         invalid = accessible_ui.INVALID_REQUEST_OPERATIONS.get(operation)
+        issued_seconds = accessible_ui.OVERLAY_GRANT_FORM_SECONDS.get(operation)
         require(type(observation.surface) is str and type(observation.form_count) is int
                 and type(observation.child) is str and type(observation.approver) is str
                 and (type(observation.duration_seconds) is int or (
@@ -746,8 +748,9 @@ class RequestObservation:
                      and observation.custom_text == '0.1'
                      or operation == 'kiosk-deleted-preset-read' and observation.custom_text == '10.0'
                      or operation in ('kiosk-long-included-duration-select',
-                         'overlay-long-approver-select', 'overlay-long-request-read', 'overlay-grant-form')
+                         'overlay-long-approver-select', 'overlay-long-request-read')
                      and observation.custom_text == '10'
+                     or issued_seconds is not None and observation.custom_text == str(issued_seconds // 60)
                      or operation in accessible_ui.KIOSK_VALID_REQUESTS
                      and operation.startswith('kiosk-long-request-') and observation.custom_text == '10'
                      or operation in accessible_ui.PROFILE_REQUESTS
@@ -788,14 +791,15 @@ class RequestObservation:
                 request_enabled=False, cancel_enabled=True, message='screen-limit-disabled', mute=None),
                 'ui:request')
             return observation
-        if operation in ('overlay-request-form', 'overlay-grant-form'):
-            issued = operation == 'overlay-grant-form'
+        if operation == 'overlay-request-form' or issued_seconds is not None:
+            issued = issued_seconds is not None
             child = accessible_ui.CHILD if binding is None else accessible_ui.overlay_request_values(binding)[0]
             require(observation.approver in accessible_ui.APPROVER_IDENTITIES.values(), 'ui:request')
             require(observation == cls(
                 surface='child-overlay', form_count=1, child=accessible_ui.CHILD_IDENTITIES[child],
                 approver=observation.approver if issued else 'other-fixture-parent',
-                duration_seconds=600 if issued else 1800, custom_text='10' if issued else None,
+                duration_seconds=issued_seconds if issued else 1800,
+                custom_text=str(issued_seconds // 60) if issued else None,
                 allow_soft=issued, child_selector_enabled=False,
                 approver_selector_enabled=True, duration_enabled=True,
                 soft_choice_enabled=True, request_enabled=True, cancel_enabled=True,
@@ -1167,7 +1171,8 @@ class UiObservations:
                             or operation in accessible_ui.LANGUAGE_HISTORY_REQUESTS
                             or operation in accessible_ui.TRANSFER_OPERATIONS
                             or operation in accessible_ui.APPROVER_CHANGE_OPERATIONS
-                            or operation in ('overlay-request-form', 'overlay-grant-form',
+                            or operation in accessible_ui.OVERLAY_GRANT_FORM_SECONDS
+                            or operation in ('overlay-request-form',
                                              'overlay-request-read',
                                              'overlay-panel-ready', 'overlay-panel-launch',
                                              'overlay-panel-reveal-ready', 'overlay-panel-overview'))
@@ -3373,7 +3378,8 @@ class UiObservations:
                 or operation in accessible_ui.BINDING_REMINDER_SELECTIONS
                 or operation in accessible_ui.KIOSK_DISABLED_REQUESTS
                 or operation in accessible_ui.TRANSFER_REQUESTS
-                or operation in ('overlay-request-form', 'overlay-grant-form',
+                or operation in accessible_ui.OVERLAY_GRANT_FORM_SECONDS
+                or operation in ('overlay-request-form',
                                  'overlay-request-read', 'kiosk-request-read')):
             require(type(result) is dict and set(result) == {*expected, 'request'}, 'ui:response')
             RequestObservation.from_request(result['request'], operation=operation,

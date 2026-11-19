@@ -50,7 +50,7 @@ class GrantOnlyProfileJourney(InstalledJourney):
                          actions=actions)
         self.revoke_first = revoke_first
         self.daily_minutes = daily_minutes
-        require(type(grant_seconds) is int and grant_seconds in (120, 180, 240, 600, 1200),
+        require(type(grant_seconds) is int and grant_seconds in (120, 180, 240, 480, 600, 1200),
                 'time-profile:grant-duration')
         self.grant_seconds = grant_seconds
         self.daily_before_approval = None

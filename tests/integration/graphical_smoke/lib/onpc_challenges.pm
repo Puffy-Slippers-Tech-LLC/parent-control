@@ -440,7 +440,7 @@ sub ordinary_daily_reset {
     $journey->seen($_) for qw(return-greeter returned-gdm);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'return');
     $journey->seen($_) for qw(parent-retained exhausted-balance);
-    $journey->seen('midnight-wait-' . $_) for 1 .. 6;
+    $journey->seen('midnight-wait-' . $_) for 1 .. 3;
     $journey->seen($_) for qw(renewed-balance parent-switch renewed-greeter);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'renewed');
     $journey->invoke('renewed-countdown');

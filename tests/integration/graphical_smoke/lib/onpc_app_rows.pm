@@ -1655,7 +1655,7 @@ sub game_time_extension {
     $journey->{overlay_request} = $request;
     onpc_gdm::reattach_functional();
     if ($mode eq 'fullscreen') {
-        onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0, 10);
+        onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 480, 'default', 0, 10);
         onpc_gdm::sign_in_challenge($journey, 'profile-return',
             'profile-return-installed-greeter', 'profile-return-parent-focused', 'profile-return-desktop');
         $journey->consume_observation('profile-result-parent-retained',

@@ -18,6 +18,8 @@ from ui_observations import AppRowsObservation, SettingsObservation
 
 
 DAILY_MINUTES = 15
+FULLSCREEN_DAILY_MINUTES = 10
+FULLSCREEN_INITIAL_GRANT_SECONDS = 480
 PROFILE = {
     **daily_dominant_time_profile(grant_seconds=600, daily_minutes=DAILY_MINUTES, finish='parent'),
     'game-apps': 'ui:parent-apps-page', 'game-policy': 'ui:parent-app-rows',
@@ -112,7 +114,8 @@ class GameTimeExtensionJourney(GameTimeExtensionChecks, DailyDominantProfileJour
 FULLSCREEN_PROFILE = {
     **{stage: operation for stage, operation in grant_only_time_profile(
         source='gdm', entry='fresh', window='new', initial_enabled=False, revoke_first=False,
-        duration_seconds=600, request_initial='default', daily_minutes=10).items()
+        duration_seconds=FULLSCREEN_INITIAL_GRANT_SECONDS, request_initial='default',
+        daily_minutes=FULLSCREEN_DAILY_MINUTES).items()
        if stage not in ('profile-final-switch', 'profile-final-gdm')},
     'game-apps': 'ui:parent-apps-page', 'game-policy': 'ui:parent-app-rows',
     'profile-final-switch': 'system:parent-switch-user', 'profile-final-gdm': 'ui:gdm-returned',
@@ -120,7 +123,7 @@ FULLSCREEN_PROFILE = {
 FULLSCREEN_PLAY = {**ENTRY, 'before-countdown': 'ui:child-countdown-present',
     **prefixed_stages('play', {**game_usable_app(level=1, mode='fullscreen'),
                               'capture': 'ui:game-fullscreen-activity'})}
-FULLSCREEN_REQUEST = {**overlay_entry('new', 'panel', form_operation='overlay-grant-form'),
+FULLSCREEN_REQUEST = {**overlay_entry('new', 'panel', form_operation='overlay-grant-480-form'),
                       **{stage: operation for stage, operation in REQUEST.items()
                          if stage not in ('new-launch', 'new-form', 'returned', 'countdown')},
                       # Fullscreen hides Activities. Verify the child session
@@ -150,7 +153,8 @@ class GrantDominantGameTimeExtensionJourney(GameTimeExtensionChecks, GrantOnlyPr
                                            KioskRequestJourney):
     def __init__(self, context, progress, plan=FULLSCREEN_PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions,
-                         daily_minutes=10, grant_seconds=600)
+                         daily_minutes=FULLSCREEN_DAILY_MINUTES,
+                         grant_seconds=FULLSCREEN_INITIAL_GRANT_SECONDS)
         self.parent_balance = None
 
     def check_settings(self, stage, observed):

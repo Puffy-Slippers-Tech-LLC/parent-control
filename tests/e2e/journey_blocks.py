@@ -103,7 +103,7 @@ def grant_only_time_profile(*, source, entry, window, initial_enabled, revoke_fi
     require(type(initial_enabled) is bool and type(revoke_first) is bool
             and type(balance_readback) is bool
             and type(daily_minutes) is int and daily_minutes in (0, 4, 10, 30)
-            and type(duration_seconds) is int and duration_seconds in (6, 120, 180, 240, 600, 1200)
+            and type(duration_seconds) is int and duration_seconds in (6, 120, 180, 240, 480, 600, 1200)
             and request_initial in ('default', 'selected', 'observed')
             and (source, entry, window) in (('gdm', 'fresh', 'new'),
                                           ('desktop', 'same-user', 'retained')),
@@ -788,7 +788,8 @@ def overlay_entry(prefix, route, *, form_operation='overlay-request-form'):
     import re
     require(type(prefix) is str and re.fullmatch(r'[a-z][a-z0-9-]*', prefix)
             and route in ('command', 'panel', 'panel-reopen'), 'journey:overlay-binding')
-    require(form_operation in ('overlay-request-form', 'overlay-grant-form', 'overlay-valid-excluded-read',
+    from accessible_ui import OVERLAY_GRANT_FORM_SECONDS
+    require(form_operation in ('overlay-request-form', *OVERLAY_GRANT_FORM_SECONDS, 'overlay-valid-excluded-read',
                                'request-overlay-jordan-ready', 'request-overlay-riley-ready',
                                'overlay-valid-fraction-soft-read', 'overlay-fraction-estimate-refresh',
                                'overlay-language-initial',

@@ -76,7 +76,7 @@ def prepared_request(*, prefix, entry, initial, child, approver, duration_second
     require(entry in ('open', 'new') and initial in ('default', 'selected'),
             'request-flow:entry')
     require(child == 'fixture-child' and approver == 'fixture-parent'
-            and type(duration_seconds) is int and duration_seconds in (75, 120, 180, 240, 600, 1200)
+            and type(duration_seconds) is int and duration_seconds in (75, 120, 180, 240, 480, 600, 1200)
             and allow_soft is True, 'request-flow:choices')
     require(surface in ('kiosk', 'overlay'), 'request-flow:surface')
     require(type(compact) is bool and (not compact or

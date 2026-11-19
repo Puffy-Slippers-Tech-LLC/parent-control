@@ -89,7 +89,7 @@
             node.hidden = section.view !== view && !(section.view === 'status' && embedded === view);
         }
         if (section.session.hidden) {
-            section.fileCompletion.reset();
+            section.completion.reset();
             section.modelPicker.close();
         }
     }
@@ -515,7 +515,7 @@
             kind === 'extend' ? section.entry.session_question : '';
         const refreshModels = command === '/model';
         if (kind !== 'extend' && !refreshModels) section.pending = id;
-        if (kind === 'send') section.fileCompletion.reset();
+        if (kind === 'send') section.completion.reset();
         actions.set(id, { section, draft: kind === 'send' && !refreshModels ? draft : undefined,
             session: section.entry.session });
         section.error.textContent = '';
@@ -557,32 +557,40 @@
         return { composer, input, fitInput, inputObserver };
     }
 
-    function fileCompletion(section) {
+    function chatCompletion(section) {
         const { composer, input } = section;
-        const menu = element('div', 'session-file-suggestions', composer);
-        menu.id = `session-files-${crypto.randomUUID()}`;
+        const menu = element('div', 'session-suggestions', composer);
+        menu.id = `session-suggestions-${crypto.randomUUID()}`;
         menu.setAttribute('popover', 'manual');
         menu.setAttribute('role', 'listbox');
-        menu.setAttribute('aria-label', 'Matching files');
         input.setAttribute('aria-controls', menu.id);
         input.setAttribute('aria-autocomplete', 'list');
         let token, request, timer, selected;
+        let shown = [];
 
         function currentToken() {
             const entry = section.entry;
             if (document.activeElement !== input || input.disabled || section.session.hidden ||
-                    !entry?.session_file_search || entry.session_waiting || input.selectionStart !== input.selectionEnd) return;
+                    !entry?.session || entry.session_question || input.selectionStart !== input.selectionEnd) return;
+            const draft = input.value.trimStart();
+            if (draft.startsWith('/') && !/\s/u.test(draft) && entry.session_view?.model_selection) {
+                // The model picker takes over once the command is complete.
+                if (draft === '/model') return;
+                return { kind: 'command', session: entry.session, query: draft,
+                    start: input.value.length - draft.length, end: input.value.length };
+            }
+            if (!entry.session_file_search || entry.session_waiting) return;
             const caret = input.selectionStart;
             const match = input.value.slice(0, caret).match(/(?:^|[\s([{])@([^\s@)\]},;:!?]*)$/u);
             if (!match || match[1].length > 512) return;
             const suffix = input.value.slice(caret).match(/^[^\s@)\]},;:!?]*/u)[0].replace(/\.+$/u, '');
-            return { session: entry.session, query: match[1], start: caret - match[1].length - 1,
+            return { kind: 'file', session: entry.session, query: match[1], start: caret - match[1].length - 1,
                 end: caret + suffix.length };
         }
 
         function sameToken(current) {
-            return token && current && token.session === current.session && token.start === current.start &&
-                token.end === current.end && token.query === current.query;
+            return token && current && token.kind === current.kind && token.session === current.session &&
+                token.start === current.start && token.end === current.end && token.query === current.query;
         }
 
         function hide() {
@@ -593,6 +601,7 @@
             window.removeEventListener('resize', hide);
             window.removeEventListener('scroll', closeOnScroll, true);
             menu.replaceChildren();
+            shown = [];
             input.removeAttribute('aria-activedescendant');
         }
 
@@ -605,15 +614,24 @@
             token = undefined;
         }
 
+        function invalidate() {
+            if (token && !sameToken(currentToken())) reset();
+        }
+
         function refresh(event) {
             if (event.isComposing) return;
             const current = currentToken();
             if (sameToken(current)) return;
             if (!current) return reset();
-            // Keep the existing list visible while searching within the same @ mention.
-            if (token && (token.session !== current.session || token.start !== current.start)) hide();
+            if (token && (token.kind !== current.kind || token.session !== current.session ||
+                    token.start !== current.start)) hide();
             clearTimeout(timer);
             token = current;
+            if (current.kind === 'command') {
+                showSuggestions(['/model'].filter(command => command.startsWith(current.query)), 'No matching commands.');
+                return;
+            }
+            // Keep the existing list visible while searching within the same @ mention.
             const id = crypto.randomUUID();
             request = id;
             if (menu.matches(':popover-open')) positionMenu();
@@ -634,14 +652,19 @@
             option.scrollIntoView({ block: 'nearest' });
         }
 
-        function choose(path) {
+        function choose(value) {
             if (request) return;
             if (!sameToken(currentToken())) return reset();
-            const text = /[\s"\\]/u.test(path) ? JSON.stringify(path) : path;
-            const space = /[\s)\]},.;:!?]/u.test(input.value.charAt(token.end)) ? '' : ' ';
-            input.setRangeText(text + space, token.start, token.end, 'end');
+            const command = token.kind === 'command';
+            let text = value;
+            if (!command) {
+                if (/[\s"\\]/u.test(value)) text = JSON.stringify(value);
+                if (!/[\s)\]},.;:!?]/u.test(input.value.charAt(token.end))) text += ' ';
+            }
+            input.setRangeText(text, token.start, token.end, 'end');
             reset();
             section.fitInput();
+            if (command) section.modelPicker.open();
         }
 
         function positionMenu() {
@@ -655,23 +678,39 @@
             menu.style.top = `${openAbove ? bounds.top - menu.offsetHeight - 4 : bounds.bottom + 4}px`;
         }
 
-        function show({ id, paths }) {
+        function showFiles({ id, paths }) {
             if (request !== id) return;
             if (!sameToken(currentToken())) return reset();
             clearTimeout(timer);
             request = undefined;
             if (!paths.length) return hide();
-            const previous = menu.children[selected]?.textContent;
+            showSuggestions(paths);
+        }
+
+        function showSuggestions(values, emptyMessage) {
+            if (menu.matches(':popover-open') && values.length === shown.length &&
+                    values.every((value, index) => value === shown[index])) return;
+            const previous = shown[selected];
+            shown = values;
+            menu.setAttribute('aria-label', token.kind === 'command' ? 'Supported commands' : 'Matching files');
             const options = document.createDocumentFragment();
-            paths.forEach((path, index) => {
-                const option = element('div', 'session-file-option', options);
+            values.forEach((value, index) => {
+                const option = element('div', 'session-suggestion-option', options);
                 option.id = `${menu.id}-${index}`;
                 option.setAttribute('role', 'option');
                 option.setAttribute('aria-selected', 'false');
-                option.title = option.textContent = path;
+                option.title = option.textContent = value;
                 option.addEventListener('mousedown', event => event.preventDefault());
-                option.addEventListener('click', () => choose(path));
+                option.addEventListener('click', () => choose(value));
             });
+            if (!values.length) {
+                const empty = element('div', 'session-suggestion-empty', options);
+                empty.setAttribute('role', 'option');
+                empty.setAttribute('aria-disabled', 'true');
+                empty.textContent = emptyMessage;
+                selected = undefined;
+                input.removeAttribute('aria-activedescendant');
+            }
             menu.replaceChildren(options);
             if (!menu.matches(':popover-open')) {
                 menu.showPopover();
@@ -679,7 +718,7 @@
                 window.addEventListener('scroll', closeOnScroll, { capture: true, passive: true });
             }
             positionMenu();
-            highlight(Math.max(0, paths.indexOf(previous)));
+            if (values.length) highlight(Math.max(0, values.indexOf(previous)));
         }
 
         function handleKey(event) {
@@ -691,12 +730,12 @@
             const open = menu.matches(':popover-open');
             if (event.key === 'Escape' && (request || open)) {
                 hide();
-            } else if (request || !open) {
+            } else if (request || !open || !shown.length) {
                 return false;
             } else if (event.key === 'Enter' || event.key === 'Tab') {
-                choose(menu.children[selected].textContent);
+                choose(shown[selected]);
             } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                const count = menu.children.length;
+                const count = shown.length;
                 highlight((selected + count + (event.key === 'ArrowDown' ? 1 : -1)) % count);
             } else {
                 return false;
@@ -709,7 +748,7 @@
             input.addEventListener(event, refresh);
         }
         input.addEventListener('blur', reset);
-        return { handleKey, reset, show };
+        return { handleKey, invalidate, reset, showFiles };
     }
 
     function modelPicker(section) {
@@ -775,14 +814,15 @@
             if (keepSelection) models.scrollTop = scroll;
         }
 
-        function open() {
+        function open(focus = true) {
             if (picker.hidden || !current()) {
+                const next = section.entry?.session_view?.model_selection;
+                if (!next || section.entry.session_question || !sessionAction(section, 'send', '/model')) return;
                 owner = section.entry.session;
-                sessionAction(section, 'send', '/model');
-                showOptions(section.entry.session_view.model_selection, false);
+                showOptions(next, false);
             }
             picker.hidden = false;
-            (models.hidden ? cancel : models).focus();
+            if (focus) (models.hidden ? cancel : models).focus();
         }
 
         function current() {
@@ -803,6 +843,7 @@
 
         models.addEventListener('change', () => showEfforts());
         picker.addEventListener('keydown', event => {
+            if (event.isComposing) return;
             if (event.key === 'Escape') {
                 event.preventDefault();
                 close(true);
@@ -824,7 +865,13 @@
             if (sessionAction(section, 'send', `/model ${models.value}${reasoning}`)) close(true);
         });
         cancel.addEventListener('click', () => close(true));
-        section.input.addEventListener('input', refresh);
+        function draftChanged(event) {
+            if (event.isComposing) return;
+            if (section.input.value.trimStart() === '/model') open(false);
+            else close();
+        }
+        section.input.addEventListener('input', draftChanged);
+        section.input.addEventListener('compositionend', draftChanged);
         return { open, refresh, close };
     }
 
@@ -850,7 +897,7 @@
         section.toggle.setAttribute('aria-checked', 'true');
         section.toggle.disabled = true;
         section.toggle.addEventListener('click', () => sessionAction(section, 'simplified'));
-        section.fileCompletion = fileCompletion(section);
+        section.completion = chatCompletion(section);
         section.modelPicker = modelPicker(section);
         input.addEventListener('keydown', event => {
             if (event.key === 'Escape' && !event.isComposing && section.modelPicker.close()) {
@@ -868,7 +915,7 @@
                 }
                 return;
             }
-            if (section.fileCompletion.handleKey(event)) return;
+            if (section.completion.handleKey(event)) return;
             if (event.key === 'Enter' && !event.isComposing && !event.shiftKey && !event.altKey) {
                 event.preventDefault();
                 const text = input.value.trim();
@@ -968,9 +1015,6 @@
         section.toggle.setAttribute('aria-checked', String(view.simplified));
         section.toggle.disabled = !section.entry.session || !section.entry.connected || Boolean(view.unavailable);
         section.input.disabled = !view.input_enabled || !section.entry.connected;
-        if (section.input.disabled || !section.entry.session_file_search || section.entry.session_waiting) {
-            section.fileCompletion.reset();
-        }
     }
 
     function persist() {
@@ -1632,7 +1676,7 @@
         }
         for (const [id, section] of sections) {
             if (!ids.has(id)) {
-                section.fileCompletion.reset();
+                section.completion.reset();
                 section.inputObserver.disconnect();
                 section.statusObserver.disconnect();
                 section.previewObserver.disconnect();
@@ -1701,7 +1745,7 @@
             }
             if (maximizedRun) section.collapsed = entry.id !== maximizedRun;
             section.entry = entry;
-            if (previous?.session !== entry.session || !entry.connected) section.fileCompletion.reset();
+            if (previous?.session !== entry.session || !entry.connected) section.completion.reset();
             if (!previous || previous.run !== entry.run) section.followStatus = true;
             if (!entry.connected) {
                 section.input.disabled = true;
@@ -1720,6 +1764,7 @@
                 section.toggle.disabled = true;
                 section.model.textContent = '';
             }
+            section.completion.invalidate();
             section.modelPicker.refresh();
             if (section.launcherText !== entry.launcher_output || section.launcherRows !== entry.launcher_rows) {
                 const follow = section.launcher.scrollHeight - section.launcher.clientHeight - section.launcher.scrollTop < 24;
@@ -2220,7 +2265,7 @@
         state = { scope: snapshot.scope, selected: snapshot.selected };
         persist();
         runStatus(snapshot.runs);
-        for (const result of snapshot.file_suggestions || []) sections.get(result.root)?.fileCompletion.show(result);
+        for (const result of snapshot.file_suggestions || []) sections.get(result.root)?.completion.showFiles(result);
         tabs(viewers, [{ id: 'all', label: 'VM Viewer', active: true },
             { id: 'run-time', label: 'Run Time', active: true }],
             state.selected === 'run-time' ? 'run-time' : 'all', selected => {

@@ -375,11 +375,16 @@ on an SSH source. Type part of a name or path to narrow the list in place. Use â
 and â†“ to move, Tab or Enter to insert the relative path, or click a result.
 Escape dismisses the picker without changing the draft. Enter sends the draft
 when the picker is closed and no search is pending.
-In an active repair or execution-plan chat, enter `/model` to open the model
-picker. Use Up/Down to choose a model and Left/Right to adjust its reasoning
-effort. Enter applies the selection and Escape closes the picker. The options
-come from the source session's agent adapter and refresh when you reopen the
-picker. You can also enter `/model <model>`
+In a chat that supports slash commands, start a draft with `/` to see the list.
+Keep typing to narrow the list. Use Up/Down to highlight a command, then press
+Enter or Tab to choose it, or click a result. Escape closes the list and keeps
+your draft.
+Choose `/model` to open and focus the model picker, or type `/model` in full
+and press Enter to move focus from the draft to the picker. Use Up/Down to
+choose a model and Left/Right to adjust its reasoning effort. Enter applies the
+selection. Escape closes the picker, keeps the draft, and returns focus to the
+chatbox. The options come from the source session's agent adapter and refresh
+when you reopen the picker. You can also enter `/model <model>`
 to use that model's default effort, or `/model [model] --reasoning=<level>` to
 choose a specific level. Watch confirms the change in the transcript and updates
 the footer after the agent accepts it. The change applies to subsequent turns

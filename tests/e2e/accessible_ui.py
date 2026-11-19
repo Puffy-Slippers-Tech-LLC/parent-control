@@ -9196,6 +9196,7 @@ class AccessibleUI:
         require(len(applications) == 1, 'ui:natural-reminder-observer-lost')
         application = applications[0]
         initial = emission = delivery_id = endpoint = closed_delivery_id = None
+        auto_closes = False
         emissions, visibility = [], None
         previous_end = time.monotonic_ns()
         maximum_gap = samples = actions = 0
@@ -9247,9 +9248,7 @@ class AccessibleUI:
                         'activity_actions': actions, 'removed': True,
                         **({'emissions': emissions, 'visibility': visibility} if history else {})}
             if warning is None:
-                # Banners delivered with at least one minute left close after
-                # five seconds. Short warnings must remain until natural Lock.
-                require(emission is None or seconds == 0 or emission['seconds'] >= 60,
+                require(emission is None or seconds == 0 or auto_closes,
                         'ui:natural-reminder-disappeared')
                 closed_delivery_id = delivery_id
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
@@ -9279,11 +9278,23 @@ class AccessibleUI:
                 require(content['visible'] is True, 'ui:natural-reminder-hidden')
                 body, live = content['text'], content['value']
                 priority = urgency.getValue()
-                require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
-                after = remaining.getValue()
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
                 require(type(live) is int and 0 < live <= threshold,
                         'ui:natural-reminder-trigger')
+                if new_delivery:
+                    auto_closes = False
+                    if threshold >= 60 and live > 5:
+                        # The first sample can already be below a minute. Use
+                        # the banner's own timer to recognize five-second closure.
+                        countdown = self.snapshot_owned_target('child-time-notification-countdown',
+                                                               observation=observation)
+                        require(countdown is not None, 'ui:natural-reminder-incomplete')
+                        segments = countdown.getValue()
+                        require(type(segments) is int and segments >= 0,
+                                'ui:natural-reminder-countdown')
+                        auto_closes = segments <= 5
+                require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
+                after = remaining.getValue()
                 if record['text']:
                     expected_body = record['text']
                 else:

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Verify that the VM matches the reviewed Ubuntu package matrix exactly."""
+"""Verify the installed prerequisites and report their native versions."""
 
 from __future__ import annotations
 
@@ -8,18 +8,16 @@ import sys
 from pathlib import Path
 
 
-def expected_versions(path: Path) -> dict[str, str]:
-    result = {}
+def required_packages(path: Path) -> list[str]:
+    result = []
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line or line.startswith("#"):
             continue
-        fields = line.split("\t")
-        if len(fields) != 2 or not all(fields):
+        if len(line.split()) != 1 or line.strip() != line or line.startswith("-"):
             raise ValueError(f"invalid package matrix line {number}")
-        package, version = fields
-        if package in result:
-            raise ValueError(f"duplicate package in matrix: {package}")
-        result[package] = version
+        if line in result:
+            raise ValueError(f"duplicate package in matrix: {line}")
+        result.append(line)
     return result
 
 
@@ -41,22 +39,18 @@ def main(argv: list[str]) -> int:
         print("Usage: verify_packages.py EXPECTED_PACKAGES", file=sys.stderr)
         return 2
     try:
-        expected = expected_versions(Path(argv[1]))
+        expected = required_packages(Path(argv[1]))
     except (OSError, ValueError) as error:
         print(f"package matrix: {error}", file=sys.stderr)
         return 1
     failures = []
-    for package, version in expected.items():
+    for package in expected:
         actual = installed_version(package)
-        print(f"{package}\t{actual or 'not-installed'}\texpected={version}")
-        if actual != version:
+        print(f"{package}\t{actual or 'not-installed'}")
+        if not actual:
             failures.append(package)
     if failures:
-        print(
-            "supported package drift: " + ", ".join(failures) +
-            "; review updates and recapture the matrix before changing it",
-            file=sys.stderr,
-        )
+        print("required packages missing: " + ", ".join(failures), file=sys.stderr)
         return 1
     return 0
 

@@ -572,9 +572,9 @@ RPM uses DNF's documented quiet mode, reads the exact verified package's
 and architecture. The notice must be the final nonempty product-scriptlet line;
 DNF's `>>> ` framing and later transaction messages follow the
 [Fedora output contract](../../docs/Fedora-Packaging.md#fedora-lifecycle).
-Live Fedora qualification remains a
-separate acceptance step. The genuine historical v1.2 upgrade bundle and the
-legacy sudo-rs terminal qualification retain their Ubuntu-only scope.
+Live Fedora qualification remains a separate acceptance step. Genuine upgrades
+use the historical v1.2 DEB or v1.3 RPM. The legacy sudo-rs terminal
+qualification exercises the Ubuntu package route.
 
 [Case 139](removal_journey.py) declares one current-package install → ordinary
 remove → reinstall → installed purge action → fresh install history on both
@@ -1190,9 +1190,9 @@ sudo authentication, package-result verification, customer reboot and graphical 
 Each installation request pumps pending serial input before read-only probes;
 safe observations are checkpointed before replies. Capture remains sealed after
 authentication. No caller command, package path or scenario override is accepted.
-The installation preflight records the guest's selected sudo-rs executable and
-installed Ubuntu package version, and refuses revisions outside the audited
-0.2.13-0ubuntu1, 0.2.13-0ubuntu1.1 and 0.2.13-0ubuntu1.2 contract. The helper
+The installation preflight records the guest's package-owned sudo-rs executable
+and installed package version. The password-stage check independently verifies
+the live recipient and disabled character echo before any secret input. The helper
 supplies its own leading newline in sudo's supported custom prompt. The serial
 matcher requires that newline, `ONPC-INSTALL-PASSWORD: ` and the complete fixed
 `] Password: ` suffix at the buffer end. Command echo, a bare marker, incomplete

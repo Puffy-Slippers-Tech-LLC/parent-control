@@ -756,9 +756,9 @@ def test_container_recipe_tracks_build_dependencies_without_freezing_runtime_edi
     original = (ROOT / 'rpm/oh-no-parent-control.spec.in').read_text()
     spec.write_text(original)
     first = rpm_builder.inputs(tmp_path)
-    fedora45 = rpm_builder.inputs(tmp_path, target='fedora45')
-    assert b'fedora:45\n' in fedora45[0]
-    assert fedora45[2] != first[2]
+    fedora46 = rpm_builder.inputs(tmp_path, target='fedora46')
+    assert b'fedora:46\n' in fedora46[0]
+    assert fedora46[2] != first[2]
     assert '@VERSION@' not in first[1] and '@RELEASE@' not in first[1]
     spec.write_text(original.replace('Requires:       accountsservice', 'Requires:       accountsservice >= 1'))
     assert rpm_builder.inputs(tmp_path)[2] == first[2]

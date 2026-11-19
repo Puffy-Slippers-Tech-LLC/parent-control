@@ -133,7 +133,6 @@ for label,name in (('current','package.deb'),('previous','previous/package.deb')
     assert 0<len(fields['Version'])<=128
     packages[label]={'name':fields['Package'],'version':fields['Version'],
                      'architecture':fields['Architecture'],'sha256':files[name]}
-assert packages['previous']['version']=='1.2+ppa1~ubuntu26.04.1'
 assert packages['current']['sha256']!=packages['previous']['sha256']
 subprocess.run(['/usr/bin/dpkg','--compare-versions',packages['current']['version'],'gt',
                 packages['previous']['version']],check=True,capture_output=True,timeout=30)
@@ -155,7 +154,6 @@ for label,name in (('current','package.rpm'),('previous','previous/package.rpm')
     assert 0<len(values[1])<=128
     packages[label]={'name':values[0],'version':values[1],
                      'architecture':values[2],'sha256':files[name]}
-assert packages['previous']['version']=='0:1.3-0.1.dev.fc44'
 assert packages['current']['sha256']!=packages['previous']['sha256']
 versions=[re.fullmatch(r'([0-9]+):([A-Za-z0-9][A-Za-z0-9._+~^]*)-([A-Za-z0-9][A-Za-z0-9._+~^]*)',
                       packages[label]['version']) for label in ('current','previous')]
@@ -171,16 +169,6 @@ else:
     raise AssertionError('RPM upgrade must be newer')
 print(json.dumps({'files':len(files),'sha256':hashlib.sha256(encoded).hexdigest(),
                   'packages':packages},sort_keys=True))''')
-
-
-# No-action pairs have their own verified source/release profiles, rather than
-# the ordinary upgrade's historical release. Read actual native identities and
-# version order here; AssetTransfer compares the entire result to the exact
-# host-verified pair, including both versions and package/tree hashes.
-NO_ACTION_ASSETS = UPGRADE_ASSETS.replace(
-    "assert packages['previous']['version']=='1.2+ppa1~ubuntu26.04.1'\n", '')
-NO_ACTION_ASSETS_RPM = UPGRADE_ASSETS_RPM.replace(
-    "assert packages['previous']['version']=='0:1.3-0.1.dev.fc44'\n", '')
 
 
 # All session names and identifiers stay inside this guest process. This is a

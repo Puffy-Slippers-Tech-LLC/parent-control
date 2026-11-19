@@ -288,7 +288,7 @@ define installdeb
 			exit 1; \
 		fi; \
 		step='reading package version'; \
-		version="$$(dpkg-parsechangelog -S Version)"; \
+		version="$$( $(PYTHON) -B tools/build_targets.py --native-output deb --debian-version "$$(dpkg-parsechangelog -S Version)")"; \
 		step='reading package architecture'; \
 		architecture="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
 		step='locating built package'; \

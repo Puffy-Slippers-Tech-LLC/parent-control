@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from tools import build_package, deb_builder
+from tools import build_package, build_targets, deb_builder
 from tests.support.paths import ROOT
 
 
@@ -41,7 +41,7 @@ def test_updateversion_prepares_before_building_selected_format_and_stops_on_fai
 
 @pytest.mark.parametrize('fail', [False, True])
 def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fail):
-    monkeypatch.setattr(deb_builder, 'native_debian', lambda: True)
+    monkeypatch.setattr(build_targets.Target, 'native', lambda self: True)
     checkout = tmp_path / 'checkout'
     checkout.mkdir()
     debian = checkout / 'debian'
@@ -90,7 +90,7 @@ def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fa
 @pytest.mark.parametrize('failure', [None, 'ubuntu26.04', 'fedora45'])
 def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypatch, failure):
     from threading import Barrier
-    from tools import build_rpm, build_targets
+    from tools import build_rpm
 
     checkout = tmp_path / 'checkout'
     checkout.mkdir()
@@ -99,7 +99,7 @@ def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypa
     scratch = tmp_path / 'scratch'
     scratch.mkdir()
     monkeypatch.setattr(build_package, 'scratch_directory', lambda: scratch)
-    targets = tuple(build_targets.TARGETS.values())
+    targets = build_targets.configured(ROOT)
     monkeypatch.setattr(build_targets, 'configured', lambda _: targets)
     overlap = Barrier(3, timeout=5)
     seen = {}
@@ -140,6 +140,10 @@ def test_deb_builder_fingerprint_tracks_build_requirements_and_recipe(tmp_path):
     original = (ROOT / 'debian/control').read_text()
     control.write_text(original)
     first = deb_builder.inputs(tmp_path)[2]
+    future = build_targets.from_family('ubuntu28.04_x86_64', 'deb')
+    future_recipe, _, future_image = deb_builder.inputs(tmp_path, target=future.name)
+    assert future_recipe.startswith(b'FROM docker.io/library/ubuntu:28.04\n')
+    assert future_image.startswith('localhost/onpc-deb-builder:ubuntu28.04-')
     control.write_text(original.replace('accountsservice', 'accountsservice (>= 1)'))
     assert deb_builder.inputs(tmp_path)[2] == first
     control.write_text(original.replace('Build-Depends:\n', 'Build-Depends:\n extra-tool,\n'))
@@ -187,16 +191,16 @@ def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path
     # Released product sources need not contain today's container tooling.
     checkout = tmp_path / 'checkout'
     (checkout / 'debian').mkdir(parents=True)
-    for name in ('control', 'rules'):
+    for name in ('changelog', 'control', 'rules'):
         (checkout / 'debian' / name).write_bytes((ROOT / 'debian' / name).read_bytes())
     (checkout / 'Makefile').write_text(
-        'package-source-files:\n\t@printf "%s\\n" Makefile debian/control debian/rules\n')
+        'package-source-files:\n\t@printf "%s\\n" Makefile debian/changelog debian/control debian/rules\n')
     package_command = ['dpkg-buildpackage', '--build=binary', '--no-sign', '-aamd64']
     environment = {'HOME': str(tmp_path / 'build-home'), 'DEB_BUILD_OPTIONS': 'parallel=2',
                    'SOURCE_DATE_EPOCH': '123'}
     monkeypatch.setattr(build_package, 'scratch_directory', lambda: tmp_path)
     monkeypatch.setattr(deb_builder, 'scratch_descriptors', lambda: ())
-    monkeypatch.setattr(deb_builder, 'native_debian', lambda: False)
+    monkeypatch.setattr(build_targets.Target, 'native', lambda self: False)
     monkeypatch.setattr(deb_builder.shutil, 'which', lambda _: None if failure == 'missing' else '/fixture/podman')
     original_run = subprocess.run
     commands = []
@@ -206,7 +210,7 @@ def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path
             return original_run(arguments, **kwargs)
         commands.append(arguments)
         if arguments[1:3] == ['image', 'exists']:
-            assert arguments[-1] == deb_builder.inputs(ROOT)[2]
+            assert arguments[-1] == deb_builder.inputs(ROOT, target='ubuntu26.10')[2]
             return subprocess.CompletedProcess(arguments, 1 if failure == 'outdated' else 0)
         assert '--network=none' in arguments and '--pull=never' in arguments
         assert '--userns=keep-id' in arguments and '--cap-drop=all' in arguments
@@ -220,6 +224,7 @@ def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path
         assert workspace / 'source' == kwargs['cwd']
         assert (workspace / 'source/debian/rules').is_file()
         assert not (workspace / 'source/debian/Containerfile').exists()
+        assert '~ubuntu26.10.' in (workspace / 'source/debian/changelog').read_text().splitlines()[0]
         if failure == 'build':
             raise subprocess.CalledProcessError(7, arguments)
         (workspace / 'product.deb').write_bytes(b'Ubuntu package')
@@ -229,13 +234,13 @@ def test_deb_on_fedora_uses_prepared_ubuntu_image_and_exports_artifacts(tmp_path
     destination = tmp_path / 'exported'
     if failure:
         with pytest.raises((ValueError, subprocess.CalledProcessError)) as error:
-            build_package.build(checkout, 'amd64', destination=destination,
+            build_package.build(checkout, 'amd64', target='ubuntu26.10', destination=destination,
                                 builder_root=ROOT, package_command=package_command, environment=environment)
         if failure != 'build':
             assert './setup.sh --dependencies-only' in str(error.value)
         assert not destination.exists()
     else:
-        build_package.build(checkout, 'amd64', destination=destination,
+        build_package.build(checkout, 'amd64', target='ubuntu26.10', destination=destination,
                             builder_root=ROOT, package_command=package_command, environment=environment)
         assert (destination / 'product.deb').read_bytes() == b'Ubuntu package'
     assert not any(path.name.startswith('onpc-package-') for path in tmp_path.iterdir())

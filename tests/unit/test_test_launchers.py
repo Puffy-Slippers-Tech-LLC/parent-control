@@ -1828,6 +1828,8 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
                               'build_inputs': {'build_target': target.name,
                                                'target_architecture': target.architecture}})
     monkeypatch.setattr(build_test_artifacts, 'verify', verify)
+    verify_target = Mock()
+    monkeypatch.setattr(build_test_artifacts, 'verify_package_target', verify_target)
     authorize = Mock()
     monkeypatch.setattr(vm_artifacts, 'check', authorize)
     allocate = Mock(return_value=str(output))
@@ -1849,6 +1851,8 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         assert result == 0 and control.run.call_count == 1
         allocate.assert_not_called()
         verify.assert_called_once_with(candidate)
+        verify_target.assert_called_once_with(candidate / f'app.{candidate_format}', target,
+                                             build_inputs=verify.return_value['build_inputs'])
         assert capsys.readouterr().out.strip() == 'run-tests: output=' + str(candidate)
     else:
         assert result == 0
@@ -1875,7 +1879,7 @@ def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
         tmp_path, monkeypatch, status, package_format, candidate):
     import vm_artifacts
     import build_test_artifacts
-    family = 'fedora44-x86_64' if package_format == 'rpm' else 'ubuntu26.04-x86_64'
+    family = 'fedora46_x86_64' if package_format == 'rpm' else 'ubuntu26.10_x86_64'
     configured = replace(vm_artifacts.selected(), family=family, package_format=package_format)
     monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
     target = configured.require_build_target()
@@ -1885,7 +1889,7 @@ def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
     monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
     verify = Mock(return_value={'packages': {'current': {
         'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format],
-        'version': '1.4-0.1.dev.fc44' if package_format == 'rpm' else '1.4'}}})
+        'version': '1.4-0.1.dev.fc46' if package_format == 'rpm' else '1.4+local1~ubuntu26.10.1'}}})
     monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify)
     control = Mock()
     control.run.side_effect = [status, 0]

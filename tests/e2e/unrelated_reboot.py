@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 from customer_reboot import PLAN as REBOOT_PLAN
-from package_command import PackageCommand, UNRELATED, UNRELATED_PACKAGE
+from package_command import PackageCommand, UNRELATED
 from package_install import UnrelatedPackageJourney, check_install_result, submit_install, submit_unrelated
 from private_artifacts import EvidenceError, require
 from product_free_entry import refuse_command
@@ -22,22 +22,23 @@ PLAN = replace(REBOOT_PLAN, prefix='unrelated-reboot', worker_mode='unrelated_re
 def qualify_submission(journey, guard):
     """Qualification-only refusals surround the same consumer input leaf."""
     probe = PackageCommand(journey.transport, journey.context.verified)
-    digest, identity = UNRELATED_PACKAGE['sha256'], probe.identity
+    inputs = journey.unrelated_inputs
+    digest, identity = inputs['sha256'], probe.identity
     refusals = []
     for label, binding, value, owner in (
         ('unregistered', 'arbitrary-reconfiguration', digest, identity),
-        ('artifact', UNRELATED, '0' + digest[1:], identity),
+        ('artifact', UNRELATED, ('0' if digest[0] != '0' else '1') + digest[1:], identity),
         ('vm', UNRELATED, digest, {**identity, 'domain_uuid': 'wrong-vm'}),
         ('attempt', UNRELATED, digest, {**identity, 'run': 'wrong-attempt'})):
         try:
-            probe.submit(binding, value, owner)
+            probe.submit(binding, value, owner, unrelated=inputs)
         except EvidenceError:
             refusals.append(label)
         else:
             require(False, 'unrelated-package:invalid-input-accepted')
     result = submit_unrelated(journey, guard)
     try:
-        journey.unrelated_package.submit(UNRELATED, digest, identity)
+        journey.unrelated_package.submit(UNRELATED, digest, identity, unrelated=inputs)
     except EvidenceError as error:
         require(str(error) == 'package:replay', 'unrelated-package:wrong-refusal')
         refusals.append('replay')

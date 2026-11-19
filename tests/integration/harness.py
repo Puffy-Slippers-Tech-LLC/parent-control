@@ -181,9 +181,9 @@ def _verify_remote_marker(metadata: dict) -> None:
         "purpose": "oh-no-parent-control-integration",
         "name": metadata["name"],
         "token": metadata["token"],
-        "ubuntu_version": "26.04",
     }
-    if marker != expected:
+    release = marker.pop("ubuntu_version", None) if isinstance(marker, dict) else None
+    if marker != expected or not isinstance(release, str) or not re.fullmatch(r"[0-9]+\.[0-9]{2}", release):
         fail("guest marker does not match the selected disposable VM")
     checks = _ssh(
         metadata,

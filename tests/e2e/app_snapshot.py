@@ -170,7 +170,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     """Ensure a current snapshot; overwrite forces even a matching rebuild."""
     from installed_setup import stage, InstalledSetup, timed_stage
     from provenance import VerifiedInputs
-    from build_test_artifacts import PACKAGE_INPUT_NAME, verify
+    from build_test_artifacts import MANIFEST_NAME, PACKAGE_INPUT_NAME, verify, verify_package_target
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
     system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
     system.require(not release_notes_upgrade or mode == 'online', 'suite:upgrade-online-required')
@@ -188,8 +188,9 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     package = assets / ('package.' + system.package_format(lease.capture.state['guest']))
     system.require(package.is_file(), 'suite:package-platform-mismatch')
     target = system.package_target(lease.capture.state['guest'])
-    from build_test_artifacts import verify_package_target
-    verify_package_target(package, target)
+    # Full assets have already been verified by the controller's staging route.
+    manifest = package_manifest if package_only else json.loads((assets / MANIFEST_NAME).read_bytes())
+    verify_package_target(package, target, build_inputs=manifest.get('build_inputs'))
     version = system.package_version(suite.commands, package)
     name = snapshot_name(version)
     bundle = suite.input_bundle(root)

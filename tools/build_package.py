@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from contextvars import copy_context
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,22 +31,32 @@ def build(root: Path, architecture: str = 'x86_64', *, destination: Path | None 
     selected = build_targets.get(target, 'x86_64' if architecture == 'amd64' else architecture, 'deb')
     with (host_disk.operation('Building the DEB package', stopped=stopped)
           if disk_queue else nullcontext()):
-        return _build(root, selected.package_architecture, destination=destination or selected.output(root),
+        return _build(root, selected, destination=destination or selected.output(root),
                       environment=environment, package_command=package_command, builder_root=builder_root)
 
 
-def _build(root: Path, architecture: str, *, destination: Path | None = None, environment=None,
+def _build(root: Path, target: build_targets.Target, *, destination: Path, environment=None,
            package_command=None, builder_root: Path | None = None) -> None:
     with tempfile.TemporaryDirectory(prefix='onpc-package-', dir=scratch_directory()) as temporary:
         source = Path(temporary) / 'source'
         source.mkdir()
         package_inputs.copy(root, source)
+        changelog = source / 'debian/changelog'
+        header, newline, history = changelog.read_text().partition('\n')
+        entry = re.fullmatch(r'oh-no-parent-control \(([^)]+)\)( .+)', header)
+        if entry is None:
+            raise ValueError('invalid Debian changelog header')
+        version = entry[1]
+        selected_version = target.debian_version(version)
+        if selected_version != version:
+            changelog.write_text(f'oh-no-parent-control ({selected_version}){entry[2]}' + newline + history)
+        architecture = target.package_architecture
         native_command = package_command or ['make', '--no-print-directory', '_build-package',
                                               f'DEB_HOST_ARCH={architecture}']
-        native = deb_builder.native_debian()
+        native = target.native()
         arguments = (native_command if native else
                      [*deb_builder.command(builder_root or source, Path(temporary), architecture,
-                                           environment=environment)[:-4],
+                                           target=target.name, environment=environment)[:-4],
                       *native_command])
         # Podman needs the caller's prepared rootless storage. Package build
         # settings enter the container only through its explicit arguments.
@@ -53,7 +64,7 @@ def _build(root: Path, architecture: str, *, destination: Path | None = None, en
             arguments, cwd=source, check=True,
             env=host_disk.environment(environment if native else None),
             pass_fds=(*scratch_descriptors(), *host_disk.descriptors()))
-        output = destination or root / 'output/deb'
+        output = destination
         output.mkdir(parents=True, exist_ok=True)
         artifacts = (Path(temporary).iterdir() if package_command else (source / 'output/deb').iterdir())
         for artifact in artifacts:

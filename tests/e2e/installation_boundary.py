@@ -48,13 +48,9 @@ class InstallationBoundary:
                 session = self.observer.read('serial-session')
                 absent = self.observer.read('package-absent')
                 implementation = self.observer.read('sudo-implementation')
-                # These distribution revisions have the audited prompt/hidden
-                # input contract. Preserve observed identity before refusing a
-                # new version, so an unknown guest never receives a password.
-                require(implementation['implementation'] == 'sudo-rs'
-                        and implementation['package_version'] in (
-                            '0.2.13-0ubuntu1', '0.2.13-0ubuntu1.1', '0.2.13-0ubuntu1.2'),
-                        'install:sudo-implementation')
+                # The password-stage probe verifies the live recipient and
+                # disabled character echo before credential input.
+                require(implementation['implementation'] == 'sudo-rs', 'install:sudo-implementation')
                 result = {**absent, **session, 'sudo_implementation': implementation,
                           'verified_assets': True,
                           'installation_authorized': True}

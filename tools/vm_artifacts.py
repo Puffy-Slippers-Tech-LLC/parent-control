@@ -110,21 +110,22 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
                 raise ValueError('session input profile mismatch')
             if reboot_inputs and receipt.get('activation') != 'reboot':
                 raise ValueError('reboot input profile mismatch')
-            expected_architecture = {'deb': 'amd64', 'rpm': 'x86_64'}[package_format]
-            current = receipt['packages']['current']
-            if (current['architecture'] != expected_architecture
-                    or (package_format == 'rpm' and not current['version'].endswith(target.dist))):
-                print('run-tests: upgrade input package format does not match '
-                      'the verified VM baseline; existing inputs preserved', file=sys.stderr)
+            if any(item['architecture'] != target.package_architecture
+                   or not target.matches_package_version(item['version'])
+                   for item in receipt['packages'].values()):
+                print(f'run-tests: upgrade package does not match VM build target {target.name}; '
+                      'existing inputs preserved', file=sys.stderr)
                 return 2
             print('run-tests: output=' + str(candidate), flush=True)
             return 0
-        from build_test_artifacts import verify
+        from build_test_artifacts import verify, verify_package_target
         manifest = verify(Path(candidate))
         inputs = manifest.get('build_inputs', {})
         if (Path(manifest['artifacts']['package']['path']).suffix == '.' + package_format
                 and inputs.get('build_target') == target.name
                 and inputs.get('target_architecture') == target.architecture):
+            verify_package_target(Path(candidate) / manifest['artifacts']['package']['path'], target,
+                                  build_inputs=inputs)
             print('run-tests: output=' + str(candidate), flush=True)
             return 0
         if output is not None:

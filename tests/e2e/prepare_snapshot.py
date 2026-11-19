@@ -20,8 +20,10 @@ from vm_control import check_identity
 
 
 def current_version(commands, root=ROOT):
-    return commands.run(['dpkg-parsechangelog', '-l' + str(root / 'debian/changelog'),
-                         '-SVersion']).decode().strip()
+    version = commands.run(['dpkg-parsechangelog', '-l' + str(root / 'debian/changelog'),
+                            '-SVersion']).decode().strip()
+    target = system.baseline.guest_contract.vm_config.selected().require_build_target()
+    return target.debian_version(version) if target.package_format == 'deb' else version
 
 
 def current_name(commands, root=ROOT):

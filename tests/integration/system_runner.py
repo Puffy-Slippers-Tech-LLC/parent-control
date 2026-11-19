@@ -1571,7 +1571,7 @@ def stage_assets(source, destination, commands, *, package_only=False, fixture_f
     """Freeze user-built artifacts in root-private storage, then recheck all bytes."""
     sys.path.insert(0, str(ROOT / 'tools'))
     sys.path.insert(0, str(ROOT / 'tests/fixtures'))
-    from build_test_artifacts import verify
+    from build_test_artifacts import ArtifactError, verify, verify_package_target
     from build_test_applications import verify as verify_fixtures
     check_tree(source)
     require(type(catalogue_update) is bool and (not catalogue_update or package_only),
@@ -1627,10 +1627,12 @@ def stage_assets(source, destination, commands, *, package_only=False, fixture_f
         require((fixtures / 'onpc-test-application.flatpak').is_file(), 'assets:fixture-bundle-missing')
         require(package.suffix in ('.deb', '.rpm'), 'assets:package-format')
         shutil.copyfile(package, destination / ('package' + package.suffix))
+    target = baseline.guest_contract.vm_config.selected().require_build_target()
+    try:
+        verify_package_target(package, target, build_inputs=manifest.get('build_inputs'))
+    except ArtifactError as error:
+        raise Error('assets:package-build-target-mismatch:' + target.name) from error
     if package.suffix == '.rpm':
-        require(commands.run(['rpm', '-qp', '--queryformat', '%{NAME}', str(package)],
-                             merge_stderr=False).decode().strip() ==
-                'oh-no-parent-control', 'assets:package-name')
         raw = commands.run(['rpm', '-qp', '--queryformat',
             '[%{FILENAMES}\t%{FILEMODES}\t%{FILELINKTOS}\n]', str(package)], merge_stderr=False)
         entries = []
@@ -1647,8 +1649,6 @@ def stage_assets(source, destination, commands, *, package_only=False, fixture_f
         (destination / 'installed-files.json').write_bytes(baseline.encode(entries))
         stage_asset_inventory(destination, manifest, package_only=package_only)
         return manifest
-    require(commands.run(['dpkg-deb', '-f', str(package), 'Package']).decode().strip() ==
-            'oh-no-parent-control', 'assets:package-name')
     archive = commands.run(['dpkg-deb', '--fsys-tarfile', str(package)])
     import io
     entries = []
@@ -2061,6 +2061,9 @@ def bootstrap(commands, lease, directory, guestfs, *, observation_only=False,
         package = directory / 'input' / ('package.rpm' if os_id == 'fedora' else 'package.deb')
         if not observation_only:
             require(package.is_file(), 'assets:package-platform-mismatch:' + os_id)
+            target = package_target(lease.capture.state['guest'])
+            require((os_id, version) == (target.distribution, target.version),
+                    'guest:configured-build-target-mismatch')
         dependencies = baseline.guest_contract.guest_tools.versions(os_id,
             snap_prepared=baseline.guest_contract.vm_config.snap_tests_enabled())
         if os_id == 'ubuntu':

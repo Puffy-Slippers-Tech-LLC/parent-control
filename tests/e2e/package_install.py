@@ -83,22 +83,23 @@ def observe_install(journey):
 
 def submit_unrelated(journey, guard):
     """One normal distribution reconfiguration; retain uncertain consumption."""
-    from package_command import UNRELATED, UNRELATED_PACKAGE
+    from package_command import UNRELATED
     require(journey.unrelated_package is None, 'unrelated-package:replay')
     guard()
     command = journey.unrelated_package = PackageCommand(journey.transport, journey.context.verified)
-    result = command.submit(UNRELATED, UNRELATED_PACKAGE['sha256'], command.identity)
+    inputs = journey.unrelated_inputs
+    result = command.submit(UNRELATED, inputs['sha256'], command.identity, unrelated=inputs)
     guard()
     return result
 
 
-def observe_unrelated(command, before):
+def observe_unrelated(command, before, inputs):
     """Separate command completion, genuine system request and preservation."""
     from package_command import UNRELATED
     require(command is not None and command.binding == UNRELATED, 'unrelated-package:missing-command')
     completion, current = command.read_result(include_identity=True)
     require(current == before == command.entry, 'unrelated-package:product-or-boot-changed')
-    system = command.read_unrelated()
+    system = command.read_unrelated(inputs)
     return {'completion': completion, 'system': system, 'product_identity_unchanged': True,
             'boot_sha256': current['boot'], 'independent_readback': True}
 
@@ -116,7 +117,7 @@ class UnrelatedPackageJourney(InstalledJourney):
                         for stage in (entry, submissions[0], result)), 'unrelated-package:plan')
         super().__init__(context, progress, plan, actions=actions)
         self.unrelated_entry_stage, self.unrelated_result_stage = entry, result
-        self.unrelated_package = self.unrelated_entry = None
+        self.unrelated_package = self.unrelated_entry = self.unrelated_inputs = None
         self.unrelated_result_observed = False
         if getattr(context, 'installed_snapshot', None):
             from asset_transfer import AssetTransfer
@@ -135,11 +136,13 @@ class UnrelatedPackageJourney(InstalledJourney):
             require(entry['version'] == command.package_identities()['current']['version']
                     and entry['boot'] == self.boot, 'unrelated-package:product-identity')
             observed['unrelated_entry'] = command.read_unrelated(entry=True)
+            self.unrelated_inputs = deepcopy(observed['unrelated_entry']['package'])
             self.unrelated_entry = deepcopy(entry)
         if stage == self.unrelated_result_stage:
             require(self.unrelated_entry is not None and not self.unrelated_result_observed,
                     'unrelated-package:entry-required')
-            observed['unrelated_package'] = observe_unrelated(self.unrelated_package, self.unrelated_entry)
+            observed['unrelated_package'] = observe_unrelated(self.unrelated_package, self.unrelated_entry,
+                                                             self.unrelated_inputs)
             self.unrelated_result_observed = True
 
 

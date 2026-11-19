@@ -437,11 +437,7 @@ class AssetTransfer:
         try:
             probe = ({'package.deb': 'assets-upgrade', 'package.rpm': 'assets-upgrade-rpm'}[
                 package_filename(self.verified.asset_files)] if self.verified.upgrade_inputs else 'assets')
-            # Finite activation profiles bind their own exact package pair;
-            # they do not use the historical-release upgrade's fixed version.
-            if self.verified.upgrade_inputs and self.verified.upgrade_inputs.get('activation') in (
-                    'none', 'process-restart', 'session-renewal', 'reboot'):
-                probe = probe.replace('assets-upgrade', 'assets-no-action')
+            # The receipt binds the exact package versions and hashes for every profile.
             observed = observations.read(probe)
             require(observed == self._receipt, 'transfer:booted-assets-mismatch')
             return dict(self._receipt)

@@ -258,6 +258,10 @@ class VerifiedInputs:
                         'provenance:package-alias-mismatch')
                 require(filename == 'package.' + target.package_format,
                         'provenance:package-platform')
+                inputs = manifest.get('build_inputs', {})
+                if 'build_target' in inputs:
+                    require((inputs['build_target'], inputs.get('target_architecture')) ==
+                            (target.name, target.architecture), 'provenance:package-platform')
                 if upgrade:
                     self._upgrade = build_test_artifacts.verify_upgrade(
                         self.assets, staged=True, repository=self.root,

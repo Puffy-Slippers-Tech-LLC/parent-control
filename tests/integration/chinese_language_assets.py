@@ -133,7 +133,7 @@ def read(g, path, limit=LIMIT):
 
 
 def platform(g, os_id=None):
-    """Read the distribution used for package and SELinux operations."""
+    """Read the guest release and verify its native SELinux requirements."""
     fields = {}
     for line in read(g, '/usr/lib/os-release', 64 * 1024).decode().splitlines():
         if '=' not in line or line.startswith('#'):
@@ -152,7 +152,8 @@ def platform(g, os_id=None):
         # enforcement now, without invoking a write or changing SELinux mode.
         if g.exists('/sys/fs/selinux/enforce'):
             require(g.read_file('/sys/fs/selinux/enforce').strip() == b'1', 'selinux')
-    return found
+    require(bool(re.fullmatch(r'[0-9]+(?:\.[0-9]+)*', fields.get('VERSION_ID', ''))), 'release')
+    return found, fields['VERSION_ID']
 
 
 def rpm_file_command(name):
@@ -188,7 +189,7 @@ def rpm_inventory(g):
 
 
 def verify(g, os_id=None):
-    os_id = platform(g, os_id)
+    os_id, release = platform(g, os_id)
     from guest_test_dependencies import verify_packages
     if os_id == 'fedora':
         packages, records = rpm_inventory(g)
@@ -243,7 +244,7 @@ def verify(g, os_id=None):
                     for message, value in zip(messages, values)), 'translation-fallback')
         files[present[0]] = hashlib.sha256(data).hexdigest()
         translations[domain] = len(messages)
-    return {'profile': 'chinese', 'os_id': os_id, 'release': '44' if os_id == 'fedora' else '26.04',
+    return {'profile': 'chinese', 'os_id': os_id, 'release': release,
             'locale': LOCALE, 'provider': 'mate-polkit', 'packages': packages,
             'translations': translations, 'files': files,
             'runtime_locale': 'UTF-8'}

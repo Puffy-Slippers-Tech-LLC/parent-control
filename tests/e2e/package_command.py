@@ -13,8 +13,7 @@ from private_artifacts import require
 import session_control
 from watch_activity import operation
 from vm_transport import package_operation
-from installation_observations import (UNRELATED_PACKAGE, UNRELATED_SCRIPTS,
-    UNRELATED_ARGV, unrelated_observation)
+from installation_observations import UNRELATED_ARGV, UNRELATED_SCRIPTS, unrelated_observation
 
 BINDING = 'install-staged-package'
 ARGV = ('/usr/bin/apt-get', '-o', 'DPkg::Lock::Timeout=120', 'install',
@@ -290,17 +289,18 @@ def guest_submit(binding, expected, packages=None):
         in os.getgrouplist(account.pw_name, account.pw_gid), 'administrator-authority')
     source = session_control.source_session(session_control.sessions(), account.pw_uid)
     label = 'previous' if binding == OLD_INSTALL else 'current'
-    actual = (UNRELATED_PACKAGE['sha256'] if binding == UNRELATED else
-              session_control.package_digest() if binding in (BINDING, *LIFECYCLE)
-              else session_control.package_digest(label))
+    if binding == UNRELATED:
+        session_control.require(type(packages) is dict and set(packages) == {'current', 'unrelated'}
+                                and type(packages['unrelated']) is dict, 'package-identities')
+        actual = unrelated_observation(packages['unrelated'], entry=True)['package']['sha256']
+    else:
+        actual = (session_control.package_digest() if binding in (BINDING, *LIFECYCLE)
+                  else session_control.package_digest(label))
     session_control.require(actual == expected, 'package-changed')
     boot = guest_phase(binding, packages) if binding in (OLD_INSTALL, UPGRADE) else None
     if binding in LIFECYCLE:
         guest_lifecycle_phase(binding, packages)
     if binding == UNRELATED:
-        session_control.require(type(packages) is dict and set(packages) == {'current', 'unrelated'},
-                                'package-identities')
-        unrelated_observation(packages['unrelated'], entry=True)
         item = packages['current']
         query = guest_read({'current': item})
         session_control.require(query['version'] == item['version']
@@ -361,7 +361,6 @@ def guest_source(*, read=False):
             'PURGE = ' + repr(PURGE) + '\nREINSTALL = ' + repr(REINSTALL) + '\n' +
             'FRESH_INSTALL = ' + repr(FRESH_INSTALL) + '\n' +
             'UNRELATED = ' + repr(UNRELATED) + '\n' +
-            'UNRELATED_PACKAGE = ' + repr(UNRELATED_PACKAGE) + '\n' +
             'UNRELATED_SCRIPTS = ' + repr(UNRELATED_SCRIPTS) + '\n' +
             'UNRELATED_ARGV = ' + repr(UNRELATED_ARGV) + '\n' +
             inspect.getsource(unrelated_observation) +
@@ -438,7 +437,7 @@ class PackageCommand:
                 'package:installed-version')
         return {'operation': self.binding, 'outcome': 'passed', 'version': version}
 
-    def validate_input(self, binding, digest, identity):
+    def validate_input(self, binding, digest, identity, *, unrelated=None):
         require(binding in BINDINGS, 'package:unregistered-command')
         require(identity == self.identity == self.transport.config, 'package:wrong-attempt')
         require(not self.attempted and binding not in self.transport.package_attempts, 'package:replay')
@@ -447,19 +446,22 @@ class PackageCommand:
             require(self.verified.upgrade_inputs is not None, 'package:upgrade-inputs-required')
         if binding in LIFECYCLE:
             require(self.verified.upgrade_inputs is None, 'package:lifecycle-current-only')
-        expected = (UNRELATED_PACKAGE['sha256'] if binding == UNRELATED else
-                    self.verified.inputs['package_sha256'] if binding in (BINDING, *LIFECYCLE) else
-                    self.verified.upgrade_inputs['packages'][
-                        'previous' if binding == OLD_INSTALL else 'current']['sha256'])
+        if binding == UNRELATED:
+            require(type(unrelated) is dict, 'package:unrelated-input-required')
+            expected = unrelated.get('sha256')
+        else:
+            expected = (self.verified.inputs['package_sha256'] if binding in (BINDING, *LIFECYCLE) else
+                        self.verified.upgrade_inputs['packages'][
+                            'previous' if binding == OLD_INSTALL else 'current']['sha256'])
         require(type(digest) is str and re.fullmatch('[0-9a-f]{64}', digest)
                 and digest == expected, 'package:wrong-artifact')
 
-    def submit(self, binding, digest, identity):
-        self.validate_input(binding, digest, identity)
+    def submit(self, binding, digest, identity, *, unrelated=None):
+        self.validate_input(binding, digest, identity, unrelated=unrelated)
         with operation('Installing the verified package as the authorized administrator'):
             context = session_control.observe(self.transport, 'parent-command-context')
             require(context['package_sha256'] == self.verified.inputs['package_sha256'], 'package:wrong-artifact')
-            self.validate_input(binding, digest, identity)
+            self.validate_input(binding, digest, identity, unrelated=unrelated)
             arguments = [binding, digest]
             if binding in (OLD_INSTALL, UPGRADE):
                 packages = self.verified.upgrade_inputs['packages']
@@ -478,8 +480,8 @@ class PackageCommand:
                 self.entry = self._read_identity(packages)
                 require(self.entry['version'] == packages['current']['version'],
                         'package:wrong-phase')
-                self.read_unrelated(entry=True)
-                arguments.append(json.dumps({**packages, 'unrelated': UNRELATED_PACKAGE}, sort_keys=True))
+                self.read_unrelated(unrelated, entry=True)
+                arguments.append(json.dumps({**packages, 'unrelated': unrelated}, sort_keys=True))
             self._submit_transaction(binding, arguments)
         return {'submitted': True}
 
@@ -503,24 +505,36 @@ class PackageCommand:
                 input=guest_source(), timeout=660, check=False, on_output=bound)
         self.receipt = (raw, self.transport.commands.last_returncode)
 
-    def read_unrelated(self, *, entry=False):
+    def read_unrelated(self, expected=None, *, entry=False):
         """Independent public distribution read through the same guarded transport."""
         require(self.transport.config == self.identity, 'package:wrong-attempt')
         self.transport.guard(self.identity)
         self.verified.recheck()
         source = guest_source().rsplit(b'\nimport sys, json\n', 1)[0]
-        source += ('\nimport json\nprint(json.dumps(unrelated_observation(UNRELATED_PACKAGE, entry=' +
+        source += ('\nimport json, sys\nprint(json.dumps(unrelated_observation(json.loads(sys.argv[1]), entry=' +
                    repr(entry) + '), sort_keys=True))\n').encode()
         with operation('Verifying the unrelated Ubuntu package and its independent system reboot request'):
-            raw = self.transport.call(['/usr/bin/python3', '-I', '-'], input=source, timeout=90)
+            raw = self.transport.call(['/usr/bin/python3', '-I', '-', json.dumps(expected, sort_keys=True)],
+                                      input=source, timeout=90)
         self.transport.guard(self.identity)
         self.verified.recheck()
         require(type(raw) is bytes and 0 < len(raw) <= 65536, 'package:unrelated-bound')
         value = json.loads(raw)
+        package = value.get('package') if type(value) is dict else None
         require(type(value) is dict and set(value) == {'package', 'integration_verified',
             'system_reboot_required', 'request_packages', 'message', 'product_request_absent'}
             and raw == (json.dumps(value, sort_keys=True) + '\n').encode()
-            and value['package'] == UNRELATED_PACKAGE and value['integration_verified'] is True
+            and type(package) is dict and set(package) == {
+                'name', 'version', 'architecture', 'sha256', 'filename', 'origin', 'source', 'scripts'}
+            and (package['name'], package['architecture'], package['origin'], package['source'])
+                == ('libc6', 'amd64', 'Ubuntu', 'glibc')
+            and type(package['scripts']) is dict and set(package['scripts']) == set(UNRELATED_SCRIPTS)
+            and all(type(item) is str and re.fullmatch('[0-9a-f]{64}', item)
+                    for item in (package['sha256'], *package['scripts'].values()))
+            and type(package['version']) is str and re.fullmatch(r'[0-9][0-9A-Za-z.+:~\-]{0,127}', package['version'])
+            and type(package['filename']) is str and re.fullmatch(
+                r'pool/main/g/glibc/libc6_[0-9A-Za-z.+:~\-]{1,128}_amd64\.deb', package['filename'])
+            and (expected is None or package == expected) and value['integration_verified'] is True
             and value['product_request_absent'] is True
             and value['system_reboot_required'] is (not entry)
             and type(value['request_packages']) is list
@@ -584,11 +598,7 @@ class PackageCommand:
         text = re.sub(r'\x1b\[[0-9;]*m', '', text)
         lines = text.splitlines()
         if self.binding == UNRELATED:
-            # The pinned libc6 postinst emits libc-upgrade, whose normal dpkg
-            # processing reports the systemd trigger. Its "Nothing to restart."
-            # branch applies only to a previous version below 2.43, not this
-            # same-version reconfiguration. The later independent system read,
-            # never this completion output, proves the genuine reboot request.
+            # The later independent system read proves the genuine reboot request.
             completion = [line for line in lines if re.fullmatch(
                 r'Processing triggers for systemd \([0-9][^()\s]{0,127}\) \.\.\.', line)]
             require(len(completion) == 1 and COMPLETE not in lines and NOTICE not in lines,

@@ -3686,8 +3686,8 @@ the product's initial language; the product form and real authentication result
 remain independent customer assertions. Account-helper refusal matrices run in
 their focused qualification, not again inside each customer history.
 
-The Fedora 44 profile uses `glibc-langpack-zh`, `mate-polkit` and `pam`, with RPM SHA-256 byte identity,
-canonical Workstation/release checks and enforcing SELinux. Fedora assets,
+The Fedora profile uses `glibc-langpack-zh`, `mate-polkit` and `pam`, with RPM SHA-256 byte identity,
+the observed guest release and enforcing SELinux. Fedora assets,
 renewed Chinese desktop, first presentation and native prompts remain unqualified;
 the complete current-install journey must pass there with the same assertions.
 Host preparation or translated product messages supply no installed acceptance.
@@ -5573,20 +5573,20 @@ at a later checkpoint before durable acknowledgement.
 operation through `package_install.submit_unrelated`/`observe_unrelated`,
 `UnrelatedRebootJourney`/`PLAN` and `onpc_customer_reboot::unrelated_request`.
 
-Input is installed `libc6:amd64` `2.43-2ubuntu2.4`, source `glibc`, archive SHA256
-`a613b457f3ff9c84ebd28af8a05afdec22605ad9aed87c71e3a6ae5170aeb9ca`,
-`pool/main/g/glibc/libc6_2.43-2ubuntu2.4_amd64.deb`.
+The attempt reads the installed `libc6:amd64` version and its Ubuntu `glibc`
+archive identity from the selected guest's package records. The entry receipt
+also binds the maintainer and command file hashes. Submission and independent
+result readback compare against that same receipt.
 The fixed command is `/usr/sbin/dpkg-reconfigure --frontend=noninteractive libc6:amd64`.
-`installation_observations.UNRELATED_PACKAGE`/`UNRELATED_SCRIPTS` bind provenance,
-installed payload, maintainer/command bytes and absence of alternatives.
+`installation_observations.unrelated_observation` verifies the installed payload,
+package ownership, command checksums and absence of alternative scripts.
 Dependencies are baseline-owned; reconfiguration is attempt-owned. No synthetic
 package, notifier invocation or manual reboot marker substitutes for this input.
 
 Require installed product, observed activation reboot, fresh administrator return,
 exact unrelated-package identity and no prior system/product reboot request.
 Submission is consumed and refuses wrong command/digest/VM/attempt/replay.
-The independent result requires exit zero and actual systemd-trigger completion;
-the pinned postinst's `Nothing to restart.` branch applies only to older versions.
+The independent result requires exit zero and actual systemd-trigger completion.
 Read genuine `*** System restart required ***` attributed to libc6, absent product
 requests and unchanged product/boot/session/account/unrelated-file witnesses.
 This operation supplies no complete-case acceptance; other package bindings remain pending.

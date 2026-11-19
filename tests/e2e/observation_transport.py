@@ -139,7 +139,6 @@ class ReadOnlyObservations:
         require(not self._failed, 'observation:previous-failure')
         try:
             require(isinstance(name, str) and name in ('assets', 'assets-upgrade', 'assets-upgrade-rpm', 'greeter', 'parent-session',
-                                                      'assets-no-action', 'assets-no-action-rpm',
                                                       'serial-password', 'serial-session', 'boot',
                                                       'vt6-getty', 'vt6-password', 'vt6-session', 'vt6-install-password',
                                                       'vt6-reboot-password',
@@ -157,8 +156,6 @@ class ReadOnlyObservations:
                 'assets': (guest_observations.ASSETS, 120),
                 'assets-upgrade': (guest_observations.UPGRADE_ASSETS, 120),
                 'assets-upgrade-rpm': (guest_observations.UPGRADE_ASSETS_RPM, 120),
-                'assets-no-action': (guest_observations.NO_ACTION_ASSETS, 120),
-                'assets-no-action-rpm': (guest_observations.NO_ACTION_ASSETS_RPM, 120),
                 'greeter': (guest_observations.GREETER, 110),
                 'parent-session': (guest_observations.PARENT_SESSION, 110),
                 'serial-password': (guest_observations.SERIAL_PASSWORD, 20),
@@ -289,7 +286,7 @@ class ReadOnlyObservations:
                     and result['implementation'] == 'sudo-rs'
                     and result['executable'] == '/usr/lib/cargo/bin/sudo'
                     and isinstance(result['package_version'], str)
-                    and re.fullmatch(r'0\.2\.[0-9]{1,3}-[0-9]{1,3}ubuntu[0-9]{1,3}(?:\.[0-9]{1,3}){0,2}', result['package_version'])
+                    and re.fullmatch(r'[0-9][0-9A-Za-z.+:~\-]{0,127}', result['package_version'])
                     and raw == (json.dumps(result, sort_keys=True) + '\n').encode(),
                     'observation:invalid-output')
                 print('e2e:sudo-implementation:' + raw.decode('ascii').strip(),
@@ -348,8 +345,7 @@ class ReadOnlyObservations:
                 # Exact serialization rejects duplicate keys, trailing data,
                 # booleans-as-counts, and unexpected private fields.
                 result = json.loads(raw)
-                package_probe = name in ('assets-upgrade', 'assets-upgrade-rpm',
-                                         'assets-no-action', 'assets-no-action-rpm')
+                package_probe = name in ('assets-upgrade', 'assets-upgrade-rpm')
                 require(isinstance(result, dict) and set(result) == (
                             {'files', 'sha256', 'packages'} if package_probe else {'files', 'sha256'})
                         and type(result['files']) is int and 0 < result['files'] <= 100000
@@ -359,12 +355,7 @@ class ReadOnlyObservations:
                         'observation:invalid-output')
                 if package_probe:
                     packages = result['packages']
-                    architecture, previous_version = {
-                        'assets-upgrade': ('amd64', '1.2+ppa1~ubuntu26.04.1'),
-                        'assets-upgrade-rpm': ('x86_64', '0:1.3-0.1.dev.fc44'),
-                        'assets-no-action': ('amd64', None),
-                        'assets-no-action-rpm': ('x86_64', None),
-                    }[name]
+                    architecture = 'x86_64' if name == 'assets-upgrade-rpm' else 'amd64'
                     require(type(packages) is dict and set(packages) == {'current', 'previous'}
                             and all(type(item) is dict and set(item) == {
                                 'name', 'version', 'architecture', 'sha256'}
@@ -375,7 +366,6 @@ class ReadOnlyObservations:
                                 and type(item['sha256']) is str
                                 and re.fullmatch(r'[0-9a-f]{64}', item['sha256'])
                                 for item in packages.values())
-                            and (previous_version is None or packages['previous']['version'] == previous_version)
                             and packages['current']['sha256'] != packages['previous']['sha256'],
                             'observation:invalid-output')
             print('e2e:observation-' + name + '-verified', file=sys.stderr, flush=True)

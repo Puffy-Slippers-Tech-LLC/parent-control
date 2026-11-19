@@ -51,8 +51,9 @@ PREVIOUS_RELEASES = {
             'commit': '188be907c46b1cd0dabae06ac898c43e75beb05e',
             'version': '0:1.3-0.1.dev.fc44', 'architecture': 'x86_64'},
 }
-FEDORA45_PRIOR_INSTALLER = 'fedora45-gnome51'
-FEDORA45_PRIOR_OS_CHECK = '[ "$VERSION_ID" != 45 ]'
+RPM_PRIOR_TARGET = 'fedora44'
+RPM_PRIOR_INSTALLER = 'fedora-workstation'
+RPM_PRIOR_OS_CHECK = '[ "$ID" != fedora ] || [ "$VARIANT_ID" != workstation ]'
 # A real, unmodified version-only update. The adjacent source commits change
 # app metadata, changelog and release notes, not running-service payloads.
 NO_ACTION_REVISIONS = {
@@ -275,10 +276,10 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                     or package_inputs.digest(source_copy, source_paths) != source_digest):
                 raise ArtifactError('package source inputs changed while copying')
             if package_format == 'rpm':
-                if (target.name == 'fedora45'
+                if (target.name != RPM_PRIOR_TARGET
                         and metadata['source'].get('release_tag') == PREVIOUS_RELEASES['rpm']['tag']):
-                    adapt_fedora45_prior_installer(source_copy)
-                    metadata['build_inputs']['prior_installer'] = FEDORA45_PRIOR_INSTALLER
+                    adapt_prior_rpm_installer(source_copy)
+                    metadata['build_inputs']['prior_installer'] = RPM_PRIOR_INSTALLER
                 # Keep the caller's rootless build image/storage identity. The
                 # maintained builder freezes inputs and disables networking.
                 from tools.build_package import build_rpm
@@ -298,7 +299,7 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
         destination = package_output / packages[0].name
         if packages[0] != destination:
             shutil.copyfile(packages[0], destination)
-        verify_package_target(destination, target)
+        verify_package_target(destination, target, build_inputs=metadata['build_inputs'])
         fixture_output = output / "fixtures"
         if 'fixtures' in reuse:
             shutil.copytree(reuse['fixtures'], fixture_output)
@@ -383,7 +384,7 @@ def build_no_action(output, *, package_format, build_target=None, architecture='
             metadata['build_inputs']['source_date_epoch'] = int(_run(
                 ['git', 'show', '-s', '--format=%ct', revision], cwd=REPOSITORY).stdout.strip())
             _build(output / label, root, selected, source['digest_sha256'], metadata,
-                   package_format=package_format)
+                   package_format=package_format, build_target=build_target, architecture=architecture)
     verify_upgrade(output)
 
 
@@ -513,15 +514,16 @@ def _require_previous_release(package_format):
     return PREVIOUS_RELEASES[package_format]
 
 
-def adapt_fedora45_prior_installer(root):
-    """Retarget only the v1.3 test RPM's install gates in the private build copy."""
+def adapt_prior_rpm_installer(root):
+    """Keep the v1.3 test RPM's native checks while permitting newer Workstations."""
     for relative, replacements in (
             ('rpm/oh-no-parent-control.spec.in', (
-                ('Requires:       gnome-shell < 51\n', 'Requires:       gnome-shell < 52\n'),)),
+                ('Requires:       gnome-shell < 51\n', ''),)),
             ('packaging/fedora.inc', (
-                ('[ "$VERSION_ID" != 44 ]', FEDORA45_PRIOR_OS_CHECK),
-                ('Fedora Workstation 44;', 'Fedora Workstation 45;'),
-                ('Fedora Workstation 44 for this', 'Fedora Workstation 45 for this')))):
+                ('[ "$ID" != fedora ] || [ "$VERSION_ID" != 44 ] || [ "$VARIANT_ID" != workstation ]',
+                 RPM_PRIOR_OS_CHECK),
+                ('Fedora Workstation 44;', 'Fedora Workstation;'),
+                ('Fedora Workstation 44 for this', 'Fedora Workstation for this')))):
         path = root / relative
         content = path.read_text()
         for original, replacement in replacements:
@@ -566,13 +568,16 @@ def package_identity(path):
             'architecture': fields['Architecture'], 'sha256': _sha256(path)}
 
 
-def verify_package_target(path, target):
+def verify_package_target(path, target, *, build_inputs=None):
     """Check headers independently of filenames and claimed build inputs."""
     identity = package_identity(path)
-    matches_release = (identity['version'].endswith(target.dist) if target.package_format == 'rpm'
-                       else '~ubuntu' + target.version + '.' in identity['version'])
-    if (identity['name'] != 'oh-no-parent-control'
-            or identity['architecture'] != target.package_architecture or not matches_release):
+    if (path.suffix != '.' + target.package_format or identity['name'] != 'oh-no-parent-control'
+            or identity['architecture'] != target.package_architecture
+            or not target.matches_package_version(identity['version'])):
+        raise ArtifactError('package build target or architecture mismatch')
+    if build_inputs and 'build_target' in build_inputs and (
+            build_inputs['build_target'], build_inputs.get('target_architecture')) != (
+            target.name, target.architecture):
         raise ArtifactError('package build target or architecture mismatch')
     return identity
 
@@ -627,6 +632,14 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         raise ArtifactError('upgrade package format mismatch')
     package_format = formats.pop().removeprefix('.')
     release = _require_previous_release(package_format)
+    current_inputs, previous_inputs = (manifest.get('build_inputs', {}) for manifest in (current, previous))
+    target_fields = ('build_target', 'target_architecture')
+    if ('build_target' in current_inputs and 'build_target' in previous_inputs
+            and any(current_inputs.get(key) != previous_inputs.get(key) for key in target_fields)):
+        raise ArtifactError('upgrade package build targets do not match')
+    target = build_targets.get(current_inputs.get('build_target',
+        'fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
+        current_inputs.get('target_architecture', 'x86_64'), package_format)
     historical_no_action = previous['source'].get('revision') == NO_ACTION_REVISIONS['previous']
     process = 'process_baseline' in previous['source']
     session = 'session_baseline' in previous['source']
@@ -692,24 +705,27 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
             raise ArtifactError('upgrade package product or architecture mismatch')
         identities[label] = item
     old, new = identities['previous'], identities['current']
+    prior_installer = None
     if package_format == 'rpm':
         from tools.build_rpm import metadata as rpm_metadata
-        target = build_targets.get(current.get('build_inputs', {}).get('build_target', 'fedora44'),
-                                   current.get('build_inputs', {}).get('target_architecture', 'x86_64'), 'rpm')
         expected = f"0:{rpm_metadata(repository, '0.1.dev')[0]}-0.1.dev{target.dist}"
-        if target.name == 'fedora45' and not (no_action or activation_profile):
+        if target.name != RPM_PRIOR_TARGET and not (no_action or activation_profile):
             old_rpm = str(output / 'previous' / previous['artifacts']['package']['path'])
             requirements = _run(['rpm', '-qp', '--requires', old_rpm]).stdout.splitlines()
             shell_requirements = {line for line in requirements if line.startswith('gnome-shell ')}
             scripts = _run(['rpm', '-qp', '--scripts', old_rpm]).stdout
-            if (previous.get('build_inputs', {}).get('prior_installer') != FEDORA45_PRIOR_INSTALLER
-                    or shell_requirements != {'gnome-shell >= 50', 'gnome-shell < 52'}
-                    or FEDORA45_PRIOR_OS_CHECK not in scripts):
-                raise ArtifactError('v1.3 test RPM installer does not match Fedora 45')
+            prior_installer = previous.get('build_inputs', {}).get('prior_installer')
+            compatible = (prior_installer == RPM_PRIOR_INSTALLER
+                          and shell_requirements == {'gnome-shell >= 50'} and RPM_PRIOR_OS_CHECK in scripts)
+            legacy = (target.version == '45' and prior_installer == 'fedora45-gnome51'
+                      and shell_requirements == {'gnome-shell >= 50', 'gnome-shell < 52'}
+                      and '[ "$VERSION_ID" != 45 ]' in scripts)
+            if not (compatible or legacy):
+                raise ArtifactError('v1.3 test RPM installer does not match the selected target')
     else:
         expected = _run(['dpkg-parsechangelog', '-l' + str(repository / 'debian/changelog'),
                          '-S', 'Version']).stdout.strip()
-    old_version = (release['version'].removesuffix('.fc44') + target.dist
+    old_version = (release['version'].rsplit('.fc', 1)[0] + target.dist
                    if package_format == 'rpm' and previous.get('build_inputs', {}).get('build_target')
                    else release['version'])
     if rpm_no_action or (activation_profile and package_format == 'rpm'):
@@ -720,6 +736,9 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         old_version = expected + '~activation1'
     elif historical_no_action:
         old_version, expected = NO_ACTION_VERSIONS[package_format]
+    if package_format == 'deb':
+        old_version = target.debian_version(old_version)
+        expected = target.debian_version(expected)
     if (old['version'] != old_version or new['version'] != expected
             or old['sha256'] == new['sha256']
             or (not rpm_no_action and
@@ -735,8 +754,8 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
         return {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']},
                 'activation': activation}
     result = {'packages': identities, 'sources': {'current': current['source'], 'previous': previous['source']}}
-    if package_format == 'rpm' and target.name == 'fedora45':
-        result['prior_installer'] = FEDORA45_PRIOR_INSTALLER
+    if prior_installer is not None:
+        result['prior_installer'] = prior_installer
     return result
 
 
@@ -834,7 +853,8 @@ def verify_matrix(output):
             target = build_targets.get(entry['build_target'], entry['architecture'])
             if Path(manifest['artifacts']['package']['path']).suffix != '.' + target.package_format:
                 raise ValueError('matrix package format mismatch')
-            verify_package_target(output / entry['path'] / manifest['artifacts']['package']['path'], target)
+            verify_package_target(output / entry['path'] / manifest['artifacts']['package']['path'], target,
+                                  build_inputs=manifest['build_inputs'])
             if any(inputs[key] != value for key, value in (
                     ('build_target', entry['build_target']), ('target_architecture', entry['architecture']))):
                 raise ValueError('matrix target provenance mismatch')
@@ -950,7 +970,8 @@ def main() -> int:
         elif arguments.reuse:
             if arguments.output is None or arguments.verify or arguments.compare:
                 raise ArtifactError('--reuse requires only --output')
-            native_ubuntu = build_targets.get('ubuntu26.04', target.architecture).native()
+            native_ubuntu = (target if target.package_format == 'deb' else
+                             build_targets.get('ubuntu26.04', target.architecture)).native()
             container_rpm = (target.package_format == 'rpm' and shutil.which('mock') is None
                              and shutil.which('podman') is not None)
             if not native_ubuntu or (target.package_format == 'rpm' and not container_rpm):

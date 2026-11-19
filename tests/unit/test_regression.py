@@ -65,7 +65,7 @@ def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qua
     if not qualification:
         assert groups[1]['args'] == ['e2e', '--subcategory=gnome-classic', '--id=22,30']
         retry = vm_test_queue.execution_groups(tmp_path,
-            ['--resume-case=E2E-008/fresh-login', '--resume-case-only', 'e2e', '--subcategory', 'general'],
+            ['--resume', '--resume-case=E2E-008/fresh-login', '--resume-case-only', 'e2e', '--subcategory', 'general'],
             workers)
         assert [group['key'] for group in retry] == ['e2e.general']
         repair = validation_command(root, {'category': 'e2e', 'case': 'E2E-008/fresh-login',

@@ -188,8 +188,9 @@ numeric `compute_unit` (legacy entries default to 1). Each VM may optionally
 override `compute_unit`; omission inherits the family value. Both host capacity
 and VM cost accept decimals, using exact decimal arithmetic for admission.
 Each family has a
-`family` value in `BUILD_TARGET-ARCHITECTURE` form (for example
-`fedora45-x86_64`), an explicit `package_format` (`deb` or `rpm`), a `fixture_path`
+`family` value in `BUILD_TARGET-ARCHITECTURE` or `BUILD_TARGET_ARCHITECTURE` form
+(for example `fedora45-x86_64` or `ubuntu26.10_x86_64`), an explicit
+`package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
 first VM is created. An optional string `id` is a short family selector alias:
 `U2604` for `ubuntu26.04-x86_64`, `F44` for `fedora44-x86_64`, and `F45` for
@@ -197,12 +198,17 @@ first VM is created. An optional string `id` is a short family selector alias:
 comma-separated string of unique tag tokens (currently `"general"`). A VM may
 declare `vm_tags` to replace its family's set; omission inherits it.
 Tags route tests and do not change guest baseline identity.
-Package consumers split `family` at the last hyphen to
-derive the build target and architecture; separate attributes are unnecessary.
-The parsed target must match the verified guest release before package
-preparation/installation. Only `x86_64` is currently supported. Format alone never
-selects a package for a different target. Fixture directory composition follows the
-[fixture contract](../support/README.md#frozen-native-fixture-bundles).
+Infrastructure derives the build target and architecture from `family` and
+verifies that the actual guest release matches. Ubuntu release numbers select
+DEB builders and Fedora release numbers select RPM builders on `x86_64`.
+Infrastructure verifies the native package header before installation. The DEB
+version must carry the target's `~ubuntu<release>` suffix and the RPM release
+must carry the target's `.fc<release>` tag. Both packages in an upgrade must
+match. A missing or mismatched package fails the infrastructure check.
+Register a new release using its family, package format and fixture directory.
+Prepare its build environment and guest through the existing setup and VM
+preparation routes.
+Fixture directory composition follows the [fixture contract](../support/README.md#frozen-native-fixture-bundles).
 VM names, VM IDs, family names and family IDs must be unique across all four kinds
 of selector, ignoring case, even when an ID and name belong to the same VM or family.
 Family selectors cannot start with a hyphen or contain commas or surrounding whitespace;
@@ -243,9 +249,11 @@ lease and retention journal. The guest hostname is the lowercase form of that na
 (hostname labels, at most 63 characters). The active image can be a backing-chain
 member; capture still verifies that its chain ends at the selected anchor.
 Each entry has separate baseline provenance and an individually pinned UUID.
-The E2E inventory's `ubuntu26.04` environment label describes the currently
-supported guest OS independently of the VM name; adding an entry does not
-qualify its OS for Ubuntu-specific baseline preparation or installed tests.
+The E2E inventory names distributions (`ubuntu` and `fedora`). The selected
+family supplies the release and the matching package. Individual cases use the
+provided VM and package and check the behavior and capabilities they exercise.
+A newly registered release gains installed
+qualification by running the applicable tests on its prepared guest.
 
 Host/guest clipboard sharing is always enabled in the interactive SPICE console,
 including baseline preparation, maintenance and restored app snapshots. There is
@@ -476,10 +484,11 @@ fixture check. Both files and their staging paths must be absent. This permits
 owned cleanup and refresh; new attempts still require current preparation.
 The guest dependency inventory declares the distribution's `fapolicyd` package
 on both platforms, so its native trust tools are available on clean baselines.
-For a VM whose configured family parses to build target `fedora45`, both
-preparation modes require `fapolicyd >= 2.0.2-1.fc45` and upgrade it to the latest
-available repository version before preparing fixtures. This also updates an
-older daemon when the remaining dependency inventory is already complete.
+Both preparation modes follow the package's native daemon dependency. The RPM
+provider query for `fedora-release-common >= 45` selects the requirement for
+`fapolicyd >= 2.0.2`. Preparation then updates the daemon from the guest's
+repositories before preparing fixtures, even when the remaining dependencies
+are already installed.
 After Fedora updates, preparation reconciles the exact incompatible pair
 `fapolicyd-2.0.1-1.fc44` / `file-libs-5.48-2.fc44`: the former ships a version-20
 magic database, while the latter accepts only version 21. Only for that pair,

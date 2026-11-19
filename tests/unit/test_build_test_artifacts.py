@@ -171,12 +171,18 @@ def write_artifact(directory: Path, *, package_bytes: bytes = b"package", fixtur
 
 
 def test_package_matrix_cannot_pass_with_a_missing_target_or_changed_rpm(tmp_path, monkeypatch):
-    wrong_target = False
+    wrong_target = None
+    configured = artifacts.build_targets.configured(artifacts.REPOSITORY)
+    future = tuple(artifacts.build_targets.from_family(family) for family in (
+        'ubuntu26.10_x86_64', 'ubuntu28.04_x86_64', 'fedora46_x86_64'))
+    monkeypatch.setattr(artifacts.build_targets, 'configured', lambda _: (*configured, *future))
 
     def identity(path):
         target = artifacts.build_targets.get(path.parents[2].name)
-        version = ('0:1.0-1' + ('.fc44' if wrong_target else target.dist)
-                   if target.package_format == 'rpm' else '1.0+local1~ubuntu26.04.1')
+        release = target.version if target.name != wrong_target else (
+            '44' if target.package_format == 'rpm' else '26.04')
+        version = (f'0:1.0-1.fc{release}' if target.package_format == 'rpm' else
+                   f'1.0+local1~ubuntu{release}.1')
         return dict(name='oh-no-parent-control', architecture=target.package_architecture, version=version)
 
     def build(directory, *, package_format, build_target, architecture, reuse):
@@ -197,13 +203,15 @@ def test_package_matrix_cannot_pass_with_a_missing_target_or_changed_rpm(tmp_pat
     artifacts.build_matrix(first)
     artifacts.build_matrix(second)
     artifacts.compare(first, second)
-    wrong_target = True
-    with pytest.raises(artifacts.ArtifactError, match='package build target or architecture mismatch'):
-        artifacts.verify_matrix(first)
-    wrong_target = False
+    for target in future:
+        wrong_target = target.name
+        with pytest.raises(artifacts.ArtifactError, match='package build target or architecture mismatch'):
+            artifacts.verify_matrix(first)
+    wrong_target = None
     matrix_path = second / artifacts.MATRIX_NAME
     matrix = json.loads(matrix_path.read_text())
-    assert {entry['build_target'] for entry in matrix['targets']} == {'ubuntu26.04', 'fedora44', 'fedora45'}
+    assert {entry['build_target'] for entry in matrix['targets']} == {
+        'ubuntu26.04', 'fedora44', 'fedora45', 'ubuntu26.10', 'ubuntu28.04', 'fedora46'}
     matrix_path.write_text(json.dumps({**matrix, 'targets': matrix['targets'][:-1]}))
     with pytest.raises(artifacts.ArtifactError, match='matrix verification failed'):
         artifacts.compare(first, second)

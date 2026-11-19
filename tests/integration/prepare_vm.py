@@ -36,7 +36,6 @@ import vm_config
 VM = vm_config.selected(required=False, local=False)
 MARKER = Path("/etc/oh-no-parent-control-test-baseline.json")
 HOSTNAME = VM.hostname if VM else None
-UBUNTU_VERSION = "26.04"
 MARKER_PURPOSE = "oh-no-parent-control-test-baseline"
 MARKER_VERSION = 2
 CLEAN_MARKER_VERSION = 4
@@ -635,12 +634,14 @@ def settings_command(username):
             'dbus-run-session', '--', 'gsettings']
 
 
-def suppress_initial_setup(username: str, *, runner: Runner, os_id='ubuntu') -> None:
+def suppress_initial_setup(username: str, *, runner: Runner, os_id: str, version: str) -> None:
     """Satisfy GNOME's first-login conditions, plus Ubuntu's upgrade marker."""
     config = Path("/home") / username / ".config"
     markers = [config / "gnome-initial-setup-done"]
     if os_id == 'ubuntu':
-        markers.append(config / "gnome-initial-setup" / f"upgrade-{UBUNTU_VERSION}-done")
+        if not re.fullmatch(r'[0-9]+\.[0-9]{2}', version):
+            raise PreparationError('guard:os', 'Ubuntu release identity is malformed')
+        markers.append(config / "gnome-initial-setup" / f"upgrade-{version}-done")
     # Drop privileges before accessing account-controlled paths, including any
     # symlinks. New directories and markers belong to the account, not root.
     prefix = ["runuser", "--user", username, "--"]
@@ -724,7 +725,8 @@ def reconcile_accounts(
     runner: Runner,
     lookup_user: Callable[[str], object] = pwd.getpwnam,
     list_users: Callable[[], Sequence[object]] = pwd.getpwall,
-    os_id: str = 'ubuntu',
+    os_id: str,
+    version: str,
 ) -> dict[str, dict[str, int | str]]:
     if not password or ":" in password or "\n" in password or "\x00" in password:
         raise PreparationError("password:format", "the shared password contains an unsupported character")
@@ -817,7 +819,7 @@ def reconcile_accounts(
         if uid_names.get(uid) != {identity.username}:
             raise PreparationError("verify:uid-collision", f"{identity.label} shares a UID with another account")
         seen_uids.add(uid)
-        suppress_initial_setup(identity.username, runner=runner, os_id=os_id)
+        suppress_initial_setup(identity.username, runner=runner, os_id=os_id, version=version)
         disable_screensaver(identity.username, runner=runner)
         disable_software_updates(identity.username, runner=runner)
         configure_terminal_shortcut(identity.username, runner=runner, os_id=os_id)
@@ -938,7 +940,7 @@ def verify_marker_permissions(info: os.stat_result) -> None:
 
 
 def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
-    """Install prerequisites; refresh Fedora 45's native daemon before fixtures.
+    """Install prerequisites and satisfy the native daemon's package requirement.
 
     Keep directory services unconfigured. Their supported package reconfiguration
     and identities belong to the selected runtime fixture, after product install.
@@ -959,11 +961,14 @@ def prepare_test_dependencies(*, runner, root=Path('/'), os_id='ubuntu'):
             if str(error) != 'guest-tools:missing-or-mismatched-package':
                 raise PreparationError('guest-tools:package-status', 'package database is ambiguous or unsupported') from error
             runner.run(['dnf5', '--refresh', '-y', 'install', *dependencies], timeout=1800)
-        if vm_config.selected(local=False).require_build_target().name == 'fedora45':
-            # Presence alone accepts the older broken daemon. Require the fixed
-            # release, then take the latest available update in either prep mode.
+        # Match the product's RPM rich dependency against the installed provider.
+        platform_requirement = runner.run(
+            ['rpm', '-q', '--whatprovides', 'fedora-release-common >= 45'], check=False)
+        if platform_requirement.returncode not in (0, 1):
+            raise PreparationError('guest-tools:package-status', 'cannot query the native daemon requirement')
+        if platform_requirement.returncode == 0:
             runner.run(['dnf5', '--refresh', '--best', '-y', 'install',
-                        'fapolicyd >= 2.0.2-1.fc45'], timeout=1800)
+                        'fapolicyd >= 2.0.2'], timeout=1800)
             runner.run(['dnf5', '--best', '-y', 'upgrade', 'fapolicyd'], timeout=1800)
         try:
             guest_tools.verify_installed(os_id, runner=runner, root=root, snap_prepared=snap_prepared)
@@ -1120,7 +1125,8 @@ def main(password=None) -> int:
         runner.run(["hostnamectl", "set-hostname", HOSTNAME])
         guest = dataclasses.replace(guest, hostname=HOSTNAME)
         print("prepare-vm: [stage:accounts] reconciling four fixed test identities", file=sys.stderr)
-        accounts = reconcile_accounts(existing, password, runner=runner, os_id=guest.os_id)
+        accounts = reconcile_accounts(existing, password, runner=runner, os_id=guest.os_id,
+                                      version=guest.version)
         password = ""
         print("prepare-vm: [stage:record] writing verified preparation record", file=sys.stderr)
         write_marker(MARKER, marker_document(guest, accounts, digest, snap_prepared=snap_prepared))

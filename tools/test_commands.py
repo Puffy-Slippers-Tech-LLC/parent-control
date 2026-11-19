@@ -411,7 +411,8 @@ Missing category tags default to general; subcategory tags override their parent
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
 Both launchers also accept e2e-general and e2e-heavy as category names.
 Combining a parent category with its subcategory selects the complete parent once.
-Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-tray, --qualify-lunar-autostart, --qualify-lunar-denial, --qualify-lunar-login-denial, --qualify-minecraft-entry-exit and --qualify-minecraft-access belong to e2e-heavy.
+Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-autostart, --qualify-lunar-denial, --qualify-lunar-login-denial, --qualify-minecraft-entry-exit and --qualify-minecraft-access belong to e2e-heavy.
+--qualify-lunar-tray is an alias for --qualify-lunar-launch-quit.
 VM owning_branch restrictions always apply: empty or omitted owning_branch allows any branch;
 otherwise only the exact current Git branch can check out that VM.
 Each invocation resolves IDs
@@ -566,9 +567,14 @@ def selections(root, argv):
     complete = {kind for kind, args in groups if not args and CATEGORIES[kind].subcategories} if not any(
         option in INSPECTION_FLAGS for _, args in groups for option in args) else set()
     result = []
+    lunar_flags = ('--qualify-lunar-launch-quit', '--qualify-lunar-tray')
     for kind, args in groups:
         if kind in complete:
             args = []
+        if kind == 'e2e' and lunar_flags[1] in args:
+            first = next(index for index, option in enumerate(args) if option in lunar_flags)
+            args = [option for option in args if option not in lunar_flags]
+            args.insert(first, lunar_flags[0])
         if (kind, args) not in result:
             result.append((kind, args))
     return result

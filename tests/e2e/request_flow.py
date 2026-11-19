@@ -28,7 +28,7 @@ def kiosk_to_overlay(prefix, *, child, entry, choices='qualification'):
     from journey_blocks import desktop_entry, prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
     require(entry in ('fresh', 'retained'), 'request-transfer:entry')
-    require(choices in ('qualification', 'remembered', 'remembered-second'), 'request-transfer:choices')
+    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
     binding = 'transfer' if choices == 'qualification' else choices
     role = 'child' if child == 'riley' else 'other-child'
     return {
@@ -44,7 +44,7 @@ def overlay_to_kiosk(prefix, *, child, choices='qualification'):
     """FLOW12: cancel an explicitly captured overlay and read the destination untouched."""
     from journey_blocks import prefixed_stages
     require(child in ('riley', 'jordan'), 'request-transfer:child')
-    require(choices in ('qualification', 'remembered', 'remembered-second'), 'request-transfer:choices')
+    require(choices in ('qualification', 'remembered'), 'request-transfer:choices')
     binding = 'transfer' if choices == 'qualification' else choices
     role = 'child' if child == 'riley' else 'standard'
     return prefixed_stages(prefix, {

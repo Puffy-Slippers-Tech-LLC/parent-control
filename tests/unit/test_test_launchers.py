@@ -2555,12 +2555,13 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     assert all('vm_tags' not in case for case in listed['cases'])
     qualified = preflight(['--qualify-lunar-profile'], root=ROOT, allow_missing_artifacts=True)
     assert qualified == {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy'}
-    assert preflight(['--qualify-lunar-launch-quit'], root=ROOT, allow_missing_artifacts=True) == {
-        'mode': 'lunar-launch-quit-qualification', 'subcategory': 'e2e-heavy'}
-    assert commands.fixture_execution_target('e2e', ['--qualify-lunar-launch-quit']) is None
-    assert preflight(['--qualify-lunar-tray'], root=ROOT, allow_missing_artifacts=True) == {
-        'mode': 'lunar-tray-qualification', 'subcategory': 'e2e-heavy'}
-    assert commands.fixture_execution_target('e2e', ['--qualify-lunar-tray']) is None
+    launch_quit, tray_alias = '--qualify-lunar-launch-quit', '--qualify-lunar-tray'
+    for option in (launch_quit, tray_alias):
+        assert preflight([option], root=ROOT, allow_missing_artifacts=True) == {
+            'mode': 'lunar-launch-quit-qualification', 'subcategory': 'e2e-heavy'}
+        assert commands.fixture_execution_target('e2e', [option]) is None
+    assert commands.selections(ROOT, ['e2e', tray_alias, 'e2e', launch_quit]) == [('e2e', [launch_quit])]
+    assert commands.selections(ROOT, ['e2e', tray_alias, launch_quit]) == [('e2e', [launch_quit])]
     assert preflight(['--qualify-lunar-autostart'], root=ROOT, allow_missing_artifacts=True) == {
         'mode': 'lunar-autostart-qualification', 'subcategory': 'e2e-heavy'}
     assert commands.fixture_execution_target('e2e', ['--qualify-lunar-autostart']) is None
@@ -2580,11 +2581,13 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
         'check_e2e_lunar_autostart', 'Check allowed Lunar startup after sign-in')
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-minecraft-entry-exit'}) == (
         'check_e2e_minecraft_entry_exit', 'Open and close the Minecraft launcher')
-    assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-tray'}) == (
-        'check_e2e_lunar_tray', 'Observe Lunar running for the child')
+    assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-launch-quit'}) == (
+        'check_e2e_lunar_launch_quit', 'Launch and stop Lunar by command')
     assert case_identity(ROOT, 'e2e', {'nodeid': '--qualify-lunar-denial'}) == (
         'check_e2e_lunar_denial', 'Observe Lunar command denial')
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
+    resolved = dispatcher['selection'](ROOT, ['e2e', tray_alias, *VM_ARGS], allow_missing_artifacts=True)
+    assert launch_quit in resolved and tray_alias not in resolved
     assert '--qualify-lunar-login-denial' in dispatcher['selection'](
         ROOT, ['e2e', '--qualify-lunar-login-denial', *VM_ARGS], allow_missing_artifacts=True)
     assert '--qualify-lunar-autostart' in dispatcher['selection'](

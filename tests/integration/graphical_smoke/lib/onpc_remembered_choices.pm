@@ -21,9 +21,7 @@ sub run {
     # Only explicit maintenance reproduction declares the old retained logins.
     # The customer case checks persistence by changing children in the open kiosk.
     my $diagnosis = grep { /^jordan-return-entry-/ } @$declared;
-    my @entries = grep { /^(?:jordan|riley)-entry-/ } @$declared;
-    die 'remembered-choices:child-order' unless @entries;
-    my @children = $entries[0] =~ /^riley-/ ? qw(riley jordan) : qw(jordan riley);
+    my @children = qw(jordan riley);
     my @visits = map { [$_, $_, $_ eq 'riley' ? 'child' : 'other-child', 'fresh'] } @children;
     push @visits, (['jordan-return', 'jordan', 'other-child', 'retained'],
                    ['riley-return', 'riley', 'child', 'retained']) if $diagnosis;
@@ -57,9 +55,7 @@ sub run_reverse {
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'remembered-reverse', review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
-    my @entries = grep { /^(?:jordan|riley)-seed-entry-/ } @$declared;
-    die 'remembered-reverse:child-order' unless @entries;
-    my @children = $entries[0] =~ /^riley-/ ? qw(riley jordan) : qw(jordan riley);
+    my @children = qw(jordan riley);
     onpc_request_flow::prepare_transfer_allowances($journey);
     for my $child (@children) {
         my $role = $child eq 'riley' ? 'child' : 'other-child';

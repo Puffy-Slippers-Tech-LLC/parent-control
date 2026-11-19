@@ -238,11 +238,13 @@ def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared, t
     lease.commands.directory = tmp_path / 'private'
     lease.commands.directory.mkdir()
     transport = Transport({'directory': str(tmp_path)}, lease.commands, lease=lease)
-    def capture(argv, **options):
+    components = ('broker', 'parent', 'child', 'kiosk')
+    def capture(_argv, **options):
         assert lease.source.domain.revertToSnapshot.call_count == initial_restores
         assert not lease.source.off
-        assert options['timeout'] == 20
-        return (argv[-1] + ' product events\n').encode()
+        assert options['timeout'] == 80
+        return json.dumps({component: component + ' product events\n'
+                           for component in components}).encode()
     transport.call = Mock(side_effect=capture)
     assert adapter.request('off', adapter.run) == 'ok'
     assert adapter.request('off', adapter.run) == 'ok'
@@ -250,8 +252,8 @@ def test_backend_off_on_off_sequence_restores_only_at_final_callback(prepared, t
     assert lease.source.domain.revertToSnapshot.call_count == initial_restores + 1
     assert lease.source.shutdown_calls == initial_shutdowns
     assert lease.restored_by_callback
-    assert transport.call.call_count == 4
-    for component in ('broker', 'parent', 'child', 'kiosk'):
+    transport.call.assert_called_once()
+    for component in components:
         assert (lease.commands.directory / 'product-logs' / (component + '.log')).read_bytes() == (
             component + ' product events\n').encode()
     assert adapter.events == ['initial-off', 'status-off', 'poweron', 'status-on',

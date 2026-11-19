@@ -93,11 +93,6 @@ def catalogue_journey(context, progress, result, previous):
                     break
                 system.require(time.monotonic() < deadline, 'fixture-e2e:catalogue-saved-rows')
                 time.sleep(0.25)
-            for role, operation, rule in (('A', 'match-row', MATCH_RULES[0]),
-                    ('H', 'match-hard-row', MATCH_RULES[3]),
-                    ('S', 'match-soft-row', MATCH_RULES[4])):
-                system.require(self.observe_public(operation, child=child)['match'] ==
-                    {'app': apps[role], 'rule': rule}, 'fixture-e2e:catalogue-default-rule')
             return sorted((identity, *values) for identity, values in actual.items())
 
         def check_settings(self, stage, observed):
@@ -115,6 +110,13 @@ def catalogue_journey(context, progress, result, previous):
                 jordan = self.rows('existing')
                 self.select('child', True)
                 initial = self.rows('child')
+                # The catalogue rows verify match types after each save and
+                # reselect. Open the detailed match controls only once.
+                for role, operation, rule in (('A', 'match-row', MATCH_RULES[0]),
+                        ('H', 'match-hard-row', MATCH_RULES[3]),
+                        ('S', 'match-soft-row', MATCH_RULES[4])):
+                    system.require(self.observe_public(operation, child='child')['match'] ==
+                        {'app': apps[role], 'rule': rule}, 'fixture-e2e:catalogue-default-rule')
                 self.observe_public('access-hard-permanent', child='child')
                 self.observe_public('access-soft-conditional', child='child')
                 self.select('existing', False)
@@ -152,13 +154,13 @@ def activity_readiness_refusals(vm, verified, previous):
     def forbidden(*_args, **_kwargs):
         raise system.Error('fixture-e2e:unready-consumer-released')
     guarded = SimpleNamespace(config=dict(vm.config), guard=vm.guard, call=forbidden)
-    candidates = [
-        ('missing', None, 'fixtures:readiness-required'),
-        ('incompatible', {**current, 'subsets': ('native',), 'caller': None},
-         'fixtures:e2e-profile-not-qualified')]
     if previous:
-        candidates.append(('stale', {**current, **previous},
-                           'fixture-provision:terminal-attempt'))
+        candidates = [('stale', {**current, **previous}, 'fixture-provision:terminal-attempt')]
+    else:
+        candidates = [
+            ('missing', None, 'fixtures:readiness-required'),
+            ('incompatible', {**current, 'subsets': ('native',), 'caller': None},
+             'fixtures:e2e-profile-not-qualified')]
     result = {}
     try:
         for label, prepared, reason in candidates:
@@ -202,13 +204,14 @@ def refused_inputs(context, selection):
     return result
 
 
-def observer(selection, manifest, result, previous, source):
+def observer(selection, manifest, result, previous, *, mode):
     subsets = preparation.ACTIVITY_SUBSETS
     state = {}
     def observe(stage, context):
         vm, lease, directory = (context[key] for key in ('vm', 'lease', 'directory'))
         if stage == 'before':
-            state['refusals'] = refused_inputs(context, selection)
+            if mode == 'online':
+                result['refusals'] = refused_inputs(context, selection)
             shared.wait_environment(vm, lease, directory)
             with installed_setup.timed_stage('fixture-clean-baseline-audit'):
                 before = proof.audit(vm, manifest, subsets)
@@ -227,15 +230,13 @@ def observer(selection, manifest, result, previous, source):
         with installed_setup.timed_stage('fixture-runtime-witnesses'):
             witnesses = proof.runtime_witnesses(vm, members, observed['accounts'], selection.target,
                 only=(native_assets.executable_path('A'), native_assets.ACTIVITY_EXECUTABLE))
-        edit = shared.source_edit_proof(source, selection, manifest)
-        # Runtime launches preserve the audited fixture/native policy state;
-        # the source-edit proof changes only host scratch. Compare the exact
-        # repeat with the validated observation, covering those operations too
-        # without another full native-database audit (atime is not compared).
-        with installed_setup.timed_stage('fixture-repeat-provision-and-audit'):
-            final = proof.repeat_provision(vm, controller, receipt, selection, manifest,
-                subsets, observed, attempt_id=preparation.attempt_id(directory), prefix='fixture-e2e')
-        proof.unchanged_policy(state['before'], final)
+        # Both attachments use the same provisioner and guards. Prove its
+        # idempotency on the online route and keep a fresh readback on each.
+        if mode == 'online':
+            with installed_setup.timed_stage('fixture-repeat-provision-and-audit'):
+                observed = proof.repeat_provision(vm, controller, receipt, selection, manifest,
+                    subsets, observed, attempt_id=preparation.attempt_id(directory), prefix='fixture-e2e')
+            result['repeat_without_writes'] = True
         if previous:
             try:
                 previous['controller'].require_ready(previous['receipt'])
@@ -246,8 +247,8 @@ def observer(selection, manifest, result, previous, source):
                 raise system.Error('fixture-e2e:stale-readiness-accepted')
             result['prior_generation_refused'] = True
         previous.update(controller=controller, receipt=receipt)
-        result.update(binding=receipt.binding, readback=final, refusals=state['refusals'],
-            runtime_witnesses=witnesses, host_edit=edit, repeat_without_writes=True,
+        result.update(binding=receipt.binding, readback=observed,
+            runtime_witnesses=witnesses,
             selected_input_unchanged=True, worker_input_released=False,
             product_assertions_started=False)
         result.update(domain_id=lease.state['domain_id'],
@@ -333,12 +334,12 @@ def run_history(suite, directory, assets, selection, observe, mode, *, result, p
         return assets_receipt
 
 
-def qualify_pinned(directory, assets, selection, manifest, source):
+def qualify_pinned(directory, assets, selection, manifest, source, edit):
     suite = Suite(open_source)
     result = {'target': selected_target(), 'selection': selection.record(),
               'subsets': list(preparation.ACTIVITY_SUBSETS),
               'caller': preparation.ACTIVITY_CALLER,
-              'attempts': []}
+              'host_edit': edit, 'attempts': []}
     private = directory / 'private'
     private.mkdir(mode=0o700)
     suite.commands = system.EvidenceCommands(private)
@@ -358,7 +359,7 @@ def qualify_pinned(directory, assets, selection, manifest, source):
             attempt = {'app_snapshot_mode': mode,
                        'restore_owner': 'Suite.prepare_case' if mode == 'online' else
                                         'KioskEntryQualification.attach_installed_snapshot'}
-            observe = observer(selection, manifest, attempt, previous, source)
+            observe = observer(selection, manifest, attempt, previous, mode=mode)
             prior = dict(previous)
             with installed_setup.timed_stage('fixture-history-' + mode):
                 attempt['assets'] = run_history(suite, history, history / 'input', selection,
@@ -378,6 +379,8 @@ def qualify_pinned(directory, assets, selection, manifest, source):
                 and a['manifest_sha256'] == b['manifest_sha256']
                 and a['content_identity'] == b['content_identity'],
                 'fixture-e2e:fresh-readiness-required')
+        system.require(shared.source_edit_proof(source, selection, manifest) == edit,
+                       'fixture-e2e:source-proof-changed')
     finally:
         suite.close()
     result['owned_baseline_restoration_verified'] = True
@@ -393,8 +396,8 @@ def qualify(directory, assets, selection, source_selection):
         with authenticated_input(source_selection) as source:
             manifest = fixture_execution.verify(selection)
             fixture_provision.authenticated_bundle(selection)
-            shared.source_edit_proof(source, selection, manifest)
-            return qualify_pinned(directory, assets, selection, manifest, source)
+            edit = shared.source_edit_proof(source, selection, manifest)
+            return qualify_pinned(directory, assets, selection, manifest, source, edit)
 
 
 def main(*, assets, selection, source_selection):

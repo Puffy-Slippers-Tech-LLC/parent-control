@@ -10,42 +10,38 @@ from private_artifacts import require
 from ui_observations import SettingsObservation
 
 
-# Keep both directions and each recovery in one attempt. Parent stays open;
-# Jordan logs out between visits so no incidental retained-child branch is needed.
+# Exercise both directions of the shared block and one recovery. Parent stays
+# open while Jordan starts a fresh session for each policy state.
 ROUNDS = (
-    ('original-blocked', (('A', 'permanent'), ('Alias', 'allowed')), False),
-    ('original-allowed', (('A', 'allowed'),), True),
-    ('alias-blocked', (('Alias', 'permanent'),), False),
-    ('alias-allowed', (('Alias', 'allowed'),), True),
+    ('original-blocked', 'permanent', 'allowed', ('A', 'Alias'), False),
+    # Save an actual transition to Allowed while the shared target is blocked.
+    ('alias-blocked', 'allowed', 'permanent', ('Alias', 'A'), False),
+    ('alias-allowed', 'allowed', 'allowed', ('Alias',), True),
 )
 SCREENS = app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read')
 SCREENS['retained-window'] = 'ui:retained-parent-leave'
 SCREENS['parent-session'] = 'system:parent-desktop-identity'
 PHASES = {stage: 'step-1' for stage in SCREENS}
 ENTRIES = {}
-MATCH_CHECKS = {}
 ACCESS_CHECKS = {}
-for name, edits, usable in ROUNDS:
+for name, original, alias, edits, usable in ROUNDS:
+    choices = {'A': ('original', 'ui:access-', original),
+               'Alias': ('alias', 'ui:access-alias-', alias)}
     group = {}
-    for role, choice in edits:
-        prefix = name + '-' + role.lower()
-        operation = 'ui:access-' + ('alias-' if role == 'Alias' else '')
-        # The fixture starts with both precise rules. Change only access: an
-        # intervening match save could conceal an access-transition defect.
-        group.update({prefix + '-access-save': operation + choice,
-                      prefix + '-access': operation + 'row',
-                      prefix + '-final-match': 'ui:match-' +
-                          ('alias-' if role == 'Alias' else '') + 'row'})
-        MATCH_CHECKS[prefix + '-final-match'] = (MATCH_APPS[role], MATCH_RULES[0])
-        ACCESS_CHECKS[prefix + '-access'] = (MATCH_APPS[role], choice)
-    # Read both confirmed choices before every child visit, including the
-    # unchanged Allowed entry that must not override the other launcher's block.
-    group.update({name + '-original-choice': 'ui:access-row',
-                  name + '-alias-choice': 'ui:access-alias-row'})
-    ACCESS_CHECKS[name + '-original-choice'] = (
-        MATCH_APPS['A'], 'permanent' if name == 'original-blocked' else 'allowed')
-    ACCESS_CHECKS[name + '-alias-choice'] = (
-        MATCH_APPS['Alias'], 'permanent' if name == 'alias-blocked' else 'allowed')
+    for index, role in enumerate(edits):
+        label, operation, choice = choices[role]
+        prefix = name + '-' + label
+        group[prefix + '-save'] = operation + choice
+        if index < len(edits) - 1:
+            group[prefix + '-committed'] = operation + 'row'
+            ACCESS_CHECKS[prefix + '-committed'] = (MATCH_APPS[role], choice)
+    for role, (label, operation, choice) in choices.items():
+        prefix = name + '-' + label
+        group[prefix + '-choice'] = operation + 'row'
+        ACCESS_CHECKS[prefix + '-choice'] = (MATCH_APPS[role], choice)
+    if usable:
+        group.update({'original-final-match': 'ui:match-row',
+                      'alias-final-match': 'ui:match-alias-row'})
     group.update(prefixed_stages(name + '-leave', {
         'desktop': 'ui:desktop', 'switch': 'system:parent-switch-user',
         'greeter': 'ui:gdm-returned'}))
@@ -79,7 +75,7 @@ LOGIN_STAGES = {prefix + '-' + stage for prefix, screens in ENTRIES.items()
 PLAN = JourneyPlan(
     prefix='shared-launchers-case', worker_mode='shared_launchers_case', screen_tags=SCREENS,
     phases={'ready': 'setup', 'setup-detached': 'setup', **PHASES, 'installed-greeter': 'start'},
-    advance_after={'parent-session': 'step-2', 'alias-allowed-alias-choice': 'step-3'},
+    advance_after={'parent-session': 'step-2', 'alias-final-match': 'step-3'},
     stage_actions={'desktop': 'native-verify'},
     child_bindings={stage: 'existing' for stage, tag in SCREENS.items()
                     if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
@@ -87,7 +83,9 @@ PLAN = JourneyPlan(
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
         'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',))},
     balance_checks={'allowance-configured': 1800},
-    match_checks=MATCH_CHECKS, access_checks=ACCESS_CHECKS,
+    match_checks={'original-final-match': (MATCH_APPS['A'], MATCH_RULES[0]),
+                  'alias-final-match': (MATCH_APPS['Alias'], MATCH_RULES[0])},
+    access_checks=ACCESS_CHECKS,
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
     challenges={prefix: (
         'parent' if prefix.endswith('-return') else 'other-child',

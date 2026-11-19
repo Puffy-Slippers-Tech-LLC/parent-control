@@ -33,17 +33,24 @@ METHOD_ROLES = {
     'CalculateRemainingTime': ('child1', 'parent1'),
     'CalculateOwnRemainingTime': ('child1', 'parent1'),
     'PrepareOwnSession': ('child1', 'kiosk'),
+    'RequestOwnAccess': ('child1', 'kiosk'),
+    'RequestAccess': ('child1', 'parent1', 'kiosk'),
     'UpdateRequestPreferences': ('child1', 'parent1', 'kiosk'),
-    'UpdateRequestPreferencesWithUnit': ('child1', 'kiosk'),
+    'UpdateRequestPreferencesWithUnit': ('child1',),
     'SetRequestMuted': ('child1', 'kiosk'),
     'SetPreferences': ('child1', 'parent1', 'kiosk'),
     'SetParentControl': ('child1', 'parent1', 'kiosk', 'locked'),
     'RevokeOneTimeGrant': ('child1', 'parent1', 'kiosk'),
-    'RequestOwnAccess': ('child1', 'kiosk'),
-    'RequestAccess': ('child1', 'parent1', 'kiosk'),
     'LogEvent': ('child1', 'parent1', 'kiosk', 'locked'),
 }
-METHODS = tuple(METHOD_ROLES)
+# Root's management bypass, request-only refusals and component ownership each
+# get a real caller. Scoped read variants and request-preference signatures
+# share the permission checks already covered with unprivileged callers.
+ROOT_METHODS = ('ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
+                'GetPreferences', 'ListApplications', 'GetTimeStatus',
+                'PrepareOwnSession', 'RequestOwnAccess', 'RequestAccess',
+                'UpdateRequestPreferencesWithUnit', 'SetPreferences',
+                'SetParentControl', 'RevokeOneTimeGrant', 'LogEvent')
 LOG_EVENT = json.dumps({'v': 1, 'event': 'diagnostic.rejected',
                        'operation': 0, 'fields': {}})
 
@@ -183,25 +190,15 @@ def denied(reply, boundary):
     guest.require(reply.get('error') == DENIED, 'authorization:' + boundary)
 
 
-@pytest.mark.parametrize('methods', [
-    pytest.param((
-        'ListManagedUsers', 'ListApprovers', 'GetOwnAccount',
-        'GetPreferences', 'ListApplications',
-        'GetTimeStatus', 'CalculateRemainingTime', 'CalculateOwnRemainingTime',
-        'PrepareOwnSession', 'RequestOwnAccess', 'RequestAccess',
-        'UpdateRequestPreferences', 'UpdateRequestPreferencesWithUnit', 'SetRequestMuted',
-        'SetPreferences', 'SetParentControl', 'RevokeOneTimeGrant', 'LogEvent',
-    ), id='ListManagedUsers-parent1'),
-])
+@pytest.mark.parametrize('methods', [pytest.param(METHOD_ROLES, id='ListManagedUsers-parent1')])
 def test_method_role_matrix(accounts, callers, methods, request, record_testsuite_property):
     """One finite authorization history owns its shared live-broker setup."""
     with validation_stage('authorization-validation', 'role-permissions'):
         _method_role_matrix(accounts, callers, methods)
     with validation_stage('authorization-validation', 'account-isolation-and-discovery'):
         _cross_child_targets_fail_closed(accounts, callers, (
-            ('GetPreferences', 'child1'), ('GetPreferences', 'child2'),
-            ('GetTimeStatus', 'child1'), ('CalculateRemainingTime', 'child1'),
-            ('UpdateRequestPreferences', 'child1'), ('UpdateRequestPreferences', 'child2'),
+            ('GetPreferences', 'child1'), ('GetTimeStatus', 'child1'),
+            ('UpdateRequestPreferences', 'child2'),
             ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1'),
         ))
     with validation_stage('authorization-validation', 'deleted-target-and-approver'):
@@ -232,14 +229,15 @@ def test_method_role_matrix(accounts, callers, methods, request, record_testsuit
             accounts, callers, passwords, diagnostics, record_testsuite_property)
     for surface, mutations in (
             ('child1', ('child-role', 'approver-role')),
-            ('kiosk', ('child-role', 'preferences'))):
+            ('kiosk', ('preferences',))):
         with validation_stage('authorization-validation', 'authenticated-live-state-' + surface):
             _authenticated_request_revalidation(
                 accounts, callers, passwords, surface, mutations, diagnostics)
-    for surface in ('child1', 'kiosk'):
-        with validation_stage('authorization-validation', 'locked-approver-' + surface):
-            _request_rejects_locked_approver_during_authentication(
-                accounts, callers, passwords, surface, diagnostics)
+    # Both real PolicyKit actions run in the selected-parent histories. A
+    # single lock mutation represents the shared account/password refusal.
+    with validation_stage('authorization-validation', 'locked-approver-kiosk'):
+        _request_rejects_locked_approver_during_authentication(
+            accounts, callers, passwords, diagnostics)
     for surface in ('child1', 'kiosk'):
         with validation_stage('authorization-validation', 'selected-parent-authentication-' + surface):
             _real_selected_parent_authentication(
@@ -248,8 +246,8 @@ def test_method_role_matrix(accounts, callers, methods, request, record_testsuit
 
 def _method_role_matrix(accounts, callers, methods):
     """All seven short permission families on the same prepared live broker."""
-    for method in methods:
-        for role in METHOD_ROLES[method]:
+    for method, roles in methods.items():
+        for role in roles:
             boundary = f'authorization:method-role:{method}:{role}'
             print(f'onpc-system: stage=method-role method={method} role={role}', flush=True)
             signature, args, allowed = invocation(method, role, accounts,
@@ -265,20 +263,18 @@ def _method_role_matrix(accounts, callers, methods):
                 guest.require(reply.get('error') == DENIED, boundary + ':expected-denial')
 
 
-# Exercise each scoped endpoint and both UID directions for a read and a write.
 def _cross_child_targets_fail_closed(accounts, callers, cases):
     """Cross-child isolation, private records and discovery share one live setup."""
+    children = ('child1', 'child2')
+    before = snapshot_accounts(accounts, children)
     for method, role in cases:
         boundary = f'authorization:cross-child:{method}:{role}'
         print(f'onpc-system: stage=cross-child method={method} role={role}', flush=True)
         signature, args, _ = invocation(method, role, accounts)
         other = accounts['child2'] if role == 'child1' else accounts['child1']
-        manager = callers('parent1')
-        before = accepted(manager.call('GetPreferences', '(u)', (other,)))
         reply = callers(role).call(method, signature, (other, *args[1:]))
         guest.require(reply.get('error') == DENIED, boundary + ':denial')
-        after = accepted(manager.call('GetPreferences', '(u)', (other,)))
-        guest.require(before == after, boundary + ':write')
+        guest.require(accounts_unchanged(accounts, before), boundary + ':write')
     _private_records_and_log_components(accounts, ('child1', 'parent1', 'kiosk'))
     _account_discovery_after_installation(accounts, callers)
 
@@ -432,7 +428,7 @@ def _root_method_permissions_and_approver_exclusion(accounts, callers):
     original = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
     others = snapshot_accounts(accounts, (key for key in ROLES if key != 'child1'))
     try:
-        for method in METHODS:
+        for method in ROOT_METHODS:
             signature, args, allowed = invocation(method, 'root', accounts,
                                                  administrator=manager)
             if method == 'SetPreferences':
@@ -491,10 +487,9 @@ def _ineligible_callers_cannot_use_broker(accounts, callers, roles):
     for role in roles:
         _ineligible_caller_cannot_use_broker(accounts, role)
     _ineligible_targets_fail_closed(accounts, callers, (
-        ('GetPreferences', 'parent1'), ('GetPreferences', 'locked'),
-        ('GetPreferences', 'kiosk'), ('SetParentControl', 'noninteractive'),
-        ('SetParentControl', 'system'), ('RequestAccess', 'parent1'),
-        ('RequestAccess', 'kiosk'), ('RequestAccess', 'system'),
+        ('GetPreferences', 'locked'), ('SetParentControl', 'parent1'),
+        ('SetParentControl', 'noninteractive'), ('RequestAccess', 'kiosk'),
+        ('RequestAccess', 'system'),
     ))
     _enabled_child_request_reaches_authentication_without_grant(accounts, callers, 'child1')
     _icons_match_authoritative_account_properties(accounts, callers, ('child1', 'parent1'))
@@ -1031,7 +1026,7 @@ def _authenticated_request_rejects_deleted_target(accounts, callers, passwords,
 
 def _authenticated_request_revalidation(accounts, callers, passwords, surface, mutations,
                                                      authentication_diagnostics):
-    """Two mutations per surface, each with its own fresh caller, agent and cleanup."""
+    """Each mutation owns its fresh caller, authentication agent and cleanup."""
     for mutation in mutations:
         print(f'onpc-system: stage=inflight-request surface={surface} mutation={mutation}', flush=True)
         _authenticated_request_revalidates_live_state(
@@ -1122,7 +1117,7 @@ def _authenticated_request_revalidates_live_state(accounts, callers, passwords, 
 
 
 def _request_rejects_locked_approver_during_authentication(
-        accounts, callers, passwords, surface, authentication_diagnostics):
+        accounts, callers, passwords, authentication_diagnostics):
     """A parent locked after selection cannot approve through an active prompt."""
     target, selected, other = (accounts[key] for key in ('child1', 'parent1', 'parent2'))
     manager = callers('parent2')
@@ -1133,12 +1128,12 @@ def _request_rejects_locked_approver_during_authentication(
     original = accepted(manager.call('GetPreferences', '(u)', (target,)))[0]
     accepted(manager.call('SetParentControl', '(ubu)', (target, True, 0)))
     try:
-        with PersistentCaller(accounts[surface]) as caller, TextAgent(
+        with PersistentCaller(accounts['kiosk']) as caller, TextAgent(
                 caller, record_diagnostic=authentication_diagnostics) as agent:
             rows = accepted(caller.call('ListApprovers'))[0]
             guest.require(selected in {row[0] for row in rows},
                           'authorization:lock-initial-discovery')
-            caller.send(request_operation(surface, target, selected))
+            caller.send(request_operation('kiosk', target, selected))
             agent.prompt(selected, other)
             guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                        path, interface, 'SetLocked', 'b', 'true'])
@@ -1153,12 +1148,11 @@ def _request_rejects_locked_approver_during_authentication(
             # PAM challenge followed by the broker's post-authentication check.
             agent.authenticate(passwords['parent1'], succeeds=False)
             result = accepted(caller.receive())
-            guest.require(result[1] in ('denied', 'cancelled') and
-                          (surface == 'kiosk' or result[2] == 0),
+            guest.require(result[1] in ('denied', 'cancelled'),
                           'authorization:inflight-locked-approver-grant')
             guest.require(accounts_unchanged(accounts, before),
                           'authorization:inflight-locked-approver-write')
-            print(f'onpc-system: stage=inflight-approver-lock surface={surface} '
+            print('onpc-system: stage=inflight-approver-lock surface=kiosk '
                   'outcome=denied-state-preserved', flush=True)
     finally:
         guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',

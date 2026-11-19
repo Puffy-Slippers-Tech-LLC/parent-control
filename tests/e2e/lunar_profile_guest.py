@@ -59,7 +59,9 @@ def prepare_integration(child, home, read, original=None):
                 b'[AppImageLauncher]\nask_to_move=false\n', owner=child.pw_uid,
                 group=child.pw_gid, mode=0o600)
         guard()
-    read('.config/appimagelauncher.cfg')
+    # This setup-only input must be readable and owned, but it does not describe
+    # either launcher and is outside the read-only profile receipt.
+    read('.config/appimagelauncher.cfg', record=False)
     if original is not None:
         command(['/usr/sbin/runuser', '-u', child.pw_name, '--', str(cli),
                  'integrate', str(original)], code='desktop-integration')
@@ -77,7 +79,7 @@ def verify(action, preparation):
         for role in ('parent', 'second-parent', 'child')}, 'child-account')
     files = {}
 
-    def read(relative, *, modes=(0o600, 0o644, 0o664), limit=65536):
+    def read(relative, *, modes=(0o600, 0o644, 0o664), limit=65536, record=True):
         path = home / relative
         try:
             with directory(path.parent, child, private_group=True) as (fd, guard):
@@ -90,7 +92,8 @@ def verify(action, preparation):
         except (OSError, ValueError):
             # The finite relative input identifies the gap without exposing file contents.
             raise ValueError('lunar-profile:required-input:' + relative) from None
-        files[relative] = {'identity': identity(info), 'sha256': hashlib.sha256(content).hexdigest()}
+        if record:
+            files[relative] = {'identity': identity(info), 'sha256': hashlib.sha256(content).hexdigest()}
         return content
 
     # The guarded transport already binds the restored VM/run; bind its baseline too.

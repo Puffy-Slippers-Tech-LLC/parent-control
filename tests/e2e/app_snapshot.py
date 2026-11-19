@@ -168,9 +168,8 @@ def preparation(message):
 def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='offline',
             release_notes_upgrade=False):
     """Ensure a current snapshot; overwrite forces even a matching rebuild."""
-    from installed_setup import stage, InstalledSetup
+    from installed_setup import stage, InstalledSetup, timed_stage
     from provenance import VerifiedInputs
-    from vm_transport import Transport
     from build_test_artifacts import PACKAGE_INPUT_NAME, verify
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
     system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
@@ -251,20 +250,16 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     verified = VerifiedInputs(lease=lease, assets=setup / 'input' if package_only else assets,
                             root=root, **({'package_only': True} if package_only else {}))
     suite.verified = verified
-    lease.start()
-    hostname = system.address(lease.source)
-    (setup / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-    transport = Transport({'directory': str(setup), 'hostname': hostname,
-        'domain_uuid': lease.source.uuid, 'domain_id': lease.view.domain_id,
-        'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard(), lease=lease)
-    transport.probe_ready()
-    # Both modes verify activated services after the installation's required
-    # reboot. Offline snapshots then shut down before disk-only capture.
-    InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online',
-                                                upgrade=release_notes_upgrade)
+    with timed_stage('snapshot-start-and-connect'):
+        transport = suite.start_transport(setup, host_key)
+    with timed_stage('snapshot-install'):
+        InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online',
+                                                     upgrade=release_notes_upgrade)
     if mode == 'offline':
-        transport.reboot()
-    transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
+        # Online setup already verifies the package and boot after reboot.
+        with timed_stage('snapshot-reboot-and-verify'):
+            transport.reboot()
+            transport.call(system.guest_command(lease.state['run'], 'verify-snapshot'), timeout=660)
     lease.guard()
     verified.recheck()
     if mode == 'offline':
@@ -277,7 +272,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         lease.guard(off=True)
     preparation('Taking snapshot ' + name)
     from online_snapshot import disconnected_network, publish
-    with disconnected_network(lease) if mode == 'online' else nullcontext():
+    with timed_stage('snapshot-capture'), (
+            disconnected_network(lease) if mode == 'online' else nullcontext()):
         lease.create_installed(mode=mode)
         if mode == 'online':
             publish(lease, setup, host_key)

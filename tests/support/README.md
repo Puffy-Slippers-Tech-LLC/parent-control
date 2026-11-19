@@ -579,8 +579,10 @@ Keep authentication invocations bound to the explicit `fresh_desktop` fragments;
 a broad `child-` prefix also matches Parent's child-picker stages and must not
 turn those reads into desktop authentication invocations.
 
-Flatpak command/grid variants compose `flatpak_app_launch.launch_plan(route=..., limits=..., rule=...)`
-and the same `onpc_app_launch::run` worker. Keep the fixed dispatch bindings in
+Snap and Flatpak launch cases compose `app_launch.packaged_launch_plan` and
+the same `onpc_app_launch::run` worker. Enabled Allowed grid and command
+launches share setup and child sessions. Close the first app and independently
+observe its absence before making the command launch. Keep the fixed dispatch bindings in
 `smoke.pm` together; another rule or limits variant needs no copied worker handoff.
 Flatpak denials reuse `journey_blocks.flatpak_blocked_app` and the matching
 `onpc_app_rows::flatpak_blocked_app` worker in launch cases, temporary-approval
@@ -648,9 +650,9 @@ check. Multi-action probes keep their finite order and assertions. These helpers
 reuse the existing allocation and maintenance owner; they add no process, VM,
 bus or cleanup lifetime. The existing VM-control safety module retains private
 pytest state and mocked VM calls in both unit and cleanup inventories.
-`tools/test-vm --vm NAME reproduce-snap-grid` binds the existing Snap grid
-qualification to that same reproduction owner. It observes Jordan's first
-opened window once, closes the worker and retains his desktop for guarded
+`tools/test-vm --vm NAME reproduce-snap-grid` binds the case's grid/command
+plan to that same reproduction owner. After Jordan uses both routes it observes
+Riley's grid window once, closes the worker and retains her desktop for guarded
 `exec` probes followed by `stop`; it supplies no acceptance credit.
 `reproduce-expired-sign-out` similarly binds `AppRestartExpiredJourney` and
 `SIGN_OUT_PLAN` to Riley's completed logout, reads `gdm-returned` once and retains
@@ -1607,13 +1609,8 @@ immutable comparisons rather than importing the qualification plan.
 Case 58 visits each overlay once and compares both destination reads with the
 original captures, then reselects both children in the open kiosk and compares
 again. Its persistence/isolation result requires no retained child-desktop login.
-Case 59's `choices='remembered-second'` binding swaps the primary child and
-finite values: Riley 75 seconds/included, then Jordan 150 seconds/excluded.
-Both overlays still use the other eligible parent and the station uses Jamie.
-The shared worker follows the caller's declared fresh-entry order and repeats
-that order for the kiosk readbacks; the original case and diagnostic plan retain
-their order. Host checks cover both bindings, all refusal checkpoints, immutable
-comparisons and actual child-account reader/input guards.
+The host check covers the local overlay selector, immutable request values and
+the wrong-surface refusal.
 The historical full return scene is preserved only as `DIAGNOSTIC_PLAN` for
 explicit maintenance probes; it supplies no customer acceptance prerequisite.
 The reverse declaration `request_flow.kiosk_to_overlay(..., choices='remembered')`
@@ -1622,16 +1619,9 @@ qualification binding. Case 60 uses `remembered_choices.REVERSE_PLAN` and
 `onpc_remembered_choices::run_reverse` to seed local overlay approvers, capture
 each kiosk source and compare untouched transfer and fresh overlay reentry
 results against it. Ordinary logout avoids incidental retained-login requirements.
-Case 61's `remembered_choices.REVERSE_SECOND_PLAN` uses the same worker with
-Riley/Jordan order for seeds, transfers and fresh revisits, and
-`choices='remembered-second'` for Riley 75 seconds/included and Jordan
-150 seconds/excluded. Its second station entry uses
-`remembered-second-reverse-kiosk-jordan-select-default`, retaining Jamie after
-Riley's earlier selector save. Both complete cases declare four immutable
-comparisons against the original station captures. The existing private
-unit/cleanup resources and preview display classifications remain applicable;
-no new resource owner is introduced.
-Case 60's second station entry uses `remembered-reverse-kiosk-riley-select-default`:
+Case 60 declares four immutable comparisons against the original station
+captures. Its second station entry uses
+`remembered-kiosk-riley-retained-approver-default`:
 Riley's untouched default request values must retain the kiosk's Jamie selection
 saved during Jordan's visit. Fresh-station seed bindings still require Casey.
 Before binding an untouched default read, trace the last selector save for the

@@ -312,11 +312,11 @@
     "expected": "The operation is refused for this account's role."
   },
   "28": {
-    "execution_revision": 3,
+    "execution_revision": 4,
     "summary": "Validate broker authorization, account isolation and real authentication in one bounded live-guest history, with shared account setup and final owned cleanup.",
     "steps": [
       "Prepare the fixture accounts and real caller connections, then check the declared child, parent, kiosk and locked-administrator permissions for discovery, own-account lookup, preferences, applications, time, sessions, requests, policy management and diagnostics.",
-      "Attempt cross-child reads and writes, direct private-record access and diagnostic impersonation; compare state after each refusal and check sorted eligible child and approver discovery.",
+      "Attempt cross-child reads and writes in both UID directions, direct private-record access and diagnostic impersonation; compare child state and check sorted eligible child and approver discovery.",
       "Create disposable child and approver identities, remember their selections, delete each identity and retry discovery and stale selections on existing connections.",
       "Exercise the declared root management permissions, request-only refusals, root approver exclusion and diagnostic component restrictions, then restore the selected child's original settings.",
       "Check noninteractive and system callers, ineligible child targets and approvers on both request surfaces; try an enabled child request without an agent, and set and clear authoritative child and parent icons.",
@@ -326,9 +326,8 @@
       "On both child and kiosk surfaces, disconnect a requester while approval is pending, verify cancellation and unchanged state, then authenticate a fresh request and revoke the resulting grant.",
       "On both request surfaces, delete a disposable child while the real parent authentication prompt is pending, finish authentication and verify the original requester connection and surviving account state.",
       "For the child request surface, independently change the target child's role and the selected parent's role during authentication; finish authentication and restore each mutation. After restoring the child's role, submit one fresh authenticated request on the same connection and compare the new grant and other accounts.",
-      "For the kiosk request surface, independently change the target child's role and saved request preferences during authentication; finish authentication and restore each mutation.",
-      "Begin a child request, lock its selected parent while authentication is pending, retry discovery and authentication, then restore the parent's lock state and original child settings.",
-      "Repeat the pending-authentication parent-lock refusal from the kiosk request surface with independent state observations and restoration.",
+      "Change the child's saved request preferences during kiosk authentication, finish authentication and restore the original preferences.",
+      "Begin a kiosk request, lock its selected parent while authentication is pending, retry discovery and authentication, then restore the parent's lock state and original child settings.",
       "From the child surface, try the wrong parent's password and then the selected parent's password; observe the real grant, test that the requester gained no account or policy-management authority, and restore controls.",
       "Repeat selected-parent password validation and post-approval authority checks from the kiosk surface, then collect results and finish owned VM restoration and cleanup."
     ],
@@ -344,9 +343,8 @@
       "Requester loss cancels the pending approval without reaching the write pipeline or granting time; the authentication agent survives, the transaction is released, and a fresh authenticated connection can receive a grant independently.",
       "Both authenticated requests reject the deleted target with InvalidRequest while their original bus connections remain owned by the requester; no deleted record is recreated and all surviving account state is preserved.",
       "Child-surface requests authenticated against stale target or approver roles are denied without granting time or writing account state; each exact role mutation is restored. Restored child eligibility permits a fresh password challenge and one approved 300-second grant, while every other account remains unchanged; cleanup restores policy before another immediate request may begin.",
-      "Kiosk requests authenticated against a stale child role or changed preferences are denied without granting time or writing account state; each exact mutation is restored.",
-      "The parent locked during a child request disappears from approver discovery and cannot authenticate a grant; account state is unchanged and the original lock state and child settings are restored.",
-      "The same pending-lock boundary holds independently for kiosk requests: no grant or account-state change occurs and original settings are restored.",
+      "The kiosk request authenticated against changed preferences is denied without granting time or writing account state; the exact mutation is restored.",
+      "The parent locked during a kiosk request disappears from approver discovery and cannot authenticate a grant; account state is unchanged and the original lock state and child settings are restored.",
       "Only the selected parent's password approves the child request and creates a real positive grant; approval gives the child no account-role or policy-management authority and preserves other accounts.",
       "Only the selected parent's password approves the kiosk request and creates a real positive grant; approval gives the kiosk no account-role or policy-management authority, preserves other accounts, and the attempt completes its owned restoration and cleanup before completion is published."
     ]
@@ -2483,7 +2481,7 @@
     "expected": "Recovery restores usable owned state and preserves unrelated or live state."
   },
   "295": {
-    "execution_revision": 2,
+    "execution_revision": 3,
     "summary": "Validate automatic extension monitoring, session and broker lifecycle, private diagnostics, Parent controls and authenticated kiosk recovery in five finite stages on one prepared child desktop, with shared setup and owned cleanup.",
     "steps": [
       "Prepare the monitor desktop; begin with the extension never loaded, enable control, repeatedly disable the extension individually and through GNOME's global switch, allow a healthy quiet interval, then turn parental control off.",

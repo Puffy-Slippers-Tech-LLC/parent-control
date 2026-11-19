@@ -32,7 +32,7 @@ sub run {
     $journey->seen('chinese-save');
     for my $prefix ('parent-riley', 'parent-jordan', 'parent-riley-return') {
         onpc_allowance_boundaries::select_child($journey, $prefix);
-        $journey->seen("$prefix-$_") for qw(state choice close);
+        $journey->seen("$prefix-state");
     }
     onpc_lifecycle::reopen($journey, 'parent', $journey->seen('prior-window'), 'management');
     $journey->seen($_) for qw(reopened-choice reopened-close parent-switch parent-greeter);

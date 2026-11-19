@@ -110,7 +110,11 @@
     "expected": "The child's app access follows its rule on the tested launch route without restricting the other user.",
     "summary": "Enforce app rules through native, Snap and Flatpak launch routes.",
     "steps": ["Set the tested app rule and screen-limit state for the child.", "Try the app through the selected launch route and check allowed use or blocking.", "Check that another standard user can still use the same app."],
-    "variants": {"native-grid-allowed-enabled": {"steps": ["Save the enabled allowance and precise Allowed rule.", "Use the app through the grid, close it normally, then launch by command and use it again.", "Repeat both launches and usable submissions as the other child, closing the first app before the command launch."]}}
+    "variants": {
+      "native-grid-allowed-enabled": {"steps": ["Save the enabled allowance and precise Allowed rule.", "Use the app through the grid, close it normally, then launch by command and use it again.", "Repeat both launches and usable submissions as the other child, closing the first app before the command launch."]},
+      "snap-grid-allowed-enabled": {"execution_revision": 2, "steps": ["Save the enabled allowance and Allowed Snap rule.", "Use the Snap app through the grid and by command, closing the app between launches.", "Repeat both launches and independent results as the other child."]},
+      "flatpak-grid-allowed-enabled": {"execution_revision": 2, "steps": ["Save the enabled allowance and Allowed Flatpak rule.", "Use the system Flatpak app through the grid and by command, closing the app between launches.", "Repeat both launches and independent results as the other child."]}
+    }
   },
   "E2E-020": {
     "expected": "Saving handles the changed app and preserves its intended rule across update or removal and reinstall.",
@@ -190,6 +194,7 @@
     "steps": ["Keep daily time and an open soft-blocked app after temporary time has been cleared.", "Cancel revocation and check the app continues, then confirm revocation.", "Check the soft app closes and blocked launches fail while daily time and allowed work remain."]
   },
   "E2E-038": {
+    "execution_revision": 2,
     "expected": "Daily access continues; soft-app launches and existing apps follow the tested recovery action without affecting other users.",
     "summary": "Keep daily access after temporary time ends and check when soft-app blocks return.",
     "steps": ["Open allowed and temporarily permitted soft-blocked apps with daily time also available.", "Let temporary time expire while the child continues using daily time.", "Take the selected return or policy action, or continue without an action.", "Check existing apps and new launches while another user's work continues."],
@@ -221,7 +226,7 @@
       "search-filters": {"steps": ["Open the child's app list.", "Search and filter the list.", "Check the intended apps and their saved choices appear."]},
       "match-editor": {"steps": ["Edit an app's match rule.", "Check valid rules save and rejected rules preserve the last accepted choice.", "Try the affected child launches."]},
       "match-reopen": {"steps": ["Save a precise match override for an app with a suggested pattern.", "Reopen Parent and inspect the documented suggested-pattern redisplay.", "Select precise matching again before saving and check launches."]},
-      "shared-launchers": {"execution_revision": 2, "steps": ["Inspect apps that share a launcher target.", "Save the intended app rule.", "Try the related child launches and check the rule applies correctly."]},
+      "shared-launchers": {"execution_revision": 3, "steps": ["Inspect the two app entries that share a launcher target.", "Block each launcher in turn and verify both child launches are denied.", "Allow both launchers and verify the original rules and child access."]},
       "special-paths": {"steps": ["Copy the child's apps whose paths contain spaces or commas.", "Save Hard choices and check the child cannot open either original or copy while a different app works.", "Repeat with Soft choices without an exception, then restore Allowed and remove the copies."]},
       "pattern-files": {"steps": ["Save a file-pattern rule for an app.", "Copy or rename the relevant files.", "Check matching launches are restricted and unrelated launches remain usable."]}
     }
@@ -284,9 +289,10 @@
     "steps": ["Prepare distinct work, app rules and request choices for two children.", "Alternate both children and parents through daily use and approvals on both request forms.", "After each change check the other child's work, balances and choices remain their own.", "Revoke one child's grant-only access while the other continues using daily time."]
   },
   "E2E-052": {
+    "execution_revision": 2,
     "expected": "Lunar and Minecraft work only when permitted; positive time without soft-app permission cannot bypass blocking through login autostart.",
     "summary": "Stop Lunar login autostart from bypassing soft-app restrictions.",
-    "steps": ["Allow Lunar, launch Minecraft and check ordinary login autostart works.", "Soft block Lunar and check launching is denied without temporary permission.", "Approve time excluding soft apps, reboot and check Lunar cannot autostart or launch.", "Include soft apps and play again, then exclude them and check blocking returns after reboot."]
+    "steps": ["Allow Lunar and Minecraft, then verify Lunar autostart at the first child sign-in and launch both apps by command.", "Return to the retained Parent session to soft block both apps, then verify denial without temporary permission.", "Approve time excluding soft apps, reboot and verify Lunar cannot autostart and both commands are denied.", "Include soft apps and launch both apps, then exclude them and verify blocking returns after reboot."]
   },
   "E2E-053": {
     "expected": "Chinese installation and request text is usable, the selected language persists, and both approvals add the intended access.",
@@ -294,7 +300,7 @@
     "steps": ["Install with the child's desktop language set to Chinese and read the restart notice.", "Restart, inspect the Chinese request station and save Chinese as the child's language.", "Approve two requests across separate station visits.", "Check Chinese prompts and confirmations, remembered language and added time."]
   },
   "E2E-054": {
-    "execution_revision": 2,
+    "execution_revision": 3,
     "expected": "Each account keeps its own language across forms and sessions, offline and after reconnection, without policy changes.",
     "summary": "Keep personal languages separate across accounts and offline sessions.",
     "steps": ["Go offline and save Chinese for Parent and different languages for two children.", "Switch children and approvers and reopen the request station.", "Reopen the child overlay and start a new desktop session.", "Check each account retains its own language and unchanged policy before and after reconnecting."]

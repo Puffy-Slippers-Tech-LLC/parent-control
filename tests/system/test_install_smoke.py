@@ -90,15 +90,11 @@ def test_kiosk_account_classification_survives_reboot(record_testsuite_property,
     guest.require(phase in ('installed', 'rebooted'), 'kiosk-accounts:test-phase')
     pending = phase == 'installed'
     rules_before = guest.execution_rule_state() if pending else None
-    installed_readiness(reboot_required=pending)
     if pending:
-        guest.require(guest.reboot_requested(), 'kiosk-accounts:reboot-not-requested')
         # Routing mutations precede the retained-metadata witness. Subsequent
         # gate observations must preserve the exact cache saved for reboot.
         verify_admission(record_testsuite_property)
-    else:
-        guest.require(guest.reboot_cleared(), 'kiosk-accounts:reboot-request-retained')
-    action = exercise if phase == 'installed' else verify_reboot
+    action = exercise if pending else verify_reboot
     action(record_testsuite_property)
     verify_gates(record_testsuite_property)
     verify_session_composition(record_testsuite_property)

@@ -14,7 +14,7 @@ import system_guest as guest
 
 
 @contextmanager
-def validation_stage(stage, name):
+def validation_stage(stage, name, *, record=None):
     """Time a finite installed validation without another observer or artifact.
 
     Nested durations are inclusive, so callers must not sum parent and child
@@ -33,6 +33,8 @@ def validation_stage(stage, name):
         elapsed = time.monotonic() - started
         print(f'onpc-system: stage={stage} validation={name} state={state} '
               f'duration_seconds={elapsed:.3f} timing=inclusive', flush=True)
+    if record is not None:
+        record(f'onpc.timing.{stage}.{name}.seconds', f'{elapsed:.3f}')
 
 
 def verify_package_readiness(installed_readiness):

@@ -21,7 +21,7 @@ def test_child_extension_monitor_native_recovery(record_testsuite_property, capf
             ('failure-reporting-and-bus-loss', verify_failure_reporting),
             ('parent-controls-recovery', verify_parent),
             ('kiosk-approval-recovery', verify_kiosk)):
-        with validation_stage('extension-validation', stage):
+        with validation_stage('extension-validation', stage, record=record_testsuite_property):
             if stage in ('failure-reporting-and-bus-loss', 'parent-controls-recovery'):
                 renew_child_desktop()
             if stage == 'parent-controls-recovery':

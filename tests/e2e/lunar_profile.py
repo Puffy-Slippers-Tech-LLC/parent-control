@@ -1,4 +1,4 @@
-"""FIX05: guarded, read-only verification of the supplied launcher profile."""
+"""FIX05: guarded preparation and independent verification of supplied launchers."""
 from pathlib import Path
 
 from native_fixtures import PackagedFixtures
@@ -19,11 +19,11 @@ class LunarProfile(PackagedFixtures):
     kind = 'lunar-profile'
     guest_source = staticmethod(guest_source)
 
-    def verify(self):
+    def verify(self, *, prepare=False):
         require(not self.used, 'lunar-profile:replay')
         self.used = True
         with operation("Checking the supplied launchers and autostart settings for [Child user]"):
-            first = self.read('read')
+            first = self.read('prepare' if prepare else 'read')
             require((first.get('profile'), first.get('autostart')) in (
                 ('lunar-flatpak', 'flatpak-login'), ('lunar-manual', 'desktop-login')),
                 'lunar-profile:receipt')

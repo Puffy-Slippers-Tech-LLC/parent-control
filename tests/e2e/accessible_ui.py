@@ -293,7 +293,7 @@ SNAP_APP_BINDINGS.update({
 SNAP_APP_OPERATIONS = frozenset(SNAP_APP_BINDINGS) | {'snap-command-refusals', 'snap-grid-refusals'}
 RILEY_SNAP_OPERATIONS = frozenset('overlay-snap-allowed-' + action for action in
     ('desktop', 'command-launch', 'search-ready', 'search-focused', 'search-entered',
-     'grid', 'opened', 'submit', 'submitted'))
+     'grid', 'opened', 'submit', 'submitted', 'close', 'closed'))
 SNAP_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-snap-allowed-'))
                           for operation in RILEY_SNAP_OPERATIONS})
 OPERATIONS |= SNAP_APP_OPERATIONS
@@ -326,7 +326,7 @@ FLATPAK_APP_BINDINGS.update({
 FLATPAK_APP_OPERATIONS = frozenset(FLATPAK_APP_BINDINGS) | {'flatpak-command-refusals'}
 RILEY_FLATPAK_OPERATIONS = frozenset('overlay-flatpak-allowed-' + action for action in
     ('desktop', 'command-launch', 'search-ready', 'search-focused', 'search-entered',
-     'grid', 'opened', 'submit', 'submitted'))
+     'grid', 'opened', 'submit', 'submitted', 'close', 'closed'))
 FLATPAK_APP_BINDINGS.update({operation: ('A', 'primary', operation.removeprefix('overlay-flatpak-allowed-'))
                              for operation in RILEY_FLATPAK_OPERATIONS})
 PACKAGED_APP_BINDINGS = {**SNAP_APP_BINDINGS, **FLATPAK_APP_BINDINGS}
@@ -1609,28 +1609,26 @@ for _operation, (_overlay, _child, _action) in TRANSFER_OPERATIONS.items():
         TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation]
 # Complete remembered-choice histories use the recipe's own finite values,
 # independently of the qualification's opposite child/approver assignments.
-for _profile, _short_child in (('remembered', EXISTING_CHILD), ('remembered-second', CHILD)):
-    for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
-        for _surface, _actions in (
-                ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
-                ('kiosk', ('select-default', 'approver', 'select', 'custom', 'text', 'apps', 'read'))):
-            for _action in _actions:
-                _operation = f'{_profile}-{_surface}-{_name}-{_action}'
-                _overlay = _surface == 'overlay'
-                _default = _action in ('default', 'approver', 'select-default')
-                _approver = OTHER_PARENT if _overlay or _action == 'select-default' else PARENT
-                _values = (1800 if _default else 75 if _child == _short_child else 150,
-                           None if _default else '1.25' if _child == _short_child else '2.5',
-                           False if _default else _child == _short_child, _approver)
-                TRANSFER_OPERATIONS[_operation] = (_overlay, _child, _action)
-                TRANSFER_CHOICES[_operation] = _values
-                if _action in ('default', 'approver', 'select-default', 'select', 'read'):
-                    TRANSFER_REQUESTS[_operation] = _values
-# Each reverse case selects its second child after saving Jamie at the kiosk.
-# Fresh-station seed bindings above still require their initial Casey selection.
-for _profile, _name, _child in (('remembered', 'riley', CHILD),
-                                ('remembered-second', 'jordan', EXISTING_CHILD)):
-    _operation = f'{_profile}-reverse-kiosk-{_name}-select-default'
+for _name, _child in (('jordan', EXISTING_CHILD), ('riley', CHILD)):
+    for _surface, _actions in (
+            ('overlay', ('launch', 'default', 'approver', 'custom', 'text', 'apps', 'read', 'cancel', 'returned')),
+            ('kiosk', ('select-default', 'approver', 'select', 'custom', 'text', 'apps', 'read'))):
+        for _action in _actions:
+            _operation = f'remembered-{_surface}-{_name}-{_action}'
+            _overlay = _surface == 'overlay'
+            _default = _action in ('default', 'approver', 'select-default')
+            _approver = OTHER_PARENT if _overlay or _action == 'select-default' else PARENT
+            _values = ((1800, None, False, _approver) if _default else
+                       (75, '1.25', True, _approver) if _child == EXISTING_CHILD else
+                       (150, '2.5', False, _approver))
+            TRANSFER_OPERATIONS[_operation] = (_overlay, _child, _action)
+            TRANSFER_CHOICES[_operation] = _values
+            if _action in ('default', 'approver', 'select-default', 'select', 'read'):
+                TRANSFER_REQUESTS[_operation] = _values
+# A subsequent station selection keeps Jamie after the earlier selector save.
+# Fresh-station seed bindings still require the initial Casey selection.
+for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
+    _operation = f'remembered-kiosk-{_name}-retained-approver-default'
     TRANSFER_OPERATIONS[_operation] = (False, _child, 'select-default')
     TRANSFER_CHOICES[_operation] = TRANSFER_REQUESTS[_operation] = (1800, None, False, PARENT)
 for _name, _child in (('riley', CHILD), ('jordan', EXISTING_CHILD)):
@@ -14877,9 +14875,8 @@ class AccessibleUI:
                 raise UiError('ui:snap-refusal-missing')
             return None
         role, instance, action = PACKAGED_APP_BINDINGS[operation]
-        arguments = dict(instance=instance, role=role,
-                         child=CHILD if operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS
-                         else EXISTING_CHILD,
+        overlay = operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS
+        arguments = dict(instance=instance, role=role, child=CHILD if overlay else EXISTING_CHILD,
                          kind=kind)
         products = FLATPAK_SEARCH_PRODUCTS if kind == 'flatpak' else SNAP_SEARCH_PRODUCTS
         if action == 'search-ready':
@@ -14890,7 +14887,7 @@ class AccessibleUI:
         elif action == 'search-entered':
             self.wait_search(lambda: self.search_query(products[role]), kind + '-search-query')
         elif action == 'grid':
-            if operation in RILEY_SNAP_OPERATIONS | RILEY_FLATPAK_OPERATIONS:
+            if overlay:
                 self.require_child_overlay_session()
             else:
                 require_active_launch_session()
@@ -14911,8 +14908,13 @@ class AccessibleUI:
             self.wait(lambda: self.native_app_closed(instance, kind=kind, complete_absence=True),
                       'flatpak-hidden-window-absence')
         elif action in ('desktop', 'closed'):
+            if action == 'closed':
+                if overlay:
+                    self.require_child_overlay_session()
+                else:
+                    require_active_launch_session()
             self.wait(lambda: self.native_app_closed(instance, kind=kind,
-                complete_absence=kind == 'flatpak'), kind + '-closed')
+                complete_absence=kind == 'flatpak' or action == 'closed'), kind + '-closed')
         elif action == 'command-launch':
             self.native_launch_command(**arguments)
         elif action == 'command-blocked':
@@ -14929,6 +14931,8 @@ class AccessibleUI:
                 prompt_in_predicate=True)
         else:
             require(not self.input_uncertain, 'ui:uncertain-input')
+            if overlay:
+                self.require_child_overlay_session()
             self.native_app_snapshot('ONPC fixture draft', **arguments)
             self.activate_id('onpc-fixture-' + kind + '-' + instance + '-close')
 

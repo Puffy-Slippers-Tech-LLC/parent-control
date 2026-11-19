@@ -108,4 +108,5 @@ def pytest_runtest_logreport(report):
 
 
 if __name__ == '__main__':
-    sys.stdout.write(read_component(sys.argv[1]))
+    snapshot = {component: read_component(component) for component in COMPONENTS}
+    sys.stdout.buffer.write(json.dumps(snapshot, ensure_ascii=False).encode('utf-8'))

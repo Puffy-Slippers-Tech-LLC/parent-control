@@ -1415,7 +1415,9 @@ attempt/boot readiness remain mandatory.
 
 `check_fixture_e2e_installed` covers online and offline attachment, selected
 bytes and runtime admissions, harmless fixture use, frozen selection,
-idempotent readback and missing/incompatible/stale readiness refusals. Its
+idempotent readback and missing/incompatible/stale readiness refusals. The live
+routes each verify their own attachment, fixture bytes and current boot binding.
+The online route exercises repeat provisioning. Its
 Parent consumer reads Riley's A/H/S/N rows and default matches, saves H permanent
 and S conditional, rereads them after child reselection and requires unchanged
 Jordan defaults. It restores H/S Allowed, controls off and zero balances before
@@ -3180,7 +3182,8 @@ do not supply these graphical customer results.
 FLOW19's AppSet preparation uses `policy_edits.policy_edit(..., setup=True)`
 and one independent complete saved-set comparison after the last save. This
 existing branch omits unchanged intermediate row/editor reads while retaining
-input ownership and save guards. Compare again after a declared persistence
+input ownership and save guards. FLOW18 uses `finish='parent'` to keep the
+existing Parent window for allowance preparation. Compare again after a declared persistence
 boundary. Tested policy transitions keep their own before/after access and
 running-app results; a setup read supplies neither those results nor qualification
 of additional named app arguments.
@@ -3889,7 +3892,7 @@ Snap command and native retained-work checks passed, respectively;
 the selected VM was independently observed off. Other users, grid, enforcement
 and complete customer cases remain separate.
 
-Case 104 (`flatpak_app_launch.PLAN` / `onpc_app_launch::run`) passed on Ubuntu
+The former standalone command case 104 passed on Ubuntu
 26.04. Parent saved Jordan's 30-minute daily
 allowance with zero grant and independently read A's Allowed row. Fresh Jordan
 and Riley each launched the same system Flatpak by command and submitted the
@@ -3901,8 +3904,8 @@ coverage was regenerated and the VM was observed off. This qualifies Riley's
 Allowed A command use and that complete enabled case only; other roles, grid
 and enforcement remain separate.
 
-Case 105 (`flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
-Allowed command binding) passed on Ubuntu 26.04. Parent independently read Jordan's untouched
+Case 105 (the shared worker's disabled Allowed command binding) passed on
+Ubuntu 26.04. Parent independently read Jordan's untouched
 limits-off/zero-allowance settings and saved/read A's Allowed row without an
 allowance or approval. Fresh Jordan and Riley each launched the same system
 Flatpak and submitted the normal draft, with independent owned-window/result
@@ -4020,8 +4023,7 @@ owned cleanup passed, as did affected kiosk case 246. This qualifies the complet
 grid/child-overlay case; the precision change does not establish a timer
 root-cause repair or add other-user or Snap coverage.
 
-Case 98 (`flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run`) passed on
-Ubuntu 26.04. Parent saved
+The original grid-only composition of case 98 passed on Ubuntu 26.04. Parent saved
 Jordan's 30-minute daily allowance with zero grant and independently read A's
 Allowed row. Fresh Jordan and Riley each opened the same system Flatpak A from
 the grid and submitted the normal draft, with independent owned-window and
@@ -4030,10 +4032,13 @@ submitted-result reads. This adds Riley's A/primary grid binding through
 the shared account, exact-launcher, recipient and uncertain-input guards.
 The affected command case 104 passed. Both runs passed collection,
 worker shutdown, owned cleanup and baseline restoration; coverage was refreshed
-after each case and the VM was observed off. Other grid rules remain separate.
+after each case and the VM was observed off. Case 98 now combines those
+enabled Allowed grid and command histories through
+`app_launch.packaged_launch_plan` and `onpc_app_launch::run`.
+The combined history needs installed qualification.
 
-Case 100 (`flatpak_app_launch.HARD_GRID_PLAN` / `onpc_app_launch::run`) passed
-on Ubuntu 26.04. Parent saved and
+Case 100 (the shared worker's enabled hard-blocked Flatpak grid binding)
+passed on Ubuntu 26.04. Parent saved and
 independently read Jordan's 30-minute daily allowance, zero grant and Hard Blocked
 Flatpak A rule. Fresh Jordan's exact grid search required the hidden launcher
 and complete window absence, followed by an app-specific administrator-policy
@@ -4068,13 +4073,11 @@ collection, owned shutdown and baseline restoration passed. FLOW08 includes
 this same finite Snap binding. Case 92 additionally qualified Riley's fixed
 A/primary command launch, public window and Submit-result binding on Fedora 44,
 through `native_usable_app('command', kind='snap', role='A', child='child')`.
-Its `snap_app_launch.PLAN` / `onpc_app_launch::run(..., 'enabled', 'command',
-'allowed', 'snap')` composition independently reads Jordan's saved Allowed Snap
+The former separate command case independently read Jordan's saved Allowed Snap
 row before both children's fresh entry and use. Collection, worker shutdown,
 owned cleanup and baseline restoration passed. Affected native-command case 81
 passed separately on the same target; coverage was refreshed after each case.
-Case 93 qualified the limits-off composition through
-`snap_app_launch.DISABLED_PLAN` and the same worker's `disabled` binding on
+Case 93 qualified the limits-off composition through the same worker's `disabled` binding on
 selected Fedora 44. Parent independently read Jordan's disabled limits and zero
 allowance before saving Allowed; both fresh child entries launched and submitted
 the same A/primary Snap. No allowance or approval was prepared, and Riley's
@@ -4120,19 +4123,21 @@ The same grid binding is also qualified on Ubuntu 26.04 through
 Overview-scoped search lookup. The separate S windows and preserved earlier
 draft passed through the shared activity comparisons.
 
-Case 86's `snap_app_launch.GRID_PLAN` / `onpc_app_launch::run(..., 'enabled',
-'grid', 'allowed', 'snap')` adds Riley's finite Allowed A grid binding through
+The original grid-only composition of case 86 added Riley's finite Allowed A grid binding through
 the same shared operation. On selected Fedora 44, Parent's independently read
 30-minute daily allowance, zero grant and Allowed Snap row preceded fresh
 Jordan and Riley entries. Each searched `ONPC Snap Allowed Fixture`, opened the
 intended strict/system Snap window and submitted the normal draft with independent
 readback. Riley's policy and disabled limits remained untouched. Complete case 86,
 collection, worker/callback shutdown, owned cleanup and baseline restoration passed. This supplies no Snap denial,
-policy-driven closure or deferred-case acceptance.
+policy-driven closure or deferred-case acceptance. Case 86 now uses
+`snap_app_launch.GRID_PLAN` / `onpc_app_launch::run` to combine grid and command
+with normal closure and independent results for each child. The combined
+history needs installed qualification.
 
 For live diagnosis of case 86, `tools/test-vm --vm NAME reproduce-snap-grid`
 reuses `snap_app_launch.GRID_PLAN`, its policy comparisons and fixture verification.
-It replays Jordan's launch, Submit and logout before Riley's fresh grid launch,
+It replays Jordan's grid and command launches, submissions and logout before Riley's fresh grid launch,
 reads `overlay-snap-allowed-opened` once, then closes the worker without replying
 to that boundary. The owned Riley scene remains available for guarded `exec`
 inspection followed by `stop`. This diagnostic supplies no acceptance credit.
@@ -4614,8 +4619,7 @@ Dismissal reacquires a complete read within one deadline, sends Close once,
 then independently observes the Files window's absence. Wrong accounts,
 directories, selections and ambiguous owners/windows still refuse.
 The qualified provider tuple is Nautilus `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`,
-`xkb/us`. Case 74's `app_launch.FILES_PLAN` / `onpc_app_launch::run`
-qualified the same A Files launch/Submit/result and Files dismissal for fresh
+`xkb/us`. The former case 74 qualified the same A Files launch/Submit/result and Files dismissal for fresh
 Jordan and Riley on Ubuntu 26.04, with Jordan's
 saved enabled 30-minute allowance and precise Allowed rule and Riley's policy
 untouched. Riley's recorded provider tuple matches the one above. The affected
@@ -4906,9 +4910,9 @@ APP01/02 and the launcher-stop binding use `launcher_commands.run`, dispatched b
 `AccessibleUI` and `UiObservations`. `lunar-launch` launches once, `lunar-opened`
 independently reads the running identity, `lunar-quit` stops that owned identity
 by command, and `lunar-closed` independently requires absence.
-The legacy `--qualify-lunar-launch-quit` and `--qualify-lunar-tray` selector names
-remain compatible command-lifecycle qualifications. Their independent observer
-compares the same owned launcher; neither exercises a tray or Settings.
+The `--qualify-lunar-launch-quit` slice compares the owned running identity from
+two independent observers before stopping it and checking its absence.
+The original `--qualify-lunar-tray` selector is an alias for this same slice.
 
 #### Allowed Lunar startup after sign-in
 

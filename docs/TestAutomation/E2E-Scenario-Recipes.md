@@ -415,7 +415,7 @@ separate and require the full uncertainty to distinguish the requested addition.
 | Request presets (38/41) | Select 5 minutes, read its footer and actual approval prompt, then approve. UI tests own all 5, 15, 30, 60, 120, 240 choices on both surfaces. |
 | Request custom (39/42) | Reject 0.09 locally, then request and approve 1.25 minutes (75 seconds). UI tests own valid 0.1, 0.5, 1.25, 1440 and invalid empty, abc, −1, 0, 0.09, 1440.1, comma decimal 1,5, including whole-second display conversion. |
 | Rest of the day (40/43) | First approve a 1440-minute fixed grant, read its later deadline, then choose/approve Rest of the day. Read PARENT09 before and after: the replacement interval is shorter and the footer says until midnight. Calendar cases own the exact deadline check. No 24-hour wait. |
-| Shared choices (58–61) | Jordan custom 1.25, soft included; Riley custom 2.5, soft excluded. Seed station approver Jamie and each overlay approver Sam. Compare shared values and local selectors before edits; reverse direction/primary child per variant. |
+| Shared choices (58, 60) | Jordan custom 1.25, soft included; Riley custom 2.5, soft excluded. Seed station approver Jamie and each overlay approver Sam. Compare shared values and local selectors before edits in each direction. |
 | Short time | Natural daily tests use 4 minutes and verify positive D before entry. Pending grant-only natural-expiry journeys use 10 minutes and recovery uses 20, unless their exact-value recipe overrides these inputs. Active reboot/update uses 20 minutes. Prepare fixtures and observers before issuance; these are finite preparation choices, not bypasses of observed balances. |
 | E2E-038 daily dominant | Use the [FLOW18 preparation and return margins](#expired-grant-with-daily-time-remaining) with daily 10 minutes and a real 0.1-minute addition including soft apps. Its early child return preserves the same original natural expiry. |
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
@@ -1235,319 +1235,55 @@ Wrong-entry refusal is qualification-only.
 
 ### E2E-018
 
-Implementation status belongs to the inventory; the
+**Remember each child's choices across both request forms.** Cases 58 and 60.
+
+Both histories save Jordan's 1.25 minutes with soft apps included and Riley's
+2.5 minutes with soft apps excluded. Jamie stays local to the station and
+Casey to each child's overlay. The
 [catalogue](E2E-Building-Blocks.md#overlay-choices-transferred-to-kiosk)
-owns exact reusable scopes.
+owns the qualified FLOW12 bindings and immutable endpoint checks.
 
-**Remember each child's choices across both request forms.** Cases 58, 59, 60, 61.
+- Case 58 starts with each child's overlay, transfers to the station and
+  compares each destination before editing. It reselects Jordan and Riley in
+  the open kiosk and compares both requests again with the original captures.
+- Case 60 starts by setting each overlay's local approver. It then saves each
+  child's choices in the station and transfers to that child's untouched
+  overlay through fresh sign-in. A normal logout and fresh overlay revisit
+  compare both requests again with the original station captures.
 
-Implementation context: compose `request_flow.overlay_to_kiosk` /
-`onpc_request_flow::overlay_to_kiosk` and immutable endpoint checks for the
-[qualified overlay-to-kiosk bindings](E2E-Building-Blocks.md#overlay-choices-transferred-to-kiosk).
-The reverse direction composes `request_flow.kiosk_to_overlay` /
-`onpc_request_flow::kiosk_to_overlay` and the same immutable endpoint checks;
-[both child bindings](E2E-Building-Blocks.md#kiosk-choices-transferred-to-overlays)
-are qualified through explicit fresh entry and destination reads before edits.
-Each case still owns its finite values, order and complete acceptance; case
-60 is registered through `remembered_choices.REVERSE_PLAN`; case 61 is registered
-through `remembered_choices.REVERSE_SECOND_PLAN`.
-
-Case 58 composes `remembered_choices.PLAN` / `onpc_remembered_choices::run`:
-Jordan then Riley seed the recipe's own distinct values; one overlay visit and
-one transfer per child read both forms before editing. The station
-retains Jamie while each child overlay retains Casey (the Sam fixture binding).
-The open station then reselects Jordan and Riley, comparing each child's saved
-choices with its original overlay capture. These four immutable comparisons
-prove transfer, persistence and child isolation without returning to either
-retained desktop. Retained GDM login behavior and unrelated system prompts are
-outside this case's acceptance. Necessary initial login recipient guards remain.
-The case is independent of the qualification's opposite child values and local approvers.
-
-Case 59 composes `remembered_choices.SECOND_PLAN` with the same worker and
-shared `remembered-second` operations. It swaps the primary child and finite
-values: Riley first with custom `1.25` / soft included, then Jordan with `2.5`
-/ soft excluded. The station still remembers Jamie and each overlay Casey.
-Both original overlay captures are compared at transfer and again after
-Riley/Jordan reselection in the open station, without retained desktop returns.
-
-Case 60 composes `remembered_choices.REVERSE_PLAN` /
-`onpc_remembered_choices::run_reverse`. Fresh Jordan/Riley overlay entries
-remember Casey without changing request values, then log out. The station saves
-Jamie and Jordan's custom `1.25` minutes / soft included, transfers to Jordan's
-untouched overlay through FLOW12 fresh entry, then repeats with Riley's `2.5`
-minutes / soft excluded. After each transfer the child logs out. Fresh overlay
-reentries read Jordan and Riley again against their original station captures:
-four immutable comparisons prove transfer, persistence, child isolation and
-local approvers. No retained desktop, approval or time denial is required.
-
-Case 61 uses `remembered_choices.REVERSE_SECOND_PLAN` and the same reverse worker
-with Riley/Jordan seed, transfer and fresh revisit order. Riley saves custom
-`1.25` minutes / soft included at the station, then Jordan saves `2.5` minutes /
-soft excluded. Jamie stays local to the station and Casey to each overlay.
-All four destination comparisons use the child's original station capture;
-normal logout separates fresh overlay visits without approvals or time denials.
-
-Bindings: direction = overlay-to-kiosk / kiosk-to-overlay; child = first / second.
-
-1. FLOW16 for both children (ample daily time). Establish distinct surface approvers through request-entry → REQUEST04 → REQUEST12. Starting child: FLOW04(custom,soft choice) → REQUEST03(capture).
-2. FLOW12(other surface) → REQUEST03 → UI12(shared fields,local approver).
-3. REQUEST12 → request-entry(other child) → FLOW04 choices → REQUEST03(capture) → FLOW12(other surface). Read/compare each child's saved choices with its original capture using the necessary navigation. Overlay-to-kiosk reselects both children in the open kiosk; kiosk-to-overlay logs out and freshly reenters both child overlays for persistence/isolation readbacks.
+Case 58 represents retired case 59 and case 60 represents retired case 61.
+Both surviving cases exercise two distinct children, selector retention and
+independent readback. Standard authentication guards apply to each fresh entry.
 
 ### E2E-019
 
-Case 62, `app_launch.GRID_PLAN` / `onpc_app_launch::run`, combines the enabled
-Allowed grid and command routes as each child. Stable case 80 is nonexecutable
-and points to 62; this creates no replacement scheduling task.
-Case 81 is registered through `app_launch.DISABLED_PLAN` and the same worker's
-explicit disabled binding.
-Case 64 is registered through `app_launch.HARD_GRID_PLAN` and the worker's
-`hard-blocked` grid binding. It uses fixture A and the precise match with
-`permanent` access, Jordan's enabled 30-minute daily allowance and no approval.
-The shared grid operation focuses the exact public launcher when offered, then
-the worker sends Enter once and independently requires window absence. When the completed search hides it, the
-same executable's guarded command-denial leaf supplies the extra refusal
-witness. Launcher visibility itself is not asserted. Riley enters fresh and
-opens and submits the same target through the grid with Riley's policy untouched.
-The family's combined `visible-result` uses the complete ordered observation
-record, including Jordan's independent denial and Riley's submitted draft.
-Case 66 uses `app_launch.SOFT_GRID_PLAN` and the worker's `soft-blocked` grid
-binding with the same target, precise match, allowance and fresh child entries.
-Parent saves `conditional` access instead of `permanent`; no approval is
-prepared. Jordan must still be denied and Riley must independently open and
-submit the same app through the grid.
-The [catalogue](E2E-Building-Blocks.md#native-fixture-preparation)
-records accepted scopes.
+**Use supported launch routes under app rules.**
 
-Case 82 is registered through `app_launch.HARD_COMMAND_PLAN` and the same worker's
-enabled, hard-blocked command binding. Parent gives Jordan 30 daily minutes and
-saves fixture A's precise match with `permanent` access, without an approval.
-Fresh Jordan entry attempts the exact command once and requires an attributed
-permission denial plus complete owned-window absence. After Jordan logs out,
-Riley enters fresh and launches and submits the same executable through the
-command route, with independent draft readback and Riley's policy untouched.
-Case 83 uses `app_launch.HARD_COMMAND_DISABLED_PLAN` and the same worker's
-disabled, hard-blocked command binding. Parent independently reads Jordan's
-untouched limits-off/zero-allowance settings before saving the same precise
-permanent block. It prepares no allowance or approval. Fresh Jordan command
-execution must produce the attributed denial and complete owned-window absence;
-fresh Riley command launch/Submit/readback proves the same executable usable
-with Riley's policy and limits untouched.
-Case 84 uses `app_launch.SOFT_COMMAND_PLAN` and the same worker's enabled,
-soft-blocked command binding. Parent gives Jordan 30 daily minutes and saves
-the same precise target with `conditional` access, without an approval.
-Fresh Jordan command execution must produce the attributed permission denial
-and complete owned-window absence. Fresh Riley command launch, Submit and
-independent draft readback prove the same executable usable with Riley's
-policy and limits untouched.
-Case 85 uses `app_launch.SOFT_COMMAND_DISABLED_PLAN` and the same worker's
-disabled, soft-blocked command binding. Parent reads Jordan's untouched
-limits-off/zero-allowance settings, then saves the same precise conditional
-block without an allowance or approval. Fresh Jordan command execution must
-produce the attributed denial and complete owned-window absence. Fresh Riley
-command launch, Submit and independent draft readback prove the same executable
-usable with Riley's policy and limits untouched. Remaining bindings are pending.
+Give Jordan a 30-minute daily allowance for enabled cases, or independently
+read limits off and zero allowance for disabled cases. Save and read the
+declared rule before the child signs in. Prepare no grant. Jordan exercises
+the declared route and Riley independently uses the same app with untouched
+settings. The [catalogue](E2E-Building-Blocks.md#native-fixture-preparation)
+records the qualified operations and fixture profiles.
 
-**Use supported launch routes under each app rule.** Cases 62, 64, 66, 68, 70, 72, 74, 76, 78, 80, 81, 82, 83, 84, 85, 86, 88, 90, 92, 93, 94, 95, 96, 97, 98, 100, 102, 104, 105, 106, 107, 108, 109.
+| Cases | Public results |
+| --- | --- |
+| 62, 86, 98 | With limits enabled and an Allowed rule, both children open and submit a draft through the native, Snap or Flatpak grid, respectively. Normally close the app and observe absence before repeating through the exact command. |
+| 64 | Jordan's hard-blocked native grid attempt requires complete window absence. When the completed search hides the launcher, the guarded command-denial leaf supplies the execution refusal. Riley opens and uses the app from the grid. |
+| 68 | Both children use the exact Allowed native desktop entry, submit a draft and normally close the app. Remove only the owned desktop entries. |
+| 70, 78 | Verify hard denial through the exact native desktop entry and soft denial through the Files executable, respectively. The denied route requires continuous owned-window absence and a recognized desktop. Riley opens and submits through the same route. Remove owned desktop entries and dismiss Files as applicable. |
+| 81, 83, 84, 85 | Native commands cover Allowed with limits off, hard denial with limits off and soft denial with limits both on and off. Denied commands require an attributed permission refusal and complete owned-window absence. |
+| 100, 102 | For hard and soft Flatpak rules, independently observe the hidden grid launcher, then invoke the exact system command and require an app-specific administrator-policy refusal and complete window absence. Riley uses the grid with untouched settings. |
+| 93, 105, 107, 109 | Disabled-limits Snap and Flatpak Allowed commands and Flatpak hard/soft command refusals exercise the app rule without a time restriction. |
 
-Bindings: route = native-grid / native-desktop / native-file-manager / native-command / snap-grid / snap-command / flatpak-grid / flatpak-command; policy = allowed / hard-blocked / soft-blocked; control = enabled / disabled.
-
-With limits enabled, retain native/Flatpak routes under all three rules and
-Allowed Snap launches. With limits disabled, retain native-command and
-flatpak-command under all three rules and Allowed snap-command. Snap blocked
-cases 88/90/94/95/96/97 are deferred known product limitations under the
-[shared Snap boundary](../Snap_Limitation.md#e2e-scope-decision),
-not active denial requirements. They keep their IDs and pending status without
-executables or acceptance credit; the retained blocked compositions below are
-future remediation targets only for those cases. No known-failure replay or
-product-choice investigation is required. Menu, desktop shortcut and Files repeats with limits disabled
-(former cases 63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99, 101, 103)
-are removed; their IDs must not be reused. Soft-blocked cases start without
-temporary app approval and require refusal; [E2E-049](#e2e-049) owns temporary
-permission changes. Each retained case must prove actual use or refusal and
-another child's unaffected access through the same route.
-
-1. P0 → FLOW02(control,usable time) → FLOW03(target access rule).
-2. C(fresh) → FLOW08(exact route, policy result). Flatpak blocked-grid launchers must be hidden: APP02(hidden) → FLOW08(explicit command route,denied). Do not validate native or Snap launcher visibility. Active native/Flatpak blocked cases retain execution-denial results; Snap enforcement is deferred.
-3. V(Riley,fresh) → FLOW08(same target, corresponding route,usable).
-
-Case 62 binds native fixture A (`Exact Fixture.AppImage`) and the precise match
-to public Allowed readback. Parent enables Jordan with 30 daily minutes and no
-one-time grant. Jordan launches through the grid and independently submits the
-normal draft, closes that app normally and observes its absence, then launches
-through the command and independently submits again. Log out Jordan and enter
-Riley fresh; repeat both routes and their independent submitted-draft results
-with Riley's policy untouched. Closing the first app prevents a surviving window
-from concealing a failed second launch.
-`AppPolicyJourney` owns saved time/match/access comparisons; the case owns account
-order and recorder phases. It prepares no approval and requires no retained work.
-
-Case 68 uses `app_launch.DESKTOP_PLAN` / `onpc_app_launch::run` with the enabled,
-Allowed native desktop binding. Parent saves Jordan's 30-minute daily allowance,
-zero grant and fixture A's precise Allowed rule with independent readback.
-Fresh Jordan and then fresh Riley each receive the same verified launcher
-on their own desktop through `synthetic_files.desktop_entry_actions`.
-The shared operation launches that exact desktop entry once through the public
-GIO API as the active child. Desktop icons and extension behavior are incidental.
-Each child submits the normal draft with independent window and result reads,
-then closes that app normally and removes only the owned desktop entry.
-Riley's policy and disabled limits remain untouched. No approval, alternate route,
-separate-window or launcher-visibility assertion is used.
-
-Case 70 uses `app_launch.HARD_DESKTOP_PLAN` and the same worker's enabled,
-hard-blocked desktop binding. Parent saves Jordan's 30-minute daily allowance,
-zero grant and fixture A's precise permanent block with independent readback.
-Fresh Jordan receives the verified desktop entry and launches it once through
-the same API. The shared denial operation requires continuous complete app-window
-absence for 15 seconds and a recognized prompt-free desktop. Remove Jordan's
-owned entry before logout. Fresh Riley receives the same target's verified entry,
-opens it from the desktop, submits the normal draft and independently reads the
-result, then closes the app and removes the owned entry. Riley's policy and
-disabled limits remain untouched. No approval or alternate route is used.
-
-Case 74 uses `app_launch.FILES_PLAN` / `onpc_app_launch::run` with the enabled,
-Allowed native Files binding. Parent gives Jordan 30 daily minutes with zero
-grant, saves fixture A's precise Allowed rule and independently reads it back.
-Fresh Jordan and then fresh Riley each open the same argument-free executable
-from Files with one Enter, submit the ordinary draft and independently read
-the submitted result. Each Files window is dismissed before leaving that
-desktop. Riley's policy and disabled limits remain untouched. No approval,
-alternate launch route or launcher-visibility assertion is used.
-
-Case 76 uses `app_launch.HARD_FILES_PLAN` and the same worker's enabled,
-hard-blocked Files binding. Parent saves Jordan's 30-minute daily allowance,
-zero grant and fixture A's precise permanent block with independent readback.
-Fresh Jordan activates the exact executable from Files once; the shared denial
-operation requires continuous complete app-window absence for 15 seconds on
-Jordan's desktop. After Files is dismissed and Jordan logs out, fresh Riley
-opens and submits the same app from Files with independent owned-window and
-submitted-result reads. Dismiss Riley's Files window too. Riley's policy and
-disabled limits remain untouched. No approval or alternate launch route is used.
-
-Case 78 uses `app_launch.SOFT_FILES_PLAN` and the same worker's enabled,
-soft-blocked Files binding. Parent saves Jordan's 30-minute daily allowance,
-zero grant and fixture A's precise conditional block with independent readback,
-without approval. Fresh Jordan activates the exact executable from Files once;
-the shared denial operation requires continuous complete app-window absence for
-15 seconds on Jordan's desktop. After Files is dismissed and Jordan logs out,
-fresh Riley opens and submits the same app from Files with independent
-owned-window and submitted-result reads. Dismiss Riley's Files window too.
-Riley's policy and disabled limits remain untouched. No alternate route is used.
-
-Case 81 uses the same fixture, precise Allowed rule, Jordan/Riley order and
-native command/window/Submit/result operations. Parent independently verifies
-Jordan's clean limits-off and zero-allowance settings before the app-policy save;
-it does not enable limits or prepare an allowance or approval. Riley's policy
-and disabled limits remain untouched. The shared worker's disabled binding skips
-only the enabled-case allowance setup and its readback.
-
-Case 92 uses `snap_app_launch.PLAN` / `onpc_app_launch::run` with the enabled,
-Allowed Snap command binding. FIX06 independently verifies the captured strict,
-system-wide Snap profile. Parent gives Jordan 30 daily minutes with zero grant,
-saves A's Allowed access and independently reads the saved row. Jordan enters
-fresh, launches `/usr/bin/snap run onpc-fixture-allowed` once and submits the
-normal draft, with independent public window and submitted-result reads. After
-Jordan logs out, Riley enters fresh and launches and uses the same package.
-Riley's policy and disabled time limits remain untouched. There is no approval,
-match-editor visit, launcher-visibility assertion or alternate route.
-
-Case 98 uses `flatpak_app_launch.GRID_PLAN` / `onpc_app_launch::run` with the
-enabled, Allowed Flatpak grid binding. FIX06 verifies the default system
-installation, runtime, app commits and exported launchers. Parent gives Jordan
-30 daily minutes with zero grant, saves A's Allowed access and independently
-reads its saved row. Fresh Jordan and then fresh Riley each find and open the
-same Flatpak A from the app grid, submit the normal draft and independently
-read the owned window and submitted result. Riley's policy and disabled limits
-remain untouched. There is no approval or alternate launch route.
-
-Case 104 uses `flatpak_app_launch.PLAN` / `onpc_app_launch::run` with the enabled,
-Allowed Flatpak command binding. FIX06 verifies the default system installation,
-runtime, app commits and exported launchers. Parent gives Jordan 30 daily minutes
-with zero grant, saves A's Allowed access and independently reads its saved row.
-Fresh Jordan and then fresh Riley each launch the same system `x86_64/stable`
-Flatpak A once, submit the normal draft and independently read the owned window
-and submitted result. Riley's policy and disabled limits remain untouched.
-There is no approval, match-editor visit, launcher-visibility assertion or
-alternate route.
-
-Case 100 uses `flatpak_app_launch.HARD_GRID_PLAN` and the same worker's enabled,
-hard-blocked Flatpak grid binding. Parent gives Jordan 30 daily minutes with zero
-grant and saves A's permanent access with independent row readback. Fresh Jordan
-searches the exact launcher and requires its completed hidden-grid result, then
-attempts the same system Flatpak command once and requires its app-specific
-administrator-policy denial with complete window absence. After Jordan logs out,
-fresh Riley opens the same app from the grid and submits the normal draft with
-independent owned-window/result reads and untouched policy and limits. No approval
-or launcher activation for Jordan is prepared.
-
-Case 105 uses `flatpak_app_launch.DISABLED_PLAN` and the same worker's disabled
-Allowed Flatpak command binding. Parent independently reads Jordan's untouched
-limits-off/zero-allowance settings, then saves and reads A's Allowed row without
-preparing an allowance or approval. Fresh Jordan and then fresh Riley launch the
-same system Flatpak command and submit the normal draft, with independent owned
-window and submitted-result readback. Riley's policy and limits remain untouched.
-
-Case 106 uses `flatpak_app_launch.HARD_COMMAND_PLAN` and the same worker's
-enabled, hard-blocked Flatpak command binding. Parent gives Jordan 30 daily
-minutes with zero grant and saves A's permanent access with independent row
-readback. Fresh Jordan entry attempts the exact system Flatpak command once;
-the result must name that app's administrator-policy denial and independently
-show complete owned-window absence. After Jordan logs out, fresh Riley entry
-launches and submits the same system Flatpak with independent owned-window and
-submitted-draft reads. Riley's policy and limits remain untouched. No approval,
-match-editor visit, launcher-visibility check or alternate route is used.
-
-Case 107 uses `flatpak_app_launch.HARD_COMMAND_DISABLED_PLAN` and the same
-worker's disabled, hard-blocked Flatpak command binding. Parent independently
-reads Jordan's untouched limits-off/zero-allowance settings before saving and
-reading A's permanent access. It prepares no allowance or approval. Fresh Jordan
-command execution must produce the app-specific administrator-policy denial
-and complete owned-window absence. Fresh Riley then launches and submits the
-same system Flatpak with independent owned-window/submitted-draft readback and
-untouched policy and limits.
-
-Case 108 uses `flatpak_app_launch.SOFT_COMMAND_PLAN` and the same worker's
-enabled, soft-blocked Flatpak command binding. Parent gives Jordan 30 daily
-minutes with zero grant and saves A's conditional access with independent row
-readback. Fresh Jordan command execution must produce the app-specific
-administrator-policy denial and complete owned-window absence. Fresh Riley then
-launches and submits the same system Flatpak, with independent owned-window and
-submitted-draft reads and untouched policy and limits. No approval, match-editor
-visit, launcher-visibility check or alternate route is used.
-
-Case 109 uses `flatpak_app_launch.SOFT_COMMAND_DISABLED_PLAN` and the same
-worker's disabled, soft-blocked Flatpak command binding. Parent independently
-reads Jordan's untouched limits-off/zero-allowance settings, then saves and
-reads A's conditional access without an allowance or approval. Fresh Jordan
-command execution must produce the app-specific administrator-policy denial
-and complete owned-window absence. Fresh Riley then launches and submits the
-same system Flatpak with independent owned-window/submitted-draft readback and
-untouched policy and limits. No match-editor visit, launcher-visibility check
-or alternate route is used.
-
-Case 93 uses `snap_app_launch.DISABLED_PLAN` and the same worker's disabled
-Allowed Snap command binding. Parent independently reads Jordan's untouched
-limits-off/zero-allowance settings before saving and reading A's Allowed rule.
-It prepares no allowance or approval. Fresh Jordan and then fresh Riley launch
-and submit the same Snap command with independent window and submitted-draft
-readback. Riley's policy and disabled limits remain untouched.
-
-Case 86 uses `snap_app_launch.GRID_PLAN` / `onpc_app_launch::run` with the enabled,
-Allowed Snap grid binding. It shares case 92's strict/system profile verification,
-Parent's 30-minute daily allowance/zero grant and independent Allowed row readback.
-Fresh Jordan and then fresh Riley search `ONPC Snap Allowed Fixture` and open the
-intended Snap window through the app grid. Each submits the normal draft and
-independently reads the submitted result. Riley's policy and disabled limits
-remain untouched. There is no command fallback, approval, launcher-visibility
-assertion or deferred Snap enforcement check.
-
-The native grid portion uses the same enabled setup, precise Allowed rule and Jordan/Riley order. Each freshly
-entered desktop searches `ONPC Allowed Fixture`, launches its intended window
-and submits the normal draft before independent result readback. The read-only
-`riley-grid` fixture profile verifies Riley's launcher for the shared executable;
-baseline preparation owns both children's launchers. Jordan binds `other-child`
-and Riley binds `child` in both declaration and worker. Riley's policy remains
-untouched; no approval, route fallback or qualification refusal history is
-part of the case.
+The representative cases cover retired variants as follows. Native 66 maps
+to 64 and 84, 72 to 70 and 84, 74 to 78 and 236, 76 to
+70 and 78, 80 to 62, and 82 to 64 and 83. Snap 92 is combined into 86.
+Flatpak 104, 106 and 108 are combined into 98, 100 and 102, respectively.
+(E2E-049 covers [temporary access on the Files route](#e2e-049).)
+Previously removed IDs 63, 65, 67, 69, 71, 73, 75, 77, 79, 87, 89, 91, 99,
+101 and 103 remain reserved. Snap blocked cases 88/90/94/95/96/97 remain
+pending under the [documented Snap decision](../Snap_Limitation.md#e2e-scope-decision).
 
 ### E2E-020
 
@@ -1981,6 +1717,8 @@ outside acceptance.
 
 The [shared expiry composition](../../tests/e2e/daily_soft_expiry.py) implements
 the no-action, unlock, fresh-login, allowance-edit, toggle, app-save and revoke branches. The inventory owns registration status.
+FLOW18 reads back all saved app rules, then prepares the daily allowance in the
+same Parent window before switching to sign-in for approval.
 
 **Keep daily access after a grant ends and restore soft-app blocks.** Cases 164, 165, 166, 167, 168, 169, 170.
 
@@ -2088,12 +1826,13 @@ Case 187 uses [shared_launchers_case.py](../../tests/e2e/shared_launchers_case.p
 and `onpc_fresh_thirty_allowance::shared_launchers_case`. It reuses the qualified
 [native readiness](E2E-Building-Blocks.md#native-fixture-preparation) and distinct
 A/Alias rows, then keeps the same Jordan-selected Parent
-window through four child visits: A Hard/Alias Allowed, both Allowed, A
-Allowed/Alias Hard, both Allowed. Each visit reads both saved choices before
-Jordan enters fresh and tries each declared grid launcher. Blocked grid entries
+window through three child visits. Save A Hard then Alias Allowed. Next save
+Alias Hard before changing A to Allowed. Finally allow both for recovery. Each
+visit reads both saved choices before Jordan enters fresh and tries each declared grid launcher. Blocked grid entries
 reuse the shared denial result, including the exact target's attributed command
-denial when a launcher is hidden; Allowed entries require Submit/readback and
-normal closure. Jordan logs out between visits; Parent returns through the
+denial when a launcher is hidden. The recovery reads both precise match rules
+and requires Submit/readback and normal closure for both launchers. Jordan logs
+out between visits. Parent returns through the
 qualified retained desktop/window entry without reopening or child reselection.
 
 **Search the app list and edit match rules.** Cases 184, 185, 186, 187, 188, 189.
@@ -2629,8 +2368,8 @@ native fixture with its existing normal input/result.
 
 | Step | Composition and required result |
 | --- | --- |
-| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads positive daily time and zero grant; both launchers Allowed. G → C(fresh). Observe Lunar's login-started owned instance, stop it and independently require absence. Launch each normal command once, independently require the expected running identity, stop each and require absence. LIFE02 → child-first normal login. Independently require Lunar autostart within 180 seconds, then stop and require absence. |
-| 2 — soft, no grant | G → P(fresh after reboot) → FLOW03(Lunar,version pattern on Ubuntu or precise Flatpak identity on Fedora,Soft) and FLOW03(Minecraft,Soft). PARENT12/PARENT09 confirm both Soft and zero grant. G → C(retained). Invoke each same command once; require specific public policy denial and independent absence. FLOW08(N,usable); daily time keeps the desktop usable. |
+| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads positive daily time and zero grant; both launchers Allowed. Switch to G → C(fresh). Independently observe Lunar's login-started owned instance within 180 seconds, stop it and require absence. Launch each normal command once, independently require the expected running identity, stop each and require absence. |
+| 2 — soft, no grant | G → P(retained) → FLOW03(Lunar,version pattern on Ubuntu or precise Flatpak identity on Fedora,Soft) and FLOW03(Minecraft,Soft). One saved-policy and balance read confirms both Soft and zero grant. G → C(retained). Invoke each same command once; require specific public policy denial and independent absence. FLOW08(N,usable); daily time keeps the desktop usable. |
 | 3 — active time-only reboot | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Visit Parent read-only to establish the positive grant, return to Jordan and reboot through LIFE02. Jordan signs in first, without opening Parent or changing policy. Require Lunar absent, both same-command specific denials and independent absence, then usable N. Only afterward visit Parent read-only to confirm the original grant remains positive, then return to Jordan. |
 | 4 — explicit soft permission | FLOW20(overlay,Jordan,Jamie,15,include,same child). Invoke both same normal commands; independently require their expected running identities. Stop them by command and require absence. No app-policy or allowance edit. |
 | 5 — replacement exclusion | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Repeat step 3's read-only balance visits, reboot, child-first normal login, Lunar absence, both specific denials and usable N before revisiting Parent. The original grant remains positive. |
@@ -2662,7 +2401,7 @@ saved rows and, when stated, using the app as the child.
 | 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. UI's `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results` checks each query source, individual categories, empty sets and representative query/filter intersections, without multiplying independent choices. |
 | 185 match-editor | FLOW16 gives Jordan 30 daily minutes. Read A's precise rule; PARENT13 → UI16 → PARENT15 saves `Applications/Exact*.AppImage`, then PARENT16 sets Hard Blocked. Save `/opt/onpc-test-fixtures/Rejected/*.AppImage` and observe the real broker's failed-save report; close it with `parent_reports.report_close` before comparing the exact confirmed wildcard and Hard Blocked access. Log out Parent, enter Jordan's fresh desktop, then FLOW08 proves A's command launch denied with no window and N's unrelated command launch usable through Submit and normal closure. UI qualification owns the precise target/basename, empty/unrelated input, Cancel and Reset matrix, including exact explanations and unchanged values. |
 | 186 match-reopen | FLOW16 gives Jordan 30 daily minutes. Save A's `Applications/Exact*.AppImage` and select Allowed; LIFE01 → PARENT02(Jordan) → PARENT12 verifies the exact remembered wildcard and Allowed access. Save S's precise `Applications/Versioned/Lunar Client-3.7.17.AppImage`; select Riley then Jordan and read S's suggested `Applications/Versioned/Lunar Client-*.AppImage`. Reselect precise, reopen Parent through LIFE01 and select Jordan, then read that suggested pattern again. Reselect precise before A's rejected `/opt/onpc-test-fixtures/Rejected/*.AppImage` Save. Close the report with `parent_reports.report_close`, compare A's original custom wildcard/Allowed and S's restored suggested pattern. Reselect S's precise rule before setting Soft Blocked; independently compare precise/Soft. Log out Parent and enter Jordan fresh: FLOW08 proves S command denial with no window and A command launch, Submit/readback and normal closure. Redisplay records the current limitation, not desired new behavior. |
-| 187 shared-launchers | Jordan's A and Alias share `Exact Fixture.AppImage`. FLOW16(30 daily minutes) → App Limits → read both initial Allowed rows. PARENT16(A,Hard) → PARENT16(Alias,Allowed) → read both saved choices; C → FLOW08(each grid launcher,denied). Return to the same Parent window → allow A → read both choices → C → FLOW08(each,Submit/readback/close). Return → block Alias while A stays Allowed → read both → C → both denied. Return → allow Alias → read both → C → both usable and closed. Log out Jordan between visits; preserve Parent's original session/window, Jordan selection and settings. No claim of independent rules overriding the shared target. |
+| 187 shared-launchers | Jordan's A and Alias share `Exact Fixture.AppImage`. FLOW16(30 daily minutes) → App Limits → read both initial Allowed rows. Save A Hard then Alias Allowed → read both choices → C → FLOW08(each grid launcher,denied). Return to the same Parent window → block Alias then allow A → read both choices → C → both denied. Return → allow Alias → read both choices and precise match rules → C → both usable and closed. Log out Jordan between visits and preserve Parent's original session, window, selected child and settings. |
 | 188 special-paths | FILE05 copies Jordan's H `Applications/Whitespace/Path With Spaces.AppImage` to adjacent `Copied Path With Spaces.AppImage` and C `Applications/Comma/Path,With,Commas.AppImage` to adjacent `Copied,Path,With,Commas.AppImage` while Allowed, using the qualified `native-space` and `native-comma` profiles. PARENT16(Hard for both) → C → FLOW08(originals and identical copies, denied), with distinct N usable. Repeat under Soft with no exception, then restore Allowed for guarded FILE05 cleanup. These supported path cases do not assert universal copied-program control. |
 | 189 pattern-files | Save `Applications/Versioned/Lunar Client-*.AppImage` for S's current `3.7.17` executable. The existing same-directory nonmatch is `PrismLauncher.AppImage`. FILE05's separate `native-version-next` / `native-version-nonmatch` additions copy the verified root-level `LunarClient-3.8.0.AppImage` source and existing nonmatch to `Versioned/Lunar Client-3.8.0.AppImage` and `Versioned/NewPrismLauncher.AppImage`; FLOW08 matching denied and existing nonmatch usable. Allow the declared 60-second refresh interval through guarded TIME03 before the new nonmatch's single launch. APP02 observes that launch's actual result; an absent window before launch is not refresh readiness. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
 
@@ -3079,7 +2818,8 @@ session; compare active time using declared monotonic elapsed bounds.
 
 Observe representative untouched English default/native names before saving
 choices. Save Jamie's Chinese in Parent, select Riley → Jordan → Riley and
-independently require Jamie's checked Chinese and management text for each UID.
+independently require Chinese management text and the selected account's policy.
+Read the checked Chinese choice after reopening Parent and at the final visit.
 Use public child/station Preferences for Jordan German and Riley Hebrew.
 For one declared candidate change (Riley Hebrew → German), Cancel and reopen
 to require Hebrew. Switch kiosk Jordan → Riley → Jordan and Jamie → Casey →

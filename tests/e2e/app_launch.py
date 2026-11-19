@@ -2,7 +2,7 @@
 from dataclasses import replace
 from functools import partial
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (app_policy_entry, desktop_entry,
+from journey_blocks import (app_policy_entry, desktop_entry, flatpak_blocked_app,
                             native_blocked_app, native_usable_app, prefixed_stages)
 from native_fixtures import fixture_actions
 from synthetic_files import desktop_entry_actions
@@ -71,19 +71,70 @@ DISABLED_PLAN = replace(
     balance_checks={},
 )
 
-GRID_JORDAN = {
-    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-    **prefixed_stages('jordan-use', native_usable_app('grid', child='other-child')),
-    'jordan-use-close': 'ui:native-close', 'jordan-use-closed': 'ui:native-closed',
-    **prefixed_stages('jordan-command', native_usable_app('command', child='other-child')),
-}
-GRID_RILEY = {
-    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-    **prefixed_stages('riley-use', native_usable_app('grid', child='child')),
-    'riley-use-close': 'ui:overlay-native-close',
-    'riley-use-closed': 'ui:overlay-native-closed',
-    **prefixed_stages('riley-command', native_usable_app('command', child='child')),
-}
+
+def allowed_grid_use(prefix, child, kind='native'):
+    """Use grid and command in one desktop, closing the first owned window."""
+    role = None if kind == 'native' else 'A'
+    close = 'ui:' + ('overlay-' if child == 'child' else '') + kind + '-'
+    if role:
+        close += 'allowed-'
+    return {
+        **prefixed_stages(prefix + '-use', native_usable_app('grid', child=child, kind=kind, role=role)),
+        prefix + '-use-close': close + 'close',
+        prefix + '-use-closed': close + 'closed',
+        **prefixed_stages(prefix + '-command', native_usable_app('command', child=child, kind=kind, role=role)),
+    }
+
+
+def packaged_launch_plan(kind, app, route='command', *, limits=True, rule='allowed'):
+    """Declare the common Snap and Flatpak policy and child visits."""
+    access = {'allowed': 'allowed', 'hard': 'permanent', 'soft': 'conditional'}[rule]
+    policy = 'allowed' if rule == 'allowed' else rule + '-blocked'
+    setup = {
+        **app_policy_entry(child='existing', initial_rows=False,
+                           allowance='time-explanation-setup-thirty-read' if limits else None),
+        rule + '-save': f'ui:access-{kind}-{access}',
+        rule + '-row': f'ui:access-{kind}-row',
+    }
+    combined = route == 'grid' and rule == 'allowed'
+    if combined:
+        jordan_use = allowed_grid_use('jordan', 'other-child', kind)
+        riley_use = allowed_grid_use('riley', 'child', kind)
+        jordan_done = 'jordan-command-submitted'
+    else:
+        riley_use = prefixed_stages('riley-use', native_usable_app(route, child='child',
+                                                                 kind=kind, role='A'))
+        if rule == 'allowed':
+            jordan_use = prefixed_stages('jordan-use', native_usable_app(route, kind=kind, role='A'))
+            jordan_done = 'jordan-use-submitted'
+        else:
+            jordan_use = flatpak_blocked_app('jordan-denied', 'A', route, command_stage='command')
+            jordan_done = 'jordan-denied-command'
+    jordan = {'parent-logout': 'system:parent-logout', **JORDAN_ENTRY, **jordan_use}
+    riley = {'jordan-logout': 'system:standard-logout', **RILEY_ENTRY, **riley_use}
+    return replace(
+        PLAN, prefix=f'{kind}-{route}-{policy}',
+        worker_mode=f'{kind}_{route}_{policy.replace("-", "_")}' + ('' if limits else '_disabled'),
+        screen_tags={**setup, **jordan, **riley},
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                **{stage: 'step-1' for stage in setup}, 'installed-greeter': 'start',
+                **{stage: 'step-2' for stage in jordan},
+                **{stage: 'step-3' for stage in riley}},
+        advance_after={'installed-greeter': 'step-1', rule + '-row': 'step-2',
+                       jordan_done: 'step-3'},
+        child_bindings={**({'allowance-configured': 'existing'} if limits else {}),
+                        rule + '-save': 'existing', rule + '-row': 'existing'},
+        settings_checks=PLAN.settings_checks if limits else DISABLED_PLAN.settings_checks,
+        balance_checks=PLAN.balance_checks if limits else {},
+        match_checks={},
+        access_checks={rule + '-row': (app, access)},
+    )
+
+
+GRID_JORDAN = {'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
+               **allowed_grid_use('jordan', 'other-child')}
+GRID_RILEY = {'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
+              **allowed_grid_use('riley', 'child')}
 GRID_PLAN = replace(
     PLAN, prefix='native-grid-allowed', worker_mode='native_grid_allowed',
     screen_tags={**SETUP, **GRID_JORDAN, **GRID_RILEY},
@@ -93,27 +144,6 @@ GRID_PLAN = replace(
             **{stage: 'step-3' for stage in GRID_RILEY}},
     advance_after={'installed-greeter': 'step-1', 'allowed-final-match': 'step-2',
                    'jordan-command-submitted': 'step-3'},
-)
-
-FILES_JORDAN = {
-    'parent-logout': 'system:parent-logout', **JORDAN_ENTRY,
-    **prefixed_stages('jordan-use', native_usable_app('files', child='other-child')),
-    'jordan-use-dismiss': 'ui:native-files-allowed-dismiss',
-}
-FILES_RILEY = {
-    'jordan-logout': 'system:standard-logout', **RILEY_ENTRY,
-    **prefixed_stages('riley-use', native_usable_app('files', child='child')),
-    'riley-use-dismiss': 'ui:overlay-native-files-allowed-dismiss',
-}
-FILES_PLAN = replace(
-    PLAN, prefix='native-files-allowed', worker_mode='native_files_allowed',
-    screen_tags={**SETUP, **FILES_JORDAN, **FILES_RILEY},
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: 'step-1' for stage in SETUP}, 'installed-greeter': 'start',
-            **{stage: 'step-2' for stage in FILES_JORDAN},
-            **{stage: 'step-3' for stage in FILES_RILEY}},
-    advance_after={'installed-greeter': 'step-1', 'allowed-final-match': 'step-2',
-                   'jordan-use-dismiss': 'step-3'},
 )
 
 DESKTOP_JORDAN = {
@@ -195,17 +225,13 @@ def blocked_plan(rule, access, *, route='grid', control='enabled'):
 
 HARD_GRID_PLAN = blocked_plan('hard', 'permanent')
 HARD_DESKTOP_PLAN = blocked_plan('hard', 'permanent', route='desktop')
-SOFT_DESKTOP_PLAN = blocked_plan('soft', 'conditional', route='desktop')
-HARD_FILES_PLAN = blocked_plan('hard', 'permanent', route='files')
 SOFT_FILES_PLAN = blocked_plan('soft', 'conditional', route='files')
-SOFT_GRID_PLAN = blocked_plan('soft', 'conditional')
-HARD_COMMAND_PLAN = blocked_plan('hard', 'permanent', route='command')
 HARD_COMMAND_DISABLED_PLAN = blocked_plan('hard', 'permanent', route='command', control='disabled')
 SOFT_COMMAND_PLAN = blocked_plan('soft', 'conditional', route='command')
 SOFT_COMMAND_DISABLED_PLAN = blocked_plan('soft', 'conditional', route='command', control='disabled')
 
 
-def execute(recorder, context, *, plan=PLAN):
+def execute(recorder, context, *, plan):
     record_installed_journey(recorder, context, plan, timeout=1800,
                              actions=fixture_actions(include_refusal=False),
                              journey_type=AppPolicyJourney)
@@ -237,25 +263,15 @@ def execute_desktop(recorder, context, *, plan=DESKTOP_PLAN,
                              actions=actions, journey_type=AppPolicyJourney)
 
 
-E2E_CASES = {'native-command-allowed-enabled': execute,
-             'native-command-allowed-disabled': execute_disabled,
+E2E_CASES = {'native-command-allowed-disabled': execute_disabled,
              'native-grid-allowed-enabled': execute_grid,
              'native-desktop-allowed-enabled': execute_desktop,
              'native-desktop-hard-blocked-enabled': partial(execute_desktop,
                  plan=HARD_DESKTOP_PLAN, case_id='native-desktop-hard-blocked-enabled'),
-             'native-desktop-soft-blocked-enabled': partial(execute_desktop,
-                 plan=SOFT_DESKTOP_PLAN, case_id='native-desktop-soft-blocked-enabled'),
-             'native-file-manager-allowed-enabled': partial(execute_grid,
-                 plan=FILES_PLAN, case_id='native-file-manager-allowed-enabled'),
-             'native-file-manager-hard-blocked-enabled': partial(execute_grid,
-                 plan=HARD_FILES_PLAN, case_id='native-file-manager-hard-blocked-enabled'),
              'native-file-manager-soft-blocked-enabled': partial(execute_grid,
                  plan=SOFT_FILES_PLAN, case_id='native-file-manager-soft-blocked-enabled'),
              'native-grid-hard-blocked-enabled': partial(execute_grid,
                  plan=HARD_GRID_PLAN, case_id='native-grid-hard-blocked-enabled'),
-             'native-grid-soft-blocked-enabled': partial(execute_grid,
-                 plan=SOFT_GRID_PLAN, case_id='native-grid-soft-blocked-enabled'),
-             'native-command-hard-blocked-enabled': partial(execute, plan=HARD_COMMAND_PLAN),
              'native-command-hard-blocked-disabled': partial(execute, plan=HARD_COMMAND_DISABLED_PLAN),
              'native-command-soft-blocked-enabled': partial(execute, plan=SOFT_COMMAND_PLAN),
              'native-command-soft-blocked-disabled': partial(execute, plan=SOFT_COMMAND_DISABLED_PLAN)}

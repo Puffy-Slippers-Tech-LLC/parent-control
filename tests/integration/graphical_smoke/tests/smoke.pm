@@ -965,149 +965,30 @@ sub run {
         onpc_parent_search_launch::run(\&exchange);
         return;
     }
-    if ($ready->{native_grid_soft_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'grid', 'soft-blocked');
-        return;
-    }
-    if ($ready->{native_grid_hard_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'grid', 'hard-blocked');
-        return;
-    }
-    if ($ready->{native_desktop_soft_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'desktop', 'soft-blocked');
-        return;
-    }
-    if ($ready->{native_desktop_hard_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'desktop', 'hard-blocked');
-        return;
-    }
-    if ($ready->{native_desktop_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'enabled', 'desktop');
-        return;
-    }
-    if ($ready->{native_files_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'enabled', 'files');
-        return;
-    }
-    if ($ready->{native_files_hard_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'files', 'hard-blocked');
-        return;
-    }
-    if ($ready->{native_files_soft_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'files', 'soft-blocked');
-        return;
-    }
-    if ($ready->{native_grid_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'enabled', 'grid');
-        return;
-    }
-    if ($ready->{native_command_soft_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'command', 'soft-blocked');
-        return;
-    }
-    if ($ready->{native_command_soft_blocked_disabled}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'disabled', 'command', 'soft-blocked');
-        return;
-    }
-    if ($ready->{native_command_hard_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'command', 'hard-blocked');
-        return;
-    }
-    if ($ready->{native_command_hard_blocked_disabled}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'disabled', 'command', 'hard-blocked');
-        return;
-    }
-    if ($ready->{flatpak_grid_allowed} || $ready->{flatpak_grid_hard_blocked}
-            || $ready->{flatpak_grid_soft_blocked}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'grid', $ready->{flatpak_grid_hard_blocked}
-                                ? 'hard-blocked' : $ready->{flatpak_grid_soft_blocked}
-                                ? 'soft-blocked' : 'allowed', 'flatpak');
-        return;
-    }
     for my $binding (
-        ['flatpak_command_allowed', 'enabled', 'allowed'],
-        ['flatpak_command_allowed_disabled', 'disabled', 'allowed'],
-        ['flatpak_command_hard_blocked', 'enabled', 'hard-blocked'],
-        ['flatpak_command_hard_blocked_disabled', 'disabled', 'hard-blocked'],
-        ['flatpak_command_soft_blocked', 'enabled', 'soft-blocked'],
-        ['flatpak_command_soft_blocked_disabled', 'disabled', 'soft-blocked']) {
-        next unless $ready->{$binding->[0]};
+        ['native_grid_hard_blocked', 'enabled', 'grid', 'hard-blocked', 'native'],
+        ['native_desktop_allowed', 'enabled', 'desktop', 'allowed', 'native'],
+        ['native_desktop_hard_blocked', 'enabled', 'desktop', 'hard-blocked', 'native'],
+        ['native_files_soft_blocked', 'enabled', 'files', 'soft-blocked', 'native'],
+        ['native_grid_allowed', 'enabled', 'grid', 'allowed', 'native'],
+        ['native_command_soft_blocked', 'enabled', 'command', 'soft-blocked', 'native'],
+        ['native_command_soft_blocked_disabled', 'disabled', 'command', 'soft-blocked', 'native'],
+        ['native_command_hard_blocked_disabled', 'disabled', 'command', 'hard-blocked', 'native'],
+        ['flatpak_grid_allowed', 'enabled', 'grid', 'allowed', 'flatpak'],
+        ['flatpak_grid_hard_blocked', 'enabled', 'grid', 'hard-blocked', 'flatpak'],
+        ['flatpak_grid_soft_blocked', 'enabled', 'grid', 'soft-blocked', 'flatpak'],
+        ['flatpak_command_allowed_disabled', 'disabled', 'command', 'allowed', 'flatpak'],
+        ['flatpak_command_hard_blocked_disabled', 'disabled', 'command', 'hard-blocked', 'flatpak'],
+        ['flatpak_command_soft_blocked_disabled', 'disabled', 'command', 'soft-blocked', 'flatpak'],
+        ['snap_grid_allowed', 'enabled', 'grid', 'allowed', 'snap'],
+        ['snap_command_allowed_disabled', 'disabled', 'command', 'allowed', 'snap'],
+        ['native_command_allowed_disabled', 'disabled', 'command', 'allowed', 'native']) {
+        my ($mode, $control, $route, $policy, $kind) = @$binding;
+        next unless $ready->{$mode};
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            $binding->[1], 'command', $binding->[2], 'flatpak');
-        return;
-    }
-    if ($ready->{snap_grid_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'grid', 'allowed', 'snap');
-        return;
-    }
-    if ($ready->{snap_command_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'enabled', 'command', 'allowed', 'snap');
-        return;
-    }
-    if ($ready->{snap_command_allowed_disabled}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-                            'disabled', 'command', 'allowed', 'snap');
-        return;
-    }
-    if ($ready->{native_command_allowed}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
-        return;
-    }
-    if ($ready->{native_command_allowed_disabled}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_app_launch::run(\&exchange, $ready->{invocations}, $ready->{challenge_bindings}, 'disabled');
+                            $control, $route, $policy, $kind);
         return;
     }
     if ($ready->{retained_app_visits}) {

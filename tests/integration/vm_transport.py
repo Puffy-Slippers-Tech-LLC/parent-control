@@ -3,6 +3,7 @@
 
 import io
 import hashlib
+import json
 import math
 from contextlib import contextmanager, nullcontext
 import os
@@ -225,9 +226,13 @@ class Transport:
                 if self.product_logs_per_case:
                     return
         program = Path(product_logs.__file__).read_text()
+        raw = self.call(['/usr/bin/python3', '-I', '-c', program],
+                        timeout=80, diagnostic_stdout=transfer_diagnostic)
+        snapshot = json.loads(raw)
+        require(isinstance(snapshot, dict) and snapshot.keys() == set(product_logs.COMPONENTS)
+                and all(isinstance(log, str) for log in snapshot.values()),
+                'transport:invalid-product-log-snapshot')
         for component in product_logs.COMPONENTS:
-            raw = self.call(['/usr/bin/python3', '-I', '-c', program, component],
-                            timeout=20, diagnostic_stdout=transfer_diagnostic)
             fd = os.open(directory / (component + '.log'),
                          os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
             with os.fdopen(fd, 'wb') as stream:
@@ -237,7 +242,7 @@ class Transport:
                     raise OSError('unsafe product log destination')
                 stream.truncate()
                 os.fchmod(stream.fileno(), 0o600)
-                stream.write(raw)
+                stream.write(snapshot[component].encode('utf-8'))
 
     @observed('Requesting VM shutdown through its owned SSH transport')
     def poweroff(self):

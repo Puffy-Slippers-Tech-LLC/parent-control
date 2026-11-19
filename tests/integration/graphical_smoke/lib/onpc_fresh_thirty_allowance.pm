@@ -221,7 +221,7 @@ sub match_reopen_case {
     $journey->finish();
 }
 
-# Case 187 owns the complete forward/reverse block and recovery history.
+# Case 187 checks either launcher's block and the shared target's recovery.
 sub shared_launchers_case {
     onpc_progress::operation('Checking that either launcher block prevents child access to their shared app');
     my ($exchange, $declared, $challenges) = @_;
@@ -234,20 +234,21 @@ sub shared_launchers_case {
     $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
         $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
     $journey->seen($_) for qw(saved-settings apps-page initial-rows retained-window parent-session);
-    for my $round (
-        ['original-blocked', [['A', 'permanent'], ['Alias', 'allowed']], 0],
-        ['original-allowed', [['A', 'allowed']], 1],
-        ['alias-blocked', [['Alias', 'permanent']], 0],
-        ['alias-allowed', [['Alias', 'allowed']], 1]) {
-        my ($name, $edits, $usable) = @$round;
-        for my $edit (@$edits) {
-            my ($role, $choice) = @$edit;
-            my $prefix = "$name-" . lc($role);
-            onpc_app_rows::access_choice($journey, "$prefix-access-save", "$prefix-access");
-            $journey->seen("$prefix-final-match");
+    for my $round (['original-blocked', 'original', 'alias'],
+                   ['alias-blocked', 'alias', 'original'], ['alias-allowed', 'alias']) {
+        my ($name, @edits) = @$round;
+        my $usable = $name eq 'alias-allowed';
+        my $last = pop @edits;
+        for my $entry (@edits) {
+            onpc_app_rows::access_choice($journey, "$name-$entry-save", "$name-$entry-committed");
         }
-        $journey->seen($_) for ("$name-original-choice", "$name-alias-choice",
-                              "$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
+        my $stage = "$name-$last-save";
+        $journey->consume_observation($stage, $journey->seen($stage));
+        $journey->seen("$name-$_-choice") for qw(original alias);
+        if ($usable) {
+            $journey->seen($_) for qw(original-final-match alias-final-match);
+        }
+        $journey->seen($_) for ("$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', "$name-entry");
         for my $role ('A', 'Alias') {
@@ -261,7 +262,7 @@ sub shared_launchers_case {
             }
         }
         $journey->seen($_) for ("$name-logout", "$name-greeter");
-        if ($name ne 'alias-allowed') {
+        unless ($usable) {
             onpc_desktop_session::enter_desktop(
                 $journey, 'gdm', 'parent', 'retained', 'success', "$name-return");
             $journey->consume_observation("$name-supplied-parent-retained",

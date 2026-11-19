@@ -398,8 +398,10 @@ sub policy_edit {
 # independent return and exact saved-row comparisons on the controller.
 sub named_app_set {
     onpc_progress::operation('Saving the declared app rules for [Child user]');
-    my ($journey, $source, $entry, $window, $child, $apps, $prefix) = @_;
-    die 'app-set:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
+    my ($journey, $source, $entry, $window, $child, $apps, $prefix, $finish) = @_;
+    $finish //= 'gdm';
+    die 'app-set:binding' unless (@_ == 7 || @_ == 8) && ref($journey) eq 'onpc_journey'
+        && ($finish eq 'parent' || $finish eq 'gdm')
         && ($child eq 'child' || $child eq 'existing')
         && (($source eq 'gdm' && $entry eq 'fresh' && $window eq 'new')
             || ($source eq 'desktop' && $entry eq 'same-user'
@@ -432,6 +434,7 @@ sub named_app_set {
     }
     onpc_text::replace_text($section, 'catalogue-clear', 'clear');
     saved_rows($section, $apps, 'saved');
+    return if $finish eq 'parent';
     $section->consume_observation($_, $section->seen($_)) for qw(before session);
     # DESK03 keeps the original desktop and independently observes GDM.
     require onpc_desktop_session;
@@ -474,9 +477,7 @@ sub prepare_daily_soft_profile {
     die 'flow18:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
     named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
         ['A', 'match-precise', 'allowed'], ['H', 'match-hard-precise', 'permanent'],
-        ['S', 'match-soft-wildcard', 'conditional']], 'apps');
-    onpc_desktop_session::enter_desktop(
-        $journey, 'gdm', 'parent', 'retained', 'success', 'setup-return');
+        ['S', 'match-soft-wildcard', 'conditional']], 'apps', 'parent');
     onpc_parent::grant_only_time_profile(
         $journey, 'desktop', 'same-user', 'retained', 0, 0, 6, 'observed', 0, 10);
     onpc_desktop_session::enter_desktop(
@@ -790,12 +791,18 @@ sub shared_target_launchers {
     $journey->finish();
 }
 
+sub launch_and_stop_minecraft {
+    my ($journey) = @_;
+    require onpc_window;
+    $journey->seen($_) for qw(launch opened);
+    onpc_window::close($journey, 'minecraft', $journey->seen('minecraft-close-ready'));
+}
+
 sub minecraft_access {
     onpc_progress::operation('Checking Minecraft access before and after parent approval');
     my ($exchange, $declared, $challenges) = @_;
     die 'minecraft-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    require onpc_window;
     require onpc_request_flow;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'minecraft-access', review => 0);
     $journey->declare_invocations($declared);
@@ -822,8 +829,7 @@ sub minecraft_access {
                 'existing-fixture-child', 'fixture-parent', 900, 1, 'overlay');
             onpc_request_flow::overlay_approve($slice, 'automatic');
         }
-        $slice->seen($_) for qw(launch opened);
-        onpc_window::close($slice, 'minecraft', $slice->seen('minecraft-close-ready'));
+        launch_and_stop_minecraft($slice);
         if ($name eq 'allowed') {
             onpc_desktop_session::enter_desktop($journey, 'desktop', 'parent', 'retained',
                                                'success', 'parent-return', 'other-child');
@@ -842,7 +848,6 @@ sub lunar_access {
     my ($exchange, $declared, $challenges) = @_;
     die 'lunar-access:arguments' unless @_ == 3 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH';
-    require onpc_window;
     require onpc_request_flow;
     require onpc_allowance_selection;
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'lunar-access', review => 0);
@@ -876,21 +881,15 @@ sub lunar_access {
         my ($prefix) = @_;
         for my $app ('lunar', 'minecraft') {
             onpc_text::replace_text($journey, "catalogue-$app", "$prefix-$app-search");
-            $journey->seen("$prefix-$app-$_") for qw(save row);
+            $journey->seen("$prefix-$app-save");
         }
         onpc_text::replace_text($journey, 'catalogue-clear', "$prefix-clear");
         $journey->seen("$prefix-policy");
     };
-    my $hidden = sub {
-        my ($prefix) = @_;
-        $journey->seen("$prefix-$_") for qw(observer-ready present quit closed);
-    };
     my $launchers = sub {
         my ($prefix) = @_;
         $journey->seen("$prefix-lunar-$_") for qw(launch opened quit closed);
-        my $minecraft = $journey->scope("$prefix-minecraft");
-        $minecraft->seen($_) for qw(launch opened);
-        onpc_window::close($minecraft, 'minecraft', $minecraft->seen('minecraft-close-ready'));
+        launch_and_stop_minecraft($journey->scope("$prefix-minecraft"));
     };
     my $blocked = sub {
         my ($prefix) = @_;
@@ -917,18 +916,16 @@ sub lunar_access {
     onpc_gdm::reattach_functional();
     $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
         $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
-    $journey->seen($_) for qw(saved-settings apps-page screen-page);
     onpc_allowance_selection::select($journey, 'daily', [120], 'confirm');
     $journey->seen($_) for qw(daily-settings allowed-apps);
     $choices->('allowed');
-    $journey->seen('parent-logout');
+    $leave->('allowed-parent-leave');
     $enter->('initial-child', 'other-child', 'fresh');
-    $hidden->('initial-hidden');
+    # The supplied login autostart must stop before testing the normal command.
+    $journey->seen("initial-hidden-$_") for qw(observer-ready present quit closed);
     $journey->seen('minecraft-observer');
     $launchers->('allowed');
-    $reboot->('allowed');
-    $hidden->('allowed-hidden');
-    $visit->('soft', 'fresh');
+    $visit->('soft', 'retained');
     $journey->seen('soft-apps');
     $choices->('soft');
     $return->('soft');

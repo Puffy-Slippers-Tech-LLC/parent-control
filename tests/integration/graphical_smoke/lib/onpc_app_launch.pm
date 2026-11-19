@@ -8,6 +8,19 @@ use onpc_parent ();
 use onpc_desktop_session ();
 use onpc_app_rows ();
 
+sub use_app {
+    my ($activity, $route, $child, $kind) = @_;
+    my $role = $kind eq 'native' ? undef : 'A';
+    onpc_app_rows::native_usable_app($activity, $route, $activity->seen('desktop'),
+                                   $child, $role, $kind);
+}
+
+sub use_command_after_grid {
+    my ($journey, $prefix, $child, $kind) = @_;
+    onpc_app_rows::native_finish_app($journey->scope("$prefix-use"));
+    use_app($journey->scope("$prefix-command"), 'command', $child, $kind);
+}
+
 sub run {
     onpc_progress::operation('Checking the parent rule and independent app access for both children');
     my ($exchange, $declared, $challenges, $control, $route, $policy, $kind) = @_;
@@ -56,18 +69,14 @@ sub run {
     my $jordan = $journey->scope($policy eq 'allowed' ? 'jordan-use' : 'jordan-denied');
     $jordan->seen('place') if $route eq 'desktop';
     if ($policy eq 'allowed') {
-        onpc_app_rows::native_usable_app($jordan, $route, $jordan->seen('desktop'), 'other-child',
-                                       $kind ne 'native' ? 'A' : undef, $kind);
+        use_app($jordan, $route, 'other-child', $kind);
     } elsif ($kind eq 'flatpak') {
         onpc_app_rows::flatpak_blocked_app($jordan, 'A', $route, 'command');
     } else {
         onpc_app_rows::native_blocked_app($jordan, 'A', $route);
     }
-    if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
-        onpc_app_rows::native_finish_app($jordan);
-        my $command = $journey->scope('jordan-command');
-        onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'other-child');
-    }
+    use_command_after_grid($journey, 'jordan', 'other-child', $kind)
+        if $route eq 'grid' && $policy eq 'allowed';
     $jordan->seen('dismiss') if $route eq 'files';
     if ($route eq 'desktop') {
         onpc_app_rows::native_finish_app($jordan) if $policy eq 'allowed';
@@ -78,13 +87,9 @@ sub run {
         $journey, 'gdm', 'child', 'fresh', 'success', 'riley-entry');
     my $riley = $journey->scope('riley-use');
     $riley->seen('place') if $route eq 'desktop';
-    onpc_app_rows::native_usable_app($riley, $route, $riley->seen('desktop'), 'child',
-                                   $kind ne 'native' ? 'A' : undef, $kind);
-    if ($kind eq 'native' && $route eq 'grid' && $policy eq 'allowed') {
-        onpc_app_rows::native_finish_app($riley);
-        my $command = $journey->scope('riley-command');
-        onpc_app_rows::native_usable_app($command, 'command', $command->seen('desktop'), 'child');
-    }
+    use_app($riley, $route, 'child', $kind);
+    use_command_after_grid($journey, 'riley', 'child', $kind)
+        if $route eq 'grid' && $policy eq 'allowed';
     $riley->seen('dismiss') if $route eq 'files';
     if ($route eq 'desktop') {
         onpc_app_rows::native_finish_app($riley);

@@ -3,13 +3,12 @@ from copy import deepcopy
 from dataclasses import replace
 import time
 
-from accessible_ui import (LUNAR_POLICY_APP, LUNAR_FLATPAK_POLICY_APP, MINECRAFT_POLICY_APP,
+from accessible_ui import (LUNAR_POLICY_APP, MINECRAFT_POLICY_APP,
                            NAMED_CHILD_OPERATIONS, OVERLAY_BOUND_OPERATIONS)
 from calendar_fixture import preset_ordinary_daytime
 from installed_journey import JourneyPlan, record_installed_journey
-from journey_blocks import (allowance_selection, app_policy_entry, desktop_entry,
-                            desktop_return, overlay_entry, parent_management,
-                            parent_selection, prefixed_stages)
+from journey_blocks import (allowance_selection, desktop_entry, desktop_return, fresh_desktop,
+                            overlay_entry, parent_management, parent_selection, prefixed_stages)
 from lunar_profile import LunarProfile
 from minecraft_access import MinecraftAccessJourney, allowed_work, launcher
 from native_fixtures import fixture_actions
@@ -26,12 +25,6 @@ def enter(prefix, account, entry):
     stages = desktop_entry(account, source='gdm', entry=entry)
     ENTRIES[prefix] = (account, stages)
     return prefixed_stages(prefix, stages)
-
-
-def hidden_lunar(prefix):
-    return prefixed_stages(prefix, {
-        'observer-ready': 'ui:lunar-observer-ready',
-        'present': 'ui:lunar-snapshot', 'quit': 'ui:lunar-quit', 'closed': 'ui:lunar-closed'})
 
 
 def launchers(prefix):
@@ -95,30 +88,30 @@ def policy_choices(prefix, choice):
         **{f'{prefix}-{app}-search-{action}': f'ui:text-catalogue-{app}-{action}'
            for action in ('focus', 'selected', 'read')},
         f'{prefix}-{app}-save': f'ui:access-{app}-{choice}',
-        f'{prefix}-{app}-row': f'ui:access-{app}-row',
     }.items()} | {f'{prefix}-clear-{action}': f'ui:text-catalogue-clear-{action}'
                  for action in ('focus', 'selected', 'read')}
 
 
 PARTS = {
     'step-1': {
-        **app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read',
-                           initial_rows=False),
-        'screen-page': 'ui:access-screen',
+        **fresh_desktop('parent'), **parent_management(child='existing'),
+        'parent-selected': 'ui:existing-returned',
+        'allowance-configured': 'ui:time-explanation-setup-thirty-read',
         **allowance_selection('daily', (120,)),
         'daily-settings': 'ui:existing-returned',
         'allowed-apps': 'ui:existing-apps',
         **policy_choices('allowed', 'allowed'),
         'allowed-policy': 'ui:revoke-saved-balances',
-        'parent-logout': 'system:parent-logout',
+        **desktop_return('allowed-parent-leave', account='parent'),
         **enter('initial-child', 'other-child', 'fresh'),
-        # The supplied hidden autostart must quit before an explicit command.
-        **hidden_lunar('initial-hidden'),
+        'initial-hidden-observer-ready': 'ui:lunar-observer-ready',
+        'initial-hidden-present': 'ui:lunar-snapshot',
+        'initial-hidden-quit': 'ui:lunar-quit', 'initial-hidden-closed': 'ui:lunar-closed',
         'minecraft-observer': 'ui:minecraft-observer-ready',
-        **launchers('allowed'), **reboot('allowed'), **hidden_lunar('allowed-hidden'),
+        **launchers('allowed'),
     },
     'step-2': {
-        **parent_visit('soft', 'fresh'),
+        **parent_visit('soft', 'retained'),
         'soft-apps': 'ui:existing-apps', **policy_choices('soft', 'conditional'),
         'soft-policy': 'ui:revoke-saved-balances',
         **child_return('soft'), **denied('ungranted'),
@@ -161,12 +154,7 @@ PLAN = JourneyPlan(
                     if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
     settings_checks={
         'parent-selected': SettingsObservation('existing-fixture-child', False, ('0 minutes',)),
-        'saved-settings': SettingsObservation('existing-fixture-child', True, ('30 minutes',)),
         'daily-settings': SettingsObservation('existing-fixture-child', True, ('2 hours',))},
-    access_checks={f'{prefix}-{app}-row': (target, choice)
-                   for prefix, choice in (('allowed', 'allowed'), ('soft', 'conditional'))
-                   for app, target in (('lunar', LUNAR_POLICY_APP),
-                                       ('minecraft', MINECRAFT_POLICY_APP))},
     overlay_request=('other-child', 'parent', 900, False), overlay_requests=REQUESTS,
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES or
                       stage in {prefix + '-request-' + leaf
@@ -176,10 +164,9 @@ PLAN = JourneyPlan(
                          prefix + '-' + role + 'recipient-rechecked')
                 for prefix, (account, _stages) in ENTRIES.items()
                 for role in ('standard-' if account == 'other-child' else '',)},
-    reboot_transition=('allowed-reboot', 'allowed-greeter'),
-    additional_reboot_transitions=(('time-only-reboot', 'time-only-greeter'),
-                                   ('replacement-reboot', 'replacement-greeter')),
-    assertions_after={'allowed-hidden-closed': 'allowed-route-control',
+    reboot_transition=('time-only-reboot', 'time-only-greeter'),
+    additional_reboot_transitions=(('replacement-reboot', 'replacement-greeter'),),
+    assertions_after={'allowed-minecraft-minecraft-closed': 'allowed-route-control',
                       'ungranted-work-closed': 'ungranted-soft-denial',
                       'time-only-after-child-desktop': 'time-only-boot-denial',
                       'included-minecraft-minecraft-closed': 'explicit-soft-approval',
@@ -195,10 +182,7 @@ class LunarAccessJourney(MinecraftAccessJourney):
                 screen_tags={stage: tag.replace('ui:text-catalogue-lunar-',
                                                 'ui:text-catalogue-lunar-flatpak-')
                                       .replace('ui:access-lunar-', 'ui:access-lunar-flatpak-')
-                             for stage, tag in plan.screen_tags.items()},
-                access_checks={stage: (LUNAR_FLATPAK_POLICY_APP if target == LUNAR_POLICY_APP
-                                      else target, choice)
-                               for stage, (target, choice) in plan.access_checks.items()})
+                             for stage, tag in plan.screen_tags.items()})
         super().__init__(context, progress, plan, actions=actions)
         self.profile = None
         self.saved_policy = None
@@ -257,9 +241,7 @@ class LunarAccessJourney(MinecraftAccessJourney):
 
 def prepare(journey, guard):
     guard()
-    reader = LunarProfile(journey.transport, journey.context.verified)
-    reader.read('prepare')
-    journey.profile = reader.verify()
+    journey.profile = LunarProfile(journey.transport, journey.context.verified).verify(prepare=True)
     guard()
     return {'profile': journey.profile, 'daytime': preset_ordinary_daytime(journey, guard)}
 

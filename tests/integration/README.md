@@ -283,7 +283,9 @@ Installed journeys emit `e2e-timing:` lines in the normal run log. Each requeste
 stage logs `state=started`, then `state=finished` and monotonic `duration_seconds`
 after its durable reply. Setup also times address discovery, SSH readiness,
 fixture-input validation, helper validation/transfer, fixture provisioning,
-child/activity verification and final readiness. Setup subphases emit
+child/activity verification and final readiness. Snapshot creation also times
+guest startup and connection, installation, the separate offline reboot and
+verification when applicable, and capture. Setup subphases emit
 `state=failed` with elapsed time when they raise; an unfinished journey stage
 retains its start line beside the normal failure diagnostics. Stage totals
 include their nested setup phases; do not add parent and child durations.

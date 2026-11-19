@@ -41,7 +41,7 @@ SCREENS = {
     **prefixed_stages('interruption', approved_request(**CHOICES, exit='close')),
     **station_entry('cancel-'),
     'reopened-form': 'ui:kiosk-valid-fraction-soft-read',
-    'peer-choices-returned': 'ui:remembered-second-reverse-kiosk-jordan-select-default',
+    'peer-choices-returned': 'ui:remembered-kiosk-jordan-retained-approver-default',
     'selected-restored': 'ui:kiosk-flow-child-select',
     'cancel': 'ui:kiosk-request-cancel', 'cancel-returned': 'ui:gdm-station-returned',
     **prefixed_stages('return', RETURN),

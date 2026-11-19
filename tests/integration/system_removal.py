@@ -22,7 +22,8 @@ import threading
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, account_states, call, session_limits
+from system_assertions import (accepted, account_property, account_state, account_states,
+                               call, session_limits, validation_stage)
 from system_caller import PersistentCaller
 from system_enforcement import native_paths, observe_launch, provision_native
 
@@ -2275,22 +2276,32 @@ def write_hook(path, identity, expected, contents):
         stream.truncate()
 
 
-def removed_rebooted(record):
+def _reinstall_after_erasure(record, *, purged):
     guest.guard()
     guest.enable_diagnostics()
     state = json.loads(state_path().read_text())
-    guest.require(boot() != state['boot'] and guest.reboot_cleared(), 'removal:reboot-not-observed')
-    verify_removed(state, record=record)
-    desktop_health(state['accounts']['child'])
-    password_login_health(state['accounts']['child'])
-    record('onpc.removal.boot-health',
+    observed_boot = boot()
+    before, after = ('purged_boot', 'purge_reinstall_boot') if purged else ('boot', 'removed_boot')
+    stage = 'purge' if purged else 'removal'
+    guest.require(observed_boot != state[before] and guest.reboot_cleared(),
+                  stage + ':reboot-not-observed')
+    with validation_stage('removal-check', stage + '-boot-health', record=record):
+        verify_removed(state, purged=purged, record=record)
+        desktop_health(state['accounts']['child'])
+        password_login_health(state['accounts']['child'])
+    record('onpc.' + stage + '.boot-health',
            'GDM-desktop-active; password-login-accepted; native-execution-allowed; integrations-absent')
-    state['removed_boot'] = boot()
+    state[after] = observed_boot
     save_state(state)
-    original_policy_diagnostics(record, 'removed')
-    guest.install_package()
-    original_policy_diagnostics(record, 'reinstalled')
-    guest.require(guest.reboot_requested(), 'removal:reinstall-reboot-not-requested')
+    original_policy_diagnostics(record, 'purged' if purged else 'removed')
+    with validation_stage('removal-check', stage + '-reinstall', record=record):
+        guest.install_package()
+        original_policy_diagnostics(record, 'purge-reinstalled' if purged else 'reinstalled')
+        guest.require(guest.reboot_requested(), stage + ':reinstall-reboot-not-requested')
+
+
+def removed_rebooted(record):
+    _reinstall_after_erasure(record, purged=False)
 
 
 def password_login_health(uid):
@@ -2334,21 +2345,7 @@ def reinstalled_rebooted(record):
 
 
 def purged_rebooted(record):
-    guest.guard()
-    guest.enable_diagnostics()
-    state = json.loads(state_path().read_text())
-    guest.require(boot() != state['purged_boot'] and guest.reboot_cleared(),
-                  'purge:reboot-not-observed')
-    verify_removed(state, purged=True, record=record)
-    desktop_health(state['accounts']['child'])
-    password_login_health(state['accounts']['child'])
-    state['purge_reinstall_boot'] = boot()
-    save_state(state)
-    original_policy_diagnostics(record, 'purged')
-    guest.install_package()
-    original_policy_diagnostics(record, 'purge-reinstalled')
-    guest.require(guest.reboot_requested(), 'purge:reinstall-reboot-not-requested')
-    record('onpc.purge.boot-health', 'desktop-and-password-login-healthy; native-execution-allowed')
+    _reinstall_after_erasure(record, purged=True)
 
 
 def purge_reinstalled_rebooted(record):

@@ -20,8 +20,6 @@ from real_interval import interval_action
 
 
 ENTRIES = {
-    'setup-return': prefixed_stages('setup-return', desktop_entry(
-        'parent', source='gdm', entry='retained')),
     'first-child': prefixed_stages('first-child', desktop_entry(
         'child', source='gdm', entry='fresh')),
     'away-parent': prefixed_stages('away-parent', desktop_entry(
@@ -35,8 +33,7 @@ def daily_soft_profile():
     """Finite FLOW18 declaration, from fresh app-policy setup to child witness."""
     return {
         **named_app_set(source='gdm', entry='fresh', window='new', child='child',
-                        apps=APPS, prefix='apps'),
-        **ENTRIES['setup-return'],
+                        apps=APPS, prefix='apps', finish='parent'),
         **grant_only_time_profile(source='desktop', entry='same-user', window='retained',
             initial_enabled=False, revoke_first=False, daily_minutes=10,
             duration_seconds=6, request_initial='observed', balance_readback=False),
@@ -66,7 +63,6 @@ PLAN = JourneyPlan(
     invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
     challenges={prefix: (account, prefix + '-' + role + '-qualified', prefix + '-' + role + '-rechecked')
                 for prefix, account, role in (
-                    ('setup-return', 'parent', 'recipient'),
                     ('first-child', 'child', 'child-recipient'),
                     ('away-parent', 'parent', 'recipient'),
                     ('returned-child', 'child', 'child-recipient'))},

@@ -612,15 +612,17 @@ def verify(publish):
         def initialize_with_interference():
             interfere(manager, account, shell, broker_events, initialize_policy, record)
 
+        def individual_disable():
+            manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+
         recovery('initialized-recovery', initialize_with_interference, initialized=True)
         cycles = []
-        # Two cycles cover both disablement routes and recurrence without
-        # repeating the same recovery/preservation matrix four times per route.
-        for number in range(4):
-            global_switch = bool(number % 2)
-            label = ('global-' if global_switch else 'individual-') + str(number + 1)
-            recovery(label, global_disable if global_switch else lambda:
-                manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID))
+        # Exercise both native signals in one recurrence sequence. The last
+        # individual disable checks that prior successes did not add a cooldown.
+        for label, disable in (('individual', individual_disable),
+                               ('global', global_disable),
+                               ('individual-recurrence', individual_disable)):
+            recovery(label, disable)
             latency = observations[-1][1]['native_signal_seconds']
             cycles.append(latency)
             # Native Shell signals exclude host SSH and preservation checks.
@@ -658,8 +660,7 @@ def verify(publish):
                          'broker_management_commands': len(idle),
                          'diagnostic_read_commands': len(diagnostic_reads)})
         guest.require(not idle, 'extension:idle-management-commands')
-        recovery('post-quiet-recovery', lambda:
-            manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID))
+        recovery('post-quiet-recovery', individual_disable)
         # Healthy idle remains event-driven and leaves recovery responsive.
         latest = observations[-1][1]
         guest.require(latest['native_signal_seconds'] < 10, 'extension:post-quiet-recovery-delayed')

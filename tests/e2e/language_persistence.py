@@ -28,8 +28,7 @@ for prefix, child, name in (('parent-riley', 'child', 'riley'), ('parent-jordan'
                            ('parent-riley-return', 'child', 'riley')):
     PARENT.update({**custom_child_selection(prefix, child),
         prefix + '-selected': 'ui:parent-language-' + name + '-selected',
-        prefix + '-state': 'ui:parent-language-' + name + '-enabled-zh-hans',
-        prefix + '-choice': 'ui:parent-language-open', prefix + '-close': 'ui:parent-language-cancel'})
+        prefix + '-state': 'ui:parent-language-' + name + '-enabled-zh-hans'})
 PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-riley-selected',
     'same-parent-window': 'ui:parent-language-jordan-enabled-zh-hans',
     'reopened-choice': 'ui:parent-language-open', 'reopened-close': 'ui:parent-language-cancel',
@@ -131,8 +130,7 @@ CHOOSERS = {language: {'initial': False, 'checked': 'zh-hans' if language == 'zh
     'choices': {key: item[0] for key, item in TEXT.items()}, 'heading': text[1],
     'save': text[2], 'save_label': text[2], 'save_description': text[3]} for language, text in TEXT.items()}
 CHOICE_LANGUAGES = {'initial-language': 'en', 'chinese-open': 'en', 'chinese-choose': 'zh-Hans',
-    **{stage: 'zh-Hans' for stage in
-        ('parent-riley-choice', 'parent-jordan-choice', 'parent-riley-return-choice', 'reopened-choice', 'parent-final-choice')},
+    'reopened-choice': 'zh-Hans', 'parent-final-choice': 'zh-Hans',
     'station-initial-language': 'en', 'german-open': 'en', 'german-choose': 'de',
     'hebrew-open': 'en', 'hebrew-choose': 'he',
     'cancel-german-open': 'he', 'cancel-german-choose': 'de',

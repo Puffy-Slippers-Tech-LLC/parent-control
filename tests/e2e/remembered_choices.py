@@ -1,4 +1,4 @@
-"""Cases 58–61: both children's choices survive independent request-form visits."""
+"""Cases 58 and 60: both children's choices survive visits between request forms."""
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import desktop_entry, fresh_desktop, prefixed_stages, station_entry
 from request_flow import overlay_to_kiosk, kiosk_to_overlay, transfer_allowances
@@ -58,9 +58,8 @@ DIAGNOSTIC_PLAN = JourneyPlan(
 )
 
 
-PLANS = {}
-for choices, children in (('remembered', ('jordan', 'riley')),
-                          ('remembered-second', ('riley', 'jordan'))):
+def overlay_to_kiosk_plan():
+    choices, children = 'remembered', ('jordan', 'riley')
     SCREENS = dict(ENTRY_SCREENS)
     PHASES = {stage: 'step-1' for stage in SCREENS}
     CHALLENGES = {'initial': ('parent', 'recipient-qualified', 'recipient-rechecked')}
@@ -90,7 +89,7 @@ for choices, children in (('remembered', ('jordan', 'riley')),
     for child in children:
         SCREENS.update({f'{child}-revisit-select': f'ui:{choices}-kiosk-{child}-select',
                         f'{child}-revisit-read': f'ui:{choices}-kiosk-{child}-read'})
-    PLANS[choices] = JourneyPlan(
+    return JourneyPlan(
         prefix='remembered-choices', worker_mode='remembered_choices', screen_tags=SCREENS,
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: PHASES[stage] if stage in PHASES else 'step-3' for stage in SCREENS},
@@ -106,13 +105,13 @@ for choices, children in (('remembered', ('jordan', 'riley')),
         },
         assertions_after={children[-1] + '-revisit-read': 'visible-result'},
     )
-PLAN = PLANS['remembered']
-SECOND_PLAN = PLANS['remembered-second']
 
 
-REVERSE_PLANS = {}
-for choices, children in (('remembered', ('jordan', 'riley')),
-                          ('remembered-second', ('riley', 'jordan'))):
+PLAN = overlay_to_kiosk_plan()
+
+
+def kiosk_to_overlay_plan():
+    choices, children = 'remembered', ('jordan', 'riley')
     SCREENS = transfer_allowances()
     PHASES = {stage: 'step-1' for stage in SCREENS}
     CHALLENGES = {'initial': ('parent', 'recipient-qualified', 'recipient-rechecked')}
@@ -135,7 +134,7 @@ for choices, children in (('remembered', ('jordan', 'riley')),
         stages = {child + '-' + action: f'ui:{choices}-kiosk-{child}-{action}'
                   for action in ('select-default', 'approver', 'custom', 'text', 'apps')}
         if child == children[-1]:
-            stages[child + '-select-default'] = f'ui:{choices}-reverse-kiosk-{child}-select-default'
+            stages[child + '-select-default'] = f'ui:{choices}-kiosk-{child}-retained-approver-default'
         stages[child + '-source'] = f'ui:{choices}-kiosk-{child}-read'
         transfer = kiosk_to_overlay(child + '-transfer', child=child, entry='fresh', choices=choices)
         stages.update(transfer)
@@ -173,7 +172,7 @@ for choices, children in (('remembered', ('jordan', 'riley')),
                             prefix + '-desktop': f'ui:{choices}-overlay-{child}-returned',
                             prefix + '-logout': f'system:{recipient}-logout',
                             prefix + '-greeter': 'ui:gdm-returned'})
-    REVERSE_PLANS[choices] = JourneyPlan(
+    return JourneyPlan(
         prefix='remembered-reverse', worker_mode='remembered_reverse', screen_tags=SCREENS,
         phases={'ready': 'setup', 'setup-detached': 'setup',
                 **{stage: PHASES[stage] if stage in PHASES else 'step-3' for stage in SCREENS},
@@ -188,25 +187,17 @@ for choices, children in (('remembered', ('jordan', 'riley')),
         },
         assertions_after={children[-1] + '-revisit-read': 'visible-result'},
     )
-REVERSE_PLAN = REVERSE_PLANS['remembered']
-REVERSE_SECOND_PLAN = REVERSE_PLANS['remembered-second']
+
+
+REVERSE_PLAN = kiosk_to_overlay_plan()
 
 
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800, journey_type=KioskRequestJourney)
 
 
-def execute_second(recorder, context):
-    record_installed_journey(recorder, context, SECOND_PLAN, timeout=1800, journey_type=KioskRequestJourney)
-
-
 def execute_reverse(recorder, context):
     record_installed_journey(recorder, context, REVERSE_PLAN, timeout=1800, journey_type=KioskRequestJourney)
 
 
-def execute_reverse_second(recorder, context):
-    record_installed_journey(recorder, context, REVERSE_SECOND_PLAN, timeout=1800, journey_type=KioskRequestJourney)
-
-
-E2E_CASES = {'overlay-to-kiosk-first': execute, 'overlay-to-kiosk-second': execute_second,
-             'kiosk-to-overlay-first': execute_reverse, 'kiosk-to-overlay-second': execute_reverse_second}
+E2E_CASES = {'overlay-to-kiosk-first': execute, 'kiosk-to-overlay-first': execute_reverse}

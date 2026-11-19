@@ -21,8 +21,8 @@ def saved_rows(apps, prefix):
     return screens
 
 
-def named_app_set(*, source, entry, window, child, apps, prefix):
-    """FLOW01 → App Limits → finite setup edits → full saved set → DESK03.
+def named_app_set(*, source, entry, window, child, apps, prefix, finish='gdm'):
+    """Save and verify the app rules, optionally returning to sign-in.
 
     The caller supplies its current session/window ledger and compares retained
     entry before input. No allowance, approval, app launch or hidden child entry.
@@ -32,6 +32,7 @@ def named_app_set(*, source, entry, window, child, apps, prefix):
             and len({app[0] for app in apps}) == len(apps), 'app-set:apps')
     require((source, entry, window) in (
         ('gdm', 'fresh', 'new'), ('desktop', 'same-user', 'retained')), 'app-set:entry')
+    require(finish in ('parent', 'gdm'), 'app-set:finish')
     # Validate all finite edits before returning an executable composition.
     edits = {}
     for index, (app, draft, access) in enumerate(apps):
@@ -44,10 +45,9 @@ def named_app_set(*, source, entry, window, child, apps, prefix):
         **retained, 'apps-page': 'ui:parent-apps-page' if child == 'child' else 'ui:existing-apps', **edits,
         **text_fragment('catalogue-clear', 'clear'),
         **saved_rows(apps, 'saved'),
-        'before': 'ui:retained-parent-leave',
-        'session': 'system:parent-desktop-identity',
-        'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
-        'gdm-switched': 'ui:gdm-returned',
+        **({'before': 'ui:retained-parent-leave', 'session': 'system:parent-desktop-identity',
+            'repeat-desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
+            'gdm-switched': 'ui:gdm-returned'} if finish == 'gdm' else {}),
     })}
 
 

@@ -16,7 +16,7 @@ from suite_lease import Suite
 import system_runner as system
 
 
-def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
+def qualify(directory, assets, *, launch_quit=False, denial=False,
             minecraft=False, minecraft_access=False, autostart=False, login_denial=False,
             fixture_selection=None):
     suite = Suite(open_source)
@@ -71,25 +71,22 @@ def qualify(directory, assets, *, launch_quit=False, tray=False, denial=False,
             elif minecraft:
                 result['launcher'] = qualify_minecraft_entry_exit(
                     directory, lease, transport, suite.verified)
-            elif launch_quit or tray:
-                result['launcher'] = qualify_launch_quit(directory, lease, transport, suite.verified,
-                                                       tray=tray)
+            elif launch_quit:
+                result['launcher'] = qualify_launch_quit(directory, lease, transport, suite.verified)
     finally:
         suite.close()
     result['owned_baseline_restoration_verified'] = True
     return result
 
 
-def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
+def qualify_launch_quit(directory, lease, transport, verified):
     """Reuse guarded normal sign-in, with no unrelated movable fixtures."""
     from dataclasses import replace
     from fresh_desktop import STANDARD_PLAN
     from ui_observations import UiObservations
 
     initial = ('observer-ready', 'quit', 'closed', 'launch', 'opened')
-    # Both selectors observe command-only lifecycle results, without app features.
-    independent_actions = (('snapshot', 'quit', 'closed') if tray else (
-        'opened', 'quit', 'closed'))
+    independent_actions = ('opened', 'quit', 'closed')
     operations = ['lunar-' + action for action in initial + independent_actions]
 
     def exercise(journey, guard):
@@ -106,15 +103,13 @@ def qualify_launch_quit(directory, lease, transport, verified, *, tray=False):
         for action in independent_actions:
             guard()
             value = independent.observe('lunar-' + action)
+            if action == 'opened':
+                system.require(value['lunar'] == original, 'lunar-launch-quit:launcher-replaced')
             results.append(value)
-            if tray and action == 'snapshot':
-                current = value['lunar']
-                system.require(current == original,
-                               'lunar-tray:launcher-replaced')
         guard()
         return results
 
-    label = 'lunar-tray' if tray else 'lunar-launch-quit'
+    label = 'lunar-launch-quit'
     plan = replace(STANDARD_PLAN, stage_actions={'desktop': label})
     return run_journey(directory, lease, transport, verified, plan, {label: exercise},
                        expected_operations=operations)
@@ -190,7 +185,7 @@ def run_journey(directory, lease, transport, verified, plan, actions, *, journey
     return {'steps': worker['controller_observations'], 'worker': worker}
 
 
-def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False,
+def main(*, assets, launch_quit=False, denial=False, minecraft=False,
          minecraft_access=False, autostart=False, login_denial=False, fixture_selection=None):
     def preflight():
         import prepare_vm
@@ -203,10 +198,10 @@ def main(*, assets, launch_quit=False, tray=False, denial=False, minecraft=False
         fixture_selection = validate_input(fixture_selection)
     label = ('lunar-login-denial' if login_denial else
              'lunar-autostart' if autostart else 'minecraft-access' if minecraft_access else
-             'minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else 'lunar-tray' if tray else
+             'minecraft-entry-exit' if minecraft else 'lunar-denial' if denial else
              'lunar-launch-quit' if launch_quit else 'lunar-profile')
     return run_qualification(label, lambda directory: qualify(
-        directory, assets, launch_quit=launch_quit, tray=tray, denial=denial,
+        directory, assets, launch_quit=launch_quit, denial=denial,
         minecraft=minecraft, minecraft_access=minecraft_access,
         autostart=autostart, login_denial=login_denial,
         fixture_selection=fixture_selection),

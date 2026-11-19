@@ -37,6 +37,10 @@ except ModuleNotFoundError as error:
     # Host Shell probes import this reader as a package without the standalone
     # guest's module directory on sys.path.
     from tests.e2e.download_destination import download_directory
+try:
+    from public_atspi import ProviderDisappeared
+except ImportError:
+    from tests.e2e.public_atspi import ProviderDisappeared
 
 # Isolated guest Python receives this file on guarded stdin after the controller
 # installs public_atspi.py as the public_atspi module. Keep finite public-input
@@ -2413,20 +2417,29 @@ class AccessibleUI:
         Public nodes() projections may be edited by their caller. Only this
         engine's immutable originals can seed cached scopes or ID indexes.
         """
-        root = self.root() if root is None else root
         protected_ids = frozenset(protected_ids)
         policy = (protected_ids, protect_text, defer_names)
         with self.observation():
-            for protection, nodes, edges, facts, identities in reversed(self._observation_cache):
-                if (protection[:2] == policy[:2] and (defer_names or not protection[2])
-                        and root in edges):
-                    break
-            else:
-                tuple(self.nodes(root, strict=True, protected_ids=protected_ids,
-                                 protect_text=protect_text, defer_names=defer_names))
-                protection, nodes, edges, facts, identities = self._observation_cache[-1]
-            selected = nodes if root == nodes[0] else self.snapshot_scope(nodes, edges, root)
-            return selected, edges, identities, facts
+            for attempt in range(2):
+                current = self.root() if root is None else root
+                for protection, nodes, edges, facts, identities in reversed(self._observation_cache):
+                    if (protection[:2] == policy[:2] and (defer_names or not protection[2])
+                            and current in edges):
+                        break
+                else:
+                    try:
+                        tuple(self.nodes(current, strict=True, protected_ids=protected_ids,
+                                         protect_text=protect_text, defer_names=defer_names))
+                    except UiError as error:
+                        if attempt or root is not None or not isinstance(
+                                error.__cause__, ProviderDisappeared):
+                            raise
+                        # The failed read invalidated all cached observations.
+                        # Reacquire the desktop once with the same read policy.
+                        continue
+                    protection, nodes, edges, facts, identities = self._observation_cache[-1]
+                selected = nodes if current == nodes[0] else self.snapshot_scope(nodes, edges, current)
+                return selected, edges, identities, facts
 
     def _read_nodes(self, root=None, *, strict=False, protected_ids=(), protect_text=False,
                     snapshot=None, facts=None, identities=None, defer_names=False):

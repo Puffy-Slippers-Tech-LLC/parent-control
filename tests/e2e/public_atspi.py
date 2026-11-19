@@ -36,6 +36,10 @@ class IncompleteTree(RuntimeError):
     pass
 
 
+class ProviderDisappeared(IncompleteTree):
+    """A desktop provider left both the bus and the public registry mid-read."""
+
+
 class PublicAtspi:
     # This module-like facade delegates enums, not its identity. Otherwise an
     # AccessibleUI given an existing facade sees gi.repository.Atspi and wraps
@@ -591,9 +595,9 @@ class PublicAtspi:
                         'org.freedesktop.DBus.Error.ServiceUnknown',
                         'org.freedesktop.DBus.Error.NameHasNoOwner'):
                     self.cache_process_notes(node.bus, error)
-                    # Evidence only: distinguish an exited owner still listed
-                    # by the registry from a live provider/query failure. Never
-                    # retry input, omit a subtree or replace the original error.
+                    # Only a fully departed provider allows a new desktop
+                    # snapshot. The current snapshot always fails as a whole.
+                    provider = {}
                     for label, query, present in (
                             ('owner', ('org.freedesktop.DBus', '/org/freedesktop/DBus',
                                        'org.freedesktop.DBus', 'NameHasOwner', 's', (node.bus,)),
@@ -606,7 +610,10 @@ class PublicAtspi:
                             status = 'present' if present(self.call(*query)) else 'missing'
                         except Exception:
                             pass
+                        provider[label] = status
                         error.add_note('public-atspi-cache-' + label + ':' + status)
+                    if provider == {'owner': 'missing', 'registry': 'missing'}:
+                        raise ProviderDisappeared('public-atspi:incomplete-tree') from error
                 if not isinstance(error, GLib.Error) or Gio.DBusError.get_remote_error(error) not in (
                         'org.freedesktop.DBus.Error.UnknownMethod',
                         'org.freedesktop.DBus.Error.UnknownInterface',

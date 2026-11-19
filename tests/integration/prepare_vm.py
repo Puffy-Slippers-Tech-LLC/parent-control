@@ -336,6 +336,11 @@ def selinux_policy(contents):
 
 def preparation_digest(checkout: Path = CHECKOUT, *, os_id=None, legacy=False) -> str:
     files = LEGACY_SCRIPT_FILES if legacy else preparation_files(os_id)
+    # Guest preparation already runs from its staged tree. The host controller
+    # uses its captured copy for every digest read in the same operation.
+    snapshot = sys.modules.get('tools.vm_source_snapshot')
+    if snapshot is not None:
+        checkout = snapshot.source_path(checkout)
     return preparation_source_digest(lambda relative: (checkout / relative).read_bytes(), files)
 
 

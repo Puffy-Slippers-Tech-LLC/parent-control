@@ -14,10 +14,10 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 
-import prepare_baseline as baseline
 import vm_config
 from watch_activity import operation
 
@@ -29,7 +29,8 @@ def build_worker(package_format, result_fd):
     import test_retention
     from regression_process import Control
     from prepare_appsnapshot import build_artifacts
-    baseline.require(os.geteuid() != 0, 'build:unprivileged-caller-required')
+    if os.geteuid() == 0:
+        raise ValueError('build:unprivileged-caller-required')
     # The public preparation owner already holds checkout-local activity and
     # the host-wide reservation. Reacquiring its lock here would deadlock the
     # parent waiting for this package while retaining the VM controller lease.
@@ -48,6 +49,7 @@ def build_worker(package_format, result_fd):
 
 @contextmanager
 def built_artifacts(package_format, caller):
+    import prepare_baseline as baseline
     import test_source
     from test_storage import scratch_descriptors
     reader, writer = os.pipe()
@@ -85,6 +87,7 @@ def built_artifacts(package_format, caller):
 
 def prepare(mode, assume_yes, vm, caller):
     import libvirt
+    import prepare_baseline as baseline
     import test_retention
     from test_storage import privileged_state
     from vm_backup import lease, idle, read_json, verify_bootstrap
@@ -159,6 +162,8 @@ def prepare(mode, assume_yes, vm, caller):
 
 
 def main(argv=None):
+    from tools.vm_source_snapshot import capture
+
     argv, vm = vm_config.extract(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     vm_config.add_host_argument(parser)
@@ -167,12 +172,18 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         uid = int(os.environ.get('PKEXEC_UID', '0'))
-        baseline.require(os.geteuid() == os.getegid() == 0 and uid > 0,
-                         'guard:root; use tools/prepare-vm')
+        if not (os.geteuid() == os.getegid() == 0 and uid > 0):
+            raise ValueError('guard:root; use tools/prepare-vm')
         vm_config.require_online(vm)
-        return prepare(args.mode, args.y, vm, pwd.getpwuid(uid))
+        with capture(ROOT):
+            from prepare_baseline import CaptureError
+
+            try:
+                return prepare(args.mode, args.y, vm, pwd.getpwuid(uid))
+            except CaptureError as error:
+                raise ValueError(str(error)) from error
     except (Exception, KeyboardInterrupt) as error:
-        category = str(error) if isinstance(error, (baseline.CaptureError, ValueError)) else type(error).__name__
+        category = str(error) if isinstance(error, ValueError) else type(error).__name__
         print('prepare-vm: ' + category + '; preserve controller state and retry.', file=sys.stderr)
         return 1
 

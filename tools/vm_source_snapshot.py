@@ -23,7 +23,7 @@ from types import ModuleType
 # bytecode, generated output and private checkout metadata are not source inputs.
 FOLDERS = ('tests/integration', 'tests/e2e', 'tests/system', 'tests/support', 'tests/fixtures',
            'tools', 'common', 'config', 'data')
-PATTERNS = ('*.py', '*.json', '*.txt', '*.toml', '*.pm', '*.png')
+PATTERNS = ('*.py', '*.json', '*.txt', '*.toml', '*.pm', '*.png', '*.c')
 _active = None
 
 
@@ -31,7 +31,7 @@ def selected_paths(root):
     paths = {path for folder in FOLDERS for pattern in PATTERNS
              for path in (root / folder).rglob(pattern)
              if '__pycache__' not in path.parts}
-    paths.update(path for pattern in ('*.json', '*.txt')
+    paths.update(path for pattern in ('__init__.py', '*.json', '*.txt')
                  for path in (root / 'tests').glob(pattern))
     return sorted(paths)
 

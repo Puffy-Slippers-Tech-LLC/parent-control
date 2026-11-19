@@ -609,6 +609,8 @@ the existing case or unfinished brief, linked here.
   app-snapshot implementation and restore the powered-off baseline. One exclusive
   VM lock covers baseline work, package building, app preparation and final restore;
   nested stages borrow that process's lock without releasing the enclosing lease.
+  Each preparation worker captures the baseline source inputs once. Guest staging,
+  baseline verification and app-snapshot acquisition use that same capture.
   Ordinary setup and test attempts never prepare or replace it implicitly.
   The [Snap switch](../../tests/integration/Environment.md#reusable-preparation-ownership)
   has one worker-admission exception: enabling Snap against a baseline recorded

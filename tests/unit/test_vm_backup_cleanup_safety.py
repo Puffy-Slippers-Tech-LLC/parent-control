@@ -1469,9 +1469,9 @@ def test_auto_preparation_bootstraps_only_verified_snapshot_free_restore(snapsho
     recovery.atomic(journal_path, journal)
     monkeypatch.setitem(sys.modules, 'libvirt', API)
     prepare = Mock(side_effect=[0, 37])
-    monkeypatch.setattr(host.baseline, 'main', prepare)
-    monkeypatch.setattr(host.baseline, 'Commands', lambda: rig.commands)
-    monkeypatch.setattr(host.baseline, 'start_event_dispatch', Mock())
+    monkeypatch.setattr(base, 'main', prepare)
+    monkeypatch.setattr(base, 'Commands', lambda: rig.commands)
+    monkeypatch.setattr(base, 'start_event_dispatch', Mock())
     if fault is not None:
         with pytest.raises(base.CaptureError):
             host.prepare('auto', True, rig.vm, SimpleNamespace(pw_uid=os.getuid()))
@@ -1587,9 +1587,9 @@ def test_combined_preparation_holds_vm_lock_until_final_restore(backup_rig, monk
         check_lock('restore')
         assert rig.source.off and xml == rig.source.baseline()
     monkeypatch.setitem(sys.modules, 'libvirt', API)
-    monkeypatch.setattr(host.baseline, 'main', baseline)
-    monkeypatch.setattr(host.baseline, 'Commands', lambda: rig.commands)
-    monkeypatch.setattr(host.baseline, 'start_event_dispatch', Mock())
+    monkeypatch.setattr(base, 'main', baseline)
+    monkeypatch.setattr(base, 'Commands', lambda: rig.commands)
+    monkeypatch.setattr(base, 'start_event_dispatch', Mock())
     monkeypatch.setattr(host, 'built_artifacts', artifacts)
     monkeypatch.setattr(prepare_snapshot, 'prepare', app)
     monkeypatch.setattr(test_storage, 'privileged_state', lambda uid: rig.directory / 'retention')
@@ -1666,8 +1666,10 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     assert [vm.name for vm in vm_config.execution('all')[1]] == ['Backup-guest']
 
 
-def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
+def test_preparation_proof_uses_captured_sources_and_ignores_backup_root(tmp_path, monkeypatch):
     import prepare_vm as guest
+    from tools import test_storage, vm_source_snapshot
+
     for relative in guest.SCRIPT_FILES:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1680,6 +1682,13 @@ def test_moving_backup_root_does_not_invalidate_preparation_proof(tmp_path):
     document['hosts'][1]['enabled'] = 'true'
     config.write_text(json.dumps(document))
     assert guest.preparation_digest(tmp_path) == before
+
+    monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
+    dependencies = tmp_path / 'tests/integration/guest_test_dependencies.py'
+    with vm_source_snapshot.capture(tmp_path):
+        dependencies.write_bytes(dependencies.read_bytes() + b'\n# Updated preparation input\n')
+        assert guest.preparation_digest(tmp_path) == before
+    assert guest.preparation_digest(tmp_path) != before
 
 
 def test_helper_pinning_refuses_unfinished_restore_and_handles_unprepared_vm(tmp_path):

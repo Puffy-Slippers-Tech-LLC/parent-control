@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 import prepare_vm
 from qualification_storage import allocate, recovery_session
 from test_account_password import matches
+from tools.vm_source_snapshot import source_path
 from watch_activity import observed, operation
 
 STAGE = '/var/lib/onpc-baseline-preparation'
@@ -445,18 +446,18 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
                       'tests/integration/test_account_password.py'})
         files.update(str(Path(account.icon_file).relative_to(prepare_vm.CHECKOUT))
                      for account in prepare_vm.IDENTITIES)
+        checkout = source_path(prepare_vm.CHECKOUT)
         from baseline_fixtures import write_record
         stage = {'purpose': 'onpc-preparation-source-staging-v1', 'pending': None,
                  'files': {relative: hashlib.sha256(
-                     (prepare_vm.CHECKOUT / relative).read_bytes()).hexdigest()
+                     (checkout / relative).read_bytes()).hexdigest()
                            for relative in STAGED_MOVABLE_SOURCES}}
         write_record(g, stage, SOURCE_STAGING)
         for relative in sorted(files):
             if relative in stage['files']:
                 stage['pending'] = relative
                 write_record(g, stage, SOURCE_STAGING)
-            write(g, STAGE + '/checkout/' + relative,
-                  (prepare_vm.CHECKOUT / relative).read_bytes())
+            write(g, STAGE + '/checkout/' + relative, (checkout / relative).read_bytes())
             if relative in stage['files']:
                 require(g.checksum('sha256', STAGE + '/checkout/' + relative) == stage['files'][relative],
                         'guest:preparation-source-changed')

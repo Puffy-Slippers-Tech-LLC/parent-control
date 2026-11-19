@@ -30,13 +30,26 @@ ENABLED_CHOICE = 'onpc-monitor-enabled-fixture@example.invalid'
 DISABLED_CHOICE = 'onpc-monitor-disabled-fixture@example.invalid'
 
 
+def state_digests(*uids):
+    """Read verified account state on one new bus connection per boundary."""
+    result = {}
+    for uid, values in account_states(uids).items():
+        encoded = json.dumps([value.hex() if isinstance(value, bytes) else value
+                              for value in values], sort_keys=True).encode()
+        result[uid] = hashlib.sha256(encoded).hexdigest()
+    return result
+
+
 def state_digest(uid):
-    # Reuse the typed observer rather than spawning a busctl process for each
-    # property at every recovery boundary. Each digest still reads fresh state.
-    values = account_states((uid,))[uid]
-    encoded = json.dumps([value.hex() if isinstance(value, bytes) else value
-                          for value in values], sort_keys=True).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return state_digests(uid)[uid]
+
+
+def verify_other_accounts(accounts, prepared, boundary, *, observed=None):
+    """Reuse a fresh peer snapshot when the recovery stage also reads the child."""
+    if observed is None:
+        observed = state_digests(accounts['other'], accounts['parent'])
+    for role in ('other', 'parent'):
+        guest.require(observed[accounts[role]] == prepared['other_accounts'][role], boundary)
 
 
 def native_choices(manager, uid):
@@ -54,7 +67,8 @@ def prepare():
     guest.require(not manager._shell_is_available(child), 'extension:prepare-live-shell')
     guest.require(not FIXTURE.exists() and not FIXTURE.is_symlink(),
                   'extension:prepare-collision')
-    others = {role: state_digest(accounts[role]) for role in ('other', 'parent')}
+    states = state_digests(accounts['other'], accounts['parent'])
+    others = {role: states[accounts[role]] for role in ('other', 'parent')}
     other_choices = native_choices(manager, accounts['other'])
     accepted(call(accounts['parent'], 'SetParentControl', '(ubu)',
                   (accounts['child'], False, 1440)))
@@ -267,6 +281,38 @@ def wait_for_shell_bus(account, manager, wait):
             raise
 
     return wait(connect, 'user-bus-not-ready')
+
+
+def observe_shell(account, manager, wait, observers):
+    """Wait for the session's extension interface on its own new bus observer."""
+    observer = wait_for_shell_bus(account, manager, wait)
+    observers.append(observer)
+    wait(lambda: observer.owner(SHELL), 'shell-unavailable')
+
+    def ready():
+        try:
+            return observer.info()
+        except observer.GLib.Error as error:
+            # Shell owns its name before exporting this interface at login.
+            if observer.Gio.DBusError.get_remote_error(error) in {
+                    'org.freedesktop.DBus.Error.UnknownMethod',
+                    'org.freedesktop.DBus.Error.UnknownObject'}:
+                return False
+            raise
+
+    wait(ready, 'extension-interface-not-ready')
+    return observer
+
+
+def verify_membership(manager, account, choices, boundary):
+    enabled = manager._list(account, 'enabled-extensions')
+    disabled = manager._list(account, 'disabled-extensions')
+    guest.require(([item for item in enabled if item != UUID],
+                   [item for item in disabled if item != UUID]) == choices,
+                  boundary + ':other-extension-choices-changed')
+    guest.require(UUID in enabled and UUID not in disabled
+                  and manager._runtime_state(account) == (True, True),
+                  boundary + ':durable-runtime-membership')
 
 
 def invocation():
@@ -517,19 +563,13 @@ def verify(publish):
                 for _stamp, row in rows))
 
         def preserved():
-            guest.require(state_digest(child) == snapshot, 'extension:child-policy-changed')
+            observed = state_digests(child, accounts['other'], accounts['parent'])
+            guest.require(observed[child] == snapshot, 'extension:child-policy-changed')
             guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
                           'extension:other-child-extension-changed')
-            for role in ('other', 'parent'):
-                guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
-                              'extension:other-account-changed')
-            guest.require(([item for item in manager._list(account, 'enabled-extensions') if item != UUID],
-                           [item for item in manager._list(account, 'disabled-extensions') if item != UUID])
-                          == choices, 'extension:other-extension-choices-changed')
-            guest.require(UUID in manager._list(account, 'enabled-extensions') and
-                          UUID not in manager._list(account, 'disabled-extensions') and
-                          manager._runtime_state(account) == (True, True),
-                          'extension:durable-runtime-membership')
+            verify_other_accounts(accounts, prepared, 'extension:other-account-changed',
+                                  observed=observed)
+            verify_membership(manager, account, choices, 'extension')
             guest.require(invocation() == identity and same_shell() and child_session(child)[0] == session,
                           'extension:broker-or-session-replaced')
             assisted = {'RecoverChildExtension', 'SetParentControl', 'RequestAccess', 'RequestOwnAccess'}
@@ -579,7 +619,6 @@ def verify(publish):
                                   broker_events.origin + row['elapsed_ms'] / 1000 >= began),
                           'extension:' + label + '-preparation-reported-error')
             preserved()
-            return rows
 
         def global_disable():
             manager._run_as(account, 'gsettings', 'set', 'org.gnome.shell',
@@ -671,9 +710,7 @@ def verify(publish):
         guest.require(not store.load(child)['parent_control_enabled'] and
                       shell.info().get('state') != 1 and not shell.enabled() and
                       not attempts(broker_events.since(off)), 'extension:parent-off-lost')
-        for role in ('other', 'parent'):
-            guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
-                          'extension:other-account-changed')
+        verify_other_accounts(accounts, prepared, 'extension:other-account-changed')
         guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
                       'extension:other-child-extension-changed')
         guest.require(invocation() == identity and same_shell() and child_session(child)[0] == session,
@@ -731,23 +768,7 @@ def verify_lifecycle(publish):
                         timeout=min(timeout, remaining))
 
     def observe():
-        observer = wait_for_shell_bus(account, manager, wait)
-        observers.append(observer)
-        wait(lambda: observer.owner(SHELL), 'shell-unavailable')
-        def ready():
-            try:
-                return observer.info()
-            except observer.GLib.Error as error:
-                # Shell owns its name before exporting the extension object
-                # during normal login. Wait only for this startup boundary;
-                # unrelated D-Bus failures remain test failures.
-                if observer.Gio.DBusError.get_remote_error(error) in {
-                        'org.freedesktop.DBus.Error.UnknownMethod',
-                        'org.freedesktop.DBus.Error.UnknownObject'}:
-                    return False
-                raise
-        wait(ready, 'extension-interface-not-ready')
-        return observer
+        return observe_shell(account, manager, wait, observers)
 
     def bus_identity(observer):
         def query(method, signature, values, result):
@@ -764,10 +785,9 @@ def verify_lifecycle(publish):
         start = (process / 'stat').read_text().rsplit(')', 1)[1].split()[19]
         return query('GetId', '()', (), '(s)'), owner, (pid, start)
 
-    def other_accounts_preserved():
-        for role in ('other', 'parent'):
-            guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
-                          'extension:lifecycle-other-account-changed')
+    def other_accounts_preserved(observed=None):
+        verify_other_accounts(accounts, prepared, 'extension:lifecycle-other-account-changed',
+                              observed=observed)
         guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
                       'extension:lifecycle-other-extension-changed')
 
@@ -788,15 +808,10 @@ def verify_lifecycle(publish):
             for _stamp, row in rows)
 
     def preserved():
-        guest.require(state_digest(child) == snapshot, 'extension:lifecycle-policy-changed')
-        other_accounts_preserved()
-        guest.require(([value for value in manager._list(account, 'enabled-extensions') if value != UUID],
-                       [value for value in manager._list(account, 'disabled-extensions') if value != UUID])
-                      == choices, 'extension:lifecycle-extension-choices-changed')
-        guest.require(UUID in manager._list(account, 'enabled-extensions')
-                      and UUID not in manager._list(account, 'disabled-extensions')
-                      and manager._runtime_state(account) == (True, True),
-                      'extension:lifecycle-durable-runtime-membership')
+        observed = state_digests(child, accounts['other'], accounts['parent'])
+        guest.require(observed[child] == snapshot, 'extension:lifecycle-policy-changed')
+        other_accounts_preserved(observed)
+        verify_membership(manager, account, choices, 'extension:lifecycle')
 
     def disable():
         manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
@@ -1054,20 +1069,7 @@ def verify_failure_reporting(publish):
 
     def observe():
         wait(lambda: child_session(child), 'child-session')
-        observer = wait_for_shell_bus(account, manager, wait)
-        observers.append(observer)
-        wait(lambda: observer.owner(SHELL), 'shell-unavailable')
-        def ready():
-            try:
-                return observer.info()
-            except observer.GLib.Error as error:
-                if observer.Gio.DBusError.get_remote_error(error) in {
-                        'org.freedesktop.DBus.Error.UnknownMethod',
-                        'org.freedesktop.DBus.Error.UnknownObject'}:
-                    return False
-                raise
-        wait(ready, 'extension-interface')
-        return observer
+        return observe_shell(account, manager, wait, observers)
 
     def automatic_login(enabled):
         guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
@@ -1180,10 +1182,10 @@ def verify_failure_reporting(publish):
         guest.require(not attempts(events.since(since)), 'extension:failure-automatic-enable')
 
     def preserved():
-        guest.require(state_digest(child) == snapshot, 'extension:failure-child-policy-changed')
-        for role in ('other', 'parent'):
-            guest.require(state_digest(accounts[role]) == prepared['other_accounts'][role],
-                          'extension:failure-other-account-changed')
+        observed = state_digests(child, accounts['other'], accounts['parent'])
+        guest.require(observed[child] == snapshot, 'extension:failure-child-policy-changed')
+        verify_other_accounts(accounts, prepared, 'extension:failure-other-account-changed',
+                              observed=observed)
         guest.require(native_choices(manager, accounts['other']) == prepared['other_child_choices'],
                       'extension:failure-other-child-extension-changed')
 

@@ -301,7 +301,11 @@ def _load(root, directory, unbound, titles, catalogue):
                     # Consolidated cases no longer appear as tiny standalone
                     # work. Preserve their stored history and recordings.
                     continue
-                current = catalogue.get((record['category'], record['id']), {})
+                current = catalogue.get((record['category'], record['id']))
+                if current is None and record['category'] == 'e2e' and type(record['id']) is int:
+                    # Retired scenario IDs are absent from the E2E inventory.
+                    continue
+                current = current or {}
                 if revision != current.get('execution_revision', 1):
                     # A former fragment is not a measurement or recording of
                     # the new combined history. Retain its files as history.

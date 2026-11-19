@@ -1,5 +1,7 @@
-"""Cases 13–16: six app-rule transitions with explicit limit/match bindings."""
+"""Six app-rule transitions with representative limit and match bindings."""
 from dataclasses import replace
+from functools import partial
+
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (app_policy_entry, desktop_entry, native_activity_entry, native_usable_app,
@@ -168,20 +170,10 @@ PLAN = JourneyPlan(
                                     'other-child': 'standard-recipient-'}[account],)},
     kiosk_request=('other-child', 'parent', 75, True),
 )
-# The pattern stays in A's directory. S's Versioned subdirectory remains
-# outside it, so the same retained nonmatching activity proves isolation.
-PATTERN_PLAN = replace(
-    PLAN, worker_mode='app_rule_changes_pattern_case',
-    screen_tags={stage: tag.replace('ui:text-match-precise-',
-                                    'ui:text-match-wildcard-appimages-')
-                 for stage, tag in SCREENS.items()},
-    match_checks={stage: (app, MATCH_RULES[2] if app == MATCH_APPS['A'] else rule)
-                  for stage, (app, rule) in MATCHES.items()},
-)
 
 
-def limits_off_plan(base=PLAN):
-    """Reuse the six rounds, preparing Soft→Hard through a real approval."""
+def limits_off_pattern_plan(base):
+    """Keep the six rounds with a directory pattern and limits disabled."""
     additions = {
         'saved-settings': {
             'limits-off-page': 'ui:discovery-ready',
@@ -211,7 +203,8 @@ def limits_off_plan(base=PLAN):
     screens = {}
     phases = dict(base.phases)
     for stage, tag in base.screen_tags.items():
-        screens[stage] = tag
+        # S's Versioned subdirectory stays outside A's directory pattern.
+        screens[stage] = tag.replace('ui:text-match-precise-', 'ui:text-match-wildcard-appimages-')
         screens.update(additions.get(stage, {}))
         phases.update({extra: base.phases[stage] for extra in additions.get(stage, {})})
     extra_login = {prefix + '-' + stage for prefix, (_account, group) in extra_entries.items()
@@ -227,8 +220,10 @@ def limits_off_plan(base=PLAN):
     for stage in ('limits-off-page', 'soft-opening-enabled', 'soft-opening-disable-page'):
         settings[stage] = SettingsObservation('existing-fixture-child', True, ('30 minutes',))
     return replace(
-        base, worker_mode='app_rule_changes_disabled_case', screen_tags=screens, phases=phases,
+        base, worker_mode='app_rule_changes_disabled_pattern_case', screen_tags=screens, phases=phases,
         settings_checks=settings,
+        match_checks={stage: (app, MATCH_RULES[2] if app == MATCH_APPS['A'] else rule)
+                      for stage, (app, rule) in base.match_checks.items()},
         child_bindings={stage: 'existing' for stage, tag in screens.items()
                         if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
         invocations=tuple(stage for stage in screens if stage in LOGIN_STAGES | extra_login),
@@ -243,9 +238,7 @@ def limits_off_plan(base=PLAN):
     )
 
 
-DISABLED_PLAN = limits_off_plan()
-DISABLED_PATTERN_PLAN = replace(limits_off_plan(PATTERN_PLAN),
-                                worker_mode='app_rule_changes_disabled_pattern_case')
+DISABLED_PATTERN_PLAN = limits_off_pattern_plan(PLAN)
 
 
 class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRequestJourney):
@@ -268,7 +261,7 @@ class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRe
             observed.setdefault('comparison', {})['soft_opening_daily_margin'] = True
 
 
-def execute(recorder, context, *, plan=PLAN, binding='enabled-precise'):
+def execute(recorder, context, *, plan, binding):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
     context.fixture_caller = 'E2E-006/' + binding
@@ -279,17 +272,7 @@ def execute(recorder, context, *, plan=PLAN, binding='enabled-precise'):
                              journey_type=AppRuleChangesJourney)
 
 
-def execute_pattern(recorder, context):
-    execute(recorder, context, plan=PATTERN_PLAN, binding='enabled-pattern')
-
-
-def execute_disabled(recorder, context):
-    execute(recorder, context, plan=DISABLED_PLAN, binding='disabled-precise')
-
-
-def execute_disabled_pattern(recorder, context):
-    execute(recorder, context, plan=DISABLED_PATTERN_PLAN, binding='disabled-pattern')
-
-
-E2E_CASES = {'enabled-precise': execute, 'enabled-pattern': execute_pattern,
-             'disabled-precise': execute_disabled, 'disabled-pattern': execute_disabled_pattern}
+E2E_CASES = {
+    'enabled-precise': partial(execute, plan=PLAN, binding='enabled-precise'),
+    'disabled-pattern': partial(execute, plan=DISABLED_PATTERN_PLAN, binding='disabled-pattern'),
+}

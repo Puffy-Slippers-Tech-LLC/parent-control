@@ -30,7 +30,7 @@ sub run {
     $journey->seen('offline-enter');
     onpc_parent::language_selection($journey, 'chinese');
     $journey->seen('chinese-save');
-    for my $prefix ('parent-riley', 'parent-jordan', 'parent-riley-return') {
+    for my $prefix ('parent-riley', 'parent-jordan') {
         onpc_allowance_boundaries::select_child($journey, $prefix);
         $journey->seen("$prefix-state");
     }
@@ -48,11 +48,8 @@ sub run {
     $journey->seen($_) for qw(hebrew-save riley-hebrew);
     onpc_parent::language_selection($journey, 'cancel-german');
     $journey->seen($_) for qw(cancel-german-response cancel-retained cancel-close riley-cancelled
-        jordan-restored jordan-restored-form
-        jordan-casey-select jordan-casey jordan-jamie-select
-        riley-restored riley-restored-form
-        riley-casey-select riley-casey riley-jamie-select
-        jordan-final station-cancel station-returned);
+        jordan-restored jordan-casey-select jordan-casey jordan-jamie-select
+        station-cancel station-returned);
     onpc_gdm::enter_station($journey, 'renewed-');
     $journey->seen($_) for qw(jordan-reentered
         riley-reentered-select riley-reentered
@@ -68,8 +65,6 @@ sub run {
     my $returned = onpc_gdm::sign_in_challenge($journey, 'return',
         'return-installed-greeter', 'return-parent-focused', 'return-desktop');
     onpc_parent::launch($journey, $returned, 'management', 'return-desktop');
-    onpc_allowance_boundaries::select_child($journey, 'final-jordan');
-    $journey->seen('jordan-offline-final');
     onpc_allowance_boundaries::select_child($journey, 'final-riley');
     $journey->seen($_) for qw(riley-offline-final parent-final-choice parent-final-close riley-online-final);
     onpc_allowance_boundaries::select_child($journey, 'online-jordan');

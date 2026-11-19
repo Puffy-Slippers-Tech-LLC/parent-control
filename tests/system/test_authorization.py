@@ -1,6 +1,7 @@
 """Installed system-bus assertions; run only through the guarded VM runner."""
 
 from contextlib import ExitStack, contextmanager
+from functools import partial
 import json
 from pathlib import Path
 import pwd
@@ -80,19 +81,6 @@ def accounts():
         names[role] = name
     values = {role: pwd.getpwnam(name).pw_uid for role, name in names.items()}
     values['kiosk'] = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
-    # Preserve the public dependency's real caller boundary alongside product
-    # results. Raw replies stay in the existing private/redacted diagnostics;
-    # this probe never substitutes for a successful GetTimeStatus assertion.
-    query = ['busctl', '--system', 'call', 'org.freedesktop.MalcontentTimer1',
-             '/org/freedesktop/MalcontentTimer1',
-             'org.freedesktop.MalcontentTimer1.Parent', 'QueryUsage', 'uss',
-             str(values['child1']), 'login-session', '']
-    for role in ('root', 'parent1', 'child1', 'kiosk'):
-        prefix = [] if role == 'root' else [
-            'runuser', '--user', pwd.getpwuid(values[role]).pw_name, '--']
-        guest.commands.run(prefix + query, timeout=45, check=False, merge_stderr=False)
-        print(f'onpc-system: stage=usage-boundary role={role} '
-              f'exit={guest.commands.last_returncode}', flush=True)
     # Empty policies exercise authorization without selecting application processes.
     for reply in batch(values['parent1'], [
             {'kind': 'call', 'method': 'SetParentControl', 'signature': '(ubu)',
@@ -193,53 +181,50 @@ def denied(reply, boundary):
 @pytest.mark.parametrize('methods', [pytest.param(METHOD_ROLES, id='ListManagedUsers-parent1')])
 def test_method_role_matrix(accounts, callers, methods, request, record_testsuite_property):
     """One finite authorization history owns its shared live-broker setup."""
-    with validation_stage('authorization-validation', 'role-permissions'):
+    stage = partial(validation_stage, 'authorization-validation', record=record_testsuite_property)
+    with stage('role-permissions'):
         _method_role_matrix(accounts, callers, methods)
-    with validation_stage('authorization-validation', 'account-isolation-and-discovery'):
-        _cross_child_targets_fail_closed(accounts, callers, (
-            ('GetPreferences', 'child1'), ('GetTimeStatus', 'child1'),
-            ('UpdateRequestPreferences', 'child2'),
-            ('UpdateRequestPreferencesWithUnit', 'child1'), ('SetRequestMuted', 'child1'),
-        ))
-    with validation_stage('authorization-validation', 'deleted-target-and-approver'):
+    with stage('account-isolation-and-discovery'):
+        _cross_child_targets_fail_closed(accounts, callers)
+    with stage('deleted-target-and-approver'):
         identities = _disposable_identities(accounts, callers, record_testsuite_property)
         _deleted_target_and_approver_fail_closed(
             accounts, callers, identities, record_testsuite_property)
-    with validation_stage('authorization-validation', 'root-permissions'):
+    with stage('root-permissions'):
         _root_method_permissions_and_approver_exclusion(accounts, callers)
-    with validation_stage('authorization-validation', 'identity-eligibility-and-icons'):
+    with stage('identity-eligibility-and-icons'):
         _ineligible_callers_cannot_use_broker(accounts, callers, ('noninteractive', 'system'))
-    with validation_stage('authorization-validation', 'administrator-eligibility-predicates'):
+    with stage('administrator-eligibility-predicates'):
         _administrator_eligibility_predicates(accounts, callers, record_testsuite_property)
-    with validation_stage('authorization-validation', 'remote-accounts'):
+    with stage('remote-accounts'):
         with _remote_directory() as remote:
             _remote_accounts_are_excluded(accounts, callers, remote, record_testsuite_property)
-    with validation_stage('authorization-validation', 'management-isolation-and-role-revalidation'):
+    with stage('management-isolation-and-role-revalidation'):
         _management_changes_preserve_other_accounts(accounts, callers)
 
     # Keep real credential installation at its former first authentication case,
     # after the earlier agentless and independent-eligibility observations.
-    with validation_stage('authorization-validation', 'requester-disconnect'):
+    with stage('requester-disconnect'):
         passwords = request.getfixturevalue('passwords')
         diagnostics = request.getfixturevalue('authentication_diagnostics')
         _requester_disconnect_during_approval(
             accounts, callers, passwords, diagnostics, record_testsuite_property)
-    with validation_stage('authorization-validation', 'authenticated-target-deletion'):
+    with stage('authenticated-target-deletion'):
         _authenticated_request_rejects_deleted_target(
             accounts, callers, passwords, diagnostics, record_testsuite_property)
     for surface, mutations in (
             ('child1', ('child-role', 'approver-role')),
             ('kiosk', ('preferences',))):
-        with validation_stage('authorization-validation', 'authenticated-live-state-' + surface):
+        with stage('authenticated-live-state-' + surface):
             _authenticated_request_revalidation(
                 accounts, callers, passwords, surface, mutations, diagnostics)
     # Both real PolicyKit actions run in the selected-parent histories. A
     # single lock mutation represents the shared account/password refusal.
-    with validation_stage('authorization-validation', 'locked-approver-kiosk'):
+    with stage('locked-approver-kiosk'):
         _request_rejects_locked_approver_during_authentication(
             accounts, callers, passwords, diagnostics)
     for surface in ('child1', 'kiosk'):
-        with validation_stage('authorization-validation', 'selected-parent-authentication-' + surface):
+        with stage('selected-parent-authentication-' + surface):
             _real_selected_parent_authentication(
                 accounts, callers, passwords, surface, diagnostics)
 
@@ -252,8 +237,15 @@ def _method_role_matrix(accounts, callers, methods):
             print(f'onpc-system: stage=method-role method={method} role={role}', flush=True)
             signature, args, allowed = invocation(method, role, accounts,
                                                  administrator=callers('parent1'))
-            reply = callers(role).call(method, signature, args)
+            try:
+                reply = callers(role).call(method, signature, args)
+            except Exception:
+                if method == 'GetTimeStatus':
+                    _usage_failure_diagnostics(accounts, role)
+                raise
             if allowed:
+                if method == 'GetTimeStatus' and 'result' not in reply:
+                    _usage_failure_diagnostics(accounts, role)
                 result = accepted(reply, category=boundary + ':expected-success')
                 if method == 'GetOwnAccount':
                     guest.require(result[0] == accounts[role], boundary + ':own-target')
@@ -263,17 +255,47 @@ def _method_role_matrix(accounts, callers, methods):
                 guest.require(reply.get('error') == DENIED, boundary + ':expected-denial')
 
 
-def _cross_child_targets_fail_closed(accounts, callers, cases):
+def _usage_failure_diagnostics(accounts, caller):
+    """Compare native usage replies only when the broker's normal call fails."""
+    query = ['busctl', '--system', 'call', 'org.freedesktop.MalcontentTimer1',
+             '/org/freedesktop/MalcontentTimer1',
+             'org.freedesktop.MalcontentTimer1.Parent', 'QueryUsage', 'uss',
+             str(accounts['child1']), 'login-session', '']
+    previous_returncode = guest.commands.last_returncode
+    try:
+        for role in ('root', caller):
+            try:
+                prefix = [] if role == 'root' else [
+                    'runuser', '--user', pwd.getpwuid(accounts[role]).pw_name, '--']
+                guest.commands.run(prefix + query, timeout=15, check=False, merge_stderr=False)
+                outcome = str(guest.commands.last_returncode)
+            except Exception:
+                outcome = 'unavailable'
+            print(f'onpc-system: stage=usage-boundary role={role} exit={outcome}', flush=True)
+    finally:
+        guest.commands.last_returncode = previous_returncode
+
+
+def _cross_child_targets_fail_closed(accounts, callers):
     """Cross-child isolation, private records and discovery share one live setup."""
     children = ('child1', 'child2')
     before = snapshot_accounts(accounts, children)
-    for method, role in cases:
+    def reject(method, role):
         boundary = f'authorization:cross-child:{method}:{role}'
         print(f'onpc-system: stage=cross-child method={method} role={role}', flush=True)
         signature, args, _ = invocation(method, role, accounts)
         other = accounts['child2'] if role == 'child1' else accounts['child1']
         reply = callers(role).call(method, signature, (other, *args[1:]))
         guest.require(reply.get('error') == DENIED, boundary + ':denial')
+        return boundary
+
+    for method in ('GetPreferences', 'GetTimeStatus'):
+        reject(method, 'child1')
+    guest.require(accounts_unchanged(accounts, before), 'authorization:cross-child:read-side-effect')
+    for method, role in (('UpdateRequestPreferences', 'child2'),
+                         ('UpdateRequestPreferencesWithUnit', 'child1'),
+                         ('SetRequestMuted', 'child1')):
+        boundary = reject(method, role)
         guest.require(accounts_unchanged(accounts, before), boundary + ':write')
     _private_records_and_log_components(accounts, ('child1', 'parent1', 'kiosk'))
     _account_discovery_after_installation(accounts, callers)
@@ -461,15 +483,15 @@ def _root_method_permissions_and_approver_exclusion(accounts, callers):
                   f'outcome={"allowed" if allowed else "denied"}', flush=True)
 
         # Root's management bypass cannot turn it into a selected approver.
+        before = account_state(target)
         for surface in ('child1', 'kiosk'):
-            before = account_state(target)
             method = 'RequestOwnAccess' if surface == 'child1' else 'RequestAccess'
             signature = '(uub)' if surface == 'child1' else '(uuub)'
             args = (0, 300, False) if surface == 'child1' else (target, 0, 300, False)
             reply = callers(surface).call(method, signature, args)
             guest.require(reply.get('error') == DENIED, 'authorization:root-selected-approver')
             guest.require(account_state(target) == before,
-                          'authorization:root-approver-denial-write')
+                          'authorization:root-approver-denial-write:' + surface)
         for component in ('child', 'kiosk', 'broker'):
             reply = root.call('LogEvent', '(sss)', (component, 'INFO', LOG_EVENT))
             guest.require(reply.get('error') == DENIED, 'authorization:root-log-impersonation')
@@ -491,10 +513,8 @@ def _ineligible_callers_cannot_use_broker(accounts, callers, roles):
         ('SetParentControl', 'noninteractive'), ('RequestAccess', 'kiosk'),
         ('RequestAccess', 'system'),
     ))
-    _enabled_child_request_reaches_authentication_without_grant(accounts, callers, 'child1')
     _icons_match_authoritative_account_properties(accounts, callers, ('child1', 'parent1'))
-    for surface in ('child1', 'kiosk'):
-        _ineligible_selected_approvers_fail_closed(accounts, callers, surface)
+    _agentless_approval_boundaries(accounts, callers)
 
 
 def _ineligible_caller_cannot_use_broker(accounts, role):
@@ -522,19 +542,23 @@ def _ineligible_targets_fail_closed(accounts, callers, cases):
         guest.require(account_state(accounts[role]) == before, boundary + ':write')
 
 
-def _enabled_child_request_reaches_authentication_without_grant(accounts, callers, role):
-    print(f'onpc-system: stage=enabled-agentless-request role={role}', flush=True)
-    target = accounts[role]
+def _agentless_approval_boundaries(accounts, callers):
+    """Reuse the same enabled child's policy for distinct refusal routes."""
+    target = accounts['child1']
     manager = callers('parent1')
     accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
     try:
         before = snapshot_accounts(accounts)
-        result = accepted(callers(role).call('RequestOwnAccess', '(uub)',
-                                            (accounts['parent1'], 300, False)))
+        result = accepted(callers('child1').call('RequestOwnAccess', '(uub)',
+                                                (accounts['parent1'], 300, False)))
         guest.require(result[1] in ('denied', 'cancelled') and result[2] == 0,
                       'authorization:enabled-agentless-request')
         guest.require(accounts_unchanged(accounts, before),
                       'authorization:denied-request-write')
+        for surface in ('child1', 'kiosk'):
+            _ineligible_selected_approvers_fail_closed(accounts, callers(surface), target, surface)
+            guest.require(accounts_unchanged(accounts, before),
+                          'authorization:ineligible-approver-write:' + surface)
     finally:
         accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
 
@@ -561,24 +585,15 @@ def _icons_match_authoritative_account_properties(accounts, callers, target_role
                 guest.require(own[2] == expected, boundary + ':authoritative-own')
 
 
-def _ineligible_selected_approvers_fail_closed(accounts, callers, surface):
+def _ineligible_selected_approvers_fail_closed(accounts, caller, target, surface):
     print(f'onpc-system: stage=ineligible-selected-approver surface={surface}', flush=True)
     # Vary invalid identity classes across the two entry points. Locked parents
     # keep both routes because they have management rights but cannot approve.
     approvers = (('child1', 'locked', 'noninteractive') if surface == 'child1'
                  else ('kiosk', 'locked', 'system'))
-    target = accounts['child1']
-    manager, caller = callers('parent1'), callers(surface)
-    accepted(manager.call('SetParentControl', '(ubu)', (target, True, 60)))
-    try:
-        before = snapshot_accounts(accounts)
-        for approver in approvers:
-            caller.send(request_operation(surface, target, accounts[approver]))
-            denied(caller.receive(), 'ineligible-approver:' + approver)
-        guest.require(accounts_unchanged(accounts, before),
-                      'authorization:ineligible-approver-write')
-    finally:
-        accepted(manager.call('SetParentControl', '(ubu)', (target, False, 60)))
+    for approver in approvers:
+        caller.send(request_operation(surface, target, accounts[approver]))
+        denied(caller.receive(), 'ineligible-approver:' + surface + ':' + approver)
 
 
 def _administrator_eligibility_predicates(accounts, callers, record_testsuite_property):

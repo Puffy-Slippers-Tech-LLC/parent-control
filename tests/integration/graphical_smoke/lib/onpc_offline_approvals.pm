@@ -11,16 +11,14 @@ use onpc_request_flow ();
 
 sub app_results {
     my ($journey, $prefix, $retained) = @_;
-    my $allowed = $journey->scope($prefix . '-allowed');
-    my $used = onpc_app_rows::native_usable_app($allowed, 'command', undef, 'child', 'A');
     if ($retained) {
+        my $allowed = $journey->scope($prefix . '-allowed');
+        onpc_app_rows::native_usable_app($allowed, 'command', undef, 'child', 'A');
         $journey->seen($prefix . '-allowed-capture');
-    } else {
-        onpc_app_rows::native_close_app($allowed, $used);
     }
     $journey->seen($prefix . '-hard-denied');
     my $soft = $journey->scope($prefix . '-soft');
-    $used = onpc_app_rows::native_usable_app($soft, 'command', undef, 'child', 'S');
+    my $used = onpc_app_rows::native_usable_app($soft, 'command', undef, 'child', 'S');
     if ($retained) {
         $journey->seen($prefix . '-soft-capture');
     } else {

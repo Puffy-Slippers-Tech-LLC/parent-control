@@ -1,4 +1,6 @@
-"""Cases 231/232/233/236/238: three approvals replace temporary native app access."""
+"""Three approvals replace temporary native app access."""
+from functools import partial
+
 from accessible_ui import (KIOSK_BOUND_OPERATIONS, MATCH_APPS, NAMED_CHILD_OPERATIONS,
                            OVERLAY_BOUND_OPERATIONS)
 from access_choices import AccessChoiceJourney
@@ -21,9 +23,9 @@ REQUESTS = {'first': ('other-child', 'parent', 30, False),
             'replacement': ('other-child', 'parent', 30, False)}
 
 
-def temporary_access_plan(surface, route='grid'):
+def temporary_access_plan(surface, route):
     require(surface in ('overlay', 'kiosk'), 'temporary-access:surface')
-    require(route == 'grid' or route == 'desktop' and surface == 'overlay'
+    require(route in ('grid', 'desktop') and surface == 'overlay'
             or route in ('command', 'files') and surface == 'kiosk',
             'temporary-access:route')
     def launch(role, usable=False):
@@ -132,9 +134,8 @@ def temporary_access_plan(surface, route='grid'):
         assertions_after={'final-soft-row': 'visible-result'})
 
 
-PLAN = temporary_access_plan('overlay')
+PLAN = temporary_access_plan('overlay', 'grid')
 DESKTOP_PLAN = temporary_access_plan('overlay', 'desktop')
-KIOSK_PLAN = temporary_access_plan('kiosk')
 COMMAND_KIOSK_PLAN = temporary_access_plan('kiosk', 'command')
 FILES_KIOSK_PLAN = temporary_access_plan('kiosk', 'files')
 
@@ -151,36 +152,19 @@ class TemporaryAccessJourney(KioskRequestJourney, AccessChoiceJourney):
                     'temporary-access:request-margin')
 
 
-def execute(recorder, context):
-    record_installed_journey(recorder, context, PLAN, timeout=1800,
-        actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
-
-
-def execute_kiosk(recorder, context):
-    record_installed_journey(recorder, context, KIOSK_PLAN, timeout=1800,
-        actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
-
-
-def execute_desktop(recorder, context):
+def execute(recorder, context, *, plan):
     actions = fixture_actions(include_refusal=False)
-    for role in ('A', 'H', 'S'):
-        actions.update({'desktop-' + role + '-' + name.removeprefix('desktop-'): action
-                        for name, action in desktop_entry_actions(role=role).items()})
-    record_installed_journey(recorder, context, DESKTOP_PLAN, timeout=1800,
-        actions=actions, journey_type=TemporaryAccessJourney)
+    if plan is DESKTOP_PLAN:
+        for role in ('A', 'H', 'S'):
+            actions.update({'desktop-' + role + '-' + name.removeprefix('desktop-'): action
+                            for name, action in desktop_entry_actions(role=role).items()})
+    record_installed_journey(recorder, context, plan, timeout=1800,
+                             actions=actions, journey_type=TemporaryAccessJourney)
 
 
-def execute_command_kiosk(recorder, context):
-    record_installed_journey(recorder, context, COMMAND_KIOSK_PLAN, timeout=1800,
-        actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
-
-
-def execute_files_kiosk(recorder, context):
-    record_installed_journey(recorder, context, FILES_KIOSK_PLAN, timeout=1800,
-        actions=fixture_actions(include_refusal=False), journey_type=TemporaryAccessJourney)
-
-
-E2E_CASES = {'native-grid-child-overlay': execute, 'native-grid-kiosk': execute_kiosk,
-             'native-desktop-child-overlay': execute_desktop,
-             'native-command-kiosk': execute_command_kiosk,
-             'native-file-manager-kiosk': execute_files_kiosk}
+E2E_CASES = {
+    'native-grid-child-overlay': partial(execute, plan=PLAN),
+    'native-desktop-child-overlay': partial(execute, plan=DESKTOP_PLAN),
+    'native-command-kiosk': partial(execute, plan=COMMAND_KIOSK_PLAN),
+    'native-file-manager-kiosk': partial(execute, plan=FILES_KIOSK_PLAN),
+}

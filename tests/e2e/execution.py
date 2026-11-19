@@ -457,8 +457,9 @@ def main(plan):
     progress = Progress(plan['cases'])
     progress.suite_preparation('Checking prerequisites')
     from e2e_watch import ProgressPublication
-    publication = ProgressPublication(progress)
+    from installed_setup import timed_stage
     from suite_lease import Suite
+    publication = ProgressPublication(progress)
     suite = Suite(open_source)
     previous_progress = system.watch_progress
     system.watch_progress = progress
@@ -495,7 +496,8 @@ def main(plan):
             finally:
                 if suite is not None:
                     try:
-                        suite.close()
+                        with timed_stage('suite-final-audit'):
+                            suite.close()
                         report['suite_cleanup'] = {'outcome': 'passed'}
                     except BaseException as error:
                         report['suite_cleanup'] = {

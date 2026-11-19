@@ -135,14 +135,22 @@ class InstalledSetup:
         if fixture_selection is not None:
             from e2e_fixture_preparation import qualified_subsets, validate_input
             qualified_subsets(fixture_subsets, caller=fixture_caller)
-            fixture_selection = validate_input(fixture_selection)
-        self.verified.recheck()
+            with timed_stage('setup-fixture-input-validation'):
+                fixture_selection = validate_input(fixture_selection)
         payload = self.directory / 'input'
-        inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
-        require(inventory == {p.relative_to(payload).as_posix(): system.baseline.digest(p)
-                              for p in sorted(payload.rglob('*'))
-                              if p.is_file() and p != payload / 'transfer-sha256.json'},
-                'setup:payload-changed')
+        with timed_stage('setup-transfer-input-validation'):
+            self.verified.recheck()
+            inventory = json.loads((payload / 'transfer-sha256.json').read_bytes())
+            if payload == self.verified.assets:
+                # recheck() just hashed the complete private transfer tree.
+                files = self.verified.asset_files
+                del files['transfer-sha256.json']
+            else:
+                # An install-only snapshot can have a separate helper payload.
+                files = {p.relative_to(payload).as_posix(): system.baseline.digest(p)
+                         for p in sorted(payload.rglob('*'))
+                         if p.is_file() and p != payload / 'transfer-sha256.json'}
+            require(inventory == files, 'setup:payload-changed')
         package = 'package.' + system.package_format(self.verified.lease.capture.state['guest'])
         require(inventory[package] == self.verified.inputs['package_sha256'],
                 'setup:package-changed')

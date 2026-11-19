@@ -28,22 +28,8 @@ sub shortcut {
 
 sub restrictions {
     onpc_progress::operation('Checking ordinary station shortcuts leave only the request form');
-    my ($journey, $prefix) = @_;
-    die 'station:journey' unless (@_ == 1 || @_ == 2 && $prefix eq 'after-')
-        && ref($journey) eq 'onpc_journey';
-    $prefix //= '';
-    if ($prefix eq '') {
-        shortcut($journey, 'kiosk', $_, 'restriction')
-            for ('overview', 'grid', 'terminal');
-        return;
-    }
-    for my $binding (['overview', 'super'], ['grid', 'super-a'], ['terminal', 'ctrl-alt-t']) {
-        my ($route, $key) = @$binding;
-        my $ready = "${prefix}restriction-$route-ready";
-        $journey->consume_observation($ready, $journey->seen($ready));
-        testapi::send_key($key);
-        my $read = "${prefix}restriction-$route-read";
-        $journey->consume_observation($read, $journey->seen($read));
-    }
+    my ($journey) = @_;
+    die 'station:journey' unless @_ == 1 && ref($journey) eq 'onpc_journey';
+    shortcut($journey, 'kiosk', $_, 'restriction') for ('overview', 'grid', 'terminal');
 }
 1;

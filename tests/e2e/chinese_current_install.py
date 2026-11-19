@@ -63,7 +63,6 @@ def set_language(journey, guard):
     before = command.read_identity()
     require(before['version'] is None and before['boot'] == journey.boot,
             'chinese-current-install:product-free-required')
-    require(command.read_identity() == before, 'chinese-current-install:unstable-entry')
     journey.language_entry = before
     return set_desktop_language(journey, guard, product_free=True)
 

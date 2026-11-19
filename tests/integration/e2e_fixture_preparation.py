@@ -36,8 +36,7 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'check_e2e_overlay_translated_approval',
                     'check_e2e_overlay_choices',
                     'E2E-005/combined-retained',
-                    'E2E-006/enabled-precise', 'E2E-006/enabled-pattern',
-                    'E2E-006/disabled-precise', 'E2E-006/disabled-pattern',
+                    'E2E-006/enabled-precise', 'E2E-006/disabled-pattern',
                     'E2E-007/zero-single', 'E2E-007/remaining-single',
                     'E2E-036/daily-positive',
                     'E2E-008/fresh-login', 'E2E-009/excluded', 'E2E-009/included',
@@ -51,7 +50,6 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-044/ordinary-fixed-grant', 'E2E-044/spring-forward-paired-grants',
                     'E2E-044/fall-back-paired-grants',
                     'E2E-013/child-overlay-recovery', 'E2E-013/kiosk-recovery',
-                    'E2E-015/child-overlay-cancel', 'E2E-015/child-overlay-escape',
                     'E2E-015/child-overlay-approved',
                     'E2E-022/app-restart-expired',
                     'E2E-022/sign-out-in-active',
@@ -61,7 +59,6 @@ ACTIVITY_CALLERS = (ACTIVITY_CALLER, 'check_e2e_active_grant_disable',
                     'E2E-022/idle-active-expired',
                     'E2E-022/suspend-wake-active',
                     'E2E-022/suspend-wake-expired',
-                    'E2E-025/excluded-new-login',
                     'E2E-025/excluded-retained-unlock',
                     'E2E-025/included-new-login',
                     'E2E-025/included-retained-unlock',
@@ -138,7 +135,9 @@ def prepare(vm, lease, directory, selection, *, product_free=False,
         require_product_free_restore(lease)
     elif target is None:
         raise ValueError('fixtures:e2e-installed-target-not-qualified')
-    record = validate_input(selection, target=target, product_free=product_free)
+    # The provisioner authenticates the selected bytes before its first guest
+    # write. Here only the entry state and declared target need validation.
+    record = selection_record(selection, target=target, product_free=product_free)
     if not product_free and (lease.online_pending is not False or not lease.installed_name
             or (online_restore(lease) and lease.online_bootstrap is not None)
             or (not online_restore(lease) and lease._restored_name != lease.installed_name)):

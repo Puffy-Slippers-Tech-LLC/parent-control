@@ -157,21 +157,15 @@ def kiosk_to_overlay_plan():
             PHASES.update({stage: 'step-3' for stage in (
                 *prefixed_stages('next-station', station_entry()),
                 child + '-exit', child + '-desktop', child + '-logout', child + '-greeter')})
-    for child in children:
-        role = 'child' if child == 'riley' else 'other-child'
-        recipient = 'child' if child == 'riley' else 'standard'
-        prefix = child + '-revisit'
-        SCREENS.update(prefixed_stages(prefix + '-entry', desktop_entry(role, source='gdm', entry='fresh')))
-        LOGIN_STAGES += tuple(prefixed_stages(prefix + '-entry', fresh_desktop(role)))
-        CHALLENGES[prefix + '-entry'] = (role, prefix + '-entry-' + recipient + '-recipient-qualified',
-                                        prefix + '-entry-' + recipient + '-recipient-rechecked')
-        SCREENS.update({prefix + '-launch': f'ui:{choices}-overlay-{child}-launch',
-                        prefix + '-read': f'ui:{choices}-overlay-{child}-read'})
-        if child == children[0]:
-            SCREENS.update({prefix + '-exit': f'ui:{choices}-overlay-{child}-cancel',
-                            prefix + '-desktop': f'ui:{choices}-overlay-{child}-returned',
-                            prefix + '-logout': f'system:{recipient}-logout',
-                            prefix + '-greeter': 'ui:gdm-returned'})
+    # Revisit the first child after saving the second child's distinct values.
+    # This covers fresh-session persistence and detects any cross-child overwrite.
+    SCREENS.update(prefixed_stages('jordan-revisit-entry',
+                                  desktop_entry('other-child', source='gdm', entry='fresh')))
+    LOGIN_STAGES += tuple(prefixed_stages('jordan-revisit-entry', fresh_desktop('other-child')))
+    CHALLENGES['jordan-revisit-entry'] = ('other-child', 'jordan-revisit-entry-standard-recipient-qualified',
+                                          'jordan-revisit-entry-standard-recipient-rechecked')
+    SCREENS.update({'jordan-revisit-launch': 'ui:remembered-overlay-jordan-launch',
+                    'jordan-revisit-read': 'ui:remembered-overlay-jordan-read'})
     return JourneyPlan(
         prefix='remembered-reverse', worker_mode='remembered_reverse', screen_tags=SCREENS,
         phases={'ready': 'setup', 'setup-detached': 'setup',
@@ -183,9 +177,9 @@ def kiosk_to_overlay_plan():
         child_bindings=PLAN.child_bindings, balance_checks=PLAN.balance_checks,
         request_transfer_checks={
             **{child + '-transfer-read': child + '-source' for child in children},
-            **{child + '-revisit-read': child + '-source' for child in children},
+            'jordan-revisit-read': 'jordan-source',
         },
-        assertions_after={children[-1] + '-revisit-read': 'visible-result'},
+        assertions_after={'jordan-revisit-read': 'visible-result'},
     )
 
 

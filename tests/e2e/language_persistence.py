@@ -24,18 +24,17 @@ SETUP = {
 PARENT = {'offline-enter': 'ui:parent-language-jordan-selected',
     **language_selection('chinese', 'zh-Hans', surface='parent'),
     'chinese-save': 'ui:parent-language-save'}
-for prefix, child, name in (('parent-riley', 'child', 'riley'), ('parent-jordan', 'existing', 'jordan'),
-                           ('parent-riley-return', 'child', 'riley')):
+for child, name in (('child', 'riley'), ('existing', 'jordan')):
+    prefix = 'parent-' + name
     PARENT.update({**custom_child_selection(prefix, child),
         prefix + '-selected': 'ui:parent-language-' + name + '-selected',
         prefix + '-state': 'ui:parent-language-' + name + '-enabled-zh-hans'})
-PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-riley-selected',
-    'same-parent-window': 'ui:parent-language-jordan-enabled-zh-hans',
+PARENT.update({**parent_reopen(), 'prior-window': 'ui:parent-language-jordan-selected',
+    'same-parent-window': 'ui:parent-language-jordan-selected',
     'reopened-choice': 'ui:parent-language-open', 'reopened-close': 'ui:parent-language-cancel',
     'parent-switch': 'system:parent-switch-user', 'parent-greeter': 'ui:gdm-returned'})
-# Later account/approver changes and reentry read each actual translated form.
-# The representative Cancel/reopen below owns checked-language persistence;
-# repeating the chooser after every unchanged form adds no customer outcome.
+# One approver change in German covers the independence rule. Both child
+# languages are read after station reentry, and Hebrew also crosses into overlay.
 STATION = {**station_entry('initial-'),
     'station-initial-language': 'ui:kiosk-language-initial', 'station-initial-save': 'ui:kiosk-language-save',
     'jordan-jamie': 'ui:kiosk-language-jordan-jamie',
@@ -55,14 +54,9 @@ STATION = {**station_entry('initial-'),
     'cancel-retained': 'ui:kiosk-riley-language-open', 'cancel-close': 'ui:kiosk-riley-language-cancel',
     'riley-cancelled': 'ui:language-history-riley-he-jamie',
     'jordan-restored': 'ui:language-history-jordan-restored',
-    'jordan-restored-form': 'ui:language-history-jordan-de-jamie',
     'jordan-casey-select': 'ui:language-history-jordan-casey-select',
     'jordan-casey': 'ui:language-history-jordan-de-casey',
     'jordan-jamie-select': 'ui:language-history-jordan-jamie-select',
-    'riley-restored': 'ui:language-history-riley-restored', 'riley-restored-form': 'ui:language-history-riley-he-jamie',
-    'riley-casey-select': 'ui:language-history-riley-casey-select', 'riley-casey': 'ui:language-history-riley-he-casey',
-    'riley-jamie-select': 'ui:language-history-riley-jamie-select',
-    'jordan-final': 'ui:language-history-jordan-restored',
     'station-cancel': 'ui:kiosk-request-cancel', 'station-returned': 'ui:gdm-station-returned',
     **station_entry('renewed-'),
     'jordan-reentered': 'ui:language-history-jordan-de-jamie',
@@ -81,9 +75,6 @@ OVERLAY = {**CHILD, **overlay_entry('direct', 'command', form_operation='languag
     'child-switch': 'system:child-switch-user', 'child-greeter': 'ui:gdm-returned',
 }
 FINAL = {**RETURN, 'return-parent-command': 'ui:parent-command-launch', 'return-parent-window': 'ui:switch-parent',
-    **custom_child_selection('final-jordan', 'existing'),
-    'final-jordan-selected': 'ui:parent-language-jordan-selected',
-    'jordan-offline-final': 'ui:parent-language-jordan-enabled-zh-hans',
     **custom_child_selection('final-riley', 'child'),
     'final-riley-selected': 'ui:parent-language-riley-selected',
     'riley-offline-final': 'ui:parent-language-riley-enabled-zh-hans',
@@ -96,14 +87,14 @@ FINAL = {**RETURN, 'return-parent-command': 'ui:parent-command-launch', 'return-
 SCREENS = {**SETUP, **PARENT, **STATION, **OVERLAY, **FINAL}
 ASSERTIONS = {'initial-language': 'initial-english-native-names', 'offline-enter': 'confirmed-offline',
     'riley-before': 'riley-policy-captured', 'jordan-before': 'jordan-policy-captured',
-    'parent-riley-state': 'chinese-riley', 'parent-jordan-state': 'chinese-jordan', 'parent-riley-return-state': 'chinese-riley-return',
+    'parent-riley-state': 'chinese-riley', 'parent-jordan-state': 'chinese-jordan',
     'reopened-choice': 'parent-relaunch-choice', 'jordan-original': 'jordan-request-captured',
     'jordan-german': 'german-form', 'riley-original': 'riley-request-captured', 'riley-hebrew': 'hebrew-form',
     'cancel-retained': 'cancel-preserved-hebrew', 'jordan-casey': 'jordan-approver-independent',
-    'riley-casey': 'riley-approver-independent', 'jordan-reentered': 'german-reentry',
+    'jordan-reentered': 'german-reentry',
     'riley-reentered': 'hebrew-reentry', 'direct-form': 'overlay-kiosk-sharing',
     'relaunched-form': 'overlay-relaunch', 'renewed-overlay-form': 'renewed-session-language',
-    'jordan-offline-final': 'jordan-offline-policy', 'riley-offline-final': 'riley-offline-policy',
+    'riley-offline-final': 'riley-offline-policy',
     'parent-final-choice': 'parent-child-independent', 'parent-final-close': 'confirmed-online-recovery',
     'riley-online-final': 'riley-final-policy', 'jordan-online-final': 'jordan-final-policy'}
 PLAN = JourneyPlan(prefix='language-persistence', worker_mode='language_persistence', screen_tags=SCREENS,
@@ -168,9 +159,9 @@ FORM_IDS = ('kiosk-child-account-caption', 'kiosk-approver-account-caption', 'ki
 FORM_STAGES = {'jordan-original': ('jordan', 'en', 'jamie', False),
     'jordan-german': ('jordan', 'de', 'jamie', False), 'riley-original': ('riley', 'en', 'jamie', False),
     **{stage: ('riley', 'he', 'jamie', False) for stage in
-        ('riley-hebrew', 'riley-cancelled', 'riley-restored-form', 'riley-reentered')},
-    **{stage: ('jordan', 'de', 'jamie', False) for stage in ('jordan-restored-form', 'jordan-reentered')},
-    'jordan-casey': ('jordan', 'de', 'casey', False), 'riley-casey': ('riley', 'he', 'casey', False),
+        ('riley-hebrew', 'riley-cancelled', 'riley-reentered')},
+    'jordan-reentered': ('jordan', 'de', 'jamie', False),
+    'jordan-casey': ('jordan', 'de', 'casey', False),
     **{stage: ('riley', 'he', 'casey', True) for stage in ('direct-form', 'relaunched-form', 'renewed-overlay-form')}}
 for stage, (child, language, approver, overlay) in FORM_STAGES.items():
     texts = FORM_TEXT[language]

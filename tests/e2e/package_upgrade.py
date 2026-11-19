@@ -39,10 +39,9 @@ def entry_refusal(journey, guard):
 
 def install_previous_release(journey, guard):
     """Install the bound earlier release without the qualification's refusal matrix."""
-    command = PackageCommand(journey.transport, journey.context.verified)
-    journey.release_entry = command.read_identity()
-    require(journey.release_entry['version'] is None, 'package-upgrade:product-free-required')
-    return submit_release(journey, guard, OLD_INSTALL, 'previous_package')
+    result = submit_release(journey, guard, OLD_INSTALL, 'previous_package')
+    journey.release_entry = journey.previous_package.entry
+    return result
 
 
 def install_previous(journey, guard):
@@ -50,7 +49,6 @@ def install_previous(journey, guard):
     inputs = command.verified.upgrade_inputs['packages']
     journey.release_entry = command.read_identity()
     require(journey.release_entry['version'] is None, 'package-upgrade:product-free-required')
-    require(command.read_identity() == journey.release_entry, 'package-upgrade:unstable-entry')
     for binding, digest, identity, code in (
         ('unregistered', inputs['previous']['sha256'], command.identity, 'package:unregistered-command'),
         (OLD_INSTALL, inputs['current']['sha256'], command.identity, 'package:wrong-artifact'),

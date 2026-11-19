@@ -337,21 +337,16 @@ selected manifest bytes and harmless native and activity use as Riley,
 missing/incompatible refusal, fresh attempt readiness, no-write repeats and
 unchanged selection after actual producer-source edits. The actual activity
 consumer also refuses absent, incompatible and prior-generation readiness.
-Both online and offline attachments retain the complete preparation and actual
-consumer checks. The online attachment uses the normal Parent worker to observe
-Riley's A/H/S/N catalogue defaults, save H permanent and S conditional, and read
-those saved choices after fresh child reselection. Jordan's defaults remain
-unchanged. Public controls restore Riley's H/S Allowed and controls off, with
-settings and zero balances independently observed. The offline attachment starts
-from fresh product state and checks its distinct restore/bootstrap boundary
-without repeating that catalogue journey or provisioning graphical credentials.
+Both online and offline attachments use the same installed preparation and
+actual consumer checks. Each attachment verifies its own restore and bootstrap
+boundary. The named-app set and child isolation E2E scenarios own public
+catalogue policy saves and rereads.
 Results retain package metadata and frozen helpers rather than the complete
 fixture collection.
 Scenario asset mutations remain separate. Watched baseline restoration and
 owned credential, staging, input and transport cleanup are required.
 Standalone transfer and serial retain their separately qualified preparation
-boundaries; unqualified fixture profiles remain gated. This supplies finite
-catalogue/preparation acceptance, not a complete customer or E2E history.
+boundaries. Unqualified fixture profiles remain gated.
 
 ### Fedora installed E2E preparation
 
@@ -704,8 +699,9 @@ Operations and focused diagnostic routes retain their existing scope:
   registration. The graphics attachment API comparison/trace probe likewise
   remains diagnostic. Their guarded explicit selectors remain available when changing
   those mechanisms. Product journeys still exercise their normal preparation
-  and shared runtime guards; `check_fixture_e2e_installed` retains its product
-  catalogue/save checks. Credential, worker containment, ownership, recovery
+  and shared runtime guards. `check_fixture_e2e_installed` checks immutable
+  installed inputs and readiness across both restore routes. Credential, worker
+  containment, ownership, recovery
   and verdict safety checks remain in their existing owners.
 - Standalone graphics smoke, graphics transport, serial transport, credential-free
   VT6 fixture-prompt inspection (`check_graphical_vt6_prompt`), spectator

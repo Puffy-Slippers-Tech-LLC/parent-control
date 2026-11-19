@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from installed_journey import InstalledJourney, JourneyPlan
 from journey_blocks import package_installation
-from package_command import BINDING, PackageCommand
+from package_command import BINDING, OLD_INSTALL, UPGRADE, PackageCommand
 from private_artifacts import require
 from product_free_entry import ProductFreeEntryJourney, SCREENS, refuse_command
 
@@ -33,7 +33,6 @@ def submit_install(journey, guard):
 
 def submit_release(journey, guard, binding, slot):
     """Finite upgrade leaves keep consumed commands in their recipe-owned slots."""
-    from package_command import OLD_INSTALL, UPGRADE
     require((binding, slot) in ((OLD_INSTALL, 'previous_package'), (UPGRADE, 'upgrade_package')),
             'package-install:release-binding')
     require(getattr(journey, slot) is None, 'package-install:replay')
@@ -49,13 +48,10 @@ def submit_release(journey, guard, binding, slot):
 
 def observe_release(command, label, before, *, changed_boot=False):
     """Independent completion, public installed version and preservation proof."""
-    require(command is not None and label in ('previous', 'current'), 'package-install:missing-command')
-    output = command.read_result()
-    first, second = command.read_identity(), command.read_identity()
-    require(first == second, 'package-install:unstable-readback')
-    require(first['version'] == command.verified.upgrade_inputs['packages'][label]['version'],
-            'package-install:installed-version')
-    preserved = dict(first['preserved'])
+    require(command is not None and (label, command.binding) in (
+        ('previous', OLD_INSTALL), ('current', UPGRADE)), 'package-install:wrong-release')
+    output, current = command.read_result(include_identity=True)
+    preserved = dict(current['preserved'])
     expected = deepcopy(before['preserved'])
     if label == 'previous':
         # A genuine first installation creates package/dependency accounts.
@@ -71,12 +67,12 @@ def observe_release(command, label, before, *, changed_boot=False):
         require(len(station) == 1, 'package-install:kiosk-account')
         station[0]['identity'][6] = '/usr/sbin/nologin'
     require(preserved == expected, 'package-install:preservation')
-    require((first['boot'] != before['boot'] if changed_boot else first['boot'] == before['boot']),
+    require((current['boot'] != before['boot'] if changed_boot else current['boot'] == before['boot']),
             'package-install:boot-continuity')
     if not changed_boot:
-        require(first['session'] == before['session'], 'package-install:session-changed')
-    return {**output, 'installed_version': first['version'], 'boot_sha256': first['boot'],
-            'preservation_verified': True, 'independent_readback': True}, first
+        require(current['session'] == before['session'], 'package-install:session-changed')
+    return {**output, 'installed_version': current['version'], 'boot_sha256': current['boot'],
+            'preservation_verified': True, 'independent_readback': True}, current
 
 
 def observe_install(journey):
@@ -100,12 +96,11 @@ def observe_unrelated(command, before):
     """Separate command completion, genuine system request and preservation."""
     from package_command import UNRELATED
     require(command is not None and command.binding == UNRELATED, 'unrelated-package:missing-command')
-    completion = command.read_result()
-    first, second = command.read_identity(), command.read_identity()
-    require(first == second == before == command.entry, 'unrelated-package:product-or-boot-changed')
+    completion, current = command.read_result(include_identity=True)
+    require(current == before == command.entry, 'unrelated-package:product-or-boot-changed')
     system = command.read_unrelated()
     return {'completion': completion, 'system': system, 'product_identity_unchanged': True,
-            'boot_sha256': first['boot'], 'independent_readback': True}
+            'boot_sha256': current['boot'], 'independent_readback': True}
 
 
 class UnrelatedPackageJourney(InstalledJourney):
@@ -157,20 +152,16 @@ def unrelated_journey(*, entry, result):
 def observe_current_install(command, before):
     """Latest install completion/version/same boot with pre-existing state preserved."""
     require(command is not None and command.binding == BINDING, 'package-install:missing-command')
-    output = command.read_result()
-    first, second = command.read_identity(), command.read_identity()
-    require(first == second, 'package-install:unstable-readback')
-    require(before['version'] is None and
-            first['version'] == command.package_identities()['current']['version'],
-            'package-install:installed-version')
-    preserved = dict(first['preserved'])
+    output, current = command.read_result(include_identity=True)
+    require(before['version'] is None, 'package-install:unexpected-entry-version')
+    preserved = dict(current['preserved'])
     preserved['accounts'] = {uid: preserved['accounts'].get(uid)
                              for uid in before['preserved']['accounts']}
     require(preserved == before['preserved'], 'package-install:preservation')
-    require(first['packages'] == before['packages'], 'package-install:inputs-changed')
-    require(first['boot'] == before['boot'], 'package-install:boot-continuity')
-    require(first['session'] == before['session'], 'package-install:session-changed')
-    return {**output, 'installed_version': first['version'], 'boot_sha256': first['boot'],
+    require(current['packages'] == before['packages'], 'package-install:inputs-changed')
+    require(current['boot'] == before['boot'], 'package-install:boot-continuity')
+    require(current['session'] == before['session'], 'package-install:session-changed')
+    return {**output, 'installed_version': current['version'], 'boot_sha256': current['boot'],
             'preservation_verified': True, 'independent_readback': True}
 
 

@@ -18,18 +18,18 @@ sub run {
     onpc_gdm::reattach_functional();
     $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
         $journey, 'gdm', 'parent', 'fresh', 'new', 'child', 0, 0, 1));
-    for my $stage ('time-explanation-read', 'switch-user', 'gdm-switched') {
+    for my $stage ('switch-user', 'gdm-switched') {
         $journey->consume_observation($stage, $journey->seen($stage));
     }
     onpc_gdm::enter_station($journey, '');
     $journey->consume_observation('request-form', $journey->seen('request-form'));
-    onpc_station::restrictions($journey);
+    onpc_station::restrictions($journey) unless $outcome;
     onpc_request_flow::prepare($journey, 'open', 'open', 'default',
-        'fixture-child', 'fixture-parent', 75, 1);
+        'fixture-child', 'fixture-parent', 75, 1, 'compact');
     if ($outcome) {
         onpc_request_flow::reject($journey, $outcome eq 'denied' ? 'rejection' : 'cancel',
             'fixture-child', 'fixture-parent', 75, 1);
-        onpc_station::restrictions($journey, 'after-');
+        onpc_station::restrictions($journey->scope('after'));
         for my $stage ('new-cancel', 'new-returned') {
             $journey->consume_observation($stage, $journey->seen($stage));
         }

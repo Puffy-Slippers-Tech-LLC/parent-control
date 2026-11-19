@@ -302,7 +302,7 @@ Ubuntu's [installed E2E preparation](../integration/README.md#ubuntu-installed-e
 and the same [Fedora boundary](../integration/README.md#fedora-installed-e2e-preparation)
 use the immutable native selection by default, and the finite native/activity/
 baseline-child union only for the fixed baseline composition and active-grant
-disable qualification callers and `E2E-015/child-overlay-cancel`, after online
+disable qualification callers and `E2E-015/child-overlay-approved`, after online
 resume/credential rebind or explicit offline restoration, before setup releases
 scenario input. Its
 preparation-only selector retains separate proof of both restore branches.
@@ -1886,7 +1886,7 @@ fixture. The same entry helper's `binding='policy'` and `binding='unmatched-soft
 select Jordan's existing A primary and S secondary command activities, including
 their independent captures; ordinary APP01 policy and grid launches retain A.
 These finite bindings reuse the existing app/owner/input guards, not the trusted
-activity fixture's launch. Cases 13/14 keep their six transitions, captures,
+activity fixture's launch. Cases 13 and 16 keep their six transitions, captures,
 nonmatching use and Riley continuity assertions in their case. Journey setup
 uses `NativeFixtures(profile='activity')` for read-only source, receipt,
 metadata and loaded file-trust verification. Preparation alone admits the

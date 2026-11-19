@@ -87,14 +87,16 @@
     "steps": ["Choose the tested duration and review its estimate; reject invalid custom input when applicable.", "Double-click Request and check that only one approval prompt opens.", "Approve once and check the resulting time and normal exit."]
   },
   "E2E-015": {
+    "execution_revision": 2,
     "expected": "The form returns to the correct desktop or sign-in screen; only approval adds time.",
     "summary": "Cancel, close and approve requests in one history on each surface.",
-    "steps": ["Enable daily time and leave recognizable child work beneath the overlay, or enter the station.", "Prepare choices and Cancel; check original usable work or sign-in.", "Reopen with remembered choices and close the form; check original usable work or sign-in again.", "Reopen and approve the same request, take its immediate exit and verify retained work and the resulting countdown."]
+    "steps": ["Enable daily time and leave recognizable child work beneath the overlay, or enter the station.", "Prepare the 75-second request once and Cancel; check original usable work or sign-in.", "Reopen, read the saved request choices and close the form; check original usable work or sign-in again.", "Reopen and read the saved request and fresh estimate, then approve, take the immediate exit and verify retained work and the resulting countdown."]
   },
   "E2E-016": {
+    "execution_revision": 2,
     "expected": "The station offers requests without exposing a general desktop, terminal or parental management.",
     "summary": "Keep the request station restricted throughout an approval attempt.",
-    "steps": ["Enter the request station and try ordinary desktop and terminal shortcuts.", "Approve, reject or cancel a request and check that general desktop access stays unavailable.", "Exit normally and check that sign-in remains usable."]
+    "steps": ["Enter the request station. In the approved history, try Overview, the app grid and the terminal shortcut on the idle form.", "Approve, reject or cancel a request. Check all three routes on the prepared form after rejection or cancellation.", "Exit normally and check that sign-in remains usable."]
   },
   "E2E-017": {
     "expected": "Only eligible accounts can be used for requests, and unavailable requests have a clear explanation.",
@@ -104,7 +106,10 @@
   "E2E-018": {
     "expected": "Request values stay separate per child and shared across forms; remembered parents stay local to each form.",
     "summary": "Share each child's request choices while remembering parents separately on each form.",
-    "steps": ["Save distinct duration and soft-app choices for two children.", "Move between the child overlay and request station.", "Check that each child's choices follow them while each form keeps its own remembered parent."]
+    "steps": ["Save distinct duration and soft-app choices for two children.", "Move between the child overlay and request station.", "Check that each child's choices follow them while each form keeps its own remembered parent."],
+    "variants": {
+      "kiosk-to-overlay-first": {"execution_revision": 2, "steps": ["Save and compare both children's distinct choices across the request station and overlay.", "After saving Riley's values, sign in as Jordan and verify his original request and the overlay's own remembered parent."]}
+    }
   },
   "E2E-019": {
     "expected": "The child's app access follows its rule on the tested launch route without restricting the other user.",
@@ -226,7 +231,7 @@
       "search-filters": {"steps": ["Open the child's app list.", "Search and filter the list.", "Check the intended apps and their saved choices appear."]},
       "match-editor": {"steps": ["Edit an app's match rule.", "Check valid rules save and rejected rules preserve the last accepted choice.", "Try the affected child launches."]},
       "match-reopen": {"steps": ["Save a precise match override for an app with a suggested pattern.", "Reopen Parent and inspect the documented suggested-pattern redisplay.", "Select precise matching again before saving and check launches."]},
-      "shared-launchers": {"execution_revision": 3, "steps": ["Inspect the two app entries that share a launcher target.", "Block each launcher in turn and verify both child launches are denied.", "Allow both launchers and verify the original rules and child access."]},
+      "shared-launchers": {"execution_revision": 4, "steps": ["Inspect the two app entries that share a launcher target.", "Block each launcher in turn and verify denial through its Allowed sibling.", "Allow both launchers and verify the saved rules and access through both entries."]},
       "special-paths": {"steps": ["Copy the child's apps whose paths contain spaces or commas.", "Save Hard choices and check the child cannot open either original or copy while a different app works.", "Repeat with Soft choices without an exception, then restore Allowed and remove the copies."]},
       "pattern-files": {"steps": ["Save a file-pattern rule for an app.", "Copy or rename the relevant files.", "Check matching launches are restricted and unrelated launches remain usable."]}
     }
@@ -238,9 +243,10 @@
     "variants": {"command-help": {"expected": "Installed help and manuals are readable without opening management or request windows.", "steps": ["Read the installed commands' help and manuals.", "Check that reading help opens no management or request window."]}}
   },
   "E2E-043": {
+    "execution_revision": 2,
     "expected": "Local management, approvals, timekeeping and app restrictions work offline on both request forms.",
     "summary": "Manage limits and approve child access without Internet access.",
-    "steps": ["Go offline and save screen limits and app rules in Parent.", "Approve time and soft-app access from the child overlay, then from the request station.", "Check added time, allowed and soft-app use, and continued hard blocking after each approval.", "Revoke access offline and check soft apps close before reconnecting."]
+    "steps": ["Go offline and save screen limits and app rules in Parent.", "Approve time and soft-app access from the child overlay, then from the request station.", "Check added time, soft-app use and hard blocking after each approval. Check countdown progression after station approval and keep allowed work open.", "Revoke access offline and check soft apps close and allowed work remains usable before reconnecting."]
   },
   "E2E-044": {
     "expected": "Time follows the tested calendar boundary: daily time renews, rest-of-day ends at local midnight, and fixed grants keep their elapsed deadline.",
@@ -289,7 +295,7 @@
     "steps": ["Prepare distinct work, app rules and request choices for two children.", "Alternate both children and parents through daily use and approvals on both request forms.", "After each change check the other child's work, balances and choices remain their own.", "Revoke one child's grant-only access while the other continues using daily time."]
   },
   "E2E-052": {
-    "execution_revision": 2,
+    "execution_revision": 3,
     "expected": "Lunar and Minecraft work only when permitted; positive time without soft-app permission cannot bypass blocking through login autostart.",
     "summary": "Stop Lunar login autostart from bypassing soft-app restrictions.",
     "steps": ["Allow Lunar and Minecraft, then verify Lunar autostart at the first child sign-in and launch both apps by command.", "Return to the retained Parent session to soft block both apps, then verify denial without temporary permission.", "Approve time excluding soft apps, reboot and verify Lunar cannot autostart and both commands are denied.", "Include soft apps and launch both apps, then exclude them and verify blocking returns after reboot."]
@@ -300,10 +306,10 @@
     "steps": ["Install with the child's desktop language set to Chinese and read the restart notice.", "Restart, inspect the Chinese request station and save Chinese as the child's language.", "Approve two requests across separate station visits.", "Check Chinese prompts and confirmations, remembered language and added time."]
   },
   "E2E-054": {
-    "execution_revision": 3,
+    "execution_revision": 4,
     "expected": "Each account keeps its own language across forms and sessions, offline and after reconnection, without policy changes.",
     "summary": "Keep personal languages separate across accounts and offline sessions.",
-    "steps": ["Go offline and save Chinese for Parent and different languages for two children.", "Switch children and approvers and reopen the request station.", "Reopen the child overlay and start a new desktop session.", "Check each account retains its own language and unchanged policy before and after reconnecting."]
+    "steps": ["Go offline, save Chinese for Parent, read both children in Chinese, then relaunch Parent.", "Save different languages for the two children, change Jordan's approver and reopen the request station.", "Reopen Riley's overlay and start a new desktop session.", "Read Riley's policy offline, then reconnect and verify both children's original policies."]
   },
   "E2E-055": {
     "expected": "Parent and its dialogs change language while the original draft, child policy and time remain intact.",

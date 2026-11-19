@@ -3,7 +3,7 @@
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import fresh_desktop, parent_management, prefixed_stages
 from request_composition import KioskRequestJourney
-from request_flow import prepared_request, daily_station_entry
+from request_flow import CHOICES, prepared_request, daily_station_entry
 from kiosk_approved_flow import approved_request
 
 
@@ -17,8 +17,7 @@ for prefix, entry, initial, exit_stages in (
                                          'escape-returned': 'ui:gdm-station-returned'})):
     EXIT_SCREENS.update(prefixed_stages(prefix, {
         **prepared_request(prefix='open', entry=entry, initial=initial,
-                           child='fixture-child', approver='fixture-parent',
-                           duration_seconds=75, allow_soft=True),
+                           compact=True, **CHOICES),
         **exit_stages,
     }))
 SCREENS = {
@@ -26,10 +25,8 @@ SCREENS = {
     **daily_station_entry(),
     **EXIT_SCREENS,
     **prepared_request(prefix='open', entry='new', initial='selected',
-                       child='fixture-child', approver='fixture-parent',
-                       duration_seconds=75, allow_soft=True),
-    **approved_request(child='fixture-child', approver='fixture-parent',
-                       duration_seconds=75, allow_soft=True, exit='immediate'),
+                       compact=True, **CHOICES),
+    **approved_request(exit='immediate', **CHOICES),
     **CHILD_SCREENS,
     'countdown': 'ui:child-countdown-present',
 }

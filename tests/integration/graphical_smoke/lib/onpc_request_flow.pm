@@ -569,15 +569,11 @@ sub panel_request_case {
 sub flatpak_temporary_access {
     onpc_progress::operation('Changing Jordan\'s temporary app access through three parent approvals');
     my ($exchange, $declared, $challenges, $route, $kind, $surface) = @_;
-    $route //= 'command';
-    $kind //= 'flatpak';
-    $surface //= $route eq 'grid' ? 'overlay' : 'kiosk';
-    die 'temporary-access:arguments' unless (@_ >= 3 && @_ <= 6) && ref($exchange) eq 'CODE'
+    die 'temporary-access:arguments' unless @_ == 6 && ref($exchange) eq 'CODE'
         && ref($declared) eq 'ARRAY' && ref($challenges) eq 'HASH'
         && ($kind eq 'flatpak' && ($route eq 'command' && $surface eq 'kiosk'
                                   || $route eq 'grid' && $surface eq 'overlay')
-            || $kind eq 'native' && ($route eq 'grid' && ($surface eq 'overlay' || $surface eq 'kiosk')
-                                    || $route eq 'desktop' && $surface eq 'overlay'
+            || $kind eq 'native' && (($route eq 'grid' || $route eq 'desktop') && $surface eq 'overlay'
                                     || ($route eq 'command' || $route eq 'files') && $surface eq 'kiosk'));
     my $seconds = $kind eq 'native' ? 30 : 300;
     my $journey = onpc_journey->new(exchange => $exchange,

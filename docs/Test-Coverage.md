@@ -6,7 +6,7 @@
 
 | Category | Count (Ready/Pending/Total) | Description |
 | --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">6082</span>/<span style="color: gray">0</span>/6082 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Unit, property and contract | <span style="color: green">6081</span>/<span style="color: gray">0</span>/6081 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
 | Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
 | UI | <span style="color: green">307</span>/<span style="color: gray">0</span>/307 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
 | Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
@@ -15,8 +15,8 @@
 | Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
 | graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
 | package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">142</span>/<span style="color: gray">56</span>/198 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6839</span>/<span style="color: gray">56</span>/6895** | All test cases across the categories above, including pending E2E scenarios. |
+| E2E | <span style="color: green">138</span>/<span style="color: gray">50</span>/188 | Checks complete customer journeys through the installed product's public interfaces. |
+| **Total** | **<span style="color: green">6834</span>/<span style="color: gray">50</span>/6884** | All test cases across the categories above, including pending E2E scenarios. |
 
 These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
 
@@ -24,7 +24,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">142</span>/<span style="color: gray">55</span>/197 |
+| customer-journey | <span style="color: green">138</span>/<span style="color: gray">49</span>/187 |
 | runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
@@ -46,8 +46,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [11](#scenario-11) | Change screen limits while starting or returning to a child desktop (session: new; time: combined) | `E2E-005/combined-new` | ready |
 | [12](#scenario-12) | Change screen limits while starting or returning to a child desktop (session: retained; time: combined) | `E2E-005/combined-retained` | ready |
 | [13](#scenario-13) | Change app rules while children use apps (control: enabled; match: precise) | `E2E-006/enabled-precise` | ready |
-| [14](#scenario-14) | Change app rules while children use apps (control: enabled; match: pattern) | `E2E-006/enabled-pattern` | ready |
-| [15](#scenario-15) | Change app rules while children use apps (control: disabled; match: precise) | `E2E-006/disabled-precise` | ready |
 | [16](#scenario-16) | Change app rules while children use apps (control: disabled; match: pattern) | `E2E-006/disabled-pattern` | ready |
 | [17](#scenario-17) | Cancel then confirm revocation with open apps (daily: zero; sessions: single) | `E2E-007/zero-single` | ready |
 | [19](#scenario-19) | Cancel then confirm revocation with open apps (daily: remaining; sessions: single) | `E2E-007/remaining-single` | ready |
@@ -63,8 +61,8 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [33](#scenario-33) | Request more time from the panel with the selected parent (approver: second; soft apps: included) | `E2E-012/included-second` | ready |
 | [34](#scenario-34) | Authentication denial and cancellation retry (surface: child overlay) | `E2E-013/child-overlay-recovery` | ready |
 | [36](#scenario-36) | Authentication denial and cancellation retry (surface: kiosk) | `E2E-013/kiosk-recovery` | ready |
-| [46](#scenario-46) | Request surface exit behavior (exit: approved; surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
-| [49](#scenario-49) | Request surface exit behavior (exit: approved; surface: kiosk) | `E2E-015/kiosk-approved` | ready |
+| [46](#scenario-46) | Request surface exit behavior (surface: child overlay) | `E2E-015/child-overlay-approved` | ready |
+| [49](#scenario-49) | Request surface exit behavior (surface: kiosk) | `E2E-015/kiosk-approved` | ready |
 | [50](#scenario-50) | Restricted request station (request: approved) | `E2E-016/approved` | ready |
 | [51](#scenario-51) | Restricted request station (request: denied) | `E2E-016/denied` | ready |
 | [52](#scenario-52) | Restricted request station (request: cancelled) | `E2E-016/cancelled` | ready |
@@ -73,8 +71,8 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [55](#scenario-55) | Kiosk selection and unavailable requests (accounts: no parent) | `E2E-017/no-parent` | ready |
 | [56](#scenario-56) | Kiosk selection and unavailable requests (accounts: ineligible parent) | `E2E-017/ineligible-parent` | ready |
 | [57](#scenario-57) | Kiosk selection and unavailable requests (accounts: disabled child) | `E2E-017/disabled-child` | ready |
-| [58](#scenario-58) | Remember each child's choices across both request forms (child: first; direction: overlay to kiosk) | `E2E-018/overlay-to-kiosk-first` | ready |
-| [60](#scenario-60) | Remember each child's choices across both request forms (child: first; direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
+| [58](#scenario-58) | Remember each child's choices across both request forms (direction: overlay to kiosk) | `E2E-018/overlay-to-kiosk-first` | ready |
+| [60](#scenario-60) | Remember each child's choices across both request forms (direction: kiosk to overlay) | `E2E-018/kiosk-to-overlay-first` | ready |
 | [62](#scenario-62) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native grid) | `E2E-019/native-grid-allowed-enabled` | ready |
 | [64](#scenario-64) | Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: native grid) | `E2E-019/native-grid-hard-blocked-enabled` | ready |
 | [68](#scenario-68) | Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native desktop) | `E2E-019/native-desktop-allowed-enabled` | ready |
@@ -107,7 +105,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [127](#scenario-127) | Zero allowance to kiosk approval, real gameplay and expiry (gameplay: fullscreen) | `E2E-023/fullscreen` | ready |
 | [128](#scenario-128) | Additional time accumulates during gameplay (gameplay: windowed; time: daily dominant) | `E2E-024/daily-dominant-windowed` | ready |
 | [131](#scenario-131) | Additional time accumulates during gameplay (gameplay: fullscreen; time: grant dominant) | `E2E-024/grant-dominant-fullscreen` | ready |
-| [132](#scenario-132) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded) | `E2E-025/excluded-new-login` | ready |
 | [133](#scenario-133) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: excluded) | `E2E-025/excluded-retained-unlock` | ready |
 | [134](#scenario-134) | Replace an expired grant before returning with daily time left (entry: new login; soft apps: included) | `E2E-025/included-new-login` | ready |
 | [135](#scenario-135) | Replace an expired grant before returning with daily time left (entry: retained unlock; soft apps: included) | `E2E-025/included-retained-unlock` | ready |
@@ -154,7 +151,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [203](#scenario-203) | Use time across local day and daylight-saving boundaries (calendar: fall back; time: paired grants) | `E2E-044/fall-back-paired-grants` | ready |
 | [205](#scenario-205) | Review or decline an error report | `E2E-045/parent` | ready |
 | [231](#scenario-231) | Change temporary app permission on every supported launch route (route: native grid; surface: child overlay) | `E2E-049/native-grid-child-overlay` | ready |
-| [232](#scenario-232) | Change temporary app permission on every supported launch route (route: native grid; surface: kiosk) | `E2E-049/native-grid-kiosk` | ready |
 | [233](#scenario-233) | Change temporary app permission on every supported launch route (route: native desktop; surface: child overlay) | `E2E-049/native-desktop-child-overlay` | ready |
 | [236](#scenario-236) | Change temporary app permission on every supported launch route (route: native file manager; surface: kiosk) | `E2E-049/native-file-manager-kiosk` | ready |
 | [238](#scenario-238) | Change temporary app permission on every supported launch route (route: native command; surface: kiosk) | `E2E-049/native-command-kiosk` | ready |
@@ -187,12 +183,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[41](#scenario-41)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[42](#scenario-42)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[43](#scenario-43)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: kiosk)</span> | <span style="color: gray">`E2E-014/kiosk-rest-of-day`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[44](#scenario-44)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-cancel`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[45](#scenario-45)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: child overlay)</span> | <span style="color: gray">`E2E-015/child-overlay-escape`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[47](#scenario-47)</span> | <span style="color: gray">Request surface exit behavior (exit: cancel; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-cancel`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[48](#scenario-48)</span> | <span style="color: gray">Request surface exit behavior (exit: escape; surface: kiosk)</span> | <span style="color: gray">`E2E-015/kiosk-escape`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[59](#scenario-59)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)</span> | <span style="color: gray">`E2E-018/overlay-to-kiosk-second`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[61](#scenario-61)</span> | <span style="color: gray">Remember each child's choices across both request forms (child: second; direction: kiosk to overlay)</span> | <span style="color: gray">`E2E-018/kiosk-to-overlay-second`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[66](#scenario-66)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native grid)</span> | <span style="color: gray">`E2E-019/native-grid-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[72](#scenario-72)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: native desktop)</span> | <span style="color: gray">`E2E-019/native-desktop-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[74](#scenario-74)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: native file manager)</span> | <span style="color: gray">`E2E-019/native-file-manager-allowed-enabled`</span> | <span style="color: gray">pending</span> |
@@ -387,34 +377,6 @@ Variant: session: retained; time: combined
 Case: `E2E-006/enabled-precise` · Category: customer-journey · Status: **ready**
 
 Variant: control: enabled; match: precise
-
-**Steps:**
-
-- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
-- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
-- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
-
-### Scenario 14
-
-**Change app rules while children use apps (control: enabled; match: pattern)**
-
-Case: `E2E-006/enabled-pattern` · Category: customer-journey · Status: **ready**
-
-Variant: control: enabled; match: pattern
-
-**Steps:**
-
-- Give the child usable time, choose the declared screen-limit and match modes in Parent, and leave recognizable activities open for the child and another user. Include matching and existing nonmatching apps.
-- For each of the six directed changes among Always Allowed, Soft Blocked and Hard Blocked, prepare any required open activity through normal permission and approval, save that change, then revisit the child and other user's retained activities before making the next change. Try matching and existing nonmatching launches after every save.
-- Reopen Parent after the complete transition sequence and read the final Always Allowed rule. Each intermediate closure, preservation and launch result must already have been checked before a later edit can conceal it.
-
-### Scenario 15
-
-**Change app rules while children use apps (control: disabled; match: precise)**
-
-Case: `E2E-006/disabled-precise` · Category: customer-journey · Status: **ready**
-
-Variant: control: disabled; match: precise
 
 **Steps:**
 
@@ -639,33 +601,33 @@ Variant: surface: kiosk
 
 ### Scenario 46
 
-**Request surface exit behavior (exit: approved; surface: child overlay)**
+**Request surface exit behavior (surface: child overlay)**
 
 Case: `E2E-015/child-overlay-approved` · Category: customer-journey · Status: **ready**
 
-Variant: exit: approved; surface: child overlay
+Variant: surface: child overlay
 
 **Steps:**
 
 - Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
 - Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
 - Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+- Reopen and independently read the saved request and its estimate before requesting real parent approval. Read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
 
 ### Scenario 49
 
-**Request surface exit behavior (exit: approved; surface: kiosk)**
+**Request surface exit behavior (surface: kiosk)**
 
 Case: `E2E-015/kiosk-approved` · Category: customer-journey · Status: **ready**
 
-Variant: exit: approved; surface: kiosk
+Variant: surface: kiosk
 
 **Steps:**
 
 - Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
 - Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
 - Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
+- Reopen and independently read the saved request and its estimate before requesting real parent approval. Read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
 
 ### Scenario 50
 
@@ -677,8 +639,8 @@ Variant: request: approved
 
 **Steps:**
 
-- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
-- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. The approved history checks Overview, the app grid and the terminal shortcut on the idle form.
+- Make a request with the declared approved, denied or cancelled outcome. After denial or cancellation independently check Overview, the app grid and the terminal shortcut while the prepared form remains open. Only type a query if a search field appears.
 - Exit normally or observe automatic exit after approval and verify usable sign-in.
 
 ### Scenario 51
@@ -691,8 +653,8 @@ Variant: request: denied
 
 **Steps:**
 
-- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
-- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. The approved history checks Overview, the app grid and the terminal shortcut on the idle form.
+- Make a request with the declared approved, denied or cancelled outcome. After denial or cancellation independently check Overview, the app grid and the terminal shortcut while the prepared form remains open. Only type a query if a search field appears.
 - Exit normally or observe automatic exit after approval and verify usable sign-in.
 
 ### Scenario 52
@@ -705,8 +667,8 @@ Variant: request: cancelled
 
 **Steps:**
 
-- Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears.
-- Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears.
+- Enable limits in Parent, return to sign-in and enter the station without an account password. The approved history checks Overview, the app grid and the terminal shortcut on the idle form.
+- Make a request with the declared approved, denied or cancelled outcome. After denial or cancellation independently check Overview, the app grid and the terminal shortcut while the prepared form remains open. Only type a query if a search field appears.
 - Exit normally or observe automatic exit after approval and verify usable sign-in.
 
 ### Scenario 53
@@ -781,31 +743,31 @@ Variant: accounts: disabled child
 
 ### Scenario 58
 
-**Remember each child's choices across both request forms (child: first; direction: overlay to kiosk)**
+**Remember each child's choices across both request forms (direction: overlay to kiosk)**
 
 Case: `E2E-018/overlay-to-kiosk-first` · Category: customer-journey · Status: **ready**
 
-Variant: child: first; direction: overlay to kiosk
+Variant: direction: overlay to kiosk
 
 **Steps:**
 
 - Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
 - Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing.
-- Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested.
+- Set distinct choices for the other child and compare both children's values across the two forms. Overlay-to-kiosk reselects both children in the open station. Kiosk-to-overlay revisits Jordan's overlay after a fresh sign-in to verify persistence and isolation from Riley's later edit.
 
 ### Scenario 60
 
-**Remember each child's choices across both request forms (child: first; direction: kiosk to overlay)**
+**Remember each child's choices across both request forms (direction: kiosk to overlay)**
 
 Case: `E2E-018/kiosk-to-overlay-first` · Category: customer-journey · Status: **ready**
 
-Variant: child: first; direction: kiosk to overlay
+Variant: direction: kiosk to overlay
 
 **Steps:**
 
 - Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
 - Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing.
-- Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested.
+- Set distinct choices for the other child and compare both children's values across the two forms. Overlay-to-kiosk reselects both children in the open station. Kiosk-to-overlay revisits Jordan's overlay after a fresh sign-in to verify persistence and isolation from Riley's later edit.
 
 ### Scenario 62
 
@@ -1269,20 +1231,6 @@ Variant: gameplay: fullscreen; time: grant dominant
 - Use Parent and real approval to establish and read the declared dominant balance. Sign in as the child and play the real game in the declared mode.
 - While both balances remain positive and distinguishably ordered, open the overlay through the direct child command when windowed or the public panel launch API while the game stays fullscreen. Select Jamie, Custom 1.25 Minutes (75 seconds), soft apps excluded. Approve and compare the new countdown with max(D,G)+75 minus elapsed time.
 - Return to the same game and continue beyond the earlier remaining interval until the extended time runs out and the desktop locks.
-
-### Scenario 132
-
-**Replace an expired grant before returning with daily time left (entry: new login; soft apps: excluded)**
-
-Case: `E2E-025/excluded-new-login` · Category: customer-journey · Status: **ready**
-
-Variant: entry: new login; soft apps: excluded
-
-**Steps:**
-
-- Set zero daily time, approve a short grant including soft apps and open recognizable soft-blocked work. While it remains open, return to Parent and raise the daily allowance above the grant without toggling limits. The running app remains, although new soft launches are blocked.
-- Switch away, or sign out for new-login, and let the grant expire while daily time remains. Read zero grant and positive daily balance in Parent before requesting replacement.
-- Approve replacement station time with the declared soft-app choice before fresh sign-in or retained unlock. Check hard/soft launches. Retained cases compare earlier soft work: included preserves it and excluded closes it.
 
 ### Scenario 133
 
@@ -1824,8 +1772,8 @@ Variant: surface: both
 **Steps:**
 
 - Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules.
-- Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, added time, allowed/soft app use, hard refusal and ticking time before proceeding.
-- Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. Observe success, sign in as the child and independently check added time, allowed/soft app use, hard refusal and ticking time while still offline.
+- Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, the added time, soft app use and hard refusal before proceeding.
+- Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. After sign-in, check the added time and countdown progression, soft app use and hard refusal. Leave allowed work open while still offline.
 - Revoke once through Parent, confirm no grant, soft-app closure/refused relaunch, retained allowed access and hard refusal, then reconnect. Use one offline policy preparation with a fresh 30-minute daily allowance and one native app per rule; no reset, revocation or reconnection between approvals.
 
 ### Scenario 196
@@ -1919,20 +1867,6 @@ Variant: surface: parent
 Case: `E2E-049/native-grid-child-overlay` · Category: customer-journey · Status: **ready**
 
 Variant: route: native grid; surface: child overlay
-
-**Steps:**
-
-- For active native/Flatpak cases, give the child 30 daily minutes in Parent and configure an allowed work app, hard-blocked app and soft-blocked app for the declared launch route. Sign in, check baseline access and leave recognizable allowed work open. Snap cases 239/242 are deferred under docs/Snap\_Limitation.md, not current acceptance.
-- For active native/Flatpak cases, on the declared request surface approve three additions in order: Jamie excludes soft apps, Sam includes them, Jamie excludes them. Flatpak requests add five minutes and allow a two-minute countdown difference from the estimate, accounting for elapsed time; that tolerance requires an addition of at least five minutes and adds no further rounding or sampling allowance. Other routes retain 0.5-minute additions. Verify the selected approver in each real prompt. After every approval return to the retained child desktop and check earlier allowed work and fresh hard/soft launches through the declared route: initial exclusion denies S, inclusion opens usable S, and replacement exclusion closes that activity and denies S again. These results remain future targets for deferred Snap cases, without an active remediation gate.
-- Reopen the child's App Limits and read the original saved access rules. Temporary approvals must not rewrite them. Check every intermediate result rather than accepting only the final excluded state.
-
-### Scenario 232
-
-**Change temporary app permission on every supported launch route (route: native grid; surface: kiosk)**
-
-Case: `E2E-049/native-grid-kiosk` · Category: customer-journey · Status: **ready**
-
-Variant: route: native grid; surface: kiosk
 
 **Steps:**
 
@@ -2093,10 +2027,10 @@ Variant: history: account offline
 **Steps:**
 
 - Observe untouched English/native names and configure independent Riley/Jordan 60-minute zero-grant policies through Parent.
-- Confirm Internet isolation, save Jamie Chinese, reread Riley/Jordan/Riley and normally relaunch Parent.
-- Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel German, switch children/approvers and freshly re-enter kiosk.
+- Confirm Internet isolation, save Jamie Chinese, read Riley and Jordan in Chinese and normally relaunch Parent.
+- Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel a proposed German change for Riley, change Jordan's approver and freshly re-enter kiosk.
 - Read Riley shared Hebrew on overlay command entry, normal relaunch and a renewed desktop session with independent approver choice.
-- Reread Chinese Parent and each unchanged child policy offline, independently restore Internet and reread both policies.
+- Reread Chinese Parent and Riley's unchanged policy offline, independently restore Internet and reread both child policies.
 
 ### Scenario 256
 
@@ -2452,130 +2386,6 @@ Variant: choice: rest of day; surface: kiosk
 - Double-click Request once for that representative value. Observe one prompt and unavailable pending controls, approve it, read confirmation and resulting time, and take the normal exit.
 
 Pending: Excluded from automation scheduling: native control-addressed double-click without geometry is unsupported. See docs/Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures. Do not create implementation tasks or block the active queue; this case remains uncovered.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 44
-
-**Request surface exit behavior (exit: cancel; surface: child overlay)**
-
-Case: `E2E-015/child-overlay-cancel` · Category: customer-journey · Status: **pending**
-
-Variant: exit: cancel; surface: child overlay
-
-**Steps:**
-
-- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
-- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
-- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
-
-Pending: Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 45
-
-**Request surface exit behavior (exit: escape; surface: child overlay)**
-
-Case: `E2E-015/child-overlay-escape` · Category: customer-journey · Status: **pending**
-
-Variant: exit: escape; surface: child overlay
-
-**Steps:**
-
-- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
-- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
-- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
-
-Pending: Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 47
-
-**Request surface exit behavior (exit: cancel; surface: kiosk)**
-
-Case: `E2E-015/kiosk-cancel` · Category: customer-journey · Status: **pending**
-
-Variant: exit: cancel; surface: kiosk
-
-**Steps:**
-
-- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
-- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
-- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
-
-Pending: Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 48
-
-**Request surface exit behavior (exit: escape; surface: kiosk)**
-
-Case: `E2E-015/kiosk-escape` · Category: customer-journey · Status: **pending**
-
-Variant: exit: escape; surface: kiosk
-
-**Steps:**
-
-- Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in.
-- Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk.
-- Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in.
-- Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate.
-
-Pending: Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 59
-
-**Remember each child's choices across both request forms (child: second; direction: overlay to kiosk)**
-
-Case: `E2E-018/overlay-to-kiosk-second` · Category: customer-journey · Status: **pending**
-
-Variant: child: second; direction: overlay to kiosk
-
-**Steps:**
-
-- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
-- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing.
-- Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested.
-
-Pending: Retired from scheduling. Represented by case 58, which transfers both children’s distinct values with local approvers and rechecks both in the open kiosk. No replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 61
-
-**Remember each child's choices across both request forms (child: second; direction: kiosk to overlay)**
-
-Case: `E2E-018/kiosk-to-overlay-second` · Category: customer-journey · Status: **pending**
-
-Variant: child: second; direction: kiosk to overlay
-
-**Steps:**
-
-- Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice.
-- Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing.
-- Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested.
-
-Pending: Retired from scheduling. Represented by case 60, which transfers both children’s distinct values and rechecks each after fresh overlay entry. No replacement task.
 
 </div>
 

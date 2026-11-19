@@ -27,7 +27,7 @@ def run_checks(record, checks):
     for stage, check in checks:
         def observed(key, value):
             record(f'{key}.{stage}', value)
-        with validation_stage('enforcement-check', stage):
+        with validation_stage('enforcement-check', stage, record=record):
             check(observed)
 
 

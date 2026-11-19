@@ -251,7 +251,10 @@ sub shared_launchers_case {
         $journey->seen($_) for ("$name-leave-desktop", "$name-leave-switch", "$name-leave-greeter");
         onpc_desktop_session::enter_desktop(
             $journey, 'gdm', 'other-child', 'fresh', 'success', "$name-entry");
-        for my $role ('A', 'Alias') {
+        # In each blocked round the launcher still marked Allowed is the
+        # independent bypass check. Recovery exercises both entries.
+        my @launchers = $usable ? ('A', 'Alias') : ($name eq 'original-blocked' ? 'Alias' : 'A');
+        for my $role (@launchers) {
             my $app = $journey->scope("$name-" . ($role eq 'A' ? 'original' : 'alias'));
             if ($usable) {
                 onpc_app_rows::native_usable_app($app, 'grid', $app->seen('desktop'),

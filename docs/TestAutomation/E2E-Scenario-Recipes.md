@@ -420,7 +420,7 @@ separate and require the full uncertainty to distinguish the requested addition.
 | E2E-038 daily dominant | Use the [FLOW18 preparation and return margins](#expired-grant-with-daily-time-remaining) with daily 10 minutes and a real 0.1-minute addition including soft apps. Its early child return preserves the same original natural expiry. |
 | Station restriction routes | Super/Overview, Super-A/app grid, ordinary terminal shortcut; inspect available controls for Parent/settings launch. If no search field appears, no query is typed. About/report restrictions have their own cases. |
 | Kiosk multiple/ineligible accounts (53/56) | Read exact eligible child/approver sets. Request and Cancel Riley/Jamie, then Jordan/Sam (the second fixture administrator is Casey). Final selection and actual selected-parent prompts cover both identities with two pairs; do not cross every child with every parent. |
-| App transitions (13–16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Prepare daily 30 with at least 900 seconds actually remaining before the 75-second soft-app approval, including when temporarily enabling a limits-off profile; max(D,G)+R supplies ample access for the opening transition. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in limits-off cases temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
+| App transitions (13 and 16) | Allowed→Soft, Soft→Hard, Hard→Soft, Soft→Allowed, Allowed→Hard, Hard→Allowed: all six directed changes. Prepare daily 30 with at least 900 seconds actually remaining before the 75-second soft-app approval, including when temporarily enabling a limits-off profile; max(D,G)+R supplies ample access for the opening transition. Open work under Allowed before Allowed→Soft/Hard. Before Soft→Hard obtain real soft approval and reopen the matching activity; in the limits-off case temporarily enable, approve/open, then disable (preserving the activity). Verify the declared limit state again before the tested save. Hard→Soft stays blocked without a new exception; Soft→Allowed and Hard→Allowed permit launches. Unchanged-block restoration is owned by 169. |
 | Match/control/route matrix | Preserve all four precise/pattern × on/off cases. [E2E-019](#e2e-019) retains native/Flatpak rules and Allowed Snap use; Snap denial/closure is deferred under the [shared boundary](../Snap_Limitation.md#e2e-scope-decision). Alias, special-path, update and file-pattern data run only in their owning cases. |
 
 The daily picker offers 50 presets; case 158 checks one installed choice.
@@ -670,20 +670,23 @@ again denies retained access without replacing the desktop or restoring the gran
 
 ### E2E-006
 
-Implementation status: Cases 13–16's enabled/disabled and precise/pattern
-compositions are qualified on Ubuntu 26.04.
+Implementation status: Cases 13 and 16 passed on Ubuntu 26.04.
 
-**Change app rules while children use apps.** Cases 13, 14, 15, 16.
+**Change app rules while children use apps.** Cases 13 and 16.
 
-Bindings: control = enabled / disabled; match = precise / pattern.
+Case 13 uses precise matching with limits enabled. Case 16 uses pattern
+matching with limits disabled. Both cover all six directed changes. Former
+case IDs 14 and 15 remain reserved. E2E-041 independently covers exact and
+wildcard matching with limits enabled.
 
 1. P0 → FLOW02(control, usable allowance) → FLOW03(permissive match setup) → G → FLOW14(child,Riley activities) → P.
 2. For each transition in the app table, P → PARENT16 → PARENT08, then check the retained child sessions through APP02, FLOW08 (matching and nonmatching) and FLOW09 (Riley). In Soft→Allowed, visit Riley before Jordan and leave Jordan's successfully launched A open. Compare that same A again immediately before returning to Parent for Allowed→Hard, then check its closure and denied relaunch after the save. Prepare the open A for Soft→Hard through the separately declared approval. Finish each iteration's checks before the next save; phase step-2 owns the entire finite loop.
 3. P → LIFE01(Parent) → PARENT02 → PARENT12 → UI12(final Allowed rule). This phase does not replay the transitions.
 
-Cases 13/14 use `app_rule_changes_case.PLAN` / `PATTERN_PLAN` and
-`onpc_app_rule_changes::run`. A has the precise rule in case 13 and
-`/opt/onpc-test-fixtures/Applications/*.AppImage` in case 14. The latter matches
+Case 13 uses `app_rule_changes_case.PLAN` and case 16 uses
+`DISABLED_PATTERN_PLAN` through the same `onpc_app_rule_changes::run` worker.
+A has the precise rule in case 13 and
+`/opt/onpc-test-fixtures/Applications/*.AppImage` in case 16. The latter matches
 A, N and the legacy root-level S file; H and the active S are in immediate
 subdirectories, outside the basename pattern. The separately Allowed active S
 secondary window is the nonmatch. Riley's original activity is compared before and after resumed use
@@ -693,9 +696,7 @@ six rounds' transport, authentication and retained-work observations under the
 [VM timing contract](../Mandates/VM-Mandate.MD#timing-and-slow-vm-resilience);
 the real approval remains 75 seconds and product response bounds are unchanged.
 
-Cases 15/16 use `app_rule_changes_case.DISABLED_PLAN` /
-`DISABLED_PATTERN_PLAN` with the same six rounds and their precise/pattern rules.
-After setting daily 30, disable limits before the initial activities. Before
+In case 16, after setting daily 30, disable limits before the initial activities. Before
 Soft→Hard, temporarily enable limits, independently read the daily margin,
 approve 75 seconds including soft apps and open A. Disable limits, revisit and
 compare that original A activity before returning to Parent for the tested
@@ -877,7 +878,7 @@ preserving the immutable sample deadline and two-second tolerance. Reuse the two
 15-second exact-second comparisons and TIME04 natural-lock/input-ownership
 result above. Keep this complete history and the original grant in one attempt.
 
-Case 29 uses `countdown_combined.PLAN` / `CountdownCombinedJourney`: four daily
+Case 29 uses `countdown_grant.COMBINED_PLAN` / `CountdownCombinedJourney`: four daily
 minutes and a real four-minute addition through the same combined FLOW13 binding.
 Retain the actual pre-approval daily balance and require Parent G>D>0 and
 total=max(D,G) before fresh child entry. Read the retained Parent window through
@@ -960,22 +961,22 @@ window/activity capture before further edits. This supplies no complete overlay
 case or cross-user retention acceptance; those remain with their consumers.
 
 Current executable histories are case 46, `overlay_approved.PLAN` /
-`onpc_kiosk_cancel::run(exchange, 'overlay-approved',...)`, and case 49,
-`kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved',...)`.
+`onpc_request_exit_cases::run_overlay`, and case 49,
+`kiosk_approved.PLAN` / `onpc_request_exit_cases::run_kiosk`.
 Each independently checks Cancel, guarded surface close (legacy Escape), then
 immediate approved exit, sharing one installed preparation and worker lifetime.
-Stable cases 44/45 and 47/48 remain nonexecutable historical selectors pointing
-to 46 and 49 respectively; they create no replacement scheduling tasks.
+Cases 44/45 and 47/48 are retired. Their coverage belongs to cases 46 and 49
+respectively.
 Prepare Riley's enabled 15-minute daily allowance through Parent and independently
 read 900 daily seconds with zero grant before fresh child sign-in. Verify the
 baseline native fixtures through `fixture_actions(include_refusal=False)`, then
 launch/use the native Allowed app by command and capture its immutable public
 window/draft. Open the overlay and prepare the qualified Jamie/custom
-75-second/soft-included choices with `entry=open, initial=default`; independently
+75-second/soft-included choices with `entry=new, initial=default`; independently
 bound the estimate by the earlier balance and elapsed time. Invoke Cancel once;
 require absent form and the original usable child desktop, compare the exact
-window/draft with the capture and submit the same draft again. Reopen with
-`entry=new, initial=selected`, prepare the remembered request and invoke the
+window/draft with the capture and submit the same draft again. Reopen,
+independently read the remembered request and invoke the
 owned request-surface API `close` through `onpc_request_exit::escape`. Repeat
 the independent destination, original-window/draft and usable submission checks
 before a third request obtains approval. Each intermediate result has its own
@@ -1005,25 +1006,25 @@ form open. A subsequent FLOW05 requires a new challenge. See the
 [overlay composition qualification](E2E-Building-Blocks.md#overlay-immediate-exit-and-approval-compositions).
 Consumers compose these shared declarations/workers and activity comparisons;
 the qualification plans supply no complete-case acceptance. After the two
-unapproved exits, case 46 reopens with `entry=new, initial=selected`:
+unapproved exits, case 46 reopens and independently reads the saved choices:
 take the immediate action after explicit success, independently compare the
 same usable child activity, submit the retained draft again and read the approved
 time through TIME01 before closing the app. `KioskRequestJourney` binds the
-countdown to the immutable public `open-estimate`, already bounded by the earlier
+countdown to the immutable public estimate at `open-entry-form`, bounded by the earlier
 900-second daily/no-grant balance, real elapsed child usage and the 75-second
 request. Its `estimate` binding retains one-second public precision, minute
 flooring and the shared [sampling tolerance](E2E-Building-Blocks.md#child-desktop-countdown-qualification)
 within 180 real elapsed seconds.
 
-Case 49 uses `kiosk_approved.PLAN` / `onpc_kiosk_cancel::run(exchange, 'approved',...)`, the shared
+Case 49 uses `kiosk_approved.PLAN` / `onpc_request_exit_cases::run_kiosk`, the shared
 `approved_request(exit='immediate')` declaration and
 `onpc_request_flow::approve` with the qualified immediate-success/exit leaf.
 Prepare and independently read 900 daily seconds and zero grant through Parent;
 the child has not yet entered. Prepare the same 75-second, soft-app-included
 choices, Cancel and independently require absent form and usable GDM. Reenter
-with `entry=new, initial=selected`, prepare the remembered request, invoke one
+and read the remembered request, invoke one
 guarded surface close and independently require absent form and usable GDM again.
-Reenter and prepare the final request. Read the 975-second estimate
+Reenter and read the final request. Capture the 975-second estimate
 and its guest monotonic timestamp before submitting. Observe explicit approval
 and invoke the offered immediate action once, then independently require absent
 form and usable GDM. Freshly sign in as the intended child and require its usable
@@ -1040,8 +1041,8 @@ Bindings: surface = child-overlay / kiosk; exit = cancel / escape / approved.
 
 1. FLOW16 → C if overlay → FLOW08(allowed) → APP04; kiosk uses G.
 2. FLOW04 → REQUEST12(cancel). Overlay APP04(compare) → APP03; kiosk GDM01.
-3. FLOW04(new, selected) → REQUEST12(escape). Repeat the independent destination and activity checks.
-4. FLOW04(new, selected) → REQUEST09 → AUTH02(correct) → REQUEST11 → REQUEST12(approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01 → child entry. TIME01 verifies approved time.
+3. Reenter → REQUEST03(remembered choices and estimate) → REQUEST12(escape). Repeat the independent destination and activity checks.
+4. Reenter → REQUEST03(remembered choices and estimate) → REQUEST09 → AUTH02(correct) → REQUEST11 → REQUEST12(approved-immediate). Overlay APP04(compare) → APP03; kiosk GDM01 → child entry. TIME01 verifies approved time.
 
 Case 49 prepares an enabled 15-minute daily allowance through Parent and reads
 the public balance before switching to GDM, using the shared
@@ -1056,9 +1057,10 @@ and never reset the VM, policy, child usage or original work within the history.
 Implementation status: Cases 50–52 use `restricted_station.PLAN`,
 `DENIED_PLAN` and `CANCELLED_PLAN`, with
 `onpc_restricted_station::run(exchange[, 'denied' | 'cancelled'])`.
-Cases 51 and 52 include the recipe's initial restriction cycle as well as the
-post-rejection or post-cancellation cycle, preserved-form comparison and normal
-Cancel to usable GDM. Both-target qualification limits are recorded in the
+Case 50 exercises the three shortcut checks on the idle form. Cases 51 and 52
+exercise those three checks on the prepared form after rejection or
+authentication Cancel, compare the preserved choices and use normal Cancel
+to reach usable GDM. Both-target qualification limits are recorded in the
 [kiosk confinement design](../SystemDesign/Kiosk-Confinement.md#verification-scope-and-evidence-limits).
 About/Help and report restrictions remain under
 E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
@@ -1067,8 +1069,8 @@ E2E-042 and E2E-045, outside this family's ordinary shortcut assertions.
 
 Bindings: request = approved / denied / cancelled.
 
-1. FLOW16(enable) → G → REQUEST01 → REQUEST03. For each restriction route: UI05(route) → UI11(forbidden window) → REQUEST03.
-2. FLOW04(entry=open) → REQUEST09 → AUTH02(outcome) → REQUEST11. Repeat restrictions if form remains.
+1. FLOW16(enable) → G → REQUEST01 → REQUEST03. Case 50 then checks each shortcut through UI05(route) → UI11(forbidden window) → REQUEST03.
+2. FLOW04(entry=open) → REQUEST09 → AUTH02(outcome) → REQUEST11. Cases 51 and 52 check each shortcut on the remaining form after independently verifying the outcome.
 3. REQUEST12(cancel or automatic) → GDM01.
 
 ### Local desktop acceptance composition
@@ -1162,11 +1164,10 @@ customer case. Ubuntu 26.04 and
 Fedora 44 passed the complete history and owned cleanup without product changes.
 
 Cases 50–52 retain their registered `restricted_station.py` approved/denied/
-cancelled histories and 1800-second bounds. They exercise three shortcuts,
-including repetition after rejection/Cancel, but supply neither Alt+F2 nor the
-ordinary positives or selected-launch evidence above. Reuse unchanged complete
-histories; do not rerun unchanged histories merely for task labels or add a shortcut ×
-approval-outcome matrix. Directly affected action/overlay/enforcement controls
+cancelled histories and 1800-second bounds. They exercise three shortcuts on the
+idle form and after rejection or authentication Cancel. The local desktop
+composition above owns Alt+F2, ordinary positives and selected-launch evidence.
+Directly affected action/overlay/enforcement controls
 are allocated by the [design owner](../SystemDesign/Kiosk-Confinement.md#bounded-confinement-usability-check).
 
 ### E2E-017
@@ -1248,8 +1249,9 @@ owns the qualified FLOW12 bindings and immutable endpoint checks.
   the open kiosk and compares both requests again with the original captures.
 - Case 60 starts by setting each overlay's local approver. It then saves each
   child's choices in the station and transfers to that child's untouched
-  overlay through fresh sign-in. A normal logout and fresh overlay revisit
-  compare both requests again with the original station captures.
+  overlay through fresh sign-in. After saving and comparing Riley's choices,
+  sign in again as Jordan and compare the reopened overlay with Jordan's
+  original station capture.
 
 Case 58 represents retired case 59 and case 60 represents retired case 61.
 Both surviving cases exercise two distinct children, selector retention and
@@ -1427,12 +1429,13 @@ natural-expiry budget before registering either complete executable.
 
 ### E2E-025
 
-Implementation status: Cases 132–135 use
+Implementation status: Cases 133–135 use
 [`expired_daily_replacement.py`](../../tests/e2e/expired_daily_replacement.py)
-and `onpc_lifecycle::expired_daily_replacement`; all four fresh-login/retained-unlock
-and soft-excluded/included bindings passed on Ubuntu 26.04.
+and `onpc_lifecycle::expired_daily_replacement`. Retained unlock covers
+exclusion and inclusion of earlier soft work (133 and 135). Case 134 covers
+fresh sign-in with inclusion. Case 132 is retired and its ID is reserved.
 
-**Replace an expired grant before returning with daily time left.** Cases 132, 133, 134, 135.
+**Replace an expired grant before returning with daily time left.** Cases 133, 134, 135.
 
 Bindings: soft-apps = excluded / included; entry = new-login / retained-unlock.
 
@@ -1828,9 +1831,10 @@ and `onpc_fresh_thirty_allowance::shared_launchers_case`. It reuses the qualifie
 A/Alias rows, then keeps the same Jordan-selected Parent
 window through three child visits. Save A Hard then Alias Allowed. Next save
 Alias Hard before changing A to Allowed. Finally allow both for recovery. Each
-visit reads both saved choices before Jordan enters fresh and tries each declared grid launcher. Blocked grid entries
-reuse the shared denial result, including the exact target's attributed command
-denial when a launcher is hidden. The recovery reads both precise match rules
+visit reads both saved choices before Jordan enters fresh. In each blocked
+round, Jordan tries the launcher still marked Allowed. This exercises the
+shared-target bypass in both directions, using the exact target's attributed
+command denial when the launcher is hidden. The recovery reads both precise match rules
 and requires Submit/readback and normal closure for both launchers. Jordan logs
 out between visits. Parent returns through the
 qualified retained desktop/window entry without reopening or child reselection.
@@ -1942,8 +1946,8 @@ results, never raw command text. The complete consumer is `command_help::execute
 
 Implementation: case 194 uses `offline_approvals.PLAN` /
 `OfflineApprovalsJourney` and `onpc_offline_approvals::run`. The complete
-both-screen journey passed on the selected Ubuntu 26.04 family, including collection, owned cleanup and baseline
-restoration. No Fedora acceptance is claimed.
+both-screen journey previously passed on Ubuntu 26.04, including collection,
+owned cleanup and baseline restoration. The shortened history awaits live acceptance.
 
 **Use local controls and approvals while offline.** Case 194.
 
@@ -1951,7 +1955,7 @@ Binding: surface = both. Case 195 is absorbed into this continuous
 journey; case ID 195 must not be reused.
 
 1. P → LIFE06(disconnect) → FLOW16 → FLOW03(hard/soft/allowed).
-2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → FLOW08(allowed/soft usable,hard denied) → TIME02.
+2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → TIME01 → FLOW08(soft usable, hard denied).
 3. DESK04(normal child logout) → request-entry(kiosk) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → C(fresh) → FLOW08(allowed/soft usable,hard denied) → TIME02.
 4. P → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → LIFE06(reconnect).
 
@@ -1962,8 +1966,9 @@ Start with no grant. Request 3 minutes with soft apps included on each screen;
 read the estimate before each fresh local authentication and observe success
 before the form exits. On the child desktop after each approval, independently
 check the added time against the earlier public balance and elapsed time, use
-the allowed and soft apps, require hard-app refusal and observe the countdown
-advance. Check the complete first result before normal sign-out to the station.
+the soft app and require hard-app refusal. After the station approval, observe
+countdown progression and retain the allowed app's work for the later
+revocation check. Check the overlay result before normal sign-out to the station.
 Date each asynchronous estimate by its recorded calculation bracket when
 comparing it with the later countdown, including time before the label read.
 Do not reset, revoke or reconnect between approvals. The positive daily
@@ -2075,18 +2080,16 @@ creates no prerequisite for another case.
 
 ### E2E-049
 
-The native grid/child-overlay binding uses `native_temporary_access.PLAN`; the
-native grid/station binding uses the same module's `KIOSK_PLAN` / `execute_kiosk`.
-The native desktop/child-overlay binding uses `DESKTOP_PLAN` / `execute_desktop`.
+The native grid/child-overlay binding uses `native_temporary_access.PLAN`.
+The native desktop/child-overlay binding uses `DESKTOP_PLAN`.
 It places one verified A, H or S desktop entry per launch and removes that entry
 after the independently observed result. H/S retain their distinct executable
 and secondary window, preserving A's original activity. The same guarded GIO
 desktop-entry API attempts each launch and a 15-second complete window
 absence proves denial; no launcher-visibility assertion is added.
-The native command/station binding uses `COMMAND_KIOSK_PLAN` /
-`execute_command_kiosk`, with the same finite approvals and app assertions.
-The native Files/station binding uses `FILES_KIOSK_PLAN` /
-`execute_files_kiosk`, selecting `route=files` in the same worker. Files selects
+The native command/station binding uses `COMMAND_KIOSK_PLAN` with the same
+finite approvals and app assertions. The native Files/station binding uses
+`FILES_KIOSK_PLAN`, selecting `route=files` in the same worker. Files selects
 each exact argument-free executable; native H/S default to distinct hard/soft
 fixture windows while A retains its original primary work. Denial requires
 15 seconds of complete absence of that app's window, with the selected Files
@@ -2124,18 +2127,19 @@ Snap cases 239/242 are deferred from active scheduling under the
 Their denial, alternating Soft permission and closure steps below are future
 remediation targets, not today's accepted behavior. Keep their IDs pending
 without executables or passing credit; no active task depends on their repair
-or another product decision. The seven native/Flatpak cases retain all results.
+or another product decision. The six native/Flatpak cases cover both request
+forms across the six launch routes.
 
 **Change temporary app permission on every supported launch route.** Cases
-231, 232, 233, 236, 238, 239, 242, 243 and 246.
+231, 233, 236, 238, 239, 242, 243 and 246.
 
 Bindings: route = native-grid / native-desktop / native-file-manager /
 native-command / snap-grid / snap-command / flatpak-grid / flatpak-command;
-surface = child-overlay / kiosk. Retain these nine bindings:
+surface = child-overlay / kiosk. Retain these eight bindings:
 
 | Launch route | Desktop request (child-overlay) | Station request (kiosk) |
 | --- | --- | --- |
-| native-grid | 231 | 232 |
+| native-grid | 231 | — |
 | native-desktop | 233 | — |
 | native-file-manager | — | 236 |
 | native-command | — | 238 |
@@ -2144,8 +2148,8 @@ surface = child-overlay / kiosk. Retain these nine bindings:
 | flatpak-grid | 243 | — |
 | flatpak-command | — | 246 |
 
-Second-screen repeats 234, 235, 237, 240, 241, 244 and 245 are removed;
-their stable case IDs must not be reused.
+Case 231 covers native grid and cases 236 and 238 cover native kiosk approvals.
+Retired IDs 232, 234, 235, 237, 240, 241, 244 and 245 remain reserved.
 
 1. FLOW16(Jordan,on,30) → AppSet(A,H,S for the declared route) → C(fresh) →
  FLOW08(A usable,H/S denied). Leave A with APP03 → APP04. All later child
@@ -2368,7 +2372,7 @@ native fixture with its existing normal input/result.
 
 | Step | Composition and required result |
 | --- | --- |
-| 1 — allowed control | P0 → FLOW16(on,120) → PARENT09 reads positive daily time and zero grant; both launchers Allowed. Switch to G → C(fresh). Independently observe Lunar's login-started owned instance within 180 seconds, stop it and require absence. Launch each normal command once, independently require the expected running identity, stop each and require absence. |
+| 1 — allowed control | P0 → enable limits and select 120 daily minutes → PARENT09 reads positive daily time and zero grant; both launchers Allowed. Switch to G → C(fresh). Independently observe Lunar's login-started owned instance within 180 seconds, stop it and require absence. Launch each normal command once, independently require the expected running identity, stop each and require absence. |
 | 2 — soft, no grant | G → P(retained) → FLOW03(Lunar,version pattern on Ubuntu or precise Flatpak identity on Fedora,Soft) and FLOW03(Minecraft,Soft). One saved-policy and balance read confirms both Soft and zero grant. G → C(retained). Invoke each same command once; require specific public policy denial and independent absence. FLOW08(N,usable); daily time keeps the desktop usable. |
 | 3 — active time-only reboot | FLOW20(overlay,Jordan,Jamie,15,exclude,same child). Visit Parent read-only to establish the positive grant, return to Jordan and reboot through LIFE02. Jordan signs in first, without opening Parent or changing policy. Require Lunar absent, both same-command specific denials and independent absence, then usable N. Only afterward visit Parent read-only to confirm the original grant remains positive, then return to Jordan. |
 | 4 — explicit soft permission | FLOW20(overlay,Jordan,Jamie,15,include,same child). Invoke both same normal commands; independently require their expected running identities. Stop them by command and require absence. No app-policy or allowance edit. |
@@ -2380,9 +2384,11 @@ with a failing command result. Neither generic startup failure nor an absent
 instance alone proves enforcement. Preserve the working Allowed/autostart and
 explicit-soft-approval controls so missing inputs cannot masquerade as denial.
 
-Before each denied reboot require more than 600 actual grant seconds for slow
-reboot, authentication and both checks. Preserve the original deadline; read its
-positive balance again only after the blocked results. Requests can add to a
+Before each denied reboot, read the fresh balances in the retained Parent
+window and require more than 600 actual grant seconds for slow reboot,
+authentication and both checks. Preserve the original deadline. Read the grant
+balance and compare the full saved app policy after the blocked results.
+Requests can add to a
 larger balance, so do not assert a 15-minute total or renew the grant after boot.
 Do not open Parent, resave policy, toggle limits or issue approval between reboot
 and the blocked checks. No private product probe, synthetic grant, mid-journey
@@ -2401,7 +2407,7 @@ saved rows and, when stated, using the app as the child.
 | 184 search-filters | PARENT10 exact-name query → PARENT11 precise plus Allowed → UI13/UI12 exact expected intersection of the real declared catalogue; clear query/restore filters and compare PARENT12 initial policies. Compose `onpc_app_rows::search` / `filter` / `read_rows` with caller-owned stages and `journey_blocks.filter_screens`; use `native_fixtures.catalogue_rows` for the exact expected set. The native profile is Jordan-bound (`existing` text/filter child bindings and `existing-parent-app-rows`); unprefixed rows target Riley. A fresh case plan owns its lifecycle, rather than inheriting `CatalogueJourney`. UI's `test_preview_smoke.py::test_catalogue_query_and_representative_filter_results` checks each query source, individual categories, empty sets and representative query/filter intersections, without multiplying independent choices. |
 | 185 match-editor | FLOW16 gives Jordan 30 daily minutes. Read A's precise rule; PARENT13 → UI16 → PARENT15 saves `Applications/Exact*.AppImage`, then PARENT16 sets Hard Blocked. Save `/opt/onpc-test-fixtures/Rejected/*.AppImage` and observe the real broker's failed-save report; close it with `parent_reports.report_close` before comparing the exact confirmed wildcard and Hard Blocked access. Log out Parent, enter Jordan's fresh desktop, then FLOW08 proves A's command launch denied with no window and N's unrelated command launch usable through Submit and normal closure. UI qualification owns the precise target/basename, empty/unrelated input, Cancel and Reset matrix, including exact explanations and unchanged values. |
 | 186 match-reopen | FLOW16 gives Jordan 30 daily minutes. Save A's `Applications/Exact*.AppImage` and select Allowed; LIFE01 → PARENT02(Jordan) → PARENT12 verifies the exact remembered wildcard and Allowed access. Save S's precise `Applications/Versioned/Lunar Client-3.7.17.AppImage`; select Riley then Jordan and read S's suggested `Applications/Versioned/Lunar Client-*.AppImage`. Reselect precise, reopen Parent through LIFE01 and select Jordan, then read that suggested pattern again. Reselect precise before A's rejected `/opt/onpc-test-fixtures/Rejected/*.AppImage` Save. Close the report with `parent_reports.report_close`, compare A's original custom wildcard/Allowed and S's restored suggested pattern. Reselect S's precise rule before setting Soft Blocked; independently compare precise/Soft. Log out Parent and enter Jordan fresh: FLOW08 proves S command denial with no window and A command launch, Submit/readback and normal closure. Redisplay records the current limitation, not desired new behavior. |
-| 187 shared-launchers | Jordan's A and Alias share `Exact Fixture.AppImage`. FLOW16(30 daily minutes) → App Limits → read both initial Allowed rows. Save A Hard then Alias Allowed → read both choices → C → FLOW08(each grid launcher,denied). Return to the same Parent window → block Alias then allow A → read both choices → C → both denied. Return → allow Alias → read both choices and precise match rules → C → both usable and closed. Log out Jordan between visits and preserve Parent's original session, window, selected child and settings. |
+| 187 shared-launchers | Jordan's A and Alias share `Exact Fixture.AppImage`. FLOW16(30 daily minutes) → App Limits → read both initial Allowed rows. Save A Hard then Alias Allowed → read both choices → C → Alias grid launch denied. Return to the same Parent window → block Alias then allow A → read both choices → C → A grid launch denied. Return → allow Alias → read both choices and precise match rules → C → both usable and closed. Log out Jordan between visits and preserve Parent's original session, window, selected child and settings. |
 | 188 special-paths | FILE05 copies Jordan's H `Applications/Whitespace/Path With Spaces.AppImage` to adjacent `Copied Path With Spaces.AppImage` and C `Applications/Comma/Path,With,Commas.AppImage` to adjacent `Copied,Path,With,Commas.AppImage` while Allowed, using the qualified `native-space` and `native-comma` profiles. PARENT16(Hard for both) → C → FLOW08(originals and identical copies, denied), with distinct N usable. Repeat under Soft with no exception, then restore Allowed for guarded FILE05 cleanup. These supported path cases do not assert universal copied-program control. |
 | 189 pattern-files | Save `Applications/Versioned/Lunar Client-*.AppImage` for S's current `3.7.17` executable. The existing same-directory nonmatch is `PrismLauncher.AppImage`. FILE05's separate `native-version-next` / `native-version-nonmatch` additions copy the verified root-level `LunarClient-3.8.0.AppImage` source and existing nonmatch to `Versioned/Lunar Client-3.8.0.AppImage` and `Versioned/NewPrismLauncher.AppImage`; FLOW08 matching denied and existing nonmatch usable. Allow the declared 60-second refresh interval through guarded TIME03 before the new nonmatch's single launch. APP02 observes that launch's actual result; an absent window before launch is not refresh readiness. A failed uncertain launch is not retried as if it never happened. A pattern unable to preserve existing nonmatches must report failure and retain the previous rule. |
 
@@ -2817,13 +2823,13 @@ and capture its app-policy rows. Record exact initial values before each child
 session; compare active time using declared monotonic elapsed bounds.
 
 Observe representative untouched English default/native names before saving
-choices. Save Jamie's Chinese in Parent, select Riley → Jordan → Riley and
+choices. Save Jamie's Chinese in Parent, select Riley then Jordan and
 independently require Chinese management text and the selected account's policy.
 Read the checked Chinese choice after reopening Parent and at the final visit.
 Use public child/station Preferences for Jordan German and Riley Hebrew.
 For one declared candidate change (Riley Hebrew → German), Cancel and reopen
-to require Hebrew. Switch kiosk Jordan → Riley → Jordan and Jamie → Casey →
-Jamie; language follows the child only.
+to require Hebrew. Switch kiosk Jordan → Riley → Jordan and change Jordan's
+approver from Jamie to Casey and back. The form follows the selected child.
 Keep duration 75 seconds and soft apps included; compare accounts/numbers
 without submitting. Riley's overlay and kiosk must show the same saved Hebrew.
 
@@ -2832,15 +2838,16 @@ confirm isolation. Close/relaunch Parent and Riley's overlay, exit/re-enter kios
 and renew Riley's desktop session through public qualified routes. Require
 persisted choices, representative German/CJK/Hebrew customer text and no
 repeated first-run chooser without downloads. Restore Internet through its
-shared owner and independently read public policy/app values. No other
-scenario's approval or panel rendering is needed to pass this account history.
+shared owner after rereading Riley's offline policy, then independently read
+both children's public policy and app values.
 
 E2E-054 `account-offline`, case 255, binds this complete history in
-`tests/e2e/language_persistence.py` and passed on Ubuntu 26.04. Both policy captures use a 2400-second
+`tests/e2e/language_persistence.py`. The earlier history passed on Ubuntu 26.04.
+Both policy captures use a 2400-second
 monotonic history bound, with two seconds of public refresh/formatter tolerance.
-Read full policy at the initial captures, language and relaunch results, and
-each child's final offline and online readbacks. Before isolation and Parent
-relaunch, use the selected-child read for the unchanged interim state.
+Read full policy at the initial and Chinese language captures, on returning to
+Riley offline and for both children after reconnection. Use the scoped child
+selection and persisted chooser read when relaunching Parent.
 App IDs and rules remain exact across languages. App names follow the parent's
 language under [ONPC-CORE-APPS-002](../Specification.md): capture each child's
 Chinese names at its first Chinese readback and require those exact names on

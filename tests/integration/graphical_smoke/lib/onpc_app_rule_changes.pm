@@ -13,11 +13,8 @@ use onpc_lifecycle ();
 # Case-owned finite ordering; all input and result mechanics stay shared.
 sub run {
     onpc_progress::operation('Checking app rule changes while both children keep using their own apps');
-    my ($exchange, $declared, $challenges, $request, $match, $disabled) = @_;
-    $match //= 'precise';
-    $disabled //= 0;
-    die 'app-transitions:binding' unless (@_ == 4 || @_ == 5 || @_ == 6) && ref($exchange) eq 'CODE'
-        && ($match eq 'precise' || $match eq 'pattern')
+    my ($exchange, $declared, $challenges, $request, $disabled) = @_;
+    die 'app-transitions:binding' unless @_ == 5 && ref($exchange) eq 'CODE'
         && ($disabled eq '0' || $disabled eq '1')
         && ref($request) eq 'ARRAY' && join(',', @$request) eq 'other-child,parent,75,1';
     my $journey = onpc_journey->new(exchange => $exchange, prefix => 'app-rule-changes', review => 0);
@@ -32,7 +29,7 @@ sub run {
     }
     $journey->seen($_) for qw(apps-page initial-rows);
     onpc_app_rows::named_app_set($journey, 'desktop', 'same-user', 'retained', 'existing',
-        [['A', $match eq 'pattern' ? 'match-wildcard-appimages' : 'match-precise', 'allowed'],
+        [['A', $disabled ? 'match-wildcard-appimages' : 'match-precise', 'allowed'],
          ['S', 'match-soft-precise', 'allowed']], 'setup-rules');
     onpc_app_rows::retained_app_activities($journey, [['riley', 'child', 'fresh']]);
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan');

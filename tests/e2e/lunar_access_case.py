@@ -8,7 +8,7 @@ from accessible_ui import (LUNAR_POLICY_APP, MINECRAFT_POLICY_APP,
 from calendar_fixture import preset_ordinary_daytime
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (allowance_selection, desktop_entry, desktop_return, fresh_desktop,
-                            overlay_entry, parent_management, parent_selection, prefixed_stages)
+                            overlay_entry, parent_management, prefixed_stages, retained_parent_entry)
 from lunar_profile import LunarProfile
 from minecraft_access import MinecraftAccessJourney, allowed_work, launcher
 from native_fixtures import fixture_actions
@@ -68,7 +68,7 @@ def parent_visit(prefix, entry):
         **enter(prefix + '-parent', 'parent', entry),
         **prefixed_stages(prefix + '-view', parent_management(child='existing')
                          if entry == 'fresh' else
-                         parent_selection(child='existing', screen_limits=True)),
+                         retained_parent_entry(source='same-user', desktop_observation=False)),
     }
 
 
@@ -96,7 +96,7 @@ PARTS = {
     'step-1': {
         **fresh_desktop('parent'), **parent_management(child='existing'),
         'parent-selected': 'ui:existing-returned',
-        'allowance-configured': 'ui:time-explanation-setup-thirty-read',
+        'daily-enable': 'ui:parent-toggle-enabled',
         **allowance_selection('daily', (120,)),
         'daily-settings': 'ui:existing-returned',
         'allowed-apps': 'ui:existing-apps',
@@ -119,7 +119,7 @@ PARTS = {
     'step-3': {
         **approval('time-only', False),
         **parent_visit('time-only-before', 'retained'),
-        'time-only-before-policy': 'ui:revoke-saved-balances',
+        'time-only-before-balance': 'ui:revoke-balances',
         **child_return('time-only-before'), **reboot('time-only'),
         **denied('time-only'),
         **parent_visit('time-only-after', 'fresh'),
@@ -130,7 +130,7 @@ PARTS = {
     'step-5': {
         **approval('replacement', False),
         **parent_visit('replacement-before', 'retained'),
-        'replacement-before-policy': 'ui:revoke-saved-balances',
+        'replacement-before-balance': 'ui:revoke-balances',
         **child_return('replacement-before'), **reboot('replacement'),
         **denied('replacement'),
         **parent_visit('replacement-after', 'fresh'),
@@ -190,32 +190,18 @@ class LunarAccessJourney(MinecraftAccessJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
-        if stage.endswith('-policy'):
+        if stage.endswith(('-policy', '-balance')):
             policy = observed['ui']['revoke_cancel']
             require(policy['settings'] == {'child': 'existing-fixture-child',
                     'limit_enabled': True, 'allowance': ['2 hours']}, 'lunar-access:settings')
-            rows = {row[0]: row[1:] for row in policy['apps']}
-            choice = 'allowed' if stage == 'allowed-policy' else 'conditional'
-            require(self.profile is not None, 'lunar-access:profile')
-            flatpak = self.profile['profile'] == 'lunar-flatpak'
-            lunar = self.profile['targets']['lunar_policy_app'] if flatpak else LUNAR_POLICY_APP
-            require(rows.get(lunar) == [choice, 'precise' if flatpak else 'pattern']
-                    and rows.get(MINECRAFT_POLICY_APP) == [choice, 'precise'],
-                    'lunar-access:saved-choices')
-            if not flatpak:
-                require(dict(policy['rules']).get(LUNAR_POLICY_APP)
-                        == self.profile['targets']['version_pattern'], 'lunar-access:version-pattern')
-            saved = {key: deepcopy(policy[key]) for key in ('settings', 'apps', 'rules')}
-            if stage == 'soft-policy':
-                self.saved_policy = saved
-            elif stage != 'allowed-policy':
-                require(self.saved_policy == saved, 'lunar-access:saved-policy-changed')
+            if stage.endswith('-policy'):
+                self.check_app_policy(stage, policy)
             balances = policy['balances']
             require(balances['daily']['seconds'] > 600, 'lunar-access:daily-margin')
             if stage in ('allowed-policy', 'soft-policy'):
                 require(balances['one_time']['seconds'] == 0, 'lunar-access:unexpected-grant')
             else:
-                name, when = stage.removesuffix('-policy').rsplit('-', 1)
+                name, when, _read = stage.rsplit('-', 2)
                 bounds = tuple(self.ui.read_bounds)
                 grant = balances['one_time']
                 require(grant['seconds'] > (600 if when == 'before' else 0),
@@ -237,6 +223,24 @@ class LunarAccessJourney(MinecraftAccessJourney):
             before, bounds = self.grants[stage.removesuffix('-reboot')]
             require(before['seconds'] - (time.monotonic_ns() - bounds[0]) / 1e9
                     - before['precision_seconds'] > 600, 'lunar-access:reboot-grant-margin')
+
+    def check_app_policy(self, stage, policy):
+        rows = {row[0]: row[1:] for row in policy['apps']}
+        choice = 'allowed' if stage == 'allowed-policy' else 'conditional'
+        require(self.profile is not None, 'lunar-access:profile')
+        flatpak = self.profile['profile'] == 'lunar-flatpak'
+        lunar = self.profile['targets']['lunar_policy_app'] if flatpak else LUNAR_POLICY_APP
+        require(rows.get(lunar) == [choice, 'precise' if flatpak else 'pattern']
+                and rows.get(MINECRAFT_POLICY_APP) == [choice, 'precise'],
+                'lunar-access:saved-choices')
+        if not flatpak:
+            require(dict(policy['rules']).get(LUNAR_POLICY_APP)
+                    == self.profile['targets']['version_pattern'], 'lunar-access:version-pattern')
+        saved = {key: deepcopy(policy[key]) for key in ('settings', 'apps', 'rules')}
+        if stage == 'soft-policy':
+            self.saved_policy = saved
+        elif stage != 'allowed-policy':
+            require(self.saved_policy == saved, 'lunar-access:saved-policy-changed')
 
 
 def prepare(journey, guard):

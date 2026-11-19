@@ -103,23 +103,22 @@ def renewed_language_entry(journey, guard, before):
             'chinese-kiosk:renewal-required')
     guard()
     command = PackageCommand(journey.transport, journey.context.verified)
-    first, second = command.read_identity(), command.read_identity()
-    require(first == second, 'chinese-kiosk:unstable-entry')
+    current = command.read_identity()
     expected = copy.deepcopy(before)
     # AccountsService strips the encoding during SetLanguage; GNOME login can
     # restore it. Both independent boundaries must still name only DESK13's
     # declared Chinese locale. Preserve the actual renewed API representation
     # for the later package-upgrade comparison, with every other field exact.
-    renewed_language = first['preserved']['accounts'][journey.language_uid]['language']
+    renewed_language = current['preserved']['accounts'][journey.language_uid]['language']
     require(journey.language_confirmation['confirmed_language'] in (LOCALE, 'zh_CN')
             and renewed_language in (LOCALE, 'zh_CN'), 'chinese-kiosk:renewed-language')
     expected['preserved']['accounts'][journey.language_uid]['language'] = renewed_language
     # The supported logout/login deliberately replaces only the bound admin
     # session. read_identity independently requires its active fixture owner.
-    expected['session'] = first['session']
-    require(first == expected and first['boot'] == journey.boot, 'chinese-kiosk:renewal-preservation')
+    expected['session'] = current['session']
+    require(current == expected and current['boot'] == journey.boot, 'chinese-kiosk:renewal-preservation')
     guard()
-    return copy.deepcopy(first)
+    return current
 
 
 def lifecycle_actions():

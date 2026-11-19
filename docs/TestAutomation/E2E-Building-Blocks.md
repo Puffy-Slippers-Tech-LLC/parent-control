@@ -1417,12 +1417,8 @@ attempt/boot readiness remain mandatory.
 bytes and runtime admissions, harmless fixture use, frozen selection,
 idempotent readback and missing/incompatible/stale readiness refusals. The live
 routes each verify their own attachment, fixture bytes and current boot binding.
-The online route exercises repeat provisioning. Its
-Parent consumer reads Riley's A/H/S/N rows and default matches, saves H permanent
-and S conditional, rereads them after child reselection and requires unchanged
-Jordan defaults. It restores H/S Allowed, controls off and zero balances before
-collection and baseline restoration. This qualifies preparation on Ubuntu 26.04
-and Fedora 44, not a customer journey.
+The online route also exercises repeat provisioning. Public catalogue saves
+and rereads belong to the named-app set and child isolation E2E scenarios.
 
 #### Active-grant disable and native continuity
 
@@ -1518,7 +1514,7 @@ are unnecessary.
 | REQUEST09 | C | Activate an enabled Request once and observe the declared result: authentication for valid input or validation for invalid custom input. | UI01 → UI02(enabled) → UI04; valid then AUTH01, invalid then REQUEST03 → UI11(no prompt). `AccessibleUI.kiosk_mate_cancel` / `mate_prompt.PLAN` qualify the fixed valid kiosk submission through `check_e2e_auth_prompt`; `overlay_shell_cancel_ready` qualifies the fixed valid overlay submission through [Shell prompt qualification](#overlay-shell-prompt-and-cancel-qualification). `AccessibleUI.kiosk_invalid_choice` / `request_duration.PLAN` qualify enabled kiosk submission, exact validation, preserved form and no authentication for every finite invalid custom value; see [qualification](#invalid-kiosk-choice-qualification). `overlay-invalid-below-*` shares the same single-submit/no-prompt mechanics with explicit overlay/fixed-child guards; see [overlay invalid submission](#overlay-flow04-invalid-submission-and-escape-qualification). Missing accounts, unloaded preferences or disabled limits instead require the disabled state and no activation. | kiosk invalid-custom/fixed valid-authentication and representative overlay invalid-custom/fixed valid-authentication branches ready; other bindings pending |
 | REQUEST10 | C | Native double-click Request and one-prompt observation: excluded on both kiosk and overlay. | Requires unsupported UI20; see the [UI mandate](../Mandates/UI-Automation-Mandate.MD#unsupported-native-gestures). Do not substitute two activations or recreate capability/consumer tasks. Ordinary REQUEST09 and independent public observations remain separate capabilities. | excluded; no active task or queue blocker |
 | REQUEST11 | C | Observe success confirmation, rejection, cancellation without an error, or validation feedback, with the explicitly expected preserved choices. | Read explicit result before automatic exit; if form remains compare REQUEST03 with immutable choices. `kiosk_gdm_returned` requires usable GDM/absent request/error UI. `kiosk_approval_success` captures brief success; kiosk/overlay rejection and password-free Cancel require unchanged usable no-error form. Overlay invalid input requires exact validation/no prompt; overlay exit compares original usable activity. See [kiosk](#kiosk-approval-qualification) and [overlay](#overlay-immediate-exit-and-approval-compositions) outcomes; other bindings pending. | pending; kiosk Cancel/Escape, fixed approval success and rejection/Cancel preserved form, declared overlay Cancel/Escape/invalid validation and fixed Shell rejection/Cancel preserved form and fixed overlay approval success ready |
-| REQUEST12 | C | Exit through the normal API Cancel action, surface close, approved immediate exit action, or already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. Form cancellation refuses an active authentication prompt. Legacy Escape bindings retain their normal-close user outcome. | UI04(Cancel or approved immediate exit), UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `AccessibleUI.cancel_kiosk_request` invokes the owned API action; `onpc_request_exit::escape` composes the scoped request-surface close with `kiosk_gdm_returned` or `overlay_desktop` for independent destination observation. Retained `focus_kiosk_escape_recipient` names supply guarded API close, with no native key or focus requirement. Cases 47/48 and 54 retain their choices and GDM assertions; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` and `auth_result.PLAN` retain automatic/immediate approved exit; see [kiosk approval](#kiosk-approval-qualification). Overlay Cancel/close shares the request API and compares the original usable activity; see [valid overlay slice](#valid-overlay-choice-and-cancel-qualification), [overlay close history](#overlay-flow04-invalid-submission-and-escape-qualification) [automatic overlay approval](#overlay-approval-and-automatic-return-qualification) and [immediate/automatic overlay compositions](#overlay-immediate-exit-and-approval-compositions). Historical native-Escape evidence does not require keyboard input in current consumers. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic/immediate approved exits ready |
+| REQUEST12 | C | Exit through the normal API Cancel action, surface close, approved immediate exit action, or already-approved automatic exit. Observe overlay disappearance plus child desktop, or kiosk disappearance plus GDM. Form cancellation refuses an active authentication prompt. Legacy Escape bindings retain their normal-close user outcome. | UI04(Cancel or approved immediate exit), UI18, or no input for automatic exit → UI11 → DESK01 or GDM01. `AccessibleUI.cancel_kiosk_request` invokes the owned API action; `onpc_request_exit::escape` composes the scoped request-surface close with `kiosk_gdm_returned` or `overlay_desktop` for independent destination observation. Retained `focus_kiosk_escape_recipient` names supply guarded API close, with no native key or focus requirement. Cases 49 and 54 retain their request and GDM assertions; see [prepared request qualification](#prepared-request-qualification). `kiosk_approval.PLAN` and `auth_result.PLAN` retain automatic/immediate approved exit; see [kiosk approval](#kiosk-approval-qualification). Overlay Cancel/close shares the request API and compares the original usable activity; see [valid overlay slice](#valid-overlay-choice-and-cancel-qualification), [overlay close history](#overlay-flow04-invalid-submission-and-escape-qualification) [automatic overlay approval](#overlay-approval-and-automatic-return-qualification) and [immediate/automatic overlay compositions](#overlay-immediate-exit-and-approval-compositions). Historical native-Escape evidence does not require keyboard input in current consumers. | pending; kiosk Cancel/Escape and fixed automatic/immediate approved exits and declared overlay Cancel/Escape and fixed automatic/immediate approved exits ready |
 | REQUEST13 | C | Open the child overlay through the Shell panel only when the case explicitly tests that graphical launch route. Observe one usable form and fixed child identity. | DESK12(request entry) → UI04 → UI01 → UI02 → UI13(form count=1) → UI03(fixed child). Declare the exception in case metadata and recipe. Shared `overlay_entry` routes `panel` and `panel-reopen` qualify normal launch and reuse of the open form; see [overlay entry qualification](#overlay-entry-qualification). [Fullscreen gameplay request/return](#fullscreen-gameplay-request-and-return) uses the same product API entry without panel reveal or focus choreography and independently compares the original game activity. | normal launch, singleton and Jordan fullscreen gameplay/request/return ready on Ubuntu 26.04 |
 
 #### Overlay Shell prompt and Cancel qualification
@@ -1748,7 +1744,7 @@ request on Ubuntu 26.04/Shell `50.1-0ubuntu1.3`, English/US.
 explicit success and independent prompt absence, then activates the offered
 owned result action once; both branches independently verify original activity.
 
-`overlay_approved.PLAN` / `onpc_kiosk_cancel::run(..., 'overlay-approved',...)`
+`overlay_approved.PLAN` / `onpc_request_exit_cases::run_overlay`
 bind case 46 to this immediate route plus native activity/time observations.
 `KioskRequestJourney` compares an immutable estimate independently bounded by
 earlier daily/no-grant balance, elapsed use and requested addition.
@@ -2558,8 +2554,8 @@ lock and same-lock input ownership, collection, worker shutdown, recording,
 owned cleanup and baseline restoration. This qualifies those complete bindings
 on Ubuntu; Fedora acceptance remains separate.
 Combined case 29 uses
-[`countdown_combined.PLAN` / `CountdownCombinedJourney`](../../tests/e2e/countdown_combined.py)
-and `onpc_challenges::countdown_combined`. It historically passed on Ubuntu 26.04: public four-minute daily allowance,
+[`countdown_grant.COMBINED_PLAN` / `CountdownCombinedJourney`](../../tests/e2e/countdown_grant.py)
+and `onpc_challenges::countdown_grant`. It historically passed on Ubuntu 26.04: public four-minute daily allowance,
 real two-minute addition, Parent G>D>0/total=max(D,G), preserved usable work and
 resumed time, minute/final-second progression, natural lock and same-lock input
 ownership. Collection, worker shutdown, recording, owned cleanup and baseline
@@ -3215,27 +3211,12 @@ Its complete six-transition journey also qualified S's secondary activity
 capture/comparison through `native-unmatched-soft-*`, while A's policy activity
 remained independently bound.
 
-Case 14 qualified the enabled Jordan A `*.AppImage`/Allowed and S
-precise/Allowed setup through the same operations on Ubuntu 26.04. `app_rule_changes_case.PATTERN_PLAN` /
-`onpc_app_rule_changes::run(..., 'pattern')` passed all six directed saves,
-captured A closure and matching launch results, retained/new nonmatching S use,
-Riley's original activity and resumed use after each save, the real 75-second
-soft-included approval, and final reopened Parent readback. Collection,
-worker shutdown, owned cleanup and baseline restoration passed.
-
-Case 15's disabled/precise journey passed on Ubuntu 26.04. `app_rule_changes_case.DISABLED_PLAN` /
-`onpc_app_rule_changes::run(..., 'precise', 1)` reuse the six rounds with
-independent limits-off settings before each save and after Parent reopening.
-The Soft→Hard preparation temporarily enables limits, obtains the same real
-75-second/soft-included approval, opens A, disables limits and independently
-compares that original A activity before the tested Hard save. Captured closure,
-matching launch results, retained/new nonmatching S use and Riley's original
-activity with resumed use passed after every transition. Collection, worker
-shutdown, owned cleanup and baseline restoration passed.
-
-Case 16's disabled/pattern journey passed on Ubuntu 26.04. `app_rule_changes_case.DISABLED_PATTERN_PLAN` /
-`onpc_app_rule_changes::run(..., 'pattern', 1)` combine that limits-off history
-with A's `*.AppImage` rule. All six saves, captured closure and matching launch
+Case 16's disabled/pattern journey passed on Ubuntu 26.04.
+`app_rule_changes_case.DISABLED_PATTERN_PLAN` and
+`onpc_app_rule_changes::run(..., 1)` repeat the six transitions with limits off
+and A's `*.AppImage` rule. The Soft→Hard preparation temporarily enables
+limits, obtains a real soft-included approval, opens A, disables limits and
+compares the original A activity before the Hard save. All six saves, captured closure and matching launch
 results, nonmatching S use, Riley's original activity, real 75-second approval,
 preserved A after disabling limits and final reopened Parent readback passed.
 Recording, collection, worker shutdown, owned cleanup and baseline restoration
@@ -3468,7 +3449,7 @@ The original `kiosk-approval` namespace supports one invocation per fresh
 attempt; repeated requests need separately declared distinct challenges.
 
 Case 49/`kiosk_approved.PLAN` /
-`onpc_kiosk_cancel::run(..., 'approved',...)` adds immediate exit, fresh child
+`onpc_request_exit_cases::run_kiosk` adds immediate exit, fresh child
 entry and countdown after public daily900/grant0 setup.
 `KioskRequestJourney.countdown_checks` /
 `countdown.check_countdown_balance` compare immutable estimate/countdown:
@@ -3501,10 +3482,10 @@ Read explicit wrong-password denial or password-free cancellation, then compare
 immutable unchanged usable no-error form. End at `flow-preserved` without
 retry/exit so caller can inspect before separate FLOW05.
 
-Cases 51/52/`restricted_station.DENIED_PLAN/CANCELLED_PLAN` repeat the
-restriction cycle before preparation and after rejection/Cancel, then Cancel
-to independently usable GDM. Declare default disabled vs
-`kiosk-restriction-prepared-ready/read` explicitly; prepared reads require
+Cases 51/52/`restricted_station.DENIED_PLAN/CANCELLED_PLAN` check the
+three shortcuts after rejection or authentication Cancel, then Cancel
+the form to independently usable GDM. Each shortcut consumes an explicitly
+prepared `kiosk-restriction-prepared-ready/read` observation; those reads require
 the exact fixed child/approver/custom/soft/estimate rather than deriving
 expectations from current values. Both retain full-tree exclusions, fresh owner
 and two-second absence checks. Password-free cancellation enters no credential.
@@ -3523,8 +3504,9 @@ secret bindings. Other/repeated requests and complete scenarios remain separate.
 Current customer cases 46 and 49 compose Cancel, the legacy Escape surface-close
 route and immediate approved exit in one history per surface. Each exit retains
 its independent destination result; the overlay compares and resubmits the same
-original work after every exit. Cases 44/45/47/48 are nonexecutable historical
-selectors. This consolidation changes no capability's qualification claim.
+original work after every exit. The first entry prepares the choices once.
+Before surface close and approval, read the remembered choices and estimate
+from the newly opened form. Cases 44/45/47/48 are retired.
 
 `request_flow.daily_station_entry` /
 `onpc_request_flow::daily_station_entry` share public selected-child enablement,
@@ -3548,13 +3530,9 @@ child/approver operations retain exact offered-account sets/owner/no-prompt
 guards. `kiosk-valid-fraction-soft-select/read` use
 `RequestObservation.from_request`. Other values/overlay require their own scope.
 
-Historical case 47/`kiosk_cancel.PLAN` /`onpc_kiosk_cancel::run` uses enabled-choice
-Cancel; historical case 48/`kiosk_escape.PLAN` /`onpc_kiosk_escape::run` uses legacy
-Escape-labelled `onpc_request_exit::escape` as an owned API surface close.
-Both independently require absent form/usable GDM and preserve estimate/choice
-checks. Historical native Escape evidence does not automatically qualify a
-changed API-close composition. Current case 49 composes both exits before
-approval; the changed combination needs its own live acceptance.
+Case 49 covers enabled-choice Cancel and owned API surface close through
+`onpc_request_exit::escape` before approval. Each exit independently requires an
+absent form and usable GDM. The revised combination awaits live acceptance.
 
 ### Canonical reuse and implementation checkpoints
 
@@ -4399,7 +4377,7 @@ case 62 passed; collection, owned cleanup and
 baseline restoration passed in both attempts. The guest provisioner's movable
 declaration now imports `LAUNCHERS`, fixing the prior missing-import failure.
 This qualifies FIX06 and APP01/02/03 for Jordan's Allowed shared-target grid
-bindings on Ubuntu only. Complete case 187 is qualified on Ubuntu 26.04: blocking either launcher while the other stayed
+bindings on Ubuntu only. The previous case 187 composition passed on Ubuntu 26.04: blocking either launcher while the other stayed
 Allowed denied both launches, and restoring both to Allowed recovered usable
 launch/Submit/readback/closure through each. Each round independently read both
 saved choices and preserved the same Jordan-selected Parent session/window and
@@ -4408,8 +4386,9 @@ saved choices and preserved the same Jordan-selected Parent session/window and
 with the existing single-use input and independent denial guards. Affected
 original-launcher case 64 passed, including Jordan's
 denial and Riley's unaffected usable app. Collection, owned cleanup and baseline
-restoration passed in both attempts; coverage was regenerated after each. This
-supplies no Fedora qualification.
+restoration passed in both attempts. The current case 187 tests the launcher
+still marked Allowed in each blocked round and recovers both launchers. This
+composition has no new installed result.
 The future-version/new-nonmatch binding is implemented in
 [versioned_appimage_assets.py](../../tests/e2e/versioned_appimage_assets.py),
 qualified on Ubuntu 26.04 by `check_e2e_qualify_versioned_appimage_pattern_assets`. FIX06 declares the distinct root-level
@@ -4482,14 +4461,10 @@ command-denial witness without asserting launcher visibility. Each approval
 keeps A usable and H denied; inclusion opens S and replacement exclusion closes
 that captured S activity. Final Parent reads preserve the saved A/H/S choices.
 Collection, owned cleanup and baseline restoration passed, as did the affected
-case 62 regression. Case 232's `native_temporary_access.KIOSK_PLAN` adds the
-native grid/station binding on Ubuntu 26.04: the same three 30-second requests,
-each selected approver in a real prompt, retained child/countdown and original
-Allowed work, Soft inclusion followed by captured closure and denied relaunch,
-continued Hard denial and unchanged saved choices passed. Its shared worker
-selects `surface=kiosk` explicitly and binds each request's credential scope;
-desktop challenges remain on the enclosing journey. Collection, owned cleanup
-and baseline restoration passed. Other platform bindings retain their own scope.
+case 62 regression. Native station request coverage uses the Files and command
+bindings in cases 236 and 238. Their shared worker binds each request's
+credential scope, and desktop challenges remain on the enclosing journey.
+Other platform bindings retain their own scope.
 
 The historical `native_grid_usable.PLAN` / `check_e2e_native_grid_usable` qualification covers Jordan
 grid use on Shell `50.1-0ubuntu1.2`, `en_US.UTF-8`, `xkb/us`.
@@ -4667,7 +4642,7 @@ the first submitted result and probes `first-dismiss`, closing the worker
 without replying and retaining the owned child scene for investigation and
 `stop`. It supplies no acceptance credit.
 
-Case 236's `native_temporary_access.FILES_KIOSK_PLAN` / `execute_files_kiosk`
+Case 236's `native_temporary_access.FILES_KIOSK_PLAN`
 passed on Ubuntu 26.04.
 The shared temporary-access worker selects `route=files`; APP01/02 now also
 qualify Jordan's H/S Files denial with A's original work retained. Argument-free
@@ -4682,9 +4657,6 @@ restoration passed; coverage was regenerated. The affected
 separate from its original command-opened secondary work, unchanged original
 activity, normal closures, worker shutdown and baseline restoration. Its
 Nautilus tuple remains `1:50.2.2-0ubuntu0.2`, `en_US.UTF-8`, `xkb/us`.
-Affected station grid case 232 also passed its complete three-approval history,
-saved-rule readback, collection, worker shutdown and baseline restoration;
-coverage was regenerated and the VM was observed off.
 Other accounts/routes/tuples remain separate.
 
 #### Native desktop entry and usable launch
@@ -4812,14 +4784,10 @@ collection, worker/callback shutdown, owned cleanup and baseline restoration pas
 `native_denial.PLAN`'s unchanged H/S no-prior-window denial remains qualified separately; this
 slice supplies no complete E2E-006/case-13 acceptance.
 
-Case 14's complete enabled/pattern journey subsequently passed on Ubuntu 26.04, adding captured A closure and command denial
-after the `*.AppImage` Soft/Hard saves, including Soft→Hard after real approval.
-It independently preserved and used the nonmatching S window and Riley's same
-activity after every transition. Case 15 subsequently passed the same captured
-closure/denial and isolation results with precise matching and limits off, including preserved A activity after the temporary
-approval's limits-off toggle and before the Soft→Hard save. Case 16 passed
-those same closure/denial and isolation results with pattern matching and
-limits off, including collection and owned cleanup.
+Case 16 passed on Ubuntu 26.04 with pattern matching and limits off. It
+observed captured A closure and command denial after the `*.AppImage` saves,
+including Soft→Hard after real approval, and independently preserved and used
+the nonmatching S window and Riley's work after every transition.
 
 Case 19 passed on Ubuntu 26.04, extending
 `native_policy_activity(role='S')` to capture and compare complete secondary-window
@@ -5287,7 +5255,7 @@ Shared capabilities and remaining extension boundaries:
  unused-child balances. The shared class copies observations, compares the
  complete request, and rejects missing/replayed captures before acknowledgement.
  Stage names and qualification default plans carry no implicit assertions.
- Cases 47/48/50/51/52/192 select this class directly; qualification wrappers
+ Cases 46/49/50/51/52/192 select this class directly; qualification wrappers
  only supply their own plans.
 - `JourneyPlan.challenges` binds a nonsecret challenge ID to its fixture role
  and two consecutive declared invocation IDs. `UiObservations.observe_challenge`

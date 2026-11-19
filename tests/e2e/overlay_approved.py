@@ -2,9 +2,9 @@
 
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (fresh_desktop, parent_management, native_activity_entry,
-                            native_activity_resume, prefixed_stages)
+                            native_activity_resume, overlay_entry, prefixed_stages)
 from native_fixtures import fixture_actions
-from request_flow import prepared_request, overlay_approved_request
+from request_flow import CHOICES, prepared_request, overlay_approved_request
 from request_composition import KioskRequestJourney
 
 
@@ -17,15 +17,15 @@ RETURN_SCREENS = {
     'activity-closed': 'ui:overlay-native-closed',
 }
 EXIT_SCREENS = {}
-for prefix, initial, exit_stages in (
-        ('cancel-exit', 'default', {'cancel': 'ui:overlay-request-cancel',
-                                  'cancel-returned': 'ui:overlay-desktop'}),
-        ('close-exit', 'selected', {'escape-ready': 'ui:overlay-request-escape-ready',
-                                  'escape-returned': 'ui:overlay-desktop'})):
+REMEMBERED_REQUEST = overlay_entry('open-entry', 'command', form_operation='overlay-valid-fraction-soft-read')
+for prefix, request, exit_stages in (
+        ('cancel-exit', prepared_request(prefix='open', entry='new', initial='default',
+                                         surface='overlay', **CHOICES),
+         {'cancel': 'ui:overlay-request-cancel', 'cancel-returned': 'ui:overlay-desktop'}),
+        ('close-exit', REMEMBERED_REQUEST,
+         {'escape-ready': 'ui:overlay-request-escape-ready', 'escape-returned': 'ui:overlay-desktop'})):
     EXIT_SCREENS.update(prefixed_stages(prefix, {
-        **prepared_request(prefix='open', entry='new', initial=initial,
-                           child='fixture-child', approver='fixture-parent',
-                           duration_seconds=75, allow_soft=True, surface='overlay'),
+        **request,
         **exit_stages, **native_activity_resume('resumed', child='child'),
     }))
 SCREENS = {
@@ -37,11 +37,8 @@ SCREENS = {
     **{'fresh-' + stage: operation for stage, operation in fresh_desktop('child').items()},
     **native_activity_entry('activity'),
     **EXIT_SCREENS,
-    **prepared_request(prefix='open', entry='new', initial='selected',
-                       child='fixture-child', approver='fixture-parent',
-                       duration_seconds=75, allow_soft=True, surface='overlay'),
-    **overlay_approved_request(child='fixture-child', approver='fixture-parent',
-                               duration_seconds=75, allow_soft=True, exit='immediate'),
+    **REMEMBERED_REQUEST,
+    **overlay_approved_request(exit='immediate', **CHOICES),
     **RETURN_SCREENS,
 }
 PLAN = JourneyPlan(
@@ -68,7 +65,7 @@ PLAN = JourneyPlan(
     balance_checks={'allowance-configured': 900},
     activity_checks={stage: ('activity-capture', 'same') for stage in (
         'cancel-exit-resumed-opened', 'close-exit-resumed-opened', 'resumed-opened')},
-    countdown_checks={'countdown': ('open-estimate', 'estimate', 1, 180)},
+    countdown_checks={'countdown': ('open-entry-form', 'estimate', 1, 180)},
     assertions_after={'cancel-exit-resumed-submitted': 'cancel-result',
                       'close-exit-resumed-submitted': 'close-result',
                       'countdown': 'visible-result'},

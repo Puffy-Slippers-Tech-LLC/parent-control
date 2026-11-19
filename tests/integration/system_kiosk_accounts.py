@@ -332,7 +332,6 @@ def verify_pending(path, expected, before, account, identity):
 
 def exercise(record, *, atomic=True):
     guest.guard()
-    guest.verify_package_files()
     guest.enable_diagnostics()
     account = pwd.getpwnam(NAME)
     guest.require(account.pw_shell == '/usr/sbin/nologin' and
@@ -379,7 +378,6 @@ def exercise(record, *, atomic=True):
     verify_ordinary(ordinary)
     retained = fingerprint(CACHE)
     invocation = unit_property('InvocationID')
-    production_provision(account)
     production_provision(account)
     guest.require(unit_property('InvocationID') == invocation,
                   'kiosk-accounts:visible-retry-restarted-daemon')
@@ -476,7 +474,6 @@ def exercise(record, *, atomic=True):
 
 def verify_reboot(record):
     guest.guard()
-    guest.verify_package_files()
     guest.enable_diagnostics()
     witness = json.loads(owned_bytes(state_path(), private=True))
     account = pwd.getpwnam(NAME)
@@ -502,6 +499,8 @@ if __name__ == '__main__':
     else:
         guest.require(sys.argv[1:] in (['exercise'], ['exercise-live'], ['verify-reboot']),
                       'kiosk-accounts:arguments')
+        guest.guard()
+        guest.verify_package_files()
         record = lambda key, value: print(json.dumps({'property': key, 'value': value}, sort_keys=True))
         if sys.argv[1] == 'verify-reboot':
             verify_reboot(record)

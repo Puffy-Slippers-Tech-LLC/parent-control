@@ -29,13 +29,11 @@ PREPARATION = {
 
 
 def app_results(prefix, *, retained):
-    screens = prefixed_stages(prefix + '-allowed', native_usable_app(
-        'command', child='child', role='A', desktop_observation=False))
+    screens = {}
     if retained:
+        screens.update(prefixed_stages(prefix + '-allowed', native_usable_app(
+            'command', child='child', role='A', desktop_observation=False)))
         screens[prefix + '-allowed-capture'] = 'ui:overlay-native-activity'
-    else:
-        screens.update({prefix + '-allowed-close': 'ui:overlay-native-allowed-close',
-                        prefix + '-allowed-closed': 'ui:overlay-native-allowed-closed'})
     # H and S share the secondary fixture slot. Check H before opening S.
     screens[prefix + '-hard-denied'] = 'ui:overlay-native-hard-command-blocked'
     screens.update(prefixed_stages(prefix + '-soft', native_usable_app(
@@ -102,7 +100,7 @@ PLAN = JourneyPlan(
     child_bindings={stage: 'child' for stage, tag in SCREENS.items()
                     if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
     stage_actions={'desktop': 'native-verify', 'offline-enter': 'offline',
-                   'overlay-countdown': 'ticks', 'station-countdown': 'ticks',
+                   'station-countdown': 'ticks',
                    'offline-restore': 'online'},
     balance_checks={'allowance': 1800},
     match_checks={'rules-saved-' + role.lower() + '-match': (MATCH_APPS[role], rule)

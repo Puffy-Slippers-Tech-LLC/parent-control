@@ -48,12 +48,12 @@ class PackageLifecycleJourney(InstalledJourney):
                     for previous in HISTORY[:HISTORY.index(binding)]), 'package-lifecycle:phase')
             guard()
             command = PackageCommand(self.transport, self.context.verified)
-            before = command.read_identity()
-            require(before['version'] == (command.package_identities()['current']['version']
-                    if binding in (REMOVE, PURGE) else None), 'package-lifecycle:phase')
-            self.entries[binding] = before
+            before = command.read_identity() if binding == BINDING else None
+            if before is not None:
+                require(before['version'] is None, 'package-lifecycle:phase')
             self.commands[binding] = command  # Retain uncertain input, never replay.
             result = command.submit(binding, command.verified.inputs['package_sha256'], command.identity)
+            self.entries[binding] = before if binding == BINDING else command.entry
             guard()
             return result
         return submit
@@ -73,11 +73,7 @@ class PackageLifecycleJourney(InstalledJourney):
         binding = matches[0]
         require(binding in self.commands and binding not in self.results, 'package-lifecycle:missing-command')
         command, before = self.commands[binding], self.entries[binding]
-        result = command.read_result()
-        current = command.read_identity()
-        require(current == command.read_identity(), 'package-lifecycle:unstable-readback')
-        require(current['version'] == (None if binding in (REMOVE, PURGE) else
-                command.package_identities()['current']['version']), 'package-lifecycle:installed-version')
+        result, current = command.read_result(include_identity=True)
         # Product-owned request-station removal is expected. Every other public
         # account identity, language and group set is preserved independently.
         accounts = {uid: value for uid, value in before['preserved']['accounts'].items()

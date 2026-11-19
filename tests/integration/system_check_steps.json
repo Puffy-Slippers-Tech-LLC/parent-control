@@ -110,9 +110,9 @@
     "expected": "Parent authentication and approval remain usable during the failure and after recovery."
   },
   "check_fixture_e2e_installed": {
-    "execution_revision": 3,
-    "summary": "Verify prepared applications support saved child policies.",
-    "steps": ["Open the prepared child application catalogue.", "Save application restrictions and restore the original settings."],
-    "expected": "Prepared applications are discoverable, policy saves work, and the original settings can be restored."
+    "execution_revision": 4,
+    "summary": "Verify installed application fixtures across both snapshot restore routes.",
+    "steps": ["Restore the online installation and verify the selected fixtures and runtime admission.", "Restore the offline installation, reject the earlier readiness receipt, and verify the fixtures again."],
+    "expected": "Both restores preserve the selected fixture bytes, normal application use, and installed child policy. Each restore requires fresh readiness."
   }
 }

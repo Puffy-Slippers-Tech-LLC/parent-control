@@ -465,28 +465,18 @@ sub countdown_daily {
 
 sub countdown_grant {
     onpc_progress::operation('Following approved extra time and original child work through unlock and natural lock');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'countdown-grant:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-grant', review => 0);
+    my ($exchange, $declared, $challenges, $profile) = @_;
+    my %allowance = (grant => [600, 0], combined => [240, 4]);
+    die 'countdown-grant:plan' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && defined($profile) && exists($allowance{$profile});
+    my ($seconds, $daily) = @{$allowance{$profile}};
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => "countdown-$profile", review => 0);
     $journey->declare_invocations($declared);
     $journey->declare_challenges($challenges);
     onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 600, 'default', 0);
+    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, $seconds, 'default', 0, $daily);
     # Read the retained Parent window through its public API while GDM stays
     # active. An extra Parent login would spend the child's wall-clock grant.
-    $journey->seen('profile-balance');
-    countdown_activity($journey, 1, 0);
-}
-
-sub countdown_combined {
-    onpc_progress::operation('Following daily and approved time with original child work through unlock and natural lock');
-    my ($exchange, $declared, $challenges) = @_;
-    die 'countdown-combined:plan' unless @_ == 3 && ref($exchange) eq 'CODE';
-    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'countdown-combined', review => 0);
-    $journey->declare_invocations($declared);
-    $journey->declare_challenges($challenges);
-    onpc_gdm::reattach_functional();
-    onpc_parent::grant_only_time_profile($journey, 'gdm', 'fresh', 'new', 0, 0, 240, 'default', 0, 4);
     $journey->seen('profile-balance');
     countdown_activity($journey, 1, 0);
 }

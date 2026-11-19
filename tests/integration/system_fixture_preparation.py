@@ -106,18 +106,20 @@ def register_staging(directory, lease, attempt_id, path):
 
 
 def prepare(vm, lease, directory, selection, *, installed=False, subsets=SUBSETS):
-    if not qualified_guest(lease.capture.state['guest'], installed=installed):
+    target = guest_target(lease.capture.state['guest'])
+    if target is None:
         raise ValueError('fixtures:system-' + ('installed' if installed else 'product-free')
                          + '-target-not-qualified')
     if installed:
         require_installed_restore(lease)
-        selection = installed_selection(selection, target=guest_target(lease.capture.state['guest']))
-    selection = validate_input(selection, target=guest_target(lease.capture.state['guest']))
+        selection = installed_selection(selection, target=target)
+    else:
+        selection = selection_record(selection, target=target)
     return provision(vm, lease, directory, selection, subsets=subsets)
 
 
 def provision(vm, lease, directory, selection, *, subsets):
-    """Share staging intent and fresh readiness after the caller's entry guards."""
+    """Authenticate payloads, stage them and verify readiness under the lease."""
     identity = attempt_id(directory)
     controller = fixture_provision.Provisioner(lease, vm,
         register_staging=lambda path: register_staging(directory, lease, identity, path))

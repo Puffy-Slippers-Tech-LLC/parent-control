@@ -1,10 +1,8 @@
-"""Installed fixture proof and finite baseline child catalogue qualification."""
+"""Verify installed fixture integrity and consumer readiness after each restore."""
 from copy import deepcopy
-import hashlib
 import os
 from pathlib import Path
 import sys
-import time
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,7 +18,6 @@ from parent_setup_qualification import KioskEntryQualification
 from provenance import VerifiedInputs
 from execution import open_source
 from suite_lease import Suite
-from vm_transport import Transport
 from asset_transfer import AssetTransfer
 from observation_transport import ReadOnlyObservations
 from qualification_storage import run_qualification
@@ -31,7 +28,7 @@ from tests.fixtures import native_assets
 
 
 def verify_consumers(context, vm, setup, result, previous):
-    """Keep fixture consumers/readback independent of the catalogue UI history."""
+    """Verify the fixtures through the actual consumers and audit for writes."""
     system.require(setup['child_fixture'] == {'verified': len(native_assets.ASSETS),
         'verified_files': len(native_assets.sources(alias=False)), 'child_role': 'child',
         'independent_readback': True}, 'fixture-e2e:child-consumer-not-verified')
@@ -48,102 +45,6 @@ def verify_consumers(context, vm, setup, result, previous):
             fixture_execution.Selection.from_record(context.fixture_selection)),
             preparation.ACTIVITY_SUBSETS)
     proof.verify_repeat(result['readback'], final)
-
-
-def catalogue_journey(context, progress, result, previous):
-    """Finite catalogue/save checks within the existing qualified Parent envelope."""
-    from accessible_ui import MATCH_RULES
-    from parent_toggle import ParentToggleJourney
-    from ui_observations import SettingsObservation, compare_settings
-
-    apps = {role: 'parent-app-' + hashlib.sha256(native_assets.desktop_id(role).encode()).hexdigest()[:16]
-            for role, *_ in native_assets.ASSETS}
-
-    class CatalogueJourney(ParentToggleJourney):
-        def step(self, guard):
-            self.current_guard = guard
-            return super().step(guard)
-
-        def observe_public(self, operation, *, child=None):
-            self.current_guard()
-            value = self.ui.observe(operation, **({'child': child} if child else {}))
-            self.current_guard()
-            return value
-
-        def select(self, child, enabled):
-            existing = child == 'existing'
-            self.observe_public('existing-child-picker-opened' if existing else 'child-picker-opened')
-            self.observe_public('existing-child-choice-highlighted' if existing else 'child-choice-highlighted')
-            self.observe_public('access-screen', child=child)
-            value = self.observe_public('existing-returned' if existing else 'parent-selected')
-            compare_settings(SettingsObservation.from_settings(value['settings']),
-                SettingsObservation('existing-fixture-child' if existing else 'fixture-child',
-                                    enabled, ('0 minutes',)))
-            self.observe_public('existing-apps' if existing else 'parent-apps-page')
-
-        def rows(self, child, *, hard='allowed', soft='allowed'):
-            expected = {apps[role]: (hard if role == 'H' else soft if role == 'S'
-                        else 'allowed', match) for role, _, _, _, match in native_assets.ASSETS}
-            deadline = time.monotonic() + 30
-            while True:
-                value = self.observe_public('existing-parent-app-rows' if child == 'existing'
-                                            else 'parent-app-rows')['apps']['rows']
-                actual = {row[0]: tuple(row[1:]) for row in value if row[0] in apps.values()}
-                if actual == expected:
-                    break
-                system.require(time.monotonic() < deadline, 'fixture-e2e:catalogue-saved-rows')
-                time.sleep(0.25)
-            return sorted((identity, *values) for identity, values in actual.items())
-
-        def check_settings(self, stage, observed):
-            super().check_settings(stage, observed)
-            if stage == 'setup-detached':
-                verify_consumers(context, self.transport, observed['setup'], result, previous)
-                result['assets'] = context.asset_transfer.observe(self.vm)
-                result['worker_input_released'] = True
-            elif stage == 'parent-selected':
-                compare_settings(SettingsObservation.from_settings(observed['ui']['settings']),
-                                 SettingsObservation('fixture-child', False, ('0 minutes',)))
-                result['product_assertions_started'] = True
-            elif stage == 'save-reopened':
-                self.select('existing', False)
-                jordan = self.rows('existing')
-                self.select('child', True)
-                initial = self.rows('child')
-                # The catalogue rows verify match types after each save and
-                # reselect. Open the detailed match controls only once.
-                for role, operation, rule in (('A', 'match-row', MATCH_RULES[0]),
-                        ('H', 'match-hard-row', MATCH_RULES[3]),
-                        ('S', 'match-soft-row', MATCH_RULES[4])):
-                    system.require(self.observe_public(operation, child='child')['match'] ==
-                        {'app': apps[role], 'rule': rule}, 'fixture-e2e:catalogue-default-rule')
-                self.observe_public('access-hard-permanent', child='child')
-                self.observe_public('access-soft-conditional', child='child')
-                self.select('existing', False)
-                system.require(self.rows('existing') == jordan, 'fixture-e2e:jordan-policy-changed')
-                self.select('child', True)
-                saved = self.rows('child', hard='permanent', soft='conditional')
-                self.observe_public('access-hard-allowed', child='child')
-                self.observe_public('access-soft-allowed', child='child')
-                self.select('existing', False)
-                system.require(self.rows('existing') == jordan, 'fixture-e2e:jordan-policy-changed')
-                self.select('child', True)
-                system.require(self.rows('child') == initial, 'fixture-e2e:riley-policy-not-restored')
-                self.observe_public('parent-screen-page')
-                result['catalogue'] = {'riley_defaults': initial, 'riley_saved': saved,
-                    'jordan_defaults': jordan, 'fresh_child_reselection': True,
-                    'access_restored': True, 'default_matches_preserved': True}
-                observed['catalogue'] = result['catalogue']
-            elif stage == 'disabled-settings':
-                compare_settings(SettingsObservation.from_settings(observed['ui']['settings']),
-                                 SettingsObservation('fixture-child', False, ('0 minutes',)))
-                balances = self.observe_public('time-explanation-reach-read')['time_explanation']
-                system.require(all(balances[key]['seconds'] == 0
-                    for key in ('daily', 'one_time', 'total')), 'fixture-e2e:restored-balances')
-                result['catalogue']['controls_off'] = True
-                result['catalogue']['restored_balances'] = balances
-
-    return CatalogueJourney(context, progress)
 
 
 def activity_readiness_refusals(vm, verified, previous):
@@ -248,12 +149,8 @@ def observer(selection, manifest, result, previous, *, mode):
             result['prior_generation_refused'] = True
         previous.update(controller=controller, receipt=receipt)
         result.update(binding=receipt.binding, readback=observed,
-            runtime_witnesses=witnesses,
-            selected_input_unchanged=True, worker_input_released=False,
-            product_assertions_started=False)
-        result.update(domain_id=lease.state['domain_id'],
-                      credential_rebind_verified=lease.installed_online and
-                      lease.online_pending is False and lease.online_bootstrap is None)
+            runtime_witnesses=witnesses, selected_input_unchanged=True)
+        result.update(domain_id=lease.state['domain_id'], credential_rebind_verified=lease.installed_online)
         (directory / 'fixture-preparation-result.json').write_bytes(system.baseline.encode(result))
     return observe
 
@@ -283,45 +180,10 @@ def run_history(suite, directory, assets, selection, observe, mode, *, result, p
         lease.save('isolated')
         verified = VerifiedInputs(lease=lease, assets=assets, root=ROOT, package_only=True)
         suite.verified = verified
-        # The two attachment routes protect different restore/credential
-        # boundaries, but start with the same fresh product state. Exercise
-        # catalogue saves once; the offline route retains the complete fixture
-        # preparation and consumer checks without another graphical worker.
-        if mode == 'online':
-            from app_snapshot import snapshot_name
-            from fixture_credentials import FixtureCredentials
-            import e2e_worker
-            credentials = FixtureCredentials()
-            result['fixture_credentials'] = credentials.provision(
-                lease, verified, directory, suite.guestfs, suite.commands)
-            context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
-                commands=suite.commands, host_key=host_key,
-                fixture_selection=selection.record(), fixture_subsets=preparation.ACTIVITY_SUBSETS,
-                fixture_caller=preparation.ACTIVITY_CALLER, fixture_observer=observe,
-                asset_transfer=AssetTransfer(verified),
-                installed_snapshot=snapshot_name(system.package_version(suite.commands,
-                    assets / ('package.' + system.package_format(lease.capture.state['guest'])))))
-            def progress(_stage, _observed):
-                (directory / 'fixture-preparation-result.json').write_bytes(
-                    system.baseline.encode(result))
-            journey = catalogue_journey(context, progress, result, previous)
-            def failed(_category, _code):
-                journey.collect_failure()
-            result['worker_evidence'] = e2e_worker.run_distribution(
-                directory, lease, lease.ledger, expected_inputs=verified.source_files,
-                observe=lambda: None, guarded_observe=journey.step, validate=journey.validate,
-                on_failure=failed, timeout=1800, credentials=credentials)
-            result['matched_screens'] = journey.validate()
-            system.require(result['worker_evidence']['shutdown_verified'] is True,
-                           'fixture-e2e:worker-shutdown-unverified')
-            return result['assets']
-        lease.start()
-        hostname = system.address(suite.source)
-        (directory / 'known-hosts').write_text(f'{hostname} {host_key}\n')
-        vm = Transport({'directory': str(directory), 'hostname': hostname,
-            'domain_uuid': suite.source.uuid, 'domain_id': lease.view.domain_id,
-            'run': lease.state['run']}, suite.commands, guard=lambda _: lease.guard(), lease=lease)
-        vm.probe_ready()
+        vm = suite.start_transport(directory, host_key)
+        system.require(lease.installed_online == (mode == 'online')
+                       and lease.online_pending is False and lease.online_bootstrap is None,
+                       'fixture-e2e:restore-transport-not-bound')
         context = SimpleNamespace(directory=directory, verified=verified, lease=lease,
                                   fixture_selection=selection.record(),
                                   fixture_subsets=preparation.ACTIVITY_SUBSETS,
@@ -370,15 +232,12 @@ def qualify_pinned(directory, assets, selection, manifest, source, edit):
             attempt['owned_restoration_verified'] = True
             result['attempts'].append(attempt)
             (directory / 'attempt-results.json').write_bytes(system.baseline.encode(result))
-        for first, second in zip(result['attempts'], result['attempts'][1:]):
-            a, b = first['binding'], second['binding']
-            system.require((second['app_snapshot_mode'] == 'online' or
-                            a['boot_sha256'] != b['boot_sha256'])
-                and a['attempt_id'] != b['attempt_id']
-                and first['domain_id'] != second['domain_id'] and a['vm_uuid'] == b['vm_uuid']
-                and a['manifest_sha256'] == b['manifest_sha256']
-                and a['content_identity'] == b['content_identity'],
-                'fixture-e2e:fresh-readiness-required')
+        online, offline = result['attempts']
+        a, b = online['binding'], offline['binding']
+        system.require(a['boot_sha256'] != b['boot_sha256'] and a['attempt_id'] != b['attempt_id']
+            and online['domain_id'] != offline['domain_id'] and a['vm_uuid'] == b['vm_uuid']
+            and a['manifest_sha256'] == b['manifest_sha256']
+            and a['content_identity'] == b['content_identity'], 'fixture-e2e:fresh-readiness-required')
         system.require(shared.source_edit_proof(source, selection, manifest) == edit,
                        'fixture-e2e:source-proof-changed')
     finally:

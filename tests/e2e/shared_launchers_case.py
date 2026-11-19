@@ -13,10 +13,10 @@ from ui_observations import SettingsObservation
 # Exercise both directions of the shared block and one recovery. Parent stays
 # open while Jordan starts a fresh session for each policy state.
 ROUNDS = (
-    ('original-blocked', 'permanent', 'allowed', ('A', 'Alias'), False),
+    ('original-blocked', 'permanent', 'allowed', ('A', 'Alias'), ('Alias',)),
     # Save an actual transition to Allowed while the shared target is blocked.
-    ('alias-blocked', 'allowed', 'permanent', ('Alias', 'A'), False),
-    ('alias-allowed', 'allowed', 'allowed', ('Alias',), True),
+    ('alias-blocked', 'allowed', 'permanent', ('Alias', 'A'), ('A',)),
+    ('alias-allowed', 'allowed', 'allowed', ('Alias',), ('A', 'Alias')),
 )
 SCREENS = app_policy_entry(child='existing', allowance='time-explanation-setup-thirty-read')
 SCREENS['retained-window'] = 'ui:retained-parent-leave'
@@ -24,7 +24,8 @@ SCREENS['parent-session'] = 'system:parent-desktop-identity'
 PHASES = {stage: 'step-1' for stage in SCREENS}
 ENTRIES = {}
 ACCESS_CHECKS = {}
-for name, original, alias, edits, usable in ROUNDS:
+for name, original, alias, edits, launchers in ROUNDS:
+    usable = name == 'alias-allowed'
     choices = {'A': ('original', 'ui:access-', original),
                'Alias': ('alias', 'ui:access-alias-', alias)}
     group = {}
@@ -48,14 +49,15 @@ for name, original, alias, edits, usable in ROUNDS:
     entry = desktop_entry('other-child', source='gdm', entry='fresh')
     ENTRIES[name + '-entry'] = entry
     group.update(prefixed_stages(name + '-entry', entry))
-    for role, label in (('A', 'original'), ('Alias', 'alias')):
+    for role in launchers:
+        label = choices[role][0]
         app = ({**native_usable_app('grid', role='Alias' if role == 'Alias' else None),
                 'close': 'ui:native-close', 'closed': 'ui:native-closed'} if usable else
                native_blocked_app(role, route='grid'))
         group.update(prefixed_stages(name + '-' + label, app))
     group.update({name + '-logout': 'system:standard-logout',
                   name + '-greeter': 'ui:gdm-returned'})
-    if name != 'alias-allowed':
+    if not usable:
         returned = desktop_entry('parent', source='gdm', entry='retained')
         ENTRIES[name + '-return'] = returned
         group.update(prefixed_stages(name + '-return', returned))

@@ -462,22 +462,24 @@ class PackageCommand:
             self.validate_input(binding, digest, identity)
             arguments = [binding, digest]
             if binding in (OLD_INSTALL, UPGRADE):
-                arguments.append(json.dumps(self.verified.upgrade_inputs['packages'], sort_keys=True))
-                entry = self.read_identity()
-                require(entry['version'] == (None if binding == OLD_INSTALL else
-                        self.verified.upgrade_inputs['packages']['previous']['version']), 'package:wrong-phase')
+                packages = self.verified.upgrade_inputs['packages']
+                arguments.append(json.dumps(packages, sort_keys=True))
+                self.entry = self._read_identity(packages)
+                require(self.entry['version'] == (None if binding == OLD_INSTALL else
+                        packages['previous']['version']), 'package:wrong-phase')
             elif binding in LIFECYCLE:
-                arguments.append(json.dumps(self.package_identities(), sort_keys=True))
-                self.entry = self.read_identity()
-                require(self.entry['version'] == (self.package_identities()['current']['version']
+                packages = self.package_identities()
+                arguments.append(json.dumps(packages, sort_keys=True))
+                self.entry = self._read_identity(packages)
+                require(self.entry['version'] == (packages['current']['version']
                         if binding in (REMOVE, PURGE) else None), 'package:wrong-phase')
             elif binding == UNRELATED:
-                self.entry = self.read_identity()
-                require(self.entry['version'] == self.package_identities()['current']['version'],
+                packages = self.package_identities()
+                self.entry = self._read_identity(packages)
+                require(self.entry['version'] == packages['current']['version'],
                         'package:wrong-phase')
                 self.read_unrelated(entry=True)
-                arguments.append(json.dumps({**self.package_identities(),
-                    'unrelated': UNRELATED_PACKAGE}, sort_keys=True))
+                arguments.append(json.dumps({**packages, 'unrelated': UNRELATED_PACKAGE}, sort_keys=True))
             self._submit_transaction(binding, arguments)
         return {'submitted': True}
 
@@ -530,10 +532,14 @@ class PackageCommand:
         return value
 
     def read_identity(self):
+        return self._read_identity()
+
+    def _read_identity(self, packages=None):
         require(self.transport.config == self.identity, 'package:wrong-attempt')
         self.transport.guard(self.identity)
         self.verified.recheck()
-        packages = self.package_identities()
+        if packages is None:
+            packages = self.package_identities()
         with operation('Reading installed package version, immutable inputs and preserved account languages'):
             raw = self.transport.call(['/usr/bin/python3', '-I', '-', json.dumps(packages, sort_keys=True)],
                 input=guest_source(read=True), timeout=90)
@@ -565,8 +571,8 @@ class PackageCommand:
         self.verified.recheck()
         return {'current': current}
 
-    def read_result(self):
-        """Called at a later checkpoint; submission itself never asserts success."""
+    def read_result(self, *, include_identity=False):
+        """Read completion at a later checkpoint and share the fresh identity witness."""
         require(self.transport.config == self.identity and self.receipt is not None,
                 'package:missing-result')
         self.transport.guard(self.identity)
@@ -587,12 +593,16 @@ class PackageCommand:
                 r'Processing triggers for systemd \([0-9][^()\s]{0,127}\) \.\.\.', line)]
             require(len(completion) == 1 and COMPLETE not in lines and NOTICE not in lines,
                     'package:unrelated-completion')
-            return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
-                    'interface': 'SSH stdout/stderr', 'completion': completion[0], 'notice': None}
-        if 'package.rpm' in self.verified.asset_files and self.binding != PURGE:
-            label = 'previous' if self.binding == OLD_INSTALL else 'current'
-            lines = rpm_scriptlet_output(lines, self.package_identities()[label], self.binding)
+            result = {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
+                      'interface': 'SSH stdout/stderr', 'completion': completion[0], 'notice': None}
+            return (result, self.read_identity()) if include_identity else result
+        rpm = 'package.rpm' in self.verified.asset_files
+        label = 'previous' if self.binding == OLD_INSTALL else 'current'
         removing = self.binding in (REMOVE, PURGE)
+        check_version = include_identity or removing or self.binding in LIFECYCLE or rpm
+        packages = self.package_identities() if check_version else None
+        if rpm and self.binding != PURGE:
+            lines = rpm_scriptlet_output(lines, packages[label], self.binding)
         if removing:
             require((lines[-1] == REMOVAL_NOTICE if self.binding == REMOVE else
                     REMOVAL_NOTICE in lines and PURGE_COMPLETE in lines), 'package:completion-notice')
@@ -603,13 +613,13 @@ class PackageCommand:
             require(COMPLETE in lines and (lines[-1] == COMPLETE and NOTICE not in lines
                     if no_restart_notice else lines[-1] == NOTICE if self.binding != OLD_INSTALL else
                     lines[-1] in (COMPLETE, NOTICE)), 'package:completion-notice')
-        if removing or self.binding in LIFECYCLE or 'package.rpm' in self.verified.asset_files:
-            identity = self.read_identity()
-            label = 'previous' if self.binding == OLD_INSTALL else 'current'
-            require(identity['version'] == (None if removing else self.package_identities()[label]['version']),
+        if check_version:
+            identity = self._read_identity(packages)
+            require(identity['version'] == (None if removing else packages[label]['version']),
                     'package:installed-version')
         # Retain actual matched public lines, never arbitrary package diagnostics.
-        return {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
-                'interface': 'SSH stdout/stderr', 'completion': (PURGE_COMPLETE if self.binding == PURGE
-                    else None if removing else lines[lines.index(COMPLETE)]),
-                'notice': REMOVAL_NOTICE if removing else NOTICE if lines[-1] == NOTICE else None}
+        result = {'operation': self.binding, 'outcome': 'passed', 'exit_status': status,
+                  'interface': 'SSH stdout/stderr', 'completion': (PURGE_COMPLETE if self.binding == PURGE
+                      else None if removing else lines[lines.index(COMPLETE)]),
+                  'notice': REMOVAL_NOTICE if removing else NOTICE if lines[-1] == NOTICE else None}
+        return (result, identity) if include_identity else result

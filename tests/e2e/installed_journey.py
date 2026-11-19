@@ -467,12 +467,13 @@ def prepare_installed_setup(context, transport, guard, *, observer=None):
     clean = context.lease.capture.state['guest'].get('fixture_boundary') == 'clean'
     options = {}
     if clean:
-        from e2e_fixture_preparation import SUBSETS, qualified_subsets, validate_input
+        from e2e_fixture_preparation import SUBSETS, qualified_subsets
         subsets = qualified_subsets(getattr(context, 'fixture_subsets', SUBSETS),
             caller=getattr(context, 'fixture_caller', None),
             product_free=getattr(context, 'product_free', False))
-        with timed_stage('setup-fixture-input-validation'):
-            options = {'fixture_selection': validate_input(getattr(context, 'fixture_selection', None))}
+        require(getattr(context, 'fixture_selection', None) is not None,
+                'fixtures:execution-selection-required')
+        options = {'fixture_selection': context.fixture_selection}
         if subsets != SUBSETS:
             options.update(fixture_subsets=subsets, fixture_caller=context.fixture_caller)
         if observer is not None:
@@ -928,10 +929,10 @@ class InstalledJourney:
                 prepare_product_free_setup(context, transport, guard)
                 observed['setup'] = {'product_free_baseline': True}
             else:
-                from installed_setup import InstalledSetup
-                setup = InstalledSetup(context.directory, context.verified, transport)
                 if install_current:
-                    observed['setup'] = setup.run(guard, verify=False)
+                    from installed_setup import InstalledSetup
+                    observed['setup'] = InstalledSetup(
+                        context.directory, context.verified, transport).run(guard, verify=False)
                 else:
                     prepared = prepare_installed_setup(context, transport, guard,
                         observer=getattr(context, 'fixture_observer', None))

@@ -1,6 +1,6 @@
 """Replace an away-expired grant with daily time left, then return to the child."""
 from copy import deepcopy
-from dataclasses import replace
+from functools import partial
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
@@ -24,9 +24,7 @@ LOGINS = {
     'setup-return': ('parent', 'retained'),
     'original-entry': ('child', 'fresh'),
     'daily-parent': ('parent', 'retained'),
-    'departure-child': ('child', 'retained'),
     'expired-parent': ('parent', 'retained'),
-    'replacement-child': ('child', 'fresh'),
 }
 
 
@@ -52,138 +50,84 @@ PREPARATION = {
     **custom_allowance('daily', 30),
     'before-departure': 'ui:revoke-saved-balances',
 }
-EXPIRY = {
-    **desktop_return('daily-parent-leave', account='parent'),
-    **enter('departure-child'),
-    **desktop_return('departure', account='child', action='logout'),
-    'expiry-wait-first': 'ui:gdm-returned',
-    'expiry-wait-last': 'ui:gdm-returned',
-    **enter('expired-parent'),
-    'expired-balances': 'ui:revoke-saved-balances',
-    **desktop_return('expired-parent-leave', account='parent'),
-}
-REPLACEMENT = {
-    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
-                  duration_seconds=RECOVERY_SECONDS, allow_soft=False, exit='automatic'),
-    **enter('replacement-child'),
-    'replacement-countdown': 'ui:child-countdown-present',
-    'hard-denied': 'ui:overlay-native-hard-command-blocked',
-    'soft-denied': 'ui:overlay-native-soft-command-blocked',
-    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
-}
-SCREENS = {**PREPARATION, **EXPIRY, **REPLACEMENT}
-LOGIN_STAGES = {prefix + '-' + stage for prefix, (role, _entry) in LOGINS.items()
-                for stage in fresh_desktop(role)}
-PLAN = JourneyPlan(
-    prefix='expired-daily-replacement', worker_mode='expired_daily_replacement', screen_tags=SCREENS,
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-        **{stage: phase for phase, screens in (
-            ('step-1', PREPARATION), ('step-2', EXPIRY), ('step-3', REPLACEMENT)) for stage in screens},
-        'installed-greeter': 'start'},
-    advance_after={'before-departure': 'step-2',
-                   'expired-parent-leave-gdm-switched': 'step-3'},
-    stage_actions={'desktop': 'native-verify', 'expiry-wait-first': 'real-interval',
-                   'expiry-wait-last': 'real-interval'},
-    invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES),
-    challenges={prefix: (role, prefix + '-' + ('child-' if role == 'child' else '')
-                        + 'recipient-qualified',
-                        prefix + '-' + ('child-' if role == 'child' else '')
-                        + 'recipient-rechecked') for prefix, (role, _entry) in LOGINS.items()},
-    child_bindings={stage: 'child' for stage, tag in SCREENS.items()
-                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    kiosk_request=('child', 'parent', RECOVERY_SECONDS, False),
-    match_checks={f'rules-saved-{role.lower()}-match': (MATCH_APPS[role], rule)
-                  for role, rule in (('A', MATCH_RULES[0]), ('H', MATCH_RULES[3]),
-                                     ('S', MATCH_RULES[4]))},
-    access_checks={f'rules-saved-{role.lower()}-access': (MATCH_APPS[role], access)
-                   for role, access in (('A', 'allowed'), ('H', 'permanent'), ('S', 'conditional'))},
-    assertions_after={'allowed-submitted': 'visible-result'},
-)
 
-INCLUDED_REPLACEMENT = {
-    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
-                  duration_seconds=RECOVERY_SECONDS, allow_soft=True, exit='automatic'),
-    **enter('replacement-child'),
-    'replacement-countdown': 'ui:child-countdown-present',
-    'hard-denied': 'ui:overlay-native-hard-command-blocked',
-    **prefixed_stages('soft', native_usable_app('command', child='child', role='S')),
-    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
-}
-INCLUDED_SCREENS = {**PREPARATION, **EXPIRY, **INCLUDED_REPLACEMENT}
-INCLUDED_PLAN = replace(PLAN, screen_tags=INCLUDED_SCREENS,
-    phases={stage: 'step-3' if stage in INCLUDED_REPLACEMENT else PLAN.phases[stage]
-            for stage in ('ready', 'setup-detached', *INCLUDED_SCREENS)},
-    child_bindings={stage: 'child' for stage, tag in INCLUDED_SCREENS.items()
-                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    kiosk_request=('child', 'parent', RECOVERY_SECONDS, True),
-)
-
-RETAINED_EXPIRY = {
-    **desktop_return('daily-parent-leave', account='parent'),
-    'original-session': 'system:child-retained-locked',
-    'expiry-wait-first': 'ui:gdm-returned',
-    'expiry-wait-last': 'ui:gdm-returned',
-    **enter('expired-parent'),
-    'expired-balances': 'ui:revoke-saved-balances',
-    **desktop_return('expired-parent-leave', account='parent'),
-}
-RETAINED_REPLACEMENT = {
-    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
-                  duration_seconds=RECOVERY_SECONDS, allow_soft=False, exit='automatic'),
-    **prefixed_stages('replacement-child', desktop_entry('child', source='gdm', entry='retained')),
-    'replacement-countdown': 'ui:child-countdown-present',
-    'original-soft-closed': 'ui:overlay-native-policy-soft-closed',
-    'hard-denied': 'ui:overlay-native-hard-command-blocked',
-    'soft-denied': 'ui:overlay-native-soft-command-blocked',
-    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
-}
-RETAINED_SCREENS = {
-    **PREPARATION,
-    **RETAINED_EXPIRY, **RETAINED_REPLACEMENT,
-}
-RETAINED_PLAN = replace(PLAN,
-    worker_mode='expired_daily_replacement_retained', screen_tags=RETAINED_SCREENS,
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: phase for phase, screens in (
-                ('step-1', PREPARATION), ('step-2', RETAINED_EXPIRY),
-                ('step-3', RETAINED_REPLACEMENT)) for stage in screens},
-            'installed-greeter': 'start'},
-    invocations=tuple(stage for stage in RETAINED_SCREENS if stage in LOGIN_STAGES),
-    challenges={prefix: binding for prefix, binding in PLAN.challenges.items()
-                if prefix != 'departure-child'},
-    activity_entries={'replacement-child-entry-guard': 'original-capture'},
-    activity_checks={'original-soft-closed': ('original-capture', 'closed')},
-)
-
-RETAINED_INCLUDED_REPLACEMENT = {
-    **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
-                  duration_seconds=RECOVERY_SECONDS, allow_soft=True, exit='automatic'),
-    **prefixed_stages('replacement-child', desktop_entry('child', source='gdm', entry='retained')),
-    'replacement-countdown': 'ui:child-countdown-present',
-    **native_activity_resume('original-soft-return', child='child', binding='policy-soft'),
-    'original-soft-return-close': 'ui:overlay-native-soft-close',
-    'original-soft-return-closed': 'ui:overlay-native-soft-closed',
-    'hard-denied': 'ui:overlay-native-hard-command-blocked',
-    **prefixed_stages('soft', native_usable_app('command', child='child', role='S')),
-    **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
-}
-RETAINED_INCLUDED_SCREENS = {**PREPARATION, **RETAINED_EXPIRY, **RETAINED_INCLUDED_REPLACEMENT}
-RETAINED_INCLUDED_PLAN = replace(RETAINED_PLAN, screen_tags=RETAINED_INCLUDED_SCREENS,
-    phases={'ready': 'setup', 'setup-detached': 'setup',
-            **{stage: phase for phase, screens in (
-                ('step-1', PREPARATION), ('step-2', RETAINED_EXPIRY),
-                ('step-3', RETAINED_INCLUDED_REPLACEMENT)) for stage in screens},
-            'installed-greeter': 'start'},
-    invocations=tuple(stage for stage in RETAINED_INCLUDED_SCREENS if stage in LOGIN_STAGES),
-    child_bindings={stage: 'child' for stage, tag in RETAINED_INCLUDED_SCREENS.items()
-                    if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    kiosk_request=('child', 'parent', RECOVERY_SECONDS, True),
-    activity_checks={'original-soft-return-opened': ('original-capture', 'same')},
-)
+def replacement_plan(*, retained, allow_soft):
+    logins = {**LOGINS, 'replacement-child': ('child', 'retained' if retained else 'fresh')}
+    if retained:
+        departure = {'original-session': 'system:child-retained-locked'}
+        if allow_soft:
+            retained_work = {
+                **native_activity_resume('original-soft-return', child='child', binding='policy-soft'),
+                'original-soft-return-close': 'ui:overlay-native-soft-close',
+                'original-soft-return-closed': 'ui:overlay-native-soft-closed',
+            }
+            activity_checks = {'original-soft-return-opened': ('original-capture', 'same')}
+        else:
+            retained_work = {'original-soft-closed': 'ui:overlay-native-policy-soft-closed'}
+            activity_checks = {'original-soft-closed': ('original-capture', 'closed')}
+    else:
+        logins['departure-child'] = ('child', 'retained')
+        departure = {
+            **prefixed_stages('departure-child', desktop_entry('child', source='gdm', entry='retained')),
+            **desktop_return('departure', account='child', action='logout'),
+        }
+        retained_work = {}
+        activity_checks = {}
+    expiry = {
+        **desktop_return('daily-parent-leave', account='parent'),
+        **departure,
+        'expiry-wait-first': 'ui:gdm-returned',
+        'expiry-wait-last': 'ui:gdm-returned',
+        **enter('expired-parent'),
+        'expired-balances': 'ui:revoke-saved-balances',
+        **desktop_return('expired-parent-leave', account='parent'),
+    }
+    replacement = {
+        **obtain_time(initial='observed', child='fixture-child', approver='fixture-parent',
+                      duration_seconds=RECOVERY_SECONDS, allow_soft=allow_soft, exit='automatic'),
+        **prefixed_stages('replacement-child', desktop_entry(
+            'child', source='gdm', entry=logins['replacement-child'][1])),
+        'replacement-countdown': 'ui:child-countdown-present',
+        **retained_work,
+        'hard-denied': 'ui:overlay-native-hard-command-blocked',
+        **(prefixed_stages('soft', native_usable_app('command', child='child', role='S'))
+           if allow_soft else {'soft-denied': 'ui:overlay-native-soft-command-blocked'}),
+        **prefixed_stages('allowed', native_usable_app('command', child='child', role='A')),
+    }
+    screens = {**PREPARATION, **expiry, **replacement}
+    login_stages = {prefix + '-' + stage for prefix, (role, _entry) in logins.items()
+                    for stage in fresh_desktop(role)}
+    return JourneyPlan(
+        prefix='expired-daily-replacement',
+        worker_mode='expired_daily_replacement_retained' if retained else 'expired_daily_replacement',
+        screen_tags=screens,
+        phases={'ready': 'setup', 'setup-detached': 'setup',
+                **{stage: phase for phase, group in (
+                    ('step-1', PREPARATION), ('step-2', expiry), ('step-3', replacement))
+                   for stage in group}, 'installed-greeter': 'start'},
+        advance_after={'before-departure': 'step-2', 'expired-parent-leave-gdm-switched': 'step-3'},
+        stage_actions={'desktop': 'native-verify', 'expiry-wait-first': 'real-interval',
+                       'expiry-wait-last': 'real-interval'},
+        invocations=tuple(stage for stage in screens if stage in login_stages),
+        challenges={prefix: (role, challenge + '-recipient-qualified', challenge + '-recipient-rechecked')
+                    for prefix, (role, _entry) in logins.items()
+                    for challenge in (prefix + ('-child' if role == 'child' else ''),)},
+        child_bindings={stage: 'child' for stage, tag in screens.items()
+                        if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
+        kiosk_request=('child', 'parent', RECOVERY_SECONDS, allow_soft),
+        match_checks={f'rules-saved-{role.lower()}-match': (MATCH_APPS[role], rule)
+                      for role, rule in (('A', MATCH_RULES[0]), ('H', MATCH_RULES[3]),
+                                         ('S', MATCH_RULES[4]))},
+        access_checks={f'rules-saved-{role.lower()}-access': (MATCH_APPS[role], access)
+                       for role, access in (('A', 'allowed'), ('H', 'permanent'), ('S', 'conditional'))},
+        activity_entries={'replacement-child-entry-guard': 'original-capture'} if retained else {},
+        activity_checks=activity_checks,
+        assertions_after={'allowed-submitted': 'visible-result'},
+    )
 
 
 class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
-    def __init__(self, context, progress, plan=PLAN, *, actions=None):
+    def __init__(self, context, progress, plan, *, actions=None):
         # Arm the original-deadline observer before any real approval.
         self.original_deadline_ns = None
         self.original_sample = None
@@ -278,38 +222,20 @@ class ExpiredDailyReplacementJourney(GrantOnlyProfileJourney, AppPolicyJourney):
         return interval_toward(journey, guard, journey.original_deadline_ns)
 
 
-def execute(recorder, context):
+def execute(recorder, context, *, variant, plan):
     from e2e_fixture_preparation import ACTIVITY_SUBSETS
     context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-025/excluded-new-login'
-    record_installed_journey(recorder, context, PLAN, timeout=3000,
+    context.fixture_caller = 'E2E-025/' + variant
+    record_installed_journey(recorder, context, plan, timeout=3000,
                              journey_type=ExpiredDailyReplacementJourney)
 
 
-def execute_retained(recorder, context):
-    from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-025/excluded-retained-unlock'
-    record_installed_journey(recorder, context, RETAINED_PLAN, timeout=3000,
-                             journey_type=ExpiredDailyReplacementJourney)
-
-
-def execute_included(recorder, context):
-    from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-025/included-new-login'
-    record_installed_journey(recorder, context, INCLUDED_PLAN, timeout=3000,
-                             journey_type=ExpiredDailyReplacementJourney)
-
-
-def execute_retained_included(recorder, context):
-    from e2e_fixture_preparation import ACTIVITY_SUBSETS
-    context.fixture_subsets = ACTIVITY_SUBSETS
-    context.fixture_caller = 'E2E-025/included-retained-unlock'
-    record_installed_journey(recorder, context, RETAINED_INCLUDED_PLAN, timeout=3000,
-                             journey_type=ExpiredDailyReplacementJourney)
-
-
-E2E_CASES = {'excluded-new-login': execute, 'excluded-retained-unlock': execute_retained,
-             'included-new-login': execute_included,
-             'included-retained-unlock': execute_retained_included}
+E2E_CASES = {
+    variant: partial(execute, variant=variant,
+                     plan=replacement_plan(retained=retained, allow_soft=allow_soft))
+    for variant, retained, allow_soft in (
+        ('excluded-retained-unlock', True, False),
+        ('included-new-login', False, True),
+        ('included-retained-unlock', True, True),
+    )
+}

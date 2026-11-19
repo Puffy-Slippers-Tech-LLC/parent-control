@@ -6,7 +6,7 @@ from functools import cache
 import pytest
 
 import system_guest as guest
-from system_assertions import verify_package_readiness
+from system_assertions import validation_stage, verify_package_readiness
 
 pytestmark = [pytest.mark.system, pytest.mark.guest_mutating]
 
@@ -81,7 +81,6 @@ def test_pam_environment_installation_variants(variant, record_testsuite_propert
 
 
 def test_kiosk_account_classification_survives_reboot(record_testsuite_property, installed_readiness):
-    verify_package_readiness(installed_readiness)
     from system_kiosk_accounts import exercise, verify_reboot
     from system_kiosk_admission import verify as verify_admission, verify_gates
     from system_kiosk_confinement import verify_session_composition
@@ -89,13 +88,17 @@ def test_kiosk_account_classification_survives_reboot(record_testsuite_property,
     phase = os.environ['ONPC_SYSTEM_PHASE']
     guest.require(phase in ('installed', 'rebooted'), 'kiosk-accounts:test-phase')
     pending = phase == 'installed'
+    with validation_stage('kiosk-accounts', 'installed-readiness', record=record_testsuite_property):
+        verify_package_readiness(installed_readiness)
     rules_before = guest.execution_rule_state() if pending else None
     if pending:
         # Routing mutations precede the retained-metadata witness. Subsequent
         # gate observations must preserve the exact cache saved for reboot.
-        verify_admission(record_testsuite_property)
+        with validation_stage('kiosk-accounts', 'admission', record=record_testsuite_property):
+            verify_admission(record_testsuite_property)
     action = exercise if pending else verify_reboot
-    action(record_testsuite_property)
+    with validation_stage('kiosk-accounts', 'classification', record=record_testsuite_property):
+        action(record_testsuite_property)
     verify_gates(record_testsuite_property)
     verify_session_composition(record_testsuite_property)
     if pending:

@@ -769,15 +769,11 @@
           "control": ["enabled", "disabled"],
           "match": ["precise", "pattern"]
         },
-        "full_combinations": [
-          ["control", "match"]
-        ],
-        "rationale": "Four control-by-match combinations own policy transitions. E2E-041 owns editor and catalogue validation; E2E-019 owns launch routes."
+        "full_combinations": [],
+        "rationale": "Cases 13 and 16 cover every policy transition with enabled precise and disabled pattern rules. The two histories retain the active-grant soft-to-hard, nonmatching app and other-user checks. E2E-041 covers wildcard and literal matching independently; E2E-019 owns launch routes. Retired IDs 14 and 15 are reserved."
       },
       "variants": [
         {"coverage_id": 13, "id": "enabled-precise", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "precise"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "enabled-precise"}},
-        {"coverage_id": 14, "id": "enabled-pattern", "owner": "parent-policy", "parameters": {"control": "enabled", "match": "pattern"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "enabled-pattern"}},
-        {"coverage_id": 15, "id": "disabled-precise", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "precise"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "disabled-precise"}},
         {"coverage_id": 16, "id": "disabled-pattern", "owner": "parent-policy", "parameters": {"control": "disabled", "match": "pattern"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/app_rule_changes_case.py", "test_id": "disabled-pattern"}}
       ]
     },
@@ -1060,7 +1056,7 @@
       "variants": [
         {"coverage_id": 27, "id": "daily-only", "owner": "countdown", "parameters": {"time": "daily-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_daily.py", "test_id": "daily-only"}},
         {"coverage_id": 28, "id": "grant-only", "owner": "countdown", "parameters": {"time": "grant-only"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_grant.py", "test_id": "grant-only"}},
-        {"coverage_id": 29, "id": "combined", "owner": "countdown", "parameters": {"time": "combined"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_combined.py", "test_id": "combined"}}
+        {"coverage_id": 29, "id": "combined", "owner": "countdown", "parameters": {"time": "combined"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/countdown_grant.py", "test_id": "combined"}}
       ]
     },
     {
@@ -1256,7 +1252,7 @@
           {"id": "step-1", "operation": "ui", "description": "Enable a 15-minute daily allowance and read zero grant. Capture recognizable allowed work beneath the overlay, or enter the kiosk from sign-in."},
           {"id": "step-2", "operation": "ui", "description": "Prepare the child, parent, 75-second and soft-app choices; Cancel with no authentication prompt open. Independently require the original usable overlay activity and retained draft submission, or usable sign-in after kiosk."},
           {"id": "step-3", "operation": "ui", "description": "Reopen the form with remembered choices and take the guarded surface-close route (legacy Escape). Independently require the same original usable activity and draft submission, or usable sign-in."},
-          {"id": "step-4", "operation": "ui", "description": "Reopen and prepare the same request, obtain real parent approval, read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate."}
+          {"id": "step-4", "operation": "ui", "description": "Reopen and independently read the saved request and its estimate before requesting real parent approval. Read confirmation and invoke the offered immediate exit. Verify retained overlay work, or enter the child from sign-in; independently compare the countdown with the approved estimate."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1279,21 +1275,14 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "surface": ["child-overlay", "kiosk"],
-          "exit": ["cancel", "escape", "approved"]
+          "surface": ["child-overlay", "kiosk"]
         },
-        "full_combinations": [
-          ["surface", "exit"]
-        ],
-        "rationale": "One bounded history per surface covers Cancel, guarded surface close and then immediate approved exit, with independent intermediate destination and retained-work results. Stable approved IDs 46 and 49 own these histories; 44,45,47,48 remain nonexecutable historical selectors. Automatic exit remains covered by ordinary approvals."
+        "full_combinations": [],
+        "rationale": "One bounded history per surface covers Cancel, guarded surface close and immediate approved exit, with independent destination and retained-work results. Case 46 absorbs retired IDs 44/45; case 49 absorbs retired IDs 47/48. Their IDs remain reserved. Ordinary approvals cover automatic exit."
       },
       "variants": [
-        {"coverage_id": 44, "id": "child-overlay-cancel", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "cancel"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
-        {"coverage_id": 45, "id": "child-overlay-escape", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "escape"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/child-overlay-approved (case 46), which independently checks Cancel, surface close and approved exit with the same retained work. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
-        {"coverage_id": 46, "id": "child-overlay-approved", "owner": "request-form", "parameters": {"surface": "child-overlay", "exit": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_approved.py", "test_id": "child-overlay-approved"}},
-        {"coverage_id": 47, "id": "kiosk-cancel", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "cancel"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
-        {"coverage_id": 48, "id": "kiosk-escape", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "escape"}, "status": "pending", "pending_reason": "Consolidated into E2E-015/kiosk-approved (case 49), which independently checks Cancel, surface close and approved exit. Historical selector excluded from E2E scheduling; no replacement task.", "executable": null},
-        {"coverage_id": 49, "id": "kiosk-approved", "owner": "kiosk-form", "parameters": {"surface": "kiosk", "exit": "approved"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_approved.py", "test_id": "kiosk-approved"}}
+        {"coverage_id": 46, "id": "child-overlay-approved", "owner": "request-form", "parameters": {"surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/overlay_approved.py", "test_id": "child-overlay-approved"}},
+        {"coverage_id": 49, "id": "kiosk-approved", "owner": "kiosk-form", "parameters": {"surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/kiosk_approved.py", "test_id": "kiosk-approved"}}
       ]
     },
     {
@@ -1316,8 +1305,8 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Enable limits in Parent, return to sign-in and enter the station without an account password. Try ordinary Overview and terminal shortcuts and inspect available controls; no general desktop, terminal or management window appears."},
-          {"id": "step-2", "operation": "ui", "description": "Make a request with the declared approved, denied or cancelled outcome. Where the station stays open, repeat ordinary restriction checks without typing a query unless a search field actually appears."},
+          {"id": "step-1", "operation": "ui", "description": "Enable limits in Parent, return to sign-in and enter the station without an account password. The approved history checks Overview, the app grid and the terminal shortcut on the idle form."},
+          {"id": "step-2", "operation": "ui", "description": "Make a request with the declared approved, denied or cancelled outcome. After denial or cancellation independently check Overview, the app grid and the terminal shortcut while the prepared form remains open. Only type a query if a search field appears."},
           {"id": "step-3", "operation": "ui", "description": "Exit normally or observe automatic exit after approval and verify usable sign-in."}
         ],
         "end": [
@@ -1428,7 +1417,7 @@
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Give both children enough daily time. Establish different remembered parents on the two surfaces. On the starting surface set the selected child's duration, fractional custom value and soft-app choice."},
           {"id": "step-2", "operation": "ui", "description": "Close normally and visit the other form for that child. Read shared request choices and that surface's own remembered parent before editing."},
-          {"id": "step-3", "operation": "ui", "description": "Set distinct choices for the other child and compare both children's values across the two forms. Revisit their saved choices on the destination form using the necessary navigation and verify unchanged child values and independent surface selectors. Overlay-to-kiosk reselects both children in the open kiosk; retained desktop behavior is not itself tested."}
+          {"id": "step-3", "operation": "ui", "description": "Set distinct choices for the other child and compare both children's values across the two forms. Overlay-to-kiosk reselects both children in the open station. Kiosk-to-overlay revisits Jordan's overlay after a fresh sign-in to verify persistence and isolation from Riley's later edit."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -1449,17 +1438,14 @@
       "duration_seconds": 1800,
       "matrix": {
         "dimensions": {
-          "direction": ["overlay-to-kiosk", "kiosk-to-overlay"],
-          "child": ["first", "second"]
+          "direction": ["overlay-to-kiosk", "kiosk-to-overlay"]
         },
         "full_combinations": [],
-        "rationale": "Each transfer direction uses one two-child history with distinct values and local approvers. Swapping child order repeats those assertions. Interactive mute remains future-feature engineering scope."
+        "rationale": "Each transfer direction uses one two-child history with distinct values and local approvers. Cases 58 and 60 absorb the child-order permutations, retired IDs 59 and 61. Their IDs remain reserved. Interactive mute remains future-feature engineering scope."
       },
       "variants": [
-        {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "overlay-to-kiosk-first"}},
-        {"coverage_id": 59, "id": "overlay-to-kiosk-second", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk", "child": "second"}, "status": "pending", "pending_reason": "Retired from scheduling. Represented by case 58, which transfers both children’s distinct values with local approvers and rechecks both in the open kiosk. No replacement task.", "executable": null},
-        {"coverage_id": 60, "id": "kiosk-to-overlay-first", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "first"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "kiosk-to-overlay-first"}},
-        {"coverage_id": 61, "id": "kiosk-to-overlay-second", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay", "child": "second"}, "status": "pending", "pending_reason": "Retired from scheduling. Represented by case 60, which transfers both children’s distinct values and rechecks each after fresh overlay entry. No replacement task.", "executable": null}
+        {"coverage_id": 58, "id": "overlay-to-kiosk-first", "owner": "kiosk-form", "parameters": {"direction": "overlay-to-kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "overlay-to-kiosk-first"}},
+        {"coverage_id": 60, "id": "kiosk-to-overlay-first", "owner": "kiosk-form", "parameters": {"direction": "kiosk-to-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/remembered_choices.py", "test_id": "kiosk-to-overlay-first"}}
       ]
     },
     {
@@ -1874,13 +1860,10 @@
           "soft-apps": ["excluded", "included"],
           "entry": ["new-login", "retained-unlock"]
         },
-        "full_combinations": [
-          ["soft-apps", "entry"]
-        ],
-        "rationale": "Both soft-app choices by both entry routes with daily time remaining. E2E-009 owns zero-daily recovery; E2E-038 owns return without replacement."
+        "full_combinations": [],
+        "rationale": "Retained unlock covers both replacement choices and verifies closure or survival of the original work. Included replacement also covers fresh login. Retired ID 132 is covered by 133 for exclusion and 134 for fresh login. E2E-009 owns zero-daily recovery; E2E-038 owns return without replacement."
       },
       "variants": [
-        {"coverage_id": 132, "id": "excluded-new-login", "owner": "continuous-journeys", "parameters": {"soft-apps": "excluded", "entry": "new-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/expired_daily_replacement.py", "test_id": "excluded-new-login"}},
         {"coverage_id": 133, "id": "excluded-retained-unlock", "owner": "continuous-journeys", "parameters": {"soft-apps": "excluded", "entry": "retained-unlock"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/expired_daily_replacement.py", "test_id": "excluded-retained-unlock"}},
         {"coverage_id": 134, "id": "included-new-login", "owner": "continuous-journeys", "parameters": {"soft-apps": "included", "entry": "new-login"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/expired_daily_replacement.py", "test_id": "included-new-login"}},
         {"coverage_id": 135, "id": "included-retained-unlock", "owner": "continuous-journeys", "parameters": {"soft-apps": "included", "entry": "retained-unlock"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/expired_daily_replacement.py", "test_id": "included-retained-unlock"}}
@@ -2614,8 +2597,8 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Remove Internet access through the shared distro-independent LIFE06 VM helper, preserving test control. In Parent enable limits and save the allowance and hard/soft app rules."},
-          {"id": "step-2", "operation": "ui", "description": "Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, added time, allowed/soft app use, hard refusal and ticking time before proceeding."},
-          {"id": "step-3", "operation": "ui", "description": "Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. Observe success, sign in as the child and independently check added time, allowed/soft app use, hard refusal and ticking time while still offline."},
+          {"id": "step-2", "operation": "ui", "description": "Enter the child-overlay form, read its estimate and approve 3 minutes including soft apps through a fresh local parent's prompt. Observe success, the added time, soft app use and hard refusal before proceeding."},
+          {"id": "step-3", "operation": "ui", "description": "Sign out normally, enter the station form and approve another 3 minutes including soft apps through fresh local authentication. After sign-in, check the added time and countdown progression, soft app use and hard refusal. Leave allowed work open while still offline."},
           {"id": "step-4", "operation": "ui", "description": "Revoke once through Parent, confirm no grant, soft-app closure/refused relaunch, retained allowed access and hard refusal, then reconnect. Use one offline policy preparation with a fresh 30-minute daily allowance and one native app per rule; no reset, revocation or reconnection between approvals."}
         ],
         "end": [
@@ -2628,7 +2611,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "overlay-result", "step_id": "step-2", "description": "Desktop estimates and genuine local approval add the expected time; allowed/soft apps work, hard apps are refused and time ticks while offline."},
+          {"id": "overlay-result", "step_id": "step-2", "description": "The desktop estimate and genuine local approval add the expected time. The soft app works and the hard app is refused while offline."},
           {"id": "kiosk-result", "step_id": "step-3", "description": "Station estimates and a second genuine local approval add the expected time; child access, allowed/soft app use, hard refusal and ticking time work while offline."},
           {"id": "visible-result", "step_id": "step-4", "description": "Offline policy editing and one final revocation work locally; the grant is gone, soft apps close and cannot relaunch, allowed access remains and hard apps stay denied before reconnection."}
         ],
@@ -2939,11 +2922,10 @@
           ]
         },
         "full_combinations": [],
-        "rationale": "Seven active native/Flatpak journeys retain both request forms for native-grid and one form per other native/Flatpak route. Snap-grid/child-overlay case 239 and snap-command/kiosk case 242 retain their matrix identities but are pending and deferred from active scheduling by developer decision on 2026-11-05; see docs/Snap_Limitation.md. They supply no acceptance credit or active product-choice gate. Each active case retains three fresh ordered approvals, Jamie/exclude, Sam/include and Jamie/exclude, with soft launch denial, usable inclusion, closure on replacement exclusion, unchanged allowed work, continued hard denial and unchanged saved rules. Those effects remain future remediation targets for the two Snap cases. Removed case IDs 234, 235, 237, 240, 241, 244 and 245 must not be reused. Baseline rule permutations remain in E2E-019."
+        "rationale": "Six active native/Flatpak journeys cover one request form per launch route. Retired ID 232 is covered by 231 for native grid and 236/238 for native kiosk approval. Snap-grid/child-overlay case 239 and snap-command/kiosk case 242 remain pending by developer decision on 2026-11-05; see docs/Snap_Limitation.md. Each active case retains three fresh ordered approvals, Jamie/exclude, Sam/include and Jamie/exclude, with soft launch denial, usable inclusion, closure on replacement exclusion, unchanged allowed work, continued hard denial and unchanged saved rules. Those effects remain future remediation targets for the two Snap cases. Removed case IDs 232, 234, 235, 237, 240, 241, 244 and 245 must not be reused. Baseline rule permutations remain in E2E-019."
       },
       "variants": [
         {"coverage_id": 231, "id": "native-grid-child-overlay", "owner": "application-access", "parameters": {"route": "native-grid", "surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/native_temporary_access.py", "test_id": "native-grid-child-overlay"}},
-        {"coverage_id": 232, "id": "native-grid-kiosk", "owner": "application-access", "parameters": {"route": "native-grid", "surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/native_temporary_access.py", "test_id": "native-grid-kiosk"}},
         {"coverage_id": 233, "id": "native-desktop-child-overlay", "owner": "application-access", "parameters": {"route": "native-desktop", "surface": "child-overlay"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/native_temporary_access.py", "test_id": "native-desktop-child-overlay"}},
         {"coverage_id": 236, "id": "native-file-manager-kiosk", "owner": "application-access", "parameters": {"route": "native-file-manager", "surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/native_temporary_access.py", "test_id": "native-file-manager-kiosk"}},
         {"coverage_id": 238, "id": "native-command-kiosk", "owner": "application-access", "parameters": {"route": "native-command", "surface": "kiosk"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/native_temporary_access.py", "test_id": "native-command-kiosk"}},
@@ -3127,12 +3109,12 @@
           {
             "id": "step-2",
             "operation": "ui",
-            "description": "Confirm Internet isolation, save Jamie Chinese, reread Riley/Jordan/Riley and normally relaunch Parent."
+            "description": "Confirm Internet isolation, save Jamie Chinese, read Riley and Jordan in Chinese and normally relaunch Parent."
           },
           {
             "id": "step-3",
             "operation": "ui",
-            "description": "Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel German, switch children/approvers and freshly re-enter kiosk."
+            "description": "Save Jordan German and Riley Hebrew with 75-second soft-included requests, cancel a proposed German change for Riley, change Jordan's approver and freshly re-enter kiosk."
           },
           {
             "id": "step-4",
@@ -3142,7 +3124,7 @@
           {
             "id": "step-5",
             "operation": "ui",
-            "description": "Reread Chinese Parent and each unchanged child policy offline, independently restore Internet and reread both policies."
+            "description": "Reread Chinese Parent and Riley's unchanged policy offline, independently restore Internet and reread both child policies."
           }
         ],
         "end": [
@@ -3194,11 +3176,6 @@
             "description": "Selecting Jordan retains Jamie's Chinese management context and displays Jordan's own settings."
           },
           {
-            "id": "chinese-riley-return",
-            "step_id": "step-2",
-            "description": "Returning to Riley retains Jamie's Chinese language and Riley's original settings."
-          },
-          {
             "id": "parent-relaunch-choice",
             "step_id": "step-2",
             "description": "Normally closing and relaunching Parent retains Jamie's saved Chinese choice without repeating first-run setup."
@@ -3234,11 +3211,6 @@
             "description": "Changing the station approver does not replace Jordan's German language or request values."
           },
           {
-            "id": "riley-approver-independent",
-            "step_id": "step-3",
-            "description": "Changing the station approver does not replace Riley's Hebrew language or request values."
-          },
-          {
             "id": "german-reentry",
             "step_id": "step-3",
             "description": "Fresh station entry for Jordan retains German and the same request values without another first-run chooser."
@@ -3262,11 +3234,6 @@
             "id": "renewed-session-language",
             "step_id": "step-4",
             "description": "After renewing Riley's desktop session, the child request form still follows saved Hebrew without resetting choices."
-          },
-          {
-            "id": "jordan-offline-policy",
-            "step_id": "step-5",
-            "description": "While offline, Jordan's allowance, zero grant and app rules match the original captured policy, allowing measured elapsed use."
           },
           {
             "id": "riley-offline-policy",

@@ -36,8 +36,7 @@ use onpc_kiosk_valid_duration ();
 use onpc_request_flow ();
 use onpc_kiosk_reminders ();
 use onpc_remembered_choices ();
-use onpc_kiosk_cancel ();
-use onpc_kiosk_escape ();
+use onpc_request_exit_cases ();
 use onpc_request_choices ();
 use onpc_kiosk_no_child ();
 use onpc_kiosk_no_approver ();
@@ -389,18 +388,6 @@ sub run {
         onpc_product_free_entry::run(\&exchange);
         return;
     }
-    if ($ready->{overlay_cancel}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_kiosk_cancel::run(\&exchange, 'overlay', $ready->{invocations}, $ready->{challenge_bindings});
-        return;
-    }
-    if ($ready->{overlay_escape}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_kiosk_cancel::run(\&exchange, 'overlay-escape', $ready->{invocations}, $ready->{challenge_bindings});
-        return;
-    }
     if ($ready->{offline_approvals}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
@@ -418,7 +405,7 @@ sub run {
     if ($ready->{overlay_approved}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_kiosk_cancel::run(\&exchange, 'overlay-approved', $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_request_exit_cases::run_overlay(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{remembered_return_entry_diagnosis}) {
@@ -711,16 +698,11 @@ sub run {
         onpc_challenges::countdown_daily(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{countdown_grant}) {
+    if ($ready->{countdown_grant} || $ready->{countdown_combined}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_challenges::countdown_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
-        return;
-    }
-    if ($ready->{countdown_combined}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_challenges::countdown_combined(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
+        onpc_challenges::countdown_grant(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
+            $ready->{countdown_combined} ? 'combined' : 'grant');
         return;
     }
     if ($ready->{grant_work_recovery}) {
@@ -1103,16 +1085,14 @@ sub run {
     }
     if ($ready->{flatpak_temporary_access} || $ready->{flatpak_grid_temporary_access}
             || $ready->{native_grid_temporary_access} || $ready->{native_desktop_temporary_access}
-            || $ready->{native_grid_kiosk_temporary_access}
             || $ready->{native_command_kiosk_temporary_access} || $ready->{native_files_kiosk_temporary_access}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_request_flow::flatpak_temporary_access(\&exchange, $ready->{invocations}, $ready->{challenge_bindings},
-            $ready->{flatpak_grid_temporary_access} || $ready->{native_grid_temporary_access}
-                || $ready->{native_grid_kiosk_temporary_access} ? 'grid'
+            $ready->{flatpak_grid_temporary_access} || $ready->{native_grid_temporary_access} ? 'grid'
                 : $ready->{native_desktop_temporary_access} ? 'desktop'
                 : $ready->{native_files_kiosk_temporary_access} ? 'files' : 'command',
-            $ready->{native_grid_temporary_access} || $ready->{native_grid_kiosk_temporary_access}
+            $ready->{native_grid_temporary_access}
                 || $ready->{native_command_kiosk_temporary_access}
                 || $ready->{native_files_kiosk_temporary_access} || $ready->{native_desktop_temporary_access} ? 'native' : 'flatpak',
             $ready->{native_grid_temporary_access} || $ready->{flatpak_grid_temporary_access}
@@ -1143,15 +1123,12 @@ sub run {
         onpc_app_rows::native_policy_closure(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
-    if ($ready->{app_rule_changes_case} || $ready->{app_rule_changes_pattern_case}
-        || $ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) {
+    if ($ready->{app_rule_changes_case} || $ready->{app_rule_changes_disabled_pattern_case}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
         onpc_app_rule_changes::run(\&exchange, $ready->{invocations},
             $ready->{challenge_bindings}, $ready->{kiosk_request},
-            ($ready->{app_rule_changes_pattern_case} || $ready->{app_rule_changes_disabled_pattern_case})
-                ? 'pattern' : 'precise',
-            ($ready->{app_rule_changes_disabled_case} || $ready->{app_rule_changes_disabled_pattern_case}) ? 1 : 0);
+            $ready->{app_rule_changes_disabled_pattern_case} ? 1 : 0);
         return;
     }
     if ($ready->{flatpak_grid}) {
@@ -1329,22 +1306,10 @@ sub run {
         onpc_request_choices::run(\&exchange);
         return;
     }
-    if ($ready->{kiosk_escape}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_kiosk_escape::run(\&exchange);
-        return;
-    }
     if ($ready->{kiosk_approved}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_kiosk_cancel::run(\&exchange, 'approved', $ready->{invocations}, $ready->{challenge_bindings});
-        return;
-    }
-    if ($ready->{kiosk_cancel}) {
-        console('sut')->disable();
-        exchange('setup-detached', undef);
-        onpc_kiosk_cancel::run(\&exchange);
+        onpc_request_exit_cases::run_kiosk(\&exchange, $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{kiosk_rejection}) {

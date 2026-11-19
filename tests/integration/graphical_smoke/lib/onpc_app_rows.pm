@@ -866,8 +866,14 @@ sub lunar_access {
         my ($prefix, $entry) = @_;
         $leave->("$prefix-child-leave");
         $enter->("$prefix-parent", 'parent', $entry);
+        if ($entry eq 'retained') {
+            my $stage = "$prefix-view-parent-retained";
+            $journey->consume_observation($stage, onpc_parent::open_for_child(
+                $journey, 'desktop', 'same-user', 'retained', 'existing', "$prefix-view", 0));
+            return;
+        }
         my $view = $journey->scope("$prefix-view");
-        $view->seen($_) for $entry eq 'fresh' ? qw(parent-command parent-window) : ();
+        $view->seen($_) for qw(parent-command parent-window);
         $view->consume_observation('parent-selected', onpc_parent::select_child($view, 'existing',
             $view->seen('child-picker-opened'), 'child-picker-opened',
             'child-choice-highlighted', 'parent-selected'));
@@ -914,8 +920,9 @@ sub lunar_access {
         $enter->("$prefix-login", 'other-child', 'fresh');
     };
     onpc_gdm::reattach_functional();
-    $journey->consume_observation('allowance-configured', onpc_parent::set_allowance(
-        $journey, 'gdm', 'parent', 'fresh', 'new', 'existing', 0, 30, 1));
+    $journey->consume_observation('parent-selected', onpc_parent::open_for_child(
+        $journey, 'gdm', 'fresh', 'new', 'existing'));
+    $journey->seen('daily-enable');
     onpc_allowance_selection::select($journey, 'daily', [120], 'confirm');
     $journey->seen($_) for qw(daily-settings allowed-apps);
     $choices->('allowed');
@@ -933,7 +940,7 @@ sub lunar_access {
     for my $prefix ('time-only', 'replacement') {
         $approval->($prefix, 0);
         $visit->("$prefix-before", 'retained');
-        $journey->seen("$prefix-before-policy");
+        $journey->seen("$prefix-before-balance");
         $return->("$prefix-before");
         $reboot->($prefix);
         $blocked->($prefix);

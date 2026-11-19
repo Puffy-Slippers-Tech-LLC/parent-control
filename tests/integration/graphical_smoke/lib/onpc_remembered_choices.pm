@@ -70,13 +70,8 @@ sub run_reverse {
         $journey->seen("$child-$_") for qw(exit desktop logout greeter);
         onpc_gdm::enter_station($journey->scope('next-station'), '') if $child eq $children[0];
     }
-    for my $child (@children) {
-        my $prefix = "$child-revisit";
-        my $role = $child eq 'riley' ? 'child' : 'other-child';
-        onpc_desktop_session::enter_desktop($journey, 'gdm', $role, 'fresh', 'success', "$prefix-entry");
-        $journey->seen("$prefix-$_") for qw(launch read);
-        $journey->seen("$prefix-$_") for $child eq $children[0] ? qw(exit desktop logout greeter) : ();
-    }
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', 'fresh', 'success', 'jordan-revisit-entry');
+    $journey->seen($_) for qw(jordan-revisit-launch jordan-revisit-read);
     $journey->finish();
 }
 

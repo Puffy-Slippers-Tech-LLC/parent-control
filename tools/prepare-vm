@@ -16,9 +16,9 @@ with test_source.startup(ROOT, sys.argv[1:]):
     from baseline_messages import help_message, mode_message
     from vm_selection import select, vm_config, SELECTOR_HELP
     from vm_pool import reservation, arguments as checkout_arguments
-    from vm_queue import preparation
+    from vm_queue import preparation, prepare_hosts as dispatch_preparation, require_host_queue
     import test_activity
-    from host_dispatch import tool_host, vm_tool
+    from host_dispatch import tool_host
     from test_storage import scratch_descriptors
 
 HELPER = '/usr/local/libexec/onpc-setup'
@@ -41,6 +41,7 @@ def arguments(argv=None):
                             'or all;', 'or all (default);'))
     parser.add_argument('--y', action='store_true',
                         help='proceed without y/n confirmation; use for authorized launcher/session work')
+    parser.add_argument('--queue-host', help=argparse.SUPPRESS)
     parser.epilog = help_message()
     # Show the complete, short usage reminder for missing options or values.
     def error(message):
@@ -57,48 +58,24 @@ def prepare_hosts(args, vms, *, refresh):
         raise ValueError('vm-pool: check in before dispatching preparation to another host')
     document = vm_config.read_document(validate_agent=False)
     local = tool_host(ROOT, document).name
-    groups = {}
-    for vm in vms:
-        groups.setdefault(vm.host, []).append(vm)
+    hosts = dict.fromkeys(vm.host.name for vm in vms)
     storage_hosts = {branch['host'] for branch in vm_config.branch_registry(document).values()}
-    for host in groups:
-        if host.name != local and host.name not in storage_hosts:
-            raise ValueError(f'prepare-vm: no configured storage checkout on {host.name}')
+    for host in hosts:
+        if host != local and host not in storage_hosts:
+            raise ValueError(f'prepare-vm: no configured storage checkout on {host}')
     from vm_selection import confirm_queue
     if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
         print('prepare-vm: cancelled; no baseline snapshot was prepared.')
         return 0
-    import host_compute
-    # Preparation stays in the foreground; join remote keepers before returning
-    # to the shell so their final diagnostics cannot overwrite its prompt.
-    with host_compute.launch(vms, handoff=False) as admitted:
-        groups = {}
-        for vm in admitted:
-            groups.setdefault(vm.host, []).append(vm)
-        status = prepare_groups(args, groups, local, refresh=refresh)
+    def run_local(options, control, targets):
+        return main(options, refresh=refresh, _expected=targets, _control=control)
+
+    status = dispatch_preparation(ROOT, 'prepare-vm', ['--mode', args.mode], vms, local, run_local)
     return outcome(status, 'preparation failed; inspect the reported errors.' if status else
                    f'onpc_baseline prepared and accepted for {args.vm}.')
 
 
-def prepare_groups(args, groups, local, *, refresh):
-    test_source.leave_checkout()
-    statuses = []
-    for host, targets in groups.items():
-        names = ','.join(vm.name for vm in targets)
-        print(f'prepare-vm: preparing {names}', flush=True)
-        options = ['--vm', names, '--mode', args.mode, '--y']
-        if host.name == local:
-            with test_source.admission(ROOT, options):
-                status = main(options, refresh=refresh, _expected=targets)
-        else:
-            status = vm_tool(ROOT, targets[0], 'prepare-vm', options)
-        statuses.append(status)
-        if status == 130:
-            break
-    return next((value for value in statuses if value), 0)
-
-
-def main(argv=None, *, refresh=True, _worker=False, _expected=None):
+def main(argv=None, *, refresh=True, _worker=False, _expected=None, _control=None):
     args = arguments(argv)
     try:
         if os.geteuid() == 0:
@@ -106,8 +83,9 @@ def main(argv=None, *, refresh=True, _worker=False, _expected=None):
         concurrency, vms = vm_config.execution(args.vm, remote=not _worker)
         if _expected is not None and tuple(_expected) != vms:
             raise ValueError('prepare-vm: selected VM registry changed before preparation')
-        args.vm = ','.join(vm.name for vm in vms)
         host = tool_host(ROOT).name
+        require_host_queue(args.queue_host, host, args.vm, vms)
+        args.vm = ','.join(vm.name for vm in vms)
         if not _worker and any(vm.host.name != host for vm in vms):
             return prepare_hosts(args, vms, refresh=refresh)
         from vm_pool import check_queue
@@ -120,7 +98,8 @@ def main(argv=None, *, refresh=True, _worker=False, _expected=None):
             if not confirm_queue(args, 'prepare-vm', mode_message(args.mode)):
                 print('prepare-vm: cancelled; no baseline snapshot was prepared.')
                 return 0
-            results, queue_status = preparation(ROOT, 'prepare-vm', args, concurrency, vms)
+            results, queue_status = preparation(ROOT, 'prepare-vm', args, concurrency, vms,
+                                                control=_control)
             # Even after a partial failure, accept successfully prepared VMs.
             status = 0
             if refresh and 0 in results.values():

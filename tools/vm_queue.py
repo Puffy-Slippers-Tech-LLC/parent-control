@@ -1,10 +1,11 @@
 """Shared rolling VM scheduler and isolated preparation workers."""
 
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager, ExitStack, nullcontext
 from pathlib import Path
 import os
 import queue
+import re
 import sys
 import threading
 
@@ -23,13 +24,39 @@ class _CapacityWait(Exception):
     """Release a speculative reservation instead of parking an idle VM."""
 
 
+@contextmanager
+def _preparation_checkout(vm, stopped):
+    """Probe the ordinary nonwaiting checkout and retry only temporary refusals."""
+    from host_compute import units
+    from vm_pool import Busy, reservation
+
+    # Capture the existing helper diagnostic without changing the privileged
+    # protocol or letting a full stderr pipe block the checkout.
+    with os.fdopen(os.memfd_create('onpc-preparation-checkout', os.MFD_CLOEXEC), 'rb') as stderr, \
+            ExitStack() as checkout:
+        try:
+            receipt = checkout.enter_context(reservation(vm.name, stopped=stopped, bind=False,
+                                                         wait=False, stderr=stderr))
+        except Busy:
+            raise
+        except ValueError as error:
+            detail = os.pread(stderr.fileno(), 8192, 0).decode('utf-8', errors='replace').strip()
+            capacity = re.search(r'host-compute: host .*: max_compute_unit=([^,]+), .*'
+                                 r'minimum vm\.compute_unit=(\S+)\. Available compute units are insufficient',
+                                 detail)
+            if capacity and units(capacity[2]) <= units(capacity[1]):
+                raise Busy('waiting for host compute') from error
+            if detail:
+                raise ValueError(detail) from error
+            raise
+        yield receipt
+
+
 class _Worker:
     def __init__(self, executor, vm, receipt):
         self.executor = executor
         self._vm = vm
         self.receipt = receipt
-        self.used = False
-        self.source_refused = False
         self.interrupt = threading.Event()
 
     @property
@@ -51,13 +78,6 @@ class _Worker:
             except Stopped:
                 executor._check(self.vm)
                 raise
-            except test_source.SourceBusy:
-                raise
-            except (ValueError, OSError):
-                # A failed source lease check refuses an idle worker, even after
-                # this worker completed an earlier operation successfully.
-                self.source_refused = True
-                raise
             executor._check(self.vm)
             with executor._capacity:
                 if executor._full(self.vm):
@@ -67,7 +87,6 @@ class _Worker:
                 executor._host_active[self.vm.host.name] += units(self.vm.compute_unit)
             operation.callback(executor._release_slot, self.vm)
             executor._check(self.vm)
-            self.used = True
             yield
 
 
@@ -75,8 +94,7 @@ class Executor:
     """One finite workflow's allowed VM pool, reservations and execution slots.
 
     Reservation waiters use independent threads, never execution capacity or a
-    source reader. Failed workers stay reserved until the joined workflow exits;
-    their operation capacity is already available to the remaining workers.
+    source reader.
     """
 
     def __init__(self, root, vms, concurrency, stopped, *, sources=None):
@@ -99,6 +117,7 @@ class Executor:
         self._capacity = threading.Condition()
         self._active = 0
         self._host_active = {vm.host.name: 0 for vm in self.vms}
+        self._probes = {host: threading.Lock() for host in self._host_active}
         self._closing = threading.Event()
         self._pool = None
         self._futures = []
@@ -115,8 +134,7 @@ class Executor:
         self._closing.set()
         if self._pool is not None:
             self._pool.shutdown(wait=True)
-            # A published failure still owns its reservation until this join.
-            # Surface check-in failures rather than treating an event as cleanup.
+            # Join check-in before returning from the executor.
             for future in self._futures:
                 future.result()
 
@@ -159,76 +177,71 @@ class Executor:
         if not self._needed(vm):
             raise _NoWork()
 
-    def _execute(self, vm, execute, result):
+    def _execute(self, vm, execute):
         import launcher_reload
         import test_source
         from detached_launcher import Stopped
-        from vm_pool import reservation
+        from host_compute import units
+        from vm_pool import Busy
         try:
+            if units(vm.compute_unit) > units(vm.host.max_compute_unit):
+                raise ValueError(f'vm-queue: {vm.name} needs {vm.compute_unit} compute units, '
+                                 f'exceeding max_compute_unit={vm.host.max_compute_unit} on {vm.host.name}')
+            queued = False
             while True:
                 self._wait_capacity(vm)
-                capacity_cancelled = False
-                def pause_reservation():
-                    nonlocal capacity_cancelled
-                    if self._full(vm):
-                        capacity_cancelled = True
-                    return capacity_cancelled or self._abort(vm)
-                try:
-                    with reservation(vm.name, stopped=pause_reservation, bind=False) as receipt:
-                        self._check(vm)
-                        if self._full(vm):
-                            raise _CapacityWait()
-                        worker = _Worker(self, vm, receipt)
-                        try:
-                            value = execute(worker)
-                        except (_NoWork, _CapacityWait, test_source.SourceBusy,
-                                Stopped, launcher_reload.ReloadRequested):
-                            raise
-                        except Exception as error:
-                            value = dict(status=2, handoffs=[],
-                                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))
-                        status = value.get('status', 0) if isinstance(value, dict) else value
-                        if status and worker.used and not worker.source_refused:
-                            result.set_result(value)
-                            self._closing.wait()
-                            return
-                except KeyboardInterrupt:
-                    self._check(vm)
-                    if capacity_cancelled:
-                        continue
-                    raise
-                except _CapacityWait:
-                    continue
-                except test_source.SourceBusy:
-                    # Wait without a VM or execution slot, then recheck the
-                    # source after obtaining the next reservation.
+                with ExitStack() as operation, ExitStack() as checkout:
                     try:
-                        with test_source.reader(self.root, stopped=lambda: self._abort(vm)):
-                            pass
-                    except Stopped:
+                        with self._probes[vm.host.name]:
+                            self._check(vm)
+                            if self._full(vm):
+                                continue
+                            try:
+                                receipt = checkout.enter_context(
+                                    _preparation_checkout(vm, lambda: self._abort(vm)))
+                            except Busy:
+                                # Bound failed probes across the whole host even
+                                # when all pending VMs are competing to retry.
+                                self._closing.wait(.25)
+                                raise
+                            worker = _Worker(self, vm, receipt)
+                            operation.enter_context(worker.operation())
+                    except _CapacityWait:
+                        continue
+                    except Busy as error:
+                        if not queued:
+                            print(f'vm-queue: {vm.name} queued ({error})', flush=True)
+                            queued = True
+                        with self._capacity:
+                            self._check(vm)
+                            self._capacity.wait(1)
+                    except test_source.SourceBusy:
+                        # A pending worker waits for source without owning a VM.
+                        checkout.close()
+                        try:
+                            with test_source.reader(self.root, stopped=lambda: self._abort(vm)):
+                                pass
+                        except Stopped:
+                            self._check(vm)
+                            raise
+                    except KeyboardInterrupt:
                         self._check(vm)
                         raise
-                    continue
-                result.set_result(value)
-                return
+                    else:
+                        self._check(vm)
+                        return execute(worker)
         except _NoWork:
-            result.set_result(dict(status=0, handoffs=[]))
+            return dict(status=0, handoffs=[])
         except Stopped:
-            result.set_result(dict(status=130, handoffs=[]))
+            return dict(status=130, handoffs=[])
         except launcher_reload.ReloadRequested:
-            result.set_result(dict(status=launcher_reload.STATUS, handoffs=[]))
-        except (ValueError, OSError) as error:
-            if result.done():
-                raise
-            result.set_result(dict(status=2, handoffs=[],
-                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error)))
-        except BaseException as error:
-            if result.done():
-                raise
-            result.set_exception(error)
+            return dict(status=launcher_reload.STATUS, handoffs=[])
+        except Exception as error:
+            return dict(status=2, handoffs=[],
+                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))
 
     def run_each(self, execute, *, needed=None):
-        """Run one callback per needed canonical VM and return results by name."""
+        """Queue each needed VM and return results after its checkout closes."""
         if self._pool is None or self._ran or self._closing.is_set():
             raise ValueError('vm-queue: run_each requires a fresh active executor')
         self._ran = True
@@ -239,17 +252,9 @@ class Executor:
             if not self._needed(vm):
                 results[vm.name] = dict(status=0, handoffs=[])
                 continue
-            result = Future()
-            pending[result] = vm.name
-            future = self._pool.submit(self._execute, vm, execute, result)
+            future = self._pool.submit(self._execute, vm, execute)
+            pending[future] = vm.name
             self._futures.append(future)
-            def finished(future, result=result):
-                # Even a bootstrap failure before _execute's error boundary
-                # must finish the public result rather than strand the join.
-                if not result.done():
-                    result.set_exception(future.exception() or RuntimeError(
-                        'vm-queue: worker exited without a result'))
-            future.add_done_callback(finished)
         for future in as_completed(pending):
             results[pending[future]] = future.result()
         return results
@@ -422,35 +427,78 @@ class Executor:
         return results
 
 
-def preparation(root, tool, args, concurrency, vms):
+def prepare_hosts(root, tool, options, vms, local, run_local):
+    """Run one joined preparation queue per host, with one transfer per remote host."""
+    from detached_launcher import Stopped
+    from host_dispatch import vm_tool
+    from regression_process import Control
+    import test_source
+
+    groups = {}
+    for vm in vms:
+        groups.setdefault(vm.host.name, []).append(vm)
+    test_source.leave_checkout()
+    with Control().installed() as control, ThreadPoolExecutor(max_workers=len(groups)) as remotes:
+        def run(host, targets):
+            options_for_host = ['--vm', ','.join(vm.name for vm in targets), '--y', *options]
+            try:
+                if control.stopped.is_set():
+                    return 130
+                if host == local:
+                    with test_source.admission(root, options_for_host, stopped=control.stopped.is_set):
+                        return run_local(options_for_host, control, targets)
+                return vm_tool(root, targets[0], tool, [*options_for_host, '--queue-host', host],
+                               control=control)
+            except Stopped:
+                return 130
+            except (ValueError, OSError) as error:
+                print(f'{tool}: {host}: {error}', file=sys.stderr, flush=True)
+                return 2
+
+        results = {host: remotes.submit(run, host, targets) for host, targets in groups.items()
+                   if host != local}
+        local_status = run(local, groups[local]) if local in groups else 0
+        statuses = [local_status if host == local else results[host].result() for host in groups]
+    return 130 if control.stopped.is_set() or 130 in statuses else next((s for s in statuses if s), 0)
+
+
+def require_host_queue(expected_host, host, selector, vms):
+    """Refuse a changed or partial selection before a transferred queue runs."""
+    if expected_host is not None and (expected_host != host or
+            selector != ','.join(vm.name for vm in vms) or any(vm.host.name != host for vm in vms)):
+        raise ValueError(f'confirmed VM selection changed before preparation on {expected_host}')
+
+
+def preparation(root, tool, args, concurrency, vms, *, control=None):
     """Run already-confirmed preparation in processes with independent VM state.
 
     Baseline replacement has no cooperative stop protocol: allow in-flight
     replacements to finish while cancellation prevents queued work. App workers
     use their existing signal handler and wait for owned cleanup.
     """
-    import host_compute
-    with host_compute.launch(vms) as admitted:
-        return _preparation(root, tool, args, min(concurrency, len(admitted)), admitted)
-
-
-def _preparation(root, tool, args, concurrency, vms):
     import test_source
-    with test_source.reader(root):
+    from host_compute import units
+    with test_source.reader(root, stopped=lambda: control is not None and control.stopped.is_set()):
         from regression_process import Control
         from vm_selection import BATCH, VARIABLE
     output_lock = threading.Lock()
-    with Control().installed() as control:
+    snapshot_only = tool == 'prepare-appsnapshot' and sum(units(vm.compute_unit) for vm in vms) > units(
+        vms[0].host.max_compute_unit)
+    with Control().installed() if control is None else nullcontext(control) as control:
         def execute(worker):
             vm = worker.vm
             options = ['--vm', vm.name, '--y']
+            worker_options = []
             if tool == 'prepare-appsnapshot':
+                if snapshot_only:
+                    worker_options.append('--snapshot-only')
                 options += ['--overwrite', args.overwrite]
                 if args.release_notes_upgrade:
                     options.append('--release-notes-upgrade')
             else:
                 options += ['--mode', args.mode]
-            command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), tool, *options]
+            command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), tool,
+                       *worker_options, *options]
             environment = dict(os.environ)
             environment.pop(BATCH, None)
             environment[VARIABLE] = vm.name
@@ -470,8 +518,7 @@ def _preparation(root, tool, args, concurrency, vms):
                     line, pending = pending.split(b'\n', 1)
                     with output_lock:
                         print(f'[{vm.name}] ' + line.decode('utf-8', errors='replace'), flush=True)
-            with worker.operation():
-                status = runner.run(command, cwd=root, env=environment, output=output)
+            status = runner.run(command, cwd=root, env=environment, output=output)
             if pending:
                 output(b'\n')
             return status
@@ -499,8 +546,11 @@ def worker(argv):
     with test_source.admission(Path(__file__).resolve().parents[1], options):
         launcher = runpy.run_path(str(Path(__file__).resolve().parent / tool))
         # Shared helper installation happens once after baseline workers exit.
-        return launcher['main'](options, _worker=True,
-                                **({'refresh': False} if tool == 'prepare-vm' else {}))
+        if tool == 'prepare-vm':
+            return launcher['main'](options, _worker=True, refresh=False)
+        snapshot_only = options[:1] == ['--snapshot-only']
+        return launcher['main'](options[1:] if snapshot_only else options,
+                                _worker=True, _snapshot_only=snapshot_only)
 
 
 if __name__ == '__main__':

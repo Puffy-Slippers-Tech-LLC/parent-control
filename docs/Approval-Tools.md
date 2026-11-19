@@ -466,9 +466,13 @@ building. Manual use may omit it to rebuild by default.
 The verified baseline selects Ubuntu 26.04 DEB/APT or Fedora Workstation 44
 RPM/DNF preparation. Fedora uses the maintained native/Mock/rootless container
 builder and preserves enforcing SELinux during offline SSH bootstrap and installation.
-Preparation leaves the restored running guest in the existing VM-maintenance ownership
-journal. Its restore-only dispatch uses maintenance scratch rather than an
-evidence-retention session, whose entry gate requires an idle VM. The shared
+When a host's full app-snapshot selection fits within its compute limit,
+preparation leaves the restored guests running under VM-maintenance ownership.
+For a larger selection, preparation saves or verifies each snapshot and returns
+owned guests to the powered-off baseline so the queue can reuse their capacity.
+This includes guests already running under maintenance when their snapshot is reused.
+The restore-only dispatch uses maintenance scratch. Evidence-retention
+sessions require an idle VM at entry. The shared
 owned recovery and live VM ownership checks still apply. Offline snapshots and online
 snapshots older than 24 hours force replacement. Explicit overwrite still rebuilds.
 Standalone app preparation holds the host-wide

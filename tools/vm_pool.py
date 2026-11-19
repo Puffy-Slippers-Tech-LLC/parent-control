@@ -252,8 +252,8 @@ def keep(vm, *, incoming=0, output=sys.stdout, wait=True, ready=None, compute=Tr
 
 
 @contextmanager
-def reservation(name, *, stopped=None, bind=True, wait=True):
-    """Caller-side lifetime: keep checkout across builds, failures and probing."""
+def reservation(name, *, stopped=None, bind=True, wait=True, stderr=None):
+    """Keep a checkout across operations, optionally capturing keeper diagnostics."""
     from vm_selection import vm_config
     from host_dispatch import tool_host
     from remote_sources import RemoteVM, current_sources
@@ -296,8 +296,9 @@ def reservation(name, *, stopped=None, bind=True, wait=True):
         if os.waitpid(saved['pid'], os.WNOHANG) != (0, 0):
             raise ValueError('vm-pool: inherited checkout keeper exited')
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
-    process = (route.pool_process(command, environment) if route is not None else
-               subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=environment))
+    process = (route.pool_process(command, environment, stderr=stderr) if route is not None else
+               subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,
+                                env=environment))
     previous = os.environ.get(VARIABLE)
     from host_compute import VARIABLE as COMPUTE
     previous_compute = os.environ.get(COMPUTE)

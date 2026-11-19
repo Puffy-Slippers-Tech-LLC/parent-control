@@ -92,7 +92,7 @@ def remote_inspection(root, vm, program, argv):
         raise ValueError('remote inspection timed out on ' + vm.host.name) from error
 
 
-def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
+def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False, control=None):
     """Run a public VM tool on its host using this checkout's working source.
 
     Return None for local work so the caller keeps its existing implementation.
@@ -105,10 +105,11 @@ def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False):
             raise ValueError('vm-probe: use probe memory or probe cpu')
         return remote_inspection(root, vm, '/usr/local/libexec/onpc-test-runner',
                                  ['vm', *options])
+    from contextlib import nullcontext
     from regression_process import Control
     from remote_sources import RemoteVM
     import test_launcher
-    with Control().installed() as control:
+    with Control().installed() if control is None else nullcontext(control) as control:
         return RemoteVM(root, vm).run(control,
             ['/usr/bin/python3', '-IBu', str(Path(root) / 'tools' / tool), *options],
             env=test_launcher.environment(root), stdin_file=stdin_file,

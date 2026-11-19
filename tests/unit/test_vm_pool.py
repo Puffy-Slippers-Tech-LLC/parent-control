@@ -35,7 +35,7 @@ def executor_pool(tmp_path, monkeypatch):
     local = threading.local()
 
     @contextmanager
-    def reservation(name, *, stopped, bind, wait=True):
+    def reservation(name, *, stopped, bind, wait=True, stderr=None):
         assert bind is False
         assert name in configured
         local.name = name
@@ -231,22 +231,20 @@ def test_executor_busy_waiter_uses_no_slot_and_cancels_when_work_drains(executor
 
     state = executor_pool
     waiting = threading.Event()
-    cancelled = threading.Event()
     drained = threading.Event()
     readers = []
     callbacks = []
 
     @contextmanager
-    def reservation(name, *, stopped, bind):
+    def reservation(name, *, stopped, bind, wait, stderr):
+        assert not wait
         if name == 'first':
             assert bind is False
+            assert not drained.is_set(), 'drained VM was probed again'
             waiting.set()
-            for _ in range(500):
-                if stopped():
-                    cancelled.set()
-                    raise KeyboardInterrupt
-                cancelled.wait(.01)
-            pytest.fail('obsolete occupied-VM waiter did not cancel')
+            raise vm_pool.Busy('controlled occupied VM')
+        if not waiting.is_set():
+            raise vm_pool.Busy('let the occupied VM report its state first')
         with state.reservation(name, stopped=stopped, bind=bind) as receipt:
             yield receipt
 
@@ -259,17 +257,14 @@ def test_executor_busy_waiter_uses_no_slot_and_cancels_when_work_drains(executor
     monkeypatch.setattr(test_source, 'reader', reader)
 
     def execute(worker):
-        assert waiting.wait(5)
         callbacks.append(worker.vm.name)
-        with worker.operation():
-            assert worker.receipt == B + ':' + 'a' * 32
-            drained.set()
+        assert worker.receipt == B + ':' + 'a' * 32
+        drained.set()
         return 0
 
     with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
         results = executor.run_each(execute, needed=lambda vm: not drained.is_set())
         assert results['second'] == 0
-        assert cancelled.is_set()
     assert callbacks == ['second'] and readers == ['second']
     assert not state.held
 
@@ -289,8 +284,7 @@ def test_executor_foreign_source_fence_releases_idle_checkout(executor_pool, mon
     monkeypatch.setattr(test_source, 'reader', reader)
 
     def execute(worker):
-        with worker.operation():
-            pytest.fail('foreign source writer permitted VM activity')
+        pytest.fail('foreign source writer permitted VM activity')
 
     with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
         results = executor.run_each(execute)
@@ -300,34 +294,32 @@ def test_executor_foreign_source_fence_releases_idle_checkout(executor_pool, mon
     assert state.released == ['first']
 
 
-def test_executor_releases_excess_free_vms_while_capacity_is_full(executor_pool, monkeypatch):
+def test_executor_avoids_extra_vm_probes_while_capacity_is_full(executor_pool, monkeypatch):
     import vm_queue
 
     state = executor_pool
-    ready = threading.Barrier(2)
-    first_requests = set()
-    idle_released = threading.Event()
+    second_probe = threading.Event()
+    probes = set()
     executed = []
 
     @contextmanager
-    def reservation(name, *, stopped, bind):
-        try:
-            with state.reservation(name, stopped=stopped, bind=bind) as receipt:
-                if name not in first_requests:
-                    first_requests.add(name)
-                    ready.wait(timeout=5)  # Both free VMs become ready together.
-                yield receipt
-        finally:
-            idle_released.set()
+    def reservation(name, *, stopped, bind, wait, stderr):
+        assert not wait
+        probes.add(name)
+        if len(probes) > 1:
+            second_probe.set()
+        if state.held:
+            raise vm_pool.Busy('previous checkout is closing')
+        with state.reservation(name, stopped=stopped, bind=bind) as receipt:
+            yield receipt
 
     monkeypatch.setattr(vm_pool, 'reservation', reservation)
 
     def execute(worker):
-        with worker.operation():
-            executed.append(worker.vm.name)
-            if len(executed) == 1:
-                assert idle_released.wait(5), 'spare free VM stayed reserved behind capacity'
-                assert state.held == {worker.vm.name}
+        executed.append(worker.vm.name)
+        assert state.held == {worker.vm.name}
+        if len(executed) == 1:
+            assert not second_probe.wait(.15), 'a spare VM was probed while capacity was full'
         return 0
 
     with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
@@ -336,18 +328,40 @@ def test_executor_releases_excess_free_vms_while_capacity_is_full(executor_pool,
     assert sorted(executed) == ['first', 'second'] and not state.held
 
 
-def test_executor_source_wait_uses_no_slot_and_failure_retains_checkout(executor_pool, monkeypatch):
+def test_executor_source_wait_and_preparation_failure_release_capacity(executor_pool, monkeypatch):
+    import host_compute
     import test_source
     import vm_queue
+    from vm_selection import vm_config
 
     state = executor_pool
+    vms = [replace(vm, host=replace(vm.host, max_compute_unit=2)) for vm in state.vms]
+    monkeypatch.setattr(vm_config, 'load', {vm.name: vm for vm in vms}.__getitem__)
     source_waiting = threading.Event()
     source_ready = threading.Event()
     release_source = threading.Event()
     first_running = threading.Event()
-    second_failed = threading.Event()
+    second_released = threading.Event()
+    capacity_refused = threading.Event()
     cleanup_finished = threading.Event()
     readers = set()
+
+    @contextmanager
+    def reservation(name, *, stopped, bind, wait, stderr):
+        assert not wait
+        if name == 'second' and not source_waiting.is_set():
+            raise vm_pool.Busy('let the first VM reach the source wait')
+        if name == 'first' and source_ready.is_set() and not second_released.is_set():
+            assert not capacity_refused.is_set(), 'failed worker never checked in'
+            os.write(stderr.fileno(), str(host_compute._insufficient(vms[0].host, 2, 1)).encode())
+            capacity_refused.set()
+            raise ValueError('vm-pool: checkout failed (status 2)')
+        try:
+            with state.reservation(name, stopped=stopped, bind=bind) as receipt:
+                yield receipt
+        finally:
+            if name == 'second':
+                second_released.set()
 
     @contextmanager
     def reader(root, **kwargs):
@@ -360,48 +374,40 @@ def test_executor_source_wait_uses_no_slot_and_failure_retains_checkout(executor
                 assert name not in state.held, 'source wait retained an idle VM'
                 assert release_source.wait(5), 'other VM could not progress during source wait'
                 source_ready.set()
-        else:
-            assert source_waiting.wait(5)
         if kwargs.get('wait') is False:
             assert name in state.held
         readers.add(name)
         try:
             yield
         finally:
-            if name == 'second':
-                assert first_running.wait(5), 'source reader closed before releasing the execution slot'
             readers.remove(name)
 
+    monkeypatch.setattr(vm_pool, 'reservation', reservation)
     monkeypatch.setattr(test_source, 'reader', reader)
 
     def execute(worker):
         name = worker.vm.name
-        with worker.operation():
-            assert name in readers
-            if name == 'second':
-                try:
-                    release_source.set()
-                    assert source_ready.wait(5)
-                    assert not first_running.wait(.05), 'source waiter bypassed the capacity limit'
-                finally:
-                    # Owned cleanup remains inside the finite operation's slot.
-                    cleanup_finished.set()
-            else:
-                first_running.set()
-                assert cleanup_finished.is_set()
-                assert second_failed.wait(5)
-                assert 'second' in state.held, 'failed worker checked in before its peers finished'
+        assert name in readers
         if name == 'second':
-            second_failed.set()
+            try:
+                release_source.set()
+                assert source_ready.wait(5)
+                assert capacity_refused.wait(5)
+                assert not first_running.wait(.05), 'source waiter bypassed the capacity limit'
+            finally:
+                cleanup_finished.set()
             raise RuntimeError('controlled operation failure')
+        first_running.set()
+        assert cleanup_finished.is_set()
+        assert 'second' not in state.held
         return 0
 
-    with vm_queue.Executor(state.root, state.vms, 4, threading.Event()) as executor:
+    with vm_queue.Executor(state.root, vms, 4, threading.Event()) as executor:
         results = executor.run_each(execute)
         assert results['first'] == 0
         assert results['second']['status'] != 0
         assert 'controlled operation failure' in results['second']['error']
-        assert 'second' in state.held
+        assert not state.held
     assert not state.held and not readers
     assert set(state.released) == {'first', 'second'}
     assert state.released.count('second') == 1
@@ -577,6 +583,7 @@ def test_same_vm_queues_across_checkout_paths_and_other_vm_proceeds(pool, tmp_pa
         os.close(borrowed)
     with pytest.raises(ValueError, match='exited'):
         host_compute.borrow(vms[0], token)
+
     monkeypatch.setattr(host_compute, 'choose', lambda requested, available: requested * 2)
     with pytest.raises(ValueError, match='guard refused'):
         host_compute.admit(vms)

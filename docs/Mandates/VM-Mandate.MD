@@ -107,8 +107,8 @@ Admission reserves a fixed random subset for the current test group, including
 prerequisite preparation and current execution. Owned execution and
 cleanup join before the reservation is released and the next group is admitted
 from the original allowed pool. Thus different groups need not fit simultaneously.
-Other workflows retain their launcher-lifetime reservations. Surviving owned
-commands retain the charge. The original request remains attachment metadata.
+Surviving owned commands retain the charge. The original request remains
+attachment metadata.
 Each new execution admits currently eligible workers from that allowed pool;
 historical worker assignments do not pin a resumed run to an old allocation.
 Clear completed cases stay complete within their family. Future groups receive
@@ -116,7 +116,7 @@ admission when reached; resume never widens the requested pool. Shutdown cleanup
 uses only the current group's recorded admitted VMs. Its receipt is cleared
 after joined cleanup, so shutdown cannot revisit a VM released by an earlier group.
 If availability is below the smallest selected VM's cost on any selected host,
-the entire launcher fails before work starts, with a red diagnostic giving the
+test-group admission fails before work starts, with a red diagnostic giving the
 limit, used, available and minimum required compute. Earlier host reservations
 are released on failed admission.
 
@@ -150,9 +150,15 @@ Historical claims are discarded; incomplete attempts return to pending.
 Stateful histories and system area attempts remain indivisible for scheduling,
 but guest steps inside them may be interrupted for repair, reload or cancellation.
 Each VM runs one attempt at a time, retaining its own lease and journals.
-Preparation remains per admitted VM: each free slot takes the next registered VM, and
-the preparation queue drains even after an individual VM fails.
-Baseline helper refresh runs once after preparation workers finish.
+`prepare-vm` and `prepare-appsnapshot` queue every eligible VM in the confirmed
+selection through the shared preparation scheduler. Host queues run independently.
+The scheduler retries the ordinary VM checkout when the VM or its compute is
+temporarily unavailable. It probes one checkout at a time per host. Each
+checkout uses the independent host capacity gate.
+A VM whose cost exceeds the host maximum fails individually. Each completed
+worker releases its reservation after owned cleanup, including on failure, so
+other queued VMs can proceed. Baseline helper refresh runs once after a host's
+preparation workers finish.
 Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
 including explicit single-VM selections. Each worker reserves only its canonical
 target from the selected pool. Reservation waiters consume no execution capacity;

@@ -155,9 +155,9 @@ the artifact builder's pinned historical snapshots, preserving controller packag
 revision/timestamps without copying full history or private Git configuration.
 VM selection, private credentials and host-local leases remain independently
 validated at the destination. Preparation invokes the transferred public
-launcher with the confirmed selection. Host groups run in selection order;
-each host uses its own preparation queue, concurrency, Watch, VM reservations,
-disk admission and helper refresh. Missing SSH access or prerequisites fail
+launcher once per remote host with that host's confirmed selection. Each host
+uses its own preparation queue, concurrency, Watch, VM reservations, disk
+admission and helper refresh. Missing SSH access or prerequisites fail
 without a local VM fallback or authentication retry.
 Cancellation reaches the remote public launcher over a fixed SSH input channel:
 queued replacements stop, active baseline work finishes and the caller waits for

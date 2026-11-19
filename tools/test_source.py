@@ -226,7 +226,7 @@ def startup(root, argv, *, wait=True, stopped=lambda: False):
 
 
 @contextmanager
-def admission(root, argv, *, wait=True):
+def admission(root, argv, *, wait=True, stopped=lambda: False):
     previous = getattr(_local, 'admission', None)
     if previous is not None:
         yield
@@ -234,7 +234,7 @@ def admission(root, argv, *, wait=True):
     with ExitStack() as context:
         _local.admission = (root, context)
         try:
-            context.enter_context(startup(root, argv, wait=wait))
+            context.enter_context(startup(root, argv, wait=wait, stopped=stopped))
             yield
         finally:
             _local.admission = previous

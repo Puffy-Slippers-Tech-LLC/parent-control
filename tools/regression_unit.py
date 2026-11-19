@@ -104,14 +104,14 @@ locks, plus process-local registry doubles. They never open libvirt or host
 provenance; vm_pool remains compatible with ordinary unit overlap. It is not
 a cleanup or UI inventory module.
 
-Baseline queue cancellation in test_launchers uses the real executor with
+Baseline queue draining and cancellation in test_launchers use the real executor with
 process-local reservation, source and command doubles plus private Events.
 Workers are joined before checking helper refresh; no VM, subprocess, live
 helper, shared cache or external service is acquired. Existing overlap applies.
 Shared executor admission checks add bounded, joined worker threads with local
-Events and reservation/source-reader doubles. They use no live pool, VM, source
-lease, subprocess, service, cache, socket, bus or display; their tiny private
-state and CPU demand preserve vm_pool's compatible unit classification.
+Events, anonymous stderr descriptors and reservation/source-reader doubles.
+They use no live pool, VM, source lease, subprocess, service, cache, socket, bus
+or display. Their private state and CPU demand preserve vm_pool's classification.
 Its compute admission race uses two joined threads, private kernel tickets and
 process-local registry/libvirt census doubles. No live libvirt connection, VM,
 host runtime, external service, socket or display is accessed; compatible overlap

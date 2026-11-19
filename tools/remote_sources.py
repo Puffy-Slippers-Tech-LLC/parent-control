@@ -351,7 +351,8 @@ def verify_artifacts(path):
 
 @contextmanager
 def capsule(root, host, command, environment, *, mode='operation', cooperative=False,
-            execution=None, cwd=None, separate_stderr=False, stdin_file=None, sources=None):
+            execution=None, cwd=None, separate_stderr=False, stdin_file=None, sources=None,
+            stopped=lambda: False):
     """Capture before dispatch; keep source ownership only while reading it."""
     import test_source
     from vm_selection import vm_config
@@ -390,7 +391,7 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 if guest_input.tell() > 64 * 1024 * 1024:
                     raise ValueError('remote source: guest input exceeds 64 MiB')
         with (nullcontext() if sources is not None else
-              test_source.reader(root, wait=False) if mode == 'pool' else test_source.reader(root)):
+              test_source.reader(root, wait=mode != 'pool', stopped=stopped)):
             if sources is None:
                 manifest = transfer_archive(root, archive)
                 git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
@@ -701,12 +702,12 @@ class RemoteVM:
             raise ValueError('remote source: a destination host is required')
         self.result = {}
 
-    def pool_process(self, command, environment):
+    def pool_process(self, command, environment, *, stderr=None):
         """Return a live SSH keeper with the ordinary pool receipt/EOF contract."""
         from test_storage import scratch_descriptors
         with capsule(self.root, self.host, command, environment, mode='pool',
                      sources=self.sources) as (ssh, payload, _):
-            child = subprocess.Popen(ssh, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            child = subprocess.Popen(ssh, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,
                                      env=ssh_environment(environment),
                                      pass_fds=scratch_descriptors())
             try:
@@ -723,9 +724,12 @@ class RemoteVM:
             timeout=None, kill_after=30.0, cancel_signal=2, owned_group=False,
             started=None, stderr_output=None, stdin_file=None, wait_on_cancel=False,
             mode='operation', **options):
+        from detached_launcher import Stopped
         pending = b''
         prefix = None
         self.result = {}
+        if control.stopped.is_set():
+            return 130
         env = dict(env)
         if self.vm is not None:
             env['ONPC_TEST_VM'] = self.vm.name
@@ -769,14 +773,17 @@ class RemoteVM:
                          wait_on_cancel=wait_on_cancel or (
                              command[0] == '/usr/bin/pkexec' and not cooperative
                              and timeout is None and not owned_group))
-        with capsule(self.root, self.host, command, env, cooperative=cooperative, mode=mode,
-                     execution=execution, cwd=cwd, stdin_file=stdin_file,
-                     separate_stderr=stderr_output is not None,
-                     sources=self.sources) as (ssh, payload, request):
-            prefix = b'\0' + (RESULT + request['receipt'] + ' ').encode()
-            status = control.run(ssh, cwd=self.root, env=ssh_environment(env), output=emit,
-                                 cooperative=True, input_stream=payload,
-                                 stderr_output=stderr_output, **options)
+        try:
+            with capsule(self.root, self.host, command, env, cooperative=cooperative, mode=mode,
+                         execution=execution, cwd=cwd, stdin_file=stdin_file,
+                         separate_stderr=stderr_output is not None, sources=self.sources,
+                         stopped=control.stopped.is_set) as (ssh, payload, request):
+                prefix = b'\0' + (RESULT + request['receipt'] + ' ').encode()
+                status = control.run(ssh, cwd=self.root, env=ssh_environment(env), output=emit,
+                                     cooperative=True, input_stream=payload,
+                                     stderr_output=stderr_output, **options)
+        except Stopped:
+            return 130
         if pending:
             output(pending)
         if hasattr(output, 'finish'):

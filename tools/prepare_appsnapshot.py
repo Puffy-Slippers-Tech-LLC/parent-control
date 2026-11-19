@@ -14,8 +14,8 @@ from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
 from vm_selection import select, arguments as vm_arguments, vm_config, SELECTOR_HELP, confirm_queue, BATCH
-from vm_queue import preparation
-from vm_pool import check_queue, reservation
+from vm_queue import preparation, prepare_hosts, require_host_queue
+from vm_pool import binding, check_queue, reservation
 
 
 def ensure_snap_prepared(root, control, environment):
@@ -61,6 +61,7 @@ def arguments(argv=None):
     parser.add_argument('--vm', help=SELECTOR_HELP)
     parser.add_argument('--y', action='store_true',
                         help='proceed without confirmation for authorized automation and agent sessions')
+    parser.add_argument('--queue-host', help=argparse.SUPPRESS)
     parser.add_argument('--release-notes-upgrade', action='store_true',
                         help='prepare the genuine prior/current upgrade for child release notes')
     parser.add_argument('--overwrite', nargs='?', const='true', default='true',
@@ -75,7 +76,8 @@ def confirm_preparation(args):
     warning = (f'\033[31mprepare-appsnapshot: prepare the current app snapshot on {args.vm} '
           f'(online, overwrite={args.overwrite}). '
           'Preparation may restore the baseline, install the app and replace the version snapshot. '
-          'Preparation leaves an owned running guest.\033[0m')
+          'Guests are left running for maintenance when the selected VMs fit on their host. '
+          'When the selection exceeds host capacity, preparation returns owned guests to the powered-off baseline.\033[0m')
     return confirm_queue(args, 'prepare-appsnapshot', warning, prompt=input)
 
 
@@ -101,27 +103,38 @@ def build_artifacts(root, package_format, control, environment, *, label='prepar
     return directory, status
 
 
-def main(argv=None, *, _worker=False):
+def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _control=None):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
+        if _expected is not None and tuple(_expected) != vms:
+            raise ValueError('selected VM registry changed before preparation')
         check_queue(vms)
-        args.vm = ','.join(vm.name for vm in vms)
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
-        if not _worker and not confirm_preparation(args):
-            print('prepare-appsnapshot: cancelled; no app snapshot was prepared.')
-            return 0
         root = Path(__file__).resolve().parents[1]
         from host_dispatch import tool_host
         owner = tool_host(root).name
+        require_host_queue(args.queue_host, owner, args.vm, vms)
+        args.vm = ','.join(vm.name for vm in vms)
+        if not _worker and not confirm_preparation(args):
+            print('prepare-appsnapshot: cancelled; no app snapshot was prepared.')
+            return 0
         helper = '/usr/local/libexec/onpc-test-runner'
         test_source.finish_admission()
         recipe_args = ['--release-notes-upgrade'] if args.release_notes_upgrade else []
         if not _worker:
-            if any(vm.host.name == owner for vm in vms):
-                check(helper)
-            _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms)
+            if any(vm.host.name != owner for vm in vms):
+                if binding() is not None:
+                    raise ValueError('vm-pool: check in before dispatching preparation to another host')
+
+                def run_local(options, control, targets):
+                    return main(options, _expected=targets, _control=control)
+
+                return prepare_hosts(root, 'prepare-appsnapshot',
+                                     ['--overwrite', args.overwrite, *recipe_args], vms, owner, run_local)
+            check(helper)
+            _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms, control=_control)
             return status
         os.environ.pop(BATCH, None)
         select(args.vm)
@@ -147,6 +160,11 @@ def main(argv=None, *, _worker=False):
                     helper, 'appsnapshot', '--probe',
                     '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
             if status == 4:
+                if _snapshot_only:
+                    status = cleanup(root)
+                    if not status:
+                        print('prepare-appsnapshot: reusing the existing online snapshot.', flush=True)
+                    return status
                 return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                     helper, 'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()],
                     cwd=root, env=environment)
@@ -177,7 +195,7 @@ def main(argv=None, *, _worker=False):
                 if attempt < 2:
                     print('prepare-appsnapshot: checkout version changed during package preparation; '
                           'rebuilding the current app package.', flush=True)
-            if status:
+            if status or _snapshot_only:
                 return status
             return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                 'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)

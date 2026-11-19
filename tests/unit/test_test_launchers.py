@@ -418,22 +418,25 @@ def test_requested_rounds_repeat_same_repair_workflow_and_resume(tmp_path, monke
     assert calls == expected
 
 
-def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_path, monkeypatch):
-    """A cancelled baseline replacement finishes before helper refresh."""
+def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path, monkeypatch):
     from contextlib import contextmanager
+    from dataclasses import replace
     import threading
+    import host_dispatch
     import regression_process
     import test_source
     import vm_pool
+    from vm_queue import prepare_hosts
     import host_compute
-    monkeypatch.setattr(host_compute, 'launch', lambda vms: nullcontext(vms))
+    monkeypatch.setattr(host_compute, 'launch',
+                        lambda vms: pytest.fail('preparation must queue the full selection'))
     from vm_selection import vm_config
 
-    vms = tuple(vm_config.VMConfig(name, tmp_path / name, enabled=True)
-                for name in ('one', 'two', 'three'))
+    names = [f'vm-{index}' for index in range(33)]
+    vms = tuple(vm_config.VMConfig(name, tmp_path / name, enabled=True) for name in names)
     configured = {vm.name: vm for vm in vms}
     monkeypatch.setattr(vm_config, 'load', configured.__getitem__)
-    monkeypatch.setattr(vm_config, 'execution', lambda _, **kwargs: (3, vms))
+    monkeypatch.setattr(vm_config, 'execution', lambda _, **kwargs: (len(vms), vms))
     monkeypatch.setattr(test_source, 'startup', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'reader', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'finish_admission', lambda: None)
@@ -445,10 +448,12 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     held, calls, refreshes = set(), [], []
     stopped = threading.Event()
+    cancel_after_two = False
 
     @contextmanager
-    def reservation(name, *, stopped, bind):
+    def reservation(name, *, stopped, bind, wait, stderr):
         assert not bind
+        assert not wait
         held.add(name)
         try:
             yield name + '-receipt'
@@ -468,7 +473,8 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
         calls.append(name)
         if len(calls) == 1:
             return 1  # Failure must not prevent the next preparation.
-        stopped.set()
+        if cancel_after_two:
+            stopped.set()
         assert not control.stopped.is_set()
         return 0  # Active replacement finishes despite outer cancellation.
 
@@ -482,9 +488,75 @@ def test_baseline_queue_cancels_pending_work_and_refreshes_after_checkin(tmp_pat
     monkeypatch.setattr(regression_process.Control, 'installed', installed)
     monkeypatch.setattr(regression_process.Control, 'run', execute)
     monkeypatch.setattr(subprocess, 'run', refresh)
-    assert main(['--mode', 'auto', '--vm', 'one,two,three', '--y']) == 130
-    assert len(calls) == 2 and len(refreshes) == 1
+    options = ['--mode', 'auto', '--vm', ','.join(names), '--y']
+    assert main(options) == 1
+    assert len(calls) == len(names) and set(calls) == set(names)
+    assert len(refreshes) == 1 and not held
+
+    calls.clear()
+    cancel_after_two = True
+    assert main(options) == 130
+    assert len(calls) == 2 and len(refreshes) == 2
     assert not held
+
+    # One transfer carries a complete remote queue while local work can proceed.
+    stopped.clear()
+    remote_host = replace(vms[0].host, name='remote')
+    remote_vms = tuple(replace(vm, host=remote_host) for vm in vms[:-1])
+    remote_started, local_finished = threading.Event(), threading.Event()
+    remote_dispatches = []
+
+    def remote(root, vm, tool, options, *, control):
+        assert tool == 'prepare-appsnapshot' and vm == remote_vms[0]
+        assert options == ['--vm', ','.join(names[:-1]), '--y', '--overwrite', 'false',
+                           '--queue-host', 'remote']
+        remote_dispatches.append(vm.host.name)
+        remote_started.set()
+        assert local_finished.wait(5), 'remote queue blocked another host'
+        return 0
+
+    def local(options, control, targets):
+        assert targets == [vms[-1]]
+        assert remote_started.wait(5)
+        local_finished.set()
+        return 0
+
+    monkeypatch.setattr(test_source, 'leave_checkout', lambda: None)
+    monkeypatch.setattr(host_dispatch, 'vm_tool', remote)
+    assert prepare_hosts(ROOT, 'prepare-appsnapshot', ['--overwrite', 'false'],
+                         (*remote_vms, vms[-1]), vms[-1].host.name, local) == 0
+    assert remote_dispatches == ['remote']
+
+    with monkeypatch.context() as patch:
+        patch.setattr(vm_config, 'execution', lambda _, **kwargs: (len(vms) - 1, vms[:-1]))
+        assert main([*options, '--queue-host', vms[0].host.name]) == 2
+    assert len(calls) == 2, 'a partially transferred selection started preparation'
+
+    # Reusing a snapshot in the rolling queue must release an owned running VM.
+    import prepare_appsnapshot as app
+    actions = []
+
+    def probe(control, command, **kwargs):
+        assert '--probe' in command
+        actions.append('probe')
+        return 4
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, 'environ', os.environ.copy())
+        patch.setattr(host_dispatch, 'tool_host', lambda root: vms[0].host)
+        patch.setattr(vm_config, 'execution', lambda _: (1, vms[:1]))
+        patch.setattr(app, 'arguments', lambda _: SimpleNamespace(vm=names[0], queue_host=None,
+                      overwrite='false', release_notes_upgrade=False))
+        patch.setattr(app, 'select', lambda name: None)
+        patch.setattr(app, 'vm_arguments', lambda: ['--vm', names[0]])
+        patch.setattr(app, 'check', lambda helper: None)
+        patch.setattr(app, 'snap_ready_reservation', lambda *args: nullcontext())
+        patch.setattr(app.test_activity, 'activity', lambda *args, **kwargs: nullcontext())
+        patch.setattr(app.test_launcher, 'environment', lambda root: {})
+        patch.setattr(app, 'cleanup', lambda root: actions.append('cleanup') or 0)
+        patch.setattr(regression_process.Control, 'run', probe)
+        assert app.main(_worker=True, _snapshot_only=True) == 0
+    assert actions == ['probe', 'cleanup']
 
 
 @pytest.fixture
@@ -722,6 +794,7 @@ def test_shared_closeout_review_refuses_inactive_controller(shared_closeout):
 
 def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolated_source):
     import detached_launcher as launcher
+    import test_source
     from launcher_controller import synchronize_boundary, synchronize_reload, upstream_update_ready
     from launcher_source_sync import SyncError
     from regression_process import Control
@@ -778,6 +851,12 @@ def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolate
         fcntl.flock(reader, fcntl.LOCK_UN)
         assert synchronize_boundary(root, 'main', run)
         assert git('rev-parse', 'HEAD') == upstream
+
+        fcntl.flock(reader, fcntl.LOCK_EX)
+        control.stop()
+        with pytest.raises(launcher.Stopped), test_source.admission(
+                root, [], stopped=control.stopped.is_set):
+            pytest.fail('cancelled startup acquired a source reader')
 
 
 @pytest.fixture

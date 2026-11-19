@@ -273,6 +273,8 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
         # rather than accepting an exit status or a stale controller checkpoint.
         received = dict(evidence={'source': baseline}, handoffs=[])
         class Reply:
+            stopped = threading.Event()
+
             def run(self, command, *, input_stream, output, **kwargs):
                 size = int.from_bytes(input_stream.read(8), 'big')
                 request = json.loads(input_stream.read(size))

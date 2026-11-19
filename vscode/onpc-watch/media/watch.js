@@ -146,6 +146,25 @@
         return defaultText;
     }
 
+    function runActionMenu(trigger, controls) {
+        trigger.setAttribute('aria-expanded', 'false');
+        const menu = element('div', 'run-action-menu', controls);
+        menu.setAttribute('popover', 'auto');
+        menu.setAttribute('aria-label', trigger.title);
+        trigger.popoverTargetElement = menu;
+        menu.addEventListener('toggle', () => {
+            const open = menu.matches(':popover-open');
+            trigger.setAttribute('aria-expanded', String(open));
+            if (!open) return;
+            const bounds = trigger.getBoundingClientRect();
+            menu.style.left = `${Math.max(4, Math.min(bounds.right - menu.offsetWidth,
+                window.innerWidth - menu.offsetWidth - 4))}px`;
+            menu.style.top = `${Math.max(4, Math.min(bounds.bottom + 4,
+                window.innerHeight - menu.offsetHeight - 4))}px`;
+        });
+        return menu;
+    }
+
     function sessionHeading(section) {
         const entry = section.entry;
         if (section.editingTitle && section.editingTitle.run === entry.run) return;
@@ -229,21 +248,7 @@
         overflow.append(menuIcon);
         overflow.title = 'Launcher actions';
         overflow.setAttribute('aria-label', overflow.title);
-        overflow.setAttribute('aria-expanded', 'false');
-        const menu = element('div', 'run-action-menu', controls);
-        menu.setAttribute('popover', 'auto');
-        menu.setAttribute('aria-label', 'Launcher actions');
-        overflow.popoverTargetElement = menu;
-        menu.addEventListener('toggle', () => {
-            const open = menu.matches(':popover-open');
-            overflow.setAttribute('aria-expanded', String(open));
-            if (!open) return;
-            const bounds = overflow.getBoundingClientRect();
-            menu.style.left = `${Math.max(4, Math.min(bounds.right - menu.offsetWidth,
-                window.innerWidth - menu.offsetWidth - 4))}px`;
-            menu.style.top = `${Math.max(4, Math.min(bounds.bottom + 4,
-                window.innerHeight - menu.offsetHeight - 4))}px`;
-        });
+        const menu = runActionMenu(overflow, controls);
         const kind = entry.status === 'Stop Requested' ? 'cancel-stop' : entry.active ? 'stop' : 'resume';
         const button = element('button', 'run-copy run-launcher-action', menu);
         button.type = 'button';
@@ -1992,7 +1997,7 @@
         return [['Steps:', row.steps || []], ['Expected:', expected]].filter(([, items]) => items.length);
     }
 
-    function runTimesMarkdown(groups) {
+    function runTimesMarkdown(groups, expandVMs) {
         const escape = value => String(value)
             .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
             .replaceAll('\\', '&#92;').replace(/[|`*_\[\]~]/g, '\\$&').replace(/\r\n?|\n/g, '<br>');
@@ -2007,7 +2012,8 @@
                 for (const item of items) description.push(`- ${escape(item)}`);
             }
             const details = description.join('<br>');
-            for (const [index, variant] of variants.entries()) {
+            const copiedVariants = expandVMs ? variants : [row];
+            for (const [index, variant] of copiedVariants.entries()) {
                 lines.push(line([
                     title, escape(variant.vm), runTimeDuration(variant.seconds), index === 0 ? details : '',
                 ]));
@@ -2032,10 +2038,20 @@
                 runTimeQuery = search.value;
                 runTimes(runTimeRows);
             };
-            const copy = element('button', 'copy-run-times', toolbar);
+            const copyControl = element('div', 'run-time-copy', toolbar);
+            const copy = element('button', 'copy-run-times', copyControl);
             copy.type = 'button';
             copy.textContent = 'Copy';
-            copy.title = 'Copy selected run time rows as Markdown';
+            copy.title = 'Copy selected cases as Markdown';
+            const copyOptions = element('button', 'copy-run-times-options', copyControl);
+            copyOptions.type = 'button';
+            copyOptions.title = 'Copy options';
+            copyOptions.setAttribute('aria-label', copyOptions.title);
+            const copyMenu = runActionMenu(copyOptions, copyControl);
+            const copyExpanded = element('button', 'run-copy run-launcher-action', copyMenu);
+            copyExpanded.type = 'button';
+            copyExpanded.textContent = 'Copy expanded VMs';
+            copyExpanded.autofocus = true;
             grid.prepend(toolbar);
         }
         const query = runTimeQuery.trim().toLowerCase();
@@ -2096,9 +2112,18 @@
         const visibleKeys = new Set(ordered.map(([key]) => key));
         for (const key of selectedRunTimes) if (!visibleKeys.has(key)) selectedRunTimes.delete(key);
         const copy = toolbar.querySelector('.copy-run-times');
-        copy.onclick = () => {
+        const copyOptions = toolbar.querySelector('.copy-run-times-options');
+        const copyMenu = copyOptions.popoverTargetElement;
+        const copyRows = expandVMs => {
             const selected = ordered.filter(([key]) => selectedRunTimes.has(key)).map(([, variants]) => variants);
-            if (selected.length) vscode.postMessage({ type: 'copyRunTimes', text: runTimesMarkdown(selected) });
+            if (selected.length) {
+                vscode.postMessage({ type: 'copyRunTimes', text: runTimesMarkdown(selected, expandVMs) });
+            }
+        };
+        copy.onclick = () => copyRows(false);
+        copyMenu.querySelector('button').onclick = () => {
+            copyMenu.hidePopover();
+            copyRows(true);
         };
         const controls = table.createTHead().insertRow(0).insertCell();
         controls.colSpan = 6;
@@ -2135,7 +2160,9 @@
             selectAll.checked = count > 0 && count === visibleKeys.size;
             selectAll.indeterminate = count > 0 && !selectAll.checked;
             for (const [key, checkbox] of checkboxes) checkbox.checked = selectedRunTimes.has(key);
+            if (!count && copyMenu.matches(':popover-open')) copyMenu.hidePopover();
             copy.disabled = count === 0;
+            copyOptions.disabled = count === 0;
             bulkDelete.disabled = count === 0 || ![...selectedRunTimes].every(eligible);
             footer.textContent = `${count} of ${visibleKeys.size} rows selected`;
         };

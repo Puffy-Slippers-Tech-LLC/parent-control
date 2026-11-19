@@ -477,9 +477,10 @@ of setup, every validation step and cleanup. In shared attempts, the first case
 owns setup and the last owns cleanup, without repeating footage in other clips.
 The first column selects case rows. Its header checkbox selects all visible
 rows, and the footer shows the selected and total row counts. **Copy** in the
-upper right copies the selected rows to the clipboard as a Markdown table.
-The table lists each VM and its duration in a separate row, with the full
-description, steps, and expected results on the first row for each case.
+upper right copies a Markdown table with one row per selected case, using the
+VM name and duration shown in the folded table. Choose **Copy expanded VMs**
+from the adjacent arrow to copy one row per VM. Both formats include the full
+description, steps, and expected results once per case.
 
 The trash button above the table deletes selected rows when every selected row
 supports deletion. Each row's final trash button deletes that row. Both require

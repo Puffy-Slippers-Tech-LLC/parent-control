@@ -433,12 +433,22 @@ nav button { flex-shrink: 0; }
 }
 .run-time-search::placeholder { color: var(--vscode-input-placeholderForeground); }
 .run-time-search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.copy-run-times {
-    padding: 0 12px; border: 0; border-radius: 3px;
+.run-time-copy { display: flex; }
+.run-time-copy > button {
+    border: 0;
     background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
 }
-.copy-run-times:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
-.copy-run-times:disabled { opacity: .5; cursor: default; }
+.run-time-copy > button:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+.run-time-copy > button:disabled { opacity: .5; cursor: default; }
+.copy-run-times { padding: 0 12px; border-radius: 3px 0 0 3px; }
+.run-time-copy > .copy-run-times-options {
+    padding: 0 8px; border-radius: 0 3px 3px 0;
+    border-left: 1px solid var(--vscode-button-separator, var(--watch-border));
+}
+.copy-run-times-options::before {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border: solid currentColor; border-width: 0 1px 1px 0; transform: translateY(-2px) rotate(45deg);
+}
 .run-times { width: 100%; border-collapse: collapse; user-select: text; }
 .run-times th, .run-times td {
     text-align: left; vertical-align: top; padding: 8px;

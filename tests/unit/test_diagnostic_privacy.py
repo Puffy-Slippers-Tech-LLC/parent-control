@@ -178,20 +178,22 @@ def test_logging_failure_cannot_change_recovery_or_busy_outcome(monkeypatch):
         broker._request_lock.release()
 
 
-def test_shell_crash_and_extension_candidates_survive_export_without_identifiers(tmp_path, caplog, monkeypatch):
+@pytest.mark.parametrize("instance", ["ubuntu", "classic"])
+def test_shell_crash_and_extension_candidates_survive_export_without_identifiers(tmp_path, caplog, monkeypatch, instance):
     from oh_no_parent_control import dependency_diagnostics as dependency
     from oh_no_parent_control.extension_manager import UUID
 
     uid = 987654
     base = {"_UID": str(uid), "_TRANSPORT": "journal", "__REALTIME_TIMESTAMP": "1793400000000000"}
-    shell = {**base, "_EXE": "/usr/bin/gnome-shell", "_SYSTEMD_USER_UNIT": "org.gnome.Shell@ubuntu.service"}
+    unit = f"org.gnome.Shell@{instance}.service"
+    shell = {**base, "_EXE": "/usr/bin/gnome-shell", "_SYSTEMD_USER_UNIT": unit}
     manager = {**base, "_EXE": "/usr/lib/systemd/systemd", "_COMM": "systemd"}
     # Equal timestamp precision must not reorder errors after the crash. Error
     # volume must not evict the actual crash/recovery witnesses either.
     rows = [{**shell, "_SYSTEMD_USER_UNIT": "org.gnome.Shell@user.service",
              "MESSAGE": "JS ERROR: Extension private@example.test: " + SECRET}] * 24 + [
         {**shell, "MESSAGE": "JS ERROR: Extension " + UUID + ": " + SECRET},
-        {**manager, "MESSAGE": "org.gnome.Shell@ubuntu.service: Main process exited, code=dumped, status=11/SEGV"},
+        {**manager, "MESSAGE": f"{unit}: Main process exited, code=dumped, status=11/SEGV"},
         {**manager, "MESSAGE": "Started org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure."},
         {**manager, "MESSAGE": "org.gnome.Shell-disable-extensions.service: Deactivated successfully."},
         {**shell, "_EXE": "/home/private-child/fake", "MESSAGE": "JS ERROR: Extension " + UUID + ": " + SECRET},
@@ -217,12 +219,13 @@ def test_shell_crash_and_extension_candidates_survive_export_without_identifiers
         handler.emit(record)
     with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
         exported = "".join(archive.read(name).decode() for name in archive.namelist())
-    for forbidden in (SECRET, UUID, "private@example.test", str(uid), "/home/private-child/fake"):
+    for forbidden in (SECRET, UUID, unit, "private@example.test", str(uid), "/home/private-child/fake"):
         assert forbidden not in exported and forbidden not in caplog.text
     assert "disable-service-started" in exported
 
 
-def test_shell_failure_trigger_and_disable_service_outcomes_are_closed_and_queryable(tmp_path, caplog, monkeypatch):
+@pytest.mark.parametrize("instance", ["user", "classic"])
+def test_shell_failure_trigger_and_disable_service_outcomes_are_closed_and_queryable(tmp_path, caplog, monkeypatch, instance):
     import re
     from oh_no_parent_control import dependency_diagnostics as dependency
 
@@ -230,10 +233,11 @@ def test_shell_failure_trigger_and_disable_service_outcomes_are_closed_and_query
     base = {"_UID": str(uid), "_TRANSPORT": "journal", "__REALTIME_TIMESTAMP": "1793400000000000",
             "_EXE": "/usr/lib/systemd/systemd", "_COMM": "systemd"}
     label = "org.gnome.Shell-disable-extensions.service - Disable GNOME Shell extensions after failure"
+    unit = f"org.gnome.Shell@{instance}.service"
     messages = [
-        ("org.gnome.Shell@user.service: Failed with result 'core-dump'.", "shell", "failed", "core-dump"),
-        ("org.gnome.Shell@user.service: Triggering OnFailure= dependencies.", "shell", "on-failure", "none"),
-        ("org.gnome.Shell@user.service: Deactivated successfully.", "shell", "deactivated", "success"),
+        (f"{unit}: Failed with result 'core-dump'.", "shell", "failed", "core-dump"),
+        (f"{unit}: Triggering OnFailure= dependencies.", "shell", "on-failure", "none"),
+        (f"{unit}: Deactivated successfully.", "shell", "deactivated", "success"),
         (f"Starting {label}...", "disable-service", "starting", "none"),
         (f"{label} was skipped because of an unmet condition check "
          f"(ConditionPathExists=/run/user/{uid}/gnome-shell-disable-extensions).",
@@ -271,12 +275,12 @@ def test_shell_failure_trigger_and_disable_service_outcomes_are_closed_and_query
     with ZipFile(BytesIO(validate_bundle(writer.snapshot()))) as archive:
         exported = "".join(archive.read(name).decode() for name in archive.namelist())
     assert "shell-lifecycle" in exported and "diagnostic.rejected" not in exported
-    for forbidden in (SECRET, str(uid), "private-result", "/run/user/"):
+    for forbidden in (SECRET, unit, str(uid), "private-result", "/run/user/"):
         assert forbidden not in exported and forbidden not in caplog.text
     # Newly retained normal shutdowns must not displace the causal crash.
     caplog.clear()
-    crash = {**base, "MESSAGE": "org.gnome.Shell@user.service: Main process exited, code=dumped, status=11/SEGV"}
-    shutdown = {**base, "MESSAGE": "org.gnome.Shell@user.service: Deactivated successfully."}
+    crash = {**base, "MESSAGE": f"{unit}: Main process exited, code=dumped, status=11/SEGV"}
+    shutdown = {**base, "MESSAGE": f"{unit}: Deactivated successfully."}
     query.return_value = "\n".join(json.dumps(row) for row in [crash] + [shutdown] * 20)
     with caplog.at_level("INFO"):
         dependency.collect_gnome_shell_diagnostics([uid])

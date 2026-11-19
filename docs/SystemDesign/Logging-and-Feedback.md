@@ -192,9 +192,10 @@ start/completion and Shell-reported extension errors even when Shell no longer
 runs. Queries cover the last 24 hours across retained boots, up to 200 entries
 and 20 markers per child; crash/recovery markers have priority over repeated
 extension errors and routine Shell deactivations. Trusted executable/account/manager provenance and reviewed
-GNOME 50 `@ubuntu`/`@user` instances constrain projection; older `@wayland`/`@x11`
-records remain readable. Source times, exit kind/status and our-extension versus
-other-extension categories exclude raw identifiers, error text and stacks.
+GNOME 50 `@ubuntu`, `@user`, and `@classic` instances constrain projection.
+Older `@wayland`/`@x11` records remain readable. Source times, exit kind/status
+and our-extension versus other-extension categories exclude raw identifiers,
+error text and stacks.
 A service start alone does not attest a committed switch change. Extension error
 witnesses are possible contributors, not proof that an extension crashed Shell;
 an external actor and the historical cause of a disabled switch can remain unknown.

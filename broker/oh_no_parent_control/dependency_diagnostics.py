@@ -24,6 +24,10 @@ DEPENDENCIES = {"fapolicyd.service": "fapolicyd",
                 "polkit.service": "polkit", "systemd-logind.service": "logind"}
 PROPERTIES = ("Id", "LoadState", "ActiveState", "Result", "ExecMainCode", "ExecMainStatus",
               "Restart", "NRestarts", "InvocationID")
+GNOME_SHELL_UNITS = frozenset({
+    "org.gnome.Shell@classic.service", "org.gnome.Shell@ubuntu.service",
+    "org.gnome.Shell@user.service", "org.gnome.Shell@wayland.service", "org.gnome.Shell@x11.service",
+})
 KIOSK_LOG = get_logger("kiosk")
 KIOSK_APP_UNIT = "oh-no-parent-control-app.service"
 ADMISSION_STAGES = (
@@ -104,8 +108,8 @@ def _gnome_shell_event(item, uid):
         return None
     if (item.get("_EXE") in {"/usr/lib/systemd/systemd", "/usr/lib64/systemd/systemd"}
             and item.get("_COMM") == "systemd"):
-        label = ("org.gnome.Shell-disable-extensions.service - "
-                 "Disable GNOME Shell extensions after failure")
+        disable_unit = "org.gnome.Shell-disable-extensions.service"
+        label = f"{disable_unit} - Disable GNOME Shell extensions after failure"
         service_jobs = {
             f"Starting {label}...": ("starting", "none"),
             f"Failed to start {label}.": ("failed", "job-failed"),
@@ -118,43 +122,41 @@ def _gnome_shell_event(item, uid):
         if message in service_jobs:
             action, result = service_jobs[message]
             return "extension-manager.shell-lifecycle", dict(unit="disable-service", action=action, result=result)
-        if message == ("Started org.gnome.Shell-disable-extensions.service - "
-                       "Disable GNOME Shell extensions after failure."):
+        if message == f"Started {label}.":
             return _shell_marker("disable-service-started")
-        if message == "org.gnome.Shell-disable-extensions.service: Deactivated successfully.":
+        if message == f"{disable_unit}: Deactivated successfully.":
             return _shell_marker("disable-service-completed", exit_status=0)
+        unit_name, _, detail = message.partition(": ")
+        is_disable_service = unit_name == disable_unit
+        if unit_name not in GNOME_SHELL_UNITS and not is_disable_service:
+            return None
+
         match = re.fullmatch(
-            r"(org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service|"
-            r"org\.gnome\.Shell-disable-extensions\.service): Main process exited, "
-            r"code=(exited|killed|dumped), status=([0-9]{1,3})(?:/[A-Z0-9_-]+)?", message)
-        if match and int(match[3]) <= 255:
-            reason = "disable-service-exited" if "-disable-extensions" in match[1] else "shell-exited"
-            return _shell_marker(reason, exit_kind=match[2], exit_status=int(match[3]))
-        match = re.fullmatch(
-            r"(org\.gnome\.Shell@(?:ubuntu|user|wayland|x11)\.service|"
-            r"org\.gnome\.Shell-disable-extensions\.service): (.+)", message)
-        if match:
-            unit = "disable-service" if "-disable-extensions" in match[1] else "shell"
-            action, result = None, "none"
-            if match[2] == "Triggering OnFailure= dependencies.":
-                action = "on-failure"
-            elif match[2] == "Deactivated successfully.":
-                action, result = "deactivated", "success"
-            else:
-                failure = re.fullmatch(r"Failed with result '([a-z-]+)'\.", match[2])
-                skipped = re.fullmatch(r"Skipped due to '([a-z-]+)'\.", match[2])
-                if failure or skipped:
-                    action = "failed" if failure else "skipped"
-                    value = (failure or skipped)[1]
-                    result = value if value in {
-                        "resources", "timeout", "exit-code", "signal", "core-dump", "watchdog",
-                        "start-limit-hit", "oom-kill", "exec-condition"} else "other"
-            if action is not None:
-                return "extension-manager.shell-lifecycle", dict(unit=unit, action=action, result=result)
+            r"Main process exited, code=(exited|killed|dumped), "
+            r"status=([0-9]{1,3})(?:/[A-Z0-9_-]+)?", detail)
+        if match and int(match[2]) <= 255:
+            reason = "disable-service-exited" if is_disable_service else "shell-exited"
+            return _shell_marker(reason, exit_kind=match[1], exit_status=int(match[2]))
+
+        action, result = None, "none"
+        if detail == "Triggering OnFailure= dependencies.":
+            action = "on-failure"
+        elif detail == "Deactivated successfully.":
+            action, result = "deactivated", "success"
+        else:
+            failure = re.fullmatch(r"Failed with result '([a-z-]+)'\.", detail)
+            skipped = re.fullmatch(r"Skipped due to '([a-z-]+)'\.", detail)
+            if failure or skipped:
+                action = "failed" if failure else "skipped"
+                value = (failure or skipped)[1]
+                result = value if value in {
+                    "resources", "timeout", "exit-code", "signal", "core-dump", "watchdog",
+                    "start-limit-hit", "oom-kill", "exec-condition"} else "other"
+        if action is not None:
+            unit = "disable-service" if is_disable_service else "shell"
+            return "extension-manager.shell-lifecycle", dict(unit=unit, action=action, result=result)
     if (item.get("_EXE") == "/usr/bin/gnome-shell" and
-            item.get("_SYSTEMD_USER_UNIT") in {
-                "org.gnome.Shell@ubuntu.service", "org.gnome.Shell@user.service",
-                "org.gnome.Shell@wayland.service", "org.gnome.Shell@x11.service"}):
+            item.get("_SYSTEMD_USER_UNIT") in GNOME_SHELL_UNITS):
         match = re.match(r"^(?:JS ERROR: )?(?:Extension |Could not load extension )"
                          r"([A-Za-z0-9@._+-]{1,255}): ", message)
         if match:

@@ -760,12 +760,17 @@
         const picker = element('form', 'session-model-picker', section.session);
         section.session.insertBefore(picker, section.composer);
         picker.hidden = true;
-        picker.setAttribute('aria-label', 'Session model selection');
-        const loading = element('div', '', picker);
+        const heading = element('h3', 'session-model-title', picker);
+        heading.id = `session-model-title-${crypto.randomUUID()}`;
+        heading.textContent = 'Select Model and Effort';
+        picker.setAttribute('aria-labelledby', heading.id);
+        const loading = element('div', 'session-model-loading', picker);
         loading.textContent = 'Waiting for the model list. Reopen to refresh.';
         loading.setAttribute('role', 'status');
-        const models = element('select', '', picker);
-        models.setAttribute('aria-label', 'Model');
+        const models = element('div', 'session-model-options', picker);
+        models.tabIndex = 0;
+        models.setAttribute('role', 'listbox');
+        models.setAttribute('aria-labelledby', heading.id);
         models.setAttribute('aria-description', 'Use Up and Down for model, Left and Right for reasoning effort.');
         const footer = element('div', 'session-model-actions', picker);
         const label = element('label', '', footer);
@@ -777,25 +782,42 @@
         const cancel = element('button', '', footer);
         cancel.type = 'button';
         cancel.textContent = 'Cancel';
-        let owner, selection, signature;
+        let owner, selection, signature, selectedIndex = -1;
+        let typed = '', lastTypedAt = 0;
 
         function close(focus = false) {
             if (picker.hidden) return false;
             picker.hidden = true;
+            typed = '';
             if (focus) section.input.focus();
             return true;
         }
 
-        function addOption(select, value, label = value) {
-            const option = element('option', '', select);
-            option.value = value;
-            option.textContent = label;
+        function scrollSelection() {
+            const row = models.children[selectedIndex];
+            if (!row) return;
+            const top = row.offsetTop;
+            const bottom = top + row.offsetHeight;
+            if (top < models.scrollTop) models.scrollTop = top;
+            else if (bottom > models.scrollTop + models.clientHeight) {
+                models.scrollTop = Math.min(top, bottom - models.clientHeight);
+            }
         }
 
-        function showEfforts(preferred) {
-            const choice = selection.options[models.selectedIndex];
+        function selectModel(index, preferred) {
+            models.children[selectedIndex]?.setAttribute('aria-selected', 'false');
+            selectedIndex = index;
+            const row = models.children[index];
+            if (row) {
+                row.setAttribute('aria-selected', 'true');
+                models.setAttribute('aria-activedescendant', row.id);
+            } else {
+                models.removeAttribute('aria-activedescendant');
+            }
+
+            const choice = selection.options[index];
             efforts.replaceChildren();
-            for (const effort of choice?.efforts || []) addOption(efforts, effort);
+            for (const effort of choice?.efforts || []) efforts.add(new Option(effort, effort));
             label.hidden = efforts.options.length === 0;
             if (label.hidden) return;
             const effort = preferred ?? (choice.model === selection.model ? selection.effort : null);
@@ -803,20 +825,36 @@
         }
 
         function showOptions(next, keepSelection) {
-            const selected = keepSelection ? models.value : '';
+            const selected = keepSelection ? selection.options[selectedIndex]?.model : undefined;
             const effort = efforts.value;
-            const scroll = models.scrollTop;
             selection = next;
-            signature = JSON.stringify(next.options);
+            signature = JSON.stringify(next);
             models.replaceChildren();
-            for (const choice of selection.options) addOption(models, choice.model, choice.label);
-            loading.hidden = models.options.length > 0;
+            for (const [index, choice] of selection.options.entries()) {
+                const row = element('div', 'session-model-option', models);
+                row.id = `${heading.id}-${index}`;
+                row.setAttribute('role', 'option');
+                row.setAttribute('aria-selected', 'false');
+                const marker = element('span', 'session-model-marker', row);
+                marker.textContent = '›';
+                marker.setAttribute('aria-hidden', 'true');
+                const name = element('span', 'session-model-name', row);
+                const current = choice.model === selection.model ? ' (current)' : '';
+                name.textContent = `${index + 1}. ${choice.label || choice.model}${current}`;
+                if (typeof choice.description === 'string' && choice.description) {
+                    element('span', 'session-model-description', row).textContent = choice.description;
+                }
+                row.addEventListener('click', () => {
+                    if (index !== selectedIndex) selectModel(index);
+                    models.focus({ preventScroll: true });
+                });
+            }
+            loading.hidden = selection.options.length > 0;
             apply.disabled = models.hidden = !loading.hidden;
-            models.size = Math.max(2, Math.min(7, models.options.length));
-            models.value = selection.options.some(choice => choice.model === selected) ? selected : selection.model;
-            if (models.selectedIndex === -1) models.selectedIndex = 0;
-            showEfforts(models.value === selected ? effort : undefined);
-            if (keepSelection) models.scrollTop = scroll;
+            const preserved = selection.options.findIndex(choice => choice.model === selected);
+            const active = selection.options.findIndex(choice => choice.model === selection.model);
+            const index = preserved >= 0 ? preserved : Math.max(0, active);
+            selectModel(loading.hidden ? index : -1, preserved >= 0 ? effort : undefined);
         }
 
         function open(focus = true) {
@@ -828,6 +866,7 @@
             }
             picker.hidden = false;
             if (focus) (models.hidden ? cancel : models).focus();
+            scrollSelection();
         }
 
         function current() {
@@ -840,13 +879,63 @@
             if (picker.hidden) return;
             const next = current();
             if (!next) return close();
-            if (JSON.stringify(next.options) === signature) return;
-            const waiting = models.hidden && document.activeElement === cancel;
+            if (JSON.stringify(next) === signature) return;
+            const wasWaiting = models.hidden;
+            const scroll = models.scrollTop;
+            const focused = document.activeElement;
             showOptions(next, true);
-            if (waiting && !models.hidden) models.focus();
+            if (wasWaiting !== models.hidden && focused === (wasWaiting ? cancel : models)) {
+                (models.hidden ? cancel : models).focus({ preventScroll: true });
+            }
+            if (wasWaiting) scrollSelection();
+            else models.scrollTop = scroll;
         }
 
-        models.addEventListener('change', () => showEfforts());
+        function typeAhead(event) {
+            const key = event.key.toLowerCase();
+            if (event.timeStamp - lastTypedAt >= 500 || typed === key) typed = '';
+            typed += key;
+            lastTypedAt = event.timeStamp;
+            const { options } = selection;
+            const start = selectedIndex + (typed.length === 1 ? 1 : 0);
+            for (let offset = 0; offset < options.length; offset++) {
+                const index = (start + offset) % options.length;
+                const choice = options[index];
+                if ((choice.label || choice.model).toLowerCase().startsWith(typed)) return index;
+            }
+            return selectedIndex;
+        }
+
+        models.addEventListener('keydown', event => {
+            if (event.isComposing || selectedIndex < 0) return;
+            const last = selection.options.length - 1;
+            let index;
+            switch (event.key) {
+            case 'ArrowUp': index = selectedIndex - 1; break;
+            case 'ArrowDown': index = selectedIndex + 1; break;
+            case 'Home': index = 0; break;
+            case 'End': index = last; break;
+            case 'PageUp':
+            case 'PageDown': {
+                const step = event.key === 'PageUp' ? -1 : 1;
+                const top = models.children[selectedIndex].offsetTop;
+                index = selectedIndex + step;
+                while (models.children[index + step] &&
+                        Math.abs(models.children[index + step].offsetTop - top) < models.clientHeight) {
+                    index += step;
+                }
+                break;
+            }
+            default:
+                if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return;
+                index = typeAhead(event);
+            }
+            event.preventDefault();
+            if (event.key.length > 1) typed = '';
+            index = Math.max(0, Math.min(last, index));
+            if (index !== selectedIndex) selectModel(index);
+            scrollSelection();
+        });
         picker.addEventListener('keydown', event => {
             if (event.isComposing) return;
             if (event.key === 'Escape') {
@@ -865,9 +954,10 @@
         picker.addEventListener('submit', event => {
             event.preventDefault();
             if (!current()) return close();
-            if (!models.value) return;
+            const choice = selection.options[selectedIndex];
+            if (!choice) return;
             const reasoning = efforts.value ? ` --reasoning=${efforts.value}` : '';
-            if (sessionAction(section, 'send', `/model ${models.value}${reasoning}`)) close(true);
+            if (sessionAction(section, 'send', `/model ${choice.model}${reasoning}`)) close(true);
         });
         cancel.addEventListener('click', () => close(true));
         function draftChanged(event) {

@@ -315,10 +315,12 @@ sub seasonal_paired_grants {
     $journey->invoke('jordan-before-countdown');
     $journey->seen('jordan-before-estimate-' . $_) for qw(launch select read cancel desktop);
     $journey->seen($_) for qw(jordan-switch jordan-greeter);
+    # Do the long wait at the greeter and prepare the kiosk before the approval window.
+    $journey->seen('kiosk-preparation-wait-' . $_) for 1 .. 3;
     my $riley = $journey->scope('riley-request');
     $riley->{kiosk_request} = ['child', 'parent', 600, 0];
     onpc_request_flow::prepare($riley, 'new', 'new', 'observed', 'fixture-child', 'fixture-parent', 600, 0, 'kiosk');
-    $journey->seen('approval-wait-' . $_) for 1 .. 3;
+    $journey->seen('approval-window');
     onpc_request_flow::approve($riley, 'fixture-child', 'fixture-parent', 600, 0, 'automatic');
     onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'riley-fresh');
     onpc_app_rows::native_activity_entry($journey, 'riley-activity', 'command', 'child');

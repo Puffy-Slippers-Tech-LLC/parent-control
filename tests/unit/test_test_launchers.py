@@ -205,19 +205,20 @@ def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
 def test_public_repair_composes_validation_and_continues_pending(tmp_path, monkeypatch):
     import fix_tests
     import test_results
-    import vm_selection
 
-    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'unit': {'args': ['selected']}})
-    monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
+    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'system': {'args': ['selected']}})
     monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
     monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
     events = []
     def execute(root, run, owner, kind, command=None):
         results = test_results.ResultStore()
         events.append(kind)
+        if kind == 'test':
+            assert command == [str(root / 'tools/run-tests'), '--stop-on-error', 'system', 'selected',
+                               '--vm', 'family-id', '--vmhost', 'test-host']
         if events == ['test']:
-            results.record('unit', 'host', 'passed', 0)
-            results.record('unit', 'host', 'failed', 1, options=['selected'])
+            results.record('system', 'test-family', 'passed', 0)
+            results.record('system', 'test-family', 'failed', 1, options=['selected'])
             return 1
         if kind == 'agent':
             assert events == ['test', 'agent']  # No pre-repair reproduction.
@@ -226,16 +227,16 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
             import test_commands
             assert fix_tests.validation_command(root, command)[0] == 'tools/run-tests'
             assert test_commands.execution_arguments(
-                fix_tests.validation_command(root, command)[1:]) == (['unit', 'selected'], True)
-            assert results.passed('unit', 'host') == {'passed'}
-            results.record('unit', 'host', 'failed', 0)
+                fix_tests.validation_command(root, command)[1:]) == (['system', 'selected'], True)
+            assert results.passed('system', 'test-family') == {'passed'}
+            results.record('system', 'test-family', 'failed', 0)
             (root / 'concurrent-edit').write_text('ordinary working changes')
             return 0
         assert events == ['test', 'agent', 'test']
-        assert results.passed('unit', 'host') == {'passed', 'failed'}
+        assert results.passed('system', 'test-family') == {'passed', 'failed'}
         return 0
 
-    request = dict(categories=['unit'], rounds=1, tasks=None)
+    request = dict(categories=['system'], rounds=1, tasks=None, vm='family-id', vmhost='test-host')
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
     assert events == ['test', 'agent', 'test']
 

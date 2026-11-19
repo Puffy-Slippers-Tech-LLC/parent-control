@@ -1073,8 +1073,8 @@ Bindings: request = approved / denied / cancelled.
 
 ### Local desktop acceptance composition
 
-Use the following finite local routes on `onpc-Ubuntu26.04` and
-`onpc-Fedora44`, preserving the
+Use the following finite routes in the Ubuntu 26.04 and Fedora 44 VM families,
+preserving the
 [local desktop boundary](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary).
 The catalogue owns qualified operations; this composition defines assertions
 for affected candidate checks.
@@ -1110,10 +1110,8 @@ limits disabled and records settings before enabling them.
 Use the selected target's affected route histories after a concrete change:
 
 ```sh
-tools/run-tests --vm 'onpc-Ubuntu26.04' system check_e2e_public_desktop_selection
-tools/run-tests --vm 'onpc-Ubuntu26.04' system check_e2e_station_shortcuts
-tools/run-tests --vm 'onpc-Fedora44' system check_e2e_public_desktop_selection
-tools/run-tests --vm 'onpc-Fedora44' system check_e2e_station_shortcuts
+tools/run-tests system check_e2e_public_desktop_selection --vm 'u26,f44'
+tools/run-tests system check_e2e_station_shortcuts --vm 'u26,f44'
 ```
 
 Each journey retains its explicit 1800-second worker limit. Chooser,
@@ -2928,12 +2926,12 @@ edited. Preparation alone supplies no calendar case with acceptance credit.
 
 Prepare identities, policies, assets, clock observations and both return routes
 before approaching the scheduled boundary. For the paired seasonal cases,
-finish Jordan's Rest-of-the-day approval first; prepare Riley's request and
-authentication route so the required fixed-grant approval occurs near the
-beginning of its five-minute eligible interval, leaving ample time for both
-pre-change public observations. Reaching that interval without the prepared
-routes is an applicability failure; do not rush credentials near the offset
-change. Post-change readback and eventual denial use their functional budgets
+finish Jordan's Rest-of-the-day approval first. Wait at the greeter until two
+and a half minutes before the eligible interval, then prepare Riley's request
+in a fresh kiosk session. Observe the ready request and independently confirm
+the clock is in the eligible interval before opening authentication. Keep the
+required margin for both pre-change public observations. Post-change readback
+and eventual denial use their functional budgets
 while retaining the original UTC deadlines and the one-hour case bound.
 
 | Cases | Window and expected public comparison |

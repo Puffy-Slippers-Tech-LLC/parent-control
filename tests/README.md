@@ -539,6 +539,10 @@ or compatibility mode for the removed repair-ticket and source-fence formats.
 Run [`tools/fix-tests`](../tools/fix-tests) with the same categories and selectors
 as `run-tests`. It uses the ordinary allocation, category ordering, family
 queues, VM booking, host compute and disk concurrency mechanisms.
+To scope a category run to one distro, select its family, for example
+`tools/fix-tests vm --vm f45`. The runner resolves the current family members
+and routes each category by its required VM tag. The repair launcher passes
+the requested selectors to the runner on each dispatch.
 
 On the first failure, stop dispatch and cancel and join running executions.
 Release their normal bookings before starting repair. Keep every clear terminal
@@ -782,7 +786,7 @@ inspection, package/artifact verification and cleanup remain active.
 Reports record `metadata-only` and zero image-content verification bytes.
 Both aggregate targets automatically discover all ready E2E variants, including
 the installed Parent About/license scenario. For E2E-only runs, use
-`tools/run-tests e2e --vm NAME --ready --artifacts '<fresh-artifact-directory>'`; for just
+`tools/run-tests e2e --vm FAMILY --ready --artifacts '<fresh-artifact-directory>'`; for just
 Parent About, replace `--ready` with `--scenario 'E2E-030/parent'`. The
 [E2E runner guide](e2e/README.md#run-e2e-scenarios) covers building inputs, listing,
 pending scope and prerequisites.

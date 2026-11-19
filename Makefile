@@ -488,9 +488,9 @@ check-whats-new-translations:
 
 $(LOCALE_OUTPUT)/%/LC_MESSAGES/$(GETTEXT_DOMAIN).mo: po/%.po
 	@mkdir -p "$(@D)"
-	@set -e; trap 'rm -f "$@.tmp"' EXIT; \
-		msgfmt --check --check-format -o "$@.tmp" "$<"; \
-		chmod 0644 "$@.tmp"; mv "$@.tmp" "$@"
+	@set -e; temporary=$$(mktemp "$@.XXXXXX"); trap 'rm -f "$$temporary"' EXIT; \
+		msgfmt --check --check-format -o "$$temporary" "$<"; \
+		chmod 0644 "$$temporary"; mv "$$temporary" "$@"
 
 check-translations:
 	@set -e; for po in $(POFILES); do msgfmt --check --check-format -o /dev/null "$$po"; done

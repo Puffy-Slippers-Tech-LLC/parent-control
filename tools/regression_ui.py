@@ -76,6 +76,8 @@ from pathlib import PurePosixPath
 # Parent first-run dismissal reuses each preview's private accessibility bus
 # and recorded owner. The temporary reader is reset before launch returns; no
 # new process, shared setting, file or cleanup lifetime is introduced.
+# UI workers build the shared preview catalogues before tests. Each Make recipe
+# publishes its own temporary file atomically, so these builds may overlap.
 # Localization review keeps the existing private preview/display/bus and owned
 # application lifecycle. Optional images read only the current worker's sealed
 # spectator feed, close readers, and use registered retention allocations.

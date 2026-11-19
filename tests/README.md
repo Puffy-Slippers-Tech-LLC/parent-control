@@ -1965,10 +1965,10 @@ Both kiosk and child-overlay parameter values remain required for shared-form
 changes. Use meaningful accessible names and visible state; do not replace
 behavioral tests with checks of widget internals or source strings.
 
-For translated preview text, prepare compiled catalogues with `make translations`
-before the focused run. Missing catalogues can leave the chosen language saved
-while the displayed text falls back to English; check that prerequisite before
-changing the product or its expected translation.
+UI test workers prepare compiled preview catalogues with `make translations`
+before executing cases. Parallel workers publish each compiled catalogue
+atomically. This also makes focused localization checks runnable from a clean
+checkout.
 
 The isolated Dogtail environment is declared in
 [ui/requirements.txt](ui/requirements.txt); host tooling comes from

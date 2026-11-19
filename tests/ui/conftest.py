@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from tests.support.paths import ROOT
 from tests.support.preview import boot_preview_session, preview_applications
 
 UI_TIMEOUT_SECONDS = 20
@@ -175,6 +177,12 @@ os.environ.update({
 })
 
 from dogtail.hermetic.session import HermeticSession, dump_tree
+
+
+@pytest.fixture(scope="session", autouse=True)
+def compiled_catalogues():
+    """Prepare the same generated catalogues that development previews load."""
+    subprocess.run(["make", "translations"], cwd=ROOT, check=True, timeout=60)
 
 
 @pytest.fixture(scope="session")

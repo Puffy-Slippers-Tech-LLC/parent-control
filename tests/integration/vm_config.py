@@ -650,21 +650,42 @@ def extract_selector(argv, *, option='--vm'):
 VMHOST_OPTION = '--vmhost'
 
 
-def host_help(*, use_defaults=False):
-    default = ('hosts with default_host="true", or all hosts if none are marked'
-               if use_defaults else 'all hosts')
+def host_help(*, single=False):
+    selection = ('Single-VM tools require --vm.' if single else
+                 'VM pools default to hosts with default_host="true", or all hosts if none are marked. '
+                 'Exact VM selectors pin their targets.')
     return (f'{VMHOST_OPTION} NAME[,NAME...] filters VM selection by configured host names '
-            f'(e.g. myserver or local,myserver). Omitted for VM work: {default}. '
-            'Single-VM tools still require --vm. Controller placement follows branch configuration.')
+            f'(e.g. myserver or local,myserver). {selection} '
+            'Controller placement follows branch configuration.')
 
 
 def extract_vmhost(argv):
     return extract_selector(argv, option=VMHOST_OPTION)
 
 
-def host_arguments(argv, *, single=False, path=None):
+def is_pool_selector(selector, document):
+    """Distinguish selectors that expand a pool from exact VM pins."""
+    if selector is None or selector.casefold() in ('all', 'all-enabled'):
+        return True
+    for family in document['families']:
+        validate_family(family)
+    families = family_selectors(document)
+    return any(value.casefold() in families for value in selector_values(selector, '--vm'))
+
+
+def default_vmhost(document=None, *, selector=None):
+    """Return the configured host filter for a pool, if any."""
+    if document is None:
+        document = read_document(validate_agent=False)
+    hosts = ','.join(host.name for host in host_registry(document).values() if host.default_host)
+    if hosts and is_pool_selector(selector, document):
+        return hosts
+    return None
+
+
+def host_arguments(argv, *, single=False, path=None, use_defaults=False):
     remaining, host = extract_vmhost(argv)
-    return filter_vm_hosts(remaining, host, single=single, path=path)
+    return filter_vm_hosts(remaining, host, single=single, path=path, use_defaults=use_defaults)
 
 
 def filter_vm_hosts(remaining, host=None, *, single=False, path=None, use_defaults=False):
@@ -680,18 +701,21 @@ def filter_vm_hosts(remaining, host=None, *, single=False, path=None, use_defaul
     if any(option in controls for option in ('--help', '-h')):
         return remaining
     if '--host-only' in controls:
-        raise ValueError(f'vm-config: {VMHOST_OPTION} cannot be combined with --host-only')
-    registry = host_registry(read_document(path, validate_agent=False))
+        if host is not None:
+            raise ValueError(f'vm-config: {VMHOST_OPTION} cannot be combined with --host-only')
+        return remaining
+    document = read_document(path, validate_agent=False)
+    unfiltered = remaining
+    remaining, selector = extract_selector(remaining)
     if host is None:
-        host = ','.join(configured.name for configured in registry.values() if configured.default_host)
-        if not host:
-            return remaining
+        host = default_vmhost(document, selector=selector)
+        if host is None:
+            return unfiltered
     host_names = set(selector_values(host, VMHOST_OPTION))
-    if not host_names <= registry.keys():
+    if not host_names <= host_registry(document).keys():
         raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
     insertion = next((index for index, value in enumerate(controls)
                       if value == '--vm' or value.startswith('--vm=')), None)
-    remaining, selector = extract_selector(remaining)
     vms = (load(selector, path, local=False),) if single else execution(selector, path)[1]
     names = [vm.name for vm in vms if vm.host.name in host_names]
     if not names:
@@ -703,15 +727,16 @@ def filter_vm_hosts(remaining, host=None, *, single=False, path=None, use_defaul
     return [*remaining[:insertion], '--vm', ','.join(names), *remaining[insertion:]]
 
 
-def add_host_argument(parser):
-    parser.add_argument(VMHOST_OPTION, metavar='NAME[,NAME...]', help=host_help())
+def add_host_argument(parser, *, single=True):
+    parser.add_argument(VMHOST_OPTION, metavar='NAME[,NAME...]', help=host_help(single=single))
 
 
 def parse_vm_arguments(parser, argv=None, *, single=False):
     """Use the same host filter for argparse-based VM tools and their help."""
-    add_host_argument(parser)
+    add_host_argument(parser, single=single)
     try:
-        argv = host_arguments(sys.argv[1:] if argv is None else argv, single=single)
+        argv = host_arguments(sys.argv[1:] if argv is None else argv, single=single,
+                              use_defaults=not single)
     except ValueError as error:
         parser.error(str(error))
     return parser.parse_args(argv)

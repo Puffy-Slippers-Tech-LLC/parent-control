@@ -115,7 +115,7 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
         root = Path(__file__).resolve().parents[1]
         from host_dispatch import tool_host
         owner = tool_host(root).name
-        require_host_queue(args.queue_host, owner, args.vm, vms)
+        require_host_queue(args.queue_host, owner, argv, vms)
         args.vm = ','.join(vm.name for vm in vms)
         if not _worker and not confirm_preparation(args):
             print('prepare-appsnapshot: cancelled; no app snapshot was prepared.')

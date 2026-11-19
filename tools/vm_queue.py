@@ -462,10 +462,14 @@ def prepare_hosts(root, tool, options, vms, local, run_local):
     return 130 if control.stopped.is_set() or 130 in statuses else next((s for s in statuses if s), 0)
 
 
-def require_host_queue(expected_host, host, selector, vms):
+def require_host_queue(expected_host, host, argv, vms):
     """Refuse a changed or partial selection before a transferred queue runs."""
-    if expected_host is not None and (expected_host != host or
-            selector != ','.join(vm.name for vm in vms) or any(vm.host.name != host for vm in vms)):
+    if expected_host is None:
+        return
+    from vm_selection import vm_config
+    _, selector = vm_config.extract_selector(sys.argv[1:] if argv is None else argv)
+    if (expected_host != host or selector != ','.join(vm.name for vm in vms)
+            or any(vm.host.name != host for vm in vms)):
         raise ValueError(f'confirmed VM selection changed before preparation on {expected_host}')
 
 

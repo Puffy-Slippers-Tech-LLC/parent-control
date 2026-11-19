@@ -54,15 +54,17 @@ Every tool accepting `--vm` also accepts optional `--vmhost NAME[,NAME...]` (or
 VM selection with those exact configured hosts and forwards canonical VM names.
 Controller placement follows `--branch` and the checkout configuration. Host
 categories run on the controller. Queue tools may use `--vmhost` without
-`--vm` to narrow their default queue. For new VM test runs without `--vmhost`,
-`run-tests` and `fix-tests` use every host whose `default_host` is the string
-`"true"`. If none are marked, all hosts are eligible. An explicit `--vmhost`
-overrides the defaults. Bare resume restores the saved VM selection. Stop,
-reload and Watch controls use the active run's VM selection. Standalone VM
-artifact preparation uses its explicit VM target. Other
-launchers use all hosts when `--vmhost` is omitted. Single-VM tools still require
-`--vm` and refuse a host mismatch, without widening their target or changing observation
-and owned-recovery admission rules. Unknown hosts, duplicate/missing host values
+`--vm` to narrow their default queue. When `--vmhost` is omitted, the shared
+default uses every host whose `default_host` is the string `"true"` in
+`config/environment.json`. If none are marked, all hosts are eligible. An explicit
+`--vmhost` overrides the defaults. For new VM work, omitted, family and
+`all`/`all-enabled` VM selectors use the shared default. A selection consisting
+solely of exact VM names, IDs or aliases pins those targets. An execution plan
+selects a VM pool when requested through `--vm`. Bare test resume restores the
+saved VM selection. Stop, reload
+and Watch controls use the active run's VM selection. Standalone VM artifact
+preparation uses its explicit VM target. Single-VM tools require `--vm` and
+refuse an explicit host mismatch. Unknown hosts, duplicate/missing host values
 and empty intersections refuse before VM work. `--vmhost` conflicts with
 `cleanup-e2e --host-only`. Arguments after `--` belong to the invoked command and
 are never interpreted as host or VM filters.

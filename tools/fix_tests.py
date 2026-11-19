@@ -290,10 +290,9 @@ def worker(root, run, owner):
 
 def bind_vm_request(request, *, use_defaults=False):
     from vm_selection import execution_selection, vm_config
-    if use_defaults:
-        hosts = vm_config.host_registry(vm_config.read_document(validate_agent=False))
-        request['vmhost'] = ','.join(host.name for host in hosts.values() if host.default_host) or None
     selector = request['vm']
+    if use_defaults:
+        request['vmhost'] = vm_config.default_vmhost(selector=selector)
     selection = ['--vm', selector] if selector is not None else []
     selection = vm_config.filter_vm_hosts(selection, request.get('vmhost'))
     _, bound_selector = vm_config.extract_selector(selection)

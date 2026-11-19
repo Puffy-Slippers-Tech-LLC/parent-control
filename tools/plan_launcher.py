@@ -1216,7 +1216,8 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     add_options(parser)
     parser.add_argument('--resume', action='store_true',
                         help='resume the saved execution plan (the default behavior)')
-    args = parser.parse_args(argv)
+    owner_args = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(owner_args)
     if (args.reload or args.cancel_stop or args.add_session is not None) and (args.check or args.reconcile):
         parser.error('launcher control options cannot be combined with --check or --reconcile')
     run = None
@@ -1263,7 +1264,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                               'next_task': records[0]['task_id'] if records else None,
                               'remaining': len(records), 'model': spec.model, 'effort': spec.effort}))
             return 0
-        from vm_selection import execution_selection, execution_binding, check_binding, save_binding, VARIABLE, BATCH
+        from vm_selection import execution_selection, execution_binding, check_binding, save_binding, vm_config, VARIABLE, BATCH
         binding = None
         initial = {}
         initial_info = {}
@@ -1272,7 +1273,13 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             # Omitted selection reconnects to the existing owner, whose queue
             # remains authoritative even when registry defaults have changed.
             if args.vm is not None:
-                execution_selection(args.vm)
+                owner = json.loads((selected.parent / 'current.json').read_text())
+                _, host = vm_config.extract_vmhost(owner.get('argv', []))
+                selector = args.vm
+                if host is not None and vm_config.is_pool_selector(
+                        selector, vm_config.read_document(validate_agent=False)):
+                    _, selector = vm_config.extract_selector(vm_config.filter_vm_hosts(['--vm', selector], host))
+                execution_selection(selector)
                 check_binding(selected, execution_binding(), stopping=args.stop or args.cancel_stop)
             if args.tasks is not None:
                 budget = TaskBudget(selected)
@@ -1287,7 +1294,13 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
         def command(selected, owner):
             nonlocal initial_remaining, binding, spec
             if spec.vm or args.vm:
-                execution_selection(args.vm)
+                host = vm_config.default_vmhost(selector=args.vm)
+                selection = ['--vm', args.vm] if args.vm is not None else []
+                _, selector = vm_config.extract_selector(vm_config.filter_vm_hosts(selection, host))
+                execution_selection(selector)
+                if host is not None:
+                    # Retain the filter for controls. Watch also saves the caller's original arguments.
+                    owner_args[:0] = [vm_config.VMHOST_OPTION, host]
             else:
                 os.environ.pop(VARIABLE, None)
                 os.environ.pop(BATCH, None)
@@ -1341,6 +1354,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
                                        on_attach=attach, on_start=start,
                                        namespace=plan_namespace(path), resumable_start=True,
                                        launcher_name=spec.name,
+                                       public_argv=owner_args,
                                        add_session=args.add_session,
                                        **({'reload': True} if args.reload else {}))
         if run is None:

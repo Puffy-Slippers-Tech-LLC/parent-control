@@ -207,8 +207,15 @@ def create(name, host_name, family_name, *, root=ROOT):
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         original = config.read_bytes()
         document = vm_config.read_document(config, validate_agent=False)
+        if 'hosts' not in document:
+            raise ValueError('configure provisioning hosts in config/environment.json')
         owner = tool_host(root, document)
         hosts = vm_config.host_registry(document)
+        if host_name is None:
+            defaults = vm_config.default_vmhost(document) or ','.join(hosts)
+            if ',' in defaults:
+                raise ValueError('choose one host with --vmhost when more than one host is eligible by default')
+            host_name = defaults
         registered = vm_config.registry(config)
         vm_config.validate_name(name)
         vm_config.validate_name(host_name)
@@ -329,8 +336,9 @@ def main():
         return 0
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--name', required=True)
-    parser.add_argument('--vmhost', required=True, metavar='HOST',
-                        help='Existing host name in config/environment.json')
+    parser.add_argument(vm_config.VMHOST_OPTION, metavar='HOST', help=(
+        'Existing host name in config/environment.json. Omit when there is one default host, '
+        'or one configured host and no default is marked.'))
     parser.add_argument('--family', required=True,
                         help='Existing family name or ID in config/environment.json (case-insensitive)')
     args = parser.parse_args()

@@ -84,7 +84,7 @@ def main(argv=None, *, refresh=True, _worker=False, _expected=None, _control=Non
         if _expected is not None and tuple(_expected) != vms:
             raise ValueError('prepare-vm: selected VM registry changed before preparation')
         host = tool_host(ROOT).name
-        require_host_queue(args.queue_host, host, args.vm, vms)
+        require_host_queue(args.queue_host, host, argv, vms)
         args.vm = ','.join(vm.name for vm in vms)
         if not _worker and any(vm.host.name != host for vm in vms):
             return prepare_hosts(args, vms, refresh=refresh)

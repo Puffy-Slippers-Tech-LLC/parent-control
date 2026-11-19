@@ -34,7 +34,7 @@ APPSNAPSHOT_INSTRUCTIONS = (
     'tools/prepare-appsnapshot --vm NAME --y --overwrite true (or --overwrite false '
     'to reuse a fresh matching snapshot). Always specify --overwrite explicitly '
     'for unattended usage. Snapshots are always online; --y suppresses confirmation; '
-    'manual work omits --y. Omitting --vm selects all enabled VMs. '
+    'manual work omits --y. Omitting --vm selects enabled VMs on the configured default hosts. '
     'Both preparation tools accept VM lists, all-enabled and all, using host compute reservations.')
 PREPARATION_INSTRUCTIONS = BASELINE_INSTRUCTIONS + ' ' + APPSNAPSHOT_INSTRUCTIONS
 

@@ -9,9 +9,11 @@ another baseline, download a new image, or create a replacement domain.
 
 ### Creating a blank VM
 
-Run `tools/newvm --name NAME --vmhost HOST --family FAMILY` from the checkout root.
+Run `tools/newvm --name NAME --family FAMILY [--vmhost HOST]` from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
-already exist in `config/environment.json`. FAMILY accepts a family name or ID,
+already exist in `config/environment.json`. Omitting `--vmhost` uses the shared
+default when it identifies exactly one host. Specify a host when several hosts
+are eligible by default. FAMILY accepts a family name or ID,
 case-insensitively (for example, `u2604` selects `ubuntu26.04-x86_64` with the
 current registry). Provisioning may target a disabled host, since it creates an
 offline VM rather than scheduling tests. SSH hosts use
@@ -219,8 +221,8 @@ Every value matches case-insensitively and resolves to canonical configured VM n
 Family selectors expand to eligible members; the union includes each VM only once.
 Optional `--vmhost` accepts one configured host or a comma-separated list and
 intersects that union with the selected hosts. Hosts can set `default_host` to
-the string `"true"` to join the default host filter used by `run-tests` and
-`fix-tests`. The field defaults to `"false"`. See the
+the string `"true"` to join the shared default host filter. The field defaults
+to `"false"`. See the
 [VM selector contract](../../docs/Mandates/VM-Mandate.MD#target-selection).
 Selection defaults to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,
@@ -276,8 +278,8 @@ workflow and deletion of **all versioned app snapshots**, including release-deri
 names with or without the `v` prefix. By default, only an explicit `y` proceeds;
 `n` or end of input exits without guest or snapshot changes. `--y` suppresses
 the y/n prompt while retaining the warning and every safety check. An omitted
-`--vm` selects all eligible online VMs in both auto and
-manual modes; multiple VMs are confirmed together before work.
+`--vm` selects eligible online VMs on the configured default hosts in both auto
+and manual modes. Multiple VMs are confirmed together before work.
 After
 confirmation or `--y`, those app snapshots are deleted without recursively
 deleting their children.
@@ -1020,7 +1022,8 @@ local administrator after ordinary `./setup.sh` on a replacement host, or
 `./setup.sh --test-tools-only` to refresh existing development helpers.
 They accept the same `--vm` names, IDs, comma-separated lists, `all-enabled`
 and `all` selectors as baseline preparation. Their default is **all** eligible
-online VMs. IDs resolve from the current registry on every invocation.
+online VMs on the configured default hosts. IDs resolve from the current registry
+on every invocation.
 
 ```sh
 tools/backupvm

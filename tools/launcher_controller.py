@@ -282,7 +282,7 @@ def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
         if vm_test_launcher or name == 'execute-plan':
-            print(vm_config.host_help(use_defaults=vm_test_launcher), flush=True)
+            print(vm_config.host_help(), flush=True)
     import test_source
     previous_invocation = _public_invocation
     _public_invocation = (name, original_arguments if public_argv is None else public_argv)

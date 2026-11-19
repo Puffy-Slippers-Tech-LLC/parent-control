@@ -20,7 +20,7 @@ def main(argv=None):
     scope.add_argument('--vm', help=SELECTOR_HELP + '; cleanup remains serial')
     scope.add_argument('--host-only', action='store_true', help='host retention only; no VM access')
     parser.add_argument('--vm-only', action='store_true',
-                        help='recover explicit --vm selection without host retention cleanup')
+                        help='recover an explicit --vm or --vmhost selection without host retention cleanup')
     parser.add_argument('--discard-completed', action='store_true',
                         help='explicitly remove all completed execution-retention results; not workflow/session logs')
     parser.add_argument('--if-available', action='store_true',
@@ -37,8 +37,11 @@ def main(argv=None):
     try:
         if os.geteuid() == 0:
             raise ValueError('invoke as an unprivileged administrator')
-        if args.vm_only and (not args.vm or args.host_only):
-            raise ValueError('--vm-only requires an explicit --vm selection')
+        if args.vm_only:
+            vm_args, host = vm_config.extract_vmhost(original_args)
+            _, selector = vm_config.extract_selector(vm_args)
+            if (selector is None and host is None) or args.host_only:
+                raise ValueError('--vm-only requires an explicit --vm or --vmhost selection')
         if args.if_available and (args.host_only or args.discard_completed
                 or args.discard_unpublished_input or args.transfer_batch_input
                 or args.transfer_batch_appsnapshot):

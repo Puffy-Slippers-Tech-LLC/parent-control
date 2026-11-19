@@ -288,25 +288,31 @@ def worker(root, run, owner):
     return status
 
 
-def bind_vm_request(request, *, use_defaults=False):
-    from vm_selection import execution_selection, vm_config
+def prepare_request(root, request, *, host_only=False, use_defaults=False):
+    from vm_selection import BATCH, VARIABLE, execution_selection, vm_config
     selector = request['vm']
-    if use_defaults:
-        request['vmhost'] = vm_config.default_vmhost(selector=selector)
-    selection = ['--vm', selector] if selector is not None else []
-    selection = vm_config.filter_vm_hosts(selection, request.get('vmhost'))
-    _, bound_selector = vm_config.extract_selector(selection)
-    execution_selection(bound_selector)
+    if host_only and selector is None:
+        os.environ.pop(VARIABLE, None)
+        os.environ.pop(BATCH, None)
+    else:
+        if use_defaults:
+            request['vmhost'] = vm_config.default_vmhost(selector=selector)
+        selection = ['--vm', selector] if selector is not None else []
+        selection = vm_config.filter_vm_hosts(selection, request.get('vmhost'))
+        _, bound_selector = vm_config.extract_selector(selection)
+        execution_selection(bound_selector)
+    # Focused test validation needs the VM bound first.
+    repair_inventory(root, request['categories'])
 
 
-def select(root, request, *, resume=False, stop=False, reload=False, use_defaults=False):
+def select(root, request, *, host_only, resume=False, stop=False, reload=False, use_defaults=False):
     from test_results import ResultStore
     from vm_selection import execution_binding, save_binding
-    kind = 'fix-tests-host' if repair_host_only_request(root, request['categories']) else 'fix-tests'
+    kind = 'fix-tests-host' if host_only else 'fix-tests'
     retained = {}
     def command(run, owner):
         if use_defaults:
-            bind_vm_request(request, use_defaults=True)
+            prepare_request(root, request, use_defaults=True)
         previous = previous_run(root, kind) if resume else None
         if previous is not None:
             old_request = read_json(previous / 'request.json', {})
@@ -351,7 +357,7 @@ def select(root, request, *, resume=False, stop=False, reload=False, use_default
 
 
 def main(argv=None):
-    from vm_selection import vm_config, VARIABLE, BATCH
+    from vm_selection import vm_config
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (new runs: off; update live without restarting tests)')
     parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (new runs: off; update live without restarting tests)')
@@ -402,14 +408,9 @@ def main(argv=None):
         request['vmhost'] = vmhost
     elif not host_only and args.vm is None:
         request['vmhost'] = saved.get('vmhost')
-    if request['vm'] is not None or not host_only:
-        if not use_defaults:
-            bind_vm_request(request)
-    else:
-        os.environ.pop(VARIABLE, None)
-        os.environ.pop(BATCH, None)
-    repair_inventory(root, categories)
-    run, started = select(root, request, resume=args.resume and not args.reset,
+    if not use_defaults:
+        prepare_request(root, request, host_only=host_only)
+    run, started = select(root, request, host_only=host_only, resume=args.resume and not args.reset,
                           stop=args.stop, reload=args.reload, use_defaults=use_defaults)
     if run is None:
         print('fix-tests: no active launcher.')

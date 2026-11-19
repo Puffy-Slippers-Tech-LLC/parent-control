@@ -2611,7 +2611,7 @@ def test_category_option_injection_rejected(checkout, category, argv):
         commands.plan(checkout, category, argv)
 
 
-def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
+def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch, tmp_path):
     plan, safety = commands.plan(ROOT, 'e2e', ['--list'])
     assert 'pkexec' not in plan[0][0]
     assert plan[0][2].endswith('/tests/e2e/runner.py')
@@ -2659,6 +2659,30 @@ def test_e2e_listing_is_host_safe_and_pending_execution_refused(monkeypatch):
     listed = preflight(['--list', '--subcategory', 'e2e-heavy'], root=ROOT)
     assert [case['coverage_id'] for case in listed['cases']] == [253]
     assert all('vm_tags' not in case for case in listed['cases'])
+
+    import fix_tests
+    import launcher_controller
+    from vm_selection import VARIABLE, vm_config
+
+    targets = [vm_config.load(vm_name(index), local=False) for index in (0, 1)]
+    selector = ','.join(vm.id for vm in targets)
+    request = ['e2e', '--id', '22,30', '--vm', selector]
+    monkeypatch.setattr(sys, 'argv', ['tools/fix-tests', *request])
+    monkeypatch.delenv(VARIABLE)
+
+    def start(root, kind, command, *, on_start, **kwargs):
+        assert kind == 'fix-tests'
+        command(tmp_path, 0)
+        on_start(tmp_path)
+        return tmp_path, True
+
+    monkeypatch.setattr(fix_tests.launcher, 'select', start)
+    monkeypatch.setattr(fix_tests.launcher, 'report_start', lambda *args, **kwargs: 0)
+    assert launcher_controller._entry(ROOT, 'fix-tests', None, request, fix_tests.main) == 0
+    assert json.loads((tmp_path / 'vm.json').read_text())['vm']['vms'] == [vm.name for vm in targets]
+    saved = json.loads((tmp_path / 'request.json').read_text())
+    assert saved['categories'] == request[:3] and saved['vm'] == selector
+
     qualified = preflight(['--qualify-lunar-profile'], root=ROOT, allow_missing_artifacts=True)
     assert qualified == {'mode': 'lunar-profile-qualification', 'subcategory': 'e2e-heavy'}
     launch_quit, tray_alias = '--qualify-lunar-launch-quit', '--qualify-lunar-tray'

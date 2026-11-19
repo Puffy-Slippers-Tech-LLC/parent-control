@@ -325,8 +325,7 @@ existing stdout/stderr artifact paths included when retained. An elapsed time
 or `command:failed:ssh` alone never proves a connection timeout.
 
 ```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_e2e_installed
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_e2e_installed
+tools/run-tests system check_fixture_e2e_installed --vm 'u26,f44'
 ```
 
 This check selects that baseline union through the same installed setup and
@@ -384,7 +383,7 @@ verifies the exact selected files before package transfer and customer input.
 Its installed lifecycle acceptance belongs to that exact scenario.
 
 ```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_e2e_product_free
+tools/run-tests system check_fixture_e2e_product_free --vm u26
 ```
 
 This preparation-only selector runs distinct entry, package, upgrade and empty
@@ -411,7 +410,7 @@ admissions and labels. GDM-only entry has no native input dependency or movable
 payload. Dormant guards and customer checkpoints remain unchanged.
 
 ```sh
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_e2e_product_free
+tools/run-tests system check_fixture_e2e_product_free --vm f44
 ```
 
 The same independent readback/runtime, refusal, no-write repeat, fresh readiness,
@@ -430,7 +429,7 @@ ready reply. Package/upgrade inventory, collision and replay guards remain owned
 by `AssetTransfer`.
 
 ```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_transfer
+tools/run-tests system check_fixture_transfer --vm u26
 ```
 
 This preparation-only selector exercises that real controller and Smoke boundary
@@ -449,7 +448,7 @@ Fedora 44 uses the same standalone controller and Smoke readiness boundary,
 with package-only RPM delivery after the selected native runtime is ready.
 
 ```sh
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_transfer
+tools/run-tests system check_fixture_transfer --vm f44
 ```
 
 The same independent 12-file readback, harmless Riley runtime, input refusals,
@@ -469,7 +468,7 @@ defer their separate package-only transfer until that runtime is ready; bare
 serial needs no package input.
 
 ```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_serial
+tools/run-tests system check_fixture_serial --vm u26
 ```
 
 This preparation-only selector exercises one actual serial credential/getty
@@ -491,7 +490,7 @@ Credential/getty preboot checks and the shared post-SSH Smoke readiness step
 retain the Ubuntu ordering and input guards.
 
 ```sh
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_serial
+tools/run-tests system check_fixture_serial --vm f44
 ```
 
 One real preparation history independently verifies native bytes, harmless Riley
@@ -515,7 +514,7 @@ until native readiness. The recorder saves the selected input and its manifest,
 VM, boot and attempt binding in a durable observation before acknowledging ready.
 
 ```sh
-tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_recorded_serial
+tools/run-tests system check_fixture_recorded_serial --vm u26
 ```
 
 This preparation-only check runs the actual recorded caller once, independently
@@ -536,7 +535,7 @@ input before restoration, preserves credential/getty setup before boot and binds
 the input and fresh readiness durably before the ready reply.
 
 ```sh
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_recorded_serial
+tools/run-tests system check_fixture_recorded_serial --vm f44
 ```
 
 One actual recorded preparation independently verifies the 12 native files,

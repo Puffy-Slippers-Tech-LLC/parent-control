@@ -48,7 +48,7 @@ def previous_request(root):
                     pass
     saved = max(candidates, key=lambda value: value[0])[1] if candidates else {}
     request = {}
-    for key in ('vm', 'model', 'effort'):
+    for key in ('vm', 'vmhost', 'model', 'effort'):
         if isinstance(saved.get(key), str):
             request[key] = saved[key]
     for key in ('rounds', 'tasks'):
@@ -174,7 +174,6 @@ def run_rounds(root, run, owner, request, *, operation=execute):
     from launcher_source_sync import STATUS as SYNC_STATUS
     from test_progress import SELECTION
     from test_results import PENDING_STATUS, ResultStore, VARIABLE
-    from vm_selection import execution_arguments, execution_binding
     inventory = repair_inventory(root, request.get('categories', []))
     full_selection = [arg for category, spec in inventory.items() for arg in (category, *spec['args'])]
     rounds = request.get('rounds', 1)
@@ -218,8 +217,11 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 command.append('--reverse')
             command += [argument for category in pending
                         for argument in (category, *inventory[category]['args'])]
-            if execution_binding() is not None:
-                command += execution_arguments()
+            # Let the ordinary runner resolve the pool against the current
+            # registry before it routes each category by tag.
+            for key in ('vm', 'vmhost'):
+                if request.get(key) is not None:
+                    command += ['--' + key, request[key]]
             results.begin()
             if len(pending) < len(inventory):
                 os.environ[SELECTION] = json.dumps(full_selection)
@@ -286,13 +288,16 @@ def worker(root, run, owner):
     return status
 
 
-def bind_vm_request(request, vmhost=None, *, use_defaults=False):
+def bind_vm_request(request, *, use_defaults=False):
     from vm_selection import execution_selection, vm_config
+    if use_defaults:
+        hosts = vm_config.host_registry(vm_config.read_document(validate_agent=False))
+        request['vmhost'] = ','.join(host.name for host in hosts.values() if host.default_host) or None
     selector = request['vm']
     selection = ['--vm', selector] if selector is not None else []
-    selection = vm_config.filter_vm_hosts(selection, vmhost, use_defaults=use_defaults)
-    _, request['vm'] = vm_config.extract_selector(selection)
-    execution_selection(request['vm'])
+    selection = vm_config.filter_vm_hosts(selection, request.get('vmhost'))
+    _, bound_selector = vm_config.extract_selector(selection)
+    execution_selection(bound_selector)
 
 
 def select(root, request, *, resume=False, stop=False, reload=False, use_defaults=False):
@@ -307,7 +312,7 @@ def select(root, request, *, resume=False, stop=False, reload=False, use_default
         if previous is not None:
             old_request = read_json(previous / 'request.json', {})
             same_selection = isinstance(old_request, dict) and all(
-                old_request.get(key) == request.get(key) for key in ('categories', 'vm', 'rounds'))
+                old_request.get(key) == request.get(key) for key in ('categories', 'vm', 'vmhost', 'rounds'))
             for number in range(1, request['rounds'] + 1):
                 path = previous / 'results' / str(number)
                 if path.is_dir():
@@ -395,9 +400,12 @@ def main(argv=None):
                     and public_arguments('fix-tests') is not None)
     if not host_only and vmhost is not None:
         request['vm'] = args.vm
+        request['vmhost'] = vmhost
+    elif not host_only and args.vm is None:
+        request['vmhost'] = saved.get('vmhost')
     if request['vm'] is not None or not host_only:
         if not use_defaults:
-            bind_vm_request(request, vmhost if not host_only else None)
+            bind_vm_request(request)
     else:
         os.environ.pop(VARIABLE, None)
         os.environ.pop(BATCH, None)

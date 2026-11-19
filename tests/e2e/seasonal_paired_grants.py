@@ -27,7 +27,7 @@ CHOICES = {name: dict(child='existing-fixture-child' if name == 'jordan' else 'f
            for name, binding in BINDINGS.items()}
 ENTRIES = {}
 LOGIN_STAGES = set(fresh_desktop('parent'))
-APPROVAL_WAITS = tuple(f'approval-wait-{i}' for i in range(1, 4))
+KIOSK_PREPARATION_WAITS = tuple(f'kiosk-preparation-wait-{i}' for i in range(1, 4))
 
 
 def entry(prefix, account, mode, expected='success'):
@@ -58,9 +58,10 @@ PREPARE = {
     'jordan-before-countdown': 'ui:child-countdown-present',
     **estimate('jordan-before-estimate'),
     'jordan-switch': 'system:standard-switch-user', 'jordan-greeter': 'ui:gdm-returned',
+    **dict.fromkeys(KIOSK_PREPARATION_WAITS, 'ui:gdm-returned'),
     **prefixed_stages('riley-request', prepared_request(prefix='new', entry='new', initial='observed',
                                                        **CHOICES['riley'])),
-    **dict.fromkeys(APPROVAL_WAITS, 'ui:kiosk-request-estimate'),
+    'approval-window': 'ui:kiosk-request-estimate',
     **prefixed_stages('riley-request', approved_request(**CHOICES['riley'], exit='automatic', explicit=True)),
     **entry('riley-fresh', 'child', 'fresh'),
     **native_activity_entry('riley-activity', child='child'),
@@ -131,7 +132,8 @@ PLAN = JourneyPlan(
     child_bindings={'parent-retained': 'existing', **{stage: 'existing' for stage in JORDAN_STAGES
                     if SCREENS[stage][3:] in NAMED_TIME_OPERATIONS | {'revoke-balances'}}},
     stage_actions={'setup-detached': 'calendar-window', 'desktop': 'native-verify',
-        **dict.fromkeys(APPROVAL_WAITS, 'approval-wait'),
+        **dict.fromkeys(KIOSK_PREPARATION_WAITS, 'kiosk-preparation-wait'),
+        'approval-window': 'approval-wait',
         'cross-transition': 'cross-transition', 'natural-expiry': 'natural-expiry'},
     activity_checks=ACTIVITY_CHECKS,
     activity_entries={'natural-expiry': 'riley-activity-capture'},
@@ -143,6 +145,7 @@ class PairedGrantsJourney(InstalledJourney):
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
         super().__init__(context, progress, plan, actions=actions if actions is not None else {
             **fixture_actions(include_refusal=False), 'calendar-window': self.declare_window,
+            'kiosk-preparation-wait': self.wait_kiosk_preparation,
             'approval-wait': self.wait_approval, 'cross-transition': self.cross_transition,
             'natural-expiry': self.natural_expiry})
         self.window = self.last_calendar = self.expiry = self.expiry_sample = None
@@ -192,12 +195,20 @@ class PairedGrantsJourney(InstalledJourney):
                     == prepared['offset_after_seconds'], 'spring-grants:eligible-window')
         journey.window = {key: prepared[key] for key in ('timezone', 'transition_epoch_ns',
             'midnight_epoch_ns', 'offset_before_seconds', 'offset_after_seconds')}
+        approval_target = boundary - 300_000_000_000
         journey.window.update(date=local.date().isoformat(), day_seconds=day_seconds,
-            approval_target_epoch_ns=boundary - 300_000_000_000,
+            kiosk_preparation_epoch_ns=approval_target - 150_000_000_000,
+            approval_target_epoch_ns=approval_target,
+            approval_open_deadline_epoch_ns=boundary - 180_000_000_000,
             countdown_precision_seconds=1, balance_maximum_precision_seconds=60,
             observation_order=['Jordan before', 'Riley before', 'Riley after', 'Jordan after',
                                'Riley natural expiry and time refusal', 'Jordan final access'])
         return {'preparation': prepared, 'window': journey.window, 'clock': clock}
+
+    def require_approval_window(self, clock):
+        require(self.window['approval_target_epoch_ns'] <= clock['epoch_ns']
+                and clock['readback']['epoch_ns'] < self.window['approval_open_deadline_epoch_ns'],
+                'spring-grants:fixed-approval-window')
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -212,9 +223,7 @@ class PairedGrantsJourney(InstalledJourney):
             require(clock['readback']['epoch_ns'] < boundary, 'spring-grants:approval-after-transition')
             if stage.endswith('-open'):
                 if name == 'riley':
-                    require(boundary - 300_000_000_000 <= clock['epoch_ns']
-                            and clock['readback']['epoch_ns'] < boundary - 180_000_000_000,
-                            'spring-grants:fixed-approval-window')
+                    self.require_approval_window(clock)
                 self.approvals[name] = [clock['epoch_ns']]
             else:
                 self.approvals[name].append(clock['readback']['epoch_ns'])
@@ -300,8 +309,15 @@ class PairedGrantsJourney(InstalledJourney):
         return {'clock_before_wait': clock, 'target_epoch_ns': target}
 
     @staticmethod
+    def wait_kiosk_preparation(journey, guard):
+        return journey.wait_toward(journey, guard, journey.window['kiosk_preparation_epoch_ns'])
+
+    @staticmethod
     def wait_approval(journey, guard):
-        return journey.wait_toward(journey, guard, journey.window['approval_target_epoch_ns'])
+        waiting = journey.wait_toward(journey, guard, journey.window['approval_target_epoch_ns'])
+        clock = journey.calendar()
+        journey.require_approval_window(clock)
+        return {**waiting, 'clock_at_approval_window': clock}
 
     @staticmethod
     def cross_transition(journey, guard):

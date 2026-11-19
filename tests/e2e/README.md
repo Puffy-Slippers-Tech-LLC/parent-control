@@ -371,8 +371,8 @@ the runtime inventory. No Codex, network service or VM is needed; use the
 development dependencies installed by `./setup.sh`.
 
 Each documented number is one exact variant's persistent `coverage_id`:
-`tools/run-tests e2e --vm NAME --list --id '1'` inspects it, and
-`tools/run-tests e2e --vm NAME --id '1'` executes it with automatically prepared verified
+`tools/run-tests e2e --list --id '1'` inspects it, and
+`tools/run-tests e2e --id '1'` executes it with automatically prepared verified
 package artifacts. Pending
 cases still refuse execution. `--id 1,3,4` selects a comma-separated list of
 one or more numeric IDs. Empty entries, malformed IDs and unknown IDs refuse
@@ -380,7 +380,9 @@ the entire selection; repeated IDs run once. `--id`, `--scenario` and `--ready`
 are mutually exclusive. Refresh installed dispatchers with
 `./setup.sh --test-tools-only` to support multiple IDs.
 
-`tools/run-tests e2e --vm NAME` runs every runnable E2E case and reports pending exclusions.
+`tools/run-tests e2e` runs every runnable E2E case and reports pending exclusions.
+Cases declare a subcategory. The runner uses its VM tag to choose eligible
+workers. To narrow coverage by distro, pass a family selector such as `--vm f45`.
 It does not dispatch other test categories. Execution without `--artifacts`
 prepares the required package artifacts automatically, reusing matching verified
 inputs or building on a miss; an explicit artifact directory uses the supplied
@@ -392,10 +394,10 @@ From the checkout, these commands only read declarations and print JSON. They
 need no root, package artifacts, installed product, graphical tools or VM:
 
 ```sh
-tools/run-tests e2e --vm NAME --list
-tools/run-tests e2e --vm NAME --list --ready
-tools/run-tests e2e --vm NAME --list --scenario E2E-023
-tools/run-tests e2e --vm NAME --list --scenario E2E-023/fullscreen
+tools/run-tests e2e --list
+tools/run-tests e2e --list --ready
+tools/run-tests e2e --list --scenario E2E-023
+tools/run-tests e2e --list --scenario E2E-023/fullscreen
 make check-e2e LIST=1 SCENARIO=E2E-023/fullscreen
 ```
 
@@ -414,7 +416,7 @@ scope and every omitted ID in `excluded_pending_cases`; `pending_cases` describe
 the selected cases only. A list operation may report an empty ready selection;
 execution refuses it before artifacts, privileges or VM access. Newly registered
 ready cases are discovered automatically on the next invocation. The current
-ready set is reported by `tools/run-tests e2e --vm NAME --list --ready`; external-provider
+ready set is reported by `tools/run-tests e2e --list --ready`; external-provider
 qualification gaps do not imply that the set is empty.
 
 An explicit selector containing a pending variant fails with `selection:pending`
@@ -514,7 +516,7 @@ watch layout under the [recording contract](../README.md#vm-watch-recordings).
 The visible watcher is optional; recordings do not replace scenario assertions
 or private evidence validation.
 
-`tools/run-tests e2e --vm NAME` prepares verified package/fixture inputs automatically,
+`tools/run-tests e2e` prepares verified package/fixture inputs automatically,
 using the [startup cache](#reusable-startup-preparation). Fixed qualifications
 such as `check_e2e_parent_save` similarly prepare their managed named input when
 absent. For explicit input preparation, use `tools/run-tests artifacts prepare`
@@ -525,19 +527,22 @@ legacy `/tmp` locations. These test-only changes activate on invocation.
 
 ```sh
 # All currently implemented E2E variants:
-tools/run-tests e2e --vm NAME
+tools/run-tests e2e
+
+# Only the heavy E2E subcategory on Fedora 45:
+tools/run-tests e2e-heavy --vm f45
 
 # Only the installed Parent About/license customer journey:
-tools/run-tests e2e --vm NAME --id '151'
+tools/run-tests e2e --id '151'
 
 # Only dynamic Parent child discovery and selection:
-tools/run-tests e2e --vm NAME --id '3'
+tools/run-tests e2e --id '3'
 
 # Only Parent's no-eligible-children explanation:
-tools/run-tests e2e --vm NAME --id '4'
+tools/run-tests e2e --id '4'
 
 # Only standard-user denial through the normal app grid:
-tools/run-tests e2e --vm NAME --id '5'
+tools/run-tests e2e --id '5'
 ```
 
 Standalone `tools/prepare-appsnapshot --vm NAME --y --overwrite true` always
@@ -685,7 +690,7 @@ for exactly one active local graphical greeter, then retains the owned session-b
 and accessibility checks. Ambiguous identities and failed reads stop immediately.
 The controller allows 390 seconds for that observation, within the shared attempt
 deadline; no input is replayed or product probe substituted.
-The current ready set comes from `tools/run-tests e2e --vm NAME --list` and
+The current ready set comes from `tools/run-tests e2e --list --ready` and
 `scenarios.json`, with totals in [generated coverage](../../docs/Test-Coverage.md);
 do not maintain a second list here. Retained bindings do not
 qualify their provider routes or certify a current installed pass. Implement
@@ -741,7 +746,7 @@ transport. Each command independently validates its own bounded output. One
 final desktop observation completes the case; no per-command desktop roundtrip
 or Terminal is needed. Changed compositions require their own affected live
 qualification.
-The public `tools/run-tests e2e --vm NAME` route selects the ready set; a ready-suite pass
+The public `tools/run-tests e2e` route selects the ready set; a ready-suite pass
 is partial coverage while variants remain pending.
 
 `make test-all VM=NAME` and `make test-all-verify VM=NAME` both discover every ready E2E variant
@@ -1117,8 +1122,8 @@ canonical `Targets:` and exact selectors/results; host UI work declares
    once it can run; registration itself supplies no acceptance. Run the exact
    `tools/run-tests e2e --id 'CASE'` on the required targets under
    [installed preparation](#run-e2e-scenarios) and the
-   [VM mandate](../../docs/Mandates/VM-Mandate.MD). An explicit `--vm NAME`
-   narrows the result to that target. Fresh declared state, independent public
+   [VM mandate](../../docs/Mandates/VM-Mandate.MD). Use a family selector when
+   narrowing to an affected distro. Fresh declared state, independent public
    results, reconciliation, collection and owned cleanup are all required.
 6. For a failure, preserve expected versus actual behavior under
    [failure handling](../README.md#handling-test-failures). Repair proven

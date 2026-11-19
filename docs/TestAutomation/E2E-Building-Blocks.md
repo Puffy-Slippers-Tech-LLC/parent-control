@@ -386,8 +386,8 @@ restoration.
 #### Jordan extra-time access
 
 Complete case 9, `grant_access_case.GrantAccessJourney` /
-`onpc_allowance_case::grant_only_new`, passed on Ubuntu 26.04 through
-`tools/run-tests --vm onpc-Ubuntu26.04 --resume e2e --id '9'`. Jamie's real 20-minute soft-included approval
+`onpc_allowance_case::grant_only_new`, passed on Ubuntu 26.04. Jamie's real
+20-minute soft-included approval
 permits fresh Jordan entry at zero daily time. The 0→30→0 allowance history
 preserves the original grant deadline, with fresh child entries/countdowns,
 normal logout and the original Jamie/Parent window and settings after each
@@ -1256,8 +1256,8 @@ without a replay. Neither timeout nor a missing window proves denial.
 through `ConfinementUsabilityQualification` and
 [`onpc_confinement_usability::run`](../../tests/integration/graphical_smoke/lib/onpc_confinement_usability.pm).
 The existing installed envelope has a 1800-second worker timeout. The complete
-composition is qualified on `onpc-Ubuntu26.04` and `onpc-Fedora44` through
-`tools/run-tests --vm 'onpc-Ubuntu26.04,onpc-Fedora44' system check_e2e_confinement_usability`.
+composition is qualified on Ubuntu 26.04 and Fedora 44. Select both families with
+`tools/run-tests system check_e2e_confinement_usability --vm 'u26,f44'`.
 
 Its finite history uses Riley/Jamie (`fixture-child`/`fixture-parent`), daily
 900 seconds, initial zero grant, Custom `1.25` Minutes (75 seconds), and soft apps
@@ -1306,8 +1306,8 @@ parent policy and unchanged native enforcement. Saved request choices may change
 Restoring the same home and restarting the broker retries activation, followed
 by Jordan's fresh genuine request. It reuses the guarded approval, account
 selection and public UI operations under the existing 1800-second worker bound.
-The corrected refusal branch awaits launcher verification on `onpc-Ubuntu26.04`;
-the changed history also needs renewed `onpc-Fedora44` qualification before
+The corrected refusal branch awaits launcher verification on Ubuntu 26.04.
+The changed history also needs renewed Fedora 44 qualification before
 claiming both-target coverage. It retains fresh usable reentry and owned cleanup.
 The restored request refreshes its estimate through
 equivalent custom values and dates the grant comparison with the captured
@@ -3818,8 +3818,7 @@ receipt/digest checks before baseline reconciliation replaces them.
 digests, actual confinement, system scope and installed launcher identities after
 restore. It never installs or repairs. `check_e2e_snap_fixtures` composes that
 read-only result with the shared Parent catalogue reader for Jordan's three
-identities and default rules. This slice qualified on Fedora 44 through
-`tools/run-tests --vm onpc-Fedora44 system check_e2e_snap_fixtures`: wrong-entry
+identities and default rules. Fedora 44 qualification covered wrong-entry
 refusal, two independent installed readbacks and unchanged public Allowed/precise
 rows after navigating away and reopening the list. Collection, worker/callback
 shutdown, owned cleanup and baseline restoration passed. Other families,
@@ -4091,8 +4090,7 @@ Normal user-initiated closure above is not proof of closure after a policy save.
 ### Snap grid use
 
 `snap_grid.PLAN` / `onpc_app_rows::snap_grid` qualified APP01/02/03/04 and
-FLOW08 for Jordan's Allowed A/H/S Snap grid entries on selected Fedora 44 through
-`tools/run-tests --vm onpc-Fedora44 system check_e2e_snap_grid`.
+FLOW08 for Jordan's Allowed A/H/S Snap grid entries on Fedora 44.
 The shared `journey_blocks.native_usable_app('grid', kind='snap', role=...)`
 declaration and `onpc_app_rows::native_usable_app` compose the same search,
 launch, public window and independent Submit-result operations used by consumers.

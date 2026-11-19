@@ -7665,12 +7665,20 @@ class AccessibleUI:
         the English-only PARENT03 allowance reader.
         """
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        self.child_picker_closed()
-        root = self.parent()
-        picker = self.id_target('parent-child-selector', root=root, sensitive=True)
-        require(self.child_id_control(child, 'parent-child-selected-', root=picker,
-                                      showing=True) is not None, 'ui:selected-child')
-        return {'child': CHILD_IDENTITIES[child]}
+
+        def read_selection():
+            root = self.snapshot_owned_target('parent-window', check_prompt=True)
+            if root is None:
+                return None
+            picker = self.snapshot_owned_target('parent-child-selector', root=root)
+            if picker is None:
+                return None
+            require(self.has_state(picker, self.api.StateType.SENSITIVE), 'ui:unusable-target')
+            require(self.child_id_control(child, 'parent-child-selected-', root=picker,
+                                          showing=True) is not None, 'ui:selected-child')
+            return {'child': CHILD_IDENTITIES[child]}
+
+        return self.wait(read_selection, 'child-selection', prompt_in_predicate=True)
 
     def child_picker_closed(self):
         """Shared logical readiness after a canonical account selection."""

@@ -364,12 +364,13 @@ sub ordinary_fixed_grant {
     $journey->consume_observation('parent-selected',
         onpc_parent::open_for_child($journey, 'gdm', 'fresh', 'new', 'child'));
     $journey->seen($_) for qw(before-grant allowance-configured);
+    # Wait in the Parent desktop so kiosk authentication begins in a fresh session.
+    $journey->seen('approval-wait-' . $_) for 1 .. 2;
     onpc_desktop_session::switch_user($journey, $journey->seen('repeat-desktop'), 'repeat-desktop');
     my $request = $journey->scope('request');
     $request->{kiosk_request} = $binding;
     onpc_request_flow::prepare($request, 'new', 'new', 'observed',
         'fixture-child', 'fixture-parent', 1200, 0, 'kiosk');
-    $journey->seen('approval-wait-' . $_) for 1 .. 2;
     onpc_request_flow::approve($request, 'fixture-child', 'fixture-parent', 1200, 0, 'automatic');
     $journey->seen('approved-balance');
     onpc_gdm::sign_in_challenge($journey, 'child-login',

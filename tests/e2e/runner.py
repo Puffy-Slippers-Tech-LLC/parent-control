@@ -15,9 +15,17 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
+from guest_test_dependencies import versions as guest_dependencies
 import test_account_password as password_config
 import vm_config
 sys.path.pop(0)
+
+CLASSIC_COVERAGE_IDS = (22, 30)
+
+
+def classic_capable(vm):
+    dependencies = guest_dependencies(vm.require_build_target().distribution)
+    return not {'gnome-classic-session', 'gnome-classic'}.isdisjoint(dependencies)
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -62,6 +70,14 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
     qualification.add_argument('--qualify-minecraft-entry-exit', action='store_true')
     qualification.add_argument('--qualify-minecraft-access', action='store_true')
     args = parser.parse_args(argv)
+    classic = args.subcategory == 'gnome-classic'
+    if classic:
+        if args.ready or any(name.startswith('qualify_') and enabled
+                             for name, enabled in vars(args).items()):
+            raise ValueError('e2e:gnome-classic-requires-its-focused-coverage')
+        args.subcategory = 'general'
+        if args.id is None and args.scenario is None:
+            args.id = ','.join(map(str, CLASSIC_COVERAGE_IDS))
     if (args.qualify_lunar_profile or args.qualify_lunar_launch_quit
             or args.qualify_lunar_denial or args.qualify_minecraft_entry_exit
             or args.qualify_minecraft_access or args.qualify_lunar_autostart
@@ -176,6 +192,10 @@ def preflight(argv, *, root=ROOT, allow_missing_artifacts=False):
                                            '_active', None) is not None,
             }, sort_keys=True))
         raise
+    if classic:
+        if not {case['coverage_id'] for case in plan['cases']} <= set(CLASSIC_COVERAGE_IDS):
+            raise ValueError('e2e:gnome-classic-selects-only-cases-22-and-30')
+        plan['desktop_session'] = 'gnome-classic'
     plan['inventory_sha256'] = digest
     plan['mode'] = 'list-only' if args.list else 'execution-preflight'
     if fixture_selection is not None:

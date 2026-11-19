@@ -328,6 +328,7 @@ OPERATION_LABELS = {
     'child-command-launch': 'Invoking the child overlay command as [Child user]',
     'overlay-panel-ready': 'Checking the child panel request control',
     'overlay-panel-launch': 'Activating the child request action through its API',
+    'overlay-panel-launch-fresh': 'Opening a fresh request through the child panel',
     'overlay-panel-reveal-ready': 'Checking the open overlay before revealing its panel',
     'overlay-panel-overview': 'Checking Overview before returning to the open overlay',
     'overlay-request-form': 'Reading one overlay with the fixed child account',
@@ -1174,7 +1175,7 @@ class UiObservations:
                             or operation in accessible_ui.OVERLAY_GRANT_FORM_SECONDS
                             or operation in ('overlay-request-form',
                                              'overlay-request-read',
-                                             'overlay-panel-ready', 'overlay-panel-launch',
+                                             'overlay-panel-ready', 'overlay-panel-launch', 'overlay-panel-launch-fresh',
                                              'overlay-panel-reveal-ready', 'overlay-panel-overview'))
         # Greeter startup: 300s identity + 20s bus + 45s UI, with transport
         # margin; still inside the worker's 420s checkpoint deadline.

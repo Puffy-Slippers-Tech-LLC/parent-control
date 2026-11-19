@@ -29,7 +29,7 @@ SCREENS = {
     **CHILD,
     **prefixed_stages('soft-use', native_usable_app('command', child='child', role='S')),
     'soft-capture': 'ui:overlay-native-policy-soft-activity',
-    'panel-ready': 'ui:overlay-panel-ready', 'panel-launch': 'ui:overlay-panel-launch',
+    'panel-ready': 'ui:overlay-panel-ready', 'panel-launch': 'ui:overlay-panel-launch-fresh',
     **approval_and_return(prefix='open', entry='open', **CHOICES),
     'soft-closed': 'ui:overlay-native-policy-soft-closed',
     'hard-denied': 'ui:overlay-native-hard-command-blocked',

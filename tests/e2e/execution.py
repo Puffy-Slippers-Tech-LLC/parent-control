@@ -159,6 +159,9 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
               'outcome': 'failed', 'acceptance_candidate': None, 'inputs': None,
               'first_failure': None, 'lease_phase': None,
               'scope': 'independent-scenario-attempt'}
+    desktop_session = plan.get('desktop_session')
+    if desktop_session:
+        report['requested_desktop_session'] = desktop_session
     if suite is not None:
         report['verification_scope'] = 'suite-boundaries'
     sequence = 0
@@ -326,6 +329,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     context.installed_snapshot = (lease.installed_name
                         if suite is not None and installed_consumer else None)
                     context.fixture_selection = fixture_selection
+                    context.desktop_session = desktop_session
 
                     def cleanup(_recorder, held):
                         if suite is None:
@@ -343,6 +347,10 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     checkpoint('preparation-complete')
                 with ledger.measure('test'):
                     bridge.execute(lambda r: load_callback(case, verified)(r, context))
+                    if desktop_session:
+                        observed_session = getattr(context, 'observed_desktop_session', None)
+                        require(observed_session == desktop_session, 'execution:desktop-session-unverified')
+                        report['desktop_session'] = observed_session
                     progress.prepare_next()
             except BaseException as error:
                 # Persist before Lease.__exit__ starts restoration, including
@@ -453,6 +461,8 @@ def main(plan):
               'ready_only': plan.get('ready_only', False),
               'excluded_pending_cases': plan.get('excluded_pending_cases', []),
               'expected_cases': [c['case_id'] for c in plan['cases']], 'attempts': []}
+    if 'desktop_session' in plan:
+        report['requested_desktop_session'] = plan['desktop_session']
     collector = None
     progress = Progress(plan['cases'])
     progress.suite_preparation('Checking prerequisites')

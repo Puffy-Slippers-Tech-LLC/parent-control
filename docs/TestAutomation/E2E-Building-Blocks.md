@@ -1790,6 +1790,12 @@ and return outcomes. `Selected account: …` descriptions do not replace
 namespace-scoped UID identity. Package/source-bound preparation preserves
 existing verified inputs.
 
+E2E-012 uses `overlay-panel-launch-fresh` to require an absent request before
+activation and independently observe its window afterward. The
+[GNOME Classic run](../../tests/e2e/README.md#gnome-classic-coverage) reuses
+this operation with the existing child and approval bindings. Classic live
+qualification is pending.
+
 #### Fullscreen gameplay request and return
 
 `fullscreen_request.FullscreenRequestJourney` / `onpc_app_rows::fullscreen_request`

@@ -546,6 +546,9 @@ tools/run-tests e2e --id '4'
 
 # Only standard-user denial through the normal app grid:
 tools/run-tests e2e --id '5'
+
+# The VM suite, including automatic Classic coverage on prepared families:
+tools/run-tests vm --vm 'f44,f45,u26'
 ```
 
 Standalone `tools/prepare-appsnapshot --vm NAME --y --overwrite true` always
@@ -759,6 +762,28 @@ metadata-only verification. `test-all-verify` is a compatibility alias.
 Ownership, provenance, evidence and cleanup checks remain active. These
 aggregates also run the other established suites; use the commands above for
 E2E-only execution.
+
+### GNOME Classic coverage
+
+`tools/run-tests` also runs selected cases 22 and 30 in GNOME Classic on VM
+families whose baseline preparation includes it. `tools/fix-tests vm --vm
+f44,f45,u26` uses the same queue. Case 30 exercises the panel request, approval,
+and countdown. Case 22 exercises natural lock, retained recovery, and fresh
+sign-in denial. The supplemental run reuses both cases and has its own resume
+checkpoint and repair results. Targeted E2E runs add only the Classic cases
+in their selection. The runner identifies capable families from the baseline's
+guest dependency inventory, so new releases use the same cases.
+
+Fedora baseline preparation supplies `gnome-classic-session`. The Classic run
+requires the Classic Wayland session entry before it sets the fixture child's
+session through AccountsService on the owned attempt. It verifies
+the active Wayland session and Classic Shell units before acknowledging the
+child desktop and compares the live session identity after recovery. The normal
+attempt reset restores routing. The action trace and report record the verified
+session. Use the standard guarded login, request and approval routes. The panel
+API verifies functional activation and logical visibility. During initial live
+qualification, also check that the control is reachable on the actual Classic
+panel on each release. Classic live qualification is pending.
 
 ## Maintain declarations
 

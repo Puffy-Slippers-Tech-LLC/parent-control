@@ -409,6 +409,7 @@ The reservation ends after that group's owned work and cleanup. Required family
 vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
+E2E also runs selected cases 22 and 30 in GNOME Classic on families prepared for it.
 Both launchers also accept e2e-general and e2e-heavy as category names.
 Combining a parent category with its subcategory selects the complete parent once.
 Lunar and Minecraft cases, --qualify-lunar-profile, --qualify-lunar-launch-quit, --qualify-lunar-autostart, --qualify-lunar-denial, --qualify-lunar-login-denial, --qualify-minecraft-entry-exit and --qualify-minecraft-access belong to e2e-heavy.

@@ -360,7 +360,7 @@ CHILD_DESKTOP_OPERATIONS = (frozenset({'fresh-child-desktop', 'child-retained-un
                             | PANEL_ANIMATION_OPERATIONS | COUNTDOWN_SESSION_OPERATIONS)
 OVERLAY_GRANT_FORM_SECONDS = {'overlay-grant-form': 600, 'overlay-grant-480-form': 480}
 OVERLAY_OPERATIONS = frozenset({'overlay-request-form', *OVERLAY_GRANT_FORM_SECONDS, 'overlay-panel-ready',
-    'overlay-panel-launch', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
+    'overlay-panel-launch', 'overlay-panel-launch-fresh', 'overlay-panel-reveal-ready', 'overlay-panel-overview',
     'overlay-qualification-cancel', 'overlay-desktop', 'overlay-closed'})
 OPERATIONS |= {'overlay-closed'}
 CHILD_DESKTOP_OPERATIONS |= OVERLAY_OPERATIONS | NATURAL_EXPIRY_OPERATIONS | frozenset({'child-command-launch'})
@@ -16221,6 +16221,10 @@ class AccessibleUI:
                 self.overlay_panel_launch(child=bound_child)
             else:
                 self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)
+        elif operation == 'overlay-panel-launch-fresh':
+            require(not self.overlay_panel_form_present(child=bound_child), 'ui:overlay-already-open')
+            self.overlay_panel_launch(child=bound_child)
+            self.wait(lambda: self.snapshot_owned_target('kiosk-request-window'), 'overlay-panel-open')
         elif operation == 'overlay-panel-reveal-ready':
             self.require_child_overlay_session(bound_child)
             self.kiosk_request_form(enabled=True, overlay=True, overlay_child=bound_child)

@@ -128,7 +128,8 @@ class PassCheckpoint:
                 current = {case for item in items if item['category'] == category for case in item['cases']}
                 clear = _family_passes(previous, family, category)
                 if os.environ.get(VARIABLE):
-                    clear |= self.results.passed(category, family)
+                    options = next(item['options'] for item in items if item['category'] == category)
+                    clear |= self.results.passed(category, family, options=options)
                 passed[category] = sorted(clear & current)
             if os.environ.get(VARIABLE):
                 for work in items:
@@ -259,7 +260,7 @@ class Checkpoint:
 
     def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None):
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections
-        from test_results import ResultStore, VARIABLE as RESULTS, REPAIR_QUEUE
+        from test_results import ResultStore, VARIABLE as RESULTS, REPAIR_QUEUE, same_desktop_profile
         from vm_selection import VARIABLE, vm_config
         self.root = root
         self.executed_passes = {}
@@ -288,10 +289,12 @@ class Checkpoint:
             old = _mapping(previous.get('categories')).get(kind, {})
             if not isinstance(old, dict):
                 old = {}
+            if not same_desktop_profile(kind, old.get('args', []), args):
+                old = {}
             saved = old.get('passed', [])
             passed = _clear_cases(saved)
             if self.results:
-                passed |= self.results.passed(kind, self.family)
+                passed |= self.results.passed(kind, self.family, options=args)
                 complete = self.results.complete(kind, self.family, args)
                 if (self.family == 'host' and not os.environ.get(REPAIR_QUEUE)
                         and any(record['category'] == kind and not record['case']
@@ -400,6 +403,7 @@ class Checkpoint:
             self.save()
 
     def finish(self, categories):
+        from test_results import same_desktop_profile
         for kind in self.selected:
             items = [item for item in categories if item.retry_category == kind and item.count_overall]
             if not self.retry_case and items and all(item.state == 'Passed' for item in items):
@@ -411,7 +415,9 @@ class Checkpoint:
                     if self.family == 'host':
                         self.results.finish_command(kind, self.entry(kind)['args'], family=self.family)
             elif self.results is not None and any(item.state == 'Failed' for item in items):
+                options = self.entry(kind)['args']
                 if not any(record['category'] == kind and record['family'] == self.family
+                           and same_desktop_profile(kind, record.get('options', []), options)
                            for record in self.results.failures()):
-                    self.results.record(kind, self.family, '', 1, vm=self.vm, options=self.entry(kind)['args'])
+                    self.results.record(kind, self.family, '', 1, vm=self.vm, options=options)
         self.save()

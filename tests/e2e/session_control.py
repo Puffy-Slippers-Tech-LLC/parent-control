@@ -42,6 +42,11 @@ BINDINGS['child-enter-locked-from-parent'] = ('child', 'enter-locked-from-parent
 LABELS['enter-locked-from-parent'] = 'Returning from Parent to the preserved locked child session'
 BINDINGS['child-retained-locked'] = ('child', 'retained-locked')
 LABELS['retained-locked'] = 'Verifying the same preserved locked child session'
+BINDINGS['child-select-classic'] = ('child', 'select-classic')
+BINDINGS['child-verify-classic'] = ('child', 'verify-classic')
+LABELS['select-classic'] = 'Selecting GNOME Classic for the fixture child'
+LABELS['verify-classic'] = 'Verifying the active GNOME Classic desktop'
+CLASSIC = ('gnome-classic', 'wayland')
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
 BINDINGS['second-parent-desktop-identity'] = ('second-parent', 'desktop-identity')
 BINDINGS['child-desktop-identity'] = ('child', 'desktop-identity')
@@ -502,6 +507,46 @@ def entry_identity(current, uid, mode):
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
+def classic_session(account, action):
+    """Change only the fresh attempt's child routing, or witness its live desktop."""
+    sys.path.insert(0, '/var/tmp/onpc-system-input')
+    import system_guest as guest
+
+    guest.guard()
+    uid = account.pw_uid
+    if action == 'select-classic':
+        require(Path('/usr/share/wayland-sessions/gnome-classic.desktop').is_file(),
+                'classic-session-missing; the selected VM baseline needs GNOME Classic on Wayland')
+        entry_identity(sessions(), uid, 'fresh')
+        address = ['org.freedesktop.Accounts', f'/org/freedesktop/Accounts/User{uid}',
+                   'org.freedesktop.Accounts.User']
+        read = ['/usr/bin/busctl', '--system', 'get-property', *address]
+        routing = dict(zip(('Session', 'SessionType'), CLASSIC))
+        for name, value in routing.items():
+            if call([*read, name]).strip() != f's "{value}"':
+                call(['/usr/bin/busctl', '--system', 'call', *address, 'Set' + name, 's', value])
+        require(all(call([*read, name]).strip() == f's "{value}"' for name, value in routing.items()),
+                'classic-routing')
+        entry_identity(sessions(), uid, 'fresh')
+        identity = None
+    else:
+        current = sessions()
+        source = source_identity(current, uid)
+        require(current[source]['Type'] == CLASSIC[1], 'classic-session-type')
+        identity = entry_identity(current, uid, 'same')
+        # The Classic session activates both units. Saved routing
+        # alone cannot distinguish a live Classic desktop from normal GNOME.
+        units = subprocess.run([
+            '/usr/bin/systemctl', '--user', 'show', '--value', '-p', 'ActiveState',
+            'gnome-session@gnome-classic.target', 'org.gnome.Shell@classic.service',
+        ], stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True,
+            timeout=15, env=environment(account), user=uid, group=account.pw_gid,
+            extra_groups=os.getgrouplist(account.pw_name, account.pw_gid)).stdout.split()
+        require(units == ['active', 'active'] and entry_identity(sessions(), uid, 'same') == identity,
+                'classic-session-not-active')
+    return {'desktop_session': CLASSIC[0], 'type': CLASSIC[1], 'session_sha256': identity}
+
+
 def execute(binding, *, diagnostic=False):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     require(type(diagnostic) is bool and (not diagnostic or binding == 'standard-logout'),
@@ -509,6 +554,9 @@ def execute(binding, *, diagnostic=False):
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
+    if action in ('select-classic', 'verify-classic'):
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                **classic_session(account, action)}
     if action.startswith('entry-'):
         mode = action.removeprefix('entry-')
         current = sessions()
@@ -696,13 +744,25 @@ def observe(transport, binding, *, diagnostic=False):
     require(type(diagnostic) is bool and (not diagnostic or binding == 'standard-logout'),
             'diagnostic-binding')
     role, action = BINDINGS[binding]
+    classic = action in ('select-classic', 'verify-classic')
     with watch_activity.operation(LABELS[action] + ' [' + role + ']'):
-        raw = transport.call(['/usr/bin/python3', '-I', '-', binding,
+        environment = ['env', 'ONPC_EXPECTED_RUN=' + transport.config['run']] if classic else []
+        raw = transport.call([*environment, '/usr/bin/python3', '-I', '-', binding,
                               *(['--diagnostic'] if diagnostic else [])],
                              input=Path(__file__).read_bytes(),
                              timeout=LOGOUT_WAIT_SECONDS + 60 if action == 'logout' else 90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if classic:
+        require(type(result) is dict and set(result) == {
+            'operation', 'outcome', 'interface', 'desktop_session', 'type', 'session_sha256'}
+            and result['operation'] == binding and result['outcome'] == 'passed'
+            and result['interface'] == 'system session'
+            and (result['desktop_session'], result['type']) == CLASSIC
+            and (result['session_sha256'] is None if action == 'select-classic' else
+                 isinstance(result['session_sha256'], str)
+                 and re.fullmatch('[0-9a-f]{64}', result['session_sha256'])), 'response')
+        return result
     if action.startswith('entry-'):
         mode = action.removeprefix('entry-')
         require(type(result) is dict and set(result) == {

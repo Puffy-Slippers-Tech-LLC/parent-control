@@ -30,24 +30,52 @@ def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qua
     import vm_test_queue
     import vm_recording
     import vm_run_times
+    from fix_tests import validation_command
+    from test_results import classic_profile
 
-    selected = ({'subcategory': 'e2e-heavy'} if qualification else
-                {'cases': [{'subcategory': 'general'}, {'subcategory': 'e2e-heavy'}]})
+    root = Path(__file__).resolve().parents[2]
+    runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
+    selected = ({'subcategory': 'e2e-heavy'} if qualification else {'cases': [
+        {'subcategory': 'general', 'coverage_id': identity} for identity in (3, 22, 30)
+    ] + [{'subcategory': 'e2e-heavy', 'coverage_id': 126}]})
+
+    def preflight(args, **kwargs):
+        if classic_profile(args):
+            return {'desktop_session': 'gnome-classic', 'cases': [
+                case for case in selected['cases'] if case['coverage_id'] in (22, 30)]}
+        if '--subcategory' in args:
+            tag = args[args.index('--subcategory') + 1]
+            return {'cases': [case for case in selected['cases'] if case['subcategory'] == tag]}
+        return selected
+
     monkeypatch.setattr(test_commands, 'validate_one', lambda *args: None)
-    monkeypatch.setattr(runpy, 'run_path', lambda path: {
-        'preflight': lambda *args, **kwargs: selected})
-    workers = [SimpleNamespace(name=tag, family='one-family', vm_tags={tag})
+    monkeypatch.setattr(runpy, 'run_path', lambda path: {**runner, 'preflight': preflight})
+    workers = [SimpleNamespace(name=f'{family}-{tag}', family=family, vm_tags={tag},
+                   require_build_target=lambda distribution=distribution: SimpleNamespace(distribution=distribution))
+               for family, distribution in (('fedora44', 'fedora'), ('fedora45', 'fedora'), ('ubuntu26', 'ubuntu'))
                for tag in ('general', 'heavy')]
+    general = [vm.name for vm in workers if 'general' in vm.vm_tags]
+    heavy = [vm.name for vm in workers if 'heavy' in vm.vm_tags]
     options = ['--qualify-lunar-profile'] if qualification else []
     groups = vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers)
     assert [(group['key'], group['vm_tags'], group['vms']) for group in groups] == (
-        [('e2e.general', 'general', ['general'])] if not qualification else []) + [
-            ('e2e.e2e-heavy', 'heavy', ['heavy'])]
+        [('e2e.general', 'general', general), ('e2e.general.gnome-classic', 'general', general[:2])]
+        if not qualification else []) + [('e2e.e2e-heavy', 'heavy', heavy)]
     assert groups[-1]['args'] == ['e2e', *options, '--subcategory', 'e2e-heavy']
+    if not qualification:
+        assert groups[1]['args'] == ['e2e', '--subcategory=gnome-classic', '--id=22,30']
+        retry = vm_test_queue.execution_groups(tmp_path,
+            ['--resume-case=E2E-008/fresh-login', '--resume-case-only', 'e2e', '--subcategory', 'general'],
+            workers)
+        assert [group['key'] for group in retry] == ['e2e.general']
+        repair = validation_command(root, {'category': 'e2e', 'case': 'E2E-008/fresh-login',
+                                           'options': groups[1]['args'][1:], 'vm': workers[0].name})
+        retry = vm_test_queue.execution_groups(tmp_path, repair[1:-2], [workers[0]])
+        assert [group['key'] for group in retry] == ['e2e.general.gnome-classic']
+        assert classic_profile(retry[0]['args'])
     with pytest.raises(ValueError, match='no selected VM with vm_tags=heavy'):
         vm_test_queue.execution_groups(tmp_path, ['e2e', *options], workers[:1])
     if qualification:
-        root = Path(__file__).resolve().parents[2]
         identity = vm_recording.case_identity(root, 'e2e', dict(nodeid=options[0]))
         assert identity[0] == 'check_e2e_lunar_profile'
         metadata = vm_run_times.metadata(root, 'e2e', options[0])
@@ -328,8 +356,9 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     configured.update({name: replace(vm, vm_tags=frozenset({'general', 'heavy'}))
                        for name, vm in configured.items()})
     monkeypatch.setattr(runpy, 'run_path', lambda path: {
-        'preflight': lambda *args, **kwargs: dict(cases=[dict(subcategory='general'),
-                                                         dict(subcategory='e2e-heavy')])})
+        'CLASSIC_COVERAGE_IDS': (22, 30),
+        'preflight': lambda *args, **kwargs: dict(cases=[dict(subcategory='general', coverage_id=3),
+                                                         dict(subcategory='e2e-heavy', coverage_id=126)])})
     def collect(root, category, options, **kwargs):
         if category == 'system':
             return [f'{options[0]}-{index}' for index in range(37)]

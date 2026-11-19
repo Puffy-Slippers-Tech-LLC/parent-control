@@ -15,6 +15,23 @@ REPAIR_QUEUE = 'ONPC_TEST_REPAIR_QUEUE'
 PENDING_STATUS = 76
 
 
+def classic_profile(options):
+    return isinstance(options, (list, tuple)) and (
+        '--subcategory=gnome-classic' in options
+        or ('--subcategory', 'gnome-classic') in zip(options, options[1:]))
+
+
+def same_desktop_profile(category, saved, requested):
+    return category != 'e2e' or classic_profile(saved) == classic_profile(requested)
+
+
+def result_key(record):
+    key = [record['category'], record['family'], record['case'], record.get('work')]
+    if not same_desktop_profile(record['category'], record.get('options', []), ()):
+        key.append('gnome-classic')
+    return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()
+
+
 class ResultStore:
     def __init__(self, directory=None):
         if directory is None:
@@ -70,6 +87,7 @@ class ResultStore:
             saved = record.get('work')
             case = record['case'] or (saved.get('case') if isinstance(saved, dict) else '')
             if (record['category'] == category and record['family'] in (family, 'command')
+                    and same_desktop_profile(category, record.get('options', []), options)
                     and (case in cases if case else record.get('options') == options)):
                 vm = record.get('vm') if record.get('vm') in vms else next(iter(vms), '')
                 failure = dict(record, options=options, vm=vm)
@@ -82,9 +100,10 @@ class ResultStore:
     def failures(self):
         return [record for record in self.load() if record['status']]
 
-    def passed(self, category, family):
+    def passed(self, category, family, *, options=()):
         return {record['case'] for record in self.load()
                 if record['category'] == category and record['family'] == family and not record['status']
+                and same_desktop_profile(category, record.get('options', []), options)
                 and record['case']}
 
     def complete(self, category, family, options):
@@ -101,7 +120,8 @@ class ResultStore:
                         isinstance(saved, dict) and all(saved.get(key) == work.get(key)
                                                        for key in ('case', 'area')))
             if (record['category'] == category and not record['case']
-                    and (family is None or record['family'] in (family, 'command')) and matching):
+                    and (family is None or record['family'] in (family, 'command'))
+                    and same_desktop_profile(category, record.get('options', []), options) and matching):
                 context = {key: value for key, value in record.items()
                            if key not in ('category', 'family', 'case', 'status', 'complete')}
                 self.record(category, record['family'], '', 0, complete=True, **context)
@@ -115,9 +135,7 @@ class ResultStore:
             if (record['category'] == category and record['family'] == family
                     and (options is None or record.get('options', []) == options)
                     and record['case'] and record['case'] not in selected):
-                key = hashlib.sha256(json.dumps([category, family, record['case'], record.get('work')],
-                                              sort_keys=True).encode()).hexdigest()
-                (self.path / (key + '.json')).unlink(missing_ok=True)
+                (self.path / (result_key(record) + '.json')).unlink(missing_ok=True)
 
     def record(self, category, family, case, status, **context):
         if self.path is None:
@@ -133,9 +151,7 @@ class ResultStore:
         for field in ('detail', 'output', 'output_tail'):
             if field in record:
                 record[field] = str(record[field])[-16000:]
-        key = hashlib.sha256(json.dumps([category, family, case, context.get('work')],
-                                      sort_keys=True).encode()).hexdigest()
-        self._save(self.path / (key + '.json'), record)
+        self._save(self.path / (result_key(record) + '.json'), record)
         if status and os.environ.get(REPAIR_QUEUE):
             self._save(self.directory / 'failure.json', record)
         return record

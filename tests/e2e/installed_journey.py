@@ -603,6 +603,8 @@ class InstalledJourney:
         self.ui = None
         self.trace_token = None
         self.boot = None
+        self.classic = getattr(context, 'desktop_session', None) == 'gnome-classic'
+        self.classic_child_session = None
         self.reboot_submitted = False
         self.reboot_observed = False
         self.suspend_submitted = False
@@ -1036,6 +1038,17 @@ class InstalledJourney:
                     and (self.boot is None or self.boot == current), plan.prefix + ':boot-changed')
             self.boot = current
             observed['boot_sha256'] = current
+            if self.classic and tag in ('system:child-entry-fresh', 'ui:fresh-child-desktop'):
+                guard()
+                if tag == 'system:child-entry-fresh':
+                    observed['desktop_profile'] = session_control.observe(self.transport, 'child-select-classic')
+                else:
+                    desktop = session_control.observe(self.transport, 'child-verify-classic')
+                    identity = desktop['session_sha256']
+                    require(self.classic_child_session in (None, identity), 'journey:classic-session-replaced')
+                    self.classic_child_session = identity
+                    self.context.observed_desktop_session = desktop['desktop_session']
+                    observed['desktop_profile'] = desktop
             # Accessibility input does not reset GNOME's hardware idle timer.
             # Desktop preparation belongs to the envelope, including fresh,
             # reopened and post-reboot Parent entry, never to a case recipe.
@@ -1126,6 +1139,7 @@ class InstalledJourney:
     def validate(self):
         require(not self.failed, self.plan.prefix + ':previous-failure')
         require(self.trace_token is None, 'ui:trace-uncollected')
+        require(not self.classic or self.classic_child_session is not None, 'journey:classic-session-unverified')
         require([s['stage'] for s in self.steps] == list(self.plan.stages),
                 self.plan.prefix + ':missing-stages')
         return matched_screens(self.context.directory, self.plan, self.steps)

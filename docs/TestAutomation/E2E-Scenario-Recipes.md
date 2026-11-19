@@ -906,9 +906,9 @@ child, real selected-parent approval, time/app results and fresh authentication
 for later requests. E2E-049 also retains both parents in its temporary-app journeys.
 
 REQUEST13 uses the shared `child-panel` API to activate `child-request-button`
-and independently observe the fixed-child request. No panel reveal, focus or
-Overview/Escape sequence is required for product input. Repeated panel input and singleton-form qualification stay
-with child UI coverage; ordinary later entries use `command`.
+once from a desktop with no open request and independently observe the new
+fixed-child request. Ordinary later entries use `command`. The [GNOME Classic
+profile](../../tests/e2e/README.md#gnome-classic-coverage) reuses case 30.
 
 1. FLOW13(combined, soft included) → C → FLOW08(soft) → APP04 → REQUEST13 once (explicit panel entry) → REQUEST03(fixed child).
 2. REQUEST04(approver,duration) → REQUEST06(soft choice) → REQUEST08 → REQUEST09 → AUTH01(exact prompt).

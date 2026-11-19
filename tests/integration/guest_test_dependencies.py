@@ -43,7 +43,7 @@ FEDORA_REMOTE_VERSIONS = {'openldap-servers': '2.6.10', 'openldap-clients': '2.6
 FEDORA_VERSIONS = {'openssh-server': '10.2p1', 'python3-pytest': '8.4.2',
                    'snapd': '0', 'flatpak': '0',
                    'python3-gobject': '0', 'gtk4': '0', 'spice-vdagent': '0', 'fapolicyd': '0',
-                   'ptyxis': '0',
+                   'ptyxis': '0', 'gnome-classic-session': '0',
                    'xdg-dbus-proxy': '0', 'rpm': '0', 'python3-rpm': '0', 'man-db': '0',
                    'make': '0',
                    **FEDORA_REMOTE_VERSIONS,

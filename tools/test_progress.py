@@ -52,10 +52,12 @@ def overall_line(passed, failed, total):
             f'({passed}/{failed}/{"?" if total is None else total})')
 
 
-def recorded_cases(records):
+def recorded_cases(records, *, options=None):
+    from test_results import same_desktop_profile
     passed, failed = set(), set()
     for record in records:
-        if record['case']:
+        if record['case'] and (options is None or same_desktop_profile(
+                record['category'], record.get('options', []), options)):
             key = record['family'], record['category'], record['case']
             (failed if record['status'] else passed).add(key)
     return passed, failed

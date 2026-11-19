@@ -177,7 +177,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
             if progress is None:
                 return
             passed = {key for key in selected if key[2] in checkpoint.passed(key[0], key[1])}
-            _, failures = recorded_cases(result_store.failures())
+            _, failures = recorded_cases(result_store.failures(), options=guest_args)
             progress(*case_counts(selected, passed, observed_failures | failures))
 
         publish_counts()
@@ -358,8 +358,22 @@ def execution_groups(root, argv, vms):
     controls = [arg for arg in guest_args if arg in ('--stop-on-error',)
                 or arg.startswith('--resume-case=')
                 or arg in ('--resume-case-only', '--resume-area-only')]
+    focused_retry = any(arg.startswith('--resume-case=') for arg in controls)
+    classic_coverage = set()
+
+    def add_group(key, category, tag, args, candidates):
+        if key in by_key:
+            by_key[key]['args'].extend((category, *args))
+        else:
+            group = dict(key=key, category=category, args=[*controls, category, *args],
+                         vm_tags=tag, vms=[vm.name for vm in candidates])
+            groups.append(group)
+            by_key[key] = group
+
     for category, options in selections(root, guest_args) if guest_args else []:
         spec = CATEGORIES[category]
+        desktop_session = None
+        classic_ids = []
         children = [(None, spec.vm_tags or 'general', list(options))]
         if spec.subcategories:
             if category != 'e2e':
@@ -367,6 +381,10 @@ def execution_groups(root, argv, vms):
             import runpy
             runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
             selected = runner['preflight'](list(options), root=root, allow_missing_artifacts=True)
+            desktop_session = selected.get('desktop_session')
+            if not desktop_session and not focused_retry:
+                classic_ids = sorted({case['coverage_id'] for case in selected.get('cases', ())}
+                                     .intersection(runner['CLASSIC_COVERAGE_IDS']) - classic_coverage)
             if 'cases' in selected or 'subcategory' in selected:
                 membership = ({case['subcategory'] for case in selected['cases']}
                               if 'cases' in selected else {selected['subcategory']})
@@ -382,24 +400,30 @@ def execution_groups(root, argv, vms):
                     elif not token.startswith('--subcategory='):
                         base.append(token)
                 children = [(child.name, child.vm_tags or spec.vm_tags or 'general',
-                             [*base, '--subcategory', child.name])
+                             [*base, '--subcategory', desktop_session or child.name])
                             for child in spec.subcategories if child.name in membership]
         for name, tag, args in children:
             candidates = [vm for vm in vms if tag in vm.vm_tags]
             missing = {vm.family for vm in vms} - {vm.family for vm in candidates}
             key = category + ('.' + name if name else '')
+            if desktop_session:
+                key += '.' + desktop_session
             if missing:
                 raise ValueError(f'{key}: no selected VM with vm_tags={tag} for families: '
                                  + ', '.join(sorted(missing)))
             if not candidates:
                 raise ValueError(f'{key}: no selected VM with vm_tags={tag}')
-            if key in by_key:
-                by_key[key]['args'].extend((category, *args))
-            else:
-                group = dict(key=key, category=category, args=[*controls, category, *args],
-                             vm_tags=tag, vms=[vm.name for vm in candidates])
-                groups.append(group)
-                by_key[key] = group
+            add_group(key, category, tag, args, candidates)
+            if name == 'general' and classic_ids:
+                classic_vms = [vm for vm in candidates if runner['classic_capable'](vm)]
+                if classic_vms:
+                    classic_args = ['--subcategory=gnome-classic', '--id=' + ','.join(map(str, classic_ids))]
+                    if 'artifacts' in selected:
+                        classic_args.extend(('--artifacts', selected['artifacts']))
+                    if 'fixture_selection' in selected:
+                        classic_args.extend(('--fixture-selection', json.dumps(selected['fixture_selection'])))
+                    add_group(key + '.gnome-classic', category, tag, classic_args, classic_vms)
+                    classic_coverage.update(classic_ids)
     return groups
 
 
@@ -426,7 +450,7 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
         selection = selections(root, argv)
         results = ResultStore()
         if len(selected_groups) > 1 or len({vm.family for vm in vms}) > 1:
-            recorded_passes, recorded_failures = recorded_cases(results.load())
+            records = results.load()
             for group in selected_groups:
                 key, args = group['key'], group['args']
                 if key == 'host':
@@ -440,6 +464,7 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
                     progress.update(key, 0, 0, None)
                     continue
                 selected = selected_cases(families, args)
+                recorded_passes, recorded_failures = recorded_cases(records, options=args)
                 passed = (PassCheckpoint.retained_passes(root, 'ordinary/' + key, families)
                           if '--resume' in argv else set())
                 family_counts[key] = inventory = {}

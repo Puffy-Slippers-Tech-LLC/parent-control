@@ -5,6 +5,7 @@
   
 ### Bug Fixes
 - **Child App**: Fixed an unnecessary error report blocking the time request after locking during parent approval.
+- **Kiosk**: Trivial clean-up: removed the harmless but useless "Oh No! Parent Control" DE.
 
 
 ## v1.5 - 2026-10-31

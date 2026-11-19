@@ -19,10 +19,10 @@ import system_runner as system
 from tools import test_storage, test_retention
 
 
-def record_store(source, *, create=False):
+def record_store(source, *, create=False, root=None):
     system.require(re.fullmatch(r'[0-9a-f-]{36}', source.uuid) is not None,
                    'online-snapshot:invalid-uuid')
-    path = test_storage.directory('state') / ('online-appsnapshot-' + source.uuid)
+    path = test_storage.directory('state', root=root, create=create) / ('online-appsnapshot-' + source.uuid)
     if create:
         path.mkdir(mode=0o700, exist_ok=True)
     return test_retention.Store(path)
@@ -65,39 +65,42 @@ def recover_identity(lease):
     return matches[0]
 
 
-def read_record(source, name):
-    store = record_store(source)
-    if not store.path.exists():
-        return None
-    with store.opened() as fd:
-        try:
+def read_record(source, name, *, root=None):
+    try:
+        store = record_store(source, root=root)
+        with store.opened() as fd:
             source_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
-        except FileNotFoundError:
-            return None
-        with os.fdopen(source_fd) as stream:
-            info = os.fstat(stream.fileno())
-            test_retention.private(info, regular=True)
-            system.require(info.st_size <= 16384, 'online-snapshot:invalid-record')
-            value = json.load(stream)
-    return value
+    except FileNotFoundError:
+        return None
+    with os.fdopen(source_fd) as stream:
+        info = os.fstat(stream.fileno())
+        test_retention.private(info, regular=True)
+        system.require(info.st_size <= 16384, 'online-snapshot:invalid-record')
+        return json.load(stream)
 
 
 def load(source, name, xml):
-    value = read_record(source, 'snapshot.json')
-    if value is None:
-        return None
-    system.require(isinstance(value, dict) and value.get('schema_version') == 1,
-                   'online-snapshot:invalid-record')
-    if (value.get('name'), value.get('snapshot_sha256')) != (name, fingerprint(xml)):
-        return None
-    system.require(set(value) == {'schema_version', 'name', 'snapshot_sha256',
-        'run', 'host_key', 'private_key', 'public_key'}
-        and isinstance(value['run'], str)
-        and re.fullmatch(r'[0-9a-f]{32}', value['run']) is not None
-        and all(isinstance(value[key], str) for key in
-                ('host_key', 'private_key', 'public_key')),
-        'online-snapshot:invalid-record')
-    return value
+    root = test_storage.snapshot_credential_root()
+    # Earlier same-host workers wrote their records in the transfer namespace.
+    roots = (root, None) if root is not None else (None,)
+    expected = (name, fingerprint(xml))
+    for candidate in roots:
+        value = read_record(source, 'snapshot.json', root=candidate)
+        if value is None:
+            continue
+        system.require(isinstance(value, dict) and value.get('schema_version') == 1,
+                       'online-snapshot:invalid-record')
+        if (value.get('name'), value.get('snapshot_sha256')) != expected:
+            continue
+        system.require(set(value) == {'schema_version', 'name', 'snapshot_sha256',
+            'run', 'host_key', 'private_key', 'public_key'}
+            and isinstance(value['run'], str)
+            and re.fullmatch(r'[0-9a-f]{32}', value['run']) is not None
+            and all(isinstance(value[key], str) for key in
+                    ('host_key', 'private_key', 'public_key')),
+            'online-snapshot:invalid-record')
+        return value
+    return None
 
 
 def publish_maintenance(lease, setup, host_key):
@@ -142,7 +145,7 @@ def publish(lease, setup, host_key):
         snapshot_sha256=fingerprint(lease.installed_xml), run=lease.state['run'],
         host_key=host_key, private_key=(setup / 'ssh-key').read_text(),
         public_key=(setup / 'ssh-key.pub').read_text())
-    store = record_store(lease.source, create=True)
+    store = record_store(lease.source, create=True, root=test_storage.snapshot_credential_root())
     with store.opened() as fd:
         store.save(fd, value, name='snapshot.json')
 

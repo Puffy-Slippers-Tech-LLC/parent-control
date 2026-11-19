@@ -214,8 +214,12 @@ Restore staging files and displaced originals stay beside their exact registered
 destinations, under the VM lease and identity-bound `restore-vms.json` journal.
 They are transaction/recovery payloads, not disposable scratch. Preserve them
 on success and interruption; this workflow grants no automatic deletion.
-Saved-memory credentials continue to use the shared state allocation route;
-host-safe regressions use pytest-private fixtures. See
+Saved-memory credentials use the shared private state allocation route. A VM
+worker running transferred source on the controller's host uses the configured
+controller checkout's credential store, so it can resume a snapshot prepared
+directly from that checkout. Earlier records in its transfer namespace remain
+usable when they match the exact VM and snapshot. Host-safe regressions use
+pytest-private fixtures. See
 [VM disaster recovery](../../tests/integration/Environment.md#vm-disaster-recovery).
 
 ## Screenshot export and cleanup

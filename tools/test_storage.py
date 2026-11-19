@@ -82,6 +82,27 @@ def storage_base():
     return BASE if root == ROOT else root / 'output/test-runs'
 
 
+def snapshot_credential_root():
+    """Use the preparing checkout for same-host VM source transfers."""
+    if not os.path.lexists(ROOT / '.onpc-remote-source.json'):
+        return None
+    if __package__:
+        from .vm_selection import vm_config
+    else:
+        from vm_selection import vm_config
+    origin = vm_config.remote_origin()
+    if origin is None or 'controller_root' not in origin:
+        return None
+    document = vm_config.read_document(validate_agent=False)
+    host = vm_config.execution_host()
+    branch = vm_config.branch_registry(document)[origin['branch']]
+    controller = Path(origin['controller_root'])
+    if (branch['host'] == host and branch['repo_root'] == str(controller)
+            and controller.is_dir()):
+        return controller
+    return None
+
+
 def watch_root(root):
     """Associate transferred VM feeds with the host's registered Watch source."""
     root = Path(root)

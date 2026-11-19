@@ -163,9 +163,11 @@ FORM_STAGES = {'jordan-original': ('jordan', 'en', 'jamie', False),
     'jordan-reentered': ('jordan', 'de', 'jamie', False),
     'jordan-casey': ('jordan', 'de', 'casey', False),
     **{stage: ('riley', 'he', 'casey', True) for stage in ('direct-form', 'relaunched-form', 'renewed-overlay-form')}}
-for stage, (child, language, approver, overlay) in FORM_STAGES.items():
+
+
+def expected_language_form(child, language, approver, overlay=False):
     texts = FORM_TEXT[language]
-    CHECKS[stage] = public_language_value('language_form', {
+    return {
         'texts': dict(zip(FORM_IDS, (*texts[:3], *FORM_NAMES[language]))),
         'labels': {FORM_IDS[3]: texts[3], FORM_IDS[4]: texts[4]}, 'chooser_absent': True,
         'request': {'surface': 'child-overlay' if overlay else 'kiosk', 'form_count': 1,
@@ -174,7 +176,11 @@ for stage, (child, language, approver, overlay) in FORM_STAGES.items():
             'duration_seconds': 75, 'custom_text': '1.25', 'allow_soft': True,
             'child_selector_enabled': not overlay, 'approver_selector_enabled': True,
             'duration_enabled': True, 'soft_choice_enabled': True, 'request_enabled': True,
-            'cancel_enabled': True, 'message': '', 'mute': None}})
+            'cancel_enabled': True, 'message': '', 'mute': None}}
+
+
+for stage, form in FORM_STAGES.items():
+    CHECKS[stage] = public_language_value('language_form', expected_language_form(*form))
 
 
 def execute(recorder, context):

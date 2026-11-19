@@ -1068,7 +1068,7 @@ def test_kiosk_shared_selector_restores_per_child_language_and_approver_independ
 def test_language_history_nondefault_requests_restore_through_real_gtk(
         launch_ui, automation, wait_for_accessible_state, tmp_path, monkeypatch):
     from accessible_ui import CHILD, EXISTING_CHILD, PARENT, OTHER_PARENT
-    from language_persistence import CHECKS
+    from language_persistence import expected_language_form
     from tests.support.gui_blocks import run_block
 
     ui, wait = automation, wait_for_accessible_state
@@ -1080,9 +1080,9 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
     monkeypatch.setattr(reader, 'interactive_approver_uids', lambda: {'1000', '1010'})
     wait(lambda: ui.showing('language-dialog'), 'untouched Jordan setup')
     reader.kiosk_language_operation('kiosk-language-save')
-    for child, name, language, binding, owner, stage in (
-            (EXISTING_CHILD, 'jordan', 'de', 'jordan-kiosk-fraction', 'kiosk', 'jordan-german'),
-            (CHILD, 'riley', 'he', 'kiosk-fraction', 'kiosk-riley', 'riley-hebrew')):
+    for child, name, language, binding, owner in (
+            (EXISTING_CHILD, 'jordan', 'de', 'jordan-kiosk-fraction', 'kiosk'),
+            (CHILD, 'riley', 'he', 'kiosk-fraction', 'kiosk-riley')):
         if child == CHILD:
             reader.run('kiosk-language-riley-initial', '')
         reader.language_history_request('language-history-' + name + '-custom-open')
@@ -1092,12 +1092,12 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
         reader.kiosk_language_operation(owner + '-language-choose-' + language)
         reader.kiosk_language_operation(owner + '-language-save')
         value = reader.language_history_request('language-history-' + name + '-' + language + '-jamie')
-        assert value['language_form'] == CHECKS[stage].keywords['expected']
-    for name, language, stage in (('jordan', 'de', 'jordan-casey'), ('riley', 'he', 'riley-casey')):
+        assert value['language_form'] == expected_language_form(name, language, 'jamie')
+    for name, language in (('jordan', 'de'), ('riley', 'he')):
         reader.language_history_request('language-history-' + name + '-restored')
         reader.language_history_request('language-history-' + name + '-casey-select')
         value = reader.language_history_request('language-history-' + name + '-' + language + '-casey')
-        assert value['language_form'] == CHECKS[stage].keywords['expected']
+        assert value['language_form'] == expected_language_form(name, language, 'casey')
         reader.language_history_request('language-history-' + name + '-jamie-select')
     # The maintained host fixture starts Riley with saved English; unlike the
     # clean installed journey, selecting Riley requires no first-run Save.

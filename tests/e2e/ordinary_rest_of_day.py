@@ -5,7 +5,8 @@ import sys
 from zoneinfo import ZoneInfo
 
 from accessible_ui import countdown_seconds
-from calendar_fixture import preset_ordinary_midnight
+from calendar_fixture import (ORDINARY_READBACK_MARGIN_MINUTES, REST_OF_DAY_LEAD_MINUTES,
+                              preset_ordinary_midnight)
 from countdown import CountdownSample
 from guest_observations import calendar_epoch_bounds
 from installed_journey import InstalledJourney, JourneyPlan, record_installed_journey
@@ -118,10 +119,13 @@ class RestOfDayJourney(InstalledJourney):
                 'rest-of-day:not-an-ordinary-day')
         boundary = int(midnight.timestamp()) * 1_000_000_000
         remaining = (boundary - value['readback']['epoch_ns']) / 1e9
-        require(1200 <= remaining <= 1800, 'rest-of-day:scheduled-window-unavailable')
+        lead = REST_OF_DAY_LEAD_MINUTES
+        latest_start = lead - ORDINARY_READBACK_MARGIN_MINUTES
+        require(latest_start * 60 <= remaining <= lead * 60,
+                'rest-of-day:scheduled-window-unavailable')
         journey.window = {'date': local.date().isoformat(), 'timezone': value['timezone'],
-            'window_start': (midnight - datetime.timedelta(minutes=30)).isoformat(),
-            'window_end': (midnight - datetime.timedelta(minutes=20)).isoformat(),
+            'window_start': (midnight - datetime.timedelta(minutes=lead)).isoformat(),
+            'window_end': (midnight - datetime.timedelta(minutes=latest_start)).isoformat(),
             'midnight': midnight.isoformat(), 'midnight_epoch_ns': boundary,
             'clock_precision_seconds': 1, 'balance_maximum_precision_seconds': 60,
             'countdown_precision_seconds': 1, 'lock_allowance_seconds': 15,
@@ -137,7 +141,7 @@ class RestOfDayJourney(InstalledJourney):
         if stage == 'allowance-configured':
             check_balances(self, observed, 0)
             clock = self.calendar()
-            require(clock['readback']['epoch_ns'] + 900_000_000_000 < boundary,
+            require(clock['readback']['epoch_ns'] + 600_000_000_000 < boundary,
                     'rest-of-day:preparation-margin')
             observed['calendar'] = clock
         if stage == 'request-new-estimate':
@@ -147,7 +151,7 @@ class RestOfDayJourney(InstalledJourney):
                     'rest-of-day:midnight-footer')
         if stage == 'request-approval-open':
             clock = self.calendar()
-            require(clock['readback']['epoch_ns'] + 600_000_000_000 < boundary,
+            require(clock['readback']['epoch_ns'] + 480_000_000_000 < boundary,
                     'rest-of-day:approval-margin')
             observed['calendar'] = clock
         if stage == 'approved-clock':

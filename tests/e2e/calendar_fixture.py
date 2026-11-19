@@ -38,18 +38,27 @@ print(json.dumps({'timezone':zone,'before_epoch_ns':before,'target_epoch_ns':tar
     'previous_ntp':previous_ntp,'ntp_enabled':False},sort_keys=True))
 '''
 
-ORDINARY_MIDNIGHT = 'PRESET_HOUR,PRESET_MINUTE=23,35\n' + ORDINARY_CLOCK
+DAILY_RESET_LEAD_MINUTES = 12
+REST_OF_DAY_LEAD_MINUTES = 15
+ORDINARY_READBACK_MARGIN_MINUTES = 3
 FIXED_GRANT_LEAD_SECONDS = 18 * 60
-FIXED_GRANT_MIDNIGHT = f'PRESET_HOUR,PRESET_MINUTE=23,{60 - FIXED_GRANT_LEAD_SECONDS // 60}\n' + ORDINARY_CLOCK
 ORDINARY_DAYTIME = 'PRESET_HOUR,PRESET_MINUTE=12,0\n' + ORDINARY_CLOCK
+
+
+def _before_midnight(lead_minutes):
+    return f'PRESET_HOUR,PRESET_MINUTE=23,{60 - lead_minutes}\n' + ORDINARY_CLOCK
 
 
 def preset_ordinary_midnight(journey, guard):
     """One fixed preparation, after restore/setup and before any parent input."""
-    if journey.plan.prefix == 'ordinary-fixed-grant':
-        return _preset_ordinary(journey, guard, FIXED_GRANT_MIDNIGHT, ('ordinary-fixed-grant',))
-    return _preset_ordinary(journey, guard, ORDINARY_MIDNIGHT,
-        ('ordinary-daily-reset', 'ordinary-rest-of-day'))
+    from private_artifacts import require
+
+    leads = {'ordinary-daily-reset': DAILY_RESET_LEAD_MINUTES,
+             'ordinary-rest-of-day': REST_OF_DAY_LEAD_MINUTES,
+             'ordinary-fixed-grant': FIXED_GRANT_LEAD_SECONDS // 60}
+    prefix = journey.plan.prefix
+    require(prefix in leads, 'calendar-fixture:entry')
+    return _preset_ordinary(journey, guard, _before_midnight(leads[prefix]), (prefix,))
 
 
 def preset_ordinary_daytime(journey, guard):
@@ -170,4 +179,4 @@ def _preset_seasonal(journey, guard, direction, change):
 if __name__ == '__main__':
     # The maintained maintenance exec route can exercise the identical guest
     # preparation from this file, without importing controller dependencies.
-    exec(ORDINARY_MIDNIGHT)
+    exec(_before_midnight(DAILY_RESET_LEAD_MINUTES))

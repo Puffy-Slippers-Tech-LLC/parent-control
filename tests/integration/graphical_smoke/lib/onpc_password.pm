@@ -187,8 +187,11 @@ sub enter_kiosk_mate_password {
         my $reject = @_ == 2 && defined($wrong) && $wrong eq 'wrong';
         my $chinese = @_ == 2 && defined($wrong) && $wrong =~ /\Achinese-(?:first|second)\z/;
         my $long_request = @_ == 2 && defined($wrong) && $wrong eq 'long-request';
+        my $game_profile = ($journey->{prefix} // '') eq 'game-time-extension-profile-request'
+            && ($journey->{stage_prefix} // '') eq 'profile-request-';
         my $profile_request = @_ == 2 && defined($wrong)
-            && $wrong =~ /\Arequest-(?:120|180|240|1200)\z/;
+            && ($wrong =~ /\Arequest-(?:120|180|240|1200)\z/
+                || $game_profile && $wrong eq 'request-480');
         my $composed = @_ == 2 && defined($wrong) && $wrong eq 'bound-request';
         my $role = 'parent';
         if ($composed) {
@@ -320,8 +323,8 @@ sub enter_kiosk_mate_password {
                 || ($journey->{prefix} // '') eq 'time-profiles-dominant-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && ($long_request || defined($wrong) && $wrong eq 'request-1200')
-                || ($journey->{prefix} // '') eq 'game-time-extension-profile-request'
-                && ($journey->{stage_prefix} // '') eq 'profile-request-' && $long_request
+                || $game_profile
+                && ($long_request || $profile_request && $wrong eq 'request-480')
                 || ($journey->{prefix} // '') eq 'panel-request-case-profile-request'
                 && ($journey->{stage_prefix} // '') eq 'profile-request-'
                 && defined($wrong) && $wrong eq 'request-1200'

@@ -18,7 +18,7 @@ def approved_request(*, child, approver, duration_seconds, allow_soft, exit, exp
                 'new-returned': 'ui:gdm-station-returned'}
     require(dict(child=child, approver=approver, duration_seconds=duration_seconds,
                  allow_soft=allow_soft) == {**CHOICES, 'duration_seconds': duration_seconds}
-            and duration_seconds in (75, 120, 180, 240, 600, 1200)
+            and duration_seconds in (75, 120, 180, 240, 480, 600, 1200)
             and type(duration_seconds) is int and allow_soft is True,
             'approved-flow:choices')
     require(exit in ('automatic', 'immediate', 'close'), 'approved-flow:exit')

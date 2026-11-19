@@ -1149,7 +1149,7 @@ sub prepare {
         && ($entry eq 'open' || $entry eq 'new')
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|600|1200)\z/
+        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|480|600|1200)\z/
             && !defined($invalid))
         && $soft eq '1';
     my $compact = defined($invalid) && $invalid eq 'compact';
@@ -1281,7 +1281,7 @@ sub approve {
     }
     die 'approved-flow:binding' unless @_ == 6 && ref($journey) eq 'onpc_journey'
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|600|1200)\z/ && $exit eq 'automatic')
+        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|480|600|1200)\z/ && $exit eq 'automatic')
         && $soft eq '1' && ($exit eq 'automatic' || $exit eq 'immediate');
     $journey->consume_observation('approval-open', $journey->seen('approval-open'));
     if ($seconds ne '75' && $seconds ne '600') {
@@ -1637,7 +1637,7 @@ sub obtain_time {
     die 'approved-flow:binding' unless @_ == 7 && ref($journey) eq 'onpc_journey'
         && ($initial eq 'default' || $initial eq 'selected')
         && $child eq 'fixture-child' && $approver eq 'fixture-parent'
-        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|600|1200)\z/)
+        && ($seconds eq '75' || $seconds =~ /\A(?:120|180|240|480|600|1200)\z/)
         && $soft eq '1' && $exit eq 'automatic';
     prepare($journey, 'new', 'new', $initial, $child, $approver, $seconds, $soft);
     approve($journey, $child, $approver, $seconds, $soft, $exit);

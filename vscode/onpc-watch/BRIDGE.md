@@ -148,6 +148,9 @@ limit or null. The shared webview formatter uses the count and limit for both
 **Session x/y** labels. `session_question` is a question ID or null.
 `session_inactive` marks a session with no live agent or pending question, even
 when `session_number` retains its last attempt number during verification.
+Optional boolean `repair_session` marks an active `fix-tests` repair session
+independently of the launcher title status. With older adapters, Watch uses
+`Repairing` as the fallback signal.
 `session` identifies the exact input recipient, not just its run; it changes when
 that recipient changes. Question IDs change on each new prompt, within a session.
 Rows are arrays of spans: `{text, bold?, compact?, waiting?, color?, link?}`.

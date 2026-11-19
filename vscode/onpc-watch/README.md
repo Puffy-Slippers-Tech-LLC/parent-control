@@ -300,8 +300,11 @@ sits within the divider line and matches **Session N** while a session is
 active; otherwise it shows **Launcher**.
 Session includes its transcript, chat input, model and Simplified switch, sharing
 state with its own tab. Launcher includes its complete terminal output.
-The output panel starts maximized, completely hiding task history. Drag the labeled
-divider to resize the box, or focus it and use Up/Down (Home/End for the limits).
+The output panel starts maximized, completely hiding task history. Each new
+`fix-tests` repair session maximizes the Status tab's embedded Session panel once.
+The divider keeps its position through later session updates and completion.
+Drag the labeled divider to resize the box, or focus it and use Up/Down
+(Home/End for the limits).
 Minimizing completely hides the output and leaves the divider below task history;
 maximizing leaves only the divider and output below the pinned summary.
 The six-dot grip marks the draggable divider. Its right-hand chevron toggles

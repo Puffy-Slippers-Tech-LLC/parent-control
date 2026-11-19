@@ -1645,11 +1645,11 @@
         handle.tabIndex = 0;
         handle.setAttribute('role', 'separator');
         handle.setAttribute('aria-orientation', 'horizontal');
-        const resize = height => {
+        let previewHeight = Infinity;
+        const resize = (height = previewHeight) => {
             if (section.view !== 'status' || !section.content.clientHeight) return;
             const maximum = Math.max(0, section.content.clientHeight - section.latestLabel.offsetHeight);
-            const value = Math.max(0, Math.min(maximum, height ??
-                (section.previewMaximized ? maximum : section.previewHeight) ?? 0));
+            const value = Math.max(0, Math.min(maximum, height));
             section.latest.style.height = `${value}px`;
             section.latest.hidden = value === 0;
             section.history.hidden = value >= maximum;
@@ -1663,8 +1663,7 @@
             return value;
         };
         toggle.addEventListener('click', () => {
-            section.previewMaximized = !toggle.classList.contains('expanded');
-            section.previewHeight = undefined;
+            previewHeight = toggle.classList.contains('expanded') ? 0 : Infinity;
             resize();
         });
         let drag;
@@ -1678,8 +1677,7 @@
         });
         handle.addEventListener('pointermove', event => {
             if (!drag || !handle.hasPointerCapture(event.pointerId)) return;
-            section.previewMaximized = false;
-            section.previewHeight = resize(drag.height + drag.y - event.clientY);
+            previewHeight = resize(drag.height + drag.y - event.clientY) ?? previewHeight;
         });
         const release = event => {
             if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
@@ -1697,9 +1695,12 @@
                 ArrowDown: section.latest.offsetHeight - line, Home: 0, End: Infinity }[event.key];
             if (height === undefined) return;
             event.preventDefault();
-            section.previewMaximized = false;
-            section.previewHeight = resize(height);
+            previewHeight = resize(height) ?? previewHeight;
         });
+        section.maximizePreview = () => {
+            previewHeight = Infinity;
+            resize();
+        };
         section.previewObserver = new ResizeObserver(() => resize());
         section.previewObserver.observe(section.content);
         section.previewObserver.observe(handle);
@@ -1804,7 +1805,7 @@
                 errorStatus.setAttribute('aria-label', 'Last Error and Status');
                 section = Object.assign(sessionPanel(body), { body, divider, heading, summaryRow, content, summary, history,
                     preview, latestLabel, latestTitle, latest, launcher, errorStatus,
-                    view: 'status', weight: 1, followStatus: true, previewMaximized: true });
+                    view: 'status', weight: 1, followStatus: true });
                 const panel = section;
                 previewDivider(panel);
                 history.addEventListener('scroll', () => {
@@ -1848,6 +1849,12 @@
             }
             sessionHeading(section);
             runBody(section);
+            const repairSession = entry.repair_session ?? (entry.status === 'Repairing');
+            if (repairSession && entry.session_active && entry.session &&
+                    section.maximizedRepairSession !== entry.session) {
+                section.maximizedRepairSession = entry.session;
+                section.maximizePreview();
+            }
             if (entry.session_view) sessionRows(section, entry.session_view);
             else if (!entry.session) {
                 section.output.textContent = 'No active session';

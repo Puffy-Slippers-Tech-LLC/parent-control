@@ -135,6 +135,7 @@ function validate(snapshot) {
             (Object.hasOwn(run, 'launcher_command') && typeof run.launcher_command !== 'string') ||
             (run.session !== null && !identifier(run.session)) ||
             ['session_active', 'session_inactive', 'session_waiting'].some(field => typeof run[field] !== 'boolean') ||
+            (Object.hasOwn(run, 'repair_session') && typeof run.repair_session !== 'boolean') ||
             !rows(run.rows) || !rows(run.error_rows) || (run.session_view &&
                 (!rows(run.session_view.rows) || typeof run.session_view.input_enabled !== 'boolean' ||
                     (Object.hasOwn(run.session_view, 'model_selection') &&

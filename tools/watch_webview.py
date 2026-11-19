@@ -514,6 +514,7 @@ class Viewer:
             # Session discovery can observe a newly admitted owner after the
             # output poll. Do not publish the previous outcome beside live work.
             active = active or session.active
+            repair_session = session.active and output.repair
             closed = (output.run is not None and not active and not session.active
                       and watch_closed(output.run))
             if supervisor(output.run) is not None:
@@ -546,7 +547,7 @@ class Viewer:
             if output.run is not None:
                 try:
                     steps, details = output.status(active)
-                    if active and not status and output.repair and session.active:
+                    if not status and repair_session:
                         status = 'Repairing'
                     if active and not status and output.closing_task(steps, session_inactive=not session.active):
                         status = 'Closing Task'
@@ -643,7 +644,7 @@ class Viewer:
                                                 branches=self.branches),
                 error_rows=self.cached_spans(root, 'error', error_lines),
                 session=session.identity,
-                session_active=session.active,
+                session_active=session.active, repair_session=repair_session,
                 session_number=session_number, session_inactive=session_inactive,
                 session_allowance=session_allowance,
                 session_waiting=waiting, session_deadline=deadline, session_question=prompt_id,

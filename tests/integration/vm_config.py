@@ -49,6 +49,7 @@ class VMConfig:
     host: HostConfig = HostConfig()
     compute_unit: float = 1
     vm_tags: frozenset[str] = frozenset()
+    aliases: tuple[str, ...] = ()
 
     def require_build_target(self):
         # Standalone helpers can import vm_config before adding the checkout.
@@ -64,6 +65,11 @@ class VMConfig:
         if self.package_format not in ('deb', 'rpm'):
             raise ValueError('vm-config:package_format must explicitly be deb or rpm for ' + self.name)
         return self.package_format
+
+    @property
+    def selectors(self):
+        names = (self.name, *self.aliases)
+        return tuple(name.casefold() for name in names) + ((self.id,) if self.id else ())
 
     @property
     def hostname(self):
@@ -441,12 +447,14 @@ def parse_configuration(document):
                 if configured.id in ids:
                     raise ValueError('vm-config:duplicate-id')
                 ids.add(configured.id)
-    selectors = [value.casefold() for value in (*result, *ids, *families, *family_ids)]
+    selectors = [value.casefold() for value in (*families, *family_ids)]
+    selectors.extend(selector for vm in result.values() for selector in vm.selectors)
     if len(selectors) != len(set(selectors)):
         raise ValueError('vm-config:ambiguous-id-name-or-family; '
-                         'VM IDs, VM names, family IDs and family names must be unique ignoring case')
+                         'VM IDs, VM names, VM aliases, family IDs and family names '
+                         'must be unique ignoring case')
     if {'all', 'all-enabled'} & set(selectors):
-        raise ValueError('vm-config:VM names and family IDs/names cannot use reserved selectors all or all-enabled')
+        raise ValueError('vm-config:VM and family selectors cannot use reserved selectors all or all-enabled')
     return len([vm for vm in result.values() if vm.enabled and vm.host.enabled]), result
 
 
@@ -461,7 +469,7 @@ def resolve(name, configured):
     validate_name(name)
     selector = name.casefold()
     for vm in configured.values():
-        if selector == vm.name.casefold() or selector == vm.id:
+        if selector in vm.selectors:
             return vm
     raise ValueError('vm-config:unknown-vm; choose a name or id in config/environment.json')
 
@@ -574,11 +582,15 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
             identifier = str(identifier)
         if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
             raise ValueError('vm-config:id must be a positive decimal integer or string')
+    aliases = document.get('aliases', [])
+    if not isinstance(aliases, list):
+        raise ValueError('vm-config:aliases must be an array of VM names')
     return VMConfig(name, Path(value), enabled == 'true', identifier,
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
                     hosts[host_name], compute_unit(document.get('compute_unit', family.get('compute_unit', 1)),
                                                   'VM compute_unit'),
-                    parse_vm_tags(document.get('vm_tags', family['vm_tags'])))
+                    parse_vm_tags(document.get('vm_tags', family['vm_tags'])),
+                    tuple(validate_name(alias) for alias in aliases))
 
 
 def load(name=None, path=None, *, local=None):

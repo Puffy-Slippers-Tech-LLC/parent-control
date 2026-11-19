@@ -70,9 +70,11 @@ are never interpreted as host or VM filters.
 Queue selectors expand each family name or ID to all its eligible VMs. VM IDs/names
 and family IDs/names may be mixed in one comma-separated `--vm` value, forming a union. Duplicate aliases
 and overlapping families execute each VM once, in first-selected order; invalid
-selectors fail before work starts. VM IDs, VM names, family IDs and family names share one unique
-case-insensitive namespace in the registry, including offline entries and empty families. Names and
-family IDs/names cannot use the reserved selectors `all` or `all-enabled`; family IDs/names cannot
+selectors fail before work starts. A VM's optional `aliases` array maps former
+names to that VM's canonical name. VM IDs, names, aliases, and family IDs and
+names share one unique case-insensitive namespace, including offline entries
+and empty families. VM and family selectors cannot use the reserved values
+`all` or `all-enabled`. Family IDs and names cannot
 start with a hyphen or contain commas or surrounding whitespace.
 Every `--vm` and Make `VM=` name/ID resolves from the current
 JSON on invocation. All `--vm` values match case-insensitively; canonical configured

@@ -12,7 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY = ROOT / 'tests/e2e/scenarios.json'
 CATEGORIES = {'customer-journey', 'runner-smoke', 'fault-recovery', 'environment-boundary'}
-ENVIRONMENTS = frozenset(('ubuntu26.04', 'fedora44'))
+ENVIRONMENTS = frozenset(('ubuntu', 'fedora'))
 PHASES = ('setup', 'start', 'steps', 'end', 'cleanup')
 EVIDENCE = {'action-trace', 'screen', 'backend', 'other-user', 'continuity',
             'input-provenance', 'outcomes', 'cleanup', 'intervention', 'delivery'}

@@ -21,6 +21,7 @@ from private_artifacts import EvidenceError, require
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
+import build_targets
 import build_test_artifacts
 sys.path.pop(0)
 sys.path.insert(0, str(ROOT / 'tests/fixtures'))
@@ -174,13 +175,18 @@ def baseline_inputs(lease):
     require(baseline_sha256 == lease.state['baseline_sha256'],
             'provenance:baseline-identity-changed')
     guest = state['guest']
-    ubuntu = guest.get('os_id') == 'ubuntu' or 'ubuntu_version' in guest
-    fedora = guest.get('os_id') == 'fedora'
-    require(ubuntu or fedora, 'provenance:environment')
+    distribution = guest.get('os_id', 'ubuntu' if 'ubuntu_version' in guest else None)
+    version = guest.get('version', guest.get('ubuntu_version'))
+    try:
+        target = build_targets.get(f'{distribution}{version}')
+    except ValueError:
+        raise EvidenceError('provenance:environment') from None
+    require((distribution, version) == (target.distribution, target.version),
+            'provenance:environment')
     # A safe content identity of the verified guest preparation, including its
     # account contract. Never export raw baseline/account records.
-    return {'baseline_sha256': baseline_sha256,
-            'environment_id': ('ubuntu26-04-' if ubuntu else 'fedora44-') + digest(guest)}
+    return target, {'baseline_sha256': baseline_sha256,
+                    'environment_id': target.name.replace('.', '-') + '-' + digest(guest)}
 
 
 def preflight_source(assets, *, root=ROOT, upgrade=False, package_only=False):
@@ -220,12 +226,11 @@ class VerifiedInputs:
                     'provenance:package-only-scope')
             self._source = snapshot(self.root, source=True)
             self._baseline = baseline_inputs(lease)
+            target, baseline = self._baseline
             if self._plan is not None:
-                actual_environment = ('fedora44' if self._baseline['environment_id'].startswith(
-                    'fedora44-') else 'ubuntu26.04')
                 for case in self._plan['cases']:
                     environments = case['environment']
-                    require(actual_environment in ([environments] if isinstance(environments, str)
+                    require(target.distribution in ([environments] if isinstance(environments, str)
                             else environments), 'provenance:scenario-environment')
             self._assets = snapshot(self.assets) if self.assets is not None else None
             package_sha256 = None
@@ -251,8 +256,8 @@ class VerifiedInputs:
                         'provenance:package-platform')
                 require(self._assets['files'][filename] == package_sha256,
                         'provenance:package-alias-mismatch')
-                require(filename == ('package.rpm' if self._baseline['environment_id'].startswith(
-                    'fedora44-') else 'package.deb'), 'provenance:package-platform')
+                require(filename == 'package.' + target.package_format,
+                        'provenance:package-platform')
                 if upgrade:
                     self._upgrade = build_test_artifacts.verify_upgrade(
                         self.assets, staged=True, repository=self.root,
@@ -267,7 +272,7 @@ class VerifiedInputs:
                                      else self._source['files']['tests/e2e/scenarios.json']),
                 'package_sha256': package_sha256,
                 'assets_sha256': self._assets['sha256'] if self._assets else digest({}),
-                **self._baseline,
+                **baseline,
             }
             # Verify staged artifacts and baseline after capture.
             self.recheck()

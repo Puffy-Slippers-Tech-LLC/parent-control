@@ -138,7 +138,7 @@ Notification delivery, fullscreen behavior and local editing matrices are separa
 ## Baseline public-use slice
 
 The core baseline composes request, grant, app use, revocation and repeated entry
-on Ubuntu 26.04 and Fedora 44. It uses
+across supported Ubuntu and Fedora release families. It uses
 `baseline_journey.PLAN` / `BaselineJourney` and `onpc_baseline_journey::run`.
 The [operation catalogue](E2E-Building-Blocks.md#c04b-baseline-operation-applicability)
 owns qualified scopes and current gaps. Complete-history evidence is target
@@ -1075,7 +1075,7 @@ Bindings: request = approved / denied / cancelled.
 
 ### Local desktop acceptance composition
 
-Use the following finite routes in the Ubuntu 26.04 and Fedora 44 VM families,
+Use the following finite routes in the affected Ubuntu and Fedora VM families,
 preserving the
 [local desktop boundary](../SystemDesign/Kiosk-Confinement.md#local-desktop-boundary).
 The catalogue owns qualified operations; this composition defines assertions
@@ -1112,8 +1112,8 @@ limits disabled and records settings before enabling them.
 Use the selected target's affected route histories after a concrete change:
 
 ```sh
-tools/run-tests system check_e2e_public_desktop_selection --vm 'u26,f44'
-tools/run-tests system check_e2e_station_shortcuts --vm 'u26,f44'
+tools/run-tests system check_e2e_public_desktop_selection --vm 'u26,f44,f45'
+tools/run-tests system check_e2e_station_shortcuts --vm 'u26,f44,f45'
 ```
 
 Each journey retains its explicit 1800-second worker limit. Chooser,

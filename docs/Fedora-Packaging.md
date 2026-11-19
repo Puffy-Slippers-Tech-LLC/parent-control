@@ -306,10 +306,9 @@ is removed before rebuilding the remaining policy or restoring the baseline.
 
 ## Local VM qualification
 
-Both registered distributions are enabled in the default test queue. Enabling
-Fedora schedules its checks; it does not establish a passing result or release
-qualification. The shared installed runner includes platform-aware package,
-authorization, enforcement and removal checks. Its `removal` area performs one
+The default test queue includes Ubuntu 26.04, Fedora 44 and Fedora 45. Each
+admitted family records its own results. The shared installed runner includes
+platform-aware package, authorization, enforcement and removal checks. Its `removal` area performs one
 install/configure/remove/reboot/health/reinstall history using the same
 behavioral assertions on DEB and RPM; see the
 [installed suite](../tests/integration/README.md#running-the-current-installed-suite).
@@ -331,10 +330,11 @@ claimed closed by clean-baseline parity. Neither mode edits distribution rule
 files or trust filters. Installed
 enforcement qualification remains required before Fedora acceptance.
 
-Use `tools/prepare-appsnapshot --vm NAME --y --overwrite true` for a configured, pinned Fedora
-Workstation 44 VM with a finalized baseline. The shared preparation path builds
-the actual RPM, installs it with DNF, reboots and verifies the exact package and
-configured services before capturing the app snapshot. SELinux remains enforcing.
+Use `tools/prepare-appsnapshot --vm NAME --y --overwrite true` for a configured,
+pinned Fedora Workstation VM with a finalized baseline. The shared preparation
+path builds the selected release's RPM, installs it with DNF, reboots and
+verifies the exact package and configured services before capturing the app
+snapshot. SELinux remains enforcing.
 Online mode leaves an owned running guest for `tools/test-vm --vm NAME exec -- COMMAND`;
 `tools/test-vm --vm NAME stop` restores its outer baseline. This preparation does
 not replace the Ubuntu acceptance baseline or establish Fedora release qualification.

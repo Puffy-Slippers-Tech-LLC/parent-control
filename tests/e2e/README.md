@@ -382,7 +382,10 @@ are mutually exclusive. Refresh installed dispatchers with
 
 `tools/run-tests e2e` runs every runnable E2E case and reports pending exclusions.
 Cases declare a subcategory. The runner uses its VM tag to choose eligible
-workers. To narrow coverage by distro, pass a family selector such as `--vm f45`.
+workers and schedules each selected case once per admitted VM family. Scenario
+environment labels name distributions (`ubuntu` and `fedora`). Every supported
+release family of those distributions uses the same scenario declarations.
+To narrow coverage to a release family, pass a selector such as `--vm f45`.
 It does not dispatch other test categories. Execution without `--artifacts`
 prepares the required package artifacts automatically, reusing matching verified
 inputs or building on a miss; an explicit artifact directory uses the supplied
@@ -551,14 +554,13 @@ explicitly choose `--overwrite true` or `--overwrite false`. Manual work omits
 `--y` to retain confirmation. Selection, enabled defaults and queue concurrency
 follow the [VM mandate](../../docs/Mandates/VM-Mandate.MD#target-selection).
 All VM, lease, ownership and validation checks still apply.
-The pinned baseline's verified OS metadata selects Ubuntu 26.04 DEB/APT or
-Fedora Workstation 44 RPM/DNF. Preparation builds only that format from frozen
-package sources through the existing artifact builder. Fedora SSH bootstrap
+The pinned baseline's verified OS metadata selects the registered release's
+build target and native package format, DEB/APT on Ubuntu or RPM/DNF on Fedora.
+Preparation builds that target from frozen package sources. Fedora SSH bootstrap
 restores SELinux labels, and verification requires enforcing SELinux, exact RPM
 identity and file verification, configured broker and execution-policy boot gate.
-This prepares a development VM; it does not qualify Fedora customer scenarios.
-Scenario environment declarations identify eligible Ubuntu 26.04 and Fedora
-Workstation 44 targets; they do not extend recorded Ubuntu acceptance to Fedora.
+This prepares a development VM. Customer acceptance requires a live result for
+the selected release.
 The current-package installation boundary selects DEB/APT or RPM/DNF from
 verified guest metadata, uses the platform administrator group and public
 package queries, and requires the real completion and final reboot notice.
@@ -1011,10 +1013,10 @@ fixture payload bytes also use the fixture verifier. The package manifest's
 source digest identifies the build's inputs, independently of later checkout edits. The exact
 staged tree, including the Flatpak delivery container, is hashed and rechecked.
 Baseline identity is independently derived from the held lease's durable state,
-retained snapshot proof and verified guest preparation. `environment_id` is a
-safe digest alias of that guest preparation, not a claim that the full installed
-host-tool/release-environment matrix has been validated. Raw baseline account
-records and exception text are never exported.
+retained snapshot proof and verified guest preparation. `environment_id` combines
+the verified guest release (for example `ubuntu26-04`, `fedora44` or `fedora45`)
+with a digest of guest preparation. Qualification applies to the observed run
+and its release. Raw baseline account records and exception text are never exported.
 
 Use `contract(run_id=..., selector=...)` to create the expected evidence contract,
 `recheck()` immediately before startup, and `validate(contract, records,
@@ -1207,9 +1209,9 @@ dispatcher changes require a refresh.
 
 `tools/run-tests e2e --vm NAME --qualify-transfer --artifacts '<verified-build-directory>'`
 runs the existing guarded credential-free graphical worker with package delivery
-on Ubuntu 26.04 and Fedora 44. The launcher retains an immutable native fixture
-selection before VM acquisition; the product-free baseline receives only SSH prerequisites before
-boot. Smoke provisions that selected runtime after SSH readiness, then transfers
+on supported Ubuntu and Fedora targets. The launcher retains an immutable native
+fixture selection before VM acquisition. The product-free baseline receives only
+SSH prerequisites before boot. Smoke provisions the runtime after SSH readiness, then transfers
 package-only assets and rechecks readiness before its first ready reply.
 Build current package inputs with `tools/run-tests artifacts build` first.
 The qualification rejects scenario/list selectors; all pending customer cases

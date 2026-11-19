@@ -632,7 +632,7 @@ and provisioning checks do not substitute for their runner qualifications.
 
 ### Fedora clean snapshots
 
-Fedora 44 preparation and derived app captures now use schema 4 with explicit
+Fedora preparation and derived app captures use schema 4 with explicit
 platform identity. They share the fixture-independent source projection, lean
 product installation closure, exact legacy retirement and recovery boundary
 above. Legacy Fedora schema-3 records remain readable for recovery. Preparation
@@ -654,7 +654,7 @@ and requires every historical and current fixture path to be absent, with the
 original owner/mode checks intact; it does not authorize migration or deletion
 from that older inventory.
 
-`tools/run-tests system --vm onpc-Fedora44 check_fixture_snapshots`
+`tools/run-tests system --vm 'f44,f45' check_fixture_snapshots`
 qualifies actual clean baseline/app captures, retained source and archived input
 trees, fixture-only identity independence, genuine dependency/shared lifecycle
 invalidation, product-package identity and watched restoration. It verifies

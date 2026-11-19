@@ -547,9 +547,9 @@ the existing case or unfinished brief, linked here.
   Attempt-specific SSH identities, evidence/transport state, product packages
   under test and deliberate scenario mutations remain attempt-owned. Do not
   preseed product policy, grants, usage or a scenario's expected result.
-  Ubuntu 26.04 and Fedora 44 schema-4 baseline and app captures exclude movable fixture
-  payloads, admissions and copied fixture sources. Their host-owned inputs use
-  the [shared SSH provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
+  Schema-4 baseline and app captures for Ubuntu and Fedora exclude movable
+  fixture payloads, admissions and copied fixture sources. Their host-owned inputs
+  use the [shared SSH provisioner](../../tests/support/README.md#attempt-owned-fixture-provisioning)
   only after target/envelope qualification; unqualified runners refuse clean
   captures before input. Reusable native, Snap, Flatpak and game
   dependencies remain environment-owned; pending capabilities still require

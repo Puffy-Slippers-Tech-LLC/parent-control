@@ -112,7 +112,7 @@ coordinates host results and VM artifacts for the same source content.
 
 ### Ubuntu product-free system preparation
 
-On clean Ubuntu 26.04 and Fedora 44 captures, `system_snapshots._run_attempts(installed=False)`
+On clean captures of supported Ubuntu and Fedora releases, `system_snapshots._run_attempts(installed=False)`
 and `system_runner.installed_run(already_installed=False)` use the
 [shared fixture provisioner](../support/README.md#attempt-owned-fixture-provisioning)
 after guarded SSH readiness, before uploading installation inputs or running a
@@ -148,7 +148,7 @@ independent package/fixture artifact build is not its byte-identity authority.
 
 ```sh
 tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_system_product_free
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_system_product_free
+tools/run-tests system --vm 'f44,f45' check_fixture_system_product_free
 ```
 
 This engineering selector executes the actual product-free system preparation
@@ -164,14 +164,14 @@ no system-phase, customer or E2E acceptance.
 
 ### Fedora product-free system preparation
 
-Fedora 44 uses the same product-free boundary and engineering selector above.
+Fedora uses the same product-free boundary and engineering selector above.
 Its selection must match the restored Fedora guest and RPM package format.
 Independent readback additionally checks enforcing SELinux, exact labels and
 unchanged native admission sources, compiled rules and public rule listing.
 
 ### Ubuntu installed-system preparation
 
-On clean Ubuntu 26.04 and Fedora 44, `system_snapshots._run_attempts(installed=True)` explicitly
+On clean captures of supported Ubuntu and Fedora releases, `system_snapshots._run_attempts(installed=True)` explicitly
 selects the offline app-snapshot mode through `Suite.prepare_case`. Creating a
 new app capture installs, restarts, verifies and shuts down the guest before
 taking its disk-only snapshot. Both capture modes keep post-restart package,
@@ -196,7 +196,7 @@ require an active daemon and its current-boot initialization event.
 
 ```sh
 tools/run-tests system --vm 'onpc-Ubuntu26.04' check_fixture_system_installed
-tools/run-tests system --vm 'onpc-Fedora44' check_fixture_system_installed
+tools/run-tests system --vm 'f44,f45' check_fixture_system_installed
 ```
 
 This engineering selector exercises two actual offline app restores. It stops
@@ -210,7 +210,7 @@ gated. This supplies no customer or E2E acceptance.
 
 ### Fedora installed-system preparation
 
-Fedora 44 uses the same explicit offline app restore and installed-system
+Fedora uses the same explicit offline app restore and installed-system
 selector above. Independent readback also requires enforcing SELinux, exact
 labels, finite native trust and unchanged native admission sources, compiled
 rules and public rule listing. Read-only readiness renewal after a session
@@ -218,7 +218,7 @@ reboot preserves the selected bytes and scenario mutations.
 
 ### Ubuntu installed E2E preparation
 
-Clean Ubuntu 26.04 and Fedora 44 installed E2E attempts select their immutable runtime
+Installed E2E attempts on supported Ubuntu and Fedora releases select their immutable runtime
 input before VM acquisition. Unrelated callers retain the `native` closure.
 `NamedAppSetQualification` binds `check_e2e_compose_a_named_app_rule_set`
 to the existing `native`, `baseline-child` union so Riley's four catalogue
@@ -327,7 +327,7 @@ existing stdout/stderr artifact paths included when retained. An elapsed time
 or `command:failed:ssh` alone never proves a connection timeout.
 
 ```sh
-tools/run-tests system check_fixture_e2e_installed --vm 'u26,f44'
+tools/run-tests system check_fixture_e2e_installed --vm 'u26,f44,f45'
 ```
 
 This check selects that baseline union through the same installed setup and
@@ -350,7 +350,7 @@ boundaries. Unqualified fixture profiles remain gated.
 
 ### Fedora installed E2E preparation
 
-Fedora 44 uses the same installed boundary and selector above.
+Fedora uses the same installed boundary and selector above.
 Its immutable input must match the selected VM and restored guest. Online
 resume/rebind and explicit offline Kiosk attachment independently
 verify the selected runtime and Riley launchers, enforcing SELinux, exact finite
@@ -396,7 +396,7 @@ This supplies no customer or E2E acceptance.
 
 ### Fedora product-free E2E preparation
 
-Clean Fedora 44 graphical attempts use the same
+Clean Fedora graphical attempts use the same
 [product-free preparation boundary](#ubuntu-product-free-e2e-preparation),
 including distinct entry, package, upgrade and empty GDM histories. The selected
 VM must explicitly declare its package format in [the registry](../../config/environment.json);
@@ -407,7 +407,7 @@ admissions and labels. GDM-only entry has no native input dependency or movable
 payload. Dormant guards and customer checkpoints remain unchanged.
 
 ```sh
-tools/run-tests system check_fixture_e2e_product_free --vm f44
+tools/run-tests system check_fixture_e2e_product_free --vm 'f44,f45'
 ```
 
 The same independent readback/runtime, refusal, no-write repeat, fresh readiness,
@@ -441,11 +441,11 @@ supplies no customer or E2E acceptance.
 
 ### Fedora standalone transfer preparation
 
-Fedora 44 uses the same standalone controller and Smoke readiness boundary,
+Fedora uses the same standalone controller and Smoke readiness boundary,
 with package-only RPM delivery after the selected native runtime is ready.
 
 ```sh
-tools/run-tests system check_fixture_transfer --vm f44
+tools/run-tests system check_fixture_transfer --vm 'f44,f45'
 ```
 
 The same independent 12-file readback, harmless Riley runtime, input refusals,
@@ -487,7 +487,7 @@ Credential/getty preboot checks and the shared post-SSH Smoke readiness step
 retain the Ubuntu ordering and input guards.
 
 ```sh
-tools/run-tests system check_fixture_serial --vm f44
+tools/run-tests system check_fixture_serial --vm 'f44,f45'
 ```
 
 One real preparation history independently verifies native bytes, harmless Riley
@@ -532,7 +532,7 @@ input before restoration, preserves credential/getty setup before boot and binds
 the input and fresh readiness durably before the ready reply.
 
 ```sh
-tools/run-tests system check_fixture_recorded_serial --vm f44
+tools/run-tests system check_fixture_recorded_serial --vm 'f44,f45'
 ```
 
 One actual recorded preparation independently verifies the 12 native files,
@@ -547,16 +547,16 @@ applicable; host composition preserves the recorder's stage, seal and shutdown g
 
 ## Idle fixture maintenance refresh
 
-Ubuntu 26.04 and Fedora 44 support a dedicated product-free maintenance guest with
-the fixed `trusted-hard` subset. Select either registered target:
+Supported Ubuntu and Fedora releases provide a dedicated product-free maintenance
+mode with the fixed `trusted-hard` subset. Select one registered VM:
 
 ```sh
-tools/test-vm --vm onpc-Ubuntu26.04 start --fixture-maintenance
-tools/test-vm --vm onpc-Ubuntu26.04 sync-fixtures
-tools/test-vm --vm onpc-Ubuntu26.04 stop
+tools/test-vm --vm NAME start --fixture-maintenance
+tools/test-vm --vm NAME sync-fixtures
+tools/test-vm --vm NAME stop
 ```
 
-Use `onpc-Fedora44` in the same commands for Fedora. Refresh preserves enforcing
+On Fedora, refresh preserves enforcing
 SELinux, exact file labels and the finite native trust entries; vendor and product
 policy remain unchanged.
 
@@ -584,8 +584,8 @@ recovery requires independent exact off-state, configuration, snapshot and guest
 audits. This route does not refresh active scenarios, change subsets, promise
 same-boot rollback.
 
-`tools/run-tests system --vm onpc-Ubuntu26.04 check_fixture_live_refresh`
-qualifies this engineering boundary on Ubuntu; select `onpc-Fedora44` for Fedora.
+`tools/run-tests system --vm 'u26,f44,f45' check_fixture_live_refresh`
+selects this engineering boundary across the registered release families.
 Its two phases use A before editing/building
 B on the host, then independently verify/use B in the unchanged boot/domain,
 preserve baseline/app snapshots and unrelated state, and repeat without writes.

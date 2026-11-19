@@ -247,13 +247,16 @@ nav button { flex-shrink: 0; }
 .session-model-actions button[type='submit'] {
     background: var(--vscode-button-background); color: var(--vscode-button-foreground);
 }
-.session-file-suggestions {
+.session-suggestions {
     position: fixed; inset: auto; margin: 0; max-height: 192px;
     overflow: auto; padding: 2px; border: 1px solid var(--vscode-editorSuggestWidget-border);
     background: var(--vscode-editorSuggestWidget-background); color: var(--vscode-editorSuggestWidget-foreground);
 }
-.session-file-option { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 8px; cursor: pointer; }
-.session-file-option[aria-selected='true'], .session-file-option:hover {
+.session-suggestion-option, .session-suggestion-empty {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 8px;
+}
+.session-suggestion-option { cursor: pointer; }
+.session-suggestion-option[aria-selected='true'], .session-suggestion-option:hover {
     background: var(--vscode-editorSuggestWidget-selectedBackground); color: var(--vscode-editorSuggestWidget-selectedForeground);
 }
 .session-output .session-composer { margin: 0 0 1lh; }
@@ -430,12 +433,22 @@ nav button { flex-shrink: 0; }
 }
 .run-time-search::placeholder { color: var(--vscode-input-placeholderForeground); }
 .run-time-search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.copy-run-times {
-    padding: 0 12px; border: 0; border-radius: 3px;
+.run-time-copy { display: flex; }
+.run-time-copy > button {
+    border: 0;
     background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
 }
-.copy-run-times:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
-.copy-run-times:disabled { opacity: .5; cursor: default; }
+.run-time-copy > button:not(:disabled):hover { background: var(--vscode-button-secondaryHoverBackground); }
+.run-time-copy > button:disabled { opacity: .5; cursor: default; }
+.copy-run-times { padding: 0 12px; border-radius: 3px 0 0 3px; }
+.run-time-copy > .copy-run-times-options {
+    padding: 0 8px; border-radius: 0 3px 3px 0;
+    border-left: 1px solid var(--vscode-button-separator, var(--watch-border));
+}
+.copy-run-times-options::before {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border: solid currentColor; border-width: 0 1px 1px 0; transform: translateY(-2px) rotate(45deg);
+}
 .run-times { width: 100%; border-collapse: collapse; user-select: text; }
 .run-times th, .run-times td {
     text-align: left; vertical-align: top; padding: 8px;

@@ -375,11 +375,16 @@ on an SSH source. Type part of a name or path to narrow the list in place. Use â
 and â†“ to move, Tab or Enter to insert the relative path, or click a result.
 Escape dismisses the picker without changing the draft. Enter sends the draft
 when the picker is closed and no search is pending.
-In an active repair or execution-plan chat, enter `/model` to open the model
-picker. Use Up/Down to choose a model and Left/Right to adjust its reasoning
-effort. Enter applies the selection and Escape closes the picker. The options
-come from the source session's agent adapter and refresh when you reopen the
-picker. You can also enter `/model <model>`
+In a chat that supports slash commands, start a draft with `/` to see the list.
+Keep typing to narrow the list. Use Up/Down to highlight a command, then press
+Enter or Tab to choose it, or click a result. Escape closes the list and keeps
+your draft.
+Choose `/model` to open and focus the model picker, or type `/model` in full
+and press Enter to move focus from the draft to the picker. Use Up/Down to
+choose a model and Left/Right to adjust its reasoning effort. Enter applies the
+selection. Escape closes the picker, keeps the draft, and returns focus to the
+chatbox. The options come from the source session's agent adapter and refresh
+when you reopen the picker. You can also enter `/model <model>`
 to use that model's default effort, or `/model [model] --reasoning=<level>` to
 choose a specific level. Watch confirms the change in the transcript and updates
 the footer after the agent accepts it. The change applies to subsequent turns
@@ -472,9 +477,10 @@ of setup, every validation step and cleanup. In shared attempts, the first case
 owns setup and the last owns cleanup, without repeating footage in other clips.
 The first column selects case rows. Its header checkbox selects all visible
 rows, and the footer shows the selected and total row counts. **Copy** in the
-upper right copies the selected rows to the clipboard as a Markdown table.
-The table lists each VM and its duration in a separate row, with the full
-description, steps, and expected results on the first row for each case.
+upper right copies a Markdown table with one row per selected case, using the
+VM name and duration shown in the folded table. Choose **Copy expanded VMs**
+from the adjacent arrow to copy one row per VM. Both formats include the full
+description, steps, and expected results once per case.
 
 The trash button above the table deletes selected rows when every selected row
 supports deletion. Each row's final trash button deletes that row. Both require

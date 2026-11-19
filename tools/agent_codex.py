@@ -478,6 +478,7 @@ class CodexWire:
                 efforts = [effort for effort in efforts if effort != 'ultra']
             if efforts:
                 options[model] = dict(model=model, label=entry['displayName'] or model,
+                    description=entry.get('description') or '',
                     efforts=efforts, default=default if default in efforts else efforts[0])
         self.model_options = options
         self.model_pages.clear()

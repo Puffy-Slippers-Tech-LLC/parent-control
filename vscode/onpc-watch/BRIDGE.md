@@ -161,10 +161,12 @@ Launcher tab displays `launcher_output` as plain text.
 `session_view` is null or `{rows, input_enabled, working, model, simplified}`.
 `input_enabled` and `simplified` are booleans; `working` and `model` are strings.
 When the active agent provides a model catalogue, `session_view.model_selection`
-contains `{model, effort, options}`. Each option is `{model, label?, efforts, default}`.
-Model IDs and effort levels are strings. An adapter can use an empty `efforts`
-array and a null `default` for a model without an effort control. The `options`
-array may be empty while the catalogue is unavailable.
+contains `{model, effort, options}`. Each option is
+`{model, label?, description?, efforts, default}`. Watch displays the optional
+description when it is a nonempty plain-text string. Model IDs and effort levels
+are strings. An adapter can use an empty `efforts` array and a null `default`
+for a model without an effort control. The `options` array may be empty while
+the catalogue is unavailable.
 Status requests the same transcript body as Session when embedding an active session.
 Only requested runs need transcript bodies. An idle run must keep its retained
 contents and disable input when its owner exits. Final status updates remain

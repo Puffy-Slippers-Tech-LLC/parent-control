@@ -92,7 +92,8 @@ def remote_inspection(root, vm, program, argv):
         raise ValueError('remote inspection timed out on ' + vm.host.name) from error
 
 
-def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False, control=None):
+def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False, control=None,
+            output=None, stderr_output=None):
     """Run a public VM tool on its host using this checkout's working source.
 
     Return None for local work so the caller keeps its existing implementation.
@@ -112,5 +113,6 @@ def vm_tool(root, vm, tool, options, *, stdin_file=None, wait_on_cancel=False, c
     with Control().installed() if control is None else nullcontext(control) as control:
         return RemoteVM(root, vm).run(control,
             ['/usr/bin/python3', '-IBu', str(Path(root) / 'tools' / tool), *options],
-            env=test_launcher.environment(root), stdin_file=stdin_file,
+            env=test_launcher.environment(root), stdin_file=stdin_file, output=output,
+            stderr_output=stderr_output,
             wait_on_cancel=wait_on_cancel)

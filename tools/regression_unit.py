@@ -105,7 +105,7 @@ provenance; vm_pool remains compatible with ordinary unit overlap. It is not
 a cleanup or UI inventory module.
 
 Baseline queue draining and cancellation in test_launchers use the real executor with
-process-local reservation, source and command doubles plus private Events.
+process-local reservation, source and command doubles, private Events and pytest-private logs.
 Workers are joined before checking helper refresh; no VM, subprocess, live
 helper, shared cache or external service is acquired. Existing overlap applies.
 Shared executor admission checks add bounded, joined worker threads with local

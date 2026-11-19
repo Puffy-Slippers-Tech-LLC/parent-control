@@ -742,7 +742,10 @@ class RemoteVM:
             while pending:
                 index = pending.find(prefix)
                 if index < 0:
-                    count = max(0, len(pending) - len(prefix) + 1)
+                    # Hold only a possible split receipt. Ordinary output,
+                    # including a complete progress line, can advance now.
+                    start = pending.rfind(b'\0', max(0, len(pending) - len(prefix) + 1))
+                    count = start if start >= 0 and prefix.startswith(pending[start:]) else len(pending)
                     if count:
                         output(pending[:count])
                         pending = pending[count:]

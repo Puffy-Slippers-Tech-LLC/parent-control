@@ -109,6 +109,8 @@ def prepare(mode, assume_yes, vm, caller):
                                         '--vm', vm.name])
                 if status:
                     return status
+            if mode == 'auto':
+                baseline.log('stage:restoring-baseline')
             status = baseline.main(options)
             if status:
                 return status
@@ -147,6 +149,7 @@ def prepare(mode, assume_yes, vm, caller):
                 idle(vm)
                 capture.revalidate(off=True)
                 capture.verify_snapshot()
+                baseline.log('stage:restoring-baseline')
                 source.restore_baseline(capture.state['source']['layout'], source.baseline())
                 capture.revalidate(off=True)
                 capture.verify_snapshot(boundary='restoration')

@@ -161,6 +161,12 @@ A VM whose cost exceeds the host maximum fails individually. Each completed
 worker releases its reservation after owned cleanup, including on failure, so
 other queued VMs can proceed. Baseline helper refresh runs once after a host's
 preparation workers finish.
+Both preparation launchers show one live status row per VM in an interactive
+terminal and leave a complete final list of outcomes. When the terminal is too
+short, active work and failures take precedence over queued and completed work.
+The live log directory holds a transcript per VM and host diagnostics in
+`hosts/`, including for work dispatched over SSH. Redirected output gives the
+log location before work begins.
 Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
 including explicit single-VM selections. Each worker reserves only its canonical
 target from the selected pool. Reservation waiters consume no execution capacity;

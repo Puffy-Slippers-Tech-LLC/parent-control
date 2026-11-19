@@ -309,13 +309,12 @@ class Dashboard:
         return ''.join(parts) + '…\033[0m'
 
     @classmethod
-    def fit_height(cls, lines, height):
+    def fit_height(cls, lines, height, *, priority=None):
         """Keep live rows reachable by cursor-up, with urgent status visible."""
         if len(lines) <= height:
             return lines
 
-        def priority(index):
-            plain = cls.ANSI.sub('', lines[index])
+        def category_priority(plain):
             if plain.startswith(('Overall - ', 'Running category [', 'Tests interrupted.')):
                 return 0
             if '[Running]' in plain or '[Waiting]' in plain or '[✗]' in plain:
@@ -329,7 +328,9 @@ class Dashboard:
         # Preserve the tree's order after choosing which rows fit. The complete
         # category inventory remains in the report and non-terminal output.
         count = max(1, height - 1)
-        selected = sorted(sorted(range(len(lines)), key=priority)[:count])
+        priority = category_priority if priority is None else priority
+        selected = sorted(sorted(range(len(lines)),
+                                 key=lambda index: priority(cls.ANSI.sub('', lines[index])))[:count])
         visible = [lines[index] for index in selected]
         if height > 1:
             visible.insert(0, f'… {len(lines) - count} rows hidden; full details in run report')
@@ -349,7 +350,7 @@ class Dashboard:
             return
         self.draw_lines(lines)
 
-    def draw_lines(self, lines):
+    def draw_lines(self, lines, *, priority=None):
         """Render a local or reconnected frame using this terminal's size."""
         if hasattr(self.stream, 'frame'):
             self.stream.frame(lines)
@@ -368,7 +369,7 @@ class Dashboard:
             width = max(1, size.columns - 1)
             # Reserve a row for the trailing newline: cursor-up cannot reach
             # rows that have already scrolled out of the terminal viewport.
-            lines = self.fit_height(lines, max(1, size.lines - 1))
+            lines = self.fit_height(lines, max(1, size.lines - 1), priority=priority)
             lines = [self.fit(line, width) for line in lines]
             if self.terminal_size is not None and size != self.terminal_size:
                 # Resizing can reflow old rows, invalidating our cursor offset.

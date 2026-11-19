@@ -87,6 +87,7 @@ def build_artifacts(root, package_format, control, environment, *, label='prepar
     target = vm_config.selected().require_build_target()
     if target.package_format != package_format:
         raise ValueError('configured build target does not match baseline package format')
+    print('Preparation: Building the product package', flush=True)
     if release_notes_upgrade:
         from test_commands import prepare_qualification_artifacts
         from test_storage import named_input
@@ -103,7 +104,7 @@ def build_artifacts(root, package_format, control, environment, *, label='prepar
     return directory, status
 
 
-def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _control=None):
+def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _control=None, _report=None):
     args = arguments(argv)
     try:
         concurrency, vms = vm_config.execution(args.vm)
@@ -128,14 +129,14 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
                 if binding() is not None:
                     raise ValueError('vm-pool: check in before dispatching preparation to another host')
 
-                def run_local(options, control, targets):
-                    return main(options, _expected=targets, _control=control)
+                def run_local(options, control, targets, report):
+                    return main(options, _expected=targets, _control=control, _report=report)
 
                 return prepare_hosts(root, 'prepare-appsnapshot',
                                      ['--overwrite', args.overwrite, *recipe_args], vms, owner, run_local)
             check(helper)
-            _, status = preparation(root, 'prepare-appsnapshot', args, concurrency, vms, control=_control)
-            return status
+            return preparation(root, 'prepare-appsnapshot', args, concurrency, vms,
+                               control=_control, report=_report)
         os.environ.pop(BATCH, None)
         select(args.vm)
         with Control().installed() as control, snap_ready_reservation(root, args.vm, control), \
@@ -145,29 +146,32 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
             environment = test_launcher.environment(root)
             if 'ONPC_WORKFLOW_DIRECTORY' in os.environ:
                 environment['ONPC_WORKFLOW_DIRECTORY'] = os.environ['ONPC_WORKFLOW_DIRECTORY']
+
+            def snapshot_action(action):
+                message = ('Checking the baseline and app snapshot' if action == '--probe'
+                           else 'Starting the VM from the app snapshot')
+                print('Preparation: ' + message, flush=True)
+                return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                    helper, 'appsnapshot', action, '--overwrite', args.overwrite,
+                    *recipe_args, *vm_arguments()], cwd=root, env=environment)
+
             if args.overwrite == 'true':
                 cleanup(root)
                 if control.stopped.is_set():
                     return 130
-            status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                helper, 'appsnapshot', '--probe',
-                '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
+            status = snapshot_action('--probe')
             if status == 6:
                 cleanup(root)
                 if control.stopped.is_set():
                     return 130
-                status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--probe',
-                    '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
+                status = snapshot_action('--probe')
             if status == 4:
                 if _snapshot_only:
                     status = cleanup(root)
                     if not status:
                         print('prepare-appsnapshot: reusing the existing online snapshot.', flush=True)
                     return status
-                return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-                    helper, 'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()],
-                    cwd=root, env=environment)
+                return snapshot_action('--resume')
             # Missing, expired, differently-mode or explicitly overwritten
             # snapshots select their package backend from baseline provenance.
             if status not in (3, 5):
@@ -180,14 +184,15 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
             args.overwrite = 'true'
             for attempt in range(3):
                 with test_retention.Store(test_activity.retention_path(root)).session() as run:
-                    directory, status = build_artifacts(root, package_format, control, environment,
+                    build_env = environment | test_retention.environment()
+                    directory, status = build_artifacts(root, package_format, control, build_env,
                         release_notes_upgrade=args.release_notes_upgrade)
                     if status:
                         return status
                     status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
                         '--retention-run=' + run, '--unattended', 'appsnapshot',
                         '--overwrite', args.overwrite, '--artifacts', directory, *recipe_args, *vm_arguments()],
-                        cwd=root, env=environment, cooperative=True)
+                        cwd=root, env=build_env, cooperative=True)
                 if status != 7:
                     break
                 if control.stopped.is_set():
@@ -197,8 +202,9 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
                           'rebuilding the current app package.', flush=True)
             if status or _snapshot_only:
                 return status
-            return control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', helper,
-                'appsnapshot', '--resume', '--overwrite', args.overwrite, *recipe_args, *vm_arguments()], cwd=root, env=environment)
+            return snapshot_action('--resume')
     except (ValueError, OSError) as error:
+        if _report is not None:
+            raise
         print('\033[31mprepare-appsnapshot: ' + str(error) + '\033[0m', file=sys.stderr)
         return 2

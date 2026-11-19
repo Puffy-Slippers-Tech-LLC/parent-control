@@ -163,6 +163,8 @@ def _host(*, stopped=None, incoming=None):
                 fcntl.flock(gate, fcntl.LOCK_UN)
             if ahead < limit:
                 _cancelled(stopped, incoming)
+                if announced:
+                    print('host-disk: disk slot admitted', file=sys.stderr, flush=True)
                 yield fd
                 break
             if not announced:

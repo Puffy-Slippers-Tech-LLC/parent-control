@@ -272,6 +272,7 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
         # The ordinary local route keeps the nonce-qualified completion protocol
         # rather than accepting an exit status or a stale controller checkpoint.
         received = dict(evidence={'source': baseline}, handoffs=[])
+        transcript = []
         class Reply:
             stopped = threading.Event()
 
@@ -279,15 +280,15 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
                 size = int.from_bytes(input_stream.read(8), 'big')
                 request = json.loads(input_stream.read(size))
                 prefix = b'\0' + (remote_sources.RESULT + request['receipt'] + ' ').encode()
-                output(b'ordinary output\n' + prefix + json.dumps(
-                    dict(kind='result', value=received)).encode() + b'\0')
+                output(b'ordinary output\n' + prefix[:7])
+                assert b''.join(transcript) == b'ordinary output\n'
+                output(prefix[7:] + json.dumps(dict(kind='result', value=received)).encode() + b'\0')
                 return 0
-        output = []
         route = remote_sources.RemoteVM(controller, host=frozen.host, sources=frozen)
         assert route.run(Reply(), [str(controller / 'tools/test-vm')],
-                         env={}, output=output.append) == 0
+                         env={}, output=transcript.append) == 0
         assert route.result == received
-        assert b''.join(output) == b'ordinary output\n'
+        assert b''.join(transcript) == b'ordinary output\n'
     assert not captured.exists()
 
 

@@ -418,14 +418,17 @@ def test_requested_rounds_repeat_same_repair_workflow_and_resume(tmp_path, monke
     assert calls == expected
 
 
-def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path, monkeypatch):
+def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path, monkeypatch, capsys):
     from contextlib import contextmanager
     from dataclasses import replace
     import threading
     import host_dispatch
     import regression_process
+    import test_retention
     import test_source
+    import test_storage
     import vm_pool
+    from preparation_report import PREFIX
     from vm_queue import prepare_hosts
     import host_compute
     monkeypatch.setattr(host_compute, 'launch',
@@ -440,6 +443,7 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     monkeypatch.setattr(test_source, 'startup', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'reader', lambda *a, **k: nullcontext())
     monkeypatch.setattr(test_source, 'finish_admission', lambda: None)
+    monkeypatch.setattr(test_storage, 'storage_root', lambda root=None: tmp_path)
     launcher = runpy.run_path(str(ROOT / 'tools/prepare-vm'))
     main = launcher['main']
     monkeypatch.setitem(main.__globals__, 'read_password', lambda: None)
@@ -448,6 +452,7 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     held, calls, refreshes = set(), [], []
     stopped = threading.Event()
+    inherited = test_retention.environment()
     cancel_after_two = False
 
     @contextmanager
@@ -466,10 +471,25 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
         yield control
 
     def execute(control, command, *, env, **kwargs):
+        assert test_retention.environment() == inherited
+        assert all(env.get(name) == inherited.get(name)
+                   for name in (test_retention.VARIABLE, test_retention.OWNER_VARIABLE))
+        if command[0] == str(ROOT / 'setup.sh'):
+            assert not held, 'helper refresh ran before VM checkin'
+            assert command == [str(ROOT / 'setup.sh'), '--test-tools-only']
+            assert not control.stopped.is_set() and kwargs['wait_on_cancel']
+            refreshes.append(command)
+            details = f'Helper refresh {len(refreshes)} details\n'.encode()
+            kwargs['output'](details)
+            allocations = test_storage.directory('allocations', root=ROOT)
+            assert any(details in log.read_bytes() for log in allocations.glob('*/hosts/*.log'))
+            return 0
         name = env[vm_config.VARIABLE]
         assert name in held
         assert env[vm_pool.VARIABLE] == name + '-receipt'
         assert control.stopped is not stopped  # Baseline has no stop protocol.
+        assert kwargs['wait_on_cancel']  # A report failure must also wait for replacement.
+        kwargs['output'](b'Worker output\n')
         calls.append(name)
         if len(calls) == 1:
             return 1  # Failure must not prevent the next preparation.
@@ -478,16 +498,9 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
         assert not control.stopped.is_set()
         return 0  # Active replacement finishes despite outer cancellation.
 
-    def refresh(command, **kwargs):
-        assert not held, 'helper refresh ran before VM checkin'
-        assert command == [str(ROOT / 'setup.sh'), '--test-tools-only']
-        refreshes.append(command)
-        return SimpleNamespace(returncode=0)
-
     monkeypatch.setattr(vm_pool, 'reservation', reservation)
     monkeypatch.setattr(regression_process.Control, 'installed', installed)
     monkeypatch.setattr(regression_process.Control, 'run', execute)
-    monkeypatch.setattr(subprocess, 'run', refresh)
     options = ['--mode', 'auto', '--vm', ','.join(names), '--y']
     assert main(options) == 1
     assert len(calls) == len(names) and set(calls) == set(names)
@@ -495,9 +508,19 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
 
     calls.clear()
     cancel_after_two = True
-    assert main(options) == 130
+    open_log = Path.open
+
+    def fail_worker_logs(path, mode='r', *args, **kwargs):
+        if mode == 'ab' and path.parent.name.startswith('onpc-prep-'):
+            raise OSError('worker log storage unavailable')
+        return open_log(path, mode, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, 'open', fail_worker_logs)
+        assert main(options) == 130
     assert len(calls) == 2 and len(refreshes) == 2
     assert not held
+    assert 'Preparation report incomplete: worker log storage unavailable' in capsys.readouterr().err
 
     # One transfer carries a complete remote queue while local work can proceed.
     stopped.clear()
@@ -506,16 +529,18 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     remote_started, local_finished = threading.Event(), threading.Event()
     remote_dispatches = []
 
-    def remote(root, vm, tool, options, *, control):
+    def remote(root, vm, tool, options, *, control, output, stderr_output):
         assert tool == 'prepare-appsnapshot' and vm == remote_vms[0]
         assert options == ['--vm', ','.join(names[:-1]), '--y', '--overwrite', 'false',
                            '--queue-host', 'remote']
         remote_dispatches.append(vm.host.name)
         remote_started.set()
         assert local_finished.wait(5), 'remote queue blocked another host'
-        return 0
+        for target in remote_vms:
+            output(PREFIX + json.dumps([target.name, 'state', 0]).encode() + b'\n')
+        return 255  # The connection dropped before confirming the host's result.
 
-    def local(options, control, targets):
+    def local(options, control, targets, report):
         assert targets == [vms[-1]]
         assert remote_started.wait(5)
         local_finished.set()
@@ -524,8 +549,11 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     monkeypatch.setattr(test_source, 'leave_checkout', lambda: None)
     monkeypatch.setattr(host_dispatch, 'vm_tool', remote)
     assert prepare_hosts(ROOT, 'prepare-appsnapshot', ['--overwrite', 'false'],
-                         (*remote_vms, vms[-1]), vms[-1].host.name, local) == 0
+                         (*remote_vms, vms[-1]), vms[-1].host.name, local) == 255
     assert remote_dispatches == ['remote']
+    recap = capsys.readouterr().out
+    assert f'✓ [{remote_vms[0].name}] App snapshot ready' in recap
+    assert f'✗ [{remote_vms[-1].name}] Preparation failed' in recap
 
     with monkeypatch.context() as patch:
         patch.setattr(vm_config, 'execution', lambda _, **kwargs: (len(vms) - 1, vms[:-1]))

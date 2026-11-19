@@ -13,7 +13,8 @@ if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import launcher_control
-from detached_launcher import record_exception
+from detached_launcher import exception_details, record_exception
+from preparation_report import preparation_report
 
 
 class _NoWork(Exception):
@@ -25,31 +26,37 @@ class _CapacityWait(Exception):
 
 
 @contextmanager
-def _preparation_checkout(vm, stopped):
+def _preparation_checkout(vm, stopped, report=None):
     """Probe the ordinary nonwaiting checkout and retry only temporary refusals."""
     from host_compute import units
     from vm_pool import Busy, reservation
 
     # Capture the existing helper diagnostic without changing the privileged
     # protocol or letting a full stderr pipe block the checkout.
-    with os.fdopen(os.memfd_create('onpc-preparation-checkout', os.MFD_CLOEXEC), 'rb') as stderr, \
-            ExitStack() as checkout:
+    with os.fdopen(os.memfd_create('onpc-preparation-checkout', os.MFD_CLOEXEC), 'rb') as stderr:
         try:
-            receipt = checkout.enter_context(reservation(vm.name, stopped=stopped, bind=False,
-                                                         wait=False, stderr=stderr))
-        except Busy:
-            raise
-        except ValueError as error:
-            detail = os.pread(stderr.fileno(), 8192, 0).decode('utf-8', errors='replace').strip()
-            capacity = re.search(r'host-compute: host .*: max_compute_unit=([^,]+), .*'
-                                 r'minimum vm\.compute_unit=(\S+)\. Available compute units are insufficient',
-                                 detail)
-            if capacity and units(capacity[2]) <= units(capacity[1]):
-                raise Busy('waiting for host compute') from error
-            if detail:
-                raise ValueError(detail) from error
-            raise
-        yield receipt
+            with ExitStack() as checkout:
+                try:
+                    receipt = checkout.enter_context(reservation(vm.name, stopped=stopped, bind=False,
+                                                                 wait=False, stderr=stderr))
+                except Busy:
+                    raise
+                except ValueError as error:
+                    detail = os.pread(stderr.fileno(), 8192, 0).decode('utf-8', errors='replace').strip()
+                    capacity = re.search(r'host-compute: host .*: max_compute_unit=([^,]+), .*'
+                                         r'minimum vm\.compute_unit=(\S+)\. Available compute units are insufficient',
+                                         detail)
+                    if capacity and units(capacity[2]) <= units(capacity[1]):
+                        raise Busy('waiting for host compute') from error
+                    if detail:
+                        raise ValueError(detail) from error
+                    raise
+                yield receipt
+        finally:
+            if report is not None:
+                stderr.seek(0)
+                for data in iter(lambda: stderr.read(65536), b''):
+                    report.log(vm.name, data)
 
 
 class _Worker:
@@ -177,7 +184,7 @@ class Executor:
         if not self._needed(vm):
             raise _NoWork()
 
-    def _execute(self, vm, execute):
+    def _execute(self, vm, execute, report=None):
         import launcher_reload
         import test_source
         from detached_launcher import Stopped
@@ -189,6 +196,8 @@ class Executor:
                                  f'exceeding max_compute_unit={vm.host.max_compute_unit} on {vm.host.name}')
             queued = False
             while True:
+                if report is not None and self._full(vm):
+                    report.update(vm.name, 'compute')
                 self._wait_capacity(vm)
                 with ExitStack() as operation, ExitStack() as checkout:
                     try:
@@ -198,7 +207,7 @@ class Executor:
                                 continue
                             try:
                                 receipt = checkout.enter_context(
-                                    _preparation_checkout(vm, lambda: self._abort(vm)))
+                                    _preparation_checkout(vm, lambda: self._abort(vm), report))
                             except Busy:
                                 # Bound failed probes across the whole host even
                                 # when all pending VMs are competing to retry.
@@ -209,7 +218,9 @@ class Executor:
                     except _CapacityWait:
                         continue
                     except Busy as error:
-                        if not queued:
+                        if report is not None:
+                            report.update(vm.name, 'compute' if str(error) == 'waiting for host compute' else 'vm')
+                        elif not queued:
                             print(f'vm-queue: {vm.name} queued ({error})', flush=True)
                             queued = True
                         with self._capacity:
@@ -218,6 +229,8 @@ class Executor:
                     except test_source.SourceBusy:
                         # A pending worker waits for source without owning a VM.
                         checkout.close()
+                        if report is not None:
+                            report.update(vm.name, 'source')
                         try:
                             with test_source.reader(self.root, stopped=lambda: self._abort(vm)):
                                 pass
@@ -237,10 +250,14 @@ class Executor:
         except launcher_reload.ReloadRequested:
             return dict(status=launcher_reload.STATUS, handoffs=[])
         except Exception as error:
-            return dict(status=2, handoffs=[],
-                **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))
+            if report is None:
+                details = record_exception(launcher_control.current_run, f'VM worker {vm.name}', error)
+            else:
+                details = exception_details(error)
+                report.note(vm.name, details['traceback'])
+            return dict(status=2, handoffs=[], **details)
 
-    def run_each(self, execute, *, needed=None):
+    def run_each(self, execute, *, needed=None, report=None, completed=None):
         """Queue each needed VM and return results after its checkout closes."""
         if self._pool is None or self._ran or self._closing.is_set():
             raise ValueError('vm-queue: run_each requires a fresh active executor')
@@ -252,11 +269,14 @@ class Executor:
             if not self._needed(vm):
                 results[vm.name] = dict(status=0, handoffs=[])
                 continue
-            future = self._pool.submit(self._execute, vm, execute)
+            future = self._pool.submit(self._execute, vm, execute, report)
             pending[future] = vm.name
             self._futures.append(future)
         for future in as_completed(pending):
-            results[pending[future]] = future.result()
+            name = pending[future]
+            results[name] = future.result()
+            if completed is not None:
+                completed(name, results[name])
         return results
 
     def run_ready(self, execute, *, choose, needed, completed=None, stop_on_error=True):
@@ -438,22 +458,37 @@ def prepare_hosts(root, tool, options, vms, local, run_local):
     for vm in vms:
         groups.setdefault(vm.host.name, []).append(vm)
     test_source.leave_checkout()
-    with Control().installed() as control, ThreadPoolExecutor(max_workers=len(groups)) as remotes:
+    with Control().installed() as control, preparation_report(root, tool, vms) as report, \
+            ThreadPoolExecutor(max_workers=len(groups)) as remotes:
         def run(host, targets):
-            options_for_host = ['--vm', ','.join(vm.name for vm in targets), '--y', *options]
+            names = [vm.name for vm in targets]
+            options_for_host = ['--vm', ','.join(names), '--y', *options]
             try:
                 if control.stopped.is_set():
-                    return 130
-                if host == local:
+                    status = 130
+                elif host == local:
                     with test_source.admission(root, options_for_host, stopped=control.stopped.is_set):
-                        return run_local(options_for_host, control, targets)
-                return vm_tool(root, targets[0], tool, [*options_for_host, '--queue-host', host],
-                               control=control)
+                        status = run_local(options_for_host, control, targets, report)
+                else:
+                    for name in names:
+                        report.update(name, 'remote')
+                    output = report.remote_output(host, names)
+                    try:
+                        status = vm_tool(root, targets[0], tool, [*options_for_host, '--queue-host', host],
+                                         control=control, output=output,
+                                         stderr_output=lambda data: report.log(None, data, host=host))
+                    finally:
+                        output.finish()
             except Stopped:
-                return 130
+                status = 130
             except (ValueError, OSError) as error:
-                print(f'{tool}: {host}: {error}', file=sys.stderr, flush=True)
-                return 2
+                report.note(None, exception_details(error)['traceback'], host=host)
+                status = 2
+            if status:
+                report.note(None, f'{tool} on {host} exited with status {status}', host=host)
+            for name in names:
+                report.update(name, status)
+            return status
 
         results = {host: remotes.submit(run, host, targets) for host, targets in groups.items()
                    if host != local}
@@ -473,7 +508,7 @@ def require_host_queue(expected_host, host, argv, vms):
         raise ValueError(f'confirmed VM selection changed before preparation on {expected_host}')
 
 
-def preparation(root, tool, args, concurrency, vms, *, control=None):
+def preparation(root, tool, args, concurrency, vms, *, control=None, report=None):
     """Run already-confirmed preparation in processes with independent VM state.
 
     Baseline replacement has no cooperative stop protocol: allow in-flight
@@ -485,22 +520,31 @@ def preparation(root, tool, args, concurrency, vms, *, control=None):
     with test_source.reader(root, stopped=lambda: control is not None and control.stopped.is_set()):
         from regression_process import Control
         from vm_selection import BATCH, VARIABLE
-    output_lock = threading.Lock()
-    snapshot_only = tool == 'prepare-appsnapshot' and sum(units(vm.compute_unit) for vm in vms) > units(
+    baseline = tool == 'prepare-vm'
+    snapshot_only = not baseline and sum(units(vm.compute_unit) for vm in vms) > units(
         vms[0].host.max_compute_unit)
-    with Control().installed() if control is None else nullcontext(control) as control:
+    with (Control().installed() if control is None else nullcontext(control)) as control, \
+            (preparation_report(root, tool, vms, relay=bool(args.queue_host))
+             if report is None else nullcontext(report)) as report:
+        def baseline_control():
+            # Finish an active replacement and accept completed baselines even
+            # when the queue has been cancelled.
+            runner = Control()
+            runner.stopped = threading.Event()
+            return runner
+
         def execute(worker):
             vm = worker.vm
             options = ['--vm', vm.name, '--y']
             worker_options = []
-            if tool == 'prepare-appsnapshot':
+            if baseline:
+                options += ['--mode', args.mode]
+            else:
                 if snapshot_only:
                     worker_options.append('--snapshot-only')
                 options += ['--overwrite', args.overwrite]
                 if args.release_notes_upgrade:
                     options.append('--release-notes-upgrade')
-            else:
-                options += ['--mode', args.mode]
             command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()), tool,
                        *worker_options, *options]
             environment = dict(os.environ)
@@ -508,37 +552,44 @@ def preparation(root, tool, args, concurrency, vms, *, control=None):
             environment[VARIABLE] = vm.name
             from vm_pool import VARIABLE as CHECKOUT
             environment[CHECKOUT] = worker.receipt
-            runner = control
-            if tool == 'prepare-vm':
-                # Do not interrupt a privileged replacement through an
-                # unprivileged intermediary that cannot signal its root child.
-                runner = Control()
-                runner.stopped = threading.Event()
-            pending = b''
-            def output(data):
-                nonlocal pending
-                pending += data
-                while b'\n' in pending:
-                    line, pending = pending.split(b'\n', 1)
-                    with output_lock:
-                        print(f'[{vm.name}] ' + line.decode('utf-8', errors='replace'), flush=True)
-            status = runner.run(command, cwd=root, env=environment, output=output)
-            if pending:
-                output(b'\n')
-            return status
+            runner = baseline_control() if baseline else control
+            report.update(vm.name, 'check')
+            report.note(vm.name, 'Launching worker: ' + ' '.join(command))
+            output, finish = report.worker_output(vm.name)
+            try:
+                status = runner.run(command, cwd=root, env=environment, output=output,
+                                    wait_on_cancel=baseline)
+                return dict(status=status)
+            finally:
+                finish()
+
+        def completed(name, result):
+            status = result['status']
+            report.update(name, 'accept' if baseline and status == 0 else status)
 
         with Executor(root, vms, concurrency, control.stopped) as executor:
-            results = executor.run_each(execute)
-        statuses = {name: result['status'] if isinstance(result, dict) else result
-                    for name, result in results.items()}
-        for name, status in statuses.items():
-            message = f'{tool}: {name}: status {status}'
-            print('\033[31m' + message + '\033[0m' if status else message, flush=True)
-            if isinstance(results[name], dict) and results[name].get('error'):
-                print(f'\033[31m{tool}: {name}: {results[name]["error"]}\033[0m',
-                      file=sys.stderr, flush=True)
-        status = 130 if control.stopped.is_set() else next((value for value in statuses.values() if value), 0)
-        return statuses, status
+            results = executor.run_each(execute, report=report, completed=completed)
+        statuses = {name: result['status'] for name, result in results.items()}
+        accepted = [name for name, status in statuses.items() if status == 0]
+        status = next((value for value in statuses.values() if value), 0)
+        if not baseline or not accepted:
+            return 130 if control.stopped.is_set() else status
+
+        for name in accepted:
+            report.update(name, 'refresh')
+        host = vms[0].host.name
+        try:
+            with test_source.reader(root):
+                acceptance_status = baseline_control().run(
+                    [str(root / 'setup.sh'), '--test-tools-only'], cwd=root, env=os.environ.copy(),
+                    output=lambda data: report.log(None, data, host=host), wait_on_cancel=True)
+        except (ValueError, OSError) as error:
+            report.note(None, exception_details(error)['traceback'], host=host)
+            acceptance_status = 2
+        report.note(None, f'Baseline acceptance exited with status {acceptance_status}', host=host)
+        for name in accepted:
+            report.update(name, acceptance_status)
+        return acceptance_status or (130 if control.stopped.is_set() else status)
 
 
 def worker(argv):
@@ -551,7 +602,7 @@ def worker(argv):
         launcher = runpy.run_path(str(Path(__file__).resolve().parent / tool))
         # Shared helper installation happens once after baseline workers exit.
         if tool == 'prepare-vm':
-            return launcher['main'](options, _worker=True, refresh=False)
+            return launcher['main'](options, _worker=True)
         snapshot_only = options[:1] == ['--snapshot-only']
         return launcher['main'](options[1:] if snapshot_only else options,
                                 _worker=True, _snapshot_only=snapshot_only)

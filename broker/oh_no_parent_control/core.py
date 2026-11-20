@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception, operation
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    emit_failure_once, error_code, get_logger, operation, record_exception,
+)
 from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.localization import load_translations
@@ -13,7 +15,7 @@ from common.oh_no_parent_control_ui.languages import desktop_language_candidates
 from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_LANGUAGE_USERS
 from .grant_diagnostics import GrantDiagnostics
 from .execution_policy import ExecutionPolicyError
-from .extension_manager import ChildExtensionFailed, ChildExtensionUnavailable
+from .extension_manager import ChildExtensionFailed, ChildExtensionSessionLost, ChildExtensionUnavailable
 import math
 import re
 import threading
@@ -28,7 +30,7 @@ from zoneinfo import ZoneInfo
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
-    MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError,
+    MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError, StoredPreferencesError,
     blocked_patterns, blocked_targets, validate_preferences, validate_language, validate_notifications,
     validate_time_grant_presets, MIN_TIME_GRANT_SECONDS, MAX_TIME_GRANT_SECONDS,
 )
@@ -68,9 +70,19 @@ class Busy(BrokerError):
 class BackendFailure(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.BackendFailure"
 
+    def __init__(self, *args, expected=False):
+        super().__init__(*args)
+        self.expected = expected  # Preserve normal retry/refusal replies on D-Bus.
+
 
 class RollbackFailure(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RollbackFailure"
+
+
+def emit_backend_failure(error: BrokerError, *, original=None) -> None:
+    if (isinstance(error, RollbackFailure) or
+            (isinstance(error, BackendFailure) and not error.expected)):
+        emit_failure_once("broker", "backend", error, original=original)
 
 
 @dataclass(frozen=True)
@@ -363,6 +375,8 @@ class Broker:
                         try:
                             self._extensions.set_enabled(user.uid, True, recover_global_switch=True)
                         except (ChildExtensionUnavailable, ChildExtensionFailed) as error:
+                            if isinstance(error, ChildExtensionFailed):
+                                emit_failure_once("broker", "operation", error)
                             LOG.warning("core.extension-startup", outcome="child-unavailable")
                             LOG.error("core.001", error_type=error_code(error.__cause__ or error))
                             record_exception(error)
@@ -374,7 +388,9 @@ class Broker:
                 except Exception as error:
                     LOG.error("core.extension-startup", outcome="failed")
                     LOG.error("core.001", error_type=error_code(error))
-                    raise BackendFailure("could not refresh the child extension") from error
+                    failure = BackendFailure("could not refresh the child extension")
+                    emit_backend_failure(failure, original=error)
+                    raise failure from error
         return tuple(refreshed)
 
     def extension_watch_uids(self) -> tuple[int, ...]:
@@ -479,7 +495,7 @@ class Broker:
         lower = max(before[0] - before[1], after[0] - after[1])
         upper = min(before[2] - before[1], after[2] - after[1])
         if after[0] < before[2] or lower > upper + CLOCK_SAMPLE_TOLERANCE_USEC:
-            raise BackendFailure("deadline clock mapping changed")
+            raise BackendFailure("deadline clock mapping changed", expected=True)
         if any(value - after[1] > UINT32_MAX * 1_000_000 for value in endpoints):
             raise InvalidRequest("deadline is outside the remaining-time range")
 
@@ -505,7 +521,7 @@ class Broker:
         # A descheduled sample cannot locate realtime closely enough to use
         # its conservative offset without expiring valid time prematurely.
         if (end - start) * 1_000_000 > CLOCK_SAMPLE_TOLERANCE_USEC:
-            raise BackendFailure("deadline clock sample is uncertain")
+            raise BackendFailure("deadline clock sample is uncertain", expected=True)
         return (math.floor(start * 1_000_000), round(realtime * 1_000_000),
                 math.floor(end * 1_000_000))
 
@@ -574,6 +590,9 @@ class Broker:
                 LOG.info("core.006")
                 return True
             except Exception as error:
+                public_error = error if isinstance(error, BrokerError) else BackendFailure(
+                    "session application policy could not be prepared")
+                emit_backend_failure(public_error, original=error)
                 # Once termination starts, processes cannot be restored. Keep
                 # the canonical strict filter active. Before that point,
                 # preserve the exact policy that preceded reconciliation.
@@ -584,18 +603,18 @@ class Broker:
                         if self._accounts.get_filter(target.uid) != old_filter:
                             raise RuntimeError("app-filter rollback read-back mismatch")
                     except Exception as rollback_error:
+                        failure = RollbackFailure("session app-filter rollback could not be verified")
+                        emit_backend_failure(failure, original=rollback_error)
                         LOG.critical("core.007", error_type=error_code(rollback_error))
-                        raise RollbackFailure(
-                            "session app-filter rollback could not be verified"
-                        ) from rollback_error
+                        raise failure from rollback_error
                 LOG.warning(
                     "core.008",
                     error_type=error_code(error),
                     strict_filter=termination_started,
                 )
-                if isinstance(error, BrokerError):
+                if public_error is error:
                     raise
-                raise BackendFailure("session application policy could not be prepared") from error
+                raise public_error from error
         finally:
             self._release_request_lock()
 
@@ -622,7 +641,10 @@ class Broker:
             try:
                 self._extensions.set_enabled(target.uid, True, recover_global_switch=True)
             except Exception as error:
-                raise BackendFailure("could not recover the child extension") from error
+                failure = BackendFailure("could not recover the child extension",
+                                         expected=isinstance(error, ChildExtensionSessionLost))
+                emit_backend_failure(failure, original=error)
+                raise failure from error
             if on_recovered is not None:
                 on_recovered(target.uid)
             return True
@@ -1301,6 +1323,12 @@ class Broker:
             LOG.info("core.012")
             return saved
         except Exception as error:
+            if isinstance(error, BrokerError):
+                public_error = error
+            else:
+                public_error = BackendFailure("blocked applications could not be stopped"
+                                              if termination_started else "app filter could not be applied")
+            emit_backend_failure(public_error, original=error)
             # Once termination starts, an exited process cannot be restored.
             # Retain the requested canonical policy so every requested block
             # remains enforced and its patterns remain available to the
@@ -1308,11 +1336,9 @@ class Broker:
             record_exception(error)
             if termination_started:
                 LOG.warning("core.013", error_type=error_code(error))
-                if isinstance(error, BrokerError):
+                if public_error is error:
                     raise
-                raise BackendFailure(
-                    "blocked applications could not be stopped"
-                ) from error
+                raise public_error from error
             LOG.warning("core.014", error_type=error_code(error))
             try:
                 if preferences_saved:
@@ -1321,13 +1347,13 @@ class Broker:
                 if self._accounts.get_filter(target.uid) != old_filter:
                     raise RuntimeError("app-filter rollback read-back mismatch")
             except Exception as rollback_error:
+                failure = RollbackFailure("app-filter rollback could not be verified")
+                emit_backend_failure(failure, original=rollback_error)
                 LOG.critical("core.015", error_type=error_code(rollback_error))
-                raise RollbackFailure(
-                    "app-filter rollback could not be verified"
-                ) from rollback_error
-            if isinstance(error, BrokerError):
+                raise failure from rollback_error
+            if public_error is error:
                 raise
-            raise BackendFailure("app filter could not be applied") from error
+            raise public_error from error
 
     def update_request_preferences(self, caller_uid: int, target_uid: int,
                                    selected: str, custom: float,
@@ -1346,6 +1372,9 @@ class Broker:
                 last_selected_approver_uid, custom_unit,
             )
         except PreferencesError as error:
+            if isinstance(error, StoredPreferencesError):
+                emit_failure_once("broker", "backend", error)
+                record_exception(error)
             raise InvalidRequest(str(error)) from error
 
     def set_request_muted(self, caller_uid: int, target_uid: int, surface: str,
@@ -1359,6 +1388,9 @@ class Broker:
         try:
             return self._preferences.update_request_muted(target.uid, surface, muted)
         except PreferencesError as error:
+            if isinstance(error, StoredPreferencesError):
+                emit_failure_once("broker", "backend", error)
+                record_exception(error)
             raise InvalidRequest(str(error)) from error
 
     def set_parent_control(self, caller_uid: int, target_uid: int, enabled: bool,
@@ -1414,7 +1446,8 @@ class Broker:
                     # Kiosk approval can enable native limits while the saved
                     # toggle stays off. Preserve its retained-grant policy,
                     # rather than clearing it or disabling limits underneath it.
-                    raise BackendFailure("cannot disable native limits while retaining a current grant")
+                    raise BackendFailure("cannot disable native limits while retaining a current grant",
+                                         expected=True)
             undo_switch_recovery = None
             if extension_changed:
                 stage = entering("extension")
@@ -1469,6 +1502,11 @@ class Broker:
                 LOG.info("core.parent-control-stage", stage="commit", outcome="accepted")
                 return saved
             except Exception as error:
+                if isinstance(error, (OSError, RuntimeError, PreferencesError)):
+                    if not (isinstance(error, BackendFailure) and error.expected):
+                        emit_failure_once("broker", "backend", error)
+                else:
+                    emit_failure_once("broker", "unexpected", error)
                 LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
                 LOG.warning("core.018", error_type=error_code(error))
                 record_exception(error)
@@ -1481,6 +1519,7 @@ class Broker:
                     )
                     LOG.info("core.parent-control-stage", stage="rollback-account", outcome="accepted")
                 except Exception as caught:
+                    emit_failure_once("broker", "backend", caught)
                     LOG.error("core.parent-control-stage", stage="rollback-account", outcome="failed")
                     record_exception(caught)
                     rollback_error = caught
@@ -1492,6 +1531,7 @@ class Broker:
                             raise RuntimeError("preference rollback read-back mismatch")
                         LOG.info("core.parent-control-stage", stage="rollback-preferences", outcome="accepted")
                 except Exception as caught:
+                    emit_failure_once("broker", "backend", caught)
                     LOG.error("core.parent-control-stage", stage="rollback-preferences", outcome="failed")
                     record_exception(caught)
                     rollback_error = rollback_error or caught
@@ -1504,27 +1544,34 @@ class Broker:
                             self._extensions.set_enabled(target.uid, previous)
                         LOG.info("core.parent-control-stage", stage="rollback-extension", outcome="accepted")
                 except Exception as caught:
+                    emit_failure_once("broker", "backend", caught)
                     LOG.error("core.parent-control-stage", stage="rollback-extension", outcome="failed")
                     record_exception(caught)
                     rollback_error = rollback_error or caught
                 if rollback_error is not None:
                     LOG.critical("core.019", error_type=error_code(rollback_error))
-                    raise RollbackFailure(
-                        "parent-control rollback could not be verified"
-                    ) from rollback_error
-                raise error
+                    failure = RollbackFailure("parent-control rollback could not be verified")
+                    emit_backend_failure(failure, original=rollback_error)
+                    raise failure from rollback_error
+                raise
         except ExecutionPolicyError as error:
-            LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
-            raise BackendFailure(
+            failure = BackendFailure(
                 "Could not prepare application blocking rules. Review App Limits: "
                 "a wildcard folder may contain an unsupported file or folder name "
                 "(such as spaces or commas)."
-            ) from error
+            )
+            emit_backend_failure(failure, original=error)
+            LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
+            raise failure from error
         except (OSError, RuntimeError, PreferencesError) as error:
             LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
             if isinstance(error, RollbackFailure):
                 raise
-            raise BackendFailure("could not change parent-control state") from error
+            expected = (isinstance(error, ChildExtensionSessionLost) or
+                        isinstance(error, BackendFailure) and error.expected)
+            failure = BackendFailure("could not change parent-control state", expected=expected)
+            emit_backend_failure(failure, original=error)
+            raise failure from error
 
     def revoke_one_time_grant(self, caller_uid: int, target_uid: int) -> None:
         """Remove a live grant and stop the selected child's blocked apps."""
@@ -1579,6 +1626,9 @@ class Broker:
                 self._observe_grant(target.uid, 0, 0)
                 LOG.info("core.023")
             except Exception as error:
+                public_error = error if isinstance(error, BrokerError) else BackendFailure(
+                    "one-time grant could not be revoked")
+                emit_backend_failure(public_error, original=error)
                 LOG.warning("core.024", error_type=error_code(error))
                 record_exception(error)
                 try:
@@ -1593,13 +1643,13 @@ class Broker:
                             self._accounts.get_filter(target.uid) != rollback_filter):
                         raise RuntimeError("rollback read-back mismatch")
                 except Exception as rollback_error:
+                    failure = RollbackFailure("one-time grant rollback could not be verified")
+                    emit_backend_failure(failure, original=rollback_error)
                     LOG.critical("core.025", error_type=error_code(rollback_error))
-                    raise RollbackFailure(
-                        "one-time grant rollback could not be verified"
-                    ) from rollback_error
-                if isinstance(error, BrokerError):
+                    raise failure from rollback_error
+                if public_error is error:
                     raise
-                raise BackendFailure("one-time grant could not be revoked") from error
+                raise public_error from error
         finally:
             self._release_request_lock()
 
@@ -1883,6 +1933,9 @@ class Broker:
             self._observe_grant(target_uid, *extension)
             return True
         except Exception as error:
+            public_error = error if isinstance(error, BrokerError) else BackendFailure(
+                "account update failed", expected=isinstance(error, ChildExtensionSessionLost))
+            emit_backend_failure(public_error, original=error)
             # Preserve the primary failure even if rollback raises a different
             # error with an explicit cause that hides the original context.
             record_exception(error)
@@ -1890,8 +1943,7 @@ class Broker:
                 LOG.warning("core.039", request=correlation_id, error_type=error_code(error))
             elif termination_may_have_changed_processes:
                 # A killed process cannot be restored. Keep the canonical
-                # hard+soft block filter active, but restore every reversible
-                # account value and never publish the requested time grant.
+                # hard+soft block filter active and restore the time state.
                 self._restore_after_termination(
                     target_uid, old_limit_type, old_daily_limit, desired_filter,
                     old_extension, old_daily_schedule, correlation_id,
@@ -1901,9 +1953,9 @@ class Broker:
                     target_uid, old_limit_type, old_daily_limit, old_filter,
                     old_extension, old_daily_schedule, correlation_id,
                 )
-            if isinstance(error, BrokerError):
+            if public_error is error:
                 raise
-            raise BackendFailure("account update failed") from error
+            raise public_error from error
 
     def _restore_after_termination(
             self, target_uid: int, old_limit_type: int, old_daily_limit: int,
@@ -1921,10 +1973,10 @@ class Broker:
                     self._accounts.get_daily_schedule(target_uid) != old_daily_schedule):
                 raise RuntimeError("post-termination rollback read-back mismatch")
         except Exception as error:
+            failure = RollbackFailure("account rollback after app termination could not be verified")
+            emit_backend_failure(failure, original=error)
             LOG.critical("core.041", request=correlation_id)
-            raise RollbackFailure(
-                "account rollback after app termination could not be verified"
-            ) from error
+            raise failure from error
 
     def _restore(self, target_uid: int, old_limit_type: int, old_daily_limit: int,
                  old_filter, old_extension, old_daily_schedule,
@@ -1945,8 +1997,10 @@ class Broker:
                     self._accounts.get_daily_schedule(target_uid) != old_daily_schedule):
                 raise RuntimeError("rollback read-back mismatch")
         except Exception as error:
+            failure = RollbackFailure("account rollback could not be verified")
+            emit_backend_failure(failure, original=error)
             if correlation_id is None:
                 LOG.critical("core.parent-control-rollback-failed")
             else:
                 LOG.critical("core.041", request=correlation_id)
-            raise RollbackFailure("account rollback could not be verified") from error
+            raise failure from error

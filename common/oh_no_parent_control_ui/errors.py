@@ -3,13 +3,14 @@
 from common.oh_no_parent_control_ui import messages as m
 
 from dataclasses import dataclass
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, ERROR_CODES
-from common.oh_no_parent_control_ui.diagnostic_events import record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    ERROR_CODES, emit_failure, error_code, get_logger, gio_error_category, record_exception,
+)
 import sys
 import threading
 
 LOG = get_logger("errors")
-COMPONENTS = frozenset(("Kiosk App", "Child App", "Parent App"))
+COMPONENTS = {"Kiosk App": "kiosk", "Child App": "child", "Parent App": "parent"}
 GENERIC_TITLE = m.SOMETHING_WENT_WRONG
 GENERIC_DETAIL = m.THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER
 
@@ -19,6 +20,29 @@ def broker_reboot_required(error):
     from gi.repository import Gio, GLib
     return (isinstance(error, GLib.Error) and Gio.DBusError.get_remote_error(error) ==
             'com.puffyslippers.OhNoParentControl1.Error.RebootRequired')
+
+
+def record_frontend_failure(component, error, category="operation"):
+    if category is None:
+        return
+    from gi.repository import Gio, GLib
+
+    native_error = isinstance(error, GLib.Error)
+    remote = Gio.DBusError.get_remote_error(error) if native_error else None
+    if remote in {
+        "com.puffyslippers.OhNoParentControl1.Error.AccessDenied",
+        "com.puffyslippers.OhNoParentControl1.Error.InvalidRequest",
+        "com.puffyslippers.OhNoParentControl1.Error.RebootRequired",
+    } or (native_error and error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED)):
+        return
+    if category == "operation":
+        reason = gio_error_category(error)
+        if (remote == "org.freedesktop.systemd1.UnitMasked"
+                or reason in {"no-owner", "no-reply", "service-unknown", "timeout", "disconnected"}):
+            category = "dependency"
+        elif reason in {"backend-failure", "rollback-failure"}:
+            category = "backend"
+    emit_failure(COMPONENTS.get(component), category)
 
 
 def request_reboot(done):
@@ -173,13 +197,17 @@ class ErrorHandler:
         self._dialog = None
         self._presenting = False
 
-    def capture(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL):
+    def capture(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL, *,
+                failure_category="operation"):
+        record_frontend_failure(self.component, error, failure_category)
         record_exception(error)
         LOG.warning("errors.001", component=self.component, error_type=error_code(error))
         return ErrorReport.capture(self.component, error, title, detail)
 
-    def handle(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL, *, on_close=None):
-        return self.present(self.capture(error, title, detail), on_close=on_close)
+    def handle(self, error, title=GENERIC_TITLE, detail=GENERIC_DETAIL, *, on_close=None,
+               failure_category="operation"):
+        report = self.capture(error, title, detail, failure_category=failure_category)
+        return self.present(report, on_close=on_close)
 
     def present(self, report, *, on_close=None):
         from .translation_widgets import localized
@@ -213,6 +241,7 @@ class ErrorHandler:
             return self._dialog
         except Exception as error:
             # Reporting failures cannot recursively trigger another reporter.
+            record_frontend_failure(self.component, error, "presentation")
             record_exception(error)
             LOG.warning("errors.002", component=self.component, error_type=error_code(error))
             self._dialog = None
@@ -253,17 +282,18 @@ class ErrorHandler:
             self._presenting = False
 
 
-def show_startup_error(application, component, error):
+def show_startup_error(application, component, error, *, failure_category="startup"):
     """Show a reporting-only surface when management/request startup fails."""
-    from gi.repository import Adw, Gtk
-    from .translation_widgets import localized
-    from .accessibility import add_identified_window_controls, set_automation_id
     existing = getattr(application, "_startup_error_window", None)
     if existing is not None:
         existing.present()
         if existing._errors._dialog is not None:
             existing._errors._dialog.present()
         return existing
+    record_frontend_failure(component, error, failure_category)
+    from gi.repository import Adw, Gtk
+    from .translation_widgets import localized
+    from .accessibility import add_identified_window_controls, set_automation_id
     window = localized(Adw.ApplicationWindow, application=application, title=GENERIC_TITLE,
                                    default_width=560, default_height=180)
     set_automation_id(window, "startup-error-window")
@@ -279,7 +309,7 @@ def show_startup_error(application, component, error):
     window.present()
     application._startup_error_window = window
     window._errors = ErrorHandler(window, component)
-    window._errors.handle(error, on_close=application.quit)
+    window._errors.handle(error, on_close=application.quit, failure_category=None)
     return window
 
 
@@ -299,16 +329,18 @@ def install_exception_hooks(application, component):
             window = next((w for w in application.get_windows()
                            if hasattr(w, "_show_error")), None)
             if window is None:
-                show_startup_error(application, component, error)
+                show_startup_error(application, component, error, failure_category=None)
             else:
                 try:
-                    window._show_error(error)
+                    window._show_error(error, failure_category=None)
                 except Exception as caught:
                     # A partially constructed window may not have its public
                     # error surface yet. Keep startup failures reviewable.
+                    record_frontend_failure(component, caught, "presentation")
                     record_exception(caught)
-                    show_startup_error(application, component, error)
+                    show_startup_error(application, component, error, failure_category=None)
         except Exception as caught:
+            record_frontend_failure(component, caught, "presentation")
             record_exception(caught)
             LOG.warning("errors.003", error_type=error_code(caught))
         finally:
@@ -327,6 +359,7 @@ def install_exception_hooks(application, component):
             pending = True
         # Retain the original even if UI delivery or its fallback also fails.
         # Coalescing windows must not discard a second worker's cause.
+        record_frontend_failure(component, error, "unexpected")
         record_exception(error)
         if coalesced:
             return

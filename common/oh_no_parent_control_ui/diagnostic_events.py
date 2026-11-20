@@ -15,10 +15,50 @@ import logging
 import math
 import re
 from pathlib import Path
+import socket
 import sys
 import subprocess
 import threading
+import time
 import uuid
+
+
+FAILURE_COMPONENTS = frozenset(("broker", "parent", "child", "kiosk"))
+FAILURE_CATEGORIES = frozenset((
+    "backend", "dependency", "operation", "presentation", "startup", "unexpected",
+))
+
+
+def emit_failure(component, category):
+    """Send a closed record directly to the guest journal before UI delivery."""
+    if component not in FAILURE_COMPONENTS or category not in FAILURE_CATEGORIES:
+        return
+    occurred = time.monotonic_ns() // 1000
+    fields = (
+        "MESSAGE=Oh No! Parent Control product failure",
+        "PRIORITY=3",
+        "ONPC_FAILURE_VERSION=1",
+        f"ONPC_COMPONENT={component}",
+        f"ONPC_FAILURE_CATEGORY={category}",
+        f"ONPC_OCCURRENCE_MONOTONIC_USEC={occurred}",
+    )
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM | socket.SOCK_NONBLOCK) as journal:
+            journal.sendto(("\n".join(fields) + "\n").encode("ascii"), "/run/systemd/journal/socket")
+    except OSError:
+        # Telemetry cannot delay recovery, prevent presentation or replace the
+        # original fault. The existing support diagnostic is still recorded.
+        pass
+
+
+def emit_failure_once(component, category, error, *, original=None):
+    """Record a fault once as it passes through explicit error conversions."""
+    if getattr(error, "_failure_emitted", False):
+        return
+    if not getattr(original, "_failure_emitted", False):
+        emit_failure(component, category)
+    error._failure_emitted = True
+
 
 SCHEMA_VERSION = 1
 MAX_EVENT_BYTES = 4096
@@ -455,12 +495,17 @@ def _record_exception(error):
     logger.error("runtime.fault", error_type=error_code(error), source=source, line=line)
 
 
-def run_cli(callback):
+def run_cli(callback, *, failure_component=None):
     """Command entrypoints must not dump chained exceptions to the journal."""
-    sys.excepthook = lambda _kind, error, _traceback: record_exception(error)
-    threading.excepthook = lambda args: record_exception(args.exc_value)
+    def uncaught(error):
+        if failure_component is not None and isinstance(error, Exception):
+            emit_failure_once(failure_component, "unexpected", error)
+        record_exception(error)
+
+    sys.excepthook = lambda _kind, error, _traceback: uncaught(error)
+    threading.excepthook = lambda args: uncaught(args.exc_value)
     try:
         return callback()
     except Exception as error:
-        record_exception(error)
+        uncaught(error)
         return 1

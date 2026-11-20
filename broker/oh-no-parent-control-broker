@@ -17,18 +17,30 @@ if not diagnostics_only:
             ["/usr/libexec/oh-no-parent-control-package-activation", "wait-child-trust"],
             stdin=subprocess.DEVNULL, check=True, timeout=125,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.TimeoutExpired):
+        # The trust gate runs before shared Python modules can be loaded.
+        sys.stderr.write("onpc.runtime bootstrap failed\n")
+        raise SystemExit("onpc.service: child trust database is not ready") from None
+    except subprocess.CalledProcessError as error:
+        if error.returncode < 0:
+            sys.stderr.write("onpc.runtime bootstrap failed\n")
         raise SystemExit("onpc.service: child trust database is not ready") from None
 
 sys.path.insert(0, "/usr/lib/oh-no-parent-control/broker")
 sys.path.insert(0, "/usr/lib/oh-no-parent-control")
 
 try:
-    from common.oh_no_parent_control_ui.diagnostic_events import configure_console, run_cli
+    from common.oh_no_parent_control_ui.diagnostic_events import configure_console, emit_failure, run_cli
+except Exception:
+    sys.stderr.write("onpc.runtime bootstrap failed\nonpc.runtime startup failed\n")
+    raise SystemExit(1) from None
+
+try:
     configure_console()
     from oh_no_parent_control.service import main
 except Exception:
+    emit_failure("broker", "startup")
     sys.stderr.write("onpc.runtime startup failed\n")
     raise SystemExit(1) from None
 
-raise SystemExit(run_cli(lambda: main(diagnostics_only=diagnostics_only)))
+raise SystemExit(run_cli(lambda: main(diagnostics_only=diagnostics_only), failure_component="broker"))

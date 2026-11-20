@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
-import math
 import os
 import re
 import tempfile
@@ -12,7 +11,7 @@ from dataclasses import dataclass, field
 import threading
 from pathlib import Path
 
-from .config import UINT32_MAX, validate_target
+from .config import ConfigurationError, UINT32_MAX, validate_target
 from .whats_new import WhatsNewError, validate_seen
 
 FORMAT_VERSION = 4
@@ -27,6 +26,7 @@ MAX_TIME_GRANT_PRESETS = 64
 DEFAULT_TIME_GRANT_PRESETS = (300, 900, 1800, 3600, 7200, 14400)
 FIXED_TIME_GRANT_CHOICES = ("0", "custom")
 DESKTOP_ID_RE = re.compile(r"^[^/\x00]+\.desktop$")
+_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
 _UNSAFE_PATTERN_CHARACTERS = frozenset(",\"\\\x00\r\n")
 REQUIRED_REQUEST_KEYS = {
     "last_selected_duration", "last_custom_minutes", "allow_soft_blocked_apps",
@@ -39,6 +39,10 @@ LOG = get_logger("preferences")
 
 class PreferencesError(ValueError):
     """A preference record is malformed or could not be stored safely."""
+
+
+class StoredPreferencesError(PreferencesError):
+    """An existing preference record could not be read or validated."""
 
 
 LANGUAGE_RE = re.compile(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*")
@@ -98,7 +102,7 @@ def validate_notifications(raw: object) -> dict:
         if type(value) is not int or not 1 <= value <= maximum:
             raise PreferencesError("reminder time must be a positive whole uint32 duration in seconds")
         if (not isinstance(text, str) or len(text) > MAX_REMINDER_TEXT or "\x00" in text or
-                any(0xD800 <= ord(char) <= 0xDFFF for char in text)):
+                _SURROGATE_RE.search(text)):
             raise PreferencesError("invalid reminder text")
         ids.add(identifier)
         # Preserve literal custom text. Whitespace-only content means default.
@@ -178,18 +182,24 @@ def validate_preferences(raw: object) -> dict:
 
     apps = {}
     for desktop_id, entry in raw["apps"].items():
-        if not isinstance(desktop_id, str) or not DESKTOP_ID_RE.fullmatch(desktop_id):
+        if (not isinstance(desktop_id, str) or not DESKTOP_ID_RE.fullmatch(desktop_id) or
+                _SURROGATE_RE.search(desktop_id)):
             raise PreferencesError("invalid desktop application ID")
         if not isinstance(entry, dict) or set(entry) != {
             "state", "targets", "patterns", "user_saved_match_rule",
         }:
             raise PreferencesError("invalid application preference")
         state = entry["state"]
-        if state not in VALID_APP_STATES:
+        if not isinstance(state, str) or state not in VALID_APP_STATES:
             raise PreferencesError("invalid application state")
         if not isinstance(entry["targets"], list):
             raise PreferencesError("application targets must be an array")
-        targets = tuple(validate_target(value) for value in entry["targets"])
+        if any(isinstance(value, str) and _SURROGATE_RE.search(value) for value in entry["targets"]):
+            raise PreferencesError("invalid application target")
+        try:
+            targets = tuple(validate_target(value) for value in entry["targets"])
+        except ConfigurationError as error:
+            raise PreferencesError("invalid application target") from error
         if len(targets) != len(set(targets)):
             raise PreferencesError("duplicate application target")
         if not isinstance(entry["patterns"], list):
@@ -223,8 +233,7 @@ def validate_preferences(raw: object) -> dict:
     unit = request.get("last_custom_unit", "minutes")
     if not isinstance(unit, str) or unit not in {"minutes", "hours"}:
         raise PreferencesError("invalid custom duration unit")
-    if (type(custom) not in (int, float) or not math.isfinite(custom) or
-            not MIN_CUSTOM_MINUTES <= custom <= MAX_CUSTOM_MINUTES):
+    if type(custom) not in (int, float) or not MIN_CUSTOM_MINUTES <= custom <= MAX_CUSTOM_MINUTES:
         raise PreferencesError("invalid custom duration")
     if type(request["allow_soft_blocked_apps"]) is not bool:
         raise PreferencesError("allow-soft state must be boolean")
@@ -266,10 +275,11 @@ def _validate_pattern(value: object, targets: tuple[str, ...]) -> str:
     directory = directory or "/"
     if not separator or not basename or not any(char in basename for char in "*?"):
         raise PreferencesError("application pattern must contain a basename wildcard")
-    if "/" in basename or any(char in basename for char in _UNSAFE_PATTERN_CHARACTERS):
+    if ("/" in basename or _SURROGATE_RE.search(basename) or
+            any(char in basename for char in _UNSAFE_PATTERN_CHARACTERS)):
         raise PreferencesError("application pattern contains unsupported characters")
-    if any(char.isspace() for char in directory) or any(
-            char in directory for char in _UNSAFE_PATTERN_CHARACTERS):
+    if (_SURROGATE_RE.search(directory) or any(char.isspace() for char in directory) or
+            any(char in directory for char in _UNSAFE_PATTERN_CHARACTERS)):
         raise PreferencesError("application pattern directory cannot be represented safely")
     resolved_directory = os.path.realpath(directory)
     if not any(target.startswith("/") and os.path.dirname(os.path.realpath(target)) == resolved_directory
@@ -330,12 +340,15 @@ class PreferenceStore:
                 info.st_mtime_ns, info.st_ctime_ns)
 
     def load(self, uid: int) -> dict:
+        return self._load_validated(uid)[1]
+
+    def _load_validated(self, uid: int) -> tuple[object, dict]:
         raw = self._load_record(uid)
         try:
-            return validate_preferences(raw)
+            return raw, validate_preferences(raw)
         except PreferencesError as error:
             LOG.warning("preferences.003", error_type=error_code(error))
-            raise
+            raise StoredPreferencesError(str(error)) from error
 
     def _load_record(self, uid: int) -> object:
         path = self._path(uid)
@@ -344,9 +357,12 @@ class PreferenceStore:
         except FileNotFoundError:
             LOG.info("preferences.001")
             return {"version": FORMAT_VERSION, "personal": {"language": ""}}
+        except PreferencesError as error:
+            LOG.warning("preferences.002", error_type=error_code(error))
+            raise StoredPreferencesError(str(error)) from error
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             LOG.warning("preferences.002", error_type=error_code(error))
-            raise PreferencesError("could not read preferences") from error
+            raise StoredPreferencesError("could not read preferences") from error
         return raw
 
     def save(self, uid: int, preferences: object) -> dict:
@@ -440,8 +456,7 @@ class PreferenceStore:
                        allow_soft: bool, last_selected_approver_uid: int = 0,
                        custom_unit: str = "minutes") -> dict:
         with self._write_lock:
-            raw = self._load_record(uid)
-            current = validate_preferences(raw)
+            raw, current = self._load_validated(uid)
             current["request"] = {
                 **current["request"],
                 "last_selected_duration": selected,

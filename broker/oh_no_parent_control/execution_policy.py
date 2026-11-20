@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import fnmatch
 import json
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    emit_failure, emit_failure_once, error_code, get_logger, record_exception,
+)
 import os
 import stat
 import subprocess
@@ -344,6 +346,9 @@ class FapolicydPolicy:
                 LOG.info("execution-policy.004")
                 self._reload()
             except Exception as error:
+                failure = (error if isinstance(error, ExecutionPolicyError) else
+                           ExecutionPolicyError("execution policy could not be activated"))
+                emit_failure_once("broker", "backend", failure, original=error)
                 LOG.error("execution-policy.005", error_type=error_code(error))
                 record_exception(error)
                 try:
@@ -351,21 +356,25 @@ class FapolicydPolicy:
                     self._reload()
                     self._last_notified_contents = previous
                 except Exception as rollback_error:
+                    failure = ExecutionPolicyError("execution-policy rollback could not be activated")
+                    emit_failure_once("broker", "backend", failure, original=rollback_error)
                     LOG.error("execution-policy.006", error_type=error_code(rollback_error))
                     record_exception(rollback_error)
-                    raise ExecutionPolicyError(
-                        "execution-policy rollback could not be activated"
-                    ) from rollback_error
-                if isinstance(error, ExecutionPolicyError):
+                    raise failure from rollback_error
+                if failure is error:
                     raise
-                raise ExecutionPolicyError("execution policy could not be activated") from error
+                raise failure from error
             self._last_notified_contents = contents
             self._record_rule_issues(issues)
             LOG.info("execution-policy.007")
 
     def _record_rule_issues(self, issues):
+        previous = set(self._rule_issues)
         self._rule_issues = tuple(issues or ())
-        if self._rule_issues:
+        current = set(self._rule_issues)
+        if current - previous:
+            emit_failure("broker", "operation")
+        if current:
             # Identities stay local; automatic diagnostics contain counts only.
             LOG.error("execution-policy.rules-omitted", rule_count=len(self._rule_issues))
 
@@ -398,6 +407,7 @@ class FapolicydPolicy:
                 raise ExecutionPolicyError(
                     "execution policy removal could not be activated"
                 ) from error
+            self._record_rule_issues(None)
             LOG.info("execution-policy.011")
 
     def _replace(self, contents: bytes, *, path: Path | None = None) -> None:

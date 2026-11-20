@@ -1984,11 +1984,11 @@ class RequestWindow(Adw.ApplicationWindow):
             return
         if error is not None:
             LOG.warning("kiosk.023", error_type=error_code(error))
-            self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
             # Advisory refreshes must not put a modal over a cancelled request.
             # Keep diagnostics and the footer; the existing refresh can recover.
             self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
                                  m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
+            self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
         else:
             LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
@@ -2212,7 +2212,7 @@ class RequestWindow(Adw.ApplicationWindow):
     def _set_request_controls(self, enabled):
         self._request_content.set_controls_sensitive(enabled)
 
-    def _show_error(self, error):
+    def _show_error(self, error, *, failure_category="operation"):
         if broker_reboot_required(error) or getattr(self, '_reboot_required', False):
             self._reboot_required = True
             if getattr(self, '_startup_language_pending', False):
@@ -2228,10 +2228,11 @@ class RequestWindow(Adw.ApplicationWindow):
             show_update_required(self)
             return
         title, detail = public_error(error, child_overlay=self._child_overlay)
+        report = self._errors.capture(error, title, detail, failure_category=failure_category)
         if self._child_overlay:
             set_text(self._result_action, 'label', m.CLOSE)
         self._show_result(title, detail)
-        self._error_report = self._errors.capture(error, title, detail)
+        self._error_report = report
         self._report_error.set_active(True)
         self._report_row.set_visible(True)
 
@@ -2441,7 +2442,8 @@ class Application(Adw.Application):
 
     def do_activate(self):
         if self._report_error is not None:
-            show_startup_error(self, "Child App", self._report_error)
+            # The Shell or broker recorded the fault before launching this UI.
+            show_startup_error(self, "Child App", self._report_error, failure_category=None)
             return
         window = next((window for window in self.get_windows()
                        if isinstance(window, RequestWindow)), None) or self._window_factory(

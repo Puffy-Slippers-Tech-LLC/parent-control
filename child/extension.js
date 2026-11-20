@@ -122,7 +122,7 @@ export default class OhNoParentControlExtension extends Extension {
                 }
             });
         } catch (_error) {
-            logWarning('child.session-monitor-failed');
+            logWarning('child.session-monitor-failed', {}, 'dependency');
         }
     }
 
@@ -187,7 +187,7 @@ export default class OhNoParentControlExtension extends Extension {
         this._lockedSessionFocus?.close();
         this._lockedSessionFocus = null;
         try { this._wellbeing?.close(); } catch (_error) {
-            logWarning('child.wellbeing', {stage: 'shutdown', outcome: 'failed'});
+            logWarning('child.wellbeing', {stage: 'shutdown', outcome: 'failed'}, 'operation');
         }
         this._wellbeing = null;
         this._reminderPreview?.close();
@@ -257,7 +257,7 @@ export default class OhNoParentControlExtension extends Extension {
         try {
             this._requestProcess.force_exit();
         } catch (_error) {
-            logWarning('child.overlay-stop-failed');
+            logWarning('child.overlay-stop-failed', {}, 'operation');
         }
         this._requestProcess = null;
     }

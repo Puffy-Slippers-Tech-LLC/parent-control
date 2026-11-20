@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RollbackFailure,
-    UserAccount, calculate_active_extension_seconds, format_requested_duration,
-    seconds_until_local_midnight,
+    UserAccount, calculate_active_extension_seconds, emit_backend_failure,
+    format_requested_duration, seconds_until_local_midnight,
 )
 from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
@@ -23,6 +23,8 @@ from oh_no_parent_control.extension_manager import ChildExtensionFailed, ChildEx
 from tests.support.broker import (
     Accounts, Authorizer, Extensions, Preferences, RunningApps, TimerUsage, make_broker,
 )
+
+FAILURE_SINK = "common.oh_no_parent_control_ui.diagnostic_events.emit_failure"
 
 
 @pytest.mark.parametrize('approval_utc, midnight_utc', (
@@ -1028,6 +1030,27 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(saved["daily_time_limit_minutes"], 60)
         self.assertEqual(extensions.calls, [(1001, True)])
 
+    def test_malformed_submitted_policy_fields_are_quiet_invalid_requests(self):
+        accounts, preferences = Accounts(), Preferences()
+        broker = make_broker(accounts=accounts, preferences=preferences)
+        current = preferences.load(1001)
+        for field, value, message in (
+                ("state", [], "invalid application state"),
+                ("targets", ["/private/../canary"], "invalid application target"),
+                ("last_custom_minutes", 10 ** 400, "invalid custom duration")):
+            with self.subTest(field=field), mock.patch(FAILURE_SINK) as failure:
+                submitted = preferences.load(1001)
+                settings = (next(iter(submitted["apps"].values())) if field != "last_custom_minutes"
+                            else submitted["request"])
+                settings[field] = value
+                with self.assertRaises(InvalidRequest) as raised:
+                    broker.set_preferences(1003, 1001, submitted)
+                self.assertEqual(str(raised.exception), message)
+                emit_backend_failure(raised.exception)
+                failure.assert_not_called()
+        self.assertEqual(preferences.load(1001), current)
+        self.assertEqual(accounts.events, [])
+
     def test_enabling_parent_control_initializes_exhausted_account(self):
         accounts, preferences, extensions = Accounts(), Preferences(), Extensions()
         accounts.limit_type = 0
@@ -1069,10 +1092,16 @@ class CoreTests(unittest.TestCase):
         accounts.limit_type = 0
         accounts.fail_limit_type = True
 
-        with self.assertRaises(BackendFailure):
-            make_broker(
-                accounts=accounts, preferences=preferences, extensions=extensions,
-            ).set_parent_control(1003, 1001, True, 60)
+        broker = make_broker(accounts=accounts, preferences=preferences, extensions=extensions)
+        events = mock.Mock()
+        with (mock.patch(FAILURE_SINK, events.failure),
+              mock.patch.object(broker, "_restore", wraps=broker._restore) as restore):
+            events.attach_mock(restore, "restore")
+            with self.assertRaises(BackendFailure) as raised:
+                broker.set_parent_control(1003, 1001, True, 60)
+            emit_backend_failure(raised.exception)
+        self.assertEqual([call[0] for call in events.mock_calls], ["failure", "restore"])
+        events.failure.assert_called_once_with("broker", "backend")
 
         self.assertFalse(preferences.load(1001)["parent_control_enabled"])
         self.assertEqual(accounts.limit_type, 0)
@@ -1533,6 +1562,51 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(request["kiosk_muted"])
         self.assertTrue(request["child_muted"])
 
+    def test_request_preference_changes_signal_corrupt_storage_with_existing_reply(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch(FAILURE_SINK) as fault:
+            path = Path(directory) / "1001.json"
+            broker = make_broker(preferences=PreferenceStore(Path(directory)))
+            with self.assertRaisesRegex(InvalidRequest, "invalid selected duration"):
+                broker.update_request_preferences(1001, 1001, "private duration", 0.1, False)
+            with self.assertRaisesRegex(InvalidRequest, "invalid request sound surface"):
+                broker.set_request_muted(1001, 1001, "private surface", False)
+            fault.assert_not_called()
+            self.assertFalse(path.exists())
+
+            for record, message in ((b'"private parse failure', "could not read preferences"),
+                                    (b'{"private": 1, "private": 2}', "duplicate preference key"),
+                                    (b'{"private": 1}', "preference record has invalid keys")):
+                with self.subTest(message=message):
+                    path.write_bytes(record)
+                    fault.reset_mock()
+                    with self.assertRaisesRegex(InvalidRequest, f"^{message}$"):
+                        broker.update_request_preferences(1001, 1001, "custom", 0.1, False)
+                    with self.assertRaisesRegex(InvalidRequest, f"^{message}$"):
+                        broker.set_request_muted(1001, 1001, "child", False)
+                    self.assertEqual(fault.call_args_list, [mock.call("broker", "backend")] * 2)
+                    self.assertEqual(path.read_bytes(), record)
+
+    def test_policy_rejects_submitted_surrogates_before_native_work(self):
+        accounts = Accounts()
+        broker = make_broker(accounts=accounts, preferences=Preferences())
+        for desktop_id, target, patterns, message in (
+                ("private\ud800.desktop", "/usr/bin/game", [], "invalid desktop application ID"),
+                ("game.desktop", "/usr/bin/private\udcff", [], "invalid application target"),
+                ("game.desktop", "/usr/bin/game", ["/usr/bin/private\udfff*"],
+                 "application pattern contains unsupported characters"),
+                ("game.desktop", "/usr/bin/game", ["/usr/bin/private\ud800/game*"],
+                 "application pattern directory cannot be represented safely")):
+            with self.subTest(message=message), mock.patch(FAILURE_SINK) as fault:
+                policy = default_preferences()
+                policy["apps"][desktop_id] = {
+                    "state": "permanent", "targets": [target], "patterns": patterns,
+                    "user_saved_match_rule": False,
+                }
+                with self.assertRaisesRegex(InvalidRequest, f"^{message}$"):
+                    broker.set_preferences(1003, 1001, policy)
+                fault.assert_not_called()
+        self.assertEqual(accounts.events, [])
+
     def test_managed_child_can_read_its_own_account(self):
         user = make_broker().get_own_account(1001)
         self.assertEqual((user.uid, user.label), (1001, "Child"))
@@ -1946,10 +2020,18 @@ class CoreTests(unittest.TestCase):
     def test_rollback_failure_is_escalated(self):
         accounts = Accounts()
         accounts.fail_extension = accounts.fail_rollback = True
-        with self.assertRaises(RollbackFailure):
-            make_broker(accounts=accounts).request_access(
-                991, ":1.2", 1001, 1003, 900, False,
-            )
+        broker = make_broker(accounts=accounts)
+        events = mock.Mock()
+        with (mock.patch(FAILURE_SINK, events.failure),
+              mock.patch.object(broker, "_restore", wraps=broker._restore) as restore):
+            events.attach_mock(restore, "restore")
+            with self.assertRaises(RollbackFailure) as raised:
+                broker.request_access(991, ":1.2", 1001, 1003, 900, False)
+            # D-Bus conversion sees the same rollback exception.
+            emit_backend_failure(raised.exception)
+        self.assertEqual([call[0] for call in events.mock_calls],
+                         ["failure", "restore", "failure"])
+        self.assertEqual(events.failure.call_args_list, [mock.call("broker", "backend")] * 2)
 
     def test_concurrent_request_is_busy(self):
         entered, release = threading.Event(), threading.Event()

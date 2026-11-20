@@ -41,7 +41,7 @@ from common.oh_no_parent_control_ui.app_policy import replacement_policy_ids
 from common.oh_no_parent_control_ui.feedback import FeedbackDialog
 from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, GENERIC_TITLE, GENERIC_DETAIL, install_exception_hooks,
-    show_startup_error, show_update_required,
+    record_frontend_failure, show_startup_error, show_update_required,
 )
 from common.oh_no_parent_control_ui.user_icon import parse_listed_user
 
@@ -1466,6 +1466,7 @@ class ParentWindow(Adw.ApplicationWindow):
             return
         # Optional release information must not replace language setup or
         # disable policy controls. The same private event records API failures.
+        record_frontend_failure("Parent App", error)
         LOG.warning('parent.004', error_type=error_code(error))
         self._toast(GENERIC_DETAIL)
 
@@ -1657,14 +1658,16 @@ class ParentWindow(Adw.ApplicationWindow):
             self._feedback_dialog = FeedbackDialog(self)
         self._feedback_dialog.present()
 
-    def _show_error(self, error, detail=GENERIC_DETAIL, *, on_close=None):
+    def _show_error(self, error, detail=GENERIC_DETAIL, *, on_close=None,
+                    failure_category="operation"):
         if broker_reboot_required(error):
             show_update_required(self, on_close=self.close)
             return
-        self._toast(detail)
         if not getattr(self, "_errors", None):
             self._errors = ErrorHandler(self, "Parent App")
-        self._errors.handle(error, GENERIC_TITLE, detail, on_close=on_close)
+        report = self._errors.capture(error, GENERIC_TITLE, detail, failure_category=failure_category)
+        self._toast(detail)
+        self._errors.present(report, on_close=on_close)
 
     def _show_refresh_error(self, error, detail, *, uid=None):
         if (uid is not None and isinstance(error, GLib.Error)
@@ -1689,6 +1692,7 @@ class ParentWindow(Adw.ApplicationWindow):
         # Initial discovery, user writes and authorization failures retain
         # their normal error paths. The client still records the failure.
         if broker_unavailable(error):
+            record_frontend_failure("Parent App", error, "dependency")
             self._toast(detail)
         else:
             self._show_error(error, detail)
@@ -1866,6 +1870,8 @@ class ParentWindow(Adw.ApplicationWindow):
             if not self._user_discovery_error_reported:
                 self._user_discovery_error_reported = True
                 self._show_refresh_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
+            else:
+                record_frontend_failure("Parent App", error)
             return
         LOG.warning("parent.006", error_type=error_code(error))
         self._fatal_discovery_error = True

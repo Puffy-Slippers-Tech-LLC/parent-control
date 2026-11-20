@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from common.oh_no_parent_control_ui.diagnostic_events import (
-    get_logger, error_code, operation_scope, log_version, configure_console, record_exception,
+    get_logger, emit_failure, emit_failure_once, error_code, gio_error_category, operation_scope,
+    log_version, configure_console, record_exception,
 )
 from common.oh_no_parent_control_ui.reboot import product_reboot_required
 import os
@@ -29,7 +30,10 @@ from .adapters import (
 from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
 from .catalog import list_apps
-from .core import Broker, BrokerError, Busy, InvalidRequest, BackendFailure, RollbackFailure, local_now
+from .core import (
+    BackendFailure, Broker, BrokerError, Busy, InvalidRequest, RollbackFailure,
+    emit_backend_failure, local_now,
+)
 from .extension_manager import ExtensionManager
 from .extension_monitor import ExtensionMonitor
 from .execution_policy import FapolicydPolicy, originally_permissive_policy
@@ -364,6 +368,7 @@ class Service:
         try:
             cap_uids = self.broker.clear_live_session_runtime_caps()
         except Exception as error:
+            emit_failure("broker", "operation")
             LOG.error("service.002", error_type=error_code(error))
             record_exception(error)
         else:
@@ -466,6 +471,7 @@ class Service:
         try:
             self.accounts.sync_execution_policy()
         except Exception as error:
+            emit_failure_once("broker", "operation", error)
             LOG.error("service.004")
             record_exception(error)
 
@@ -514,6 +520,7 @@ class Service:
     @operation_scope
     def _method_call(self, _connection, sender, _path, _interface, method,
                      parameters, invocation):
+        caller_uid = None
         try:
             caller_uid = self.credentials.uid(sender)
             deferred_reply = False
@@ -719,7 +726,7 @@ class Service:
                 target_uid, encoded = parameters.unpack()
                 try:
                     value = json.loads(encoded)
-                except json.JSONDecodeError as error:
+                except (ValueError, RecursionError) as error:
                     raise InvalidRequest("preferences are not valid JSON") from error
                 saved = self.broker.set_preferences(caller_uid, target_uid, value)
                 invocation.return_value(GLib.Variant("(s)", (json.dumps(saved),)))
@@ -779,11 +786,15 @@ class Service:
             if method not in ("LogEvent", "CalculateOwnRemainingTime", "CalculateOwnDeadline") and not deferred_reply:
                 LOG.info("service.008", method=method)
         except BrokerError as error:
+            emit_backend_failure(error)
             LOG.warning("service.009", method=method, error_type=error_code(error))
             if isinstance(error, (BackendFailure, RollbackFailure)):
                 record_exception(error)
             invocation.return_dbus_error(error.dbus_name, str(error))
         except Exception as error:
+            # A racing client disconnect can end the call before UID lookup.
+            if caller_uid is not None or gio_error_category(error) != "no-owner":
+                emit_failure_once("broker", "unexpected", error)
             LOG.error("service.010", method=method, error_type=error_code(error))
             record_exception(error)
             invocation.return_dbus_error(f"{BUS_NAME}.Error.Failed", "service failure")
@@ -820,6 +831,10 @@ class Service:
             user_languages = self.broker.diagnostic_user_languages(caller_uid)
             data = self.log_writer.snapshot(health=self._health_snapshot(), user_languages=user_languages)
         except Exception as error:
+            if isinstance(error, BrokerError):
+                emit_backend_failure(error)
+            else:
+                emit_failure("broker", "backend")
             LOG.warning("service.011", error_type=error_code(error))
             record_exception(error)
         GLib.idle_add(self._export_logs_done, invocation, caller_uid, data)
@@ -840,6 +855,8 @@ class Service:
                 invocation.return_value(GLib.Variant.new_tuple(archive))
                 LOG.info("service.012", bytes=len(data))
         except BrokerError as error:
+            if data is not None:
+                emit_backend_failure(error)
             invocation.return_dbus_error(error.dbus_name, str(error))
         finally:
             self._diagnostic_export_lock.release()
@@ -855,11 +872,13 @@ class Service:
             LOG.info("service.013")
             GLib.idle_add(self._return_value, invocation, result)
         except BrokerError as error:
+            emit_backend_failure(error)
             LOG.warning("service.014", error_type=error_code(error))
             if isinstance(error, (BackendFailure, RollbackFailure)):
                 record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
+            emit_failure("broker", "unexpected")
             LOG.error("service.015", error_type=error_code(error))
             record_exception(error)
             GLib.idle_add(
@@ -876,11 +895,13 @@ class Service:
             LOG.info("service.016")
             GLib.idle_add(self._return_own_value, invocation, result)
         except BrokerError as error:
+            emit_backend_failure(error)
             LOG.warning("service.017", error_type=error_code(error))
             if isinstance(error, (BackendFailure, RollbackFailure)):
                 record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
+            emit_failure("broker", "unexpected")
             LOG.error("service.018", error_type=error_code(error))
             record_exception(error)
             GLib.idle_add(
@@ -903,11 +924,13 @@ class Service:
                 GLib.Variant("(b)", (reconciled,)),
             )
         except BrokerError as error:
+            emit_backend_failure(error)
             LOG.warning("service.009", method=method, error_type=error_code(error))
             if isinstance(error, (BackendFailure, RollbackFailure)):
                 record_exception(error)
             GLib.idle_add(self._return_error, invocation, error.dbus_name, str(error))
         except Exception as error:
+            emit_failure("broker", "unexpected")
             LOG.error("service.010", method=method, error_type=error_code(error))
             record_exception(error)
             GLib.idle_add(
@@ -937,6 +960,7 @@ class Service:
 
 def main(*, diagnostics_only=False):
     if os.geteuid() != 0:
+        emit_failure("broker", "startup")
         configure_console()
         LOG.critical("service.022")
         return 1
@@ -959,12 +983,14 @@ def main(*, diagnostics_only=False):
             if not diagnostics_only:
                 LOG.info("service.024")
         except Exception as error:
+            emit_failure_once("broker", "startup", error)
             startup_failed.append(True)
             record_exception(error)
             LOG.error("service.025")
             loop.quit()
 
     def on_name_lost(_connection, _name):
+        emit_failure("broker", "dependency" if service_holder else "startup")
         LOG.critical("service.026")
         loop.quit()
 
@@ -986,4 +1012,4 @@ def main(*, diagnostics_only=False):
 
 if __name__ == "__main__":
     from common.oh_no_parent_control_ui.diagnostic_events import run_cli
-    sys.exit(run_cli(main))
+    sys.exit(run_cli(main, failure_component="broker"))

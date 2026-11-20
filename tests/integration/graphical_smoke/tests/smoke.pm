@@ -1495,7 +1495,8 @@ sub run {
     if ($ready->{kiosk_feedback_confinement}) {
         console('sut')->disable();
         exchange('setup-detached', undef);
-        onpc_kiosk_eligible_choices::run(\&exchange, 1);
+        onpc_kiosk_eligible_choices::run(\&exchange, 1,
+            $ready->{invocations}, $ready->{challenge_bindings});
         return;
     }
     if ($ready->{kiosk_notification_wellbeing}) {

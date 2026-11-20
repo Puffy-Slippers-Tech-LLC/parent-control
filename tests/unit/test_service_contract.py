@@ -665,6 +665,35 @@ def test_shared_product_reboot_detection_selects_broker_startup(tmp_path, marker
     assert product_reboot_required(tmp_path) is False
 
 
+@pytest.mark.parametrize("outcome, emits_bootstrap", (
+    ("refused", False), ("missing", True), ("timeout", True), ("signal", True),
+))
+def test_broker_bootstrap_reports_failed_trust_helper(monkeypatch, capsys, outcome, emits_bootstrap):
+    import runpy
+    import subprocess
+    from pathlib import Path
+
+    exists = Path.exists
+
+    def without_guards(path):
+        if str(path) in ("/var/lib/oh-no-parent-control/migration-in-progress",
+                         "/run/oh-no-parent-control-child-trust-reboot"):
+            return False
+        return exists(path)
+
+    failures = {
+        "refused": subprocess.CalledProcessError(1, "trust-helper"),
+        "missing": FileNotFoundError(),
+        "timeout": subprocess.TimeoutExpired("trust-helper", 125),
+        "signal": subprocess.CalledProcessError(-9, "trust-helper"),
+    }
+    monkeypatch.setattr(Path, "exists", without_guards)
+    monkeypatch.setattr(subprocess, "run", mock.Mock(side_effect=failures[outcome]))
+    with pytest.raises(SystemExit, match="child trust database is not ready"):
+        runpy.run_path(str(ROOT / "broker/oh-no-parent-control-broker"))
+    assert capsys.readouterr().err.count("onpc.runtime bootstrap failed") == emits_bootstrap
+
+
 def test_public_method_diagnostics_preserve_only_registered_method_names():
     for event_id in ('service.006', 'service.007', 'service.008', 'service.009', 'service.010'):
         for method in (*signatures(INTROSPECTION_XML), 'private-unrecognized-method'):

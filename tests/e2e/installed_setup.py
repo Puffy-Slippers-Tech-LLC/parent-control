@@ -27,7 +27,10 @@ def timed_stage(stage):
               file=sys.stderr, flush=True)
 
 
-def inputs(root):
+def inputs(root, *, product_failure_signal=False):
+    failure_helpers = ('tests/integration/system_assertions.py',
+                       'tests/integration/system_caller.py',
+                       'tests/support/product_failure_journal.py') if product_failure_signal else ()
     return Bundle(root, [('Makefile', 'install-source/Makefile'),
         # Guest enforcement helpers use these maintained flat fixture aliases.
         ('tests/fixtures/baseline_environment.py', 'baseline_environment.py'),
@@ -41,7 +44,7 @@ def inputs(root):
         'tests/integration/system_kiosk_lease_variation.py',
         'tests/integration/system_kiosk_feedback.py',
         'tests/integration/system_wellbeing_qualification.py',
-        'tests/integration/wellbeing_probe.py')]])
+        'tests/integration/wellbeing_probe.py', *failure_helpers)]])
 
 
 def snapshot_inputs(bundle):

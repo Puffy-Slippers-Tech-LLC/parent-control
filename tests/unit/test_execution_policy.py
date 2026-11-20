@@ -289,10 +289,12 @@ class ExecutionPolicyTests(unittest.TestCase):
                                    f"{healthy}/Game-*.AppImage"),
                             1002: (f"{healthy}/Other-*.AppImage",)}
                 policy = FapolicydPolicy(root / "policy.rules", tolerate_rule_errors=True)
-                with mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
-                                return_value=SimpleNamespace(returncode=0)):
+                with (mock.patch("oh_no_parent_control.execution_policy.subprocess.run",
+                                 return_value=SimpleNamespace(returncode=0)),
+                      mock.patch("oh_no_parent_control.execution_policy.emit_failure") as fault):
                     with self.assertLogs("onpc.execution-policy", level="ERROR") as logs:
                         policy.reconcile(filters, patterns)
+                    fault.assert_called_once_with("broker", "operation")
                     rules = policy._rules_path.read_text()
                     self.assertNotIn(f"dir={broken}/", rules)
                     self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={healthy}/", rules)
@@ -305,12 +307,20 @@ class ExecutionPolicyTests(unittest.TestCase):
                         (1001, "pattern", patterns[1001][0]),))
                     self.assertNotIn(str(root), "\n".join(logs.output))
                     self.assertNotIn("Lunar", "\n".join(logs.output))
+                    with self.assertLogs("onpc.execution-policy", level="ERROR") as repeat:
+                        policy.reconcile(filters, patterns)
+                    self.assertEqual(repeat.output, logs.output)
+                    fault.assert_called_once_with("broker", "operation")
                     # Resolving the folder problem restores the SAME saved glob.
-                    unrelated.rename(broken / "Other.AppImage")
+                    recovered = unrelated.rename(broken / "Other.AppImage")
                     policy.reconcile(filters, patterns)
                     self.assertEqual(policy.rule_issues, ())
                     self.assertIn(f"deny_syslog perm=execute uid=1001 : dir={broken}/",
                                   policy._rules_path.read_text())
+                    fault.assert_called_once_with("broker", "operation")
+                    recovered.rename(unrelated)
+                    policy.reconcile(filters, patterns)
+                    self.assertEqual(fault.call_args_list, [mock.call("broker", "operation")] * 2)
 
     def test_lunar_pattern_covers_new_versions_even_after_original_disappears(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -11,12 +11,16 @@ from pathlib import Path
 import re
 import stat
 import sys
+import time
 
 import system_guest as guest
 
 MASK = Path('/run/systemd/system') / guest.BROKER
 RECORD = guest.PAYLOAD / 'private/kiosk-feedback-fault.json'
 BOOT = Path('/proc/sys/kernel/random/boot_id')
+READER = guest.PAYLOAD / 'product_failure_journal.py'
+PREFERENCES = Path('/var/lib/oh-no-parent-control/preferences')
+OUTAGE_SOURCES = {('parent', 'gtk'), ('child', 'gnome-shell'), ('kiosk', 'gtk')}
 
 
 def service():
@@ -153,9 +157,175 @@ def no_grant():
     return {'broker_unavailable': True, 'no_grant': True}
 
 
+def qualification_uids():
+    baseline = json.loads(guest.BASELINE.read_bytes())['accounts']
+    parent = pwd.getpwnam('onpc-parent-jamie')
+    child = pwd.getpwnam('onpc-child-riley')
+    kiosk = pwd.getpwnam('oh-no-parent-control')
+    guest.require(all(baseline.get(account.pw_name, {}).get('uid') == account.pw_uid
+                      for account in (parent, child)) and
+                  kiosk.pw_dir == '/home/oh-no-parent-control' and
+                  len({0, parent.pw_uid, child.pw_uid, kiosk.pw_uid}) == 4,
+                  'kiosk-feedback:signal-account-identity')
+    return parent.pw_uid, child.pw_uid, kiosk.pw_uid
+
+
+def journal(*args):
+    return guest.run(['/usr/bin/python3', '-B', str(READER), *args], timeout=30)
+
+
+def failure_boundary():
+    return journal('boundary')
+
+
+def failure_observation(start, end, uids):
+    observation = json.loads(journal('read', start, end, *map(str, uids)))
+    guest.require(observation['complete'] is True,
+                  'kiosk-feedback:failure-span-incomplete:' + observation['reason'])
+    return observation
+
+
+def failures(start, end, uids):
+    return failure_observation(start, end, uids)['events']
+
+
+def outage_failures(start):
+    from system_assertions import call
+
+    marker = guest.guard()
+    uids = qualification_uids()
+    record = read_record(marker)
+    identity = tuple(record['mask'])
+    guest.require(record['state'] == 'stopped', 'kiosk-feedback:outage-record')
+    deadline = time.monotonic() + 80
+    while True:
+        observation = failure_observation(start, failure_boundary(), uids)
+        events = observation['events']
+        # The owned mask and public failure establish the outage. The OS can
+        # classify the failed call differently while the emitter remains visible.
+        sources = {(event['component'], event['source']) for event in events}
+        if OUTAGE_SOURCES <= sources:
+            break
+        if time.monotonic() >= deadline:
+            missing = sorted(component for component, _ in OUTAGE_SOURCES - sources)
+            kinds = sorted({(event['component'], event['category'], event['source'])
+                            for event in events})
+            reply = call(uids[0], 'ListManagedUsers')
+            error = reply.get('error', 'unexpected-success')
+            if not isinstance(error, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,120}', error):
+                error = 'unknown'
+            raise guest.GuestError(
+                'kiosk-feedback:outage-signal-missing:' + ','.join(missing)
+                + ':observed=' + ','.join('/'.join(kind) for kind in kinds)
+                + ':unattributed=' + str(observation['unattributed'])
+                + ':activation=' + error)
+        time.sleep(1)
+    guest.runtime_service_mask(guest.BROKER, category='kiosk-feedback', identity=identity)
+    observed = service()
+    guest.require(observed['ActiveState'] == 'inactive' and observed['LoadState'] == 'masked',
+                  'kiosk-feedback:signal-broker-not-unavailable')
+    return {'broker_unavailable': True, 'failure_roles': sorted(role for role, _ in OUTAGE_SOURCES)}
+
+
+def broker_failures():
+    from system_assertions import accepted, account_property, call
+
+    guest.guard()
+    uids = qualification_uids()
+    parent, child, _ = uids
+    original_service = service()
+    guest.require(original_service['ActiveState'] == 'active' and
+                  original_service['LoadState'] == 'loaded', 'kiosk-feedback:signal-broker-inactive')
+    policy = account_property(child, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter')
+    guest.require(policy[0] is False, 'kiosk-feedback:signal-account-not-denylist')
+
+    def get_preferences():
+        return call(parent, 'GetPreferences', '(u)', (child,))
+
+    expected = accepted(get_preferences())
+    for directory in (PREFERENCES.parent, PREFERENCES):
+        info = directory.lstat()
+        guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                      'kiosk-feedback:signal-preference-directory')
+    path = PREFERENCES / f'{child}.json'
+    fd = os.open(path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        original = os.fstat(fd)
+        guest.require(stat.S_ISREG(original.st_mode) and original.st_uid == 0 and
+                      not original.st_mode & 0o022 and original.st_nlink == 1 and
+                      0 < original.st_size <= 65536 and os.path.samestat(original, path.lstat()),
+                      'kiosk-feedback:signal-preference-file')
+        contents = os.pread(fd, original.st_size + 1, 0)
+        guest.require(len(contents) == original.st_size and isinstance(json.loads(contents), dict),
+                      'kiosk-feedback:signal-preference-content')
+        start = failure_boundary()
+        guest.require(os.pread(fd, len(contents) + 1, 0) == contents and
+                      os.path.samestat(original, path.lstat()),
+                      'kiosk-feedback:signal-preference-changed')
+        # Append one byte to the pinned fixture inode. A partial write cannot
+        # introduce a second byte, and cleanup never truncates a replacement.
+        try:
+            guest.require(os.pwrite(fd, b'[', len(contents)) == 1,
+                          'kiosk-feedback:signal-preference-injection')
+            stamps = set()
+            for _ in range(2):
+                guest.require(get_preferences() == {'error': guest.BUS + '.Error.BackendFailure'},
+                              'kiosk-feedback:broker-did-not-report-backend-failure')
+                end = failure_boundary()
+                stamps_in_span = {event['monotonic_usec'] for event in failures(start, end, uids)
+                                  if (event['component'], event['category'], event['source']) ==
+                                  ('broker', 'backend', 'broker')}
+                guest.require(stamps_in_span and not stamps.intersection(stamps_in_span),
+                              'kiosk-feedback:broker-repeat-missing')
+                stamps.update(stamps_in_span)
+                start = end
+
+            # The periodic policy reconciliation rereads this file without a
+            # caller. Its operation failure qualifies the log-only producer.
+            deadline = time.monotonic() + 70
+            while not any((event['component'], event['category'], event['source']) ==
+                          ('broker', 'operation', 'broker')
+                          for event in failures(start, failure_boundary(), uids)):
+                guest.require(time.monotonic() < deadline, 'kiosk-feedback:broker-log-only-missing')
+                time.sleep(1)
+        finally:
+            current = os.fstat(fd)
+            mutated = os.pread(fd, len(contents) + 2, 0)
+            guest.require(os.path.samestat(original, current) and
+                          os.path.samestat(original, path.lstat()) and current.st_nlink == 1 and
+                          mutated in (contents, contents + b'['),
+                          'kiosk-feedback:signal-preference-cleanup-ownership')
+            os.ftruncate(fd, len(contents))
+            os.utime(fd, ns=(original.st_atime_ns, original.st_mtime_ns))
+            os.fsync(fd)
+    finally:
+        os.close(fd)
+    guest.require(service() == original_service and accepted(get_preferences()) == expected,
+                  'kiosk-feedback:broker-preference-not-recovered')
+    return {'backend_occurrences': 2, 'operation_observed': True, 'restored': True}
+
+
+def signal_start():
+    guest.guard()
+    journal('exercise')
+    return {'boundary': json.loads(failure_boundary()), 'settlement_exercised': True}
+
+
+def healthy_failures(start):
+    guest.guard()
+    end = failure_boundary()
+    guest.require(not failures(start, end, qualification_uids()),
+                  'kiosk-feedback:healthy-actions-signalled-failure')
+    return {'failure_events': 0, 'boundary': json.loads(end)}
+
+
 if __name__ == '__main__':
     actions = {'begin': begin, 'restore': restore, 'census': feedback_census,
-               'no-grant': no_grant}
-    guest.require(len(sys.argv) == 2 and sys.argv[1] in actions,
-                  'kiosk-feedback:arguments')
-    print(json.dumps(actions[sys.argv[1]](), sort_keys=True))
+               'no-grant': no_grant, 'signal-start': signal_start, 'broker-signals': broker_failures}
+    spans = {'healthy-signals': healthy_failures, 'outage-signals': outage_failures}
+    if len(sys.argv) == 3 and sys.argv[1] in spans:
+        value = spans[sys.argv[1]](sys.argv[2])
+    else:
+        guest.require(len(sys.argv) == 2 and sys.argv[1] in actions, 'kiosk-feedback:arguments')
+        value = actions[sys.argv[1]]()
+    print(json.dumps(value, sort_keys=True))

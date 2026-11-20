@@ -119,7 +119,12 @@ def test_packaged_request_launchers_select_mode_and_preserve_arguments(
     entrypoint.main = main
     diagnostics = ModuleType("common.oh_no_parent_control_ui.diagnostic_events")
     diagnostics.configure_console = lambda: None
-    diagnostics.run_cli = lambda callback: callback()
+
+    def unexpected_failure(component, category):
+        pytest.fail(f"Unexpected product failure: {component}/{category}")
+
+    diagnostics.emit_failure = unexpected_failure
+    diagnostics.run_cli = lambda callback, *, failure_component: callback()
     monkeypatch.setitem(sys.modules, entrypoint.__name__, entrypoint)
     monkeypatch.setitem(sys.modules, diagnostics.__name__, diagnostics)
     monkeypatch.setattr(sys, "argv", [str(launcher), *arguments])

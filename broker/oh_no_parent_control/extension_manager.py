@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import ast
 from contextlib import contextmanager
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, record_exception, operation
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    emit_failure_once, error_code, get_logger, gio_error_category, operation, record_exception,
+)
 import os
 import pwd
 import re
@@ -19,6 +21,9 @@ from typing import Callable
 from .child_bus import connect_child_bus
 
 UUID = "oh-no-parent-control@tech.puffyslippers.com"
+SHELL_NAME = "org.gnome.Shell"
+DBUS_NAME = "org.freedesktop.DBus"
+DBUS_PATH = "/org/freedesktop/DBus"
 SCHEMA = "org.gnome.shell"
 ENABLED_KEY = "enabled-extensions"
 DISABLED_KEY = "disabled-extensions"
@@ -33,6 +38,14 @@ LOAD_ASSETS = {"indicatorLogic.mjs": "indicator-logic", "diagnosticEvents.mjs": 
 
 class ChildExtensionUnavailable(RuntimeError):
     """A child-local dependency prevents activation without changing policy."""
+
+
+class ChildExtensionSessionLost(ChildExtensionUnavailable):
+    """The live session required by an in-flight operation disappeared."""
+
+
+class _CommandCancelled(TimeoutError):
+    """The monitor requested shutdown during an operation."""
 
 
 class ChildExtensionFailed(RuntimeError):
@@ -190,6 +203,9 @@ class ExtensionManager:
     def session_bus_address(self, uid):
         """Return only the fixed, ownership-checked live child bus address."""
         account, _home = self._account(uid)
+        return self._live_session_address(account)
+
+    def _live_session_address(self, account):
         _command, environment, transport = self._command(account, ())
         return environment.get("DBUS_SESSION_BUS_ADDRESS") if transport == "live-session" else None
 
@@ -237,16 +253,18 @@ class ExtensionManager:
         return self._run_command(account, arguments)
 
     def _run_command(self, account, arguments, *, require_live=False,
-                     timeout=COMMAND_TIMEOUT_SECONDS):
+                     timeout=COMMAND_TIMEOUT_SECONDS, shell_owner=None):
         budget = getattr(self._command_context, "budget", None)
         if budget is not None:
             deadline, cancelled = budget
             timeout = min(timeout, deadline - time.monotonic())
-            if cancelled.is_set() or timeout <= 0:
+            if cancelled.is_set():
+                raise _CommandCancelled("child extension operation was interrupted")
+            if timeout <= 0:
                 raise TimeoutError("child extension operation was interrupted")
         command, environment, transport = self._command(account, arguments)
         if require_live and transport != "live-session":
-            raise RuntimeError("child GNOME session is unavailable")
+            raise ChildExtensionSessionLost("child GNOME session is unavailable")
         operation = arguments[1] if len(arguments) > 1 else "unknown"
         if operation not in {"get", "set", "reset", "list", "enable", "disable", "call", "unknown"}:
             operation = "other"
@@ -285,10 +303,14 @@ class ExtensionManager:
                     break
                 # dconf can exit successfully with defaults after this warning.
                 timeout = deadline - time.monotonic()
-                if timeout <= 0 or (budget is not None and cancelled.is_set()):
+                if budget is not None and cancelled.is_set():
+                    raise _CommandCancelled("child extension operation was interrupted")
+                if timeout <= 0:
                     raise TimeoutError("child extension operation was interrupted")
             else:
                 raise OSError("dconf settings database is unavailable")
+        except _CommandCancelled:
+            raise
         except (OSError, subprocess.SubprocessError) as error:
             self._log_stderr(getattr(error, "stderr", None), operation, transport, context)
             LOG.error(
@@ -297,6 +319,11 @@ class ExtensionManager:
                 transport=transport,
                 error_type=error_code(error),
             )
+            if budget is not None and cancelled.is_set():
+                raise _CommandCancelled("child extension operation was interrupted") from error
+            if (require_live and isinstance(error, subprocess.CalledProcessError) and
+                    self._live_command_session_lost(account, shell_owner, deadline)):
+                raise ChildExtensionSessionLost("child GNOME session is unavailable") from error
             raise RuntimeError("child GNOME interface is unavailable") from error
         LOG.info("extension-manager.003", operation=operation, transport=transport)
         return result
@@ -487,29 +514,129 @@ class ExtensionManager:
     def _session_transport(self, account):
         return self._command(account, ("gsettings",))[2]
 
-    def _shell_is_available(self, account):
-        if self._session_transport(account) != "live-session":
-            return False
-        result = self._run_command(
-            account,
-            (
-                "gdbus", "call", "--session",
-                "--dest", "org.freedesktop.DBus",
-                "--object-path", "/org/freedesktop/DBus",
-                "--method", "org.freedesktop.DBus.NameHasOwner",
-                # The Extensions service is activated on demand by the CLI
-                # and proxies to Shell. Its absence does not mean the desktop
-                # is offline; probe the owner of the actual Shell instead.
-                "org.gnome.Shell",
-            ),
-            require_live=True,
-        )
-        value = result.stdout.strip()
-        if value not in {"(true,)", "(false,)"}:
+    def _live_command_session_lost(self, account, owner, deadline):
+        try:
+            if self._session_transport(account) == "offline":
+                return True
+            remaining = deadline - time.monotonic()
+            if owner is not None and remaining > 0:
+                return self._shell_owner(account, timeout=min(2, remaining)) != owner
+        except ChildExtensionSessionLost:
+            return True
+        except _CommandCancelled:
+            raise
+        except (OSError, RuntimeError, ValueError):
+            pass  # An inconclusive probe cannot replace the command failure.
+        return False
+
+    @contextmanager
+    def _live_child_bus(self, account, address, timeout):
+        from gi.repository import GLib
+
+        context = GLib.MainContext.new()
+        connection = attempt = None
+        connected = []
+        budget = getattr(self._command_context, "budget", None)
+        deadline = time.monotonic() + timeout
+        if budget is not None:
+            deadline = min(deadline, budget[0])
+
+        def check_cancelled():
+            if budget is not None and budget[1].is_set():
+                raise _CommandCancelled("child extension observation was interrupted")
+
+        def remaining():
+            check_cancelled()
+            if connection is not None and connection.is_closed():
+                raise ChildExtensionSessionLost("child GNOME session is unavailable")
+            seconds = deadline - time.monotonic()
+            if seconds <= 0:
+                raise TimeoutError("child extension observation was interrupted")
+            return seconds
+
+        context.push_thread_default()
+        try:
+            attempt = connect_child_bus(account, address, context,
+                lambda result, error: connected.append((result, error)),
+                timeout=min(2, remaining()))
+            while not connected:
+                seconds = remaining()
+                if not context.iteration(False):
+                    time.sleep(min(0.01, seconds))
+            connection, error = connected[0]
+            if error is not None:
+                raise error
+            if address != self._live_session_address(account):
+                raise ChildExtensionSessionLost("child GNOME session changed")
+            remaining()
+            yield connection, context, remaining
+        except (GLib.Error, OSError, RuntimeError) as error:
+            if isinstance(error, (ChildExtensionSessionLost, _CommandCancelled)):
+                raise
+            check_cancelled()
+            if (gio_error_category(error) == "disconnected" or
+                    isinstance(error, (GLib.Error, FileNotFoundError)) and
+                    self._live_session_address(account) is None):
+                raise ChildExtensionSessionLost("child GNOME session is unavailable") from error
+            raise
+        finally:
+            if attempt is not None:
+                attempt.cancel()
+                while attempt.pending:
+                    if not context.iteration(False):
+                        time.sleep(0.01)
+            try:
+                if connection is None and connected:
+                    connection = connected[0][0]
+                if connection is not None and not connection.is_closed():
+                    try:
+                        connection.close_sync(None)
+                    except GLib.Error as error:
+                        if gio_error_category(error) != "disconnected":
+                            raise
+            finally:
+                context.pop_thread_default()
+
+    @staticmethod
+    def _bus_shell_identity(connection, remaining):
+        from gi.repository import Gio, GLib
+
+        def call(method, parameters):
+            reply = connection.call_sync(DBUS_NAME, DBUS_PATH, DBUS_NAME, method, parameters,
+                GLib.VariantType.new("(s)"), Gio.DBusCallFlags.NO_AUTO_START,
+                max(1, int(remaining() * 1000)), None)
+            if reply.get_size() > 65536:
+                raise ValueError("oversized child session reply")
+            return reply.unpack()[0]
+
+        # A restarted bus can assign the same unique name at the same socket.
+        # Read the daemon ID and Shell owner on one authenticated connection.
+        bus_id = call("GetId", None)
+        try:
+            owner = call("GetNameOwner", GLib.Variant("(s)", (SHELL_NAME,)))
+        except GLib.Error as error:
+            if gio_error_category(error) != "no-owner":
+                raise
+            remaining()
+            return None
+        remaining()
+        if not Gio.dbus_is_guid(bus_id) or not Gio.dbus_is_unique_name(owner):
             LOG.error("extension-manager.invalid-state", source="shell-owner")
             raise RuntimeError("D-Bus returned an invalid GNOME Shell state")
-        LOG.info("extension-manager.004", available=value == "(true,)")
-        return value == "(true,)"
+        return bus_id, owner
+
+    def _shell_owner(self, account, *, timeout=COMMAND_TIMEOUT_SECONDS):
+        address = self._live_session_address(account)
+        if address is None:
+            return None
+        with self._live_child_bus(account, address, timeout) as (connection, _context, remaining):
+            identity = self._bus_shell_identity(connection, remaining)
+        LOG.info("extension-manager.004", available=identity is not None)
+        return identity
+
+    def _require_shell_owner(self, account, owner):
+        if self._shell_owner(account, timeout=2) != owner:
+            raise ChildExtensionSessionLost("child GNOME session changed")
 
     def _list(self, account, key, *, timeout=None, require_live=True):
         arguments = ("gsettings", "get", SCHEMA, key)
@@ -547,36 +674,28 @@ class ExtensionManager:
         if not self._verify_setting(key, self._boolean(account, key) == value, "switch"):
             raise RuntimeError("GNOME extension switch verification failed")
 
-    def _set_version_check(self, account, value, *, live):
+    def _set_version_check(self, account, value, *, live, shell_owner=None):
         """Observe this setting's unload/reload, never an old active instance."""
         if not live or self._boolean(account, DISABLE_VERSION_CHECK_KEY) == value:
             self._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)
             return
         from gi.repository import Gio, GLib
 
-        address = self.session_bus_address(account.pw_uid)
-        if address is None:
-            raise RuntimeError("child GNOME session is unavailable")
-        context = GLib.MainContext.new()
-        connection = attempt = subscription = None
-        connected = []
+        address = self._live_session_address(account)
+        if shell_owner is None:
+            shell_owner = self._shell_owner(account)
+        if address is None or shell_owner is None:
+            raise ChildExtensionSessionLost("child GNOME session is unavailable")
+        _, unique_name = shell_owner
+        owner_departed = False
         unloaded = reloaded = False
         budget = getattr(self._command_context, "budget", None)
-        deadline = time.monotonic() + LIVE_SETTINGS_TIMEOUT_SECONDS
-        if budget is not None:
-            deadline = min(deadline, budget[0])
 
-        def remaining():
-            seconds = deadline - time.monotonic()
-            if seconds <= 0 or budget is not None and budget[1].is_set():
-                raise TimeoutError("child extension reload was interrupted")
-            return seconds
-
-        def wait_until(done):
-            while not done():
-                remaining()
-                if not context.iteration(False):
-                    time.sleep(min(0.01, remaining()))
+        def owner_changed(_connection, _sender, _path, _interface, _member, parameters):
+            nonlocal owner_departed
+            if parameters.get_size() <= 65536 and parameters.get_type_string() == "(sss)":
+                name, old, new = parameters.unpack()
+                owner_departed |= name == SHELL_NAME and old == unique_name and old != new
 
         def changed(_connection, _sender, _path, _interface, _member, parameters):
             nonlocal unloaded, reloaded
@@ -593,75 +712,68 @@ class ExtensionManager:
             elif unloaded and state in {1, 3, 4, 6}:
                 reloaded = True
 
-        context.push_thread_default()
-        try:
-            attempt = connect_child_bus(account, address, context,
-                lambda result, error: connected.append((result, error)),
-                timeout=min(2, remaining()))
-            wait_until(lambda: bool(connected))
-            connection, error = connected[0]
-            if error is not None:
-                raise error
-            if address != self.session_bus_address(account.pw_uid):
-                raise RuntimeError("child GNOME session changed")
-
-            def bus_call(method, parameters, signature):
-                reply = connection.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus",
-                    "org.freedesktop.DBus", method, parameters, GLib.VariantType.new(signature),
-                    Gio.DBusCallFlags.NONE, max(1, int(remaining() * 1000)), None)
-                if reply.get_size() > 65536:
-                    raise ValueError("oversized child session reply")
-                return reply.unpack()
-
-            owner, = bus_call("GetNameOwner", GLib.Variant("(s)", ("org.gnome.Shell",)), "(s)")
-            subscription = connection.signal_subscribe(owner, "org.gnome.Shell.Extensions",
-                "ExtensionStateChanged", "/org/gnome/Shell", UUID,
-                Gio.DBusSignalFlags.NONE, changed)
-            # Round-trip on this connection orders AddMatch before the write
-            # performed on the child's separate settings connection.
-            bus_call("GetId", None, "(s)")
-            with self.command_budget(remaining(), budget[1] if budget else threading.Event()):
-                self._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)
-            wait_until(lambda: reloaded)
-        finally:
-            if attempt is not None:
-                attempt.cancel()
-                while attempt.pending:
-                    if not context.iteration(False):
-                        time.sleep(0.01)
+        with self._live_child_bus(account, address, LIVE_SETTINGS_TIMEOUT_SECONDS) as (connection, context, remaining):
+            owner_subscription = connection.signal_subscribe(DBUS_NAME, DBUS_NAME,
+                "NameOwnerChanged", DBUS_PATH, SHELL_NAME, Gio.DBusSignalFlags.NONE, owner_changed)
+            subscription = None
             try:
-                if connection is None and connected:
-                    connection = connected[0][0]
-                if connection is not None:
-                    if subscription is not None:
-                        connection.signal_unsubscribe(subscription)
-                    connection.close_sync(None)
+                subscription = connection.signal_subscribe(unique_name, "org.gnome.Shell.Extensions",
+                    "ExtensionStateChanged", "/org/gnome/Shell", UUID,
+                    Gio.DBusSignalFlags.NONE, changed)
+                # The round trips order both AddMatch requests before the separate
+                # settings write and verify that it still targets the same session.
+                if self._bus_shell_identity(connection, remaining) != shell_owner:
+                    raise ChildExtensionSessionLost("child GNOME session changed")
+                cancelled = budget[1] if budget else threading.Event()
+                with self.command_budget(remaining(), cancelled):
+                    self._set_boolean(account, DISABLE_VERSION_CHECK_KEY, value)
+                while not (reloaded or owner_departed):
+                    seconds = remaining()
+                    if not context.iteration(False):
+                        time.sleep(min(0.01, seconds))
+                remaining()
+                if owner_departed:
+                    raise ChildExtensionSessionLost("child GNOME session changed")
+            except (GLib.Error, OSError, RuntimeError) as error:
+                if isinstance(error, (ChildExtensionSessionLost, _CommandCancelled)):
+                    raise
+                if not connection.is_closed():
+                    context.iteration(False)  # A synchronous write may have queued owner loss.
+                if owner_departed or connection.is_closed():
+                    raise ChildExtensionSessionLost("child GNOME session is unavailable") from error
+                raise
             finally:
-                context.pop_thread_default()
+                if subscription is not None:
+                    connection.signal_unsubscribe(subscription)
+                connection.signal_unsubscribe(owner_subscription)
 
-    def _runtime_uuids(self, account, state):
+    def _runtime_uuids(self, account, state, *, shell_owner=None):
         result = self._run_command(
             account,
             ("gnome-extensions", "list", f"--{state}", "--quiet"),
-            require_live=True,
+            require_live=True, shell_owner=shell_owner,
         )
         return {
             line.strip() for line in result.stdout.splitlines() if line.strip()
         }
 
-    def _runtime_state(self, account):
-        configured = UUID in self._runtime_uuids(account, "enabled")
-        active = UUID in self._runtime_uuids(account, "active")
+    def _runtime_state(self, account, *, shell_owner=None):
+        configured = UUID in self._runtime_uuids(account, "enabled", shell_owner=shell_owner)
+        active = UUID in self._runtime_uuids(account, "active", shell_owner=shell_owner)
+        if shell_owner is not None:
+            self._require_shell_owner(account, shell_owner)
         LOG.info("extension-manager.runtime-observed", configured=configured, active=active)
         return configured, active
 
-    def _failed_live_extension(self, account):
+    def _failed_live_extension(self, account, *, shell_owner):
         from gi.repository import GLib
 
+        _, unique_name = shell_owner
         result = self._run_command(account, (
-            "gdbus", "call", "--session", "--dest", "org.gnome.Shell",
+            "gdbus", "call", "--session", "--dest", unique_name,
             "--object-path", "/org/gnome/Shell", "--method",
-            "org.gnome.Shell.Extensions.GetExtensionInfo", UUID), require_live=True)
+            "org.gnome.Shell.Extensions.GetExtensionInfo", UUID),
+            require_live=True, shell_owner=shell_owner)
         if len(result.stdout) > 65536:
             raise ValueError("oversized extension info")
         info, = GLib.Variant.parse(GLib.VariantType.new("(a{sv})"),
@@ -672,13 +784,16 @@ class ExtensionManager:
         # During async import GNOME uses ERROR before recording any error.
         # Its public history also preserves actual exceptions with empty text.
         result = self._run_command(account, (
-            "gdbus", "call", "--session", "--dest", "org.gnome.Shell",
+            "gdbus", "call", "--session", "--dest", unique_name,
             "--object-path", "/org/gnome/Shell", "--method",
-            "org.gnome.Shell.Extensions.GetExtensionErrors", UUID), require_live=True)
+            "org.gnome.Shell.Extensions.GetExtensionErrors", UUID),
+            require_live=True, shell_owner=shell_owner)
         if len(result.stdout) > 65536:
             raise ValueError("oversized extension errors")
         errors, = GLib.Variant.parse(GLib.VariantType.new("(as)"),
                                     result.stdout, None, None).unpack()
+        if errors:
+            self._require_shell_owner(account, shell_owner)
         return bool(errors)
 
     def report_failure(self, uid):
@@ -732,16 +847,19 @@ class ExtensionManager:
                     DISABLED_KEY, self._list(account, DISABLED_KEY) == new_disabled, "offline")):
             raise RuntimeError("GNOME extension activation verification failed")
 
-    def _set_live(self, account, enabled, *, version_check_changed=False):
+    def _set_live(self, account, enabled, *, shell_owner, version_check_changed=False):
         operation = "enable" if enabled else "disable"
+        self._require_shell_owner(account, shell_owner)
         self._run_command(
             account, ("gnome-extensions", operation, "--quiet", UUID),
-            require_live=True,
+            require_live=True, shell_owner=shell_owner,
         )
         # Changing version validation asynchronously reloads Shell's extensions.
         # Wait for that transition without replaying the enable request.
-        configured, active = (self._wait_runtime_state(account, (enabled, enabled), check_failed=enabled)
-                              if version_check_changed else self._runtime_state(account))
+        configured, active = (self._wait_runtime_state(account, (enabled, enabled),
+                                  shell_owner=shell_owner, check_failed=enabled)
+                              if version_check_changed else
+                              self._runtime_state(account, shell_owner=shell_owner))
         LOG.info("extension-manager.runtime-verification", expected=enabled,
                  configured=configured, active=active)
         if configured != enabled or active != enabled:
@@ -769,6 +887,7 @@ class ExtensionManager:
                 break
             enabled_settings, disabled_settings = settings
             waited = True
+        self._require_shell_owner(account, shell_owner)
         if (not self._verify_setting(
                 ENABLED_KEY, (UUID in enabled_settings) == enabled, "live") or
                 not self._verify_setting(
@@ -778,14 +897,14 @@ class ExtensionManager:
             raise RuntimeError("GNOME extension activation verification failed")
         if waited:
             # A settings match cannot hide a runtime change during the wait.
-            configured, active = self._runtime_state(account)
+            configured, active = self._runtime_state(account, shell_owner=shell_owner)
             LOG.info("extension-manager.runtime-verification", expected=enabled,
                      configured=configured, active=active)
             if configured != enabled or active != enabled:
                 raise RuntimeError("GNOME extension runtime verification failed")
         LOG.info("extension-manager.005", configured=configured, active=active)
 
-    def _wait_runtime_state(self, account, expected, *, check_failed=False):
+    def _wait_runtime_state(self, account, expected, *, shell_owner, check_failed=False):
         budget = getattr(self._command_context, "budget", None)
         seconds = LIVE_SETTINGS_TIMEOUT_SECONDS
         if budget is not None:
@@ -794,10 +913,10 @@ class ExtensionManager:
         with self.command_budget(seconds, cancelled):
             deadline = self._command_context.budget[0]
             while True:
-                state = self._runtime_state(account)
+                state = self._runtime_state(account, shell_owner=shell_owner)
                 if state == expected:
                     return state
-                if check_failed and self._failed_live_extension(account):
+                if check_failed and self._failed_live_extension(account, shell_owner=shell_owner):
                     raise ChildExtensionFailed("child GNOME extension has failed")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -876,14 +995,17 @@ class ExtensionManager:
         restore_version_check = enabled and not self._boolean(account, DISABLE_VERSION_CHECK_KEY)
 
         LOG.info("extension-manager.activation-step", stage="shell")
-        shell_available = self._shell_is_available(account)
+        shell_owner = self._shell_owner(account)
+        shell_available = shell_owner is not None
         LOG.info("extension-manager.activation-context", shell_available=shell_available,
                  recover_global_switch=recover_global_switch, switch_recovery_needed=bool(restore_switch))
         LOG.info("extension-manager.activation-step", stage="runtime")
-        old_runtime = self._runtime_state(account) if shell_available else None
+        old_runtime = self._runtime_state(account, shell_owner=shell_owner) if shell_available else None
         if enabled and shell_available and not old_runtime[1]:
             try:
-                failed = self._failed_live_extension(account)
+                failed = self._failed_live_extension(account, shell_owner=shell_owner)
+            except (ChildExtensionSessionLost, _CommandCancelled):
+                raise
             except Exception:
                 failed = False
             if failed:
@@ -900,7 +1022,11 @@ class ExtensionManager:
                 try:
                     try:
                         if restore_version_check:
-                            self._set_version_check(account, False, live=shell_available)
+                            try:
+                                self._set_version_check(account, False, live=shell_available,
+                                                        shell_owner=shell_owner)
+                            except ChildExtensionSessionLost:
+                                self._set_version_check(account, False, live=False)
                     finally:
                         if restore_switch:
                             LOG.info("extension-manager.activation-step", stage="rollback-switch")
@@ -915,27 +1041,31 @@ class ExtensionManager:
                         not self._verify_setting(
                             DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
                     raise RuntimeError("GNOME extension rollback verification failed")
-                if shell_available and self._shell_is_available(account):
-                    restored_runtime = (self._wait_runtime_state(account, old_runtime)
-                                        if restore_version_check else self._runtime_state(account))
-                    if restored_runtime != old_runtime:
-                        raise RuntimeError("GNOME extension runtime rollback verification failed")
-                    runtime = "matched"
+                try:
+                    if shell_available and self._shell_owner(account) == shell_owner:
+                        restored_runtime = (self._wait_runtime_state(account, old_runtime, shell_owner=shell_owner)
+                                            if restore_version_check else
+                                            self._runtime_state(account, shell_owner=shell_owner))
+                        if restored_runtime != old_runtime:
+                            raise RuntimeError("GNOME extension runtime rollback verification failed")
+                        runtime = "matched"
+                except ChildExtensionSessionLost:
+                    pass  # Durable settings have already been verified.
             except Exception as rollback_error:
+                failure = RuntimeError("child GNOME extension rollback could not be verified")
+                emit_failure_once("broker", "backend", failure, original=rollback_error)
                 LOG.error("extension-manager.rollback-result", outcome="failed", restore_switch=bool(restore_switch), runtime=runtime)
                 record_exception(rollback_error)
                 LOG.critical("extension-manager.010", enabled=enabled,
                              error_type=error_code(rollback_error))
-                raise RuntimeError(
-                    "child GNOME extension rollback could not be verified"
-                ) from rollback_error
+                raise failure from rollback_error
             LOG.info("extension-manager.rollback-result", outcome="accepted", restore_switch=bool(restore_switch), runtime=runtime)
 
         try:
             if restore_version_check:
                 # Shell metadata has no open-ended version range. This is an
                 # account-wide preference, intentionally retained after success.
-                self._set_version_check(account, True, live=shell_available)
+                self._set_version_check(account, True, live=shell_available, shell_owner=shell_owner)
             if restore_switch:
                 # GNOME can set this switch after a failed session startup.
                 # Preserve the original state until the caller commits its
@@ -948,22 +1078,26 @@ class ExtensionManager:
                 # Use GNOME's supported extension-management interface when a
                 # Shell owns it, and confirm that Shell actually activated or
                 # deactivated the extension rather than trusting settings only.
-                self._set_live(account, enabled, version_check_changed=restore_version_check)
+                self._set_live(account, enabled, shell_owner=shell_owner,
+                               version_check_changed=restore_version_check)
             else:
                 LOG.info("extension-manager.activation-step", stage="offline")
                 # Persist the desired state for Shell to consume at next login.
                 self._set_offline(account, enabled, old_enabled, old_disabled)
         except Exception as error:
+            session_ended = isinstance(error, (ChildExtensionSessionLost, _CommandCancelled))
+            if not session_ended:
+                emit_failure_once("broker", "operation", error)
             # Preserve the shipped failure location before the broker converts
             # it to BackendFailure; never format private exception details.
             record_exception(error)
             failed = False
-            if enabled and shell_available:
+            if not session_ended and enabled and shell_available:
                 try:
-                    failed = self._failed_live_extension(account)
+                    failed = self._failed_live_extension(account, shell_owner=shell_owner)
                 except Exception:
                     pass
-            if shell_available:
+            if shell_available and not session_ended:
                 try:
                     self.collect_diagnostics((uid,))
                 except Exception:
@@ -977,7 +1111,9 @@ class ExtensionManager:
             else:
                 restore()
             if failed:
-                raise ChildExtensionFailed("child GNOME extension has failed") from error
+                failure = ChildExtensionFailed("child GNOME extension has failed")
+                emit_failure_once("broker", "operation", failure, original=error)
+                raise failure from error
             raise
         if restore_switch:
             LOG.info("extension-manager.011")
@@ -991,11 +1127,11 @@ class ExtensionManager:
         if home.is_symlink() or not home.is_dir() or home.stat().st_uid != uid:
             raise RuntimeError("child home directory has unsafe ownership")
 
-        shell_available = self._shell_is_available(account)
-        if shell_available:
-            configured, active = self._runtime_state(account)
+        shell_owner = self._shell_owner(account)
+        if shell_owner is not None:
+            configured, active = self._runtime_state(account, shell_owner=shell_owner)
             if configured or active:
-                self._set_live(account, False)
+                self._set_live(account, False, shell_owner=shell_owner)
 
         enabled = self._list(account, ENABLED_KEY)
         disabled = self._list(account, DISABLED_KEY)
@@ -1008,6 +1144,6 @@ class ExtensionManager:
         if (self._list(account, ENABLED_KEY) != desired_enabled or
                 self._list(account, DISABLED_KEY) != desired_disabled):
             raise RuntimeError("GNOME extension removal verification failed")
-        if shell_available and self._runtime_state(account) != (False, False):
+        if shell_owner is not None and self._runtime_state(account, shell_owner=shell_owner) != (False, False):
             raise RuntimeError("GNOME extension runtime removal verification failed")
         LOG.info("extension-manager.014")

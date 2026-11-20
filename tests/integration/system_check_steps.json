@@ -55,9 +55,9 @@
     "expected": "Invalid configuration cannot open unrestricted access; restored configuration allows normal use."
   },
   "check_e2e_kiosk_feedback_confinement": {
-    "summary": "Keep feedback confined to the request station during failures.",
-    "steps": ["Request access while the parental-control service is unavailable.", "Restore the service and open the request error report, its editor and privacy information."],
-    "expected": "The request reports the failure, and error reporting remains usable within the restricted station."
+    "summary": "Observe installed product failure signals and confined request station feedback.",
+    "steps": ["Use Parent, the child countdown and the request station with the service available.", "Request access during an owned service outage and observe signals from Parent, the child extension and the station.", "Restore the service, review the request error report and observe repeated broker failures and a background reconciliation failure."],
+    "expected": "Healthy actions produce no failure signal. Product faults remain observable, and error reporting stays usable within the restricted station."
   },
   "check_e2e_kiosk_identity_helper": {
     "summary": "Recover station entry after account identification fails.",

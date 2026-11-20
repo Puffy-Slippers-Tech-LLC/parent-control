@@ -5,11 +5,43 @@ import {diagnosticEnvelope} from './diagnosticEvents.mjs';
 const BUS_NAME = 'com.puffyslippers.OhNoParentControl1';
 const OBJECT_PATH = '/com/puffyslippers/OhNoParentControl1';
 const INTERFACE = BUS_NAME;
+const FAILURE_CATEGORIES = new Set([
+    'backend', 'dependency', 'operation', 'presentation', 'startup', 'unexpected',
+]);
 let catalog = null;
 let lastEstimate = null;
 let lastEstimateAt = 0;
 
-function write(level, event, fields = {}) {
+function writeProductFailure(category) {
+    if (!FAILURE_CATEGORIES.has(category))
+        return;
+    try {
+        const occurredAt = GLib.get_monotonic_time();
+        const data = new TextEncoder().encode([
+            'MESSAGE=Oh No! Parent Control product failure',
+            'PRIORITY=3',
+            'ONPC_FAILURE_VERSION=1',
+            'ONPC_COMPONENT=child',
+            `ONPC_FAILURE_CATEGORY=${category}`,
+            `ONPC_OCCURRENCE_MONOTONIC_USEC=${occurredAt}`,
+            '',
+        ].join('\n'));
+        const socket = Gio.Socket.new(Gio.SocketFamily.UNIX, Gio.SocketType.DATAGRAM,
+            Gio.SocketProtocol.DEFAULT);
+        try {
+            socket.set_blocking(false);
+            socket.send_to(Gio.UnixSocketAddress.new('/run/systemd/journal/socket'), data, null);
+        } finally {
+            socket.close();
+        }
+    } catch (_error) {
+        // A missing or full journal socket must not affect Shell behavior.
+    }
+}
+
+function write(level, event, fields = {}, failureCategory = null) {
+    // Keep the product signal independent of the broker and support catalogue.
+    writeProductFailure(failureCategory);
     try {
         if (catalog === null) {
             const file = Gio.File.new_for_uri(import.meta.url).get_parent()
@@ -49,5 +81,5 @@ function write(level, event, fields = {}) {
 
 export const logDebug = (event, fields) => write('DEBUG', event, fields);
 export const logInfo = (event, fields) => write('INFO', event, fields);
-export const logWarning = (event, fields) => write('WARNING', event, fields);
-export const logError = (event, fields) => write('ERROR', event, fields);
+export const logWarning = (event, fields, failureCategory) => write('WARNING', event, fields, failureCategory);
+export const logError = (event, fields, failureCategory) => write('ERROR', event, fields, failureCategory);

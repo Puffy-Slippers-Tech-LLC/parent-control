@@ -219,7 +219,7 @@ def test_uncaught_callbacks_and_threads_share_main_loop_handler_and_stop_at_shut
         assert "private second failure" not in caplog.text
         callback, captured = callbacks.pop()
         callback(captured)
-        window._show_error.assert_called_once_with(error)
+        window._show_error.assert_called_once_with(error, failure_category=None)
         thread_hook = threading.excepthook
         shutdown()
         assert sys.excepthook is previous
@@ -249,7 +249,7 @@ def test_exception_hook_retains_error_surface_failure_before_startup_fallback(mo
         sys.excepthook(type(original), original, None)
         callback, captured = callbacks.pop()
         callback(captured)
-        fallback.assert_called_once_with(application, "Kiosk App", original)
+        fallback.assert_called_once_with(application, "Kiosk App", original, failure_category=None)
         types = [decode(record.onpc_payload)["fields"].get("error_type") for record in caplog.records]
         assert "ValueError" in types and "PermissionError" in types and "RuntimeError" in types
         assert "private" not in caplog.text

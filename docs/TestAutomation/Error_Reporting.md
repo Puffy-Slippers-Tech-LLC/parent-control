@@ -1,7 +1,7 @@
 # Detect product errors in VM tests
 
 Task queue: [Ordered task queue](Error_Reporting/Task_Queue.md).
-Next task: **001 — [Make product failures visible to the runner](Error_Reporting/001.md)**.
+Next task: **002 — [Decide which faults fail a test](Error_Reporting/002.md)**.
 
 Every VM test case should fail if the current product produces an unexpected
 error during its owned execution, including errors that never open a report

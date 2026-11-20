@@ -72,6 +72,70 @@ remain readable without invented times or rewriting stored logs.
 Legacy raw logs are never imported, exported, modified or pruned by this pipeline.
 Journals, subprocess output, preferences and app inventories are not attachments.
 
+### Product failures observed by installed tests
+
+The broker, Parent, child extension and shared request form write an independent
+native journal record when they recognize a product fault. Dialog and log-only
+paths use the same contract. The write precedes presentation, report suppression
+or rollback when those follow the fault. Repeated faults each get a write
+attempt, independent of the support log's duplicate suppression and the broker's
+availability. Cancellation, validated input refusals, defined authorization
+denials and ordinary retry outcomes retain their existing meaning.
+
+| Journal field | Value |
+| --- | --- |
+| `MESSAGE` | `Oh No! Parent Control product failure` |
+| `PRIORITY` | `3` |
+| `ONPC_FAILURE_VERSION` | `1` |
+| `ONPC_COMPONENT` | `broker`, `parent`, `child`, or `kiosk` |
+| `ONPC_FAILURE_CATEGORY` | `backend`, `dependency`, `operation`, `presentation`, `startup`, or `unexpected` |
+| `ONPC_OCCURRENCE_MONOTONIC_USEC` | Decimal microseconds on the guest's `CLOCK_MONOTONIC` at the fault |
+
+The reader uses the `ONPC_*` fields for the record. Journal display text and
+priority can vary. A readable unfamiliar category remains observable.
+
+Only fixed values and the guest monotonic timestamp enter the record. Exception
+details stay in the existing privacy-filtered support diagnostics. The child
+reporter's relaunch uses the original producer's signal. A fault in the
+reporter itself may produce its own signal.
+
+The [guest engineering reader](../../tests/support/product_failure_journal.py)
+checks the journal's boot, native transport, user, executable and applicable
+system or user unit. For the installed Python frontends it also checks the
+launcher in the journal's process metadata. This attributes records in the
+controlled guest to a role and installed entry point. Code sharing an
+interpreter or Shell process has the same source metadata.
+
+The guest reader opens and closes a span with journal-confirmed markers, then
+allows one second for pending writes and confirms a final marker from the same
+boot. It scans through that final marker and tests the producer's occurrence
+time against the half-open span. A fault sent after the closing marker still
+belongs to that span if it occurred before the close. A complete result, even
+with zero events, requires valid records and all three markers within the read
+bounds. A missing boot or marker, truncated read or reported journal loss
+makes the observation unavailable. The reader reports the number of candidate
+records that lack source attribution. It projects each accepted event to
+component, category, guest occurrence time and source classification.
+
+For abrupt failures the reader reuses the existing trusted OS projections
+for abnormal kiosk application exit and Shell errors naming the installed child
+extension when the installed diagnostic observer is available. The reader
+independently recognizes the fixed bootstrap error from the installed broker
+unit for failed catalogue loads and abnormal trust-helper execution. These
+records use the journal's monotonic observation time. Shell attribution requires
+an error that names the installed child extension. An abrupt exit before
+emission, a rejected nonblocking send, a write after settlement, or journal loss
+without an indication can leave the reader without an attributable signal.
+Existing error handling continues independently of the nonblocking write.
+
+The guarded installed qualification is
+`tools/run-tests system check_e2e_kiosk_feedback_confinement --vm NAME`.
+It uses healthy public actions, an owned broker outage followed by public error
+report review, repeated broker faults, a log-only reconciliation failure, and
+guest delivery probes for late and missing evidence. The outage check requires
+an independently observed outage and records from each trusted frontend.
+Operating-system error codes may change the category assigned to those records.
+
 ### Kiosk admission diagnostics
 
 Native PAM and fixed login-helper journal/syslog markers diagnose authentication,

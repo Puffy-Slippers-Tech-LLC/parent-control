@@ -4,21 +4,29 @@ import GLib from 'gi://GLib';
 import {logError, logWarning} from './logger.js';
 import {timerErrorCategory} from './timerQuery.js';
 
-const OPERATIONS = new Set([
-    'startup', 'wellbeing', 'reminder-preview', 'ui-transport', 'language',
-    'request-activate', 'request-wait', 'request-start', 'countdown-preference',
-    'resume-refresh', 'countdown-refresh', 'session-prepare', 'session-lock',
-    'reminder-settings', 'reminder-render', 'reminder-policy',
-    'report-start', 'report-communication', 'report-cleanup',
-    'session-monitor-attach', 'session-monitor-signal', 'session-monitor-observe',
-    'session-monitor-cleanup', 'unlock-startup', 'unlock-signal', 'unlock-dispatch',
-    'unlock-observe', 'unlock-cleanup', 'locked-focus',
+const OPERATIONS = new Map([
+    ['startup', 'startup'], ['wellbeing', 'operation'],
+    ['reminder-preview', 'presentation'], ['ui-transport', 'presentation'],
+    ['language', 'presentation'], ['request-activate', 'presentation'],
+    ['request-wait', 'presentation'], ['request-start', 'presentation'],
+    ['countdown-preference', 'operation'], ['resume-refresh', 'dependency'],
+    ['countdown-refresh', 'backend'], ['session-prepare', 'backend'],
+    ['session-lock', 'operation'], ['reminder-settings', 'backend'],
+    ['reminder-render', 'presentation'], ['reminder-policy', 'backend'],
+    ['report-start', 'presentation'], ['report-communication', 'presentation'],
+    ['report-cleanup', 'presentation'], ['session-monitor-attach', 'dependency'],
+    ['session-monitor-signal', 'operation'], ['session-monitor-observe', 'operation'],
+    ['session-monitor-cleanup', 'operation'], ['unlock-startup', 'dependency'],
+    ['unlock-signal', 'operation'], ['unlock-dispatch', 'operation'],
+    ['unlock-observe', 'operation'], ['unlock-cleanup', 'operation'], ['locked-focus', 'operation'],
 ]);
 const BROKER_ERRORS = new Map([
     ['AccessDenied', 'access-denied'], ['InvalidRequest', 'invalid-request'],
     ['Busy', 'busy'], ['BackendFailure', 'backend-failure'],
     ['RollbackFailure', 'rollback-failure'], ['RebootRequired', 'reboot-required'], ['Failed', 'failed'],
 ].map(([name, category]) => [`com.puffyslippers.OhNoParentControl1.Error.${name}`, category]));
+const BROKER_OUTCOMES = new Set(['access-denied', 'invalid-request', 'busy', 'reboot-required']);
+const DEPENDENCY_ERRORS = new Set(['no-reply', 'no-owner', 'service-unknown', 'timeout', 'disconnected']);
 
 function errorType(error) {
     // Inspect only built-in types; names, messages and stacks can contain PII.
@@ -28,22 +36,27 @@ function errorType(error) {
     return 'other';
 }
 
-function errorCategory(error) {
-    if (error instanceof GLib.Error) {
-        const known = BROKER_ERRORS.get(Gio.DBusError.get_remote_error(error));
-        if (known) return known;
-    }
-    return timerErrorCategory(error);
+function productFailureCategory(operation, category, brokerCategory, remote) {
+    if (category === 'cancelled' || category === 'busy' || BROKER_OUTCOMES.has(brokerCategory))
+        return null;
+    if (brokerCategory)
+        return 'backend';
+    if (remote === 'org.freedesktop.systemd1.UnitMasked' || DEPENDENCY_ERRORS.has(category))
+        return 'dependency';
+    return OPERATIONS.get(operation) ?? 'unexpected';
 }
 
 // Also used by optional native helpers: logging must not open a reporter or
 // change the native operation, even when the diagnostic transport is broken.
 export function recordChildFailure(error, operation = 'other') {
     try {
+        const remote = error instanceof GLib.Error ? Gio.DBusError.get_remote_error(error) : null;
+        const brokerCategory = BROKER_ERRORS.get(remote);
+        const category = brokerCategory ?? timerErrorCategory(error);
         logError('child.failure', {
             operation: OPERATIONS.has(operation) ? operation : 'other',
-            error_type: errorType(error), category: errorCategory(error),
-        });
+            error_type: errorType(error), category,
+        }, productFailureCategory(operation, category, brokerCategory, remote));
     } catch (_error) { /* diagnostics must not prevent recovery */ }
 }
 
@@ -64,7 +77,7 @@ export function recordChildProcessExit(process, operation) {
         logError('child.process-exit', {
             operation: ['request', 'report'].includes(operation) ? operation : 'other',
             kind, code: Number.isInteger(code) && code >= 0 && code <= 255 ? code : 256,
-        });
+        }, 'presentation');
     } catch (_error) { /* diagnostics cannot interrupt process cleanup */ }
 }
 

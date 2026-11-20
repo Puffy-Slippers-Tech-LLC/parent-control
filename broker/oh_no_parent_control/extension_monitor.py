@@ -11,10 +11,12 @@ import time
 
 from gi.repository import Gio, GLib
 
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, operation_scope, record_exception
+from common.oh_no_parent_control_ui.diagnostic_events import (
+    emit_failure, emit_failure_once, get_logger, gio_error_category, operation_scope, record_exception,
+)
 from .child_bus import connect_child_bus
 from .core import Busy
-from .extension_manager import ChildExtensionFailed, UUID, _load_error_fields
+from .extension_manager import ChildExtensionFailed, ChildExtensionUnavailable, UUID, _load_error_fields
 
 SHELL = "org.gnome.Shell"
 PATH = "/org/gnome/Shell"
@@ -64,9 +66,12 @@ class _Watch:
     source: object = None
     connecting: object = None
     shell_present: bool = False
+    bus_id: str | None = None
+    shell_owner: tuple[str, str] | None = None
     failures: int = 0
     next_check: float = 0
     failed: bool = False
+    failure_signaled: bool = False
     reported: bool = False
     report_pending: bool = False
     fault_generation: int = 0
@@ -164,6 +169,7 @@ class ExtensionMonitor:
             if (self.watches.get(uid) is watch and
                     watch.fault_generation == generation):
                 watch.failed = False
+                watch.failure_signaled = False
                 self._schedule(watch, hint="explicit-recovery")
 
         self._later(0, rearm)
@@ -254,8 +260,16 @@ class ExtensionMonitor:
                     Gio.DBusSignalFlags.NONE,
                     lambda _connection, _sender, _path, _interface, _member, parameters:
                         self._shell_changed(watch, parameters)))
-                watch.shell_present = self._call(watch, DBUS, "/org/freedesktop/DBus", DBUS,
-                    "NameHasOwner", GLib.Variant("(s)", (SHELL,)), "(b)")[0]
+                watch.bus_id, = self._call(watch, DBUS, "/org/freedesktop/DBus", DBUS,
+                    "GetId", None, "(s)")
+                try:
+                    owner, = self._call(watch, DBUS, "/org/freedesktop/DBus", DBUS,
+                        "GetNameOwner", GLib.Variant("(s)", (SHELL,)), "(s)")
+                except GLib.Error as error:
+                    if gio_error_category(error) != "no-owner":
+                        raise
+                    owner = ""
+                self._set_shell_owner(watch, owner)
                 _record_owner(watch.shell_present, "connected")
                 watch.failures = 0
                 self._schedule(watch, hint="connected")
@@ -302,19 +316,33 @@ class ExtensionMonitor:
     def _shell_changed(self, watch, parameters):
         if parameters.get_type_string() != "(sss)":
             return
-        _name, old, new = parameters.unpack()
+        name, old, new = parameters.unpack()
+        if name != SHELL or old == new or (new and not Gio.dbus_is_unique_name(new)):
+            return
         if old and watch.last_recovery and time.monotonic() - watch.last_recovery < RECOVERY_GUARD_SECONDS:
             # This can be an ordinary logout. Only retain a conservative hold
             # if the next Shell also has its global crash-protection switch off;
             # owner loss never establishes an extension error to report.
             watch.recovery_interrupted = True
-        watch.shell_present = bool(new)
+        self._set_shell_owner(watch, new)
         watch.failures = 0
         # The child controls Shell's bus name too. Owner churn must not move
         # an already pending observation/retry ahead of its rate limit.
         if new:
             self._schedule(watch, hint="owner-changed")
         _record_owner(bool(new), "owner-changed")
+
+    @staticmethod
+    def _set_shell_owner(watch, owner):
+        if owner and not Gio.dbus_is_unique_name(owner):
+            raise ValueError("invalid Shell owner")
+        watch.shell_present = bool(owner)
+        if owner:
+            identity = (watch.bus_id, owner)
+            if identity != watch.shell_owner:
+                watch.shell_owner = identity
+                # A replacement Shell can fail independently of the last one.
+                watch.failure_signaled = False
 
     @staticmethod
     def _call(watch, destination, path, interface, method, parameters, signature):
@@ -339,9 +367,15 @@ class ExtensionMonitor:
         except Exception:
             pass
 
-    @staticmethod
-    def _fault(watch):
+    def _fault(self, watch, error=None):
         watch.fault_generation += 1
+        # Journal rearming does not change report retries or cooldown.
+        if not watch.failure_signaled and not self._stopped.is_set():
+            if error is None:
+                emit_failure("broker", "operation")
+            else:
+                emit_failure_once("broker", "operation", error)
+            watch.failure_signaled = True
         if not watch.failed:
             if time.monotonic() - watch.failure_time >= REPORT_COOLDOWN_SECONDS:
                 watch.reported = False
@@ -414,12 +448,13 @@ class ExtensionMonitor:
         state = info["state"]
         now = time.monotonic()
         if state == 3:
+            self._fault(watch)
             fields = _load_error_fields(info)
             LOG.error("extension-manager.load-state", state=fields["state"],
                       asset=fields["asset"], reason=fields["reason"])
-            self._fault(watch)
         elif state == 1 and enabled:
             watch.failed = False
+            watch.failure_signaled = False
         if watch.failed:
             self._decision(watch, "confirmed-failure", "report")
             self._report(watch)
@@ -458,12 +493,14 @@ class ExtensionMonitor:
             watch.recovery_pending = True
             try:
                 self.manager.set_enabled(watch.uid, True, recover_global_switch=True)
-            except ChildExtensionFailed:
+            except ChildExtensionFailed as error:
+                self._fault(watch, error)
                 self._decision(watch, reason, "failed", started=started)
-                self._fault(watch)
                 self._report(watch)
                 return
-            except Exception:
+            except Exception as error:
+                if not isinstance(error, ChildExtensionUnavailable) and not self._stopped.is_set():
+                    emit_failure_once("broker", "operation", error)
                 self._decision(watch, reason, "failed", started=started)
                 raise
             watch.recovery_pending = False
@@ -529,6 +566,7 @@ class ExtensionMonitor:
             if not enabled:
                 self._decision(watch, "policy-ineligible", "unchanged")
                 watch.failed = watch.reported = watch.report_pending = False
+                watch.failure_signaled = False
                 watch.last_recovery = 0
                 watch.recovery_interrupted = False
                 watch.recovery_pending = False

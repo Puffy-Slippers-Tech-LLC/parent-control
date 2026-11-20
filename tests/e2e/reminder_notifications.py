@@ -39,6 +39,9 @@ for name, seconds, entry in (('first', DEFAULT_GRANT_SECONDS, 'fresh'),
     prefix = name + '-child'
     LOGINS[prefix] = 'child'
     SCREENS.update(prefixed_stages(prefix, desktop_entry('child', source='gdm', entry=entry)))
+    if name == 'disabled':
+        # The previous game still covers Shell's Activities control on return.
+        SCREENS[prefix + '-desktop'] = 'system:child-desktop-identity'
     if name == 'first':
         SCREENS.update(native_activity_entry('activity', child='child'))
     SCREENS.update({name + '-warning': 'ui:child-countdown-present',
@@ -105,9 +108,15 @@ class ReminderNotificationsJourney(InstalledJourney):
             **{'observe-' + name: self.observer(name) for name in ('first', 'enabled', 'disabled', 'after')}})
         self.policies, self.deliveries = {}, set()
         self.custom = self.jordan_defaults = self.final_preferences = None
+        self.retained_child_session = None
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        if stage == 'disabled-child-entry-guard':
+            self.retained_child_session = observed['system']['session_sha256']
+        elif stage == 'disabled-child-desktop':
+            require(observed['system']['session_sha256'] == self.retained_child_session,
+                    'reminder-notifications:retained-child-session-changed')
         if '-policy-' in stage:
             value = observed['ui']['language_policy']
             saved = {key: deepcopy(value[key]) for key in ('settings', 'rows')}

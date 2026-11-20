@@ -88,7 +88,8 @@ two intervals: fullscreen enabled/Critical/visible, then disabled/suppressed.
 Launch the fullscreen game and verify two real moves before the warning.
 Observe the warning's identity and visibility with the same game present.
 The shared observer remains pinned through natural lock and checks disappearance.
-After the next unlock, close the prior game before preparing the new interval.
+After the next unlock, confirm the original child session is active and unlocked.
+Close the prior fullscreen game before preparing the new interval.
 Renewed intervals must produce new identities for the same saved reminder, with
 no duplicate during an unchanged countdown. High urgency and the same banner's
 suppression and restoration across fullscreen changes are exercised with

@@ -1532,6 +1532,8 @@ before reading Riley's retained shared request choices, without editing them.
 System 6 owns the package-file, ownership, PAM/service, internal retention and
 cleanup matrices. Reuse its maintained package mechanics without repeating
 those probes or adding separate remove/reinstall/purge qualification histories.
+Close Parent through UI18 after reading the positive grant and again after
+reapplying policy, so background reads end before removal and purge stop the broker.
 All four phases above remain one continuous customer journey, including the
 public notices, retained/default values, grant clearing and actual child use.
 

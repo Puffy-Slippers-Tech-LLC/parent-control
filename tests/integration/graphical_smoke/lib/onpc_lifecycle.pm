@@ -442,7 +442,11 @@ sub run_removal {
     onpc_request_flow::obtain_time($journey, 'selected', 'fixture-child', 'fixture-parent', 75, 1, 'automatic');
     onpc_gdm::named_login($journey, 'remove-parent', 'parent');
     onpc_parent::named_management($journey, 'before-remove', 'child');
-    $journey->seen($_) for qw(active-grant remove-submitted remove-result removed-reboot-requested);
+    $journey->seen('active-grant');
+    # End Parent's background reads before package removal stops the broker.
+    my $remove = $journey->scope('remove');
+    onpc_window::close($remove, 'parent', $remove->seen('close-ready'));
+    $journey->seen($_) for qw(remove-submitted remove-result removed-reboot-requested);
     onpc_gdm::named_login($journey, 'removed', 'parent');
     $journey->seen('removed-parent-logout');
     onpc_gdm::named_login($journey, 'healthy-child', 'child');
@@ -459,7 +463,10 @@ sub run_removal {
     onpc_parent::named_management($journey, 'reapply', 'child');
     onpc_allowance_boundaries::custom_value($journey, 'reapply-allowance', 5);
     $journey->seen($_) for qw(reapply-apps reapply-allowed reapply-allowed-read reapply-block
-        reapply-block-read reapply-policy reapply-switch reapply-greeter);
+        reapply-block-read reapply-policy);
+    my $reapply = $journey->scope('reapply');
+    onpc_window::close($reapply, 'parent', $reapply->seen('close-ready'));
+    $journey->seen($_) for qw(reapply-switch reapply-greeter);
     onpc_gdm::named_login($journey, 'reblocked-child', 'child');
     $journey->seen($_) for qw(blocked-after-reinstall reblocked-logout);
     onpc_gdm::named_login($journey, 'purge-parent', 'parent');

@@ -52,6 +52,7 @@ CONFIGURE = {
 REMOVAL = {
     **LOGINS['remove-parent'], **prefixed_stages('before-remove', parent_management()),
     'active-grant': 'ui:kiosk-riley-language-policy',
+    'remove-close-ready': 'ui:parent-restart-ready', 'remove-closed': 'ui:parent-search-closed',
     'remove-submitted': 'system:parent-command-context', 'remove-result': 'system:parent-command-context',
     'removed-reboot-requested': 'system:parent-command-context', **LOGINS['removed'],
     'removed-parent-logout': 'system:parent-logout', **LOGINS['healthy-child'],
@@ -76,6 +77,7 @@ RESTORATION = {
     'reapply-apps': 'ui:parent-apps-page', 'reapply-allowed': 'ui:access-allowed',
     'reapply-allowed-read': 'ui:access-row', 'reapply-block': 'ui:access-permanent',
     'reapply-block-read': 'ui:access-row', 'reapply-policy': 'ui:kiosk-riley-language-policy',
+    'reapply-close-ready': 'ui:parent-restart-ready', 'reapply-closed': 'ui:parent-search-closed',
     'reapply-switch': 'system:parent-switch-user', 'reapply-greeter': 'ui:gdm-returned',
     **LOGINS['reblocked-child'], 'blocked-after-reinstall': 'ui:overlay-native-command-blocked',
     'reblocked-logout': 'system:child-logout', **LOGINS['purge-parent'],

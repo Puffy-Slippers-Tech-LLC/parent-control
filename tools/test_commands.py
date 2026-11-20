@@ -930,7 +930,8 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
     status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', target,
                                    '--fixture-path', selected().fixture_path,
                                    *(['--qualify-source-edit'] if source_edit else [])),
-                         cwd=root, env=environment, output=output, timeout=600.0)
+                         cwd=root, env=environment, output=output, timeout=600.0,
+                         preserve_exit=True)
     if status == 130:
         from detached_launcher import Stopped
         raise Stopped()

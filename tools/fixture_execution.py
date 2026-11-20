@@ -443,6 +443,8 @@ def main():
         if source is not None:
             print('fixture-execution: source-edit=' + bundle.encoded(source).decode())
         print('fixture-execution: output=' + str(selection.path))
+    except KeyboardInterrupt:
+        return 130
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         if isinstance(error, subprocess.CalledProcessError):
             print((error.stderr or '')[-16000:], file=sys.stderr)

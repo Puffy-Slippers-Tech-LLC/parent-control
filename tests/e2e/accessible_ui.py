@@ -14692,7 +14692,8 @@ class AccessibleUI:
                             complete_absence=True),
                             'ui:native-blocked-window')
             self.observe_launch_denial(absent,
-                'native-blocked-restriction' if locked else 'native-blocked-absence', seconds=2)
+                'native-blocked-restriction' if locked else 'native-blocked-absence',
+                seconds=2, retry_incomplete=True)
             if self.timing is not None:
                 self.timing({'event': 'ui-native-execution-denial',
                     'source': 'stderr' if flatpak else 'kernel',
@@ -15341,22 +15342,28 @@ class AccessibleUI:
         self.prepare_launch_desktop()
         self.wait(lambda: self.native_app_closed(instance), 'native-blocked-desktop')
 
-    def observe_launch_denial(self, read, code, *, seconds=15):
+    def observe_launch_denial(self, read, code, *, seconds=15, retry_incomplete=False):
         """Require a full post-input absence interval with complete observations."""
         started = previous = None
 
         def sample():
             nonlocal started, previous
-            read()
+            try:
+                read()
+            except (UiError, *self.query_errors):
+                # An attributed command denial can reacquire the public
+                # result. Discard the interval that contained a failed read.
+                started = None
+                raise
             observed = time.monotonic()
+            if previous is not None:
+                require(observed - previous <= 5, 'ui:' + code + '-observation-gap')
             if started is None:
                 started = observed
-            else:
-                require(observed - previous <= 5, 'ui:' + code + '-observation-gap')
             previous = observed
             return observed - started >= seconds
 
-        self.wait(sample, code, prompt_in_predicate=True, retry_incomplete=False)
+        self.wait(sample, code, prompt_in_predicate=True, retry_incomplete=retry_incomplete)
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')

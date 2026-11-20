@@ -85,7 +85,8 @@ function validate(snapshot) {
     const screen = value => value === null || (image(value) && (!value.cursor ||
         (image(value.cursor) && Number.isFinite(value.cursor.x) && Number.isFinite(value.cursor.y))));
     const rows = value => Array.isArray(value) && value.every(row => Array.isArray(row) && row.every(
-        part => part && typeof part.text === 'string' && (part.link == null ||
+        part => part && typeof part.text === 'string' && (part.vm_column === undefined ||
+            ['name', 'group', 'status'].includes(part.vm_column)) && (part.link == null ||
             (typeof part.link === 'string' && part.link.length <= 8192))));
     const segments = value => Array.isArray(value) && value.every(segment =>
         Array.isArray(segment) && segment.length && segment.every(point => Array.isArray(point) &&

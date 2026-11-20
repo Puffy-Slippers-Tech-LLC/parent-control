@@ -127,7 +127,9 @@
         runBody(section);
         sessionHeading(section);
         runMinimum(section);
-        if (view === 'status' && section.followStatus) section.history.scrollTop = section.history.scrollHeight;
+        if (view === 'status' && section.followStatus && !section.hasVMTable) {
+            section.history.scrollTop = section.history.scrollHeight;
+        }
         sessionViews();
     }
 
@@ -1830,6 +1832,7 @@
     }
 
     function runStatus(entries) {
+        const vmColumns = [['name', 'VM'], ['group', 'Test group'], ['status', 'Status']];
         const ids = new Set(entries.map(entry => entry.id));
         if (maximizedRun && !ids.has(maximizedRun)) {
             maximizedRun = undefined;
@@ -1858,7 +1861,7 @@
                 const summaryRow = element('div', 'run-summary-row', body);
                 const summary = element('pre', 'run-status run-summary', summaryRow);
                 const content = element('div', 'run-status-view', body);
-                const history = element('pre', 'run-status run-history', content);
+                const history = element('div', 'run-status run-history', content);
                 const preview = element('div', 'run-latest', content);
                 const latestLabel = element('div', 'run-latest-label', preview);
                 const latestTitle = element('span', 'run-latest-title', latestLabel);
@@ -1879,7 +1882,7 @@
                 });
                 panel.statusObserver = new ResizeObserver(() => {
                     runMinimum(panel);
-                    if (panel.followStatus) history.scrollTop = history.scrollHeight;
+                    if (panel.followStatus && !panel.hasVMTable) history.scrollTop = history.scrollHeight;
                 });
                 panel.statusObserver.observe(history);
                 panel.statusObserver.observe(heading);
@@ -1958,11 +1961,41 @@
             if (section.statusRows === entry.rows && section.signature === signature) return;
             section.signature = signature;
             section.statusRows = entry.rows;
-            const rows = entry.rows.map(row => {
+            const rows = [];
+            let vmBody;
+            let hasVMTable = false;
+            for (const row of entry.rows) {
+                if (row[0]?.vm_column === 'name') {
+                    if (!vmBody) {
+                        const table = document.createElement('table');
+                        table.className = 'run-vms';
+                        table.setAttribute('aria-label', 'VM status');
+                        const heading = table.createTHead().insertRow();
+                        for (const [, label] of vmColumns) {
+                            const cell = element('th', '', heading);
+                            cell.scope = 'col';
+                            cell.textContent = label;
+                        }
+                        vmBody = table.createTBody();
+                        rows.push(table);
+                        hasVMTable = true;
+                    }
+                    const vm = vmBody.insertRow();
+                    for (const [column] of vmColumns) {
+                        const cell = vm.insertCell();
+                        for (const part of row) {
+                            if (part.vm_column === column) runSpan(cell, part);
+                        }
+                        if (!cell.hasChildNodes()) cell.textContent = '—';
+                    }
+                    continue;
+                }
+                vmBody = undefined;
                 if (row.map(part => part.text).join('').trim() === '─') {
                     const separator = document.createElement('hr');
                     separator.className = 'run-separator';
-                    return separator;
+                    rows.push(separator);
+                    continue;
                 }
                 const line = document.createElement('div');
                 if (!row.length) line.textContent = '\u00a0';
@@ -1984,8 +2017,8 @@
                         }
                     }
                 });
-                return line;
-            });
+                rows.push(line);
+            }
             if (!rows.length) {
                 const waiting = document.createElement('div');
                 waiting.textContent = entry.active ? 'Waiting for run status…' : 'Waiting for tests…';
@@ -2014,9 +2047,12 @@
             }
             section.summary.hidden = !hasSummary;
             section.summary.replaceChildren(...(hasSummary ? [rows[0]] : []));
+            const showTableFromTop = hasVMTable && (!section.hasVMTable || previous?.run !== entry.run);
+            section.hasVMTable = hasVMTable;
             section.history.replaceChildren(...(hasSummary
                 ? [...(statusRow ? [statusRow] : []), ...rows.slice(summaryEnd + 1)] : rows));
-            if (section.followStatus) section.history.scrollTop = section.history.scrollHeight;
+            if (showTableFromTop) section.history.scrollTop = 0;
+            else if (!hasVMTable && section.followStatus) section.history.scrollTop = section.history.scrollHeight;
         });
         runDividers();
         sessionViews();

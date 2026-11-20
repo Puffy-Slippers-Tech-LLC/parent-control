@@ -253,11 +253,11 @@ and both content status fields use one shared color palette; titles stay brief,
 while the content fields share the same explanatory text and formatting.
 For `fix-tests`, the pinned summary retains the runner's selection-wide case
 counts during repair, including after reconnecting. Tests launched inside the
-repair session publish live progress without replacing those totals. A sole
-installed-system check replaces its category summary. When it is the VM's only
-detail, the VM row shows the check and its elapsed time. Any additional progress
-counts appear on the same row. The dashboard omits percentage placeholders while
-the runner discovers its cases.
+repair session publish live progress without replacing those totals. The VM
+table has one row per VM, with columns for the VM name, test group, and status.
+The status cell includes the worker's checks, counts, and elapsed times when
+available. A sole installed-system check replaces its category summary. The
+dashboard omits percentage placeholders while the runner discovers its cases.
 The Launcher tab streams running command output, including baseline preparation
 phases before VM startup; it does not wait for the command to finish.
 Branch names discovered from local and remote Git refs and commit hashes appear

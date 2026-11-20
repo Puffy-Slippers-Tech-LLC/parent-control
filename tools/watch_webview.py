@@ -199,11 +199,14 @@ def status_spans(lines, *, session_waiting=False, launcher=False, branches=()):
                 # Neutral terminal foregrounds must follow VS Code's light/dark theme.
                 themed = color and (color.type.name == 'DEFAULT' or
                                    (color.type.name == 'STANDARD' and color.number in (0, 7, 15)))
-                spans.append(dict(text=clean(segment.text), bold=bool(style and style.bold),
-                                  compact=compact,
-                                  waiting=bool(style and style.meta.get('waiting')),
-                                  link=style.link if style else None,
-                                  color=color.get_truecolor().hex if color and not themed else None))
+                span = dict(text=clean(segment.text), bold=bool(style and style.bold),
+                            compact=compact,
+                            waiting=bool(style and style.meta.get('waiting')),
+                            link=style.link if style else None,
+                            color=color.get_truecolor().hex if color and not themed else None)
+                if style and (column := style.meta.get('vm_column')):
+                    span['vm_column'] = column
+                spans.append(span)
             rows.append(spans)
     return rows
 

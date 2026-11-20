@@ -345,6 +345,13 @@ nav button { flex-shrink: 0; }
     background: linear-gradient(var(--vscode-editor-background), var(--watch-well));
 }
 .run-summary { white-space: pre; overflow-wrap: normal; }
+.run-vms { width: 100%; border-spacing: 0; margin: 4px 0; white-space: normal; }
+.run-vms th, .run-vms td {
+    padding: 3px 10px; text-align: left; vertical-align: top;
+    border-bottom: 1px solid var(--watch-rule);
+}
+.run-vms th { position: sticky; top: 0; background: var(--vscode-editor-background); }
+.run-vms :is(th, td):nth-child(-n+2) { width: 1%; white-space: nowrap; }
 .run-latest { display: flex; flex-direction: column; flex: 0 0 auto; min-height: 0; }
 .run-embedded { display: flex; flex: 0 0 auto; min-height: 0; overflow: hidden; }
 .run-latest-label {

@@ -4,6 +4,7 @@ import re
 import time
 
 from rich.text import Text
+from rich.style import Style
 
 from launcher_chat import TASK_STATUSES
 from launcher_render import clean, style_task_counts
@@ -150,14 +151,21 @@ def repair_status_details(lines):
     for start, end in zip(bounds, bounds[1:]):
         section = rows[start + 1:end]
         status = progress_rows(section)
-        heading = rows[start][4:]
-        heading.stylize('bold')
-        if len(status) == 1:
-            heading.append(' — ')
-            heading.append_text(format_unknown_progress(status[0]))
+        group = next((row for row in status if row.plain.startswith('Test group: ')), None)
+        if group is not None:
+            status.remove(group)
+        activity = Text(' · ').join(format_unknown_progress(row) for row in status)
         if progress := worker_progress(section, status):
-            heading.append(f' · {progress}')
-        details.append(heading)
-        if len(status) != 1:
-            details.extend(format_unknown_progress(row) for row in status)
+            if activity:
+                activity.append(' · ')
+            activity.append(progress)
+        name = rows[start][4:]
+        name.stylize(Style(bold=True, meta={'vm_column': 'name'}))
+        for column, cell in (('group', group[len('Test group: '):] if group is not None else None),
+                             ('status', activity)):
+            if cell:
+                cell.stylize(Style(meta={'vm_column': column}))
+                name.append(' — ')
+                name.append_text(cell)
+        details.append(name)
     return details

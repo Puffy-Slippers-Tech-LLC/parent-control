@@ -1,7 +1,7 @@
 # Detect product errors in VM tests
 
 Task queue: [Ordered task queue](Error_Reporting/Task_Queue.md).
-Next task: **003 — [Check for faults before every VM test passes](Error_Reporting/003.md)**.
+Next task: **004 — [Verify that unexpected faults reach repair](Error_Reporting/004.md)**.
 
 Every VM test case should fail if the current product produces an unexpected
 error during its owned execution, including errors that never open a report

@@ -219,6 +219,19 @@ class SystemGraphicalExpiryJourney(InstalledJourney):
         self.recovery_deadline = None
         self.peer_deadline = None
         self.peer_lock = None
+        self.expected_fault = None
+
+    def start_expected_fault(self, category):
+        observer = getattr(self.transport, 'product_failures', None)
+        if observer is not None:
+            require(self.expected_fault is None, 'expiry:overlapping-fault-windows')
+            self.expected_fault = (observer, category, observer.boundary())
+
+    def settle_expected_fault(self):
+        if self.expected_fault is not None:
+            observer, category, start = self.expected_fault
+            self.expected_fault = None
+            observer.add_allowance('child', category, start, observer.boundary())
 
     def check_settings(self, stage, observed):
         if stage in ('initial-entry-guard', 'recovered-entry-guard', 'final-entry-guard'):
@@ -362,6 +375,7 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
             if 120 <= value['seconds'] <= 180:
                 break
             time.sleep(SAMPLE_INTERVAL_SECONDS)
+        journey.start_expected_fault('dependency')
         _system_history_command(journey.transport, inject)
         result = journey.observe_expiry(guard, expiry_at)
         require(result['activity_actions'] > 0, 'expiry:crash-no-outage-input')
@@ -369,18 +383,23 @@ class BrokerCrashJourney(SystemGraphicalExpiryJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        return journey._recover(journey, guard, 'crash-natural-recovery')
+        result = journey._recover(journey, guard, 'crash-natural-recovery')
+        journey.settle_expected_fault()
+        return result
 
     @staticmethod
     def peer_expiry(journey, guard):
         guard()
         expiry_at = _system_history_command(journey.transport, 'crash-peer-arm')
+        journey.start_expected_fault('dependency')
         _system_history_command(journey.transport, 'crash-inject')
         return SystemGraphicalExpiryJourney.peer_expiry(journey, guard, expiry_at=expiry_at)
 
     @staticmethod
     def peer_recovery(journey, guard):
-        return journey._recover(journey, guard, 'crash-peer-recovery')
+        result = journey._recover(journey, guard, 'crash-peer-recovery')
+        journey.settle_expected_fault()
+        return result
 
 
 class BrokerStallJourney(BrokerCrashJourney):
@@ -395,21 +414,26 @@ class BrokerStallJourney(BrokerCrashJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        return journey._recover_after_outage(journey, guard,
+        result = journey._recover_after_outage(journey, guard,
             'stall-natural-recovery', expiry_at=journey.stall_expiry)
+        journey.settle_expected_fault()
+        return result
 
     @staticmethod
     def peer_expiry(journey, guard):
         guard()
         journey.stall_expiry = _system_history_command(journey.transport, 'stall-peer-arm')
+        journey.start_expected_fault('dependency')
         _system_history_command(journey.transport, 'stall-inject')
         return SystemGraphicalExpiryJourney.peer_expiry(journey, guard,
                                                         expiry_at=journey.stall_expiry)
 
     @staticmethod
     def peer_recovery(journey, guard):
-        return journey._recover_after_outage(journey, guard,
+        result = journey._recover_after_outage(journey, guard,
             'stall-peer-recovery', expiry_at=journey.stall_expiry)
+        journey.settle_expected_fault()
+        return result
 
 
 STOP_SCREENS = {
@@ -492,8 +516,10 @@ class BrokerStopJourney(SystemGraphicalExpiryJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        return journey._recover_after_outage(journey, guard,
+        result = journey._recover_after_outage(journey, guard,
             'stop-recovery', expiry_at=journey.original_expiry)
+        journey.settle_expected_fault()
+        return result
 
     @staticmethod
     def peer_input(journey, guard):
@@ -520,8 +546,10 @@ class TimerReplacementJourney(BrokerStopJourney):
 
     @staticmethod
     def natural_recovery(journey, guard):
-        return journey._recover_after_outage(journey, guard,
+        result = journey._recover_after_outage(journey, guard,
             'timer-recovery', expiry_at=journey.original_expiry)
+        journey.settle_expected_fault()
+        return result
 
 
 _REPLY_TAIL = tuple(STOP_SCREENS)[tuple(STOP_SCREENS).index('child-switch-after'):]
@@ -565,6 +593,7 @@ class LockOutageJourney(BrokerStopJourney):
     @staticmethod
     def natural_lock(journey, guard):
         guard()
+        journey.start_expected_fault('operation')
         journey.original_expiry = _system_history_command(journey.transport, 'outage-arm')
         # A later controller endpoint proves post-expiry input even with reply
         # lag. This history claims no timely protection from a later lock.
@@ -600,6 +629,7 @@ class LockOutageJourney(BrokerStopJourney):
         # prove restored availability only, never protection during the outage.
         session_control.observe(journey.transport, 'child-lock')
         journey.lock_deadline = engineering_deadline(time.monotonic(), LOCK_VERIFICATION_SECONDS)
+        journey.settle_expected_fault()
         return {'characterization_only': True, 'protection': 'unsupported',
                 'input_after_original_expiry_and_revocation': True,
                 'original_child_work': True, 'availability_restored': True}
@@ -702,10 +732,12 @@ class LockCompletionJourney(BrokerStopJourney):
 
     @staticmethod
     def second_lock(journey, guard):
+        journey.start_expected_fault('dependency')
         result = journey.crossing(journey, guard, 'reply-missing-arm')
         # Keep the facade/invocation live through the actual client failure;
         # the shared worker challenges protected input after that failure.
         _system_history_command(journey.transport, 'reply-missing-wait')
+        journey.settle_expected_fault()
         return result
 
     @staticmethod

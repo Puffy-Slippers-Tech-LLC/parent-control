@@ -1010,6 +1010,7 @@ def broker_save_failure_recovery(record):
     """
     from product_logs import read_events
     from system_assertions import account_states
+    from system_product_failures import allow_product_fault
     from system_removal_faults import Fault, identity, mounted_fault
 
     accounts = provision_native()
@@ -1054,7 +1055,8 @@ def broker_save_failure_recovery(record):
         with mounted_fault(fault, path, record, readonly=True):
             try:
                 guest.activate_broker(restart=False)
-                reply = caller.call('SetParentControl', '(ubu)', (child, True, 45))
+                with allow_product_fault('broker', 'backend'):
+                    reply = caller.call('SetParentControl', '(ubu)', (child, True, 45))
                 require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
                         and 'result' not in reply, 'save-failure-not-exposed')
                 fresh = [row for row in read_events('broker')
@@ -1382,6 +1384,7 @@ def _native_policy_transition(accounts, record, variant, caller):
                     # restored files and command errors alone prove no safety.
                     from product_logs import read_events
                     from system_assertions import account_states
+                    from system_product_failures import allow_product_fault
                     from system_removal_faults import metadata, parents
 
                     prior = account_states(accounts.values())
@@ -1444,7 +1447,8 @@ def _native_policy_transition(accounts, record, variant, caller):
                         try:
                             guest.require(channel_identity() == disabled,
                                           'enforcement:reload-fault-not-installed')
-                            reply = caller.call('SetPreferences', '(us)', transaction)
+                            with allow_product_fault('broker', 'backend'):
+                                reply = caller.call('SetPreferences', '(us)', transaction)
                             guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
                                           and 'result' not in reply,
                                           'enforcement:reload-failure-not-exposed')

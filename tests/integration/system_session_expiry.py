@@ -94,6 +94,8 @@ def verify_usage_reader_recovery(record):
     cached estimate: an unavailable read must return an error, never a balance.
     The outer installed runner owns account isolation and baseline restoration.
     """
+    from system_product_failures import allow_product_fault
+
     accounts = identities()
     child, parent = accounts['child'], accounts['parent']
     operation = ('GetTimeStatus', '(uu)', (child, 120))
@@ -122,7 +124,8 @@ def verify_usage_reader_recovery(record):
             ('ActiveState', 'MainPID'), category='usage-read:service-state')
         guest.require(stopped['ActiveState'] in ('inactive', 'failed') and stopped['MainPID'] == '0',
                       'usage-read:service-not-stopped')
-        reply = call(parent, *operation)
+        with allow_product_fault('broker', 'backend'):
+            reply = call(parent, *operation)
         guest.require(reply == {'error': guest.BUS + '.Error.BackendFailure'},
                       'usage-read:outage-not-refused')
         guest.require(account_states(before) == before,
@@ -590,6 +593,8 @@ def verify_unavailable_enforcement(record):
     Keep its exact inode in a new private fixture and restore it before broker
     recovery. No other file, process, or desktop is discovered for cleanup.
     """
+    from system_product_failures import allow_product_fault
+
     accounts = identities()
     manager = installed_manager()
     child, parent = accounts['child'], accounts['parent']
@@ -606,23 +611,23 @@ def verify_unavailable_enforcement(record):
     before = account_state(child)
     metadata.rename(saved)
     try:
-        # Withhold the payload before stop: a session's concurrent D-Bus
-        # activation must encounter the same genuine startup-readiness failure.
-        guest.run(['systemctl', 'stop', guest.BROKER])
-        manager._set_boolean(account, 'disable-user-extensions', True)
-        reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
-        guest.require('error' in reply and 'result' not in reply,
-                      'expiry:approval-without-enforcement')
-        guest.require(account_state(child) == before,
-                      'expiry:grant-written-without-enforcement')
-        owner = guest.run(['busctl', '--system', 'call', 'org.freedesktop.DBus',
-                          '/org/freedesktop/DBus', 'org.freedesktop.DBus',
-                          'NameHasOwner', 's', guest.BUS])
-        guest.require(owner == 'b false', 'expiry:failed-startup-owned-bus')
-        guest.require(manager._boolean(account, 'disable-user-extensions'),
-                      'expiry:failed-startup-changed-global-switch')
-        record('onpc.expiry.unavailable-enforcement',
-               'startup-refused; request-failed; grant-unchanged; bus-name-unowned')
+        # From the deliberate service stop through the settled failed activation.
+        with allow_product_fault('broker', 'startup'):
+            guest.run(['systemctl', 'stop', guest.BROKER])
+            manager._set_boolean(account, 'disable-user-extensions', True)
+            reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
+            guest.require('error' in reply and 'result' not in reply,
+                          'expiry:approval-without-enforcement')
+            guest.require(account_state(child) == before,
+                          'expiry:grant-written-without-enforcement')
+            owner = guest.run(['busctl', '--system', 'call', 'org.freedesktop.DBus',
+                              '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+                              'NameHasOwner', 's', guest.BUS])
+            guest.require(owner == 'b false', 'expiry:failed-startup-owned-bus')
+            guest.require(manager._boolean(account, 'disable-user-extensions'),
+                          'expiry:failed-startup-changed-global-switch')
+            record('onpc.expiry.unavailable-enforcement',
+                   'startup-refused; request-failed; grant-unchanged; bus-name-unowned')
     finally:
         current = saved.lstat()
         guest.require(not metadata.exists() and not metadata.is_symlink()

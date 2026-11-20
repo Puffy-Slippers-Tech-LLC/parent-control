@@ -29,14 +29,15 @@ def timed_stage(stage):
 
 def inputs(root, *, product_failure_signal=False):
     failure_helpers = ('tests/integration/system_assertions.py',
-                       'tests/integration/system_caller.py',
-                       'tests/support/product_failure_journal.py') if product_failure_signal else ()
+                       'tests/integration/system_caller.py') if product_failure_signal else ()
     return Bundle(root, [('Makefile', 'install-source/Makefile'),
         # Guest enforcement helpers use these maintained flat fixture aliases.
         ('tests/fixtures/baseline_environment.py', 'baseline_environment.py'),
         ('tests/fixtures/baseline_assets.py', 'baseline_assets.py'),
         ('tests/fixtures/native_assets.py', 'native_assets.py'),
         ('tests/fixtures/native_trust.py', 'native_trust.py'),
+        ('tests/support/product_failure_journal.py', 'product_failure_journal.py'),
+        ('tools/regression_events.py', 'system_progress.py'),
         *[(relative, Path(relative).name) for relative in (
         'tests/integration/system_guest.py', 'tests/integration/e2e_dynamic_account.py',
         'tests/integration/system_first_configure.py',
@@ -181,7 +182,7 @@ class InstalledSetup:
             self.verified.fixture_prepared = prepared
             return prepared
 
-    def run(self, guard, *, verify=True, upgrade=False):
+    def run(self, guard, *, verify=True, upgrade=False, observe_failures=None):
         """Install and verify after reboot, or stage a powered-off suite snapshot."""
         self.provision(guard)
         run = self.verified.lease.state['run']
@@ -195,10 +196,18 @@ class InstalledSetup:
             if upgrade:
                 require(verify, 'setup:upgrade-online-required')
                 from fixture_credentials import ACCOUNTS
+                failures = getattr(self.transport, 'product_failures', None)
+                if failures is not None:
+                    failures.checkpoint()
                 result = recipe['prepare_upgrade'](self.transport,
                     lambda stage: system.guest_command(run, stage), guard, self.directory,
                     tuple(account.username for account in ACCOUNTS.values()), system.operation,
                     system.PAYLOAD)
+                # The recipe verifies installed identity and completed activation on the new boot.
+                if observe_failures is not None:
+                    observe_failures(self.transport, 'verified-current-build', at_boot=True)
+                elif failures is not None:
+                    failures.start(at_boot=True)
             else:
                 recipe['prepare'](self.transport,
                     system.guest_command(run, 'install-setup' if verify else 'install-suite'), guard,

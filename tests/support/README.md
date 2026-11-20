@@ -84,6 +84,21 @@ from one case's owned observation. A verified unexpected fault or an independent
 assertion or cleanup failure uses the ordinary failure path. Keep the real
 failure identity and diagnostics even when observation is also incomplete.
 
+The [controller observer](../integration/product_failure_observation.py) reads
+only the bounded fault projection through the case's guarded transport. A
+fresh boot must retain its kernel startup record. A retained online snapshot
+starts at a new journal boundary at the first authenticated connection, before
+the controller changes the restored guest. On reboot, the controller saves
+the old interval before submitting the action and checks
+startup after it verifies the new boot. The transport also saves any open
+interval when the lease captures logs before cleanup. These checks run with
+Watch off. Raw journal rows remain in the guest.
+
+The runner attributes events across account changes by the journal's process
+and service identities. Cases specify exact component and category allowances
+between guest boundaries around deliberate faults. Allowances expire even if
+the operation fails. The case's own assertions establish fault and recovery.
+
 When observation remains incomplete after bounded read recovery and every other
 check passes, report the affected case and a bounded observation diagnostic.
 Use an observation-specific outcome in structured controller output.

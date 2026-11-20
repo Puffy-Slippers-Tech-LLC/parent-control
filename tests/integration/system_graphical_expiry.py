@@ -137,7 +137,7 @@ def prepare():
     accepted(call(accounts['parent'], 'SetParentControl', '(ubu)', (accounts['child'], True, 0)))
     manager = installed_manager()
     account, _ = manager._account(accounts['child'])
-    guest.require(not manager._shell_is_available(account), 'expiry:graphical-fixture-already-live')
+    guest.require(manager._shell_owner(account) is None, 'expiry:graphical-fixture-already-live')
     manager._set_boolean(account, 'disable-user-extensions', True)
     FIXTURE.mkdir(mode=0o700)
     (FIXTURE / 'prepared.json').write_text(json.dumps({
@@ -283,7 +283,7 @@ def startup_observation():
                               'expiry:gdm-session-missing')
     manager = installed_manager()
     account, _ = manager._account(accounts['child'])
-    wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
+    wait_for(lambda: manager._shell_owner(account), 'expiry:gnome-shell-unavailable')
     foreground = []
     for row in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines():
         identity = row.split()[0]
@@ -324,7 +324,7 @@ def graphical_history(command):
         session, props = wait_for(lambda: child_session(child), 'expiry:gdm-session-missing')
         manager = installed_manager()
         account, _ = manager._account(child)
-        wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
+        wait_for(lambda: manager._shell_owner(account), 'expiry:gnome-shell-unavailable')
         guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
         history = {'run': marker['run'], 'boot': boot, 'session': session,
                    'scope': props['Scope'], 'grants': 0,
@@ -1183,7 +1183,7 @@ def verify(record):
     }, sort_keys=True))
     manager = installed_manager()
     account, _ = manager._account(child)
-    wait_for(lambda: manager._shell_is_available(account), 'expiry:gnome-shell-unavailable')
+    wait_for(lambda: manager._shell_owner(account), 'expiry:gnome-shell-unavailable')
     guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
     record('onpc.expiry.lock-state', json.dumps(
         screen_lock_observation(child, session, manager, account), sort_keys=True))

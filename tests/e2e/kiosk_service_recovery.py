@@ -81,8 +81,7 @@ class KioskServiceRecoveryJourney(BrokerOutage, KioskApprovalJourney):
             # Rest of day avoids a periodic estimate request racing the single
             # intended submission. The public operation reads its midnight estimate.
             observed['outage_choices'] = self.ui.observe('kiosk-valid-rest-select')
-            self.fault_pending = True
-            observed['engineering_fault'] = self.engineering('begin')
+            observed['engineering_fault'] = self.begin_fault()
             require(observed['engineering_fault'] == {
                 'broker_unavailable': True, 'runtime_mask_owned': True},
                 'kiosk-service-recovery:fault-response')

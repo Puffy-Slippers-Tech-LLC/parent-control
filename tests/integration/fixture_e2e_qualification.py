@@ -21,6 +21,7 @@ from suite_lease import Suite
 from asset_transfer import AssetTransfer
 from observation_transport import ReadOnlyObservations
 from qualification_storage import run_qualification
+from standalone_product_failures import instance_summary
 import system_runner as system
 from tools import fixture_execution, fixture_provision
 from tools.test_storage import authenticated_input
@@ -193,7 +194,10 @@ def run_history(suite, directory, assets, selection, observe, mode, *, result, p
         verify_consumers(context, vm, prepared, result, previous)
         assets_receipt = context.asset_transfer.observe(ReadOnlyObservations(vm))
         verified.fixture_prepared['controller'].require_ready(verified.fixture_prepared['receipt'])
-        return assets_receipt
+    observation = instance_summary(vm)
+    if observation is not None:
+        result['product_failure_observation'] = observation
+    return assets_receipt
 
 
 def qualify_pinned(directory, assets, selection, manifest, source, edit):

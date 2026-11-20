@@ -126,6 +126,14 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
             shutil.copytree(inputs, attempt / 'input')
         suite.next_case = (installed_case(planned[index + 1][1])
                            if index + 1 < len(planned) else None)
+        snapshot_history = None
+
+        def observe_snapshot(transport, _boundary, *, at_boot):
+            nonlocal snapshot_history
+            owner = system.phase_executions(selected, selected.phases[0])[0]
+            snapshot_history = system.HistoryObservation(transport, ledger)
+            snapshot_history.start(owner, at_boot=at_boot)
+
         try:
             with lease:
                 with ledger.measure('preparation', operation='snapshot-readiness'):
@@ -154,7 +162,10 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                         # prepare_case calls the shared preparation with overwrite=False
                         # and keeps the completed version snapshot across invocations.
                         suite.prepare_case(installed_case(True), directory, directory / 'input',
-                            {'schema_version': 1, 'scope': 'system-installed-setup'}, root=system.ROOT)
+                            {'schema_version': 1, 'scope': 'system-installed-setup'}, root=system.ROOT,
+                            **({} if preparation_only else {'observe_failures': observe_snapshot}))
+                        if snapshot_history is not None:
+                            snapshot_history.close()
                     else:
                         lease.prepare()
                 with ledger.measure('bootstrap', operation='bootstrap-payload'):
@@ -176,6 +187,8 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                             'preparation_only': preparation_only,
                             'preparation_observer': preparation_observer}
                            if fixture_selection is not None or preparation_only else {})
+                if snapshot_history is not None:
+                    options['snapshot_history'] = snapshot_history
                 result = system.installed_run(vm, lease, attempt, selected, ledger,
                                              already_installed=installed, **options)
                 if preparation_only:
@@ -184,6 +197,13 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
                     verify_result(attempt, manifest, selected_inputs_sha256, ledger)
                 lease.guard()
         finally:
+            if snapshot_history is not None and snapshot_history.active is not None:
+                # An aborted preparation has already unwound the lease. Retain
+                # any observation it captured without replacing the setup error.
+                try:
+                    snapshot_history.close()
+                except Exception:
+                    system.log('evidence:snapshot-fault-observation-unavailable')
             # Each phase has its own JUnit filename. Keep all diagnostics under
             # the attempt and copy phase results for the existing suite evidence.
             captured = attempt / 'guest-results'

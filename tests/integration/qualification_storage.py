@@ -36,6 +36,9 @@ def run_qualification(label, qualify, *, preflight, **session_options):
     Success is reported only after both the proof and retention session close.
     """
     import system_runner as system
+    from standalone_product_failures import verdict
+    from tools.regression_events import write_event
+    from tools.test_results import OBSERVATION_BLOCKED_STATUS
 
     directory = None
     try:
@@ -44,12 +47,21 @@ def run_qualification(label, qualify, *, preflight, **session_options):
         with session(**session_options):
             directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
             result = qualify(directory)
+            status = verdict(0, result)
+            cleanup = vm_cleanup_verified() if status == OBSERVATION_BLOCKED_STATUS else None
+            if cleanup is False:
+                result['outcome'] = 'failed'
+                result['category'] = 'cleanup:qualification-unverified'
+                status = 1
             (directory / 'result.json').write_bytes(system.baseline.encode(result))
-        print(label + ': passed; evidence=' + str(directory), flush=True)
-        if cancellation_requested():
-            from tools.regression_events import write_event
-            write_event(sys.stdout, 'vm-cleanup', passed=True, interrupted=True)
-        return 0
+        outcome = ('observation-blocked' if status == OBSERVATION_BLOCKED_STATUS else
+                   'failed' if status else 'passed')
+        print(label + ': ' + outcome + '; evidence=' + str(directory), flush=True)
+        interrupted = cancellation_requested() and status in (0, OBSERVATION_BLOCKED_STATUS)
+        if cleanup is not None or interrupted:
+            write_event(sys.stdout, 'vm-cleanup', passed=cleanup is not False,
+                        interrupted=interrupted)
+        return status
     except (Exception, KeyboardInterrupt) as error:
         if directory is not None:
             (directory / 'controller-error.txt').write_text(traceback.format_exc())
@@ -59,7 +71,6 @@ def run_qualification(label, qualify, *, preflight, **session_options):
         if isinstance(error, KeyboardInterrupt):
             # The actual Lease/Suite owner supplies cleanup proof. Labels and
             # an exception unwinding through finally cannot establish it.
-            from tools.regression_events import write_event
             write_event(sys.stdout, 'vm-cleanup', passed=vm_cleanup_verified(),
                         interrupted=not cancellation_failed())
         return 1

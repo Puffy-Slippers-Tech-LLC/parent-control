@@ -258,7 +258,7 @@ def broker_failures():
         contents = os.pread(fd, original.st_size + 1, 0)
         guest.require(len(contents) == original.st_size and isinstance(json.loads(contents), dict),
                       'kiosk-feedback:signal-preference-content')
-        start = failure_boundary()
+        fault_start = start = failure_boundary()
         guest.require(os.pread(fd, len(contents) + 1, 0) == contents and
                       os.path.samestat(original, path.lstat()),
                       'kiosk-feedback:signal-preference-changed')
@@ -302,7 +302,8 @@ def broker_failures():
         os.close(fd)
     guest.require(service() == original_service and accepted(get_preferences()) == expected,
                   'kiosk-feedback:broker-preference-not-recovered')
-    return {'backend_occurrences': 2, 'operation_observed': True, 'restored': True}
+    return {'backend_occurrences': 2, 'operation_observed': True, 'restored': True,
+            'fault_start': json.loads(fault_start), 'fault_end': json.loads(failure_boundary())}
 
 
 def signal_start():

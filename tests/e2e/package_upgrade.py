@@ -108,6 +108,7 @@ class PackageUpgradeJourney(ProductFreeEntryJourney):
         super().__init__(context, progress, plan, actions=upgrade_actions() if actions is None else actions)
         self.previous_package = self.upgrade_package = None
         self.release_entry = self.activated_entry = None
+        self.activation = activation
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
@@ -118,3 +119,21 @@ class PackageUpgradeJourney(ProductFreeEntryJourney):
             command = PackageCommand(self.transport, self.context.verified)
             inputs = command.verified.upgrade_inputs['packages']
             refuse_input(command, UPGRADE, inputs['current']['sha256'], command.identity, 'package:replay')
+            if self.activation == 'reboot' and len(self.plan.reboot_transitions) == 1:
+                observed['product_failure_interval'] = 'current-build-interval-not-started'
+        if (self.activation in ('none', 'process-restart') and stage == 'upgrade-result'
+                or self.activation == 'session-renewal' and stage == 'renewal-greeter'
+                or self.activation == 'reboot' and len(self.plan.reboot_transitions) > 1
+                and stage == self.plan.reboot_transitions[1][1]):
+            # The transaction verifies the automatically activated build. Session renewal
+            # leaves the greeter only after the old session exits. A verified activation
+            # reboot can include its entire new boot without importing old-build events.
+            failures = getattr(self.transport, 'product_failures', None)
+            if failures is not None:
+                at_boot = self.activation == 'reboot'
+                observation = getattr(self.context, 'failure_observation', None)
+                if observation is None:
+                    failures.start(at_boot=at_boot)
+                else:
+                    observation.start(self.transport, 'verified-current-build', at_boot=at_boot)
+                observed['product_failure_interval'] = 'verified-current-build'

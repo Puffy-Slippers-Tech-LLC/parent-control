@@ -216,11 +216,13 @@ def main():
             result.update(ledger.data())
             if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
                 result['outcome'] = 'failed'
+            from standalone_product_failures import verdict
+            status = verdict(0 if result['outcome'] == 'passed' else 1, result)
             result['duration_seconds'] = round(time.monotonic() - started, 3)
             result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
             (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
             print(json.dumps(result, sort_keys=True), flush=True)
-        return 0 if result['outcome'] == 'passed' else 1
+        return status
 
 
 if __name__ == '__main__':

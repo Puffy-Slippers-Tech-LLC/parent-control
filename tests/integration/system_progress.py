@@ -94,7 +94,7 @@ def watching(executions, lease):
 
 
 class Progress:
-    def __init__(self, phase, executions, *, watch=None):
+    def __init__(self, phase, executions, *, watch=None, observation_sources=None, hold=()):
         self.phase = phase
         self.expected = {item.case_id for item in executions}
         self.pending = b''
@@ -102,6 +102,21 @@ class Progress:
         self.watch = watch
         self.active = False
         self.timing = None
+        self.observation_sources = observation_sources
+        self.observations = {}
+        self.completed = set()
+        self.blocked = None
+        self.hold = set(hold)
+        self.held = []
+
+    def publish_finished(self, event):
+        if self.watch is None or not self.watch.defer_finished(event):
+            write_event(sys.stdout, **event)
+
+    def release_finished(self):
+        for event in self.held:
+            self.publish_finished(event)
+        self.held.clear()
 
     def close(self, *, finished=False):
         if self.timing is not None:
@@ -129,8 +144,28 @@ class Progress:
             try:
                 event = json.loads(raw[len(PREFIX):])
                 kind = event.get('kind')
-                nodeid = event.get('nodeid', '').split('::', 1)[-1]
-                if kind not in ('started', 'finished', 'failure') or nodeid not in self.expected:
+                raw_nodeid = event.get('nodeid', '')
+                source, _, nodeid = raw_nodeid.partition('::')
+                if nodeid not in self.expected:
+                    continue
+                if (self.observation_sources is not None
+                        and source != self.observation_sources.get(nodeid)):
+                    continue
+                if kind == 'product-observation' and self.observation_sources is not None:
+                    if nodeid in self.completed:
+                        continue
+                    outcome, complete, unexpected = (event.get(key) for key in
+                                                       ('outcome', 'complete', 'unexpected'))
+                    if (nodeid in self.observations or type(complete) is not bool
+                            or type(unexpected) is not int or unexpected < 0
+                            or outcome not in ('pass', 'fail', 'blocked')
+                            or (outcome == 'pass' and (not complete or unexpected))
+                            or (outcome == 'blocked' and (complete or unexpected))):
+                        self.observations[nodeid] = None
+                    else:
+                        self.observations[nodeid] = outcome
+                    continue
+                if kind not in ('started', 'finished', 'failure'):
                     continue
                 result = dict(kind=kind, nodeid=self.phase + '::' + nodeid)
                 if type(event.get('monotonic_ns')) is int and event['monotonic_ns'] >= 0:
@@ -149,8 +184,16 @@ class Progress:
                         self.operation.__enter__()
                     elif kind == 'finished':
                         self.close(finished=True)
-                        if self.watch is not None and self.watch.defer_finished(result):
+                        self.completed.add(nodeid)
+                        if (self.observation_sources is not None and
+                                self.observations.get(nodeid) in (None, 'blocked')):
+                            self.blocked = self.blocked or nodeid
                             continue
+                        if nodeid in self.hold:
+                            self.held.append(result)
+                        else:
+                            self.publish_finished(result)
+                        continue
                 if kind == 'failure':
                     result['detail'] = ('Installed test failed; traceback is flushed in '
                                         'guest results/regression-failures.jsonl and collected '

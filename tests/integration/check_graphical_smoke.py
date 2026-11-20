@@ -2954,6 +2954,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                             result['outcome'] = 'failed'
             if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
                 result['outcome'] = 'failed'
+            from standalone_product_failures import verdict
+            status = verdict(0 if result['outcome'] == 'passed' else 1, result)
             result.update(ledger.data())
             result['duration_seconds'] = round(time.monotonic() - started, 3)
             result['lease_phase'] = lease.state['phase'] if lease and lease.state else None
@@ -2965,7 +2967,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     interrupted=(result.get('exception_type') == 'KeyboardInterrupt'
                     or result['outcome'] == 'passed' and cancellation_requested())
                     and not ledger.non_cancellation_failure)
-        return 0 if result['outcome'] == 'passed' else 1
+        return status
 
 
 if __name__ == '__main__':

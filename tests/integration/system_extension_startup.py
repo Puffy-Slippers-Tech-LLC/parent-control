@@ -125,7 +125,7 @@ def prepare():
     manager = installed_manager()
     child = accounts['child']
     account, _ = manager._account(child)
-    guest.require(not manager._shell_is_available(account), 'extension-startup:prepare-live-shell')
+    guest.require(manager._shell_owner(account) is None, 'extension-startup:prepare-live-shell')
     guest.require(not FIXTURE.exists() and not FIXTURE.is_symlink(),
                   'extension-startup:fixture-collision')
     from oh_no_parent_control.preferences import PreferenceStore
@@ -186,7 +186,7 @@ def prepare():
     guest.run(['systemctl', 'stop', guest.BROKER], timeout=30)
     fault(manager, account, expected, individual=True, global_switch=True)
     guest.require(mask_identity(mask) == mask_owner
-                  and not manager._shell_is_available(account)
+                  and manager._shell_owner(account) is None
                   and time.monotonic() < deadline, 'extension-startup:boot-fault-owner')
     preserved(manager, accounts, prepared)
     with (FIXTURE / 'boot-fault.json').open('x') as stream:
@@ -212,7 +212,7 @@ def broker_ready():
     manager = installed_manager()
     accounts = identities()
     account, _ = manager._account(accounts['child'])
-    guest.require(not manager._shell_is_available(account)
+    guest.require(manager._shell_owner(account) is None
                   and child_session(accounts['child']) is None,
                   'extension-startup:boot-child-already-live')
     proof = startup_proof(accounts['parent'], live=False, writes=True)
@@ -220,7 +220,7 @@ def broker_ready():
                   'extension-startup:boot-broker-not-renewed')
     repaired(manager, accounts['child'], prepared['choices']['child'])
     preserved(manager, accounts, prepared)
-    guest.require(not manager._shell_is_available(account), 'extension-startup:boot-shell-race')
+    guest.require(manager._shell_owner(account) is None, 'extension-startup:boot-shell-race')
     with (FIXTURE / 'broker-ready.json').open('x') as stream:
         json.dump({'run': marker['run'], 'boot': boot, 'proof': proof,
                    'durable_repaired_before_gdm': True, 'no_child_shell': True}, stream)
@@ -244,7 +244,7 @@ def verify(publish):
     manager = installed_manager()
     account, _ = manager._account(child)
     session, props = wait(lambda: child_session(child), 'fresh-child-session')
-    wait(lambda: manager._shell_is_available(account), 'fresh-shell-unavailable')
+    wait(lambda: manager._shell_owner(account), 'fresh-shell-unavailable')
     guest.require(invocation() == witness['proof']['broker_invocation'],
                   'extension-startup:boot-broker-replaced-before-login')
     expected = prepared['choices']['child']

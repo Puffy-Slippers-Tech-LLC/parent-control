@@ -9,6 +9,7 @@ from kiosk_eligible_choices import PLAN as CHOICES_PLAN
 from private_artifacts import require
 from request_flow import daily_station_entry
 import system_runner as system
+from tests.support.product_failure_journal import Boundary
 
 EXTRA = ('kiosk-diagnostic-error', 'kiosk-diagnostic-report', 'kiosk-diagnostic-editor',
          'kiosk-diagnostic-privacy')
@@ -43,6 +44,8 @@ PLAN = replace(CHOICES_PLAN, prefix='kiosk-feedback-confinement',
 
 class BrokerOutage:
     """Shared attempt-owned fault transport; callers own sequence and assertions."""
+    outage_roles = ('kiosk',)
+
     def engineering(self, action, *arguments, timeout=90):
         self.context.lease.guard()
         result = self.transport.call(['env',
@@ -51,15 +54,30 @@ class BrokerOutage:
             system.PAYLOAD + '/system_kiosk_feedback.py', action, *arguments], timeout=timeout)
         return json.loads(result)
 
+    def begin_fault(self, *, boundary=None):
+        observation = self.transport.product_failures
+        self._outage_boundary = (observation.boundary() if observation is not None and
+                                 boundary is None else boundary)
+        # Set this before transport: an uncertain reply never licenses replay.
+        self.fault_pending = True
+        return self.engineering('begin')
+
     def restore_fault(self):
         if self.fault_pending:
             value = self.engineering('restore')
             require(value == {'broker_restored': True}, 'kiosk-feedback:recovery-response')
             self.fault_pending = False
+            observation = self.transport.product_failures
+            if observation is not None:
+                end = observation.boundary()
+                for role in self.outage_roles:
+                    observation.add_allowance(role, 'dependency', self._outage_boundary, end)
             return value
 
 
 class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
+    outage_roles = ('parent', 'child', 'kiosk')
+
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN,
                          actions={'daytime-window': preset_ordinary_daytime})
@@ -84,10 +102,7 @@ class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
             require(value['failure_events'] == 0, 'kiosk-feedback:healthy-failure-signals')
             self.outage_start = value['boundary']
             observed['healthy_failure_events'] = 0
-            # Set this before transport: an uncertain reply never licenses
-            # replay of the mutation and must still attempt owned restoration.
-            self.fault_pending = True
-            observed['engineering_fault'] = self.engineering('begin')
+            observed['engineering_fault'] = self.begin_fault(boundary=Boundary(**self.outage_start))
             require(observed['engineering_fault'] == {
                 'broker_unavailable': True, 'runtime_mask_owned': True},
                 'kiosk-feedback:fault-response')
@@ -98,4 +113,10 @@ class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
         elif stage == 'kiosk-diagnostic-editor':
             observed['engineering_confinement'] = self.engineering('census')
         elif stage == 'kiosk-diagnostic-privacy':
-            observed['engineering_broker_signals'] = self.engineering('broker-signals', timeout=150)
+            result = self.engineering('broker-signals', timeout=150)
+            start, end = (Boundary(**result.pop(key)) for key in ('fault_start', 'fault_end'))
+            observation = self.transport.product_failures
+            if observation is not None:
+                for category in ('backend', 'operation'):
+                    observation.add_allowance('broker', category, start, end)
+            observed['engineering_broker_signals'] = result

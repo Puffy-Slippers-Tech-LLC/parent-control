@@ -335,15 +335,16 @@ class Suite:
         return transport
 
     def prepare_installed(self, directory, assets, selection, *, root, overwrite=True,
-                          mode='offline', release_notes_upgrade=False):
+                          mode='offline', release_notes_upgrade=False, observe_failures=None):
         from app_snapshot import prepare
         created = prepare(self, directory, assets, selection, root=root,
                           overwrite=overwrite, mode=mode,
-                          release_notes_upgrade=release_notes_upgrade)
+                          release_notes_upgrade=release_notes_upgrade,
+                          observe_failures=observe_failures)
         self.prepared_release_notes_upgrade = release_notes_upgrade
         return created
 
-    def prepare_case(self, case, directory, assets, selection, *, root):
+    def prepare_case(self, case, directory, assets, selection, *, root, observe_failures=None):
         upgrade = 'installed-release-notes-upgrade' in case['preconditions']
         if self.prepared and upgrade != self.prepared_release_notes_upgrade:
             # Online attempts already return to the powered-off baseline. Never
@@ -357,7 +358,8 @@ class Suite:
         if not self.prepared:
             created = self.prepare_installed(directory, assets, selection, root=root,
                                             overwrite=False, mode=self.snapshot_mode,
-                                            release_notes_upgrade=upgrade)
+                                            release_notes_upgrade=upgrade,
+                                            observe_failures=observe_failures)
             if not created:
                 from app_snapshot import snapshot_name
                 package = assets / ('package.' + system.package_format(self.lease.capture.state['guest']))

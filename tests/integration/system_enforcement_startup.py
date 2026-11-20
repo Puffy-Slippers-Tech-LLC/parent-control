@@ -15,6 +15,7 @@ import time
 
 import system_guest as guest
 from product_logs import read_events
+from system_product_failures import allow_product_fault
 from system_assertions import accepted, account_state, call
 from system_removal_faults import Fault, WITNESS, identity, mounted_fault
 
@@ -90,7 +91,8 @@ def verify_broker_reconciliation(record):
 
     previous_segments = {row['segment'] for row in read_events('broker')}
     try:
-        with mounted_fault(fault, policy, record, readonly=True):
+        with (allow_product_fault('broker', 'backend'), allow_product_fault('broker', 'startup'),
+              mounted_fault(fault, policy, record, readonly=True)):
             try:
                 # This is the real Parent startup operation under its own UID.
                 reply = call(parent, 'ListManagedUsers')
@@ -100,9 +102,8 @@ def verify_broker_reconciliation(record):
                 invocation = failed.pop('InvocationID')
                 require(failed == {'ActiveState': 'failed', 'MainPID': '0', 'Result': 'exit-code'}
                         and re.fullmatch(r'[0-9a-f]{32}', invocation), 'broker-startup-not-failed')
-                # The broker writes structured files, not journal messages.
-                # One fresh process segment after the owned stop binds these
-                # failures to this activation; old incidents cannot satisfy it.
+                # The structured event files give independent startup detail.
+                # Require one fresh process segment after the owned stop.
                 expected = {
                     'execution-policy.005': {'error_type': 'ExecutionPolicyError'},
                     'execution-policy.006': {'error_type': 'ExecutionPolicyError'},

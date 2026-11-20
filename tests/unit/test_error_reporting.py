@@ -32,7 +32,7 @@ def product_failure_span(monkeypatch):
                 '__CURSOR': boundary.cursor, journal.FENCE: boundary.token,
                 '__MONOTONIC_TIMESTAMP': str(boundary.monotonic_usec)}
 
-    def read(*rows, late=(), opening=True, seal=True, trailing=(), stderr=b''):
+    def read(*rows, late=(), opening=True, seal=True, trailing=(), stderr=b'', role_uids=True):
         records = [*rows, marker(end), *late]
         if opening:
             records.insert(0, marker(start))
@@ -42,7 +42,8 @@ def product_failure_span(monkeypatch):
         output = b'\n'.join(row if isinstance(row, bytes) else json.dumps(row).encode()
                             for row in records)
         run.return_value = subprocess.CompletedProcess([], bool(stderr), output, stderr)
-        return journal.read_failures(start, end, parent_uid=1000, child_uid=1001, kiosk_uid=1002)
+        roles = {'parent_uid': 1000, 'child_uid': 1001, 'kiosk_uid': 1002} if role_uids else {}
+        return journal.read_failures(start, end, **roles)
 
     return start, end, read
 
@@ -165,6 +166,13 @@ def test_product_failure_read_binds_evidence_to_owned_boot_and_case(product_fail
         result = journal.evaluate_failures(observation, start=wrong_start, end=wrong_end)
         assert result.disposition() == journal.FailureDisposition.BLOCKED
         assert result.unexpected == ()
+
+    added_parent = _product_fault(start, 130, component='parent', _UID='1009')
+    false_parent = {**added_parent, '_CMDLINE': '/usr/bin/python3 -I /tmp/other-script'}
+    broad = read(added_parent, false_parent, role_uids=False)
+    result = journal.evaluate_failures(broad, start=start, end=end)
+    assert result.complete and result.unattributed == 1
+    assert result.unexpected == (journal.Event('parent', 'backend', 130, 'gtk'),)
 
     monkeypatch.setattr(journal.os, 'geteuid', lambda: 1000)
     result = journal.evaluate_failures(read(fault), start=start, end=end)

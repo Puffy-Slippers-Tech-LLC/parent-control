@@ -1394,7 +1394,10 @@ its latest owner.
 
 Host-only runs use `output/test-runs/host/state/retention-host/`; VM workers and
 snapshot preparation use `output/test-runs/host/state/retention-<canonical-target>/`.
-The queue summary uses `retention-batch/`. Each execution journal rotates healthy
+The shared VM queue summary uses `retention-batch/`. A run restricted to one VM
+keeps its queue summary under `state/vm-queues/<canonical-target>/retention-batch/`
+and scopes queue progress to that VM. Independent runs on different named VMs
+can overlap subject to the shared host compute limit. Each execution journal rotates healthy
 recorded output or preserves unavailable history through the shared execution
 session. Historical journals in other scopes are not startup gates. Combined
 runs give host-test output its own host journal, independent of VM workers and

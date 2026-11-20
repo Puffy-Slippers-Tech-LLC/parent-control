@@ -539,9 +539,21 @@ class ChildIsolationQualification(KioskEntryQualification):
         journey = ChildIsolationJourney(context, progress)
         self.fault = ChildIsolationFault(journey, context.lease)
         check_settings = journey.check_settings
+        starts = {}
 
         def check(stage, observed):
             check_settings(stage, observed)
+            observation = journey.transport.product_failures if journey.transport is not None else None
+            if observation is not None:
+                if stage in ('unavailable-approval-rechecked', 'unavailable-parent-desktop'):
+                    starts[stage] = observation.boundary()
+                elif stage in ('unavailable-approval-refused', 'unavailable-report'):
+                    opening, surface = (
+                        ('unavailable-approval-rechecked', 'kiosk') if stage == 'unavailable-approval-refused'
+                        else ('unavailable-parent-desktop', 'parent'))
+                    start, end = starts.pop(opening), observation.boundary()
+                    for role in ('broker', surface):
+                        observation.add_allowance(role, 'backend', start, end)
             if stage == 'setup-greeter':
                 observed['child_isolation'] = self.fault.install()
             elif stage == 'unavailable-balance':

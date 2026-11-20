@@ -166,7 +166,7 @@ def preparation(message):
 
 
 def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='offline',
-            release_notes_upgrade=False):
+            release_notes_upgrade=False, observe_failures=None):
     """Ensure a current snapshot; overwrite forces even a matching rebuild."""
     from installed_setup import stage, InstalledSetup, timed_stage
     from provenance import VerifiedInputs
@@ -253,9 +253,12 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     suite.verified = verified
     with timed_stage('snapshot-start-and-connect'):
         transport = suite.start_transport(setup, host_key)
+        if observe_failures is not None:
+            observe_failures(transport, 'snapshot-preparation-startup', at_boot=True)
     with timed_stage('snapshot-install'):
         InstalledSetup(setup, verified, transport).run(lease.guard, verify=mode == 'online',
-                                                     upgrade=release_notes_upgrade)
+                                                     upgrade=release_notes_upgrade,
+                                                     observe_failures=observe_failures)
     if mode == 'offline':
         # Online setup already verifies the package and boot after reboot.
         with timed_stage('snapshot-reboot-and-verify'):

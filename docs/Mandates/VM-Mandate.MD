@@ -158,6 +158,11 @@ Historical claims are discarded; incomplete attempts return to pending.
 Stateful histories and system area attempts remain indivisible for scheduling,
 but guest steps inside them may be interrupted for repair, reload or cancellation.
 Each VM runs one attempt at a time, retaining its own lease and journals.
+Run independent installed checks concurrently on eligible VMs up to the
+host's available compute capacity. When checks need separate exact-selector
+invocations, use distinct eligible VMs so each invocation keeps independent
+progress, retention and cleanup. Keep a history on one VM when its assertions
+depend on shared guest state or a prior check's result.
 `prepare-vm` and `prepare-appsnapshot` queue every eligible VM in the confirmed
 selection through the shared preparation scheduler. Host queues run independently.
 The scheduler retries the ordinary VM checkout when the VM or its compute is

@@ -5,7 +5,7 @@ remain anchored to the invoking checkout. Uncaptured inputs deliberately remain
 live; this is a convenience boundary, not a claim of hermetic execution.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import importlib.abc
 from importlib.machinery import PathFinder
@@ -342,13 +342,18 @@ def main():
     sys.path.insert(0, str(target.parent))
     sys.argv = sys.argv[1:]
     with capture(root):
+        observation = nullcontext()
+        if target.parent == root / 'tests/integration' and target.stem.startswith('check_'):
+            from standalone_product_failures import observe_check
+            observation = observe_check(target.stem)
         module = ModuleType('__main__')
         module.__dict__.update(__file__=str(target), __package__='',
                                __spec__=None, __cached__=None)
         previous = sys.modules['__main__']
         sys.modules['__main__'] = module
         try:
-            exec(compile(read_bytes(target), str(target), 'exec'), module.__dict__)
+            with observation:
+                exec(compile(read_bytes(target), str(target), 'exec'), module.__dict__)
         finally:
             sys.modules['__main__'] = previous
 

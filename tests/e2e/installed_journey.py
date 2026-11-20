@@ -809,6 +809,9 @@ class InstalledJourney:
         else:
             require(self.ui is not None and self.ui.boot_proof == self.boot,
                     self.plan.prefix + ':reboot-modal-proof')
+            failures = getattr(self.transport, 'product_failures', None)
+            if failures is not None:
+                failures.before_reboot()
             submission = self.ui.submit_restart(surface)
         guard()
         return {'submitted': True, 'previous_boot_sha256': self.boot, **submission}
@@ -923,6 +926,12 @@ class InstalledJourney:
                                   lease=context.lease)
             with timed_stage('setup-ssh-readiness'):
                 transport.probe_ready(timeout=180)
+            observation = getattr(context, 'failure_observation', None)
+            if observation is not None:
+                resumed = context.resumed_snapshot
+                boundary = ('product-free-start' if product_free or install_current else
+                            'restored-current-snapshot' if resumed else 'current-build-startup')
+                observation.start(transport, boundary, at_boot=not resumed)
             prepare_request_backdrop(transport)
             # The snapshot's installed app persists, but its helper payload
             # belongs to the snapshot-creation run. Bootstrap has already bound

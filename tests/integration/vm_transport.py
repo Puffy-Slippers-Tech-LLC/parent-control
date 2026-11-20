@@ -198,6 +198,7 @@ class Transport:
         self.commands = commands or Commands()
         self.guard = guard
         self.lease = lease
+        self.product_failures = None
         if lease is not None:
             lease.shutdown_request = self.poweroff
             lease.product_log_capture = self.capture_product_logs
@@ -206,6 +207,8 @@ class Transport:
     def capture_product_logs(self):
         """Host-owned capture before shutdown/restoration; no public log output."""
         import product_logs
+        if self.product_failures is not None:
+            self.product_failures.checkpoint()
         directory = Path(self.commands.directory) / 'product-logs'
         directory.mkdir(mode=0o700, exist_ok=True)
         if hasattr(self, 'product_logs_per_case'):
@@ -383,7 +386,11 @@ class Transport:
 
     @observed('Waiting for the VM SSH connection')
     def probe_ready(self, *, boot_id=False, timeout=330):
-        return self._probe_ready(boot_id=boot_id, timeout=timeout)
+        result = self._probe_ready(boot_id=boot_id, timeout=timeout)
+        if self.lease is not None:
+            from standalone_product_failures import transport_ready
+            transport_ready(self)
+        return result
 
     @observed('Waiting for system startup to complete')
     def wait_boot_complete(self):
@@ -426,6 +433,8 @@ class Transport:
             diagnostic['outcome'] = 'changed-boot'
             if self.lease is not None:
                 self.lease.set_probe_transport(self)
+            if self.product_failures is not None:
+                self.product_failures.after_reboot()
             return result
         except BaseException as error:
             codes = {'transport:' + code: code for code in (
@@ -517,6 +526,8 @@ class Transport:
         require(type(previous_boot_sha256) is str
                 and re.fullmatch(r'[0-9a-f]{64}', previous_boot_sha256),
                 'transport:invalid-previous-boot')
+        if self.product_failures is not None:
+            self.product_failures.before_reboot()
         if self.lease is not None:
             self.lease.close_probe()
         program = ('import hashlib,os,pathlib,sys; '

@@ -64,7 +64,7 @@ def prepare():
     accounts = identities()
     manager = installed_manager()
     child, _ = manager._account(accounts['child'])
-    guest.require(not manager._shell_is_available(child), 'extension:prepare-live-shell')
+    guest.require(manager._shell_owner(child) is None, 'extension:prepare-live-shell')
     guest.require(not FIXTURE.exists() and not FIXTURE.is_symlink(),
                   'extension:prepare-collision')
     states = state_digests(accounts['other'], accounts['parent'])
@@ -490,6 +490,8 @@ def interfere(manager, account, shell, events, activate, record):
 
 
 def verify(publish):
+    from system_product_failures import allow_product_fault
+
     marker = guest.guard()
     guest.enable_diagnostics()
     prepared = json.loads(FIXTURE.read_text())
@@ -509,7 +511,7 @@ def verify(publish):
     guest.require(props['LockedHint'] == 'no', 'extension:initial-child-session-locked')
     manager = installed_manager()
     account, _ = manager._account(child)
-    wait_for(lambda: manager._shell_is_available(account), 'extension:shell-unavailable')
+    wait_for(lambda: manager._shell_owner(account), 'extension:shell-unavailable')
     from oh_no_parent_control.preferences import PreferenceStore
     store = PreferenceStore()
     guest.require(not store.load(child)['parent_control_enabled'], 'extension:setup-not-saved-off')
@@ -654,7 +656,8 @@ def verify(publish):
         def individual_disable():
             manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
 
-        recovery('initialized-recovery', initialize_with_interference, initialized=True)
+        with allow_product_fault('broker', 'operation'):
+            recovery('initialized-recovery', initialize_with_interference, initialized=True)
         cycles = []
         # Exercise both native signals in one recurrence sequence. The last
         # individual disable checks that prior successes did not add a cooldown.
@@ -1025,6 +1028,7 @@ def verify_failure_reporting(publish):
     cache. Whole-bus loss uses the runner-created user manager, never a PID kill.
     The outer installed-system owner restores autologin and the VM fixture.
     """
+    from system_product_failures import allow_product_fault
     from contextlib import contextmanager
 
     marker = guest.guard()
@@ -1207,7 +1211,8 @@ def verify_failure_reporting(publish):
         identity = invocation()
         events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
         grant(child, 3600)
-        with native_error():
+        with (allow_product_fault('child', 'shell-extension-load'),
+              allow_product_fault('broker', 'operation'), native_error()):
             with unavailable_display():
                 preferences = store.load(child)
                 store.save(child, {**preferences, 'parent_control_enabled': True})

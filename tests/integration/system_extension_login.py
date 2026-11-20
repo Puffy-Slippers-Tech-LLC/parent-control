@@ -86,7 +86,7 @@ def disable(manager, child):
     manager._set_boolean(account, 'disable-user-extensions', True)
     guest.require(native_choices(manager, child) == [selected, blocked + [UUID], True],
                   'extension-login:disable-not-saved')
-    if manager._shell_is_available(account):
+    if manager._shell_owner(account) is not None:
         wait_for(lambda: manager._runtime_state(account) == (False, False),
                  'extension-login:disable-not-active')
 
@@ -99,7 +99,7 @@ def begin():
     child, parent = accounts['child'], accounts['parent']
     manager = installed_manager()
     account, _ = manager._account(child)
-    guest.require(session(child) is None and not manager._shell_is_available(account),
+    guest.require(session(child) is None and manager._shell_owner(account) is None,
                   'extension-login:fresh-session-already-present')
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 1440)))
     accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))

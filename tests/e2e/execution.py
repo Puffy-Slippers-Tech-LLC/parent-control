@@ -23,6 +23,7 @@ from provenance import VerifiedInputs, preflight_source
 from recording import ScenarioRecorder
 from tools.e2e_progress import Progress
 from tools.regression_events import write_event
+from tools.test_results import OBSERVATION_BLOCKED_STATUS
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITE_INPUT_FIELDS = ('inventory_sha256', 'package_sha256',
@@ -30,8 +31,45 @@ SUITE_INPUT_FIELDS = ('inventory_sha256', 'package_sha256',
 sys.path.insert(0, str(ROOT / 'tests/integration'))
 import graphical_backend
 from owned_commands import Commands, cancellable, cancellation_requested
+from product_failure_observation import FailureObservation
 import system_runner as system
 sys.path.pop(0)
+
+OBSERVATION_BLOCKED = 'observation-blocked'
+
+
+class CaseFailureObservation:
+    """Keep one verdict across the owned setup, boot and snapshot boundaries."""
+
+    def __init__(self, *, require_current):
+        self.observers = []
+        self.boundaries = []
+        self.require_current = require_current
+
+    def start(self, transport, boundary, *, at_boot=False):
+        if boundary == 'restored-current-snapshot' and boundary in self.boundaries:
+            self.observers[-1].attach(transport)
+            return
+        observer = transport.product_failures or FailureObservation(transport)
+        if observer not in self.observers:
+            self.observers.append(observer)
+        self.boundaries.append(boundary)
+        observer.start(at_boot=at_boot)
+
+    def result(self):
+        evaluations = [observer.finish() for observer in self.observers]
+        diagnostics = [diagnostic for result in evaluations for diagnostic in result.diagnostics]
+        reached_case = any(boundary in ('product-free-start', 'current-build-startup',
+                                       'restored-current-snapshot') for boundary in self.boundaries)
+        if not reached_case:
+            diagnostics.append('Product fault observation did not reach guest readiness')
+        current = not self.require_current or 'verified-current-build' in self.boundaries
+        if not current:
+            diagnostics.append('Product fault observation did not reach verified current-build execution')
+        return {'boundaries': self.boundaries, 'diagnostics': diagnostics,
+                'complete': reached_case and current and all(result.complete for result in evaluations),
+                'observed_spans': sum(observer.observed_spans for observer in self.observers),
+                'unexpected': sum(len(result.unexpected) for result in evaluations)}
 
 
 def attempt_failure(error):
@@ -130,6 +168,8 @@ class ScenarioContext:
         self.lease = verified.lease
         self.worker = None
         self._worker_started = False
+        self.failure_observation = None
+        self.resumed_snapshot = False
 
     def run_worker(self, *, observe, validate, authenticate=False, serial=False, timeout=600,
                    guarded_observe=None):
@@ -155,6 +195,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
     ledger = system.RunLedger()
     source = lease = collector = context = host_before = bridge = None
     commands = suite.commands if suite is not None else Commands()
+    lifecycle_upgrade = 'digest-verified-activation-packages' in case['preconditions']
+    failure_observation = CaseFailureObservation(require_current=lifecycle_upgrade)
     report = {'schema_version': 1, 'run_id': run_id, 'case_id': case['case_id'],
               'outcome': 'failed', 'acceptance_candidate': None, 'inputs': None,
               'first_failure': None, 'lease_phase': None,
@@ -215,7 +257,6 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             from suite_lease import needs_installed
             installed_consumer = needs_installed(case)
             product_free_consumer = 'declared-package-lifecycle-fixture' in case['preconditions']
-            lifecycle_upgrade = 'digest-verified-activation-packages' in case['preconditions']
             notes_upgrade = 'installed-release-notes-upgrade' in case['preconditions']
             upgrade_consumer = lifecycle_upgrade or notes_upgrade
             require(not lifecycle_upgrade or product_free_consumer,
@@ -295,7 +336,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                             lease.restore_installed = (lease.installed_name is not None
                                                        and needs_installed(suite.next_case))
                         else:
-                            suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root)
+                            suite.prepare_case(case, directory, staged, bootstrap_inputs, root=root,
+                                               observe_failures=failure_observation.start)
                 with ledger.measure('bootstrap', operation='bootstrap-payload'):
                     host_key = system.bootstrap(commands, lease, directory, guestfs,
                         observation_only=not installed_consumer,
@@ -326,6 +368,10 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     lease.watch_progress = recorder.progress
                     context = ScenarioContext(recorder, verified, directory, commands,
                                               guestfs, host_key, credentials)
+                    context.failure_observation = failure_observation
+                    context.resumed_snapshot = getattr(lease, 'online_pending', False)
+                    if context.resumed_snapshot:
+                        lease.observe_restored_failures = failure_observation.start
                     context.installed_snapshot = (lease.installed_name
                         if suite is not None and installed_consumer else None)
                     context.fixture_selection = fixture_selection
@@ -369,7 +415,8 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                 raise
         report['acceptance_candidate'] = bridge.result()
         for category in ledger.outcomes:
-            ledger.pass_outcome(category)
+            if category != 'product':
+                ledger.pass_outcome(category)
         report['outcome'] = 'passed'
     except BaseException as error:
         # Lease restoration/finalization/release may have failed after the
@@ -404,6 +451,14 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
             report['baseline_verification'] = dict(lease.capture.verification_totals)
         if any(v['outcome'] == 'failed' for v in ledger.outcomes.values()):
             report['outcome'] = 'failed'
+        observation = report['product_failure_observation'] = failure_observation.result()
+        if observation['unexpected']:
+            fail('product', 'execution:unexpected-product-fault')
+        elif report['outcome'] == 'passed':
+            if observation['complete']:
+                ledger.pass_outcome('product')
+            else:
+                report['outcome'] = OBSERVATION_BLOCKED
         if collector is not None:
             try:
                 checkpoint('attempt-terminal-candidate')
@@ -456,6 +511,7 @@ def main(plan):
             'execution:checkout')
     os.umask(0o077)
     interrupted = False
+    blocked = None
     report = {'schema_version': 1, 'scope': plan['scope'], 'outcome': 'failed',
               'inventory_sha256': plan['inventory_sha256'],
               'ready_only': plan.get('ready_only', False),
@@ -496,7 +552,12 @@ def main(plan):
                                    and not result.get('non_cancellation_failure', False))
                     if interrupted:
                         break
+                    if result['outcome'] == OBSERVATION_BLOCKED:
+                        blocked = result
+                        break
                     if result['outcome'] != 'passed':
+                        for diagnostic in result['product_failure_observation']['diagnostics']:
+                            print(f'{case["case_id"]}: {diagnostic}', file=sys.stderr, flush=True)
                         emit_progress('failure', nodeid=case['case_id'], when='call',
                                       detail='E2E scenario failed; see retained attempt evidence.')
                     emit_progress('finished', nodeid=case['case_id'])
@@ -518,13 +579,14 @@ def main(plan):
                     finally:
                         if suite.lease is not None:
                             report['baseline_verification'] = dict(suite.lease.capture.verification_totals)
-            if not interrupted:
+            if not interrupted and blocked is None:
                 require(report['expected_cases'] and
                         [a['case_id'] for a in report['attempts']] == report['expected_cases'] and
                         all(a['outcome'] == 'passed' for a in report['attempts']),
                         'execution:incomplete-invocation')
             collector.verify([])
-            report['outcome'] = 'failed' if interrupted else 'passed'
+            report['outcome'] = ('failed' if interrupted else
+                                 OBSERVATION_BLOCKED if blocked is not None else 'passed')
         except BaseException:
             interrupted = False
             report['outcome'] = 'failed'
@@ -551,6 +613,14 @@ def main(plan):
                 interrupted = False
                 report['outcome'] = 'failed'
                 report['failure'] = 'execution:invocation-close-failed'
+    if blocked is not None:
+        nodeid = blocked['case_id']
+        for diagnostic in blocked['product_failure_observation']['diagnostics']:
+            print(f'{nodeid}: {diagnostic}', file=sys.stderr, flush=True)
+        if report['outcome'] == 'failed':
+            emit_progress('failure', nodeid=nodeid, when='call',
+                          detail='E2E invocation failed after the scenario; see retained evidence.')
+            emit_progress('finished', nodeid=nodeid)
     emit_progress('vm-cleanup', interrupted=interrupted or (
                       report['outcome'] == 'passed' and cancellation_requested()),
                   passed=report.get('suite_cleanup', {}).get('outcome') == 'passed'
@@ -558,4 +628,6 @@ def main(plan):
                           for attempt in report['attempts']))
     # Caller exit status and this post-close result are the terminal authority.
     print(json.dumps(report, sort_keys=True))
+    if report['outcome'] == OBSERVATION_BLOCKED:
+        return OBSERVATION_BLOCKED_STATUS
     return 0 if report['outcome'] == 'passed' else 1

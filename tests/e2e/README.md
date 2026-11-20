@@ -1668,6 +1668,38 @@ Failures before a recorder exists retain invocation diagnostics and use only
 the entered lease's restoration/release. No synthetic scenario actions are
 invented for failed preparation.
 
+Every public E2E attempt applies the
+[shared product-fault verdict](../support/README.md#product-failure-observation-in-vm-cases)
+through its guarded SSH transport, including with Watch off. Fresh boots cover
+startup. Resuming an installed memory snapshot uses a fresh fence before
+fixture preparation or customer input. When the attempt creates a new installed
+snapshot, its current-package installation and startup also enter the verdict.
+Clean-install journeys open the interval while the guest is product-free,
+before releasing any installation action. A customer reboot seals the old boot
+before submission and starts observation from the new boot's origin after the
+existing boot-change check. The transport seals its last interval before the
+worker or lease restores the guest.
+
+An upgrade seals the product-free prefix before the earlier release installation.
+Observation of the current build starts at verified automatic activation,
+at the greeter after the old affected session ends, or at the verified new
+boot after a reboot-required update. Preparing the release-notes upgrade
+snapshot uses its established package and post-reboot verification. The attempt
+report lists the reached boundaries and the count of verified spans. Earlier
+versions and mixed-version transitions retain their original case assertions.
+
+Cases 185, 186, 189 and 205 deliberately submit an unrelated wildcard. The
+broker replies `InvalidRequest`, which the Parent UI presents as a report
+without emitting a product-fault record. The observer remains active throughout
+the Save, report, dismissal and restored-rule checks. The visible report and
+exact restored rule remain required by their case assertions.
+
+Unexpected faults enter the ordinary case failure path. An unavailable fault
+observation preserves any independent case or cleanup failure. If it is the sole
+issue, the terminal report identifies the affected case and observation boundary,
+dispatch stops after owned cleanup and the invocation exits 79. The controller
+withholds `finished` and `failure` for that case and keeps earlier terminal events.
+
 A ready Python module defines `E2E_CASES = {'<test_id>': callback}`. The loader
 loads current bytes from the selected safe path and rechecks artifact/baseline
 integrity before calling `callback(recorder, context)`. Module code

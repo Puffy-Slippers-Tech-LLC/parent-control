@@ -456,6 +456,8 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
         snapshot = json.loads(os.environ[BATCH]) if BATCH in os.environ else dict(vms=[])
         configured = vm_config.registry() if snapshot['vms'] else {}
         vms = [configured[name] for name in snapshot['vms']]
+        queue_vm = vms[0].name if len(vms) == 1 else None
+        progress_scope = 'ordinary' if queue_vm is None else 'ordinary/vm-' + queue_vm
         groups = execution_groups(root, argv, vms)
         selected_groups = groups
         if accounting is not None:
@@ -482,7 +484,7 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
                     continue
                 selected = selected_cases(families, args)
                 recorded_passes, recorded_failures = recorded_cases(records, options=args)
-                passed = (PassCheckpoint.retained_passes(root, 'ordinary/' + key, families)
+                passed = (PassCheckpoint.retained_passes(root, progress_scope + '/' + key, families)
                           if '--resume' in argv else set())
                 family_counts[key] = inventory = {}
                 for family in families:
@@ -542,8 +544,10 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
                     args = list(group['args'])
                     if '--resume' in argv and '--resume' not in args:
                         args.insert(0, '--resume')
+                    scope = progress_scope if group['key'] != 'host' else 'ordinary'
                     last = _run_group(root, args, reloading=reloading, return_outcome=True,
-                                      checkpoint_scope='ordinary/' + group['key'],
+                                      checkpoint_scope=scope + '/' + group['key'],
+                                      queue_vm=queue_vm,
                                       continue_on_errors=continue_on_errors,
                                       overall_counts=partial(update, group['key'], omitted),
                                       host_accounting=host_accounting if group['key'] == 'host' else None,
@@ -591,7 +595,8 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
 
 def _run_group(root, argv, *, reloading=False, return_outcome=False,
                checkpoint_scope='ordinary', continue_on_errors=False, upstream_run=None,
-               validate_routing=None, overall_counts=None, host_accounting=None, accounting_only=False):
+               validate_routing=None, overall_counts=None, host_accounting=None, accounting_only=False,
+               queue_vm=None):
     from contextlib import ExitStack
     from remote_sources import FrozenSources
     failed_work = set()
@@ -615,7 +620,7 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
                 continue_on_errors=continue_on_errors, failed_work=failed_work,
                 replayed_families=replayed_families, overall_counts=overall_counts,
                 host_accounting=host_accounting, accounting_only=accounting_only,
-                observed_failures=observed_failures, **upstream)
+                observed_failures=observed_failures, queue_vm=queue_vm, **upstream)
         # A refresh keeps the focused selector and only waives replays that ran.
         if not (outcome.get('source_changed')
                 and (not outcome['status'] or continue_on_errors and outcome['status'] == 1)):
@@ -651,7 +656,7 @@ def _run_group(root, argv, *, reloading=False, return_outcome=False,
 def _execute_group(root, plan, *, reloading=False, return_outcome=False,
         checkpoint_scope='ordinary', continue_on_errors=False, sources=None, failed_work=None,
                    replayed_families=None, check_upstream=None, overall_counts=None, observed_failures=None,
-                   host_accounting=None, accounting_only=False):
+                   host_accounting=None, accounting_only=False, queue_vm=None):
     snapshot, vms, host_args, guest_args, guest_selection, families = plan
     from test_commands import _main, selections
     from test_checkpoint import Checkpoint
@@ -722,7 +727,12 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                                    checkpoint_scope=checkpoint_scope,
                                    continue_on_errors=continue_on_errors)
             return outcome if return_outcome else outcome['status']
-        store = test_retention.Store(test_activity.retention_path(root))
+        path = test_activity.retention_path(root)
+        if vms and queue_vm is not None:
+            # Keep the coordinator's output distinct from its VM worker's
+            # journal and from independent single-VM queues in this checkout.
+            path = path.parent / 'vm-queues' / queue_vm / path.name
+        store = test_retention.Store(path)
         # The inherited owner lease excludes live workers; every VM still
         # separately recovers its own journal and guest state.
         with store.execution_session():

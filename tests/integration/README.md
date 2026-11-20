@@ -339,7 +339,10 @@ unchanged selection after actual producer-source edits. The actual activity
 consumer also refuses absent, incompatible and prior-generation readiness.
 Both online and offline attachments use the same installed preparation and
 actual consumer checks. Each attachment verifies its own restore and bootstrap
-boundary. The named-app set and child isolation E2E scenarios own public
+boundary and records its verified product fault intervals. The online route
+starts observation on the authenticated restored boot and carries it through
+credential rebinding. The offline route includes startup on the fresh boot.
+The named-app set and child isolation E2E scenarios own public
 catalogue policy saves and rereads.
 Results retain package metadata and frozen helpers rather than the complete
 fixture collection.
@@ -667,6 +670,25 @@ Their presence as `check_*.py` files does not register them in system or VM
 aggregates. The explicit `system CHECK` dispatcher can still launch a named
 building-block qualification; that explicit route supplies no category membership
 or complete customer acceptance. New wrappers likewise gain no registration.
+
+VM-backed standalone checks join the [product fault verdict](../support/README.md#product-failure-observation-in-vm-cases)
+through the same guarded launcher for explicit and aggregate execution. Each
+owned guest contributes its current-build interval, including startup on a
+fresh boot and clean installation when the check performs it. An upgrade
+uses the existing current-build verification before opening that interval.
+The runner collects before reboot and before shutdown or snapshot restoration.
+Observation stays active with both Watch feeds off. Non-booting diagnostics,
+operational recovery of earlier runs and probes confined to a verified
+product-free baseline without the installed test transport have no current
+product interval.
+
+A standalone pass requires both the original checks and complete fault
+observation after owned cleanup. Deliberate faults use allowances restricted to
+the asserted action window and exact component and category. Unexpected faults
+use the named check's ordinary failure path. Sole observation blockers retain
+the check's pending status for resume and emit an observation-specific result
+after verified cleanup. Independent assertion and cleanup failures keep their
+original outcome and diagnostics.
 
 Standalone registrations protect credential-recipient refusals, single-use
 challenges, privileged worker containment, immutable fixture integrity, native
@@ -1824,6 +1846,28 @@ saved-data migration. Package versions and predicate/denial observations are
 retained in JUnit; APT catalog/command diagnostics follow the existing collector.
 
 ## Evidence and failure recovery
+
+System pytest submits an observation for each exact phase and case after
+teardown. The controller also observes work it owns for that case, including
+clean installation, creation of a missing installed snapshot, startup, reboots
+and live checks after pytest. For example,
+case 307 covers both broker outages and their recoveries before guest pytest
+starts. Each child dependency allowance opens at its deliberate outage and
+closes after the broker's recovery checks. The retained boot snapshot supplies
+only the starting filesystem. Journal evidence begins with the attempt's boot
+or a fresh fence on the already owned boot, and the runner retains earlier boot
+evidence before requesting a reboot.
+
+For the earlier-package upgrade, observation begins with the candidate boot
+after current package payload verification. Historical and diagnostics-only
+transition assertions still run. The earlier-release trusted-fixtures check
+never installs the candidate and records that the current-build interval did
+not start. `result.json` records controller and pytest observation outcomes by
+phase and case. The guest's `faults-*.json` files retain the bounded evaluator
+diagnostics. A verified unexpected fault follows the ordinary case failure path.
+Missing observation alone withholds case completion until resume, after owned
+collection and cleanup. Assertion and cleanup failures keep their original
+verdicts. [Shared VM case observation contract](../support/README.md#product-failure-observation-in-vm-cases)
 
 Every attempt retains a unique `/tmp/onpc-system-*/` directory. Public
 `evidence/` contains aggregate `result.json`, xUnit `results.xml`, TAP

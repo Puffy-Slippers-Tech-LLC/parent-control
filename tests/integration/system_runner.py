@@ -134,6 +134,8 @@ COMMON_SELECTED_INPUTS = (
     ('tests/fixtures/native_trust.py', 'native_trust.py'),
     ('tests/integration/system_guest.py', 'system_guest.py'),
     ('tests/integration/product_logs.py', 'product_logs.py'),
+    ('tests/integration/system_product_failures.py', 'system_product_failures.py'),
+    ('tests/support/product_failure_journal.py', 'product_failure_journal.py'),
     ('tests/integration/guest_test_dependencies.py', 'guest_test_dependencies.py'),
     ('tests/integration/owned_commands.py', 'owned_commands.py'),
     ('tests/integration/guest/redact.py', 'guest/redact.py'),
@@ -363,6 +365,8 @@ class RunLedger:
         self.first_failure_category = None
         self.recording_failure_reported = False
         self.non_cancellation_failure = False
+        self.product_observations = []
+        self.observation_blocked = None
 
     @contextmanager
     def measure(self, stage, *, operation=None):
@@ -412,6 +416,10 @@ class RunLedger:
             },
             'outcomes': {name: dict(self.outcomes[name]) for name in OUTCOME_NAMES},
         }
+
+    def observation_is_sole_blocker(self):
+        return (self.observation_blocked is not None and self.first_failure_category is None
+                and self.outcomes['cleanup']['outcome'] == 'passed')
 
 
 def record_caught_failure(ledger, error):
@@ -949,6 +957,9 @@ class Lease:
             os.fsync(stream.fileno())
         os.replace(path, self.journal)
         baseline.sync_directory(self.directory)
+        if phase == 'running':
+            from standalone_product_failures import vm_started
+            vm_started(self)
         log('stage:' + phase)
 
     @observed('Validating VM ownership and baseline')
@@ -1447,7 +1458,8 @@ class Lease:
 
     @cancellation_cleanup()
     def __exit__(self, exc_type, exc_value, traceback):
-        if (self.ledger and exc_type is not None and
+        if (self.ledger and exc_type is not None
+                and not isinstance(exc_value, ProductObservationBlocked) and
                 all(self.ledger.outcomes[name]['outcome'] != 'failed'
                     for name in ('product', 'infrastructure', 'collection'))):
             self.ledger.fail_outcome('infrastructure', error_category(exc_value))
@@ -2199,7 +2211,7 @@ def phase_executions(selection, phase):
     return executions
 
 
-def pytest_command(run, phase, selection):
+def pytest_command(run, phase, selection, *, observe_faults=False):
     require(phase in PHASE_ORDER, 'pytest:phase')
     selectors = [f'{PAYLOAD}/{AREA_SOURCES[item.area].name}::{item.case_id}'
                  for item in phase_executions(selection, phase)]
@@ -2207,12 +2219,14 @@ def pytest_command(run, phase, selection):
                      if selection.qualification_failure and phase == 'authorization' else [])
     return ['env', f'ONPC_EXPECTED_RUN={run}', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1',
             f'ONPC_SYSTEM_PHASE={PHASE_SEMANTICS.get(phase, phase)}',
+            f'ONPC_SYSTEM_EXECUTION_PHASE={phase}',
+            f'ONPC_PRODUCT_FAILURE_OBSERVATION={int(observe_faults)}',
             'ONPC_REGRESSION_EVENTS=1', f'ONPC_REGRESSION_PRIVATE={PAYLOAD}/results',
-            f'PYTHONPATH={PAYLOAD}',
+            f'PYTHONPATH={PAYLOAD}:/usr/lib/oh-no-parent-control/broker:/usr/lib/oh-no-parent-control',
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-m', 'pytest',
             '-c', PAYLOAD + '/pytest.ini', '--noconftest', '--rootdir', PAYLOAD,
             '--junitxml', f'{PAYLOAD}/results/{phase}.xml', '-q', '-x', '-p', 'system_progress',
-            '-p', 'product_logs',
+            '-p', 'product_logs', '-p', 'system_product_failures',
             *qualification, *selectors]
 
 
@@ -2312,12 +2326,16 @@ def capture_session_screen(lease, output):
         raise
 
 
-def run_pytest(vm, run, phase, selection, *, on_output=None):
+def run_pytest(vm, run, phase, selection, *, on_output=None, observe_faults=False,
+               hold=()):
     """Forward only registered test events; raw SSH output stays private."""
     from system_progress import Progress
     previous = getattr(vm.commands, 'progress', None)
     executions = phase_executions(selection, phase)
-    vm.commands.progress = Progress(phase, executions, watch=watch_progress)
+    progress = Progress(phase, executions, watch=watch_progress, hold=hold,
+                        observation_sources={item.case_id: AREA_SOURCES[item.area].name
+                                             for item in executions} if observe_faults else None)
+    vm.commands.progress = progress
     # These histories invoke native package transactions inside pytest, beyond
     # the transport's explicit system_guest install/upgrade entry points. Keep
     # each finite invocation together; its guest threads share the admission.
@@ -2331,12 +2349,97 @@ def run_pytest(vm, run, phase, selection, *, on_output=None):
     from vm_transport import package_operation
     try:
         with package_operation(vm, 'Guest package lifecycle: ' + phase) if package_history else nullcontext():
-            return vm.call(pytest_command(run, phase, selection), timeout=timeout,
-                           **({} if on_output is None else {'on_output': on_output}))
+            try:
+                vm.call(pytest_command(run, phase, selection, observe_faults=observe_faults),
+                        timeout=timeout, **({} if on_output is None else {'on_output': on_output}))
+            except CommandError:
+                # pytest stops after the blocked case. The exact observation
+                # event distinguishes this from an unexpected interruption.
+                if (progress.observations.get(progress.blocked) != 'blocked'
+                        or vm.commands.last_returncode != 2):
+                    raise
+            if observe_faults and progress.blocked is None:
+                progress.blocked = next((item.case_id for item in executions
+                                         if item.case_id not in progress.completed
+                                         or progress.observations.get(item.case_id) not in
+                                            ('pass', 'fail')), None)
+            return progress
     finally:
-        vm.product_logs_per_case = vm.commands.last_returncode in (0, 1)
+        vm.product_logs_per_case = (vm.commands.last_returncode in (0, 1)
+                                    or progress.blocked is not None)
         vm.commands.progress.close()
         vm.commands.progress = previous
+
+
+class ProductObservationBlocked(Error):
+    """A case passed its assertions but could not establish fault coverage."""
+
+
+class HistoryObservation:
+    """Bind controller intervals to their real guest pytest executions."""
+
+    def __init__(self, vm, ledger):
+        self.vm = vm
+        self.ledger = ledger
+        self.active = None
+        self.results = {}
+
+    def start(self, execution, *, at_boot=False):
+        if self.active is not None:
+            if self.active[0] == execution:
+                return
+            self.close()
+        from product_failure_observation import FailureObservation
+
+        observer = FailureObservation(self.vm)
+        self.active = execution, observer
+        observer.start(at_boot=at_boot)
+
+    def close(self):
+        if self.active is None:
+            return
+        execution, observer = self.active
+        self.active = None
+        result = observer.finish()
+        self.results.setdefault(execution, []).append(result)
+        self.ledger.product_observations.append({
+            'phase': execution.phase, 'case_id': execution.case_id, 'source': 'controller',
+            'complete': result.complete, 'unexpected': len(result.unexpected),
+            'spans': observer.observed_spans,
+            'diagnostics': result.diagnostics,
+        })
+        for diagnostic in result.diagnostics:
+            log(f'product-observation:{execution.phase}::{execution.case_id}: {diagnostic}')
+
+    def verdict(self, phase, progress):
+        blocked = None
+        for execution, results in self.results.items():
+            if execution.phase != phase:
+                continue
+            if any(result.unexpected for result in results):
+                from system_case_ids import identity_for_event
+                from tools.regression_events import write_event
+
+                nodeid = phase + '::' + execution.case_id
+                identity = identity_for_event(nodeid)
+                self.ledger.fail_outcome('product', 'product-observation:unexpected-fault')
+                write_event(sys.stdout, kind='failure', nodeid=nodeid,
+                            case_id=identity.numeric_id, title=identity.title,
+                            detail='Unexpected product fault during the system controller history.')
+                raise Error('product-observation:unexpected-fault')
+            if not all(result.complete for result in results):
+                blocked = blocked or execution.case_id
+        for case_id, outcome in progress.observations.items():
+            self.ledger.product_observations.append({
+                'phase': phase, 'case_id': case_id, 'source': 'pytest',
+                'outcome': outcome or 'unavailable',
+            })
+        blocked = blocked or progress.blocked
+        if blocked is not None:
+            self.ledger.observation_blocked = phase + '::' + blocked
+            log(f'product-observation:{self.ledger.observation_blocked}: required evidence unavailable')
+            raise ProductObservationBlocked('product-observation:blocked')
+        progress.release_finished()
 
 
 def observe_graphical_expiry(vm, lease, directory, ledger, fixture_context, fixture_selection,
@@ -2477,8 +2580,38 @@ def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixtu
     (output / 'result.json').write_bytes(baseline.encode(result))
 
 
+def verify_enforcement_recovery(vm, directory):
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from startup_observations import ENFORCEMENT, parse_enforcement
+
+    observed = parse_enforcement(vm.call(['/usr/bin/python3', '-c', ENFORCEMENT], timeout=45))
+    fault = json.loads(vm.call(['cat', PAYLOAD + '/results/enforcement-startup.json']))
+    require(observed['boot_sha256'] == fault['boot_sha256'] and
+            observed['policy_started_us'] > fault['refused_us'],
+            'enforcement-startup:recovery-not-after-fault')
+    (directory / 'enforcement-startup.json').write_bytes(baseline.encode({**fault, 'recovery': observed}))
+
+
+def verify_broker_startup_recovery(vm, directory):
+    sys.path.insert(0, str(ROOT / 'tests/e2e'))
+    from startup_observations import BROKER, parse_broker, parse_enforcement
+
+    fault = json.loads(vm.call(['cat', PAYLOAD + '/results/broker-startup.json']))
+    gates = {key: parse_enforcement(fault[key].encode()) for key in ('before', 'during', 'after')}
+    recovered = parse_broker(vm.call(['/usr/bin/python3', '-c', BROKER], timeout=45))
+    require(gates['before'] == gates['during'] == gates['after'] and
+            recovered['boot_sha256'] == gates['before']['boot_sha256'] and
+            recovered['started_ns'] > fault['refused_ns'] and
+            all(fault[key] is True for key in (
+                'owned_fault_removed', 'accounts_unchanged', 'parent_query_recovered')),
+            'broker-startup:recovery-or-independent-gate-unverified')
+    (directory / 'broker-startup.json').write_bytes(
+        baseline.encode({**fault, 'login_gate': gates, 'recovery': recovered}))
+
+
 def installed_run(vm, lease, directory, selection, ledger=None, *, already_installed=False,
-                  fixture_selection=None, preparation_only=False, preparation_observer=None):
+                  fixture_selection=None, preparation_only=False, preparation_observer=None,
+                  snapshot_history=None):
     ledger = ledger or RunLedger()
     # Report product steps without replacing the lease's running lifecycle
     # state. Fixture readiness and interrupted-run recovery require that state;
@@ -2496,6 +2629,21 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 for item in selection.executions) <= 1,
             'selection:separate-graphical-expiry-histories')
     fixture_context = None
+    history = snapshot_history or HistoryObservation(vm, ledger)
+    history.vm = vm
+    previous = [directory / 'input' / ('previous-package.' + extension)
+                for extension in ('deb', 'rpm')]
+    has_previous = any(path.exists() for path in previous)
+    current_build = not has_previous
+
+    def phase_owner(phase, case_id=None):
+        return next(item for item in phase_executions(selection, phase)
+                    if case_id is None or item.case_id == case_id)
+
+    def start_initial_history():
+        if not preparation_only and current_build:
+            history.start(phase_owner(selection.phases[0]), at_boot=already_installed)
+
     if clean or preparation_only:
         from system_fixture_preparation import (SUBSETS, prepare, selection_record, qualified_guest,
                                                 require_installed_restore, installed_selection)
@@ -2564,22 +2712,31 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 if subset not in subsets)
         with ledger.measure('bootstrap', operation='ssh-readiness'):
             vm.probe_ready()
-        if already_installed:
-            with ledger.measure('bootstrap', operation='startup-readiness'):
-                vm.wait_boot_complete()
-        with ledger.measure('bootstrap', operation='fixture-provisioning'):
-            context = {'vm': vm, 'lease': lease, 'directory': directory}
-            if preparation_observer is not None:
-                preparation_observer('before', context)
-            context = prepare(vm, lease, directory, fixture_selection,
-                              subsets=subsets,
-                              **({'installed': True} if already_installed else {}))
-            if preparation_observer is not None:
-                observed = preparation_observer('ready', context)
-            else:
-                observed = None
-            context['controller'].require_ready(context['receipt'])
-            fixture_context = context
+        start_initial_history()
+        try:
+            if already_installed:
+                with ledger.measure('bootstrap', operation='startup-readiness'):
+                    vm.wait_boot_complete()
+            with ledger.measure('bootstrap', operation='fixture-provisioning'):
+                context = {'vm': vm, 'lease': lease, 'directory': directory}
+                if preparation_observer is not None:
+                    preparation_observer('before', context)
+                context = prepare(vm, lease, directory, fixture_selection,
+                                  subsets=subsets,
+                                  **({'installed': True} if already_installed else {}))
+                if preparation_observer is not None:
+                    observed = preparation_observer('ready', context)
+                else:
+                    observed = None
+                context['controller'].require_ready(context['receipt'])
+                fixture_context = context
+        except BaseException:
+            try:
+                with cancellation_cleanup():
+                    history.close()
+            except Exception:
+                log('evidence:controller-fault-observation-unavailable')
+            raise
         if preparation_only:
             return observed
     def require_fixture_ready():
@@ -2597,6 +2754,51 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             renew_after_reboot(fixture_context)
 
     run = lease.state['run']
+    qualification_pending = False
+
+    def capture_graphical_result():
+        with ledger.measure('collection'):
+            capture_session_screen(lease, directory / 'guest-results')
+
+    def run_phase(phase, *, on_output=None, after=None, owner=None):
+        nonlocal qualification_pending
+        controller_cases = {execution.case_id for execution in history.results
+                            if execution.phase == phase}
+        if history.active is not None:
+            execution, _ = history.active
+            require(execution.phase == phase, 'product-observation:incorrect-system-owner')
+            controller_cases.add(execution.case_id)
+            history.close()
+        if owner is not None:
+            controller_cases.add(owner.case_id)
+        try:
+            progress = run_pytest(vm, run, phase, selection, on_output=on_output,
+                                  observe_faults=current_build, hold=controller_cases)
+        except CommandError as error:
+            domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
+                      else 'infrastructure')
+            qualification_pending = (selection.qualification_failure and
+                                     phase == 'authorization' and domain == 'product')
+            if not qualification_pending:
+                ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
+                                    else error_category(error))
+            if phase == 'session' and graphical_expiry:
+                try:
+                    capture_graphical_result()
+                except Exception as capture_error:
+                    ledger.fail_outcome('collection', error_category(capture_error))
+            raise
+        if after is not None:
+            if current_build:
+                history.start(owner)
+            after()
+            history.close()
+        if not current_build:
+            ledger.product_observations.extend({
+                'phase': phase, 'case_id': item.case_id, 'source': 'pytest',
+                'outcome': 'current-build-interval-not-started',
+            } for item in phase_executions(selection, phase))
+        history.verdict(phase, progress)
 
     def prepare_reboot(script, operation, *, timeout=300):
         # Each history keeps its own fixture and real reboot; share only the
@@ -2618,18 +2820,15 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         vm.copy(True, PAYLOAD + '/results/', str(destination) + '/')
 
     outcome = 'failed'
-    qualification_pending = False
     try:
         with ledger.measure('bootstrap', operation='input-transfer'):
             if not clean:
                 vm.ready()
+                start_initial_history()
             if already_installed:
                 require_fixture_ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
-        previous = [directory / 'input' / ('previous-package.' + extension)
-                    for extension in ('deb', 'rpm')]
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
-        has_previous = any(path.exists() for path in previous)
         previous_policy = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
         trusted_fixtures = any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)
         require(not trusted_fixtures or (has_previous and not already_installed and
@@ -2679,14 +2878,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             if previous_policy:
                 log('stage:pytest-previous-policy')
                 with ledger.measure('test', operation='pytest-previous-policy'):
-                    try:
-                        run_pytest(vm, run, 'previous-policy', selection)
-                    except CommandError as error:
-                        domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
-                                  else 'infrastructure')
-                        ledger.fail_outcome(domain, 'pytest:failed:previous-policy'
-                                            if domain == 'product' else error_category(error))
-                        raise
+                    run_phase('previous-policy')
                 with ledger.measure('collection'):
                     collect_guest('installed')
         if (not already_installed and not first_configure and pam_history is None and not trusted_fixtures
@@ -2702,35 +2894,37 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
             log('stage:pytest-' + phase)
             with ledger.measure('test', operation='pytest-' + phase):
-                try:
-                    run_pytest(vm, run, phase, selection)
-                except CommandError as error:
-                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
-                              else 'infrastructure')
-                    ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
-                                        else error_category(error))
-                    raise
+                run_phase(phase)
             # Preserve the successful first phase if a required reboot loses transport.
             with ledger.measure('collection'):
                 collect_guest('installed')
             ledger.pass_outcome('collection')
         if reboot_phases:
             phase = reboot_phases[0]
+            owner = phase_owner(phase, KIOSK_ACTIVATION_CASE) if any(
+                item.case_id == KIOSK_ACTIVATION_CASE for item in phase_executions(selection, phase)
+            ) else phase_owner(phase)
             log('stage:reboot-requested')
             with ledger.measure('reboot', operation=phase):
+                if current_build:
+                    history.start(owner)
                 vm.reboot()
+                if has_previous:
+                    # Package payload verification preceded the reboot. Its
+                    # new boot is the first interval with current code only.
+                    current_build = True
+                    history.start(owner, at_boot=True)
+
+            def after_rebooted():
+                with ledger.measure('test', operation='kiosk-activation-' + phase):
+                    run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+
             log('stage:pytest-' + phase)
             with ledger.measure('test', operation='pytest-' + phase):
-                try:
-                    run_pytest(vm, run, phase, selection)
-                except CommandError as error:
-                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
-                              else 'infrastructure')
-                    ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
-                                        else error_category(error))
-                    raise
-            with ledger.measure('test', operation='kiosk-activation-' + phase):
-                run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+                if owner.case_id == KIOSK_ACTIVATION_CASE:
+                    run_phase(phase, after=after_rebooted, owner=owner)
+                else:
+                    run_phase(phase)
         recovery_phases = tuple(phase for history in REMOVAL_HISTORIES
                                 for phase in history.phases)
         rebooted_recovery_phases = tuple(phase for phase in recovery_phases
@@ -2757,15 +2951,22 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         shutil.copytree(retained, directory / 'guest-results', dirs_exist_ok=True)
                 log('stage:reboot-' + phase)
                 with ledger.measure('reboot', operation=phase):
+                    if current_build:
+                        history.start(phase_owner(phase))
                     vm.reboot()
             if phase == 'authorization' and any(item.case_id == KIOSK_AGENT_CASE
                                                for item in selection.executions):
                 require_fixture_ready()
+                if current_build:
+                    history.start(phase_owner(phase, KIOSK_AGENT_CASE))
                 log('stage:kiosk-agent')
                 with ledger.measure('test', operation='kiosk-agent'):
                     observe_kiosk_agent(vm, lease, directory, ledger,
                                         fixture_context, fixture_selection)
             if phase == 'session' and graphical_expiry:
+                if current_build:
+                    history.start(next(item for item in phase_executions(selection, phase)
+                                       if item.case_id in GRAPHICAL_EXPIRY_CASES))
                 prepare_reboot('system_graphical_expiry.py', 'graphical-expiry')
                 with ledger.measure('test', operation='graphical-expiry'):
                     observe_graphical_expiry(vm, lease, directory, ledger,
@@ -2793,8 +2994,12 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                         lock_outage=any(item.case_id == LOCK_OUTAGE_CASE
                                                 for item in selection.executions))
             if phase == 'extension':
+                if current_build:
+                    history.start(phase_owner(phase))
                 prepare_reboot('system_extension_monitor.py', 'extension-monitor')
             if phase == 'extension-login':
+                if current_build:
+                    history.start(phase_owner(phase, EXTENSION_LOGIN_CASE))
                 if not already_installed and not reboot_phases:
                     # Its isolated fresh-install attempt has no package test
                     # phases; finish the product's initial reboot before using
@@ -2807,65 +3012,26 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     observe_extension_login(vm, lease, directory, ledger,
                                             fixture_context, fixture_selection)
             if phase == 'startup':
+                if current_build:
+                    history.start(phase_owner(phase))
                 prepare_reboot('system_extension_startup.py', 'extension-startup', timeout=720)
             log('stage:pytest-' + phase)
             with ledger.measure('test', operation='pytest-' + phase):
-                try:
-                    if already_installed:
-                        require_fixture_ready()
-                    parent_preparation = (extension_parent_preparation(
-                        vm, run, lease, directory, ledger, fixture_context, fixture_selection)
-                        if phase == 'extension' and any(
-                            item.case_id == 'test_child_extension_monitor_native_recovery'
-                            for item in selection.executions) else None)
-                    run_pytest(vm, run, phase, selection, on_output=parent_preparation)
-                    if phase == ENFORCEMENT_STARTUP_PHASE:
-                        sys.path.insert(0, str(ROOT / 'tests/e2e'))
-                        from startup_observations import ENFORCEMENT, parse_enforcement
-                        observed = parse_enforcement(vm.call(
-                            ['/usr/bin/python3', '-c', ENFORCEMENT], timeout=45))
-                        fault = json.loads(vm.call(['cat', PAYLOAD +
-                                                   '/results/enforcement-startup.json']))
-                        require(observed['boot_sha256'] == fault['boot_sha256'] and
-                                observed['policy_started_us'] > fault['refused_us'],
-                                'enforcement-startup:recovery-not-after-fault')
-                        (directory / 'enforcement-startup.json').write_bytes(
-                            baseline.encode({**fault, 'recovery': observed}))
-                    if phase == BROKER_STARTUP_PHASE:
-                        sys.path.insert(0, str(ROOT / 'tests/e2e'))
-                        from startup_observations import BROKER, parse_broker, parse_enforcement
-                        fault = json.loads(vm.call(['cat', PAYLOAD + '/results/broker-startup.json']))
-                        gates = {key: parse_enforcement(fault[key].encode())
-                                 for key in ('before', 'during', 'after')}
-                        recovered = parse_broker(vm.call(
-                            ['/usr/bin/python3', '-c', BROKER], timeout=45))
-                        require(gates['before'] == gates['during'] == gates['after'] and
-                                recovered['boot_sha256'] == gates['before']['boot_sha256'] and
-                                recovered['started_ns'] > fault['refused_ns'] and
-                                all(fault[key] is True for key in (
-                                    'owned_fault_removed', 'accounts_unchanged', 'parent_query_recovered')),
-                                'broker-startup:recovery-or-independent-gate-unverified')
-                        (directory / 'broker-startup.json').write_bytes(
-                            baseline.encode({**fault, 'login_gate': gates, 'recovery': recovered}))
-                except CommandError as error:
-                    domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
-                              else 'infrastructure')
-                    qualification_pending = (selection.qualification_failure and
-                                             phase == 'authorization' and domain == 'product')
-                    if not qualification_pending:
-                        ledger.fail_outcome(domain, 'pytest:failed:' + phase if domain == 'product'
-                                            else error_category(error))
-                    if phase == 'session' and graphical_expiry:
-                        try:
-                            with ledger.measure('collection'):
-                                capture_session_screen(lease, directory / 'guest-results')
-                        except Exception as capture_error:
-                            ledger.fail_outcome('collection', error_category(capture_error))
-                    raise
-            if phase == 'session' and graphical_expiry:
-                with ledger.measure('collection'):
-                    capture_session_screen(lease, directory / 'guest-results')
+                if already_installed:
+                    require_fixture_ready()
+                parent_preparation = (extension_parent_preparation(
+                    vm, run, lease, directory, ledger, fixture_context, fixture_selection)
+                    if phase == 'extension' and any(
+                        item.case_id == 'test_child_extension_monitor_native_recovery'
+                        for item in selection.executions) else None)
+                after = {ENFORCEMENT_STARTUP_PHASE: lambda: verify_enforcement_recovery(vm, directory),
+                         BROKER_STARTUP_PHASE: lambda: verify_broker_startup_recovery(vm, directory),
+                         'session': capture_graphical_result if graphical_expiry else None}.get(phase)
+                run_phase(phase, on_output=parent_preparation, after=after,
+                          owner=None if after is None else phase_owner(phase))
         outcome = 'passed'
+    except ProductObservationBlocked:
+        raise
     except BaseException as error:
         if not qualification_pending and all(ledger.outcomes[name]['outcome'] != 'failed'
                                              for name in ('product', 'infrastructure')):
@@ -2879,6 +3045,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             if not interrupted:
                 with cancellation_cleanup(), ledger.measure('collection'):
                     lease.guard()
+                    history.close()
                     collect_guest(outcome)
                 ledger.pass_outcome('collection')
         except BaseException as error:
@@ -2970,9 +3137,11 @@ def evidence(directory, manifest, lease, passed, category, selection,
     if ledger.first_failure_category is not None:
         passed = False
         category = ledger.first_failure_category
+    blocked = ledger.observation_is_sole_blocker()
     artifacts = manifest.get('artifacts', {}) if manifest else {}
     state = lease.state if lease is not None and lease.state else {}
-    data = {'schema_version': 1, 'test': 'install-smoke', 'outcome': 'passed' if passed else 'failed',
+    data = {'schema_version': 1, 'test': 'install-smoke',
+            'outcome': 'passed' if passed else 'observation-blocked' if blocked else 'failed',
             'category': category, 'package_sha256': artifacts.get('package', {}).get('sha256'),
             'fixture_sha256': artifacts.get('fixtures', {}).get('sha256'),
             'selected_inputs_sha256': selected_inputs_sha256,
@@ -2982,15 +3151,21 @@ def evidence(directory, manifest, lease, passed, category, selection,
             'previous_package': manifest.get('previous_package') if manifest else None,
             'transport': 'guarded-ssh-pytest', 'virtualization': 'libvirt-qemu-snapshot',
             'baseline_verification': dict(lease.capture.verification_totals) if lease else {},
+            'product_observations': ledger.product_observations,
+            'observation_blocked_case': ledger.observation_blocked,
             'selection': selection_evidence(directory, selection), **ledger.data()}
     (output / 'result.json').write_bytes(baseline.encode(data))
-    suite = ET.Element('testsuite', name='onpc-system', tests='1', failures='0' if passed else '1')
+    suite = ET.Element('testsuite', name='onpc-system', tests='1',
+                       failures='0' if passed or blocked else '1', skipped='1' if blocked else '0')
     case = ET.SubElement(suite, 'testcase', name='install-smoke')
-    if not passed:
+    if blocked:
+        ET.SubElement(case, 'skipped', message=category)
+    elif not passed:
         ET.SubElement(case, 'failure', message=category)
     ET.ElementTree(suite).write(output / 'results.xml', encoding='utf-8', xml_declaration=True)
-    (output / 'results.tap').write_text('TAP version 13\n1..1\n' +
-                                       ('ok' if passed else 'not ok') + ' 1 - install-smoke\n')
+    tap = ('Bail out! Required product fault observation unavailable\n' if blocked else
+           ('ok' if passed else 'not ok') + ' 1 - install-smoke\n')
+    (output / 'results.tap').write_text('TAP version 13\n1..1\n' + tap)
     for path in output.rglob('*'):
         path.chmod(0o755 if path.is_dir() else 0o644)
     output.chmod(0o755)
@@ -3142,6 +3317,8 @@ def main(argv=None):
         ledger.pass_outcome('infrastructure')
         passed = True
         category = 'all-checks-passed'
+    except ProductObservationBlocked as error:
+        category = str(error)
     except (Exception, KeyboardInterrupt) as error:
         interrupted = isinstance(error, KeyboardInterrupt)
         # A remote pytest exits through ssh's generic CommandError boundary.
@@ -3218,6 +3395,9 @@ def main(argv=None):
     write_event(sys.stdout, 'vm-cleanup', passed=ledger.outcomes['cleanup']['outcome'] == 'passed',
                 interrupted=(interrupted or passed and cancellation_requested())
                 and not ledger.non_cancellation_failure)
+    if ledger.observation_is_sole_blocker():
+        from tools.test_results import OBSERVATION_BLOCKED_STATUS
+        return OBSERVATION_BLOCKED_STATUS
     return 0 if passed else 1
 
 

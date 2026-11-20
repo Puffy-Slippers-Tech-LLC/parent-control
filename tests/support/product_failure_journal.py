@@ -14,7 +14,9 @@ import time
 
 MESSAGE = "Oh No! Parent Control product failure"
 COMPONENTS = ("broker", "parent", "child", "kiosk")
-ALLOWABLE_CATEGORIES = frozenset({"backend", "dependency", "operation", "presentation", "startup"})
+ALLOWABLE_CATEGORIES = frozenset({
+    "backend", "dependency", "operation", "presentation", "startup", "shell-extension-load",
+})
 SOURCES = {
     "broker": ("broker", "systemd"),
     "parent": ("gtk",),
@@ -28,6 +30,7 @@ FENCE = "ONPC_FAILURE_FENCE"
 PROBE = "ONPC_FAILURE_PROBE"
 OCCURRENCE = "ONPC_OCCURRENCE_MONOTONIC_USEC"
 BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
+BOOT_ORIGIN = "kernel-boot"
 JOURNAL_SOCKET = "/run/systemd/journal/socket"
 SETTLE_SECONDS = 1
 MAX_OUTPUT = 256 * 1024
@@ -174,11 +177,11 @@ def _send(**fields):
         journal.sendto(payload.encode("ascii"), JOURNAL_SOCKET)
 
 
-def _records(boot, *matches, cursor=None, awaiting_marker=False):
+def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=512):
     # Read forward from the cursor. journalctl caps the row count and its JSON
     # output bounds individual fields. A clipped span cannot contain its seal.
     command = [
-        "/usr/bin/journalctl", "--quiet", "--no-pager", "--lines=+512", f"--boot={boot}",
+        "/usr/bin/journalctl", "--quiet", "--no-pager", f"--lines=+{limit}", f"--boot={boot}",
         "--output=json", f"--output-fields={FIELDS}",
     ]
     if cursor is not None:
@@ -238,6 +241,26 @@ def capture_boundary():
     raise EvidenceUnavailable("test boundary did not reach the journal")
 
 
+def capture_boot_origin():
+    """Require the kernel's first startup record on a newly owned boot."""
+    if os.geteuid() != 0:
+        raise EvidenceUnavailable(_Reason.AUTHORIZATION)
+    boot = _boot()
+    records, reason = _records(boot, "_TRANSPORT=kernel", limit=16)
+    if reason:
+        raise EvidenceUnavailable(reason)
+    for record in records:
+        if not isinstance(record, dict) or record.get("_BOOT_ID") != boot:
+            raise EvidenceUnavailable(_Reason.OPEN)
+        message, cursor = record.get("MESSAGE"), record.get("__CURSOR")
+        if (record.get("_TRANSPORT") == "kernel" and isinstance(message, str)
+                and message.startswith("Linux version ") and isinstance(cursor, str) and cursor):
+            # Kernel startup messages can be imported later. Include product
+            # events whose occurrence precedes that import on this boot.
+            return Boundary(boot, 1, cursor, BOOT_ORIGIN)
+    raise EvidenceUnavailable(_Reason.OPEN)
+
+
 def _is_boundary(record, boundary):
     return (
         record.get("__CURSOR") == boundary.cursor
@@ -265,10 +288,20 @@ def _closed_span(start, end, settle, *groups):
         return [], _Reason.SPAN
     if settle is not None and not _valid_span(end, settle):
         settle = None
+    boot_origin = start.token == BOOT_ORIGIN
     fences = [("_TRANSPORT=journal", "_UID=0", f"{FENCE}={marker.token}")
-              for marker in (start, end, settle) if marker is not None]
-    records, reason = _records(start.boot_id, *_matches(*fences, *groups), cursor=start.cursor)
-    if records and records[0] is not None and _is_boundary(records[0], start):
+              for marker in (start, end, settle) if marker is not None and marker.token != BOOT_ORIGIN]
+    # Read from the start of this boot rather than from the kernel cursor:
+    # kernel startup records can be imported after the first product record.
+    records, reason = _records(start.boot_id, *_matches(*fences, *groups),
+                               cursor=None if boot_origin else start.cursor)
+    if boot_origin:
+        try:
+            if capture_boot_origin() != start:
+                reason = reason or _Reason.OPEN
+        except EvidenceUnavailable as error:
+            reason = reason or str(error)
+    elif records and records[0] is not None and _is_boundary(records[0], start):
         records = records[1:]
     else:
         reason = reason or _Reason.OPEN
@@ -311,17 +344,23 @@ def _from_broker(record):
     )
 
 
-def _source(record, parent_uid, child_uid, kiosk_uid):
+def _role_uid(record, expected):
     uid = record.get("_UID")
+    if expected is not None:
+        return uid == expected
+    return isinstance(uid, str) and re.fullmatch(r"[1-9][0-9]{0,9}", uid) is not None
+
+
+def _source(record, parent_uid, child_uid, kiosk_uid):
     user_unit = record.get("_SYSTEMD_USER_UNIT")
     if _from_broker(record):
         return "broker", "broker"
-    if uid == parent_uid and _python_script(record, "/usr/bin/oh-no-parent-control-parent"):
+    if _role_uid(record, parent_uid) and _python_script(record, "/usr/bin/oh-no-parent-control-parent"):
         return "parent", "gtk"
-    if (uid == kiosk_uid and user_unit == KIOSK_APP_UNIT
+    if (_role_uid(record, kiosk_uid) and user_unit == KIOSK_APP_UNIT
             and _python_script(record, "/usr/bin/oh-no-parent-control")):
         return "kiosk", "gtk"
-    if uid == child_uid:
+    if _role_uid(record, child_uid):
         if (record.get("_EXE") == "/usr/bin/gnome-shell" and isinstance(user_unit, str)
                 and re.fullmatch(r"org\.gnome\.Shell(?:@[A-Za-z0-9_.-]+)?\.service", user_unit)):
             return "child", "gnome-shell"
@@ -334,20 +373,23 @@ def _os_fault(record, child_uid, kiosk_uid):
     if (record.get("_TRANSPORT") == "stdout" and record.get("MESSAGE") == BROKER_STARTUP_FAILURE
             and _from_broker(record)):
         return "broker", "startup", "systemd"
-    if record.get("_UID") not in {child_uid, kiosk_uid}:
+    child = _role_uid(record, child_uid)
+    kiosk = _role_uid(record, kiosk_uid)
+    if not (child or kiosk):
         return None
     try:
         # These supplemental projections use the existing support observer
         # when installed. Native reads and the bootstrap marker stand alone.
         from oh_no_parent_control.dependency_diagnostics import _gnome_shell_event, _kiosk_session_event
 
-        kiosk = _kiosk_session_event(record, int(kiosk_uid))
-        if kiosk is not None and kiosk[0] == "app-exit" and kiosk[2] != 0:
+        uid = int(record["_UID"])
+        session = _kiosk_session_event(record, uid) if kiosk else None
+        if session is not None and session[0] == "app-exit" and session[2] != 0:
             return "kiosk", "unexpected", "systemd"
-        shell = _gnome_shell_event(record, int(child_uid))
+        shell = _gnome_shell_event(record, uid) if child else None
         if (shell is not None and shell[0] == "extension-manager.shell-journal"
                 and shell[1]["candidate"] == "our-extension"):
-            return "child", "unexpected", "shell-log"
+            return "child", "shell-extension-load", "shell-log"
     except (ImportError, OSError, ValueError):
         return None
     return None
@@ -391,8 +433,10 @@ def _record_failure(record, start, end, *, parent_uid, child_uid, kiosk_uid):
     return None, False
 
 
-def read_failures(start, end, *, parent_uid, child_uid, kiosk_uid):
-    parent_uid, child_uid, kiosk_uid = (str(int(uid)) for uid in (parent_uid, child_uid, kiosk_uid))
+def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None):
+    parent_uid, child_uid, kiosk_uid = (
+        None if uid is None else str(int(uid)) for uid in (parent_uid, child_uid, kiosk_uid)
+    )
     time.sleep(SETTLE_SECONDS)
     try:
         settle = capture_boundary()
@@ -406,8 +450,10 @@ def read_failures(start, end, *, parent_uid, child_uid, kiosk_uid):
             ("_TRANSPORT=journal", *(f"ONPC_COMPONENT={component}" for component in COMPONENTS)),
             ("_TRANSPORT=stdout", "_UID=0", f"_SYSTEMD_UNIT={BROKER_UNIT}",
              f"MESSAGE={BROKER_STARTUP_FAILURE}"),
-            ("_UID=" + kiosk_uid, "_COMM=systemd"),
-            ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
+            ("_COMM=systemd", f"USER_UNIT={KIOSK_APP_UNIT}") if kiosk_uid is None
+            else ("_UID=" + kiosk_uid, "_COMM=systemd"),
+            ("_EXE=/usr/bin/gnome-shell",) if child_uid is None
+            else ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
             ("_UID=0", "_COMM=systemd-journal"),
         )
     except EvidenceUnavailable as error:
@@ -505,6 +551,10 @@ def main():
     match sys.argv[1:]:
         case ["boundary"]:
             print(json.dumps(asdict(capture_boundary())))
+        case ["boot-origin"]:
+            print(json.dumps(asdict(capture_boot_origin())))
+        case ["read", start, end]:
+            print(json.dumps(read_failures(Boundary(**json.loads(start)), Boundary(**json.loads(end)))))
         case ["read", start, end, parent, child, kiosk]:
             result = read_failures(
                 Boundary(**json.loads(start)), Boundary(**json.loads(end)),

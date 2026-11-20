@@ -1,6 +1,7 @@
 """One attempt-owned missing fixture home; no product policy substitution."""
 import json
 import ast
+from contextlib import nullcontext
 from io import BytesIO
 import os
 from pathlib import Path
@@ -204,7 +205,11 @@ class ChildIsolationFault:
 
     def install(self):
         self.receipt = self.call('install')
-        return self.call('startup')
+        observation = self.journey.transport.product_failures
+        # The isolated startup proof explicitly calls SetParentControl and
+        # verifies its BackendFailure while the fixture home is unavailable.
+        with (observation.allow('broker', 'backend') if observation is not None else nullcontext()):
+            return self.call('startup')
 
     def restore(self):
         if self.receipt is not None and not self.restored:

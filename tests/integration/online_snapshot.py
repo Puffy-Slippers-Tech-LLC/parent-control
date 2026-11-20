@@ -356,12 +356,17 @@ def connect_saved_transport(lease, directory, record, hostname):
     config = dict(directory=str(old), hostname=hostname, run=record['run'],
                   domain_uuid=lease.source.uuid, domain_id=lease.view.domain_id)
     transport = Transport(config, lease.commands, guard=lambda _: lease.guard(), lease=lease)
+    transport.retained_boot = True
     transport.probe_ready()
     return transport
 
 
 def saved_transport(lease, directory, record, hostname):
     transport = connect_saved_transport(lease, directory, record, hostname)
+    observe_failures = getattr(lease, 'observe_restored_failures', None)
+    if observe_failures is not None:
+        lease.observe_restored_failures = None
+        observe_failures(transport, 'restored-current-snapshot')
     # Resuming RAM may resume an old realtime clock. Correct it before tests
     # establish time expectations; no boot or customer action has begun.
     before = int(time.time())
@@ -402,6 +407,8 @@ def _rebind(lease, directory, record, transport):
     (directory / 'known-hosts').write_text(f"{transport.config['hostname']} {record['host_key']}\n")
     fresh = Transport(dict(transport.config, directory=str(directory), run=lease.state['run']),
                       lease.commands, guard=lambda _: lease.guard(), lease=lease)
+    if transport.product_failures is not None:
+        transport.product_failures.attach(fresh)
     fresh.probe_ready()
     verify_credentials(fresh, lease)
     return fresh

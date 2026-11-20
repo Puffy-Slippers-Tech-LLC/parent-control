@@ -40,6 +40,9 @@ def submit_release(journey, guard, binding, slot):
     command = PackageCommand(journey.transport, journey.context.verified)
     setattr(journey, slot, command)
     label = 'previous' if binding == OLD_INSTALL else 'current'
+    failures = getattr(journey.transport, 'product_failures', None)
+    if binding == OLD_INSTALL and failures is not None:
+        failures.checkpoint()
     result = command.submit(binding, command.verified.upgrade_inputs['packages'][label]['sha256'],
                             command.identity)
     guard()

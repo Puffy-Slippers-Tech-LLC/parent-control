@@ -147,10 +147,17 @@ def record_serial_journey(recorder, context):
             active = recorder.step(next_step)
             active.__enter__()
 
+    def observe_fixture(stage, value):
+        observation = getattr(context, 'failure_observation', None)
+        if stage == 'before' and observation is not None:
+            observation.start(value['vm'], 'product-free-start', at_boot=True)
+        fixture_observer = getattr(context, 'fixture_observer', None)
+        if fixture_observer is not None:
+            fixture_observer(stage, value)
+
     smoke = Smoke(context.directory, context.lease, context.commands, context.host_key,
                   progress=progress, transfer=transfer, authenticate=True, serial=True, functional=True,
-                  fixture_selection=selection,
-                  fixture_observer=getattr(context, 'fixture_observer', None))
+                  fixture_selection=selection, fixture_observer=observe_fixture)
 
     def validate():
         validate_stages(context.directory, smoke.steps)

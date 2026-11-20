@@ -46,13 +46,13 @@ for phase, child in (('healthy', 'child'), ('unavailable', 'existing'), ('restor
         # the previous grant display until its periodic refresh.
         SCREENS.update(custom_child_selection('restored-selected-away', 'child'))
     SCREENS.update(custom_child_selection(phase + '-selected', child))
-    SCREENS[phase + '-balance'] = 'ui:time-explanation-reach-read'
     if phase == 'unavailable':
         # Selecting the enabled child tries extension recovery against the
         # deliberately missing home. The documented error report is modal;
-        # observe and close it before leaving this fault phase.
+        # observe and close it before reading the Parent balance.
         SCREENS[phase + '-report'] = 'ui:feedback-close-ready'
         SCREENS[phase + '-report-closed'] = 'ui:feedback-draft-closed'
+    SCREENS[phase + '-balance'] = 'ui:time-explanation-reach-read'
     SCREENS[phase + '-switch'] = 'system:parent-switch-user'
     SCREENS[phase + '-greeter'] = 'ui:gdm-returned'
 SCREENS.update(prefixed_stages('reentry', {**station_entry(),

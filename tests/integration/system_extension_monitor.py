@@ -18,6 +18,7 @@ import time
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, account_states, call, session_limits
 from system_graphical_expiry import child_session, wait_for
+from system_product_failures import allow_product_fault
 from system_session_expiry import LIMITS, grant, identities, installed_manager
 
 UUID = 'oh-no-parent-control@tech.puffyslippers.com'
@@ -438,46 +439,50 @@ def interfere(manager, account, shell, events, activate, record):
     signal_index = len(shell.events)
     rows = []
     try:
-        os.fchmod(descriptor, injected)
-        guest.require(stat.S_IMODE(directory.lstat().st_mode) == injected,
-                      'extension:interference-permissions-not-held')
-        # Snapshot after establishing the hold: unrelated desktop writes during
-        # fixture discovery must not look like writes through the held fault.
-        original = database.lstat()
-        digest = hashlib.sha256(database.read_bytes()).hexdigest()
-        activate()
-        def repeated_failure():
-            nonlocal rows
-            rows = events.since(started)
-            failed = {item[1]['operation'] for item in rows if failed_verification([item])}
-            completed = {row['operation'] for _stamp, row in rows
-                         if row['event'] == 'extension-manager.monitor-decision'
-                         and row['fields']['outcome'] == 'failed'}
-            # A verification failure precedes rollback. Release only after two
-            # complete failed checks, not in the middle of their restoration.
-            return len(failed & completed) >= 2 and len(attempts(rows)) >= 2
-        wait_for(repeated_failure, 'extension:interference-did-not-fail-verification', timeout=90)
-        current = database.lstat()
-        guest.require((current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
-                      and hashlib.sha256(database.read_bytes()).hexdigest() == digest,
-                      'extension:interference-durable-settings-changed')
-        guest.require(not any(row['event'] == 'extension-manager.012'
-                              and row['fields']['enabled'] for _stamp, row in rows),
-                      'extension:interference-accepted-activation')
+        # Blocking dconf persistence can prevent Shell runtime rollback as well
+        # as activation. Observe both categories again before triggering recovery.
+        with (allow_product_fault('broker', 'operation'),
+              allow_product_fault('broker', 'backend')):
+            try:
+                os.fchmod(descriptor, injected)
+                guest.require(stat.S_IMODE(directory.lstat().st_mode) == injected,
+                              'extension:interference-permissions-not-held')
+                # Pin the database after establishing the hold so earlier desktop writes
+                # cannot look like writes through the held fault.
+                original = database.lstat()
+                digest = hashlib.sha256(database.read_bytes()).hexdigest()
+                activate()
+
+                def repeated_failure():
+                    nonlocal rows
+                    rows = events.since(started)
+                    failed = {item[1]['operation'] for item in rows if failed_verification([item])}
+                    completed = {row['operation'] for _stamp, row in rows
+                                 if row['event'] == 'extension-manager.monitor-decision'
+                                 and row['fields']['outcome'] == 'failed'}
+                    # Release after two complete failed checks and their rollback.
+                    return len(failed & completed) >= 2 and len(attempts(rows)) >= 2
+
+                wait_for(repeated_failure, 'extension:interference-did-not-fail-verification', timeout=90)
+                current = database.lstat()
+                guest.require((current.st_dev, current.st_ino) == (original.st_dev, original.st_ino)
+                              and hashlib.sha256(database.read_bytes()).hexdigest() == digest,
+                              'extension:interference-durable-settings-changed')
+                guest.require(not any(row['event'] == 'extension-manager.012'
+                                      and row['fields']['enabled'] for _stamp, row in rows),
+                              'extension:interference-accepted-activation')
+            finally:
+                # Restore the exact pinned directory even when observation fails.
+                current = directory.lstat()
+                guest.require((current.st_dev, current.st_ino, current.st_uid, current.st_gid)
+                              == (pinned.st_dev, pinned.st_ino, pinned.st_uid, pinned.st_gid)
+                              and stat.S_IMODE(current.st_mode) in (mode, injected),
+                              'extension:interference-directory-replaced')
+                os.fchmod(descriptor, mode)
+                guest.require(stat.S_IMODE(directory.lstat().st_mode) == mode,
+                              'extension:interference-permissions-not-restored')
     finally:
-        # Restore the exact pinned directory even when observation fails. The
-        # runner's restored-VM lifetime remains the outer failure boundary.
-        try:
-            current = directory.lstat()
-            guest.require((current.st_dev, current.st_ino, current.st_uid, current.st_gid)
-                          == (pinned.st_dev, pinned.st_ino, pinned.st_uid, pinned.st_gid)
-                          and stat.S_IMODE(current.st_mode) in (mode, injected),
-                          'extension:interference-directory-replaced')
-            os.fchmod(descriptor, mode)
-            guest.require(stat.S_IMODE(directory.lstat().st_mode) == mode,
-                          'extension:interference-permissions-not-restored')
-        finally:
-            os.close(descriptor)
+        os.close(descriptor)
         record('interference', {'failed_verification': failed_verification(rows),
                'attempts': len(attempts(rows)), 'permissions_restored': True})
         record('interference-timing', {'started': started,
@@ -508,8 +513,6 @@ def interfere(manager, account, shell, events, activate, record):
 
 
 def verify(publish):
-    from system_product_failures import allow_product_fault
-
     marker = guest.guard()
     guest.enable_diagnostics()
     prepared = json.loads(FIXTURE.read_text())
@@ -674,8 +677,7 @@ def verify(publish):
         def individual_disable():
             manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
 
-        with allow_product_fault('broker', 'operation'):
-            recovery('initialized-recovery', initialize_with_interference, initialized=True)
+        recovery('initialized-recovery', initialize_with_interference, initialized=True)
         cycles = []
         # Exercise both native signals in one recurrence sequence. The last
         # individual disable checks that prior successes did not add a cooldown.
@@ -1049,7 +1051,6 @@ def verify_failure_reporting(publish):
     cache. Whole-bus loss uses the runner-created user manager, never a PID kill.
     The outer installed-system owner restores autologin and the VM fixture.
     """
-    from system_product_failures import allow_product_fault
     from contextlib import contextmanager
 
     marker = guest.guard()

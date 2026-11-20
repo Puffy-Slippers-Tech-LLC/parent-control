@@ -5738,7 +5738,8 @@ class AccessibleUI:
 
     def feedback_privacy(self, projection):
         """FEED05 entry and actual public disclosure, with no external navigation."""
-        self.feedback_snapshot(projection)
+        self.wait(lambda: self.feedback_snapshot(projection), 'feedback-privacy-entry',
+                  prompt_in_predicate=True)
         self.activate_id('feedback-privacy-link')
         root = self.id_target('feedback-privacy-dialog')
         self.window_ready_to_close('feedback-privacy')

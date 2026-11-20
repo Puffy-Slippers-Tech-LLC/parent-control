@@ -1395,6 +1395,7 @@ if __name__ == '__main__':
                                        session_command(root, spec, run, selection=selection,
                                                        logical_tier=state.get('logical_tier')),
                                        nested=True, interactive=True, hide_task_completion=True,
+                                       fresh_transcript=True,
                                        capacity_recovery=False)  # The resumable controller owns these retries.
         except AgentCapacityUnavailable:
             status = 75  # Only after supervisor process and nested cleanup succeeded.

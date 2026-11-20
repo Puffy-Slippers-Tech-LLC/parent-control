@@ -165,7 +165,8 @@ existing blocker/error route instead of falling back to advisory prompt text.
 Activation happens inside the assigned turn: setting an active goal on an idle
 thread can start an automatic turn before the launcher supplies its task.
 History-list recording and memories remain disabled. Ordinary plan sessions start
-with fresh context. The [test repair loop](../tests/README.md#scripted-repair-loop)
+with fresh context and a fresh Watch transcript. Queued chat messages carry over
+only within the same task. The [test repair loop](../tests/README.md#scripted-repair-loop)
 uses one fresh schema-free native goal session for the whole repair and validation.
 Native goal continuation stays in that session; the launcher does not resume old
 threads or submit corrective turns. Complete the goal after the assigned work

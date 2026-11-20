@@ -171,6 +171,8 @@ def send_input(run, kind, text='', *, cancel_waiting=True, expected_session=None
                 (run / 'cancel').touch(mode=0o600)
             return
         entry = {'kind': kind, 'text': text, 'session': state['session'], 'cancel_waiting': cancel_waiting}
+        if kind == 'message':
+            entry['task_id'] = state.get('task_id')
         if kind == 'model':
             entry['model_session'] = model_session
         entries.append(entry)
@@ -328,9 +330,8 @@ class AppSession:
                 model_input(self.protocol, self.renderer, entry, self.model_session)
                 continue
             if entry['session'] not in (None, self.session):
-                # Text submitted at a session boundary still reaches the next
-                # agent. An old interrupt must never stop that new session.
-                if entry['kind'] == 'interrupt':
+                # Carry boundary messages only into another session of the same task.
+                if entry['kind'] != 'message' or entry.get('task_id') != self.task:
                     continue
             if entry['kind'] == 'message':
                 self.messages.append(entry['text'])

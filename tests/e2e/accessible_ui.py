@@ -6534,20 +6534,14 @@ class AccessibleUI:
                 self.select_kiosk_account('child', CHILD, expected=(CHILD, EXISTING_CHILD))
             return self.select_kiosk_account('approver', SPARE_PARENT,
                 expected=(PARENT, OTHER_PARENT, SPARE_PARENT), overlay=overlay)
-        # No setter or manual selection occurs after the role change. Read the
-        # usable form and its current public choices independently on each visit.
-        result = self.kiosk_request_form(enabled=True, overlay=overlay)
-        require(result['child'] == 'fixture-child', 'ui:approver-change-child')
-        selector, _form, _observation = self.kiosk_account_snapshot('approver', overlay=overlay)
-        choices = selector.getChoices()
+        eligible = self.interactive_approver_uids()
         sam = str(pwd.getpwnam(SPARE_APPROVER[0]).pw_uid)
         jamie = str(pwd.getpwnam(APPROVER_ACCOUNTS[PARENT]).pw_uid)
-        require(type(choices) is list and all(type(uid) is str for uid in choices)
-                and len(choices) == len(set(choices))
-                and set(choices) == self.interactive_approver_uids()
-                and sam not in choices and jamie in choices
-                and selector.getValue() == choices[0],
-                'ui:approver-change-fallback')
+        require(sam not in eligible and jamie in eligible, 'ui:approver-change-eligibility')
+        # Read the selection and choices from the same owned form observation.
+        result = self.kiosk_request_form(enabled=True, overlay=overlay,
+                                        approver_fallback_choices=eligible)
+        require(result['child'] == 'fixture-child', 'ui:approver-change-child')
         return result
 
     def spare_account_operation(self, operation):
@@ -10730,7 +10724,8 @@ class AccessibleUI:
 
     def kiosk_request_form(self, *, enabled=False, expected_selection=None, no_child=False,
                            no_approver=False, duration_seconds=1800, custom_text=None,
-                           overlay=False, language='en', overlay_child=CHILD, custom_units=None):
+                           overlay=False, language='en', overlay_child=CHILD, custom_units=None,
+                           approver_fallback_choices=None):
         """Read REQUEST03's default-duration station state after accounts load."""
         require(type(enabled) is bool, 'ui:kiosk-enabled-binding')
         require(custom_units in (None, 'minutes', 'hours') and
@@ -10907,6 +10902,13 @@ class AccessibleUI:
                     # The canonical value and the trigger description are
                     # published separately. Read both again after the update.
                     return None
+                if namespace == 'approver' and approver_fallback_choices is not None:
+                    choices = control.getChoices()
+                    require(type(choices) is list and choices
+                            and all(type(uid) is str for uid in choices)
+                            and len(choices) == len(set(choices))
+                            and set(choices) == approver_fallback_choices
+                            and selected_uid == choices[0], 'ui:approver-change-fallback')
                 return canonical
 
             duration_ids = (300, 900, 1800, 3600, 7200, 14400, 0, 'custom')

@@ -13,6 +13,8 @@ import tempfile
 VARIABLE = 'ONPC_TEST_RESULT_DIRECTORY'
 REPAIR_QUEUE = 'ONPC_TEST_REPAIR_QUEUE'
 PENDING_STATUS = 76
+OBSERVATION_BLOCKED_STATUS = 79
+UNRECORDED_STATUSES = (130, 75, PENDING_STATUS, OBSERVATION_BLOCKED_STATUS)
 
 
 def classic_profile(options):
@@ -62,7 +64,7 @@ class ResultStore:
                 if (isinstance(value, dict)
                         and all(isinstance(value.get(key), str) for key in ('category', 'family', 'case'))
                         and type(value.get('status')) is int
-                        and value['status'] >= 0 and value['status'] not in (130, 75, PENDING_STATUS)):
+                        and value['status'] >= 0 and value['status'] not in UNRECORDED_STATUSES):
                     records.append(value)
             except (OSError, ValueError):
                 continue
@@ -143,7 +145,7 @@ class ResultStore:
         if (not all(isinstance(value, str) for value in (category, family, case))
                 or type(status) is not int):
             raise ValueError('invalid runner outcome')
-        if status < 0 or status in (130, 75, PENDING_STATUS):
+        if status < 0 or status in UNRECORDED_STATUSES:
             return
         record = dict(context, category=category, family=family, case=case, status=status)
         record.setdefault('vm', '')

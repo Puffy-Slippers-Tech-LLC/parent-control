@@ -549,6 +549,12 @@ Release their normal bookings before starting repair. Keep every clear terminal
 pass or failure. Interrupted or incomplete executions return to pending without
 repair tickets, triage, cleanup-evidence qualification or a pre-repair recheck.
 
+If required product fault observation remains incomplete after bounded recovery,
+the affected case stays pending. The invocation reports the blocker and ends
+after owned cleanup. An explicit resume retries the pending case. A verified
+unexpected fault or another independent failure still follows normal repair,
+even when the same attempt also has incomplete observation.
+
 One fresh native goal session owns investigation, edits, diagnostics and
 validation of the failed operation. It activates the actual simplicity goal;
 plain prompt text is not goal activation. The session runs the exact case using

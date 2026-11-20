@@ -1,5 +1,8 @@
-"""Reports preserve diagnostics locally and require explicit user submission."""
+"""Product fault reporting and installed test observation."""
 
+from dataclasses import replace
+import json
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -8,6 +11,165 @@ import pytest
 from common.oh_no_parent_control_ui.errors import ErrorHandler, ErrorReport, install_exception_hooks
 from common.oh_no_parent_control_ui import feedback_transport as transport
 from oh_no_parent_control_kiosk.main import RequestWindow
+from tests.support import product_failure_journal as journal
+
+
+@pytest.fixture
+def product_failure_span(monkeypatch):
+    boot = '1' * 32
+    start = journal.Boundary(boot, 100, 'start-cursor', 'start')
+    end = journal.Boundary(boot, 200, 'end-cursor', 'end')
+    settle = journal.Boundary(boot, 250, 'settle-cursor', 'settle')
+    run = Mock()
+    monkeypatch.setattr(journal, '_boot', lambda: boot)
+    monkeypatch.setattr(journal, 'capture_boundary', lambda: settle)
+    monkeypatch.setattr(journal, 'SETTLE_SECONDS', 0)
+    monkeypatch.setattr(journal, 'os', SimpleNamespace(geteuid=lambda: 0, environ=journal.os.environ))
+    monkeypatch.setattr(journal.subprocess, 'run', run)
+
+    def marker(boundary):
+        return {'_BOOT_ID': boot, '_TRANSPORT': 'journal', '_UID': '0',
+                '__CURSOR': boundary.cursor, journal.FENCE: boundary.token,
+                '__MONOTONIC_TIMESTAMP': str(boundary.monotonic_usec)}
+
+    def read(*rows, late=(), opening=True, seal=True, trailing=(), stderr=b''):
+        records = [*rows, marker(end), *late]
+        if opening:
+            records.insert(0, marker(start))
+        if seal:
+            records.append(marker(settle))
+        records.extend(trailing)
+        output = b'\n'.join(row if isinstance(row, bytes) else json.dumps(row).encode()
+                            for row in records)
+        run.return_value = subprocess.CompletedProcess([], bool(stderr), output, stderr)
+        return journal.read_failures(start, end, parent_uid=1000, child_uid=1001, kiosk_uid=1002)
+
+    return start, end, read
+
+
+def _product_fault(start, occurred, *, received=None, component='broker', category='backend', **fields):
+    parent = component == 'parent'
+    program = ('/usr/bin/oh-no-parent-control-parent' if parent
+               else '/usr/libexec/oh-no-parent-control-broker')
+    row = {'_BOOT_ID': start.boot_id, '_TRANSPORT': 'journal', '_UID': '1000' if parent else '0',
+           '_SYSTEMD_UNIT': '' if parent else journal.BROKER_UNIT,
+           '_EXE': '/usr/bin/python3.14', '_CMDLINE': f'/usr/bin/python3 -I {program}',
+           'MESSAGE': journal.MESSAGE, 'ONPC_FAILURE_VERSION': '1', 'ONPC_COMPONENT': component,
+           'ONPC_FAILURE_CATEGORY': category, journal.OCCURRENCE: str(occurred),
+           '__MONOTONIC_TIMESTAMP': str(occurred if received is None else received)}
+    return {**row, **fields}
+
+
+def test_product_failure_allowance_matches_occurrence_in_owned_span(product_failure_span):
+    start, end, read = product_failure_span
+    allowance = journal.Allowance('broker', 'backend', 120, 180)
+    for category in ('unfamiliar', 'unexpected'):
+        with pytest.raises(ValueError, match='invalid product fault allowance'):
+            journal.Allowance('broker', category, 120, 180)
+
+    stale = _product_fault(start, 99, received=110)
+    ordinary = {'_BOOT_ID': start.boot_id, '_TRANSPORT': 'journal', 'MESSAGE': 'ordinary log traffic'}
+    unowned = _product_fault(start, 119, _CMDLINE='/usr/bin/python3 -I /tmp/unowned')
+    for rows, late in (
+        ((stale, ordinary, unowned), ()),
+        ((stale, ordinary, unowned, _product_fault(start, 120),
+          _product_fault(start, 154, MESSAGE='different display text', PRIORITY='6')), (
+            _product_fault(start, 179, received=212, MESSAGE='late private exception detail'),)),
+    ):
+        result = journal.evaluate_failures(read(*rows, late=late), start=start, end=end,
+                                           allowances=(allowance,))
+        assert result.complete and result.unexpected == () and result.diagnostics == ()
+        assert result.unattributed == 1
+        assert result.disposition() == journal.FailureDisposition.PASS
+
+    observation = read(
+        _product_fault(start, 128, component='parent'),
+        _product_fault(start, 135, category='operation'),
+        _product_fault(start, 145, category='unfamiliar'),
+        _product_fault(start, 155, category='unexpected'),
+        late=(_product_fault(start, 179, received=211),
+              _product_fault(start, 180, received=212),
+              _product_fault(start, 200, received=213)),
+    )
+    result = journal.evaluate_failures(observation, start=start, end=end, allowances=(allowance,))
+    assert result.complete
+    assert result.unexpected == (
+        journal.Event('parent', 'backend', 128, 'gtk'),
+        journal.Event('broker', 'operation', 135, 'broker'),
+        journal.Event('broker', 'unfamiliar', 145, 'broker'),
+        journal.Event('broker', 'unexpected', 155, 'broker'),
+        journal.Event('broker', 'backend', 180, 'broker'),
+    )
+
+
+@pytest.mark.parametrize(('fields', 'reason'), (
+    ({'ONPC_FAILURE_CATEGORY': 'private category text'}, 'invalid failure category'),
+    ({'ONPC_FAILURE_VERSION': '2'}, 'unsupported failure record format'),
+))
+def test_product_failure_invalid_required_row_does_not_hide_valid_row(product_failure_span, fields, reason):
+    start, end, read = product_failure_span
+    broken = _product_fault(start, 120, **fields)
+    good = _product_fault(start, 130, category='startup')
+    for rows, faults in (((broken,), ()), ((broken, good), (journal.Event('broker', 'startup', 130, 'broker'),))):
+        result = journal.evaluate_failures(read(*rows), start=start, end=end)
+        assert not result.complete and result.reason == reason
+        assert result.unexpected == faults
+        assert 'private category text' not in '\n'.join(result.diagnostics)
+
+
+def test_product_failure_partial_read_retains_only_verified_faults(product_failure_span):
+    start, end, read = product_failure_span
+    faults = [_product_fault(start, occurred) for occurred in range(130, 150)]
+    assert read(trailing=(b'{unreadable row',))['complete']
+    assert read(b'{unreadable row')['reason'] == 'invalid journal output'
+    for rows in ((), faults):
+        observation = read(b'{unreadable row', *rows, seal=False, stderr=b'private transport detail')
+        result = journal.evaluate_failures(observation, start=start, end=end)
+        assert not result.complete and result.reason == 'journal query unavailable'
+        assert len(result.unexpected) == len(rows)
+        expected = journal.FailureDisposition.FAIL if rows else journal.FailureDisposition.BLOCKED
+        assert result.disposition() == expected
+        assert result.disposition(case_failed=True) == journal.FailureDisposition.FAIL
+        assert len(result.diagnostics) <= journal.MAX_DIAGNOSTIC_EVENTS + 2
+        assert 'private' not in '\n'.join(result.diagnostics)
+        if rows:
+            assert result.diagnostics[-2] == '12 additional unexpected product faults'
+
+    # A broken projection or unrecognized reason cannot erase another valid fault
+    # or expose raw detail in test output.
+    observation = read(*faults[:1])
+    observation['events'].insert(0, {'monotonic_usec': True, 'detail': 'private message'})
+    observation['reason'] = 'private failure detail'
+    result = journal.evaluate_failures(observation, start=start, end=end)
+    assert not result.complete and result.unexpected == (journal.Event('broker', 'backend', 130, 'broker'),)
+    assert 'private' not in '\n'.join(result.diagnostics)
+
+
+def test_product_failure_read_binds_evidence_to_owned_boot_and_case(product_failure_span, monkeypatch):
+    start, end, read = product_failure_span
+    fault = _product_fault(start, 130)
+    foreign = _product_fault(start, 140, _BOOT_ID='2' * 32)
+    observation = read(fault, foreign, opening=False)
+    result = journal.evaluate_failures(observation, start=start, end=end)
+    assert not result.complete and result.reason == 'opening journal boundary unavailable'
+    assert result.unexpected == (journal.Event('broker', 'backend', 130, 'broker'),)
+    assert result.disposition() == journal.FailureDisposition.FAIL
+
+    # A response from another case or another boot cannot be reused even if
+    # its occurrence time fits the current interval.
+    observation = read(fault)
+    for wrong_start, wrong_end in (
+        (replace(start, token='different-start'), end),
+        (replace(start, boot_id='2' * 32), replace(end, boot_id='2' * 32)),
+    ):
+        result = journal.evaluate_failures(observation, start=wrong_start, end=wrong_end)
+        assert result.disposition() == journal.FailureDisposition.BLOCKED
+        assert result.unexpected == ()
+
+    monkeypatch.setattr(journal.os, 'geteuid', lambda: 1000)
+    result = journal.evaluate_failures(read(fault), start=start, end=end)
+    assert result.disposition() == journal.FailureDisposition.BLOCKED
+    assert result.reason == 'failure observation requires the authorized guest reader'
 
 
 @pytest.mark.parametrize('failure', (None, 'connect', 'dispatch', 'reply'))

@@ -1,7 +1,7 @@
 # Detect product errors in VM tests
 
 Task queue: [Ordered task queue](Error_Reporting/Task_Queue.md).
-Next task: **002 — [Decide which faults fail a test](Error_Reporting/002.md)**.
+Next task: **003 — [Check for faults before every VM test passes](Error_Reporting/003.md)**.
 
 Every VM test case should fail if the current product produces an unexpected
 error during its owned execution, including errors that never open a report
@@ -21,7 +21,8 @@ The allowance accepts any number of matching events, including zero. The case's
 assertions establish the intended fault and recovery. The same category outside
 the window and unrelated categories inside it remain errors. Readable product
 faults with unfamiliar or catch-all categories count as unexpected. The
-[evaluator task](Error_Reporting/002.md) defines how to handle unreadable evidence.
+[shared runner contract](../../tests/support/README.md#product-failure-observation-in-vm-cases)
+defines how to handle unreadable evidence.
 
 Scope covers the latest product build across system pytest, VM-backed standalone
 checks selected through the aggregate or explicitly by name, and E2E, including

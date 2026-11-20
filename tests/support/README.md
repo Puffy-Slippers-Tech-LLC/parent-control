@@ -88,9 +88,13 @@ The [controller observer](../integration/product_failure_observation.py) reads
 only the bounded fault projection through the case's guarded transport. A
 fresh boot must retain its kernel startup record. A retained online snapshot
 starts at a new journal boundary at the first authenticated connection, before
-the controller changes the restored guest. On reboot, the controller saves
-the old interval before submitting the action and checks
-startup after it verifies the new boot. The transport also saves any open
+the controller changes the restored guest. Before reboot, the controller
+captures the old interval so it can retain faults if the transition fails.
+After verifying the new boot, it reads the departing boot's retained journal
+through its orderly shutdown and opens the new interval at the kernel startup
+record. Both intervals belong to the same case. A missing request fence,
+reboot completion or journal shutdown record leaves the departure incomplete.
+The transport also saves any open
 interval when the lease captures logs before cleanup. These checks run with
 Watch off. Raw journal rows remain in the guest.
 

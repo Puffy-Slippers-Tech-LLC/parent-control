@@ -1665,7 +1665,8 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                 desktop_session_logout, desktop_session_switch, gdm_navigation, gdm_recipient,
                 gdm_product_free, kiosk_entry, request_exit)))),
             'smoke:parent-toggle-prerequisites')
-    require(type(kiosk_feedback_confinement) is bool and
+    unexpected_product_report = kiosk_feedback_confinement == 'unexpected-report'
+    require((type(kiosk_feedback_confinement) is bool or unexpected_product_report) and
             (not kiosk_feedback_confinement or kiosk_eligible_choices),
             'smoke:kiosk-feedback-prerequisites')
     require(type(kiosk_notification_wellbeing) is bool and
@@ -1902,7 +1903,9 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
         if kiosk_eligible_choices:
             result['scope'] = 'installed-kiosk-eligible-choices-qualification'
         if kiosk_feedback_confinement:
-            result['scope'] = 'engineering-installed-kiosk-feedback-confinement'
+            result['scope'] = ('engineering-installed-unexpected-product-report'
+                               if unexpected_product_report else
+                               'engineering-installed-kiosk-feedback-confinement')
         if kiosk_preferences_confinement:
             result['scope'] = 'engineering-installed-kiosk-preferences-confinement'
         if request_preset_controls:
@@ -2509,8 +2512,11 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                     from parent_setup_qualification import KioskEligibleChoicesQualification
                     qualification_class = KioskEligibleChoicesQualification
                 if kiosk_feedback_confinement:
-                    from parent_setup_qualification import KioskFeedbackConfinementQualification
-                    qualification_class = KioskFeedbackConfinementQualification
+                    from parent_setup_qualification import (KioskFeedbackConfinementQualification,
+                                                            UnexpectedProductReportQualification)
+                    qualification_class = (UnexpectedProductReportQualification
+                                           if unexpected_product_report
+                                           else KioskFeedbackConfinementQualification)
                 if kiosk_preferences_confinement:
                     from parent_setup_qualification import KioskPreferencesConfinementQualification
                     qualification_class = KioskPreferencesConfinementQualification

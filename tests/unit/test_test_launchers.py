@@ -10,7 +10,7 @@ from pathlib import Path
 import runpy
 import subprocess
 import sys
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 from types import SimpleNamespace
 
 import pytest
@@ -241,26 +241,213 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
     assert events == ['test', 'agent', 'test']
 
 
-@pytest.mark.parametrize('independent_failure', [False, True])
-def test_product_observation_routes_only_clear_failure_to_repair(tmp_path, monkeypatch,
-                                                         independent_failure):
-    import fix_tests
-    import test_results
-    import vm_test_queue
-    from threading import Event
-    from types import SimpleNamespace
+def _fault_observation_input(monkeypatch, verdict):
+    from itertools import count
 
-    vm = SimpleNamespace(name='worker', family='family', compute_unit=1)
-    cases = ['passed', 'observed', 'queued']
-    items = [dict(category='e2e', options=[], cases=[case], case=case, area=False)
-             for case in cases]
-    plan = ({'concurrency': 1}, [vm], [], ['e2e'], [('e2e', [])], {vm.family: items})
-    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'e2e': {'args': []}})
+    from product_failure_observation import FailureObservation
+    from tests.support.product_failure_journal import BOOT_ORIGIN
+
+    times = count(10, 10)
+    occurred = 25 if verdict == 'allowed' else 15
+    events = ([dict(component='broker', category='backend', source='broker', monotonic_usec=occurred)]
+              if verdict in ('unexpected', 'allowed') else [])
+    complete = verdict != 'blocked'
+
+    def read(self, mode, *args):
+        if mode != 'read':
+            timestamp = next(times)
+            return dict(boot_id='a' * 32, monotonic_usec=timestamp, cursor=str(timestamp),
+                        token=BOOT_ORIGIN if mode == 'boot-origin' else f'{timestamp:032x}')
+        start, end = map(json.loads, args)
+        return dict(span=[start['boot_id'], start['token'], start['monotonic_usec'],
+                          end['token'], end['monotonic_usec']],
+                    complete=complete, reason='' if complete else 'journal query unavailable',
+                    unattributed=0, events=events)
+
+    monkeypatch.setattr(FailureObservation, '_call', read)
+    return SimpleNamespace(product_failures=None, lease=object(), config={'domain_id': 1})
+
+
+def _standalone_observation_command(case, transport, verdict):
+    from standalone_product_failures import observe_check, transport_ready
+
+    try:
+        with observe_check(case):
+            transport_ready(transport)
+            if verdict == 'allowed':
+                with transport.product_failures.allow('broker', 'backend'):
+                    pass
+            raise SystemExit(0)
+    except SystemExit as error:
+        return error.code
+
+
+def _e2e_observation_command(tmp_path, monkeypatch, case_id, transport):
+    import e2e_watch
+    import execution
+    import suite_lease
+    import test_account_password
+    from tools import test_retention
+
+    case = dict(case_id=case_id, scenario_id='E2E-022', coverage_id=120,
+                title='Reboot with an active grant', preconditions=[], executable={})
+    plan = dict(cases=[case], scope='selected', artifacts=str(tmp_path), inventory_sha256='inventory')
+    ops = Mock(wraps=os)
+    ops.geteuid.return_value = ops.getegid.return_value = 0
+    ops.umask.return_value = 0o077
+    collector = Mock(path=tmp_path)
+    lease = MagicMock(state={'phase': 'complete'},
+                      capture=SimpleNamespace(verification_totals={}), online_pending=False)
+    lease.__enter__.return_value = lease
+    suite = Mock(lease=lease, backend_checked=True)
+
+    def prepare_case(*args, observe_failures, **kwargs):
+        observe_failures(transport, 'product-free-start')
+
+    suite.prepare_case.side_effect = prepare_case
+    verified = Mock(inputs={'inventory_sha256': 'inventory'})
+    verified.contract.return_value = SimpleNamespace(plan={'cases': [case]})
+    recorder = Mock(records=[])
+    bridge = Mock()
+
+    def acquire(ledger):
+        lease.__exit__.side_effect = lambda *error: ledger.pass_outcome('cleanup')
+        return None, None, lease
+
+    suite.acquire.side_effect = acquire
+    bridge.result.return_value = {'outcome': 'passed'}
+    monkeypatch.setattr(execution, 'os', ops)
+    monkeypatch.setattr(test_account_password, 'read_password', lambda: 'synthetic-password')
+    monkeypatch.setattr(e2e_watch, 'ProgressPublication', Mock())
+    monkeypatch.setattr(suite_lease, 'Suite', lambda *args: suite)
+    monkeypatch.setattr(test_retention, 'allocate', lambda *args, **kwargs: str(tmp_path))
+    monkeypatch.setattr(execution, 'FixtureCredentials', Mock())
+    monkeypatch.setattr(execution, 'PrivateCollector', lambda **kwargs: collector)
+    monkeypatch.setattr(execution, 'preflight_source', lambda *args, **kwargs: {'source_sha256': 'source'})
+    monkeypatch.setattr(execution.system, 'artifact_source', lambda path: path)
+    monkeypatch.setattr(execution.system, 'stage_assets', lambda source, path, commands: path.mkdir())
+    monkeypatch.setattr(execution.system, 'bootstrap', Mock())
+    monkeypatch.setattr(execution, 'VerifiedInputs', lambda **kwargs: verified)
+    monkeypatch.setattr(execution, 'ScenarioRecorder', lambda *args, **kwargs: recorder)
+    monkeypatch.setattr(execution, 'LeasedScenario', lambda *args, **kwargs: bridge)
+    status = execution.main(plan)
+    suite.close.assert_called_once_with()
+    bridge.execute.assert_called_once()
+    return status
+
+
+def _system_observation_command(tmp_path, monkeypatch, case_id, transport):
+    import guest_inputs
+    import qualification_storage
+    import system_runner
+    import system_snapshots
+    from system_progress import Progress
+    from tools.regression_events import write_event
+    from tools import test_retention
+    from io import StringIO
+
+    phase, _, case = case_id.partition('::')
+    item = system_runner.CaseExecution(phase, 'package', case, False)
+    selection = system_runner.Selection('package', case, 'case', (phase,), (), (item,), {})
+    ops = Mock(wraps=os)
+    ops.geteuid.return_value = ops.getegid.return_value = 0
+    ops.umask.return_value = 0o077
+    api = Mock()
+    api.virEventRunDefaultImpl.side_effect = AssertionError('Started a real VM event loop')
+    suite = SimpleNamespace(source=object(), acquire=lambda ledger: (None, None, None))
+
+    def run_attempts(suite, directory, selection, manifest, digest, ledger, **kwargs):
+        # Simulate passing case assertions. The controller interval owns the final gate.
+        progress = Progress(phase, selection.executions, hold=[case])
+        guest_output = StringIO()
+        write_event(guest_output, 'finished', nodeid='test_install_smoke.py::' + case)
+        progress(guest_output.getvalue().encode())
+        history = system_runner.HistoryObservation(transport, ledger)
+        history.start(item)
+        history.close()
+
+        def close():
+            ledger.pass_outcome('cleanup')
+
+        suite.close = close
+        history.verdict(phase, progress)
+
+    monkeypatch.setattr(system_runner, 'os', ops)
+    config = system_runner.baseline.guest_contract.vm_config
+    target = SimpleNamespace(require_package_format=lambda: 'deb')
+    monkeypatch.setattr(config, 'extract', lambda argv, **kwargs: (argv, target))
+    monkeypatch.setattr(config, 'selected', lambda: target)
+    monkeypatch.setattr(system_runner, 'resolve_selection', lambda *args, **kwargs: selection)
+    monkeypatch.setattr(system_runner, 'shutil', Mock(wraps=system_runner.shutil))
+    system_runner.shutil.which.return_value = '/unused'
+    monkeypatch.setattr(system_runner, 'importlib', SimpleNamespace(import_module=lambda name: api))
+    monkeypatch.setattr(system_runner, 'threading', SimpleNamespace(Thread=Mock()))
+    monkeypatch.setattr(system_runner.baseline, 'LibvirtSource', lambda api: suite.source)
+    monkeypatch.setattr(qualification_storage, 'session', lambda **kwargs: nullcontext())
+    monkeypatch.setattr(test_retention, 'allocate', lambda *args, **kwargs: str(tmp_path))
+    monkeypatch.setattr(system_runner, 'artifact_source', lambda path: path)
+    (tmp_path / 'input').mkdir()
+    monkeypatch.setattr(system_runner, 'stage_assets', lambda *args, **kwargs: {})
+    monkeypatch.setattr(system_runner, 'host_fingerprint', lambda commands: {})
+    monkeypatch.setattr(system_runner, 'stage_selected_inputs', lambda *args: 'inputs')
+    monkeypatch.setattr(guest_inputs, 'Bundle', Mock())
+    monkeypatch.setattr(system_snapshots, 'create_suite', lambda *args: suite)
+    monkeypatch.setattr(system_snapshots, 'run_attempts', run_attempts)
+    monkeypatch.setattr(sys, '__stdout__', sys.stdout)
+    return system_runner.main(['--id', '1', '--artifacts', str(tmp_path)])
+
+
+@pytest.mark.parametrize(('adapter', 'verdict'), [
+    ('e2e', 'unexpected'), ('e2e', 'blocked'),
+    ('system', 'unexpected'), ('system', 'blocked'),
+    ('standalone', 'unexpected'), ('standalone', 'blocked'),
+    ('standalone', 'healthy'), ('standalone', 'allowed'),
+])
+def test_product_observation_routes_only_clear_failure_to_repair(
+        tmp_path, monkeypatch, capsys, adapter, verdict):
+    import fix_tests
+    import regression
+    import test_results
+    import vm_recording
+    import vm_run_times
+    import vm_test_queue
+    from regression_events import PREFIX
+    from regression_process import Control
+    from test_checkpoint import Checkpoint
+    from io import StringIO
+    from threading import Event
+
+    monkeypatch.syspath_prepend(str(ROOT / 'tests/integration'))
+    monkeypatch.syspath_prepend(str(ROOT / 'tests/e2e'))
+    output_dir = tmp_path / 'adapter'
+    output_dir.mkdir(mode=0o700)
+    transport = _fault_observation_input(monkeypatch, verdict)
+    vm = vm_test_queue.vm_config.load(vm_name(), local=False)
+    category = 'e2e' if adapter == 'e2e' else 'system'
+    case, options = {
+        'e2e': ('E2E-022/reboot-active', ['--id', '120']),
+        'system': ('installed::test_installed_package', ['--id', '1']),
+        'standalone': ('check_fixture_system_installed', ['check_fixture_system_installed']),
+    }[adapter]
+    work = dict(category=category, options=options, cases=[case], case=case, area=False)
+    selection = [(category, options)]
+    plan = ({'concurrency': 1}, [vm], [], [category, *options, '--stop-on-error'],
+            selection, {vm.family: [work]})
+    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {category: {'args': options}})
+    monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *args: None)
+    monkeypatch.setattr(regression.Run, 'command_environment', lambda *args, **kwargs: {})
+    monkeypatch.setattr(vm_run_times, 'Tracker', Mock())
+    monkeypatch.delenv(vm_recording.VARIABLE, raising=False)
     monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
     monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
-    attempted, operations = [], []
-    recovered = False
     blocked = test_results.OBSERVATION_BLOCKED_STATUS
+    failed = verdict == 'unexpected'
+    expected_status = 1 if failed else blocked if verdict == 'blocked' else 0
+    expected_diagnostic = ('Unexpected product fault broker/backend from broker at guest monotonic 15 us'
+                           if failed else 'Product fault observation incomplete (journal query unavailable)')
+    attempts, operations = [], []
+    commands = []
+    outcome = None
 
     class Ready:
         def __init__(self, *args, **kwargs):
@@ -278,48 +465,105 @@ def test_product_observation_routes_only_clear_failure_to_repair(tmp_path, monke
                 result = completed(vm, execute(SimpleNamespace(vm=vm)))
             return {vm.name: result}
 
+    def command(*args, output, started, **kwargs):
+        assert len(attempts) == 1
+        started()
+        capsys.readouterr()
+        with monkeypatch.context() as scoped:
+            if adapter == 'standalone':
+                status = _standalone_observation_command(case, transport, verdict)
+            elif adapter == 'e2e':
+                status = _e2e_observation_command(output_dir, scoped, case, transport)
+            else:
+                status = _system_observation_command(output_dir, scoped, case, transport)
+        actual = capsys.readouterr()
+        # Replay the command's actual event stream through the ordinary parser.
+        output((actual.out + actual.err).encode())
+        assert status == expected_status
+        if adapter == 'e2e':
+            terminal = json.loads(actual.out.splitlines()[-1])
+            attempt, = terminal['attempts']
+            assert attempt['case_id'] == case and attempt['acceptance_candidate']['outcome'] == 'passed'
+            assert terminal['outcome'] == ('failed' if failed else 'observation-blocked')
+            context = attempt['product_failure_observation']
+        elif adapter == 'system':
+            terminal = json.loads((output_dir / 'evidence' / 'result.json').read_text())
+            assert terminal['outcome'] == ('failed' if failed else 'observation-blocked')
+            assert terminal['observation_blocked_case'] == (None if failed else case)
+            context, = terminal['product_observations']
+            assert context['phase'] + '::' + context['case_id'] == case
+        else:
+            context, = [json.loads(line[len(PREFIX):]) for line in actual.out.splitlines()
+                        if line.startswith(PREFIX)]
+            assert context['nodeid'] == case
+            assert context['kind'] == 'product-failure-observation'
+            assert context['outcome'] == ('failed' if failed else 'blocked' if status else 'passed')
+        assert context['complete'] is (status != blocked)
+        assert context['unexpected'] == int(failed)
+        assert context['diagnostics'] == ([expected_diagnostic] if status else [])
+        return status
+
     def attempt(worker, assignment, inherited):
-        case = assignment['execution']['case']
-        attempted.append(case)
-        status = 0
-        if case == 'observed' and not recovered:
-            status = 1 if independent_failure else blocked
-        return dict(status=status, handoffs=[], evidence=dict(assignment, status=status,
-            cleanup=True, passed=[] if status else [case], failed=[case] if status == 1 else []))
+        assert attempts == [] and assignment['execution']['case'] == case
+        attempts.append(case)
+        checkpoint = Checkpoint(tmp_path, selection, binding=vm.name)
+        checkpoint.state['queue_assignment'] = assignment
+        item = regression.Category(category, 1, selection_args=tuple(options))
+        report = Mock(directory=tmp_path, dirty=set(), command=commands.append)
+        control = Control()
+        control.stopped = Event()
+        monkeypatch.setattr(control, 'run', command)
+        run = regression.Run(tmp_path, report, control, host_only=True)
+        run.dashboard.stream = StringIO()
+        run.checkpoint = checkpoint
+        run.categories = [item]
+        argv = [str(tmp_path / 'tools/run-tests'), category, *options]
+        status, _ = run.execute(item, argv, events=adapter != 'standalone')
+        record, = commands
+        assert record['cleanup'] == 'complete'
+        assert record['exit_status'] == expected_status
+        if adapter != 'standalone':
+            assert checkpoint.queue_vm_cleanup is True
+        if verdict == 'blocked':
+            assert record['state'] == regression.OBSERVATION_BLOCKED
+            assert record['failed_ids'] == record['completed_ids'] == []
+        return dict(status=run.result_status(), handoffs=[], output_tail=Path(record['log']).read_text(),
+                    evidence=dict(assignment, status=status, cleanup=record['cleanup'] == 'complete',
+                        passed=sorted(checkpoint.executed_passes.get(category, set())),
+                        failed=list(item.failed_nodeids)))
 
     def operation(root, run, owner, kind, command):
-        nonlocal recovered
+        nonlocal outcome
         operations.append(kind)
-        results = test_results.ResultStore()
         if kind == 'agent':
-            assert command['case'] == 'observed' and command['vm'] == vm.name
-            assert '--resume-case=observed' in fix_tests.validation_command(root, command)
-            recovered = True
-            results.record('e2e', vm.family, 'observed', 0)
-            return 0
+            assert failed and operations == ['test', 'agent'] and outcome['cleanup_complete'] is True
+            assert (command['category'], command['case'], command['vm']) == (category, case, vm.name)
+            assert expected_diagnostic in command['output_tail']
+            assert fix_tests.validation_command(root, command) == [
+                'tools/run-tests', '--stop-on-error', '--resume', '--resume-case=' + case,
+                '--resume-case-only', category, *options, '--vm', vm.name]
+            return 23  # Stop at the model boundary after observing the request.
+        assert operations == ['test']
+        assert command == [str(root / 'tools/run-tests'), '--stop-on-error', category,
+                           *options, '--vm', vm.name]
         outcome = vm_test_queue.execute_pass(root, plan, SimpleNamespace(stopped=Event()),
-                                             attempt, continue_on_errors=not independent_failure)
-        if not recovered:
-            assert attempted == cases[:2]
-            assert outcome['cleanup_complete'] is True
+                                             attempt)
+        assert attempts == [case]
+        assert outcome['cleanup_complete'] is True
+        assert outcome['status'] == expected_status
+        if verdict == 'blocked':
+            assert outcome['pending'] is True
         return outcome['status']
 
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
-    request = dict(categories=['e2e'], rounds=1)
+    request = dict(categories=[category], rounds=1, vm=vm.name)
     status = fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=operation)
-    if independent_failure:
-        assert status == 0
-        assert operations == ['test', 'agent', 'test']
-    else:
-        assert status == blocked
-        assert operations == ['test']
-        results = test_results.ResultStore()
-        assert results.passed('e2e', vm.family) == {'passed'}
+    assert status == (23 if failed else expected_status)
+    assert operations == (['test', 'agent'] if failed else ['test'])
+    results = test_results.ResultStore()
+    assert results.passed(category, vm.family) == (set() if expected_status else {case})
+    if not failed:
         assert not results.failures() and results.failure() is None
-        recovered = True
-        assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=operation) == 0
-        assert operations == ['test', 'test']
-        assert attempted == ['passed', 'observed', 'observed', 'queued']
 
 
 def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_path, monkeypatch):

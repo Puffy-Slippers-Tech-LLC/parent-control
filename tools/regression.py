@@ -1263,14 +1263,15 @@ class Run:
             if vm_step:
                 self.checkpoint.queue_vm_exit = status
             result = execution.finish(status)
-            if (item.retry_category == 'system' and item.state != OBSERVATION_BLOCKED
-                    and system_check_selection(command[2:])):
+            if item.retry_category == 'system' and system_check_selection(command[2:]):
                 case = system_check_selection(command[2:])
                 passed = item.state == 'Passed' or (vm_step and status == 0 and item.state == 'Interrupted')
-                if self.checkpoint is not None and (passed or not self.control.stopped.is_set()):
+                failed = item.state == 'Failed'
+                # finish() may have stopped dispatch for this completed failure.
+                if self.checkpoint is not None and (passed or failed):
                     self.checkpoint.event('system',
                         dict(kind='finished' if passed else 'failure', nodeid=case), set())
-                if not passed and not self.control.stopped.is_set():
+                if failed:
                     item.failed_nodeids = (case,)
             return result
         finally:

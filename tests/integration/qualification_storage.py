@@ -48,7 +48,7 @@ def run_qualification(label, qualify, *, preflight, **session_options):
             directory = Path(allocate(tempfile.mkdtemp, prefix='onpc-' + label + '-'))
             result = qualify(directory)
             status = verdict(0, result)
-            cleanup = vm_cleanup_verified() if status == OBSERVATION_BLOCKED_STATUS else None
+            cleanup = vm_cleanup_verified() if status else None
             if cleanup is False:
                 result['outcome'] = 'failed'
                 result['category'] = 'cleanup:qualification-unverified'

@@ -33,16 +33,28 @@ BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 BOOT_ORIGIN = "kernel-boot"
 JOURNAL_SOCKET = "/run/systemd/journal/socket"
 SETTLE_SECONDS = 1
-MAX_OUTPUT = 256 * 1024
+# A busy desktop emits many supplemental Shell records over an entire boot.
+# Keep the query bounded while still reading through an ordinary session exit.
+MAX_OUTPUT = 4 * 1024 * 1024
+MAX_ROWS = 4096
 MAX_DIAGNOSTIC_EVENTS = 8
 MAX_USEC = 10**19 - 1
 CATEGORY = re.compile(r"[a-z][a-z0-9-]{0,47}")
 FIELDS = (
     "__CURSOR,__MONOTONIC_TIMESTAMP,_BOOT_ID,_TRANSPORT,_UID,_PID,_EXE,_COMM,"
-    "_CMDLINE,_SYSTEMD_UNIT,_SYSTEMD_USER_UNIT,MESSAGE,"
+    "_CMDLINE,_SYSTEMD_UNIT,_SYSTEMD_USER_UNIT,MESSAGE,MESSAGE_ID,UNIT,JOB_RESULT,"
     "ONPC_FAILURE_VERSION,ONPC_COMPONENT,ONPC_FAILURE_CATEGORY,"
     f"{OCCURRENCE},{FENCE},{PROBE}"
 )
+REBOOT_REACHED = {
+    "_TRANSPORT": "journal", "_UID": "0", "_PID": "1", "_SYSTEMD_UNIT": "init.scope",
+    "MESSAGE_ID": "39f53479d3a045ac8e11786248231fbf", "UNIT": "reboot.target", "JOB_RESULT": "done",
+}
+JOURNAL_DRIVER = {
+    "_TRANSPORT": "driver", "_UID": "0", "_SYSTEMD_UNIT": "systemd-journald.service",
+}
+JOURNAL_STARTED = "f77379a8490b408bbe5f6940505a777b"
+JOURNAL_STOPPED = "d93fb3c9c24d451a97cea615ce59c00b"
 
 
 @dataclass(frozen=True)
@@ -88,6 +100,7 @@ class _Reason(StrEnum):
     SPAN = "invalid or changed journal span"
     OPEN = "opening journal boundary unavailable"
     CLOSE = "closing journal boundaries unavailable"
+    DEPARTURE = "departing boot journal tail unavailable"
     BOOT = "unexpected journal boot"
     LOSS = "journal reported dropped records"
     TIME = "missing or malformed journal time"
@@ -166,8 +179,9 @@ def _valid_span(start, end):
             and isinstance(end.token, str) and bool(end.token) and start.token != end.token)
 
 
-def _span_identity(start, end):
-    return [start.boot_id, start.token, start.monotonic_usec, end.token, end.monotonic_usec]
+def _span_identity(start, end, *, departed):
+    span = [start.boot_id, start.token, start.monotonic_usec, end.token, end.monotonic_usec]
+    return ["departed", *span] if departed else span
 
 
 def _send(**fields):
@@ -177,7 +191,7 @@ def _send(**fields):
         journal.sendto(payload.encode("ascii"), JOURNAL_SOCKET)
 
 
-def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=512):
+def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=MAX_ROWS):
     # Read forward from the cursor. journalctl caps the row count and its JSON
     # output bounds individual fields. A clipped span cannot contain its seal.
     command = [
@@ -245,7 +259,10 @@ def capture_boot_origin():
     """Require the kernel's first startup record on a newly owned boot."""
     if os.geteuid() != 0:
         raise EvidenceUnavailable(_Reason.AUTHORIZATION)
-    boot = _boot()
+    return _boot_origin(_boot())
+
+
+def _boot_origin(boot):
     records, reason = _records(boot, "_TRANSPORT=kernel", limit=16)
     if reason:
         raise EvidenceUnavailable(reason)
@@ -281,23 +298,20 @@ def _matches(*groups):
     return matches
 
 
-def _closed_span(start, end, settle, *groups):
-    if os.geteuid() != 0:
-        return [], _Reason.AUTHORIZATION
-    if not _valid_span(start, end) or start.boot_id != _boot():
-        return [], _Reason.SPAN
-    if settle is not None and not _valid_span(end, settle):
-        settle = None
+def _records_from_start(start, *groups, fences, require_exhausted=False):
     boot_origin = start.token == BOOT_ORIGIN
     fences = [("_TRANSPORT=journal", "_UID=0", f"{FENCE}={marker.token}")
-              for marker in (start, end, settle) if marker is not None and marker.token != BOOT_ORIGIN]
+              for marker in (start, *fences) if marker is not None and marker.token != BOOT_ORIGIN]
     # Read from the start of this boot rather than from the kernel cursor:
     # kernel startup records can be imported after the first product record.
     records, reason = _records(start.boot_id, *_matches(*fences, *groups),
-                               cursor=None if boot_origin else start.cursor)
+                               cursor=None if boot_origin else start.cursor,
+                               limit=MAX_ROWS + int(require_exhausted))
+    if require_exhausted and len(records) > MAX_ROWS:
+        reason = reason or _Reason.BOUND
     if boot_origin:
         try:
-            if capture_boot_origin() != start:
+            if _boot_origin(start.boot_id) != start:
                 reason = reason or _Reason.OPEN
         except EvidenceUnavailable as error:
             reason = reason or str(error)
@@ -305,6 +319,17 @@ def _closed_span(start, end, settle, *groups):
         records = records[1:]
     else:
         reason = reason or _Reason.OPEN
+    return records, reason
+
+
+def _closed_span(start, end, settle, *groups):
+    if os.geteuid() != 0:
+        return [], _Reason.AUTHORIZATION
+    if not _valid_span(start, end) or start.boot_id != _boot():
+        return [], _Reason.SPAN
+    if settle is not None and not _valid_span(end, settle):
+        settle = None
+    records, reason = _records_from_start(start, *groups, fences=(end, settle))
     inside, found_end = [], False
     for record in records:
         if record is None:
@@ -320,6 +345,39 @@ def _closed_span(start, end, settle, *groups):
         elif not _is_boundary(record, start):
             inside.append(record)
     return inside, reason or _Reason.CLOSE
+
+
+def _departed_span(start, fence, *groups):
+    if os.geteuid() != 0:
+        return [], _Reason.AUTHORIZATION
+    if not _valid_span(start, fence) or start.boot_id == _boot():
+        return [], _Reason.SPAN
+    records, reason = _records_from_start(
+        start, *groups, tuple(f"{key}={value}" for key, value in REBOOT_REACHED.items()),
+        (*(f"{key}={value}" for key, value in JOURNAL_DRIVER.items()),
+         f"MESSAGE_ID={JOURNAL_STARTED}", f"MESSAGE_ID={JOURNAL_STOPPED}"),
+        fences=(fence,), require_exhausted=True,
+    )
+    # Authenticate the pre-request fence, PID 1's completed reboot job and the
+    # journal's last orderly stop, in order. Keep projecting verified product
+    # records across the whole old boot even when its closing proof is missing.
+    inside, found_fence, reached_reboot, stopped = [], False, False, False
+    for record in records:
+        if record is None:
+            reason = reason or _Reason.OUTPUT
+            continue
+        if record.get("_BOOT_ID") != start.boot_id:
+            reason = reason or _Reason.BOOT
+            continue
+        stopped = (reached_reboot and record.get("MESSAGE_ID") == JOURNAL_STOPPED
+                   and all(record.get(key) == value for key, value in JOURNAL_DRIVER.items()))
+        if _is_boundary(record, fence):
+            found_fence = True
+        elif all(record.get(key) == value for key, value in REBOOT_REACHED.items()):
+            reached_reboot = found_fence
+        elif not _is_boundary(record, start):
+            inside.append(record)
+    return inside, reason or ("" if stopped else _Reason.DEPARTURE)
 
 
 def _python_script(record, script):
@@ -396,7 +454,7 @@ def _os_fault(record, child_uid, kiosk_uid):
 
 
 def _in_span(start, end, occurred):
-    return start.monotonic_usec <= occurred < end.monotonic_usec
+    return start.monotonic_usec <= occurred and (end is None or occurred < end.monotonic_usec)
 
 
 def _record_failure(record, start, end, *, parent_uid, child_uid, kiosk_uid):
@@ -433,29 +491,32 @@ def _record_failure(record, start, end, *, parent_uid, child_uid, kiosk_uid):
     return None, False
 
 
-def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None):
+def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None, departed=False):
     parent_uid, child_uid, kiosk_uid = (
         None if uid is None else str(int(uid)) for uid in (parent_uid, child_uid, kiosk_uid)
     )
-    time.sleep(SETTLE_SECONDS)
+    groups = (
+        ("_TRANSPORT=journal", f"MESSAGE={MESSAGE}"),
+        ("_TRANSPORT=journal", "ONPC_FAILURE_VERSION=1"),
+        ("_TRANSPORT=journal", *(f"ONPC_COMPONENT={component}" for component in COMPONENTS)),
+        ("_TRANSPORT=stdout", "_UID=0", f"_SYSTEMD_UNIT={BROKER_UNIT}",
+         f"MESSAGE={BROKER_STARTUP_FAILURE}"),
+        ("_COMM=systemd", f"USER_UNIT={KIOSK_APP_UNIT}") if kiosk_uid is None
+        else ("_UID=" + kiosk_uid, "_COMM=systemd"),
+        ("_EXE=/usr/bin/gnome-shell",) if child_uid is None
+        else ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
+        ("_UID=0", "_COMM=systemd-journal"),
+    )
     try:
-        settle = capture_boundary()
-    except (OSError, ValueError):
-        settle = None
-    try:
-        records, reason = _closed_span(
-            start, end, settle,
-            ("_TRANSPORT=journal", f"MESSAGE={MESSAGE}"),
-            ("_TRANSPORT=journal", "ONPC_FAILURE_VERSION=1"),
-            ("_TRANSPORT=journal", *(f"ONPC_COMPONENT={component}" for component in COMPONENTS)),
-            ("_TRANSPORT=stdout", "_UID=0", f"_SYSTEMD_UNIT={BROKER_UNIT}",
-             f"MESSAGE={BROKER_STARTUP_FAILURE}"),
-            ("_COMM=systemd", f"USER_UNIT={KIOSK_APP_UNIT}") if kiosk_uid is None
-            else ("_UID=" + kiosk_uid, "_COMM=systemd"),
-            ("_EXE=/usr/bin/gnome-shell",) if child_uid is None
-            else ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
-            ("_UID=0", "_COMM=systemd-journal"),
-        )
+        if departed:
+            records, reason = _departed_span(start, end, *groups)
+        else:
+            time.sleep(SETTLE_SECONDS)
+            try:
+                settle = capture_boundary()
+            except (OSError, ValueError):
+                settle = None
+            records, reason = _closed_span(start, end, settle, *groups)
     except EvidenceUnavailable as error:
         records, reason = [], str(error)
     except (OSError, ValueError, KeyError, TypeError):
@@ -464,7 +525,8 @@ def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None
     for record in records:
         try:
             event, missing_source = _record_failure(
-                record, start, end, parent_uid=parent_uid, child_uid=child_uid, kiosk_uid=kiosk_uid)
+                record, start, None if departed else end,
+                parent_uid=parent_uid, child_uid=child_uid, kiosk_uid=kiosk_uid)
         except EvidenceUnavailable as error:
             reason = reason or str(error)
         except (ValueError, KeyError, TypeError):
@@ -475,17 +537,17 @@ def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None
             unattributed += missing_source
     events.sort(key=lambda event: event.monotonic_usec)
     return {"complete": not reason, "events": [asdict(event) for event in events],
-            "span": _span_identity(start, end) if _valid_span(start, end) else None,
+            "span": _span_identity(start, end, departed=departed) if _valid_span(start, end) else None,
             "unattributed": unattributed, "reason": str(reason)}
 
 
-def evaluate_failures(observation, *, start, end, allowances=()):
+def evaluate_failures(observation, *, start, end, allowances=(), departed=False):
     """Apply case allowances to the reader's verified projection without I/O."""
     if not _valid_span(start, end):
         return FailureEvaluation(False, (), _Reason.SPAN, 0)
     if not isinstance(observation, dict):
         return FailureEvaluation(False, (), _Reason.MALFORMED, 0)
-    if observation.get("span") != _span_identity(start, end):
+    if observation.get("span") != _span_identity(start, end, departed=departed):
         return FailureEvaluation(False, (), _Reason.SPAN, 0)
     reason = ""
     if observation.get("complete") is not True or observation.get("reason") != "":
@@ -511,7 +573,7 @@ def evaluate_failures(observation, *, start, end, allowances=()):
         if not _valid_usec(occurred):
             reason = reason or _Reason.OCCURRENCE
             continue
-        if not _in_span(start, end, occurred):
+        if not _in_span(start, None if departed else end, occurred):
             continue
         component, category, source = (item.get(key) for key in ("component", "category", "source"))
         if (not isinstance(component, str) or source not in SOURCES.get(component, ())
@@ -553,8 +615,10 @@ def main():
             print(json.dumps(asdict(capture_boundary())))
         case ["boot-origin"]:
             print(json.dumps(asdict(capture_boot_origin())))
-        case ["read", start, end]:
-            print(json.dumps(read_failures(Boundary(**json.loads(start)), Boundary(**json.loads(end)))))
+        case ["read" | "read-departed" as mode, start, end]:
+            result = read_failures(Boundary(**json.loads(start)), Boundary(**json.loads(end)),
+                                   departed=mode == "read-departed")
+            print(json.dumps(result))
         case ["read", start, end, parent, child, kiosk]:
             result = read_failures(
                 Boundary(**json.loads(start)), Boundary(**json.loads(end)),

@@ -23,6 +23,7 @@ class FailureObservation:
         self._open = False
         self._start = None
         self._awaiting_boot = False
+        self._departing_span = None
         self._finished = False
         self._allowances = []
         self._results = []
@@ -34,8 +35,9 @@ class FailureObservation:
         if self._finished or transport.product_failures not in (None, self):
             raise ValueError('product fault observation already bound')
         if self.transport is not None and self.transport is not transport:
-            if self._open and any(self.transport.config[key] != transport.config[key]
-                                  for key in ('domain_uuid', 'domain_id')):
+            if ((self._open or self._awaiting_boot)
+                    and any(self.transport.config[key] != transport.config[key]
+                            for key in ('domain_uuid', 'domain_id'))):
                 raise ValueError('product fault interval changed guest instance')
             self.transport.product_failures = None
         self.transport = transport
@@ -84,7 +86,10 @@ class FailureObservation:
             raise ValueError('product fault observation already finished')
         if self._open:
             return
-        self._awaiting_boot = False
+        if self._awaiting_boot:
+            self._reason = self._reason or 'new boot observation unavailable'
+            self._awaiting_boot = False
+            self._departing_span = None
         self._open = True
         self._start = self._boundary('boot-origin' if at_boot else 'boundary')
         if self._start is None:
@@ -115,6 +120,11 @@ class FailureObservation:
 
     def checkpoint(self):
         """Seal and read this boot before any action can lose its evidence."""
+        span = self._close()
+        if span is not None:
+            self._results.append(self._read(*span))
+
+    def _close(self):
         if not self._open:
             return
         start, self._start = self._start, None
@@ -126,28 +136,47 @@ class FailureObservation:
         if end is None:
             self._reason = self._reason or 'closing journal boundary unavailable'
             return
+        return start, end, allowances
+
+    def _read(self, start, end, allowances, *, departed=False):
         start_json, end_json = (json.dumps(asdict(marker)) for marker in (start, end))
+        mode = 'read-departed' if departed else 'read'
         partial_events = []
         for _ in range(2):
             try:
-                observation = self._call('read', start_json, end_json)
+                observation = self._call(mode, start_json, end_json)
             except (CommandError, OSError, subprocess.SubprocessError, TypeError, ValueError):
                 observation = None
-            result = journal.evaluate_failures(observation, start=start, end=end, allowances=allowances)
+            result = journal.evaluate_failures(observation, start=start, end=end,
+                                               allowances=allowances, departed=departed)
             partial_events.extend(result.unexpected)
             if result.complete:
                 break
-        self._results.append(journal.FailureEvaluation(
+        return journal.FailureEvaluation(
             result.complete, tuple(dict.fromkeys(partial_events)), result.reason, result.unattributed,
-        ))
+        )
 
     def before_reboot(self):
         if self._open:
-            self.checkpoint()
             self._awaiting_boot = True
+            span = self._close()
+            if span is not None:
+                self._results.append(self._read(*span))
+                self._departing_span = span
 
     def after_reboot(self):
         if self._awaiting_boot:
+            if self._departing_span is not None:
+                before = self._results[-1]
+                departed = self._read(*self._departing_span, departed=True)
+                events = tuple(sorted(dict.fromkeys(before.unexpected + departed.unexpected),
+                                      key=lambda event: event.monotonic_usec))
+                self._results[-1] = journal.FailureEvaluation(
+                    departed.complete, events, departed.reason,
+                    max(before.unattributed, departed.unattributed),
+                )
+                self._departing_span = None
+            self._awaiting_boot = False
             self.start(at_boot=True)
 
     @property

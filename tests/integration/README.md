@@ -785,6 +785,33 @@ when independent host tests were allowed to continue after errors.
 
 ## Running the current installed suite
 
+For fault-verdict engineering qualification, use these focused `system CHECK`
+selectors through `tools/run-tests` with the selected Ubuntu test VM:
+
+- `check_e2e_kiosk_feedback_confinement` exercises the allowed broker outage
+  and verifies recovery through the installed report journey.
+- `check_e2e_unexpected_product_report` keeps that journey and removes the
+  kiosk dependency allowance so its otherwise passing assertions yield a fault
+  verdict.
+- `check_product_fault_log_only` waits for the broker's log-only reconciliation
+  fault and verifies that its preference read recovers.
+- `check_product_fault_expired_allowance` repeats the same broker failure
+  after its allowed window has closed.
+- `check_product_fault_reboot_departure` and
+  `check_product_fault_reboot_startup` put one broker fault on the respective
+  side of an owned reboot. The departure witness runs after the pre-reboot
+  checkpoint. The startup witness runs before the SSH service can handle
+  commands. Both cases require proof of the changed boot, the actual
+  fault and recovered usability before the shared verdict runs.
+- `check_product_fault_reboot_both_edges` combines the two witnesses in one
+  owned reboot to verify that both records reach that case's verdict.
+
+The negative selectors return ordinary failures after cleanup. Check the
+passing case assertions and fault observation in the normal result. The
+[shared observation contract](../support/README.md#product-failure-observation-in-vm-cases)
+defines case attribution and incomplete observation. Use the public E2E case
+`120` for the healthy reboot control.
+
 Cases have permanent numeric IDs shown by `tools/run-tests system --list`.
 Use `system --id N[,N...]` or the existing area/name selectors; combining the two
 selector forms refuses. IDs cover parameter variants and remain the same across

@@ -21,6 +21,7 @@ BOOT = Path('/proc/sys/kernel/random/boot_id')
 READER = guest.PAYLOAD / 'product_failure_journal.py'
 PREFERENCES = Path('/var/lib/oh-no-parent-control/preferences')
 OUTAGE_SOURCES = {('parent', 'gtk'), ('child', 'gnome-shell'), ('kiosk', 'gtk')}
+REBOOT_PROBE = 'onpc-product-fault-qualification.service'
 
 
 def service():
@@ -227,7 +228,7 @@ def outage_failures(start):
     return {'broker_unavailable': True, 'failure_roles': sorted(role for role, _ in OUTAGE_SOURCES)}
 
 
-def broker_failures():
+def broker_failures(probe='combined'):
     from system_assertions import accepted, account_property, call
 
     guest.guard()
@@ -268,9 +269,11 @@ def broker_failures():
             guest.require(os.pwrite(fd, b'[', len(contents)) == 1,
                           'kiosk-feedback:signal-preference-injection')
             stamps = set()
-            for _ in range(2):
+            for _ in range({'combined': 2, 'backend': 1, 'log-only': 0}[probe]):
                 guest.require(get_preferences() == {'error': guest.BUS + '.Error.BackendFailure'},
                               'kiosk-feedback:broker-did-not-report-backend-failure')
+                if probe == 'backend':
+                    break  # Restore before waiting for the journal or a reconciliation tick.
                 end = failure_boundary()
                 stamps_in_span = {event['monotonic_usec'] for event in failures(start, end, uids)
                                   if (event['component'], event['category'], event['source']) ==
@@ -282,12 +285,13 @@ def broker_failures():
 
             # The periodic policy reconciliation rereads this file without a
             # caller. Its operation failure qualifies the log-only producer.
-            deadline = time.monotonic() + 70
-            while not any((event['component'], event['category'], event['source']) ==
-                          ('broker', 'operation', 'broker')
-                          for event in failures(start, failure_boundary(), uids)):
-                guest.require(time.monotonic() < deadline, 'kiosk-feedback:broker-log-only-missing')
-                time.sleep(1)
+            if probe != 'backend':
+                deadline = time.monotonic() + 70
+                while not any((event['component'], event['category'], event['source']) ==
+                              ('broker', 'operation', 'broker')
+                              for event in failures(start, failure_boundary(), uids)):
+                    guest.require(time.monotonic() < deadline, 'kiosk-feedback:broker-log-only-missing')
+                    time.sleep(1)
         finally:
             current = os.fstat(fd)
             mutated = os.pread(fd, len(contents) + 2, 0)
@@ -302,8 +306,58 @@ def broker_failures():
         os.close(fd)
     guest.require(service() == original_service and accepted(get_preferences()) == expected,
                   'kiosk-feedback:broker-preference-not-recovered')
-    return {'backend_occurrences': 2, 'operation_observed': True, 'restored': True,
-            'fault_start': json.loads(fault_start), 'fault_end': json.loads(failure_boundary())}
+    end = failure_boundary()
+    if probe == 'backend':
+        stamps = {event['monotonic_usec'] for event in failures(start, end, uids)
+                  if (event['component'], event['category'], event['source']) ==
+                  ('broker', 'backend', 'broker')}
+        guest.require(len(stamps) == 1, 'kiosk-feedback:broker-backend-signal-missing')
+    return {'backend_occurrences': len(stamps), 'operation_observed': probe != 'backend',
+            'restored': True, 'fault_start': json.loads(fault_start), 'fault_end': json.loads(end)}
+
+
+def seed_preferences():
+    from system_assertions import accepted, call
+
+    guest.guard()
+    parent, child, _ = qualification_uids()
+    before = accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0]
+    accepted(call(parent, 'SetPreferences', '(us)', (child, before)))
+    guest.require(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0] == before,
+                  'kiosk-feedback:preferences-seed-not-preserved')
+    return {'preferences_verified': True}
+
+
+def prepare_startup_probe():
+    """Place a single real broker fault before the next boot's SSH readiness."""
+    marker = guest.guard()
+    guest.require(re.fullmatch(r'[a-f0-9]{32}', marker['run']),
+                  'kiosk-feedback:reboot-probe-selection')
+    path = Path('/etc/systemd/system') / REBOOT_PROBE
+    program = f'{sys.executable} -B {__file__} observe-reboot-startup'
+    # Exclusive creation within the already owned guest. The attempt's
+    # baseline restoration removes both this unit and its enablement.
+    with path.open('x', encoding='ascii') as unit:
+        unit.write(f'[Unit]\nRequires={guest.BROKER}\nWants=accounts-daemon.service\n'
+                   f'After={guest.BROKER} accounts-daemon.service dbus.service\n'
+                   'Before=ssh.service sshd.service\n'
+                   f'[Service]\nType=oneshot\nTimeoutSec=50\n'
+                   f'Environment=ONPC_EXPECTED_RUN={marker["run"]}\nExecStart={program}\n'
+                   '[Install]\nWantedBy=multi-user.target\n')
+    guest.run(['systemctl', 'enable', REBOOT_PROBE], timeout=20)
+    return {'armed': 'startup', 'boot': BOOT.read_text().strip().replace('-', '')}
+
+
+def observe_startup_probe():
+    guest.guard()
+    ssh = guest.run(['systemctl', 'show', 'ssh.service', '--property=ActiveState',
+                     '--value'], timeout=10).strip()
+    guest.require(ssh == 'inactive', 'kiosk-feedback:reboot-ssh-already-started')
+    result = broker_failures('backend')
+    RECORD.parent.mkdir(mode=0o700, exist_ok=True)
+    with (RECORD.parent / 'fault-startup.json').open('x', encoding='ascii') as report:
+        json.dump(result, report)
+    return result
 
 
 def signal_start():
@@ -322,7 +376,12 @@ def healthy_failures(start):
 
 if __name__ == '__main__':
     actions = {'begin': begin, 'restore': restore, 'census': feedback_census,
-               'no-grant': no_grant, 'signal-start': signal_start, 'broker-signals': broker_failures}
+               'no-grant': no_grant, 'signal-start': signal_start, 'broker-signals': broker_failures,
+               'seed-preferences': seed_preferences,
+               'broker-backend': lambda: broker_failures('backend'),
+               'broker-log-only': lambda: broker_failures('log-only'),
+               'arm-reboot-startup': prepare_startup_probe,
+               'observe-reboot-startup': observe_startup_probe}
     spans = {'healthy-signals': healthy_failures, 'outage-signals': outage_failures}
     if len(sys.argv) == 3 and sys.argv[1] in spans:
         value = spans[sys.argv[1]](sys.argv[2])

@@ -1675,10 +1675,11 @@ startup. Resuming an installed memory snapshot uses a fresh fence before
 fixture preparation or customer input. When the attempt creates a new installed
 snapshot, its current-package installation and startup also enter the verdict.
 Clean-install journeys open the interval while the guest is product-free,
-before releasing any installation action. A customer reboot seals the old boot
-before submission and starts observation from the new boot's origin after the
-existing boot-change check. The transport seals its last interval before the
-worker or lease restores the guest.
+before releasing any installation action. A customer reboot checkpoints the
+old boot before submission. After the existing boot-change check, the observer
+reads through the old boot's retained shutdown and opens the new boot at its
+origin. The transport seals its last interval before the worker or lease
+restores the guest.
 
 An upgrade seals the product-free prefix before the earlier release installation.
 Observation of the current build starts at verified automatic activation,

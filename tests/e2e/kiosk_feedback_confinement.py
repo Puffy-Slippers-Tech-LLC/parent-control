@@ -77,6 +77,7 @@ class BrokerOutage:
 
 class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
     outage_roles = ('parent', 'child', 'kiosk')
+    qualify_broker_signals = True
 
     def __init__(self, context, progress):
         super().__init__(context, progress, PLAN,
@@ -112,7 +113,7 @@ class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
             observed['engineering_recovery'] = self.restore_fault()
         elif stage == 'kiosk-diagnostic-editor':
             observed['engineering_confinement'] = self.engineering('census')
-        elif stage == 'kiosk-diagnostic-privacy':
+        elif stage == 'kiosk-diagnostic-privacy' and self.qualify_broker_signals:
             result = self.engineering('broker-signals', timeout=150)
             start, end = (Boundary(**result.pop(key)) for key in ('fault_start', 'fault_end'))
             observation = self.transport.product_failures
@@ -120,3 +121,9 @@ class KioskFeedbackConfinementJourney(BrokerOutage, InstalledJourney):
                 for category in ('backend', 'operation'):
                     observation.add_allowance('broker', category, start, end)
             observed['engineering_broker_signals'] = result
+
+
+class UnexpectedProductReportJourney(KioskFeedbackConfinementJourney):
+    # Leave the kiosk's report-triggering fault for the standalone verdict.
+    outage_roles = ('parent', 'child')
+    qualify_broker_signals = False

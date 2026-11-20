@@ -381,6 +381,13 @@ class KioskFeedbackConfinementQualification(KioskEntryQualification):
         return KioskFeedbackConfinementJourney(context, progress)
 
 
+class UnexpectedProductReportQualification(KioskFeedbackConfinementQualification):
+    @staticmethod
+    def journey(context, progress):
+        from kiosk_feedback_confinement import UnexpectedProductReportJourney
+        return UnexpectedProductReportJourney(context, progress)
+
+
 class KioskNotificationWellbeingQualification(KioskEntryQualification):
     @staticmethod
     def journey(context, progress):

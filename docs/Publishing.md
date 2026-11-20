@@ -104,28 +104,33 @@ testing the publishing tool does not authorize a live release.
 
 ### Independent channel gates
 
-Currently only DEB is connected to `make publish` and `--status`. RPM/COPR
-checks, submission and monitoring are disconnected until RPM is ready.
-The dual-channel mechanism described below is retained; reconnect it by adding
-`'rpm'` to `ACTIVE_CHANNELS` in `tools/publishing/channels.py`.
+`make publish` covers Ubuntu 26.04 through Launchpad and Fedora 44 and 45
+through COPR. Completion requires verified publication on all three targets.
 
 Before committing, building, signing or submitting, the publisher checks each
 service for the prepared **product version**, for example `v1.4`. Packaging
-revisions do not permit publishing that product again. Each channel decides
-independently:
+revisions do not permit publishing that product again. A new submission on
+either channel requires all applicable pre-checks to pass for both channels.
 
 | Remote state | Action |
 | --- | --- |
 | Published and repository/package verification succeeds | Print `v1.4 deb is already published to Launchpad PPA` or `v1.4 rpm is already published to COPR`; skip submission. |
 | Submitted, queued, building or waiting for repository metadata | Monitor the existing submission without another upload. |
 | No submission or uncertain local submission record | Submit only when both the remote check and local record establish absence. An attempted submission with no visible result remains monitor-only. |
-| Failed, rejected or unreadable status | Report the condition. Never treat it as permission to resubmit. Transient read errors continue polling. |
+| Failed, rejected or unreadable status | Block new submissions if the affected channel has no local record of a submission request. Monitor locally initiated attempts independently. |
 
-Both channels get a submission opportunity before polling starts. One pending
-channel does not delay submitting the other, and a terminal failure does not
-hide the other channel's result. A source-preparation failure can still block
-COPR if the shared signed product tag has not been published. Declining the
+The publisher checks both service states, the applicable account and package
+prerequisites, and release source integrity before sending either package
+submission. It pushes the shared signed Git tags and verifies public access to
+the exact source before either service receives a build. Declining the
 main-pause confirmation stops the whole workflow.
+
+Once all pre-checks pass, both channels get a submission opportunity before
+polling starts. The hosted builds can run concurrently. Submission, build,
+and repository failures are then reported per channel, and monitoring continues
+for the other channel. If an interruption occurs between requests, the next run
+monitors the recorded attempt and can still submit the missing channel after
+its pre-checks pass.
 
 Discovery recognizes a verified published product before considering newer
 rebuilds. Otherwise monitoring retains the exact submitted DEB revision or COPR
@@ -142,9 +147,19 @@ COPR uses its SCM `make srpm` method, pinned to the verified signed product
 commit. The remote recipe builds RPM Release `1`; ordinary local `make build`
 keeps its development counter. No local SRPM upload or separate `copr-cli`
 installation is needed. The caller-owned, mode-0600 `~/.config/copr` supplies
-the API login/token only for the single submission request; status reads are
-public and require no credentials. Redirects and automatic authentication retries
-are refused. No project settings or webhooks are changed by the publisher.
+the API login/token for the authentication check and the single submission.
+Both requests refuse redirects and automatic authentication retries. Anonymous
+repository downloads follow HTTPS redirects to COPR's public Pulp content and
+artifact hosts. Project settings and webhooks remain operator-managed.
+
+Run `tools/publish.py --preflight-rpm` from the development checkout to check
+the live project identity and chroots, authenticate the configured token, and
+ask COPR whether the authenticated account can submit builds to the project.
+The command only reads COPR and exits. It needs no release branch or signed tag.
+For a missing RPM release, `make publish` performs the account check before
+source preparation and retains the result for the COPR submission. A failed
+account check blocks both submissions.
+Monitoring an existing submission uses public reads.
 
 `onpc-publish/channels.json` records the DEB and RPM states alongside the legacy
 DEB `state.json`, under the release checkout's private Git directory. COPR's
@@ -156,6 +171,9 @@ stored exact commit and recipe to a build ID, even if source generation failed
 before COPR learned the package name/version.
 COPR success requires the matching successful build, binary package identity,
 repository primary metadata and a downloaded RPM with matching size/checksum.
+Pulp repository paths omit the build ID, so the publisher matches the full RPM
+identity reported by COPR for each chroot. If multiple builds report the same
+identity, the publisher refuses to verify that RPM through Pulp.
 The channel lock is checkout-local; retain one release checkout per version.
 It does not serialize independent clones or third-party clients.
 
@@ -376,10 +394,10 @@ When invoked by an aggregate, these directories follow its
 including failed builds. Standalone publishing checks and actual release
 operations keep their existing evidence policy.
 
-`make publish` does not invoke this utility, Lintian, version-test targets or
-local binary builds, and does not require a saved test result. Run the tests
-again when release inputs change. Signed upload integrity, credentials, remote
-version uniqueness and publication-state checks remain part of delivery.
+The local builds performed by fresh `make publish` runs are separate from these
+clean publishing checks. Run the checks again when release inputs change.
+Signed upload integrity, credentials, remote version uniqueness and
+publication-state checks remain part of delivery.
 
 ## Publication and completion
 

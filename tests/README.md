@@ -352,6 +352,7 @@ One `execute_pass` coordinator dispatches across the existing per-group family
 queues and checkpoints. Repeated selectors for the same category/subcategory
 share case credit. A ready VM claims the earliest eligible unclaimed item and
 can take work from a later group while earlier attempts execute or clean up.
+The live queue shows a VM once it starts an assigned attempt.
 For equally ranked candidates, admission prefers the family using less compute
 and rotates ties. Every included family keeps its complete selection while its
 VMs are occupied. Repair starts after the executor joins all owned work. Host

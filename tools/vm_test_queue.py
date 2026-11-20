@@ -821,7 +821,8 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
             # A batch-owned allocation would conflict with that VM's old claim
             # after an interrupted input was removed and recreated.
             output_lock = threading.Lock()
-            frames = {vm.name: ['Queued'] for vm in vms}
+            # VMs join the dashboard when they start an assigned attempt.
+            frames = {}
             group_names = {}
             case_summary = []
 
@@ -829,7 +830,8 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                 if hasattr(sys.stdout, 'frame'):
                     lines = [f'VM queue | concurrency {snapshot["concurrency"]}']
                     lines.extend(case_summary)
-                    for index, name in enumerate(frames):
+                    displayed = (vm.name for vm in vms if vm.name in frames)
+                    for index, name in enumerate(displayed):
                         if index:
                             lines.append('')
                         lines.append(f'VM: {name}')

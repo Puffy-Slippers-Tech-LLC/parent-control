@@ -84,9 +84,9 @@ def snapshot(path, *, steps=False, reader=None):
     return value
 
 
-def active_run(base, *, workflow=False, reader=None, include_idle=False):
-    name = (reader.read(base / 'current.json', 4096) if reader is not None
-            else read_json(base / 'current.json', 4096))['run']
+def active_run(base, *, workflow=False, reader=None, include_idle=False, record_limit=4096):
+    name = (reader.read(base / 'current.json', record_limit) if reader is not None
+            else read_json(base / 'current.json', record_limit))['run']
     if not isinstance(name, str) or not re.fullmatch('[0-9a-f]{32}', name):
         raise ValueError('watch-output: invalid run')
     run = base / name

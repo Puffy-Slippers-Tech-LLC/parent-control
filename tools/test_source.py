@@ -22,13 +22,17 @@ _local = threading.local()
 class RestartExecution(Exception):
     """Control-only imports must unwind their owners before fresh execution."""
 
+    def __init__(self, reset_lease=None):
+        super().__init__()
+        self.reset_lease = reset_lease
+
 
 class SourceBusy(ValueError):
     """A source owner prevents immediate reader admission."""
 
 
-def restart_execution():
-    raise RestartExecution()
+def restart_execution(*, reset_lease=None):
+    raise RestartExecution(reset_lease)
 
 
 def source_directory(root, *, uid=None):

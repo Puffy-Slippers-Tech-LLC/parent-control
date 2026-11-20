@@ -85,19 +85,28 @@ while disconnected, or when saved command parameters are unavailable. Clicking
 asks for confirmation with **Stop**, **Resume** or **Cancel stop request**, and **Cancel**.
 All launcher menu commands run silently in the background on that same host
 and checkout, without opening a VS Code terminal. Follow progress in Watch.
-Watch uses its shared
-`Output.execution_plan` property to identify execution-plan runs: Resume reruns
-their saved command with the same parameters. Other launchers, including
-`fix-tests`, `run-tests` and `sync-whatsnew`,
-receive `--resume`, which restores their saved selection. Stop and cancel-stop
+Resume uses `--resume` with the saved command or selection. Stop and cancel-stop
 include `--branch NAME` for the displayed checkout and
 use the retained parameters with `--stop` or `--cancel-stop`. Earlier lifecycle
-flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`) are removed
+flags (`--stop`, `--cancel-stop`, `--resume`, `--reload`, `--reset`, `--start-fresh`) are removed
 from replayed parameters. The action button's hover tooltip and confirmation
 dialog both show the exact public command to run. Failed actions light the footer error icon
 with captured process output and exit status. Repair queue Stop retains its scope without reselecting VMs.
 Older runs without saved parameters require one normal launch
 before this control becomes available.
+
+### Launcher queue
+
+The **Queue** button sits on the right of the **Launchers** title bar, just
+before the divider. It opens a floating list of waiting jobs from all the
+same local and SSH checkouts that Watch discovers for launchers. Each row
+shows the branch, launcher, command line and ticket ID. Click **Remove** to
+cancel a waiting job, including while its queue is paused after an interruption.
+The panel stays open while you move the pointer away or remove tickets. Click
+outside it, click **×**, or press **Escape** to close it.
+
+See [queued launcher jobs](../../docs/Execution-Plans.md#queued-launcher-jobs)
+for terminal commands and recovery.
 
 New runs retain the original caller parameters before host/VM resolution.
 Resume, Reload and Copy Command preserve those parameters, including VM family

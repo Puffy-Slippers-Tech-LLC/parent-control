@@ -18,6 +18,7 @@ import test_source
 # Only the detached test owner installs this event. Its nested storage and
 # command controllers must observe the same terminal-independent cancellation.
 session_stop = None
+session_interrupted = False
 
 
 FRAME_PREFIX = 'ONPC_CLEANUP_FRAME '
@@ -117,8 +118,10 @@ class Control:
     def interrupt(self, *_):
         # Signal handlers only latch state. The coordinator renders the notice;
         # repeated Ctrl+C never interrupts a child's cleanup or terminal write.
+        global session_interrupted
         if not self.interrupted:
             self.interrupted = True
+            session_interrupted = True
             self.stop()
 
     @contextmanager

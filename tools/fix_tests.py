@@ -269,7 +269,10 @@ def run_rounds(root, run, owner, request, *, operation=execute):
 
 def worker(root, run, owner):
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    interrupted = False
     def cancel(*_):
+        nonlocal interrupted
+        interrupted = True
         (run / 'cancel').touch(mode=0o600)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, cancel)
@@ -282,12 +285,14 @@ def worker(root, run, owner):
     except (launcher.Stopped, KeyboardInterrupt):
         status = 130
     except Exception as error:
+        interrupted = True
         print(f'fix-tests: {type(error).__name__}: {error}', file=sys.stderr, flush=True)
         launcher.record_exception(run, 'Test execution', error)
     finally:
         # Operations join their children. Historical VM/repair transactions are
         # not a shutdown or restart prerequisite.
-        launcher.atomic(run / 'result.json', dict(status=status))
+        launcher.durable_json(run / 'result.json', dict(status=status,
+            **({'interrupted': True} if interrupted else {})))
         os.close(owner)
     return status
 
@@ -365,8 +370,8 @@ def select(root, request, *, host_only, resume=False, stop=False, reload=False, 
 def main(argv=None):
     from vm_selection import vm_config
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (new runs: off; update live without restarting tests)')
-    parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (new runs: off; update live without restarting tests)')
+    parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (default: off)')
+    parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (default: off)')
     parser.add_argument('--vm', help='registered VM name or configured pool selector')
     parser.add_argument('--resume', action='store_true', help='keep clear results; restart unfinished work')
     parser.add_argument('--stop', action='store_true', help='cancel running cases or repair')
@@ -382,7 +387,8 @@ def main(argv=None):
     argv, vmhost = vm_config.extract_vmhost(sys.argv[1:] if argv is None else argv)
     args, categories = parser.parse_known_args(argv)
     root = Path(__file__).resolve().parents[1]
-    saved = previous_request(root) if args.resume else {}
+    from launcher_controller import public_arguments, remembered_request
+    saved = remembered_request(lambda: previous_request(root)) if args.resume else {}
     if not categories:
         categories = saved.get('categories', [])
     if args.reverse and '--reverse' not in categories:
@@ -405,7 +411,6 @@ def main(argv=None):
                 launcher.report_start(run, label='fix-tests', stop=True)
         return 0
     host_only = repair_host_only_request(root, categories)
-    from launcher_controller import public_arguments
     use_defaults = (not host_only and vmhost is None and not (args.stop or args.reload)
                     and not os.environ.get('ONPC_WATCH_RUN') and (args.vm is not None or not saved)
                     and public_arguments('fix-tests') is not None)

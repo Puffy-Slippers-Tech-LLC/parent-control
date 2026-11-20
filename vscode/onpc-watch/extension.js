@@ -90,7 +90,15 @@ function html(webview, context) {
         <link rel="stylesheet" href="${style}"><title>ONPC Watch</title></head>
         <body><div id="watch">
         <aside id="launchers" aria-label="Run status across worktrees">
-        <div class="pane-toolbar"><strong>Launchers</strong><div id="launcher-layout"></div></div>
+        <div class="pane-toolbar"><strong>Launchers</strong>
+        <button id="launcher-queue-button" type="button" popovertarget="launcher-queue"
+            aria-expanded="false">Queue</button><div id="launcher-layout"></div></div>
+        <section id="launcher-queue" popover aria-labelledby="launcher-queue-title">
+        <header><strong id="launcher-queue-title">Launcher Queue</strong>
+        <button type="button" popovertarget="launcher-queue" popovertargetaction="hide"
+            aria-label="Close launcher queue">×</button></header>
+        <div id="launcher-queue-list"></div><p id="launcher-queue-status" role="status" hidden></p>
+        </section>
         <div id="runs" class="tile-grid"><p class="empty" role="status">Waiting for tests…</p></div></aside>
         <div id="divider" role="separator" aria-label="Resize run status and viewers"
             aria-orientation="vertical" aria-valuemin="0" aria-valuemax="90" aria-valuenow="30" tabindex="0"></div>
@@ -308,6 +316,9 @@ function activate(context) {
             } else if (message?.type === 'launcherAction' && runRoots.has(message.root) &&
                        typeof message.run === 'string' && ['stop', 'cancel-stop', 'resume', 'reload', 'kill', 'add-session', 'close'].includes(message.kind)) {
                 void launchControl(message);
+            } else if (message?.type === 'cancelTicket' && typeof message.token === 'string' &&
+                       message.token.length <= 8192 && bridge) {
+                void cancelTicket(message.token);
             } else if (message?.type === 'watchToggle' && ['view', 'ssh'].includes(message.kind) &&
                        typeof message.enabled === 'boolean') {
                 void toggleWatch(message.kind, message.enabled);
@@ -388,6 +399,18 @@ function activate(context) {
             }
             } catch (error) { errors.report('Cannot handle Watch action', error); }
         });
+
+        async function cancelTicket(token) {
+            const current = bridge;
+            let error = '';
+            try {
+                await current.cancelTicket(token);
+            } catch (failure) {
+                error = failure.message;
+            }
+            await panel.webview.postMessage({ type: 'queueRemoval', token, error });
+            poll();
+        }
         let deletingRunTimes = false;
         let confirmingLauncher = false;
         async function launchControl(message) {

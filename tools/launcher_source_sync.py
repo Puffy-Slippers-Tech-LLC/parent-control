@@ -20,6 +20,10 @@ class SyncError(ValueError):
     """Execution cannot safely continue on the current checkout."""
 
 
+class SyncBusy(ValueError):
+    """Another owner is using the checkout."""
+
+
 def _run(root, arguments, descriptors=(), *, control=None):
     command = ['git', *arguments]
     environment = dict(os.environ, GIT_TERMINAL_PROMPT='0')
@@ -192,7 +196,7 @@ def synchronize_checkout(root, branch, *, previous_runs=(), retained_start=False
         except BlockingIOError as error:
             if live or boundary:
                 return None
-            raise ValueError('repository synchronization is busy; retry after it finishes') from error
+            raise SyncBusy('repository synchronization is busy; retry after it finishes') from error
         with _lock(protection.directory / 'source.lock') as source:
             with protection.state():
                 try:

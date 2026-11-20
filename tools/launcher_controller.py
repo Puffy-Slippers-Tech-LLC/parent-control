@@ -2,13 +2,14 @@
 
 import json
 import os
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
+from dataclasses import dataclass, field
 from pathlib import Path
 import subprocess
 import sys
 
 from host_dispatch import git as _git, require_checkout as _local_checkout, ssh_command, tool_host
-from launcher_source_sync import SyncError, synchronize_checkout as _startup_sync
+from launcher_source_sync import SyncBusy, SyncError, synchronize_checkout as _startup_sync
 
 
 DESTINATION = 'ONPC_LAUNCHER_DESTINATION'
@@ -16,27 +17,77 @@ BRANCH_HELP = ('--branch NAME selects a config/environment.json branch; default:
                'this launcher\'s default_branch, then the current checkout branch.')
 _pending_startup = None
 _public_invocation = None
+_QUEUE_CONTROLS = ('--queue-list', '--queue-cancel')
 _CONTROLS = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
              '--cancel-stop', '--add-session', '--reload', '--reset',
-             '--reconcile', '--review-ownership')
+             '--reconcile', '--review-ownership', *_QUEUE_CONTROLS)
 _NO_NEW_JOB = tuple(flag for flag in _CONTROLS if flag not in ('--reload', '--reset'))
 _TEST_LAUNCHERS = ('run-tests', 'run-unit-tests', 'run-ui-tests')
 _OWNER_KINDS = ('fix-tests', 'fix-tests-host', 'sessions', 'sessions-host',
                 'plans', 'sync-whatsnew')
 
 
+@dataclass
+class Invocation:
+    name: str
+    public_argv: list
+    branch: str | None
+    arguments: list
+    options: list
+    fresh: bool
+    reset_lease: int | None
+    resolved: dict = field(default_factory=dict)
+
+
 def public_arguments(launcher):
     """Return caller parameters before host/VM resolution for this controller."""
-    if _public_invocation is not None and _public_invocation[0] == launcher:
-        return list(_public_invocation[1])
+    if _public_invocation is not None and _public_invocation.name == launcher:
+        return list(_public_invocation.public_argv)
     return None
+
+
+def queue_invocation():
+    invocation = _public_invocation
+    if invocation is None:
+        return None
+    name, options, fresh = invocation.name, invocation.options, invocation.fresh
+    controls = _CONTROLS
+    if name == 'fix-tests':
+        # Repair --reset only discards remembered results. The test runner's
+        # checkout-wide reset remains a separate control before it starts.
+        controls = tuple(flag for flag in controls if flag != '--reset')
+        fresh |= '--reset' in options
+    if (invocation.branch is None or os.environ.get('ONPC_WATCH_RUN')
+            or any(arg.partition('=')[0] in controls for arg in options)):
+        return None
+    recovery = 'reset' if invocation.reset_lease is not None else (
+        'fresh' if fresh else 'resume' if '--resume' in options else None)
+    return invocation, recovery
+
+
+def remembered_request(load):
+    """Snapshot an implicit resume selection when a public launch is queued."""
+    if _public_invocation is None:
+        return load()
+    from launcher_queue import replay_options
+    replay = replay_options()
+    request = replay['resume'] if 'resume' in replay else load()
+    _public_invocation.resolved['resume'] = request
+    return request
+
+
+class RetryQueuedStartup(RuntimeError):
+    """A queued launch may try again after a competing owner releases source."""
 
 
 def require_startup_sync():
     """Never start a job if early synchronization could not obtain ownership."""
     if _pending_startup is not None:
-        raise ValueError('controller source synchronization is busy; retry after '
-                         'the active checkout owner finishes')
+        from launcher_queue import REPLAY
+        detail = 'controller source synchronization is busy; retry after the active checkout owner finishes'
+        if os.environ.get(REPLAY):
+            raise RetryQueuedStartup(detail)
+        raise SyncBusy(detail)
 
 
 def _early_sync(root, branch, arguments, *, boundary_run=None, check_only=False):
@@ -171,6 +222,7 @@ def dispatch(entry):
     public_argv = list(sys.argv[1:])
     arguments, selected = [], None
     pinned_branch = None
+    reset_lease = None
     synced = False
     tokens = iter(sys.argv[1:])
     for token in tokens:
@@ -194,6 +246,12 @@ def dispatch(entry):
                 or selected not in (None, forwarded['branch'])):
             raise ValueError('forwarded launcher destination changed')
         pinned_branch = forwarded['branch']
+        reset_lease = forwarded.get('reset_lease')
+        if reset_lease is not None:
+            from launcher_queue import reset_path
+            if (type(reset_lease) is not int or reset_lease < 3
+                    or not os.path.samestat(os.fstat(reset_lease), reset_path(root).stat(follow_symlinks=False))):
+                raise ValueError('Invalid checkout reset handoff.')
         public_argv = forwarded.get('public_argv', public_argv)
         synced = forwarded.get('synced', False)
         if pinned_branch is not None:
@@ -256,7 +314,8 @@ def dispatch(entry):
             leave_checkout()
             env = dict(os.environ)
             env[DESTINATION] = json.dumps(dict(root=str(root), branch=pinned_branch,
-                launcher=name, pid=os.getpid(), synced=True, public_argv=public_argv))
+                launcher=name, pid=os.getpid(), synced=True, public_argv=public_argv,
+                reset_lease=reset_lease))
             sys.stdout.flush()
             sys.stderr.flush()
             os.chdir(root)
@@ -265,45 +324,76 @@ def dispatch(entry):
     import test_source
     # Ordinary tests retain live import admission. Repairs work directly from
     # the selected checkout and own their execution through the detached owner.
+    queue_control = any(arg.partition('=')[0] in _QUEUE_CONTROLS for arg in arguments)
     admission = (test_source.admission(root, arguments)
-                 if name in _TEST_LAUNCHERS else nullcontext())
+                 if name in _TEST_LAUNCHERS and not queue_control else nullcontext())
     with admission:
-        return _entry(root, name, pinned_branch, arguments, entry, public_argv=public_argv)
+        return _entry(root, name, pinned_branch, arguments, entry, public_argv=public_argv,
+                      reset_lease=reset_lease)
 
 
-def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
+def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None, reset_lease=None):
     global _pending_startup, _public_invocation
     from vm_selection import vm_config
     original_arguments = list(arguments)
+    split = arguments.index('--') if '--' in arguments else len(arguments)
+    options, forwarded = arguments[:split], arguments[split:]
+    if any(arg.partition('=')[0] in _QUEUE_CONTROLS for arg in options):
+        from launcher_queue import cancel, tickets
+        if arguments == ['--queue-list']:
+            for row in tickets(root, name, on_error=lambda error: print(error, file=sys.stderr)):
+                state = 'paused' if row['paused'] else 'waiting'
+                print(f"{row['id']}  {state}  {row['command']}")
+                if row['error']:
+                    print(row['error'])
+        elif len(arguments) == 2 and arguments[0] == '--queue-cancel':
+            cancel(root, arguments[1], name)
+            print(f'Removed queued ticket {arguments[1]}.')
+        else:
+            raise ValueError('Use --queue-list or --queue-cancel TICKET with an optional --branch.')
+        return 0
+    fresh = '--start-fresh' in options
+    if fresh and any(arg.partition('=')[0] in (*_CONTROLS, '--resume') for arg in options):
+        raise ValueError('--start-fresh requires a new run command.')
+    request_arguments = [arg for arg in options if arg != '--start-fresh'] + forwarded
     vm_test_launcher = name in ('run-tests', 'fix-tests')
-    if name == 'execute-plan':
-        arguments = vm_config.host_arguments(arguments)
+    arguments = vm_config.host_arguments(request_arguments) if name == 'execute-plan' else request_arguments
     sys.argv[1:] = arguments
     if any(arg in ('--help', '-h') for arg in arguments):
         print(BRANCH_HELP, flush=True)
+        print('--queue-list lists waiting jobs, --queue-cancel TICKET removes one, '
+              'and --start-fresh explicitly starts a new run after interruption.', flush=True)
         if vm_test_launcher or name == 'execute-plan':
             print(vm_config.host_help(), flush=True)
     import test_source
     previous_invocation = _public_invocation
-    _public_invocation = (name, original_arguments if public_argv is None else public_argv)
+    _public_invocation = Invocation(name, original_arguments if public_argv is None else public_argv,
+                                    pinned_branch, request_arguments, options, fresh, reset_lease)
+    if reset_lease is not None:
+        os.set_inheritable(reset_lease, False)
     try:
         return entry()
-    except test_source.RestartExecution:
+    except test_source.RestartExecution as restart:
         # Every controller/reset/resource context has unwound. Preserve the
         # resolved destination even if a source change altered branch defaults.
-        test_source.finish_admission()
-        arguments = [arg for arg in original_arguments if arg not in ('--reload', '--reset')]
-        temporary = test_source.VARIABLE not in test_source.environment()
-        with test_source.startup(root, arguments):
+        with ExitStack() as leases:
+            handoff_lease = restart.reset_lease if restart.reset_lease is not None else reset_lease
+            if restart.reset_lease is not None:
+                leases.callback(os.close, restart.reset_lease)
+            test_source.finish_admission()
+            arguments = [arg for arg in original_arguments if arg not in ('--reload', '--reset')]
+            temporary = test_source.VARIABLE not in test_source.environment()
+            leases.enter_context(test_source.startup(root, arguments))
             from launcher_reload import replace
             inherited = test_source.environment()
             if temporary:
                 os.environ[test_source.IMPORTS] = inherited[test_source.VARIABLE]
             os.environ[DESTINATION] = json.dumps(dict(root=str(root), branch=pinned_branch,
-                launcher=name, pid=os.getpid(), public_argv=[arg for arg in _public_invocation[1]
-                                                           if arg not in ('--reload', '--reset')]))
+                launcher=name, pid=os.getpid(), reset_lease=handoff_lease,
+                public_argv=[arg for arg in _public_invocation.public_argv if arg not in ('--reload', '--reset')]))
             try:
-                replace(['/usr/bin/python3', '-IBu', str(root / 'tools' / name), *arguments], ())
+                replace(['/usr/bin/python3', '-IBu', str(root / 'tools' / name), *arguments],
+                        (handoff_lease,) if handoff_lease is not None else ())
             finally:
                 if temporary:
                     os.environ.pop(test_source.IMPORTS, None)
@@ -311,14 +401,16 @@ def _entry(root, name, pinned_branch, arguments, entry, *, public_argv=None):
     finally:
         _pending_startup = None
         _public_invocation = previous_invocation
+        if reset_lease is not None:
+            os.close(reset_lease)
 
 
 def run(entry):
     from launcher_reload import STATUS as RELOAD_STATUS
 
     def admitted():
+        import test_source
         try:
-            import test_source
             root = Path(__file__).resolve().parents[1]
             # Bootstrap reads placement metadata. Ordinary workflow imports
             # retain live source admission after any synchronization.
@@ -326,6 +418,10 @@ def run(entry):
                                          for arg in sys.argv[1:]) else ['--resume'])
             with test_source.admission(root, bootstrap):
                 return dispatch(entry)
+        except (RetryQueuedStartup, SyncBusy, test_source.SourceBusy) as error:
+            from launcher_queue import REPLAY, RETRY
+            print(f'launcher: {error}', file=sys.stderr)
+            return RETRY if os.environ.get(REPLAY) else 2
         except (OSError, ValueError, subprocess.TimeoutExpired) as error:
             print(f'launcher: {error}', file=sys.stderr)
             return 2

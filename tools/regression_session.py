@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
 import test_activity
 import test_launcher
+from launcher_controller import synchronize_reload
 from launcher_source_sync import BOUNDARY_AGENT_ENV, BOUNDARY_AGENT_ENV_KEYS
 
 _startup = threading.RLock()
@@ -502,7 +503,6 @@ def worker(root, argv, run, owner, *, reloading=False):
                     status = 130
                 elif status != launcher_reload.STATUS:
                     if BOUNDARY_AGENT_ENV in os.environ:
-                        from launcher_controller import synchronize_reload
                         resources.close()
                         synchronize_reload(root, run)
                         if regression_process.session_stop.is_set():

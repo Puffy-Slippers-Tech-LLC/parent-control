@@ -170,6 +170,8 @@ def execute(root, run, owner, kind, command=None):
 
 
 def run_rounds(root, run, owner, request, *, operation=execute):
+    # Load the controller and its sync dependencies before a repair updates source.
+    from launcher_controller import synchronize_reload
     from launcher_reload import STATUS as RELOAD_STATUS, replace, unaccepted
     from launcher_source_sync import STATUS as SYNC_STATUS
     from test_progress import SELECTION
@@ -189,7 +191,6 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 raise launcher.Stopped()
             requested_generation = unaccepted(run)
             if requested_generation is not None:
-                from launcher_controller import synchronize_reload
                 synchronize_reload(root, run)
                 if (run / 'cancel').exists():
                     raise launcher.Stopped()

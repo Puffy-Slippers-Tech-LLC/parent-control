@@ -933,6 +933,9 @@ def qualification_fixture_options(root, category, args, *, control=None, environ
                                    '--fixture-path', selected().fixture_path,
                                    *(['--qualify-source-edit'] if source_edit else [])),
                          cwd=root, env=environment, output=output, timeout=600.0)
+    if status == 130:
+        from detached_launcher import Stopped
+        raise Stopped()
     if status:
         raise ValueError('fixture preparation failed; status=' + str(status))
     if invalid or len(records) != 1:
@@ -1261,6 +1264,7 @@ def plan(root, category, argv):
 
 
 def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstream_run=None, accounting=None):
+    from detached_launcher import Stopped
     argv = list(sys.argv[1:] if argv is None else argv)
     if '--reverse' in argv:
         os.environ['ONPC_TEST_REVERSE'] = '1'
@@ -1428,6 +1432,8 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
         print('run-tests: validated category starting', file=sys.stderr, flush=True)
         return subprocess.run(commands[-1], env=env, pass_fds=scratch_descriptors(),
                               check=False).returncode
+    except Stopped:
+        return 130
     except (ValueError, OSError) as error:
         detail = str(error) if isinstance(error, ValueError) else 'filesystem or execution failure'
         if isinstance(error, OSError) and getattr(error, '__notes__', None):

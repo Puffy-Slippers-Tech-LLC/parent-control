@@ -52,6 +52,10 @@ Every tool accepting `--vm` also accepts optional `--vmhost NAME[,NAME...]` (or
 `--vmhost=NAME[,NAME...]`) through the shared filter in
 [`vm_config.py`](../../tests/integration/vm_config.py). The filter intersects the
 VM selection with those exact configured hosts and forwards canonical VM names.
+`--vmhost all` selects every registered host and applies the same intersection
+as an explicit list of those hosts. The value `all` matches case-insensitively
+and is reserved for host selection. `fix-tests` saves the expanded host list for
+resume.
 Controller placement follows `--branch` and the checkout configuration. Host
 categories run on the controller. Queue tools may use `--vmhost` without
 `--vm` to narrow their default queue. When `--vmhost` is omitted, the shared
@@ -72,8 +76,10 @@ are never interpreted as host or VM filters.
 Queue selectors expand each family name or ID to all its eligible VMs. VM IDs/names
 and family IDs/names may be mixed in one comma-separated `--vm` value, forming a union. Duplicate aliases
 and overlapping families execute each VM once, in first-selected order; invalid
-selectors fail before work starts. A VM's optional `aliases` array maps former
-names to that VM's canonical name. VM IDs, names, aliases, and family IDs and
+selectors fail before work starts. `--vm all` selects every registered family
+in registry order and remains subject to the same host filter as a family list.
+A VM's optional `aliases` array maps former names to that VM's canonical name.
+VM IDs, names, aliases, and family IDs and
 names share one unique case-insensitive namespace, including offline entries
 and empty families. VM and family selectors cannot use the reserved values
 `all` or `all-enabled`. Family IDs and names cannot

@@ -301,6 +301,8 @@ def prepare_request(root, request, *, host_only=False, use_defaults=False):
     else:
         if use_defaults:
             request['vmhost'] = vm_config.default_vmhost(selector=selector)
+        if request.get('vmhost') is not None:
+            request['vmhost'] = vm_config.expand_vmhost(request['vmhost'])
         selection = ['--vm', selector] if selector is not None else []
         selection = vm_config.filter_vm_hosts(selection, request.get('vmhost'))
         _, bound_selector = vm_config.extract_selector(selection)

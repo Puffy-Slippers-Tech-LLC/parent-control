@@ -22,6 +22,8 @@ STATE_ROOT = Path('/Data/virt-manager/oh-no-parent-control-baseline-state')
 VARIABLE = 'ONPC_TEST_VM'
 ROOT = Path(__file__).resolve().parents[2]
 HOST_IDENTITY = Path('/usr/local/libexec/onpc-vm-host')
+ALL_SELECTOR = 'all'
+ALL_VM_SELECTORS = {ALL_SELECTOR, 'all-enabled'}
 
 
 @dataclass(frozen=True)
@@ -190,6 +192,8 @@ def host_registry(document):
                 not {'name', 'enabled', 'transport', 'max_compute_unit'} <= set(entry)):
             raise ValueError('vm-config:host fields')
         name = validate_name(entry['name'])
+        if name.casefold() == ALL_SELECTOR:
+            raise ValueError('vm-config:host names cannot use the reserved selector all')
         if name in hosts:
             raise ValueError('vm-config:duplicate-host')
         if entry['enabled'] not in ('true', 'false'):
@@ -453,7 +457,7 @@ def parse_configuration(document):
         raise ValueError('vm-config:ambiguous-id-name-or-family; '
                          'VM IDs, VM names, VM aliases, family IDs and family names '
                          'must be unique ignoring case')
-    if {'all', 'all-enabled'} & set(selectors):
+    if ALL_VM_SELECTORS.intersection(selectors):
         raise ValueError('vm-config:VM and family selectors cannot use reserved selectors all or all-enabled')
     return len([vm for vm in result.values() if vm.enabled and vm.host.enabled]), result
 
@@ -497,24 +501,22 @@ def execution(name=None, path=None, *, remote=None):
     for vm in configured.values():
         families[vm.family].append(vm)
     branch = current_branch() if any(vm.owning_branch for vm in configured.values()) else None
-    if name is None or name.casefold() in ('all-enabled', 'all'):
-        vms = tuple(vm for vm in configured.values()
-                    if vm.host.enabled and vm.enabled and (not vm.owning_branch or vm.owning_branch == branch))
-    else:
-        # Resolve the whole request before work, deduplicating aliases in order.
-        selected = {}
-        for value in selector_values(name, '--vm'):
-            value = value.casefold()
-            if value in selectors:
-                matches = (vm for vm in families[selectors[value]['family']]
-                           if not vm.owning_branch or vm.owning_branch == branch)
-            else:
-                matches = (resolve(value, configured),)
-            for vm in matches:
-                if vm.enabled and vm.host.enabled:
-                    require_branch(vm, branch)
-                    selected[vm.name] = vm
-        vms = tuple(selected.values())
+    values = (families if name is None or name.casefold() in ALL_VM_SELECTORS
+              else selector_values(name, '--vm'))
+    # Resolve the whole request before work, deduplicating aliases in order.
+    selected = {}
+    for value in values:
+        value = value.casefold()
+        if value in selectors:
+            matches = (vm for vm in families[selectors[value]['family']]
+                       if not vm.owning_branch or vm.owning_branch == branch)
+        else:
+            matches = (resolve(value, configured),)
+        for vm in matches:
+            if vm.enabled and vm.host.enabled:
+                require_branch(vm, branch)
+                selected[vm.name] = vm
+    vms = tuple(selected.values())
     if not vms:
         raise ValueError('vm-config:no online enabled VMs available for this selection/branch in config/environment.json')
     for vm in vms:
@@ -655,7 +657,8 @@ def host_help(*, single=False):
                  'VM pools default to hosts with default_host="true", or all hosts if none are marked. '
                  'Exact VM selectors pin their targets.')
     return (f'{VMHOST_OPTION} NAME[,NAME...] filters VM selection by configured host names '
-            f'(e.g. myserver or local,myserver). {selection} '
+            f'(e.g. myserver or local,myserver). Use all (case-insensitive) for every registered host. '
+            f'{selection} '
             'Controller placement follows branch configuration.')
 
 
@@ -663,9 +666,17 @@ def extract_vmhost(argv):
     return extract_selector(argv, option=VMHOST_OPTION)
 
 
+def expand_vmhost(host, registered_hosts=None):
+    if host is not None and host.casefold() == ALL_SELECTOR:
+        if registered_hosts is None:
+            registered_hosts = host_registry(read_document(validate_agent=False))
+        return ','.join(registered_hosts)
+    return host
+
+
 def is_pool_selector(selector, document):
     """Distinguish selectors that expand a pool from exact VM pins."""
-    if selector is None or selector.casefold() in ('all', 'all-enabled'):
+    if selector is None or selector.casefold() in ALL_VM_SELECTORS:
         return True
     for family in document['families']:
         validate_family(family)
@@ -711,8 +722,10 @@ def filter_vm_hosts(remaining, host=None, *, single=False, path=None, use_defaul
         host = default_vmhost(document, selector=selector)
         if host is None:
             return unfiltered
+    registered_hosts = host_registry(document).keys()
+    host = expand_vmhost(host, registered_hosts)
     host_names = set(selector_values(host, VMHOST_OPTION))
-    if not host_names <= host_registry(document).keys():
+    if not host_names <= registered_hosts:
         raise ValueError('vm-config:unknown host; choose a host name in config/environment.json')
     insertion = next((index for index, value in enumerate(controls)
                       if value == '--vm' or value.startswith('--vm=')), None)

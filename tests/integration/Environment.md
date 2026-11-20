@@ -225,10 +225,11 @@ Test and preparation selection follow the
 `--vm` accepts VM names/IDs, family names/IDs, comma-separated mixtures, `all-enabled`, or `all`.
 Every value matches case-insensitively and resolves to canonical configured VM names.
 Family selectors expand to eligible members; the union includes each VM only once.
-Optional `--vmhost` accepts one configured host or a comma-separated list and
-intersects that union with the selected hosts. Hosts can set `default_host` to
-the string `"true"` to join the shared default host filter. The field defaults
-to `"false"`. See the
+Optional `--vmhost` accepts one configured host, a comma-separated list, or
+`all` (case-insensitive) for every configured host. It intersects the VM selection
+with the selected hosts. Host names cannot use `all` in any case. Hosts can set
+`default_host` to the string `"true"` to join the shared default host filter.
+The field defaults to `"false"`. See the
 [VM selector contract](../../docs/Mandates/VM-Mandate.MD#target-selection).
 Selection defaults to enabled
 entries except `tools/prepare-vm`, which defaults to `all` in both modes,

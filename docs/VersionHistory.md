@@ -5,6 +5,7 @@
   
 ### Bug Fixes
 - **Child App**: Fixed an unnecessary error report blocking the time request after locking during parent approval.
+- **Kiosk**: Trivial corner case - selecting Oh No! Parent Control session type at logon enters an unusable kiosk session (nobody would intentionally do so), and has to reboot to recover. The fix is to bounce back to user list screen.
 
 
 ## v1.5 - 2026-10-31

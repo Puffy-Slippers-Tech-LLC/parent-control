@@ -199,13 +199,14 @@ class Output:
         self.error_clock = None
         self.summary_run = None
         self.task_totals = None
+        self.task_failures = 0
         self.completed_before = None
         self.summary_ended = None
         self.summary_clock = {}
 
     def task_summary(self, active):
         """Render plan counters or the repair runner's published case totals."""
-        from launcher_display import task_summary_lines
+        from launcher_display import CASE_PROGRESS, case_progress_counts, task_summary_lines
         from launcher_runtime import task_counters
         from launcher_session import clock_duration
         from launcher_view import observed_plan_totals
@@ -214,6 +215,7 @@ class Output:
         if self.summary_run != self.run:
             self.summary_run = self.run
             self.task_totals = self.completed_before = self.summary_ended = None
+            self.task_failures = 0
             self.summary_clock = {}
         if self.execution_plan:
             try:
@@ -230,19 +232,16 @@ class Output:
             # including when Watch reconnects during an agent session.
             totals_lines = snapshot(self.run / 'test-frame.json', reader=self.reader)
             for line in totals_lines:
-                # Queue frames include failures; ordinary dashboards omit a zero
-                # failure count. Failed cases remain unfinished until repaired.
-                counts = re.match(r'^Overall - [\d?]+% \((\d+)/(?:\d+/)?(\d+|\?)\)', clean(line))
-                if counts:
-                    passed = int(counts[1])
-                    if counts[2] == '?':
-                        # Later categories may not have collected yet. Their
-                        # unknown sizes do not erase completed case counts.
-                        self.task_totals = passed, '—', '—'
-                    else:
-                        total = int(counts[2])
-                        if passed <= total:
-                            self.task_totals = passed, total - passed, total
+                plain = clean(line)
+                if plain.startswith('VM: '):
+                    break  # The remaining counts belong to individual workers.
+                if plain.startswith('Overall - ') and (counts := CASE_PROGRESS.search(plain)):
+                    passed, failed, total = case_progress_counts(counts)
+                    if total is None or passed <= total:
+                        # Show known passes and failures before collection finishes.
+                        self.task_totals = ((passed, '—', '—') if total is None else
+                                            (passed, total - passed, total))
+                        self.task_failures = failed
                     break
         if not active and self.summary_ended is None:
             self.summary_ended = time.monotonic()
@@ -256,7 +255,7 @@ class Output:
         duration = (clock_duration((self.summary_ended if self.summary_ended is not None
                                    else time.monotonic()) - origin)
                     if origin is not None else '—')
-        lines = task_summary_lines(self.task_totals, duration)
+        lines = task_summary_lines(self.task_totals, duration, failures=self.task_failures)
         if not active and self.completion_status() == 'finished':
             try:
                 with open_private(self.run / 'result.json') as stream:
@@ -324,7 +323,7 @@ class Output:
             details = snapshot(self.run / 'test-frame.json', reader=self.reader)
         if steps and not self.repair:
             details = [line for line in details if not clean(line).startswith('Overall - ')]
-        if details and clean(details[0]).startswith('VM queue | concurrency '):
+        if not self.repair and details and clean(details[0]).startswith('VM queue | concurrency '):
             spaced = []
             seen_vm = False
             for line in details[1:]:
@@ -338,9 +337,14 @@ class Output:
                     seen_vm = True
                 spaced.append(line)
             details = spaced
-        if not active and self.completion_status() == 'stopped':
+        stopped = not active and self.completion_status() == 'stopped'
+        if stopped:
             details = [line for line in details
                        if not clean(line).startswith('Tests interrupted.')]
+        if self.repair:
+            from launcher_display import repair_status_details
+            details = repair_status_details(details)
+        if stopped:
             details.append('\033[31mLauncher has stopped.\033[0m')
         return steps, details
 

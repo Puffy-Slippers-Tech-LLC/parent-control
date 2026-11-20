@@ -251,11 +251,13 @@ the session transcript and chat. The Status tab places its bold **Status:** labe
 in the scrolling body immediately below the pinned one-line run summary. The title
 and both content status fields use one shared color palette; titles stay brief,
 while the content fields share the same explanatory text and formatting.
-For `fix-tests`, Status retains the runner's overall passed/failed/total case
+For `fix-tests`, the pinned summary retains the runner's selection-wide case
 counts during repair, including after reconnecting. Tests launched inside the
-repair session publish live progress without replacing those overall totals.
-Counts become available when the runner discovers its cases;
-a failure before discovery supplies no case totals.
+repair session publish live progress without replacing those totals. A sole
+installed-system check replaces its category summary. When it is the VM's only
+detail, the VM row shows the check and its elapsed time. Any additional progress
+counts appear on the same row. The dashboard omits percentage placeholders while
+the runner discovers its cases.
 The Launcher tab streams running command output, including baseline preparation
 phases before VM startup; it does not wait for the command to finish.
 Branch names discovered from local and remote Git refs and commit hashes appear
@@ -294,8 +296,9 @@ scroll the summary horizontally instead of wrapping it. Normal running and repai
 use this same summary layout; status text stays in the body below it. A divider
 spans the panel above the completed task recaps and current task/session rows.
 For `fix-tests`, these are passed/unfinished/total cases from the runner's
-overall counts; failed cases remain unfinished until repaired. Before discovery,
-the counts show dashes. The existing Overall row retains passed/failed/total.
+overall counts. Failed cases remain unfinished until repaired, and the summary
+shows how many cases failed when the count is nonzero. Before discovery, the
+counts show dashes.
 The **Tasks:** label is bold. When the whole plan
 finishes, the same line adds **Ended:** with the local completion time (`HH:MM`),
 and the launcher title, including `(finished)`, turns green.

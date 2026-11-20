@@ -1,5 +1,6 @@
 """Status and task-summary formatting shared by Watch views."""
 
+import re
 import time
 
 from rich.text import Text
@@ -7,6 +8,11 @@ from rich.text import Text
 from launcher_chat import TASK_STATUSES
 from launcher_render import clean, style_task_counts
 from launcher_session import clock_duration
+
+
+SYSTEM_SUMMARY = re.compile(r'^(?:│  )?\[[^]]+\] Installed-system tests(?= - | \(|$)')
+SYSTEM_CHECK = re.compile(r'^(?P<tree>(?:│  )?)  (?P<label>\[[^]]+\] )Check: ')
+CASE_PROGRESS = re.compile(r' - (?:\d+|\?)% \((\d+)/(?:([0-9]+)/)?(\d+|\?)\)')
 
 
 def launcher_status_color(status):
@@ -60,9 +66,98 @@ def error_status_lines(task_info, key, clock, *, status_override=None, status_co
     return [last_error, Text(''), status_line], clock
 
 
-def task_summary_lines(totals, duration):
+def task_summary_lines(totals, duration, *, failures=0):
     """Share task totals and their palette across terminal and editor views."""
     completed, unfinished, total = totals or ('—', '—', '—')
     counts = Text(f'Tasks: {completed}/{unfinished}/{total}')
     style_task_counts(counts)
+    if failures:
+        counts.append(' | ')
+        counts.append(f'{failures} failed', style='red')
     return [counts, Text('Total Duration: ' + duration)]
+
+
+def case_progress_counts(match):
+    passed, failed, total = match.groups()
+    return int(passed), int(failed or 0), None if total == '?' else int(total)
+
+
+def format_case_progress(passed, failed, total):
+    counts = []
+    if total is not None:
+        counts.append(f'{passed}/{total} passed')
+    elif passed:
+        counts.append(f'{passed} passed')
+    if failed:
+        counts.append(f'{failed} failed')
+    return ', '.join(counts)
+
+
+def format_unknown_progress(row):
+    """Show the counts already known without an estimated denominator."""
+    match = CASE_PROGRESS.search(row.plain)
+    if match and match[3] == '?':
+        counts = format_case_progress(*case_progress_counts(match))
+        return row[:match.start()] + Text(f' ({counts})' if counts else '') + row[match.end():]
+    match = re.search(r' \(\?\)(?=$| - )', row.plain)
+    if match is None:
+        return row
+    return row[:match.start()] + row[match.end():]
+
+
+def worker_progress(section, details):
+    overall = next((row.plain for row in section if row.plain.startswith('Overall - ')), '')
+    match = CASE_PROGRESS.search(overall)
+    if match is None:
+        return ''
+    counts = case_progress_counts(match)
+    passed, failed, total = counts
+    for row in details:
+        match = CASE_PROGRESS.search(row.plain)
+        if match and case_progress_counts(match) == counts:
+            return ''
+    return format_case_progress(passed, failed, total if total and total > 1 else None)
+
+
+def repair_status_details(lines):
+    """Project runner dashboards into the repair launcher's Status tab."""
+    if not lines:
+        return []
+    rows = [Text.from_ansi(line) for line in lines]
+
+    def progress_rows(section):
+        # The pinned task summary covers the whole selection. Worker counts
+        # are added inline only if their detail rows do not already show them.
+        status = [row for row in section
+                  if row.plain.strip() and not row.plain.startswith('Overall - ')]
+        for index, row in enumerate(status):
+            if SYSTEM_SUMMARY.match(row.plain):
+                children = status[index + 1:index + 3]
+                if (children and (check := SYSTEM_CHECK.match(children[0].plain))
+                        and (len(children) == 1 or not SYSTEM_CHECK.match(children[1].plain))):
+                    # A sole child gives the actual check and its elapsed time.
+                    child = children[0]
+                    label = child[check.start('label'):check.end('label')]
+                    status[index:index + 2] = [child[:check.end('tree')] + label + child[check.end():]]
+                break
+        return status
+
+    if not rows[0].plain.startswith('VM queue | concurrency '):
+        return [format_unknown_progress(row) for row in progress_rows(rows)]
+    workers = [index for index, row in enumerate(rows) if row.plain.startswith('VM: ')]
+    bounds = [*workers, len(rows)]
+    details = progress_rows(rows[1:bounds[0]])
+    for start, end in zip(bounds, bounds[1:]):
+        section = rows[start + 1:end]
+        status = progress_rows(section)
+        heading = rows[start][4:]
+        heading.stylize('bold')
+        if len(status) == 1:
+            heading.append(' — ')
+            heading.append_text(format_unknown_progress(status[0]))
+        if progress := worker_progress(section, status):
+            heading.append(f' · {progress}')
+        details.append(heading)
+        if len(status) != 1:
+            details.extend(format_unknown_progress(row) for row in status)
+    return details

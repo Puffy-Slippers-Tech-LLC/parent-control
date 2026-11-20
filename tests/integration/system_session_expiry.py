@@ -507,7 +507,7 @@ def verify_runtime_rollback(record):
     accounts = identities()
     manager = installed_manager()
     account, _ = manager._account(accounts['child'])
-    live = manager._shell_is_available(account)
+    live = manager._shell_owner(account) is not None
 
     class FaultManager(type(manager)):
         def __init__(self, fault):
@@ -615,7 +615,9 @@ def verify_unavailable_enforcement(record):
         with allow_product_fault('broker', 'startup'):
             guest.run(['systemctl', 'stop', guest.BROKER])
             manager._set_boolean(account, 'disable-user-extensions', True)
-            reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
+            # The missing payload also produces a backend fault during activation.
+            with allow_product_fault('broker', 'backend'):
+                reply = call(child, 'RequestOwnAccess', '(uub)', (parent, 60, False))
             guest.require('error' in reply and 'result' not in reply,
                           'expiry:approval-without-enforcement')
             guest.require(account_state(child) == before,
@@ -644,7 +646,7 @@ def verify_offline_recovery(record):
     child, parent = accounts['child'], accounts['parent']
     manager = installed_manager()
     account, _ = manager._account(child)
-    guest.require(not manager._shell_is_available(account), 'expiry:expected-offline-shell')
+    guest.require(manager._shell_owner(account) is None, 'expiry:expected-offline-shell')
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
     enabled = manager._list(account, 'enabled-extensions')
     disabled = manager._list(account, 'disabled-extensions')

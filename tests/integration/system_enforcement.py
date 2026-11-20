@@ -1441,43 +1441,45 @@ def _native_policy_transition(accounts, record, variant, caller):
                         # The vendor CLI refuses notification unless its FIFO
                         # mode is exactly 0660. Keep the compiler and CLI usable:
                         # Fedora's fagenrules also invokes --check-rules.
-                        os.fchmod(descriptor, mode & ~0o060)
                         disabled = (*original_channel[:4],
                                     original_channel[4] & ~0o060, *original_channel[5:])
-                        try:
-                            guest.require(channel_identity() == disabled,
-                                          'enforcement:reload-fault-not-installed')
-                            with allow_product_fault('broker', 'backend'):
+                        # AccountsService also signals the broker to reconcile
+                        # asynchronously while the reload channel is disabled.
+                        with allow_product_fault('broker', 'backend'):
+                            os.fchmod(descriptor, mode & ~0o060)
+                            try:
+                                guest.require(channel_identity() == disabled,
+                                              'enforcement:reload-fault-not-installed')
                                 reply = caller.call('SetPreferences', '(us)', transaction)
-                            guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
-                                          and 'result' not in reply,
-                                          'enforcement:reload-failure-not-exposed')
-                            events = [row for row in read_events('broker')
-                                      if (row['segment'], row['sequence']) not in previous_events]
-                            guest.require(any(row['event'] == 'execution-policy.014' and
-                                              row['fields'].get('stage') == 'notify'
-                                              for row in events) and
-                                          not any(row['event'] in ('execution-policy.013',
-                                                                   'execution-policy.014') and
-                                                  row['fields'].get('stage') == 'compile'
-                                                  for row in events),
-                                          'enforcement:notification-failure-not-observed')
-                            guest.require(account_states(accounts.values()) == prior and
-                                          tuple(path.read_bytes() for path in
-                                                (early, RULES, COMPILED_RULES)) == rule_bytes,
-                                          'enforcement:reload-rollback-mismatch')
-                            record_rules('reload-failed', child, True, record)
-                            observe_launch(child, False)
-                            observe_launch(other, True)
-                            record(f'{prefix}.reload-failure',
-                                   'notify-failed; prior-rules-and-accounts-restored; child-denied; peer-allowed')
-                            print('onpc-system: stage=native-command-reload-failure outcome=passed', flush=True)
-                        finally:
-                            guest.require(channel_identity() == disabled,
-                                          'enforcement:reload-cleanup-identity-changed')
-                            os.fchmod(descriptor, mode)
-                            guest.require(channel_identity() == original_channel,
-                                          'enforcement:reload-channel-not-restored')
+                                guest.require(reply.get('error') == guest.BUS + '.Error.RollbackFailure'
+                                              and 'result' not in reply,
+                                              'enforcement:reload-failure-not-exposed')
+                                events = [row for row in read_events('broker')
+                                          if (row['segment'], row['sequence']) not in previous_events]
+                                guest.require(any(row['event'] == 'execution-policy.014' and
+                                                  row['fields'].get('stage') == 'notify'
+                                                  for row in events) and
+                                              not any(row['event'] in ('execution-policy.013',
+                                                                       'execution-policy.014') and
+                                                      row['fields'].get('stage') == 'compile'
+                                                      for row in events),
+                                              'enforcement:notification-failure-not-observed')
+                                guest.require(account_states(accounts.values()) == prior and
+                                              tuple(path.read_bytes() for path in
+                                                    (early, RULES, COMPILED_RULES)) == rule_bytes,
+                                              'enforcement:reload-rollback-mismatch')
+                                record_rules('reload-failed', child, True, record)
+                                observe_launch(child, False)
+                                observe_launch(other, True)
+                                record(f'{prefix}.reload-failure',
+                                       'notify-failed; prior-rules-and-accounts-restored; child-denied; peer-allowed')
+                                print('onpc-system: stage=native-command-reload-failure outcome=passed', flush=True)
+                            finally:
+                                guest.require(channel_identity() == disabled,
+                                              'enforcement:reload-cleanup-identity-changed')
+                                os.fchmod(descriptor, mode)
+                                guest.require(channel_identity() == original_channel,
+                                              'enforcement:reload-channel-not-restored')
                     finally:
                         os.close(descriptor)
                 # This is also the identical transaction's retry after removing

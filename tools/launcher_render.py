@@ -137,6 +137,9 @@ class SessionTranscript:
             os.close(fd)
             raise
 
+    def reset(self):
+        os.ftruncate(self.log.fileno(), 0)
+
     def isatty(self):
         return False
 

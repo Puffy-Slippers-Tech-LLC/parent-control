@@ -386,7 +386,7 @@ class _GoalSession:
 
 def supervise(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
               on_usage=None, interactive=False, task=None, on_model=None, capacity_recovery=True,
-              subagents_follow_model=False, session_state=None):
+              subagents_follow_model=False, session_state=None, fresh_transcript=False):
     """Apply capacity recovery once per logical session, for every agent transport.
 
     Ordinary plans retain their checkpointed controller loop and opt out here.
@@ -395,7 +395,8 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
     if kind != 'agent' or not capacity_recovery:
         return _supervise_once(root, run, owner, kind, command, nested=nested,
             hide_task_completion=hide_task_completion, on_usage=on_usage,
-            interactive=interactive, task=task, session_state=session_state)
+            interactive=interactive, task=task, session_state=session_state,
+            fresh_transcript=fresh_transcript)
     from launcher_runtime import AgentCapacityUnavailable, capacity_failure
     failures = 0
     previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
@@ -408,7 +409,8 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
             try:
                 return _supervise_once(root, run, os.dup(owner), kind, command, nested=nested,
                     hide_task_completion=hide_task_completion, on_usage=on_usage,
-                    interactive=interactive, task=task, session_state=session_state)
+                    interactive=interactive, task=task, session_state=session_state,
+                    fresh_transcript=fresh_transcript)
             except AgentCapacityUnavailable as error:
                 failures += 1
                 delay, fallback, exhausted = capacity_failure(failures, fallback_model=fallback_model)
@@ -466,7 +468,8 @@ def supervise(root, run, owner, kind, command, *, nested=False, hide_task_comple
 
 
 def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_completion=False,
-                    on_usage=None, interactive=False, task=None, session_state=None):
+                    on_usage=None, interactive=False, task=None, session_state=None,
+                    fresh_transcript=False):
     """Own one child until it is reaped; EOF means the loop worker died.
 
     Tests get the runner's Ctrl+C path with unlimited time for guarded cleanup.
@@ -518,16 +521,13 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
         session_view = dict(session=uuid.uuid4().hex, status='running',
             started_at=time.time(), interactive=interactive or plain,
             **provenance)
-        # Each repair starts a fresh conversation. Other workflows retain
-        # terminal history across their agent sessions within this allocation.
-        fresh_transcript = run.parent.name in ('fix-tests', 'fix-tests-host')
+        fresh_transcript = fresh_transcript or run.parent.name in ('fix-tests', 'fix-tests-host')
         session_view['fresh_transcript'] = fresh_transcript
         if plain and fresh_transcript and hasattr(command.protocol, 'list_models'):
             session_view['model_session'] = session_view['session']
         session_transcript = (_optional_observation(SessionTranscript, sys.stdout, run,
                                                    reset=fresh_transcript)
-                              if plain else SessionTranscript(sys.stdout, run,
-                                                              reset=fresh_transcript))
+                              if plain else SessionTranscript(sys.stdout, run))
         renderer = AgentRenderer(session_transcript or sys.stdout, command_log=run / 'agent-commands.log',
                                  full_command_output=True,
                                  hide_task_completion=hide_task_completion, on_usage=on_usage,
@@ -595,6 +595,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             source.close()
         if log is not None:
             log.close()
+        if session_transcript is not None:
+            _optional_observation(session_transcript.close)
         raise
     if source is not None:
         source.close()
@@ -604,6 +606,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             if plain:
                 _optional_observation(atomic, run / 'session-view.json', session_view)
             else:
+                if fresh_transcript:
+                    session_transcript.reset()
                 atomic(run / 'session-view.json', session_view)
         descriptor = os.pidfd_open(child.pid)
         sent = None

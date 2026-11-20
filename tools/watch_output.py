@@ -578,14 +578,13 @@ class SessionOutput:
         if reset:
             same_run = run == self.run and self.panel is not None
             self.owner, self.run, self.identity = owner, run, state['session']
+            # Workflows with fresh transcripts replace their visible scrollback.
             if not same_run or state.get('fresh_transcript') is True:
                 simplified = self.panel.simplified if self.panel else True
                 self.panel = SessionPanel(hide_tool_results=True)
                 self.panel.simplified = simplified
                 self.offset = 0
                 self.decoder.reset()
-            # Repair sessions replace their transcript; reconnects read that
-            # same retained log. Other workflows keep their run's scrollback.
             self.panel.update_text_output({})
         panel = self.panel
         self.owner = owner

@@ -15,6 +15,7 @@ import time
 import system_guest as guest
 from guest_test_dependencies import (REMOTE_PACKAGES as PACKAGES, FEDORA_REMOTE_VERSIONS,
                                      dormant_paths, verify_fedora_packages, verify_packages)
+from system_assertions import account_property
 
 IDENTITIES = {'child': ('onpc-remote-child', 24001),
               'administrator': ('onpc-remote-admin', 24002)}
@@ -256,9 +257,11 @@ use_fully_qualified_names = false
             break
         guest.require(time.monotonic() - started < 30, 'remote:nss-readiness')
         time.sleep(0.25)
-    # Group membership is a public system operation and creates no passwd
-    # record. AccountsService derives the administrator flag from getgrouplist.
-    guest.run(['gpasswd', '--add', IDENTITIES['administrator'][0], 'wheel' if fedora else 'sudo'])
+    # Set the group membership without creating a local passwd record.
+    admin_name, admin_uid = IDENTITIES['administrator']
+    admin_group = 'wheel' if fedora else 'sudo'
+    guest.run(['gpasswd', '--add', admin_name, admin_group])
+    guest.require(admin_name in grp.getgrnam(admin_group).gr_mem, 'remote:nss-admin-group')
     for name, uid in IDENTITIES.values():
         guest.require(pwd.getpwnam(name).pw_uid == uid and pwd.getpwuid(uid).pw_name == name,
                       'remote:nss-resolution')
@@ -269,5 +272,11 @@ use_fully_qualified_names = false
         guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                    '/org/freedesktop/Accounts', 'org.freedesktop.Accounts',
                    'CacheUser', 's', name])
+    # CacheUser can return an existing object before the daemon processes the
+    # group change. Wait for the role to become visible on the public interface.
+    deadline = time.monotonic() + 10
+    while account_property(admin_uid, 'org.freedesktop.Accounts.User', 'AccountType') != 1:
+        guest.require(time.monotonic() < deadline, 'remote:accounts-service-admin-readiness')
+        time.sleep(0.1)
     print('onpc-system: stage=remote-nss outcome=ready', flush=True)
     return {role: uid for role, (_, uid) in IDENTITIES.items()}

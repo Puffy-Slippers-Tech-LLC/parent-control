@@ -647,18 +647,19 @@ On main, or alongside a running publisher in the same release checkout,
 It validates `docs/VersionHistory.md`, prepares the latest version and builds
 local packages through queued disk admission for a fresh release, commits pending release-checkout changes,
 signs, pushes
-the source to that release branch and tags, submits missing DEB releases to
-Launchpad through product-version gates, and verifies binary
-repository publication. Pending or uncertain submissions are monitored without
+the source to that release branch and tags, and submits missing releases to
+Launchpad and COPR through product-version gates. Completion verifies binary
+repository publication for Ubuntu 26.04 and both Fedora chroots. A failed
+pre-check blocks both submissions. After submission starts, each channel is
+monitored independently and uncertain attempts are reconciled without
 resubmission. It asks for confirmation of a development pause before
 directly merging committed release changes into main, then automatically
 cherry-picking and pushing release metadata to main. Its
 checkout-local publishing lock does not participate in development/build/test
 activity locking. After the highlighted main-update handoff, development
 continues independently of publication monitoring.
-Its supporting modules are under `tools/publishing/`; they are not separate
-release commands. RPM/COPR publication remains implemented but disconnected;
-see [the channel wiring](Publishing.md#independent-channel-gates).
+Its supporting modules are under `tools/publishing/`. See the
+[independent channel gates](Publishing.md#independent-channel-gates).
 
 Local publishing checks run through the aggregate's `tools/run-tests publish` category
 and the same module in `make test-all VM=NAME`. They create a private unsigned source

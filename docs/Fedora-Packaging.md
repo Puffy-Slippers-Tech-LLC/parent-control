@@ -370,7 +370,9 @@ path. It verifies the shared signed product tag and pins that exact commit,
 restricting the build to the configured Fedora chroots (`fedora-44-x86_64` and
 `fedora-45-x86_64`) in
 `puffyslipperstechllc/oh-no-parent-control`. It reads API credentials only from
-the caller's private `~/.config/copr`; public monitoring needs no token.
+the caller's private `~/.config/copr`. The read-only
+[`tools/publish.py --preflight-rpm`](Publishing.md#independent-channel-gates)
+checks the project, token and build permission. Public monitoring needs no token.
 Each product version has an independent RPM publication gate. Published versions
 are skipped, pending builds are monitored, and uncertain submission results
 never trigger an automatic retry. Completion requires matching repository
@@ -382,3 +384,15 @@ spec/source fingerprint, and obtain publication authorization. Project creation,
 token provisioning and repository/signing policy remain operator setup. The
 publisher does not create projects, edit project settings or configure webhooks.
 Neither `make build` nor this recipe submits a release.
+
+### First-release staging rehearsal
+
+Use an operator-provisioned staging COPR project with the same two x86_64
+chroots and Pulp storage. Submit the exact candidate Git commit as an SCM build
+with the `make srpm` method, the repository root as the working directory and
+`rpm/oh-no-parent-control.spec.in` as the spec path. Keep the RPM build network
+setting aligned with production. Check both chroot results, then verify that
+each staging repository indexes and serves the expected RPM and that DNF can
+install it with RPM signature verification enabled on clean Fedora VMs. Use the
+staging project for this rehearsal so the production build history stays clear
+for `make publish`.

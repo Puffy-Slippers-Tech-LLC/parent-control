@@ -5,13 +5,14 @@ import base64
 import configparser
 import gzip
 import hashlib
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path
 import re
 import stat
-from urllib.error import HTTPError
-from urllib.parse import urlencode, urljoin, urlsplit
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode, urljoin, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import xml.etree.ElementTree as ET
 
@@ -20,12 +21,20 @@ from tools import build_targets
 
 BASE = 'https://copr.fedorainfracloud.org'
 API = BASE + '/api_3'
+AUTH_CHECK = '/auth-check'
+SCM_SUBMISSION = '/build/create/scm'
 OWNER = source.OWNER
 PROJECT = source.PACKAGE
-CHROOT = 'fedora-44-x86_64'
 GIT_URL = source.ORIGIN.replace('git@github.com:', 'https://github.com/')
 PENDING = {'pending', 'starting', 'importing', 'waiting', 'running', 'forked'}
 FAILED = {'failed', 'canceled', 'cancelled', 'unknown', 'skipped'}
+ATTEMPT_PHASES = {'upload-started', 'submitted', 'rejected', 'published'}
+REPOSITORY_HOSTS = {'download.copr.fedorainfracloud.org', 'copr-be.cloud.fedoraproject.org'}
+REDIRECT_PATHS = {
+    **dict.fromkeys(REPOSITORY_HOSTS, '/results/'),
+    'packages.redhat.com': '/api/pulp-content/public-copr/',
+    'copr-pulp-prod.s3.amazonaws.com': '/artifact/',
+}
 
 
 def chroots():
@@ -40,15 +49,22 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
+class RepositoryRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        destination = urlsplit(newurl)
+        prefix = REDIRECT_PATHS.get(destination.netloc)
+        if (req.get_method() == 'GET' and not req.has_header('Authorization')
+                and destination.scheme == 'https' and prefix and destination.path.startswith(prefix)):
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+        return None
+
+
 def read(url, *, data=None, authorization=None):
     parsed = urlsplit(url)
-    if (parsed.scheme != 'https' or parsed.username or parsed.password
-            or parsed.hostname not in ('copr.fedorainfracloud.org',
-                                       'download.copr.fedorainfracloud.org',
-                                       'copr-be.cloud.fedoraproject.org')):
+    if parsed.scheme != 'https' or parsed.netloc not in REPOSITORY_HOSTS | {'copr.fedorainfracloud.org'}:
         raise ValueError('unexpected COPR publication URL')
-    if authorization and (parsed.netloc != 'copr.fedorainfracloud.org'
-                          or parsed.path != '/api_3/build/create/scm'):
+    authenticated_url = API + (AUTH_CHECK if data is None else SCM_SUBMISSION)
+    if authorization and url != authenticated_url:
         raise ValueError('unexpected authenticated COPR endpoint')
     headers = {'Cache-Control': 'no-cache'}
     if data is not None:
@@ -56,13 +72,18 @@ def read(url, *, data=None, authorization=None):
     if authorization:
         headers['Authorization'] = authorization
     request = Request(url, data=data, headers=headers)
-    with build_opener(NoRedirect()).open(request, timeout=30) as response:
-        return response.read()
+    redirect = (RepositoryRedirect() if parsed.netloc in REPOSITORY_HOSTS
+                and data is None and authorization is None else NoRedirect())
+    try:
+        with build_opener(redirect).open(request, timeout=30) as response:
+            return response.read()
+    except HTTPException as error:
+        raise URLError(type(error).__name__) from None
 
 
-def api(endpoint, **params):
+def api(endpoint, *, authorization=None, **params):
     query = '?' + urlencode(params) if params else ''
-    result = json.loads(read(API + endpoint + query))
+    result = json.loads(read(API + endpoint + query, authorization=authorization))
     if not isinstance(result, dict) or 'error' in result:
         raise ValueError('COPR returned an invalid API result')
     return result
@@ -118,19 +139,56 @@ def credentials():
     return 'Basic ' + base64.b64encode((login + ':' + token).encode()).decode()
 
 
+def authorized_builder():
+    """Return the credentials after COPR confirms the caller can submit builds."""
+    try:
+        authorization = credentials()
+    except FileNotFoundError:
+        raise ValueError('COPR credential file is missing; configure ~/.config/copr') from None
+    try:
+        account = api(AUTH_CHECK, authorization=authorization).get('name')
+        if not isinstance(account, str) or not account:
+            raise ValueError('COPR authentication did not identify the publishing account')
+        identity = (account, OWNER, PROJECT)
+        path = '/'.join(quote(value, safe='') for value in identity)
+        permission = api('/project/permissions/can_build_in/' + path)
+    except HTTPError as error:
+        error.close()
+        if error.code in (401, 403):
+            raise ValueError('COPR rejected the account preflight; check the credentials in ~/.config/copr') from None
+        raise ValueError(f'COPR account preflight failed (HTTP {error.code})') from None
+    except (URLError, TimeoutError, ConnectionError):
+        raise ValueError('COPR account preflight could not reach the service') from None
+    if tuple(permission.get(key) for key in ('who', 'ownername', 'projectname')) != identity:
+        raise ValueError('COPR returned a mismatched build permission identity')
+    if permission.get('can_build_in') is not True:
+        raise ValueError(f'the authenticated COPR account cannot build in {OWNER}/{PROJECT}')
+    return authorization
+
+
 def submit(revision, authorization):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('COPR source must be pinned to an exact Git commit')
     data = dict(ownername=OWNER, projectname=PROJECT, clone_url=GIT_URL, committish=revision,
         subdirectory='', spec='rpm/oh-no-parent-control.spec.in', scm_type='git',
         source_build_method='make_srpm', chroots=list(chroots()), enable_net=False)
-    return json.loads(read(API + '/build/create/scm', data=json.dumps(data).encode(),
+    return json.loads(read(API + SCM_SUBMISSION, data=json.dumps(data).encode(),
                            authorization=authorization))
 
 
-def indexed_package(product, build, repository, *, target='fedora44', architecture='x86_64'):
+def built_packages(build_id, product, targets):
+    result = api('/build/built-packages/' + str(build_id))
+    return {
+        chroot: {(str(item.get('epoch') or 0), item['release'])
+                 for item in result.get(chroot, {}).get('packages', [])
+                 if (item['name'], item['version'], item['arch']) == (source.PACKAGE, product, target.architecture)
+                 and item['release'].endswith(target.dist)}
+        for chroot, target in targets.items()
+    }
+
+
+def indexed_package(product, build_id, repository, target, expected, *, pulp):
     """Require the selected build's RPM in repodata and verify its download."""
-    selected = build_targets.get(target, architecture, 'rpm')
     repository = repository.rstrip('/') + '/'
     repomd = ET.fromstring(read(repository + 'repodata/repomd.xml'))
     ns = {'r': 'http://linux.duke.edu/metadata/repo'}
@@ -147,15 +205,19 @@ def indexed_package(product, build, repository, *, target='fedora44', architectu
     for package in metadata.findall('p:package', ns):
         version = package.find('p:version', ns).attrib
         if (package.findtext('p:name', namespaces=ns), version['ver'],
-                package.findtext('p:arch', namespaces=ns)) != (source.PACKAGE, product, architecture):
+                package.findtext('p:arch', namespaces=ns)) != (source.PACKAGE, product, target.architecture):
             continue
-        if not version['rel'].endswith(selected.dist):
+        if (version.get('epoch', '0'), version['rel']) not in expected:
             continue
         href = package.find('p:location', ns).attrib['href']
-        # COPR's result directory includes the numeric build ID (zero padded on
-        # some backends). Do not accept another build of the same product.
-        if not any(re.fullmatch(r'0*' + str(build['id']) + '-' + re.escape(source.PACKAGE),
-                               part) for part in urlsplit(href).path.split('/')):
+        if pulp:
+            filename = f"{source.PACKAGE}-{product}-{version['rel']}.{target.architecture}.rpm"
+            belongs_to_build = href == f'Packages/{source.PACKAGE[0]}/{filename}'
+        else:
+            # Legacy repository entries include the build ID, sometimes zero padded.
+            belongs_to_build = any(re.fullmatch(r'0*' + str(build_id) + '-' + re.escape(source.PACKAGE), part)
+                                   for part in urlsplit(href).path.split('/'))
+        if not belongs_to_build:
             continue
         payload = read(urljoin(repository, href))
         checksum = package.find('p:checksum', ns)
@@ -212,27 +274,38 @@ def status(product, record):
     successful = {}
     # A published product wins over a later pending/failed rebuild. Until that
     # is proven, keep following the retained submission rather than retarget it.
-    for build in sorted(candidates, key=lambda item: item['id'], reverse=True):
-        if build['state'] != 'succeeded' or set(build['chroots']) != set(targets):
+    ready = sorted((build for build in candidates
+                    if build['state'] == 'succeeded' and set(build['chroots']) == set(targets)),
+                   key=lambda build: build['id'], reverse=True)
+    pulp = configuration.get('storage') == 'pulp'
+    # Pulp indexes only RPM identities. Its compatibility redirects also discard
+    # the build ID, so only identities unique to one build can prove publication.
+    pulp_packages = {build['id']: built_packages(build['id'], product, targets)
+                     for build in candidates} if pulp and ready else {}
+    for build in ready:
+        build_id = build['id']
+        packages = pulp_packages[build_id] if pulp else built_packages(build_id, product, targets)
+        if not all(packages.values()):
+            successful[build_id] = 'COPR build has no matching product RPM'
             continue
-        packages = api('/build/built-packages/' + str(build['id']))
-        if not all(any((item['name'], item['version'], item['arch']) ==
-                       (source.PACKAGE, product, target.architecture)
-                       for item in packages.get(chroot, {}).get('packages', []))
-                   for chroot, target in targets.items()):
-            successful[build['id']] = 'COPR build has no matching product RPM'
-            continue
+        if pulp:
+            competing = [items for other_id, items in pulp_packages.items() if other_id != build_id]
+            packages = {chroot: identities.difference(*(other[chroot] for other in competing))
+                        for chroot, identities in packages.items()}
+            if not all(packages.values()):
+                successful[build_id] = 'COPR Pulp index cannot distinguish builds with the same RPM identity'
+                continue
         try:
-            if all(indexed_package(product, build, configuration['chroot_repos'][chroot],
-                                   target=target.name, architecture=target.architecture)
+            if all(indexed_package(product, build_id, configuration['chroot_repos'][chroot],
+                                   target, packages[chroot], pulp=pulp)
                    for chroot, target in targets.items()):
-                record['published_build_id'] = build['id']
+                record['published_build_id'] = build_id
                 return 'published', 'repository metadata and RPM checksum verified'
         except HTTPError as error:
             if error.code != 404:
                 raise
             error.close()
-        successful[build['id']] = None
+        successful[build_id] = None
     recorded = next((item for item in candidates if item['id'] == record.get('build_id')), None)
     if record.get('phase') == 'rejected':
         raise ValueError(f'COPR rejected the submission (HTTP {record["http_status"]}); inspect credentials/project before retrying')
@@ -256,6 +329,6 @@ def status(product, record):
         return 'pending', f'build {build["id"]} is {build["state"]}'
     if unresolved:
         return 'uncertain', 'an unidentified COPR source build is in progress; submission blocked'
-    if record.get('phase') in ('upload-started', 'submitted', 'published'):
+    if record.get('phase') in ATTEMPT_PHASES:
         return 'uncertain', 'recorded submission is not listed; monitoring without resubmitting'
     return 'absent', 'no submission for this product version'

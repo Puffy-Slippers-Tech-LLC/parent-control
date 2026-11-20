@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import fcntl
 import gzip
 import hashlib
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -186,8 +187,11 @@ def read_url(url):
     # Publication endpoints change while we poll. Require intermediaries to
     # revalidate stored responses rather than reuse an earlier pending result.
     request = Request(url, headers={'Cache-Control': 'no-cache'})
-    with urlopen(request, timeout=30) as response:
-        return response.read()
+    try:
+        with urlopen(request, timeout=30) as response:
+            return response.read()
+    except HTTPException as error:
+        raise URLError(type(error).__name__) from None
 
 
 def fetch(url):
@@ -837,7 +841,7 @@ def resume_delivery(root, state, state_path, *, published=False, confirmed=False
         save(directory / 'release.json', state)
 
 
-def execute(root, state, state_path, *, wait=True):
+def execute(root, state, state_path, *, wait=True, before_upload=None):
     if publishing_branch(root, state['product']) != state['branch']:
         raise ValueError('publishing branch changed; restore the recorded release branch')
     directory = Path(state['directory'])
@@ -860,12 +864,13 @@ def execute(root, state, state_path, *, wait=True):
         state['source_sha256'] = json.loads((directory / 'source-review.json').read_text())['sha256']
         advance('signed')
     # Accept retained journals from the former local-build phase as well.
-    if state['phase'] in ('signed', 'built'):
+    if state['phase'] in ('signed', 'built', 'push-started', 'pushed'):
         verify_frozen(state)
         inspect_source(checkout, log)
         archive_preflight()
         if any(item['source_package_version'] == state['version'] for item in sources(state['version'])):
             raise ValueError('candidate version appeared in the PPA before this upload; refusing to reuse it')
+    if state['phase'] in ('signed', 'built'):
         advance('push-started')
     if state['phase'] == 'push-started':
         verify_frozen(state)
@@ -886,6 +891,8 @@ def execute(root, state, state_path, *, wait=True):
                for name in ('source_tag', 'product_tag')):
             raise ValueError('signed release source is not yet publicly retrievable; rerun to retry')
         config = dput_config(directory)
+        if before_upload is not None:
+            before_upload(state['revision'])
         # A crash or network error from here on has an uncertain remote result.
         # Write the journal first and NEVER automatically repeat this upload.
         advance('upload-started')
@@ -905,11 +912,12 @@ def execute(root, state, state_path, *, wait=True):
     say(f'published {state["version"]} for resolute/amd64; report: {directory / "release.json"}', success=True)
 
 
-def publish(root=ROOT, *, wait=True):
+def publish(root=ROOT, *, wait=True, before_upload=None):
     if command('git', 'branch', '--show-current', cwd=root) == 'main':
         publication_status(root)
         return
     branch = publishing_branch(root)
+    delivery_options = {'before_upload': before_upload} if before_upload is not None else {}
     with locked(root, attach=True) as state_path:
         if state_path is None:
             say('publisher already running; connecting to publication monitoring')
@@ -949,9 +957,9 @@ def publish(root=ROOT, *, wait=True):
                 save(state_path, state)
                 say(f'resuming {state["version"]} at {state["phase"]}')
                 if wait:
-                    execute(root, state, state_path)
+                    execute(root, state, state_path, **delivery_options)
                 else:
-                    execute(root, state, state_path, wait=False)
+                    execute(root, state, state_path, wait=False, **delivery_options)
                 return
         product, notes = history_entry(history, current)
         publishing_branch(root, product)
@@ -963,9 +971,9 @@ def publish(root=ROOT, *, wait=True):
         save(state_path, state)
         save(directory / 'release.json', state)
         if wait:
-            execute(root, state, state_path)
+            execute(root, state, state_path, **delivery_options)
         else:
-            execute(root, state, state_path, wait=False)
+            execute(root, state, state_path, wait=False, **delivery_options)
 
 
 class PublisherParser(argparse.ArgumentParser):
@@ -976,8 +984,11 @@ class PublisherParser(argparse.ArgumentParser):
 
 def main(argv=None):
     parser = PublisherParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--status', action='store_true',
-                        help='monitor the latest recorded release without publishing or changing local files')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--status', action='store_true',
+                      help='monitor the latest recorded release without publishing or changing local files')
+    mode.add_argument('--preflight-rpm', action='store_true',
+                      help='check COPR project chroots, authentication and build permission without publishing')
     args = parser.parse_args(argv)
     original_env = dict(os.environ)
     safe_env = environment()
@@ -985,7 +996,13 @@ def main(argv=None):
         os.environ.clear()
         os.environ.update(safe_env)
         from tools.publishing import channels
-        channels.run(ROOT, sys.modules[__name__], status=args.status)
+        if args.preflight_rpm:
+            copr = channels.copr
+            copr.project()
+            copr.authorized_builder()
+            say('COPR preflight passed for ' + ', '.join(copr.chroots()), success=True)
+        else:
+            channels.run(ROOT, sys.modules[__name__], status=args.status)
     except ValueError as error:
         say(str(error), error=True)
         return 1

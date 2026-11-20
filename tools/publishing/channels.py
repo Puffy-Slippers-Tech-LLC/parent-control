@@ -11,8 +11,8 @@ from xml.etree.ElementTree import ParseError
 from . import copr
 
 
-# Reconnect RPM here once it is ready for publication.
-ACTIVE_CHANNELS = ('deb',)
+ACTIVE_CHANNELS = ('deb', 'rpm')
+DEB_ATTEMPT_PHASES = {'upload-started', 'published', 'complete'}
 
 
 def load(path):
@@ -46,7 +46,7 @@ def deb_status(product, record, p):
                     record.setdefault('version', version)
                     return 'published', 'source, build, binary, index and checksum verified'
                 observations[version] = progress['detail']
-        attempted = record.get('phase') in ('upload-started', 'published', 'complete')
+        attempted = record.get('phase') in DEB_ATTEMPT_PHASES
         version = record['version'] if attempted else versions[0]
         if version not in observations:
             return 'uncertain', 'recorded DEB revision is not listed; monitoring without resubmitting'
@@ -55,7 +55,7 @@ def deb_status(product, record, p):
         if isinstance(detail, ValueError):
             raise detail
         return 'pending', detail
-    if record.get('phase') in ('upload-started', 'published', 'complete'):
+    if record.get('phase') in DEB_ATTEMPT_PHASES:
         return 'uncertain', 'recorded upload is not listed; monitoring without resubmitting'
     return 'absent', 'no submission for this product version'
 
@@ -111,8 +111,7 @@ def pin_source(root, directory, product, p):
 def merge_deb_journal(root, record, p, product):
     journal = load(p.journal_directory(root) / 'state.json')
     if journal and journal.get('product') == product:
-        attempted = ('upload-started', 'published', 'complete')
-        if journal['phase'] in attempted or record.get('phase') not in attempted:
+        if journal['phase'] in DEB_ATTEMPT_PHASES or record.get('phase') not in DEB_ATTEMPT_PHASES:
             record.update({key: journal[key] for key in ('phase', 'version')})
     return journal
 
@@ -173,9 +172,40 @@ def monitor_status(root, p):
     monitor(state['product'], {key: dict(state[key]) for key in ACTIVE_CHANNELS}, p)
 
 
+def submit_rpm(root, directory, product, record, authorization, p, persist, *, expected_revision=None):
+    revision = pin_source(root, directory, product, p)
+    if expected_revision is not None and revision != expected_revision:
+        raise ValueError('COPR and Launchpad must publish the same signed source commit')
+    # Reconcile immediately before the first submission, after local preparation.
+    outcome, detail = check('rpm', product, record, p)
+    if outcome in ('failed', 'uncertain'):
+        persist()
+        raise ValueError(f'COPR pre-check blocked both submissions: {detail}')
+    if outcome != 'absent':
+        announce(product, 'rpm', outcome, detail, p)
+        return
+    record.update(phase='upload-started', revision=revision)
+    persist()  # A lost response must never trigger a second POST.
+    try:
+        result = copr.submit(revision, authorization)
+        if (not isinstance(result, dict) or type(result.get('id')) is not int or result['id'] <= 0
+                or (result.get('ownername'), result.get('projectname')) != (copr.OWNER, copr.PROJECT)):
+            raise ValueError('COPR returned an invalid submission identity')
+        record.update(phase='submitted', build_id=result['id'])
+        persist()
+    except HTTPError as error:
+        error.close()
+        if error.code in (400, 401, 403, 404, 422):
+            record.update(phase='rejected', http_status=error.code)
+            persist()
+            p.say(f'COPR rejected the submission (HTTP {error.code}); no retry attempted', error=True)
+        else:
+            p.say('COPR submission result uncertain; monitoring without resubmitting', error=True)
+    except (ValueError, OSError):
+        p.say('COPR submission result uncertain; monitoring without resubmitting', error=True)
+
+
 def run(root, p, *, status=False):
-    if 'rpm' not in ACTIVE_CHANNELS:
-        p.say('rpm / COPR publishing is disabled')
     if status or p.command('git', 'branch', '--show-current', cwd=root) == 'main':
         return monitor_status(root, p)
     branch = p.publishing_branch(root)
@@ -198,28 +228,54 @@ def run(root, p, *, status=False):
         def persist():
             p.save(path, state)
 
-        merge_deb_journal(root, state['deb'], p, product)
+        journal = merge_deb_journal(root, state['deb'], p, product)
+        # Only local submission intent can carry the shared gate across an
+        # interruption. Observing a remote attempt does not authorize its sibling.
+        attempted = set()
+        if journal and journal.get('product') == product and journal.get('phase') in DEB_ATTEMPT_PHASES:
+            attempted.add('deb')
+        if state['rpm'].get('revision') and state['rpm'].get('phase') in copr.ATTEMPT_PHASES:
+            attempted.add('rpm')
         # Both gates run before any commit, signing, build, push or upload.
         gates = {channel: check(channel, product, state[channel], p) for channel in ACTIVE_CHANNELS}
         for channel, (outcome, detail) in gates.items():
             announce(product, channel, outcome, detail, p)
         persist()
-        errors, recovery_errors = {}, {}
-        # The existing DEB workflow owns common signed release source and the
-        # main handoff. Stop it before waiting, so COPR gets its turn promptly.
-        if gates['deb'][0] == 'absent':
+        if any(outcome == 'absent' for outcome, _ in gates.values()):
+            failed = [f'{channel}: {detail}' for channel, (outcome, detail) in gates.items()
+                      if channel not in attempted and outcome in ('failed', 'uncertain')]
+            if failed:
+                raise ValueError('release pre-checks blocked both submissions: ' + ', '.join(failed))
+        recovery_errors = {}
+        rpm_delivery = None
+        if gates['rpm'][0] == 'absent':
             try:
-                p.publish(root, wait=False)
+                authorization = copr.authorized_builder()
             except (ValueError, OSError) as error:
-                if str(error) == 'publication cancelled before updating main':
-                    raise
-                errors['deb'] = str(error)
-                p.say(str(error), error=True)
+                detail = str(error) if isinstance(error, ValueError) else 'COPR credentials could not be read'
+                raise ValueError(f'COPR pre-check blocked both submissions: {detail}') from None
+
+            def rpm_delivery(expected_revision=None):
+                submit_rpm(root, path.parent, product, state['rpm'], authorization, p, persist,
+                           expected_revision=expected_revision)
+
+        # Launchpad owns source preparation. Once its upload is ready, validate
+        # the public COPR source and submit to COPR before sending the DEB upload.
+        if gates['deb'][0] == 'absent':
+            delivery_error = None
+            try:
+                p.publish(root, wait=False, before_upload=rpm_delivery)
+            except (ValueError, OSError) as error:
+                delivery_error = error
             finally:
                 merge_deb_journal(root, state['deb'], p, product)
                 persist()
-            if state['deb'].get('phase') in ('upload-started', 'published') and 'deb' in errors:
-                recovery_errors['deb'] = errors.pop('deb')
+            if delivery_error is not None:
+                if (str(delivery_error) == 'publication cancelled before updating main'
+                        or state['deb'].get('phase') not in ('upload-started', 'published')):
+                    raise delivery_error
+                recovery_errors['deb'] = str(delivery_error)
+                p.say(str(delivery_error), error=True)
         # Public status never depends on archived .changes/.dsc/tar files or
         # auto-commits local edits. Only an unfinished Git handoff is resumed.
         journal = load(legacy_path)
@@ -233,39 +289,10 @@ def run(root, p, *, status=False):
                     raise
                 recovery_errors['deb'] = str(error)
                 p.say(f'local DEB release recovery incomplete: {error}', error=True)
-        if 'rpm' in gates and gates['rpm'][0] == 'absent':
-            try:
-                revision = pin_source(root, path.parent, product, p)
-                authorization = copr.credentials()
-                # Reconcile immediately before the write as another client may
-                # have submitted while source preparation was running.
-                outcome, detail = check('rpm', product, state['rpm'], p)
-                if outcome == 'absent':
-                    state['rpm'].update(phase='upload-started', revision=revision)
-                    persist()  # A lost response must never trigger a second POST.
-                    try:
-                        result = copr.submit(revision, authorization)
-                        if (type(result.get('id')) is not int or result['id'] <= 0
-                                or (result.get('ownername'), result.get('projectname')) != (copr.OWNER, copr.PROJECT)):
-                            raise ValueError('COPR returned an invalid submission identity')
-                        state['rpm'].update(phase='submitted', build_id=result['id'])
-                        persist()
-                    except HTTPError as error:
-                        if error.code in (400, 401, 403, 404, 422):
-                            state['rpm'].update(phase='rejected', http_status=error.code)
-                            persist()
-                            p.say(f'COPR rejected the submission (HTTP {error.code}); no retry attempted', error=True)
-                        else:
-                            p.say('COPR submission result uncertain; monitoring without resubmitting', error=True)
-                        error.close()
-                    except (ValueError, URLError, TimeoutError, ConnectionError):
-                        p.say('COPR submission result uncertain; monitoring without resubmitting', error=True)
-                else:
-                    announce(product, 'rpm', outcome, detail, p)
-            except (ValueError, OSError) as error:
-                # Never print credential parser errors or raw HTTP response data.
-                errors['rpm'] = str(error) if isinstance(error, ValueError) else 'COPR preparation failed; check source and credentials'
-                p.say(errors['rpm'], error=True)
+        if gates['deb'][0] != 'absent' and rpm_delivery is not None:
+            if recovery_errors:
+                raise ValueError('release pre-check blocked COPR: resolve the recorded Launchpad handoff first')
+            rpm_delivery()
         persist()
         # Hand main an independent channel reference even when only one service
         # needed a submission. Preserve a newer release's monitoring selection.
@@ -292,13 +319,9 @@ def run(root, p, *, status=False):
                     raise ValueError('published DEB revision differs from the recorded submission; reconcile the release journal')
                 with p.locked(root) as delivery_path:
                     p.resume_delivery(root, journal, delivery_path, published=True)
-                recovery_errors.pop('deb', None)
-                errors.pop('deb', None)
             except (ValueError, OSError) as error:
                 recovery_errors['deb'] = str(error)
                 p.say(f'DEB publication confirmed; local release recovery incomplete: {error}', error=True)
-        if errors:
-            raise ValueError('channel preparation failed for ' + ', '.join(errors) + '; see errors above')
         if monitor_error:
             raise monitor_error
         if recovery_errors:

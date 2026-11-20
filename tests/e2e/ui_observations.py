@@ -2484,10 +2484,11 @@ class UiObservations:
             expected['activity'] = result['activity']
         if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid', 'native-soft-grid'):
             expected['provider'] = accessible_ui.validate_shell_metadata(result.get('provider'))
-        if operation in ('native-grid-blocked', 'native-alias-grid-blocked',
-                         'native-hard-grid-blocked', 'native-soft-grid-blocked'):
-            require(type(result.get('grid_launch_required')) is bool, 'ui:native-grid-response')
-            expected['grid_launch_required'] = result['grid_launch_required']
+        if operation in accessible_ui.NATIVE_GRID_DENIAL_OPERATIONS:
+            outcome = result.get('grid_outcome')
+            require(type(outcome) is str and outcome in accessible_ui.NATIVE_GRID_DENIAL_OUTCOMES,
+                    'ui:native-grid-response')
+            expected['grid_outcome'] = outcome
         if operation in accessible_ui.COUNTDOWN_SESSION_OPERATIONS:
             state = operation.removeprefix('child-countdown-session-')
             value = result.get('session_countdown')

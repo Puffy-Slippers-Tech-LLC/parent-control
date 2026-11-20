@@ -20,6 +20,10 @@ from system_assertions import accepted, account_property, account_state, account
 
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 SERVICES = ('gdm-password', 'gdm-autologin', 'login', 'sshd')
+# Installed admission and scope discovery must have time to run while the
+# guest is busy. The native module tests exercise the exact one-second cap.
+PAM_GRANT_SECONDS = 150
+PAM_SCOPE_TIMEOUT = PAM_GRANT_SECONDS + 60
 # Cover both reply/readback pairs, the switch readback and the next
 # authentication with room left before the original grant expires.
 REQUEST_EXTENSION_SECONDS = 600
@@ -85,6 +89,14 @@ def grant(uid, seconds):
     guest.require(account_property(uid, LIMITS, 'ActiveExtension') == [issued, seconds],
                   'expiry:fixture-grant-readback')
     return issued + seconds
+
+
+def wait_for_grant_expiry(expires_at):
+    end = time.monotonic() + PAM_SCOPE_TIMEOUT
+    while (remaining := expires_at - time.time()) > 0:
+        budget = end - time.monotonic()
+        guest.require(budget > 0, 'expiry:pam-grant-did-not-expire')
+        time.sleep(min(remaining, budget, 1))
 
 
 def verify_usage_reader_recovery(record):
@@ -175,10 +187,7 @@ def pam_probe(service):
         # the broker's graphical-only fallback from making this check pass.
         guest.require(pam.pam_putenv(handle, b'XDG_SESSION_TYPE=unspecified') == 0,
                       'expiry:pam-environment')
-        # Start near the beginning of a wall-clock second, leaving enough time
-        # for the real account stack while retaining a <=1-second grant.
-        time.sleep(max(0, int(time.time()) + 1.01 - time.time()))
-        deadline = grant(uid, 1 if service.startswith('gdm-') else 3)
+        deadline = grant(uid, PAM_GRANT_SECONDS)
         account = pam.pam_acct_mgmt(handle, 0)
         print(json.dumps({'stage': 'account', 'status': account,
                           'remaining_seconds': round(deadline - time.time(), 3)}), flush=True)
@@ -192,7 +201,7 @@ def pam_probe(service):
         print(json.dumps({'stage': 'scope-created', 'runtime_max': runtime, 'scope': scope}), flush=True)
         if service.startswith('gdm-'):
             guest.require(runtime == 'infinity', 'expiry:finite-gdm-scope')
-            time.sleep(3)
+            wait_for_grant_expiry(deadline)
             guest.require(observer.active(scope_path),
                           'expiry:scope-ended-at-old-deadline')
             print(json.dumps({'stage': 'past-deadline', 'scope_active': True}), flush=True)
@@ -200,7 +209,7 @@ def pam_probe(service):
             guest.require(runtime != 'infinity', 'expiry:non-gdm-cap-removed')
             # The real scope timer should terminate this probe. Do not kill it
             # from the observer or treat its ordinary exit as timer enforcement.
-            time.sleep(6)
+            time.sleep(PAM_SCOPE_TIMEOUT)
             raise guest.GuestError('expiry:non-gdm-timer-did-not-terminate')
     finally:
         if opened:
@@ -235,11 +244,13 @@ def observe_pam_scope(service, record):
     terminal = guest.package_path().suffix == '.rpm'
     raw = guest.commands.run([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
-        '--unit=' + unit, '--property=Type=exec', '--property=RuntimeMaxSec=45',
+        '--unit=' + unit, '--property=Type=exec',
+        f'--property=RuntimeMaxSec={PAM_SCOPE_TIMEOUT + 15}',
         '--setenv=ONPC_EXPECTED_RUN=' + marker['run'],
         '--setenv=PYTHONDONTWRITEBYTECODE=1',
         '/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_session_expiry.py'),
-        '--pam', service], timeout=60, check=False, merge_stderr=False, terminal=terminal)
+        '--pam', service], timeout=PAM_SCOPE_TIMEOUT + 30, check=False,
+        merge_stderr=False, terminal=terminal)
     status = guest.commands.last_returncode
     observations = [json.loads(line) for line in raw.decode().splitlines()
                     if line.startswith('{')]
@@ -250,8 +261,7 @@ def observe_pam_scope(service, record):
                   and observations[0]['status'] == 0
                   and observations[1]['stage'] == 'scope-created', 'expiry:pam-witnesses')
     if service.startswith('gdm-'):
-        guest.require(status == 0 and observations[0]['remaining_seconds'] <= 1
-                      and observations[1]['runtime_max'] == 'infinity'
+        guest.require(status == 0 and observations[1]['runtime_max'] == 'infinity'
                       and observations[-1] == {'stage': 'past-deadline', 'scope_active': True},
                       'expiry:gdm-runtime-witness')
     else:

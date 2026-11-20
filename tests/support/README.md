@@ -969,7 +969,7 @@ recovery, unrelated foreground input, collection and baseline restoration passed
 on session-selected `onpc-Ubuntu26.04-1`; Fedora remains unqualified. This supplies
 no customer-case or entry-exposure credit.
 For startup diagnosis, `tools/test-vm --vm NAME reproduce-system-graphical-expiry`
-reuses system-282's one-second autologin seed, reboot and fixture renewal, then
+reuses system-282's bounded autologin grant, reboot and fixture renewal, then
 records the child session, foreground and read-only public surface before and
 after its preparation grant. It retains the owned maintenance guest for `exec`
 probes followed by `stop`, without running the expiry worker or supplying

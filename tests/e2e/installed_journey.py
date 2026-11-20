@@ -1066,9 +1066,8 @@ class InstalledJourney:
                 observed['desktop_preparation'] = session_control.observe(
                     self.transport, 'parent-continuous-activity')
             reply = {'observed': stage}
-            if tag in ('ui:native-grid-blocked', 'ui:native-alias-grid-blocked',
-                       'ui:native-hard-grid-blocked', 'ui:native-soft-grid-blocked'):
-                reply['grid_launch_required'] = observed['ui']['grid_launch_required']
+            if 'grid_outcome' in observed.get('ui', {}):
+                reply['grid_outcome'] = observed['ui']['grid_outcome']
             if 'shortcut' in observed.get('ui', {}):
                 reply['shortcut_outcome'] = observed['ui']['shortcut']['outcome']
             if tag in ('ui:gdm-child-denied-return-ready', 'ui:gdm-child-denied-return-state'):

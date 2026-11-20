@@ -2343,6 +2343,9 @@ def run_pytest(vm, run, phase, selection, *, failures, on_output=None, observe_f
                           or item.case_id.startswith(PAM_CASE + '[') for item in executions)
     timeout = {'session': 1800, 'extension': 1200, 'startup': 1200,
                ENFORCEMENT_STARTUP_PHASE: 1500, BROKER_STARTUP_PHASE: 900}.get(phase, 900)
+    if any(item.case_id == 'test_kiosk_execution_confinement' for item in executions):
+        # The four installed PAM scopes include real expiry observations.
+        timeout = 1800
     if (phase in (*FIRST_CONFIGURE_PHASES, *PAM_PHASES, 'previous-policy', TRUSTED_FIXTURES_PHASE)
             or any(phase in history.phases for history in REMOVAL_HISTORIES)):
         timeout = 2400

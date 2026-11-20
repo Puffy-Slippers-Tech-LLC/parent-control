@@ -162,9 +162,11 @@ SYSTEM_PLAN = JourneyPlan(
 )
 
 
-def _system_history_command(transport, command, *, timeout=120):
+def _system_history_command(transport, command, *, timeout=None):
     """The maintained installed guest leaf owns finite fixture transitions."""
     import system_runner
+    if timeout is None:
+        timeout = 360 if command == 'host-ready' else 120
     started = time.monotonic()
     raw = transport.call(['env', 'ONPC_EXPECTED_RUN=' + transport.config['run'],
         'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',

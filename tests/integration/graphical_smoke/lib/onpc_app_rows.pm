@@ -757,8 +757,10 @@ sub native_blocked_app {
     if ($route eq 'grid') {
         my $entry = native_search($journey, $journey->seen('desktop'), 'app-grid', $role);
         $journey->consume_observation('app-grid', $entry);
-        die 'native:denial-entry' unless JSON::PP::is_bool($entry->{grid_launch_required});
-        testapi::send_key('ret') if $entry->{grid_launch_required};
+        my $outcome = $entry->{grid_outcome} // '';
+        die 'native:denial-entry' unless $outcome eq 'launcher-focused'
+            || $outcome eq 'empty-search-command-denied';
+        testapi::send_key('ret') if $outcome eq 'launcher-focused';
         return $journey->seen('denied');
     }
     return $journey->seen('command');

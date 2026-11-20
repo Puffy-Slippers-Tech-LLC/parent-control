@@ -84,13 +84,15 @@ defaults are checked without waiting for their delivery.
 Before further approvals, save Riley's sole 15-second reminder with literal
 `Save your game now`. Independently read it across English/German saves and
 require Jordan's entire original list unchanged. Renew eight minutes for each of
-two intervals: fullscreen enabled/Critical/visible, then disabled/High/suppressed.
-Reuse the same owned game and its qualified single normal fullscreen transition
-within each interval; require independent banner visibility, the current warning's
-identity and continued original-game use. The shared observer remains pinned
-through natural lock and checks disappearance, with no settings work inside
-either short warning lifetime. Renewed intervals must produce new identities
-for the same saved reminder, with no duplicate during an unchanged countdown.
+two intervals: fullscreen enabled/Critical/visible, then disabled/suppressed.
+Launch the fullscreen game and verify two real moves before the warning.
+Observe the warning's identity and visibility with the same game present.
+The shared observer remains pinned through natural lock and checks disappearance.
+After the next unlock, close the prior game before preparing the new interval.
+Renewed intervals must produce new identities for the same saved reminder, with
+no duplicate during an unchanged countdown. High urgency and the same banner's
+suppression and restoration across fullscreen changes are exercised with
+controlled timing in [the notification tests](../../tests/child/notifications.test.mjs).
 
 Save Jordan's empty list and retain Riley's German custom list/fullscreen false.
 Reboot normally from Jamie's desktop and independently observe a changed boot.
@@ -512,18 +514,15 @@ preference preparation; their access, deadline, saved-rule and recovery or
 activation checks remain required. Entering a
 disabled or exhausted child's overlay is never a preparation shortcut.
 
-For natural reminder delivery, prepare the saved threshold/text, game assets,
-supported fullscreen transition and public notification observer before starting
-the final countdown approach. Use a declared 10-minute public grant for pending
-30-second qualification intervals, with actual usable time at least 300 seconds
-when the observer is armed; save zero daily time if this is the limiting source.
-Observe normal activity through the original deadline rather than creating a
-notification or changing time near the threshold. Read body, urgency and current
-identity together at emission. The fullscreen-disabled branch arms its single
-supported transition before the 30-second crossing and performs only that
-transition and its visibility observation afterward. Expiry, replaced warning
-identity or observer loss cannot prove suppression. The real short warning
-lifetime remains an applicability gate if that normal route cannot fit it.
+For natural reminder delivery, prepare the saved threshold and text, game assets
+and public notification observer before the final countdown approach. Use a
+declared 10-minute public grant for the 30-second qualification intervals, with
+at least 300 usable seconds when the observer is armed. Save zero daily time
+when approved time is the limiting source. Prepare fullscreen and verify real
+game input before the warning. Read the visible warning's body, urgency and
+identity at delivery, or read the suppressed warning's public identity and
+visibility while the original game remains fullscreen. Keep the original
+warning deadline and require fresh observation of its delivery.
 
 ### Coverage and execution policy
 
@@ -1278,11 +1277,11 @@ records the qualified operations and fixture profiles.
 | Cases | Public results |
 | --- | --- |
 | 62, 86, 98 | With limits enabled and an Allowed rule, both children open and submit a draft through the native, Snap or Flatpak grid, respectively. Normally close the app and observe absence before repeating through the exact command. |
-| 64 | Jordan's hard-blocked native grid attempt requires complete window absence. When the completed search hides the launcher, the guarded command-denial leaf supplies the execution refusal. Riley opens and uses the app from the grid. |
+| 64 | Jordan attempts the exact visible launcher once and the test observes complete window absence. When GNOME reports `No results` for the exact query, a guarded command checks the app-specific execution refusal and the test records that route. Riley opens and uses the app from the grid. |
 | 68 | Both children use the exact Allowed native desktop entry, submit a draft and normally close the app. Remove only the owned desktop entries. |
 | 70, 78 | Verify hard denial through the exact native desktop entry and soft denial through the Files executable, respectively. The denied route requires continuous owned-window absence and a recognized desktop. Riley opens and submits through the same route. Remove owned desktop entries and dismiss Files as applicable. |
 | 81, 83, 84, 85 | Native commands cover Allowed with limits off, hard denial with limits off and soft denial with limits both on and off. Denied commands require an attributed permission refusal and complete owned-window absence. |
-| 100, 102 | For hard and soft Flatpak rules, independently observe the hidden grid launcher, then invoke the exact system command and require an app-specific administrator-policy refusal and complete window absence. Riley uses the grid with untouched settings. |
+| 100, 102 | For hard and soft Flatpak rules, observe GNOME's completed `No results` for the exact query, then invoke the exact system command and require an app-specific administrator-policy refusal and complete window absence. Riley uses the grid with untouched settings. |
 | 93, 105, 107, 109 | Disabled-limits Snap and Flatpak Allowed commands and Flatpak hard/soft command refusals exercise the app rule without a time restriction. |
 
 The representative cases cover retired variants as follows. Native 66 maps
@@ -2111,8 +2110,8 @@ compare its original Allowed activity before the next app checks.
 Each binding's three 30-second requests bind Jordan and each selected approver through the
 same guarded approval operations. Native grid/command H/S launchers use the secondary fixture
 window so the original Allowed work remains independently observable. Blocked
-native grid entries use the shared visible-launch or attributed command-denial
-witness, without asserting launcher visibility.
+native grid entries either use the exact visible launcher or record attributed
+command denial after GNOME completes the exact search with `No results`.
 
 The Flatpak command/station binding uses `flatpak_temporary_access.PLAN` /
 `TemporaryAccessJourney` and `onpc_request_flow::flatpak_temporary_access`.

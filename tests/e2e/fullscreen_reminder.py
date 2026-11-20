@@ -85,8 +85,9 @@ class FullscreenReminderJourney(NaturalReminderJourney):
         guard()
         initial, emitted = result['initial'], result['emission']
         require(result['record'] == journey.saved_reminder and initial['seconds'] >= 300
-                and emitted['body'] == journey.saved_reminder['text']
-                and emitted['urgency'] == ('critical' if journey.fullscreen_preference else 'high')
+                and (emitted['body'], emitted['urgency']) == (
+                    (journey.saved_reminder['text'], 'critical')
+                    if journey.fullscreen_preference else (None, None))
                 and result['visible'] is journey.fullscreen_preference
                 and result['delivery_id'] == emitted['delivery_id']
                 and result['game_usable_moves'] == 2,

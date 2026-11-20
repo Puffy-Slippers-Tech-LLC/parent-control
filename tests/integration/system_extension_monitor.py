@@ -673,7 +673,6 @@ def verify(publish):
             guest.require(latency < 10, 'extension:' + label + '-recovery-delayed')
         record('repeated-recovery', {'native_signal_seconds': cycles,
                                     'disablements': len(cycles), 'response_bound_seconds': 10})
-        time.sleep(2)
         quiet = time.monotonic()
         deadline = quiet + 65
         while time.monotonic() < deadline:
@@ -935,13 +934,17 @@ def verify_lifecycle(publish):
 
         # A real pending recovery exists while authentication owns the lock.
         # Keep activation masked until the old invocation has fully exited.
-        with transaction() as (caller, agent, _requested):
+        with transaction() as (caller, agent, requested):
             pending = time.monotonic()
             disable()
             wait(lambda: not healthy(), 'shutdown-fault-not-visible')
-            time.sleep(1)
+            wait(lambda: any(
+                row['event'] == 'extension-manager.monitor-decision'
+                and row['fields']['reason'] == 'broker-busy' and row['fields']['outcome'] == 'wait'
+                for _stamp, row in events.since(requested)),
+                'shutdown-recovery-not-pending')
             guest.require(not attempts(events.since(pending)),
-                          'extension:lifecycle-shutdown-recovery-not-pending')
+                          'extension:lifecycle-shutdown-recovery-started-under-lock')
             with guest.isolated_broker_for_faults():
                 agent.close()
                 stopped = time.monotonic()
@@ -1185,6 +1188,18 @@ def verify_failure_reporting(publish):
     def no_enable(events, since):
         guest.require(not attempts(events.since(since)), 'extension:failure-automatic-enable')
 
+    def monitor_reported_failure(since):
+        return any(row['event'] == 'extension-manager.monitor-decision'
+                   and row['fields']['reason'] == 'confirmed-failure'
+                   and row['fields']['outcome'] == 'report'
+                   for _stamp, row in events.since(since))
+
+    def monitor_saw_selection(since, selected, *, failed=False):
+        return any(row['event'] == 'extension-manager.monitor-selection'
+                   and row['fields']['selected'] == selected
+                   and (not failed or row['fields']['state'] == 3)
+                   for _stamp, row in events.since(since))
+
     def preserved():
         observed = state_digests(child, accounts['other'], accounts['parent'])
         guest.require(observed[child] == snapshot, 'extension:failure-child-policy-changed')
@@ -1214,6 +1229,7 @@ def verify_failure_reporting(publish):
         with (allow_product_fault('child', 'shell-extension-load'),
               allow_product_fault('broker', 'operation'), native_error()):
             with unavailable_display():
+                failed_at = time.monotonic()
                 preferences = store.load(child)
                 store.save(child, {**preferences, 'parent_control_enabled': True})
                 snapshot = state_digest(child)
@@ -1228,8 +1244,7 @@ def verify_failure_reporting(publish):
                         f'/org/freedesktop/Accounts/User{child}', interface, 'SetLanguage', 's', language])
                 wait(lambda: shell.info().get('state') == 3 and shell.call(SHELL, PATH, INTERFACE,
                      'GetExtensionErrors', '(s)', (UUID,), '(as)'), 'native-error-not-observed')
-                failed_at = time.monotonic()
-                time.sleep(4)
+                wait(lambda: monitor_reported_failure(failed_at), 'missing-display-error-not-observed')
                 guest.require(invocation() == identity and report_state()['MainPID'] == '0',
                               'extension:failure-report-not-deferred')
                 no_enable(events, failed_at)
@@ -1241,20 +1256,22 @@ def verify_failure_reporting(publish):
             edited = wait(lambda: (value if draft in json.dumps(value['document']) else False)
                           if (value := report()) else False, 'edited-draft-not-visible')
             for _ in range(2):
+                disabled = time.monotonic()
                 manager._run_as(account, 'gnome-extensions', 'disable', '--quiet', UUID)
+                wait(lambda: monitor_saw_selection(disabled, 'false'), 'repeat-disable-not-observed')
+                enabled = time.monotonic()
                 manager._run_as(account, 'gnome-extensions', 'enable', '--quiet', UUID)
-            wait(lambda: shell.info().get('state') == 3, 'repeated-native-error')
-            time.sleep(3)
-            guest.require(report() == edited, 'extension:failure-repeat-overwrote-draft')
+                wait(lambda: monitor_saw_selection(enabled, 'true', failed=True), 'repeated-native-error')
+                guest.require(report() == edited, 'extension:failure-repeat-overwrote-draft')
+            restarting = time.monotonic()
             with guest.isolated_broker_for_faults():
                 guest.require(report() == edited, 'extension:failure-stopped-broker-lost-draft')
             guest.require(invocation() != identity, 'extension:failure-broker-not-restarted')
             events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
-            restarted = time.monotonic()
-            time.sleep(5)
+            wait(lambda: monitor_reported_failure(restarting), 'restarted-broker-error-not-observed')
             guest.require(report() == edited and shell.info().get('state') == 3,
                           'extension:failure-restarted-broker-overwrote-draft')
-            no_enable(events, restarted)
+            no_enable(events, restarting)
             preserved()
             no_submission()
             report('close')

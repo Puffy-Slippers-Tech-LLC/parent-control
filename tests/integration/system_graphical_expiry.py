@@ -1,6 +1,6 @@
 """A one-shot, installed GDM expiry fixture on the guarded automation guest.
 
-The account hook only seeds a real one-second AccountsService grant. The stock
+The account hook only seeds a real AccountsService grant. The stock
 GDM/PAM path still decides admission and creates the desktop. This is fixture
 setup, not a customer login/authentication journey. Outer VM restoration owns
 all cleanup. The crash history signals only its identity-recorded broker;
@@ -21,7 +21,8 @@ import time
 import system_guest as guest
 from system_assertions import accepted, account_property, account_state, call, validation_stage
 from system_session_expiry import (
-    LIMITS, REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant, verify_zero_time_pam,
+    LIMITS, PAM_GRANT_SECONDS, REQUEST_EXTENSION_SECONDS, identities, installed_manager, grant,
+    verify_zero_time_pam, wait_for_grant_expiry,
     verify_request_extension, verify_runtime_rollback, request_global_extension_disable,
     wait_for_extension_recovery,
 )
@@ -202,8 +203,7 @@ def seed():
             raise
         attempt['stage'] = 'grant'
         checkpoint()
-        time.sleep(max(0, int(time.time()) + 1.01 - time.time()))
-        deadline = grant(accounts['child'], 1)
+        deadline = grant(accounts['child'], PAM_GRANT_SECONDS)
         stream.seek(0)
         stream.truncate()
         json.dump({'boot': boot, 'worker': os.getppid(), 'broker_invocation': invocation,
@@ -239,12 +239,15 @@ def child_session(uid, *, service='gdm-autologin'):
 
 def wait_for(predicate, category, timeout=90):
     deadline = time.monotonic() + timeout
-    while True:
+    while time.monotonic() < deadline:
         result = predicate()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
         if result:
             return result
-        guest.require(time.monotonic() < deadline, category)
-        time.sleep(0.25)
+        time.sleep(min(0.25, remaining))
+    raise guest.GuestError(category)
 
 
 def screen_lock_observation(child, session, manager, account, *, service='gdm-autologin'):
@@ -319,13 +322,22 @@ def graphical_history(command):
         wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
         seeded = json.loads((FIXTURE / 'seeded.json').read_text())
         boot = Path('/proc/sys/kernel/random/boot_id').read_text()
-        guest.require(seeded['boot'] == boot and 0 < seeded['remaining_seconds'] <= 1,
-                      'expiry:one-second-seed')
+        guest.require(seeded['boot'] == boot and 0 < seeded['remaining_seconds'] <= PAM_GRANT_SECONDS,
+                      'expiry:initial-seed')
         session, props = wait_for(lambda: child_session(child), 'expiry:gdm-session-missing')
         manager = installed_manager()
         account, _ = manager._account(child)
         wait_for(lambda: manager._shell_owner(account), 'expiry:gnome-shell-unavailable')
         guest.require(manager._runtime_state(account) == (True, True), 'expiry:extension-inactive')
+        if command == 'host-ready':
+            # Witness the original login scope beyond expiry before issuing
+            # setup time for the separate, measured natural-lock history.
+            wait_for_grant_expiry(seeded['deadline'])
+            current = child_session(child)
+            guest.require(current is not None and current[0] == session
+                          and current[1]['Scope'] == props['Scope']
+                          and guest.run(['systemctl', 'is-active', props['Scope']]) == 'active',
+                          'expiry:expired-desktop-not-retained')
         history = {'run': marker['run'], 'boot': boot, 'session': session,
                    'scope': props['Scope'], 'grants': 0,
                    'foreground_revoke': command == 'revoke-ready',
@@ -1167,7 +1179,7 @@ def verify(record):
     wait_for(lambda: (FIXTURE / 'seeded.json').is_file(), 'expiry:gdm-seed-not-observed')
     seed_result = json.loads((FIXTURE / 'seeded.json').read_text())
     guest.require(seed_result['boot'] == Path('/proc/sys/kernel/random/boot_id').read_text()
-                  and 0 < seed_result['remaining_seconds'] <= 1, 'expiry:one-second-seed')
+                  and 0 < seed_result['remaining_seconds'] <= PAM_GRANT_SECONDS, 'expiry:initial-seed')
     session, props = wait_for(lambda: child_session(child), 'expiry:gdm-session-missing')
     scope = props['Scope']
     runtime = guest.run(['systemctl', 'show', scope, '--property=RuntimeMaxUSec', '--value'])

@@ -858,7 +858,7 @@ and [ChildUI notification surface](Application-UI-API.md#child-panel).
 | `check_e2e_reminder_child_station_binding` | Qualified on Fedora 44: Jordan's own overlay defaults/language and Cancel; Riley's saved 90-second ID through kiosk deletion/Cancel/reopen and deletion/Save/reopened defaults, with Jordan/request/policy preservation and zero grant. |
 | `check_e2e_reminder_fullscreen_preference` | Qualified saved false, Cancel of true draft and reopened false on both targets; no delivery credit. |
 | Natural reminder | Qualified on Ubuntu 26.04 through `check_e2e_natural_reminder_observation`: independently saved 30-second literal row, real ten-minute grant and native activity, natural delivery, current body/live balance/critical urgency, same-delivery UUID and removal at the natural lock. Shared `NaturalReminderJourney` and `AccessibleUI.natural_reminder_wait` scope notification samples to the pinned ChildUI owner's complete inventory; natural lock retains its separate qualified provider observation. Fullscreen and complete reminder histories remain separate. |
-| Fullscreen banner | Qualified on Ubuntu 26.04 through `check_e2e_fullscreen_reminder_visibility`. `FullscreenReminderJourney` composes two independently restored Riley intervals through the shared `natural_reminder_wait` observer: enabled fullscreen delivery and windowed high-urgency delivery followed by the game's single normal fullscreen action and same-delivery surface suppression. Public `delivery_id` metadata retains identity without hidden-control reads. Both branches preserve saved reminders and Parent policy and prove continued use of the original game. The observer authorizes its first move only after successful launch and independent owned-window/mode readback. The affected natural-reminder regression passed; other platforms and complete reminder histories remain separate. |
+| Fullscreen banner | `FullscreenReminderJourney` composes two independently restored Riley intervals through the shared `natural_reminder_wait` observer. Both prepare and verify real input in the fullscreen game before the warning. The observer checks the original game's identity and real visible delivery or suppression through public `delivery_id` and visibility. A visible warning also supplies its text and Critical urgency. Both branches preserve saved reminders and Parent policy. [Notification tests](../../tests/child/notifications.test.mjs) check High urgency and preserve the same banner across fullscreen changes under controlled timing. The revised installed sequence uses `check_e2e_fullscreen_reminder_visibility` for qualification. |
 
 `AccessibleUI.overlay_reminder_open/read/editor/delete/fullscreen/commit`
 and `UiObservations` validate canonical records and prior draft source.
@@ -4462,8 +4462,8 @@ bindings on Ubuntu 26.04 through three real overlay approvals: Jamie/exclude,
 Sam/include and Jamie/exclude. It reuses `native_usable_app` / `native_blocked_app`
 and the native binding of `onpc_request_flow::flatpak_temporary_access`.
 Native H/S launchers use `--instance secondary`, preserving A's original primary
-window. A blocked entry uses the shared visible-grid attempt or attributed
-command-denial witness without asserting launcher visibility. Each approval
+window. A blocked entry records the shared visible-grid attempt or attributed
+command denial after GNOME displays `No results` for the exact query. Each approval
 keeps A usable and H denied; inclusion opens S and replacement exclusion closes
 that captured S activity. Final Parent reads preserve the saved A/H/S choices.
 Collection, owned cleanup and baseline restoration passed, as did the affected

@@ -2187,7 +2187,7 @@ Variant: history: warnings play renewal reboot
 
 **Steps:**
 
-- Read both children's defaults and save German for Riley and English for Jordan. With zero daily time approve four minutes, use Riley's app and observe the natural one-minute and fifteen-second default warnings and lock. Save a literal fifteen-second warning and compare it across language changes. Renew eight minutes for visible Critical fullscreen delivery, then renew for suppressed High delivery of the same saved row. Keep each warning's identity through natural locking. Save Jordan's empty list, reboot normally, read both retained choices and renew Riley's time for custom delivery. Compare both independent policies and finish at sign-in.
+- Read both children's defaults and save German for Riley and English for Jordan. With zero daily time approve four minutes, use Riley's app and observe the natural one-minute and fifteen-second default warnings and lock. Save a literal fifteen-second warning and compare it across language changes. Renew eight minutes, prepare fullscreen play before the warning and observe visible Critical delivery. Renew to check suppression of the same saved row during fullscreen play. Keep each warning's identity through natural locking. Save Jordan's empty list, reboot normally, read both retained choices and renew Riley's time for custom delivery. Compare both independent policies and finish at sign-in.
 
 <div style="color: gray">
 

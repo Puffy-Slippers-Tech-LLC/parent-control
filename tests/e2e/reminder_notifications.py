@@ -233,7 +233,8 @@ class ReminderNotificationsJourney(InstalledJourney):
             guard()
             journey.ui.natural_reminder_record = {
                 'records': [DEFAULTS[1], DEFAULTS[0]] if name == 'first' else [journey.custom],
-                'language': 'de', 'fullscreen': None if name == 'first' else name == 'enabled'}
+                'language': 'de', 'fullscreen': None if name == 'first' else name == 'enabled',
+                'close_previous_game': name == 'disabled'}
             result = journey.ui.observe('child-reminder-history-wait')['natural_reminder']
             guard()
             require(result['removed'] is True, 'reminder-notifications:lock-removal')

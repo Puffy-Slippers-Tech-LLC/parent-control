@@ -228,13 +228,17 @@ test('suppression, monitor loss, locking and construction errors balance composi
     monitor.inFullscreen = true;
     h.notifier.preferences = {show_in_fullscreen: false, reminders};
     h.notifier.present(reminders[2], false);
+    const original = h.notifier.current;
+    assert.equal(original.urgency, 'high');
     assert.equal(h.unredirectHolds(), 1);
     const sync = () => h.context.global.display.handlers['in-fullscreen-changed'].forEach(fn => fn());
     monitor.inFullscreen = false;
     sync();
+    assert.equal(h.notifier.current, original);
     assert.equal(h.unredirectHolds(), 2);
     monitor.inFullscreen = true;
     sync();
+    assert.equal(h.notifier.current, original);
     assert.equal(h.unredirectHolds(), 1);
     monitor.inFullscreen = false;
     sync();

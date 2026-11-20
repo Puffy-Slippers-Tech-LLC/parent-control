@@ -171,6 +171,11 @@ NATIVE_PRODUCT = 'ONPC Allowed Fixture'
 NATIVE_SOFT_PRODUCT = 'ONPC Soft Fixture'
 NATIVE_HARD_PRODUCT = 'ONPC Hard Fixture'
 NATIVE_ALIAS_PRODUCT = 'ONPC Shared Target Fixture'
+NATIVE_GRID_DENIAL_OPERATIONS = frozenset({
+    'native-grid-blocked', 'native-alias-grid-blocked', 'native-hard-grid-blocked',
+    'native-soft-grid-blocked',
+})
+NATIVE_GRID_DENIAL_OUTCOMES = frozenset({'launcher-focused', 'empty-search-command-denied'})
 NATIVE_EXECUTABLES = {role: '/opt/onpc-test-fixtures/Applications/' + relative
     for role, relative in {
         'A': 'Exact Fixture.AppImage', 'H': 'Whitespace/Path With Spaces.AppImage',
@@ -3044,17 +3049,19 @@ class AccessibleUI:
         """Retired name/role selector; public automation IDs are mandatory."""
         raise UiError('ui:legacy-selector-refused')
 
-    def wait(self, predicate, code, *, prompt_in_predicate=False):
+    def wait(self, predicate, code, *, prompt_in_predicate=False, retry_incomplete=True):
         trace = self.wait_trace(predicate) if self.wait_trace is not None else nullcontext(None)
         with trace as checkpoint:
             return self._wait(predicate, code, prompt_in_predicate=prompt_in_predicate,
-                              checkpoint=checkpoint)
+                              retry_incomplete=retry_incomplete, checkpoint=checkpoint)
 
-    def _wait(self, predicate, code, *, prompt_in_predicate, checkpoint):
-        deadline = time.monotonic() + self.timeout
+    def _wait(self, predicate, code, *, prompt_in_predicate, retry_incomplete, checkpoint):
+        # The greeter return supervisor budgets its worker separately. A
+        # zero timeout requests one complete read without internal polling.
+        deadline = time.monotonic() + self.timeout if self.timeout else None
         incomplete = None
         attempt = 0
-        while True:
+        while attempt == 0 or (deadline is not None and time.monotonic() < deadline):
             attempt += 1
             if checkpoint is not None:
                 checkpoint('dispatch', attempt)
@@ -3082,6 +3089,8 @@ class AccessibleUI:
                     value = predicate()
                 outcome = 'pending'
             except self.query_errors:
+                if not retry_incomplete:
+                    raise
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
                 value = None
@@ -3090,7 +3099,7 @@ class AccessibleUI:
                     self.kiosk_diagnostic.query_errors += 1
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
-                if str(error) not in (
+                if not retry_incomplete or str(error) not in (
                         'ui:incomplete-tree', 'ui:stale-picker', 'ui:stale-request-form',
                         'ui:gdm-stale-tree', 'ui:station-stale-tree', 'ui:language-stale',
                         'ui:system-prompt-observation-failed'):
@@ -3119,25 +3128,27 @@ class AccessibleUI:
                 self.incomplete_observations = self.incomplete_observations[-16:]
                 value = None
                 outcome = 'incomplete'
-            if value:
+            remaining = deadline - time.monotonic() if deadline is not None else None
+            if value and (remaining is None or remaining > 0):
                 if checkpoint is not None:
                     checkpoint('ready', attempt)
                 return value
             if checkpoint is not None:
                 checkpoint(outcome, attempt)
             self.invalidate_observation()
-            if time.monotonic() >= deadline:
-                if checkpoint is not None:
-                    checkpoint('timeout', attempt)
-                if incomplete is not None and str(incomplete) in (
-                        'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
-                        'ui:station-stale-tree', 'ui:language-stale',
-                        'ui:system-prompt-observation-failed'):
-                    raise incomplete
-                raise UiError('ui:timeout:' + code) from incomplete
+            if remaining is None or remaining <= 0:
+                break
             if checkpoint is not None:
                 checkpoint('sleep', attempt)
-            time.sleep(.2)
+            time.sleep(min(.2, remaining))
+        if checkpoint is not None:
+            checkpoint('timeout', attempt)
+        if incomplete is not None and str(incomplete) in (
+                'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
+                'ui:station-stale-tree', 'ui:language-stale',
+                'ui:system-prompt-observation-failed'):
+            raise incomplete
+        raise UiError('ui:timeout:' + code) from incomplete
 
     def target(self, name=None, roles=(), **kwargs):
         raise UiError('ui:legacy-selector-refused')
@@ -8317,19 +8328,10 @@ class AccessibleUI:
         require(product in (PRODUCT, NATIVE_PRODUCT, NATIVE_ALIAS_PRODUCT, NATIVE_SOFT_PRODUCT, NATIVE_HARD_PRODUCT, *SNAP_SEARCH_PRODUCTS.values(),
                             *FLATPAK_SEARCH_PRODUCTS.values()), 'ui:search-binding')
         if not self.provider_contracts['gnome-shell']['application_id']:
-            owner, nodes, snapshot, facts = self.shell_search_snapshot()
-            if owner is None:
-                return None
-            scoped = self.snapshot_scope(nodes, snapshot, owner)
             # Running apps also have Shell-owned dock buttons with the same
             # name. Only Overview owns this search result; a dock button cannot
             # authorize search input, even when it is showing and sensitive.
-            overviews = [node for node in scoped if facts[node]['role'] == 'panel'
-                         and facts[node]['name'] == 'Overview' and facts[node]['showing']]
-            require(len(overviews) <= 1, 'ui:shell-overview-ambiguous')
-            if not overviews:
-                return None
-            scoped = self.snapshot_scope(nodes, snapshot, overviews[0])
+            scoped, nodes, snapshot, facts = self.shell_search_overview()
             candidates = []
             for node in scoped:
                 if (facts[node]['role'] not in ('button', 'push button')
@@ -8359,6 +8361,30 @@ class AccessibleUI:
         require(' '.join(target.get_name().split()) == product or labels == [product],
                 'ui:search-result')
         return target
+
+    def shell_search_overview(self):
+        """Scope a complete public Shell snapshot to its visible Overview."""
+        owner, nodes, snapshot, facts = self.shell_search_snapshot()
+        scoped = self.snapshot_scope(nodes, snapshot, owner) if owner is not None else ()
+        overviews = [node for node in scoped if facts[node]['role'] == 'panel'
+                     and facts[node]['name'] == 'Overview' and facts[node]['showing']]
+        require(len(overviews) <= 1, 'ui:shell-overview-ambiguous')
+        return (self.snapshot_scope(nodes, snapshot, overviews[0]) if overviews else (),
+                nodes, snapshot, facts)
+
+    def completed_fixture_search(self, product):
+        """Read an exact launcher or Shell's completed empty-search result."""
+        if not self.search_query(product):
+            return None
+        if self.launchable_result(product) is not None:
+            return 'launcher'
+        scoped, _nodes, _snapshot, facts = self.shell_search_overview()
+        # A missing launcher alone can mean a provider is still searching.
+        # Only Shell's visible completion label admits the no-results branch.
+        if any(facts[node]['showing'] and facts[node]['role'] == 'label'
+               and facts[node]['name'] == 'No results' for node in scoped):
+            return 'no-results'
+        return None
 
     def help_desktop_clear(self):
         """Check the parent desktop after each stream read, with no product window."""
@@ -9153,9 +9179,12 @@ class AccessibleUI:
         neither reacquisition nor another warning can supply absence evidence.
         """
         if history:
-            require(type(record) is dict and set(record) == {'records', 'language', 'fullscreen'}
+            require(type(record) is dict and set(record) == {
+                    'records', 'language', 'fullscreen', 'close_previous_game'}
                     and record['language'] in ('en', 'de')
                     and (record['fullscreen'] is None or type(record['fullscreen']) is bool)
+                    and type(record['close_previous_game']) is bool
+                    and (not record['close_previous_game'] or record['fullscreen'] is False)
                     and type(record['records']) is list and len(record['records']) in (1, 2),
                     'ui:reminder-history-binding')
             fullscreen = record['fullscreen']
@@ -9179,24 +9208,25 @@ class AccessibleUI:
         require(fullscreen is None or type(fullscreen) is bool, 'ui:natural-reminder-mode')
         game_application = game_before = None
         if fullscreen is not None:
-            # Complete the normal game entry and arm its one supported mode
-            # action before approaching the short, unchanged warning interval.
-            for operation in ('game-fullscreen-command' if fullscreen else 'game-command',
-                              'game-opened', 'game-fullscreen-level' if fullscreen else
-                              'game-windowed-level'):
+            # Complete all game input with setup time remaining. The warning
+            # interval only observes the already-fullscreen game and banner.
+            if history and binding['close_previous_game']:
+                for operation in ('game-resumed-close', 'game-closed'):
+                    self.game_operation(operation, child=CHILD)
+            for operation in ('game-fullscreen-command', 'game-opened', 'game-fullscreen-level'):
                 self.game_operation(operation, child=CHILD)
             # Command entry normally ends its observer process with input
             # consumed. Here the successful launch and independent owned
             # window/mode result authorize a distinct move in this process.
             # A failed launch or result never reaches this boundary.
             self.input_uncertain = False
-            for operation in ('game-move', 'game-moved'):
+            for operation in ('game-move', 'game-moved', 'game-resume', 'game-resumed'):
                 self.game_operation(operation, child=CHILD)
-            game_before = self.game_operation('game-activity', child=CHILD)
+            game_before = self.game_operation('game-resumed-activity', child=CHILD)
             game_root = self.snapshot_owned_target('onpc-fixture-game-primary', check_prompt=True)
             require(game_root is not None, 'ui:fullscreen-reminder-game-lost')
             game_application = game_root.get_application()
-            self._reminder_game_state(game_application, 1, 'Fullscreen' if fullscreen else 'Windowed')
+            self._reminder_game_state(game_application, 2, 'Fullscreen')
         session, locked = self.natural_expiry_session()
         require(not locked, 'ui:natural-reminder-locked-entry')
         require(self.application_ui is not None, 'ui:natural-reminder-observer-lost')
@@ -9232,8 +9262,14 @@ class AccessibleUI:
             require(remaining is not None, 'ui:natural-reminder-observer-lost')
             seconds = remaining.getValue()
             require(type(seconds) is int and 0 <= seconds <= 600, 'ui:natural-reminder-balance')
-            warning = self.snapshot_owned_target('child-time-notification', showing=False,
-                                                 observation=observation)
+            surface = self._reminder_surface(application) if fullscreen is not None else None
+            if fullscreen is False or fullscreen is True and emission is not None:
+                warning = surface
+            else:
+                warning = self.snapshot_owned_target('child-time-notification', showing=False,
+                                                     observation=observation)
+                if fullscreen is True and (surface is None or not surface['visible']):
+                    warning = None  # Wait for the first public presentation at its original deadline.
             if initial is None:
                 require(not locked and seconds >= (120 if history and len(records) == 2 else 300) and warning is None
                         and (not history or len(records) != 2 or seconds < 300),
@@ -9264,9 +9300,16 @@ class AccessibleUI:
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
                 require(emission is not None or seconds > threshold - 15,
                         'ui:natural-reminder-delivery-deadline')
+            elif fullscreen is not None and emission is not None:
+                require(warning['delivery_id'] == delivery_id and warning['visible'] is fullscreen,
+                        'ui:fullscreen-reminder-visibility-changed')
             else:
-                require(self.showing(warning), 'ui:natural-reminder-hidden')
-                current_id = warning.getValue()
+                if fullscreen is False:
+                    require(warning['visible'] is False, 'ui:fullscreen-reminder-not-suppressed')
+                    current_id = warning['delivery_id']
+                else:
+                    require(self.showing(warning), 'ui:natural-reminder-hidden')
+                    current_id = warning.getValue()
                 require(type(current_id) is str and re.fullmatch(
                     r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', current_id),
                     'ui:natural-reminder-delivery-identity')
@@ -9277,18 +9320,23 @@ class AccessibleUI:
                             and current_id not in {item['delivery_id'] for item in emissions},
                             'ui:natural-reminder-replaced')
                     record = records[len(emissions)]
-                message = self.snapshot_owned_target('child-time-notification-message',
-                                                     observation=observation)
-                urgency = self.snapshot_owned_target('child-time-notification-urgency',
-                                                     observation=observation)
-                require(message is not None and urgency is not None, 'ui:natural-reminder-incomplete')
-                # Text and remaining time change together on countdown ticks.
-                # Read them in one public snapshot to avoid mixing two ticks.
-                content = message.ui_element.snapshot()
-                require(content['visible'] is True, 'ui:natural-reminder-hidden')
-                body, live = content['text'], content['value']
-                priority = urgency.getValue()
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
+                if fullscreen is False:
+                    # A suppressed surface exposes its identity and visibility.
+                    # Its hidden text and urgency controls cannot be read.
+                    body = priority = None
+                    live = remaining.getValue()
+                else:
+                    message = self.snapshot_owned_target('child-time-notification-message',
+                                                         observation=observation)
+                    urgency = self.snapshot_owned_target('child-time-notification-urgency',
+                                                         observation=observation)
+                    require(message is not None and urgency is not None, 'ui:natural-reminder-incomplete')
+                    # Text and remaining time change together on countdown ticks.
+                    content = message.ui_element.snapshot()
+                    require(content['visible'] is True, 'ui:natural-reminder-hidden')
+                    body, live = content['text'], content['value']
+                    priority = urgency.getValue()
                 require(type(live) is int and 0 < live <= threshold,
                         'ui:natural-reminder-trigger')
                 if new_delivery:
@@ -9303,23 +9351,25 @@ class AccessibleUI:
                         require(type(segments) is int and segments >= 0,
                                 'ui:natural-reminder-countdown')
                         auto_closes = segments <= 5
-                require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
-                after = remaining.getValue()
-                if record['text']:
-                    expected_body = record['text']
+                if fullscreen is False:
+                    require(self._reminder_surface(application) == warning, 'ui:natural-reminder-replaced')
                 else:
-                    count = math.ceil(live / 60) if live >= 60 else live
-                    unit = ('Minute' if count == 1 else 'Minuten') if live >= 60 else (
-                        'Sekunde' if count == 1 else 'Sekunden')
-                    if language == 'en':
-                        unit = ('minute' if count == 1 else 'minutes') if live >= 60 else (
-                            'second' if count == 1 else 'seconds')
-                    expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
-                    if live < 60:
-                        expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
-                require(body == expected_body, 'ui:natural-reminder-content')
-                require(priority == ('high' if fullscreen is False else 'critical'),
-                        'ui:natural-reminder-urgency')
+                    require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
+                after = remaining.getValue()
+                if fullscreen is not False:
+                    expected_body = record['text']
+                    if not expected_body:
+                        count = math.ceil(live / 60) if live >= 60 else live
+                        unit = ('Minute' if count == 1 else 'Minuten') if live >= 60 else (
+                            'Sekunde' if count == 1 else 'Sekunden')
+                        if language == 'en':
+                            unit = ('minute' if count == 1 else 'minutes') if live >= 60 else (
+                                'second' if count == 1 else 'seconds')
+                        expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
+                        if live < 60:
+                            expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
+                    require(body == expected_body, 'ui:natural-reminder-content')
+                    require(priority == 'critical', 'ui:natural-reminder-urgency')
                 require(after - 2 <= live <= seconds + 2, 'ui:natural-reminder-balance')
                 delivery_id = current_id
                 if new_delivery:
@@ -9377,73 +9427,39 @@ class AccessibleUI:
         require(draft is not None and self.api.Text.get_character_count(draft) == 18
                 and self.api.Text.get_text(draft, 0, 18) == 'ONPC fixture draft',
                 'ui:fullscreen-reminder-game-draft')
-        return root, target
+        return root
+
+    def _reminder_surface(self, application):
+        matches = [value for value in application.client.listSurfaces()
+                   if value['id'] == 'child-time-notification']
+        require(len(matches) <= 1, 'ui:fullscreen-reminder-surface')
+        if not matches:
+            return None
+        value = matches[0]
+        require(value['application_id'] == CHILD_PANEL_APPLICATION
+                and type(value['visible']) is bool and value['enabled'] is value['visible'],
+                'ui:fullscreen-reminder-surface')
+        return value
 
     def _fullscreen_reminder_result(self, application, session, emission,
                                     game_application, game_before, enabled):
-        """Keep delivery identity and visibility separate from urgency and expiry."""
-        client = application.client
-        deadline = emission['read_bounds'][0] + emission['seconds'] * 1_000_000_000
-        identity = emission['delivery_id']
-        panel = client.getSurfaceById('child-screen-time-indicator')
-        def surface():
-            require(time.monotonic_ns() < deadline
-                    and self.natural_expiry_session() == (session, False),
-                    'ui:fullscreen-reminder-warning-expired')
-            matches = [value for value in client.listSurfaces()
-                       if value['id'] == 'child-time-notification']
-            require(len(matches) == 1 and matches[0].get('delivery_id') == identity,
-                    'ui:fullscreen-reminder-warning-replaced')
-            value = matches[0]
-            require(value['application_id'] == CHILD_PANEL_APPLICATION
-                    and type(value['visible']) is bool and type(value['enabled']) is bool,
-                    'ui:fullscreen-reminder-surface')
-            # The panel remains a public logical surface during fullscreen.
-            # Hidden notification controls are never read or activated here.
-            remaining = panel.getValue('child-remaining-time')
-            require(type(remaining) is int and 0 < remaining <= emission['seconds'] + 2,
-                    'ui:fullscreen-reminder-warning-expired')
-            return value
-        root, target = self._reminder_game_state(game_application, 1,
-                                                'Fullscreen' if enabled else 'Windowed')
-        mode = target('mode')
-        before = surface()
-        require(before['visible'] is True and before['enabled'] is True,
-                'ui:fullscreen-reminder-visible-entry')
-        if not enabled:
-            # One fresh recipient proof and one action, outside every retry.
-            self._invoke_target(target('fullscreen'))
-        while True:
-            started = time.monotonic_ns()
-            value = surface()
-            mode.clear_cache_single()
-            if mode.get_name() == 'Fullscreen; level: 1' and value['visible'] is enabled:
-                require(value['enabled'] is enabled, 'ui:fullscreen-reminder-surface')
-                break
-            time.sleep(.1)
-        bounds = [started, time.monotonic_ns()]
-        require(bounds[1] < deadline, 'ui:fullscreen-reminder-warning-expired')
-        # Independent usable activity in the original fullscreen game. Read
-        # only its scoped public controls while the owned banner is suppressed.
-        root, target = self._reminder_game_state(game_application, 1, 'Fullscreen')
+        """Compare the same live notification and the already-fullscreen game."""
+        started = time.monotonic_ns()
+        root = self._reminder_game_state(game_application, 2, 'Fullscreen')
         require(root.get_process_id() == game_before['pid']
                 and [root.bus, root.path] == game_before['endpoint'],
                 'ui:fullscreen-reminder-game-replaced')
-        self._invoke_target(target('move'))
-        score = target('score')
-        def moved():
-            score.clear_cache_single()
-            return score.get_name() == 'Moves: 2; token: 2'
-        self.wait(moved, 'fullscreen-reminder-game-usable')
-        root, target = self._reminder_game_state(game_application, 2, 'Fullscreen')
-        require(surface()['visible'] is enabled, 'ui:fullscreen-reminder-visibility-changed')
-        self._invoke_target(target('close'))
-        # Let normal window closure reveal the same banner before any broader
-        # desktop reads or subsequent preference/policy comparisons.
-        while not surface()['visible']:
-            time.sleep(.1)
+        value = self._reminder_surface(application)
+        require(value is not None and value['delivery_id'] == emission['delivery_id']
+                and value['visible'] is enabled, 'ui:fullscreen-reminder-visibility')
+        require(self.natural_expiry_session() == (session, False),
+                'ui:fullscreen-reminder-warning-expired')
+        completed = time.monotonic_ns()
+        require(completed < emission['read_bounds'][0] + emission['seconds'] * 1_000_000_000,
+                'ui:fullscreen-reminder-warning-expired')
         return {'fullscreen_enabled': enabled, 'visible': value['visible'],
-                'visibility_read_bounds': bounds, 'delivery_id': identity,
+                'visibility_read_bounds': [started, completed],
+                'delivery_id': emission['delivery_id'],
                 'game_before': game_before, 'game_usable_moves': 2}
 
     def child_countdown_animation(self, desired=None, *, child=CHILD):
@@ -14255,15 +14271,13 @@ class AccessibleUI:
         separate = operation in NATIVE_DESKTOP_SOFT_OPERATIONS
         policy = NATIVE_DESKTOP_POLICY_BINDINGS.get(operation)
         if policy and policy[1] == 'denied':
-            started = time.monotonic()
             def denied():
                 require_active_launch_session(unlocked=True)
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
                     CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
                 require(self.native_app_closed('secondary', desktop=False, complete_absence=True),
                         'ui:native-desktop-blocked-window')
-                return time.monotonic() - started >= 15
-            self.wait(denied, 'native-desktop-denied', prompt_in_predicate=True)
+            self.observe_launch_denial(denied, 'native-desktop-denied')
             self.standard_shell_desktop(no_prompt=True)
             return None
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -14447,7 +14461,6 @@ class AccessibleUI:
             return self.native_files_launch(role, child=child,
                                             qualify_refusals=action == 'launch-refusals')
         if action == 'denied':
-            started = time.monotonic()
             def denied():
                 require_active_launch_session(unlocked=True)
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -14456,8 +14469,7 @@ class AccessibleUI:
                         'ui:native-files-blocked-window')
                 require(self.native_files_snapshot(role, child=child, active=False) is not None,
                         'ui:native-files-denial-recipient')
-                return time.monotonic() - started >= 15
-            self.wait(denied, 'native-files-denied', prompt_in_predicate=True)
+            self.observe_launch_denial(denied, 'native-files-denied')
             return None
         if action in ('policy-activity', 'policy-closed'):
             return self.native_policy_activity(closed=action == 'policy-closed', role=role,
@@ -14665,7 +14677,6 @@ class AccessibleUI:
                                        if marker in result.stderr],
                 }
                 raise error
-            stable = time.monotonic()
             def absent():
                 if locked:
                     require(ready(), 'ui:native-blocked-restriction')
@@ -14675,13 +14686,10 @@ class AccessibleUI:
                     # owned app absence, not visibility of that control.
                     require_active_launch_session(unlocked=True)
                     require(self.native_app_closed(instance, desktop=False, kind=kind,
-                            complete_absence=flatpak or kind == 'game'),
+                            complete_absence=True),
                             'ui:native-blocked-window')
-                return time.monotonic() - stable >= 2
-            if locked:
-                self.wait(absent, 'native-blocked-restriction', prompt_in_predicate=True)
-            else:
-                self.wait(absent, 'native-blocked-absence')
+            self.observe_launch_denial(absent,
+                'native-blocked-restriction' if locked else 'native-blocked-absence', seconds=2)
             if self.timing is not None:
                 self.timing({'event': 'ui-native-execution-denial',
                     'source': 'stderr' if flatpak else 'kernel',
@@ -14952,14 +14960,10 @@ class AccessibleUI:
         elif action == 'grid-hidden':
             require(kind == 'flatpak', 'ui:flatpak-grid-binding')
             require_active_launch_session()
-            stable = time.monotonic()
             def hidden():
-                nonlocal stable
-                require(self.search_query(products[role]), 'ui:flatpak-search-query')
-                if self.launchable_result(products[role]) is not None:
-                    stable = time.monotonic()
-                    return False
-                return time.monotonic() - stable >= 2
+                result = self.completed_fixture_search(products[role])
+                require(result != 'launcher', 'ui:flatpak-blocked-launcher-visible')
+                return result == 'no-results'
             self.wait(hidden, 'flatpak-hidden-grid', prompt_in_predicate=True)
             self.prepare_launch_desktop()
             self.wait(lambda: self.native_app_closed(instance, kind=kind, complete_absence=True),
@@ -15292,34 +15296,47 @@ class AccessibleUI:
         self.activate_id('onpc-fixture-native-' + instance + '-close')
 
     def native_grid_blocked(self, product, *, instance='primary', child=EXISTING_CHILD, role=None):
-        """Choose visible-launch or attributed command denial before input."""
+        """Qualify a visible grid recipient or prove the declared command denial."""
         require(child == EXISTING_CHILD, 'ui:native-child-binding')
         require(not self.input_uncertain, 'ui:uncertain-input')
-        stable = time.monotonic()
-        def search_result():
-            require_active_launch_session()
-            require(self.native_app_closed(instance, desktop=False), 'ui:native-window-exists')
-            require(self.search_query(product), 'ui:native-search-query')
-            target = self.launchable_result(product)
-            return (target,) if target is not None or time.monotonic() - stable >= 2 else False
-        target, = self.wait(search_result, 'native-blocked-grid', prompt_in_predicate=True)
-        if target is None:
-            self.prepare_launch_desktop()
-            self.invalidate_observation()
-            self.native_launch_command(instance, child=child, role=role, blocked=True)
-            return False
-        self.focus_search_result(product)
-        return True
+        require_active_launch_session(unlocked=True)
+        require(self.native_app_closed(instance, desktop=False, complete_absence=True),
+                'ui:native-window-exists')
+        result = self.wait(lambda: self.completed_fixture_search(product),
+                           'native-completed-search', prompt_in_predicate=True)
+        if result == 'launcher':
+            self.focus_search_result(product)
+            return 'launcher-focused'
+        self.prepare_launch_desktop()
+        self.invalidate_observation()
+        self.native_launch_command(instance, child=child, role=role, blocked=True)
+        return 'empty-search-command-denied'
 
     def native_grid_denied(self, instance='primary'):
-        stable = time.monotonic()
         def denied():
-            require_active_launch_session()
-            require(self.native_app_closed(instance, desktop=False), 'ui:native-blocked-window')
-            return time.monotonic() - stable >= 15
-        self.wait(denied, 'native-blocked-absence', prompt_in_predicate=True)
+            require_active_launch_session(unlocked=True)
+            require(self.native_app_closed(instance, desktop=False, complete_absence=True),
+                    'ui:native-blocked-window')
+        self.observe_launch_denial(denied, 'native-blocked-absence')
         self.prepare_launch_desktop()
         self.wait(lambda: self.native_app_closed(instance), 'native-blocked-desktop')
+
+    def observe_launch_denial(self, read, code, *, seconds=15):
+        """Require a full post-input absence interval with complete observations."""
+        started = previous = None
+
+        def sample():
+            nonlocal started, previous
+            read()
+            observed = time.monotonic()
+            if started is None:
+                started = observed
+            else:
+                require(observed - previous <= 5, 'ui:' + code + '-observation-gap')
+            previous = observed
+            return observed - started >= seconds
+
+        self.wait(sample, code, prompt_in_predicate=True, retry_incomplete=False)
 
     def native_app_operation(self, operation, *, child=EXISTING_CHILD):
         require(operation in NATIVE_APP_OPERATIONS, 'ui:native-operation')
@@ -15369,15 +15386,13 @@ class AccessibleUI:
             self.native_grid_denied()
         elif operation == 'native-desktop-denied':
             require(child == EXISTING_CHILD, 'ui:native-child-binding')
-            started = time.monotonic()
             def denied():
                 require_active_launch_session(unlocked=True)
                 require(os.getuid() == os.geteuid() == pwd.getpwnam(
                     CHILD_ACCOUNTS[child]).pw_uid, 'ui:native-desktop-account')
                 require(self.native_app_closed(desktop=False, complete_absence=True),
                         'ui:native-desktop-blocked-window')
-                return time.monotonic() - started >= 15
-            self.wait(denied, 'native-desktop-denied', prompt_in_predicate=True)
+            self.observe_launch_denial(denied, 'native-desktop-denied')
             self.standard_shell_desktop(no_prompt=True)
         elif operation in ('native-grid', 'native-grid-refusals'):
             if operation == 'native-grid-refusals' and child == CHILD:
@@ -15984,9 +15999,8 @@ class AccessibleUI:
                      self.native_app_operation(operation.removeprefix('overlay-').removeprefix('parent-'),
                                              child=bound_child if overlay_native else
                                              PARENT if operation in PARENT_NATIVE_OPERATIONS else EXISTING_CHILD))
-            if operation in ('native-grid-blocked', 'native-alias-grid-blocked',
-                              'native-hard-grid-blocked', 'native-soft-grid-blocked'):
-                result['grid_launch_required'] = value
+            if operation in NATIVE_GRID_DENIAL_OPERATIONS:
+                result['grid_outcome'] = value
             elif value is not None:
                 result['activity'] = value
             if operation.removeprefix('overlay-') in ('native-grid', 'native-grid-refusals', 'native-alias-grid', 'native-soft-grid'):
@@ -17568,7 +17582,11 @@ def wait_for_greeter_return(program):
                 if error.stderr:
                     sys.stderr.buffer.write(error.stderr)
                 break
+            if time.monotonic() >= deadline:
+                break
             current = greeter_return_binding(deadline)
+            if time.monotonic() >= deadline:
+                break
             if current == binding and last.returncode not in (0, 75):
                 sys.stderr.buffer.write(last.stderr)
                 raise SystemExit(last.returncode)

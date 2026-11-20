@@ -87,7 +87,7 @@ as a solution to the stricter question.
 ## What existing observations do not establish
 
 The existing [graphical expiry owner](../tests/integration/system_graphical_expiry.py)
-contains a one-second login history, retained natural lock, legitimate time
+contains an installed login with a finite startup grant, retained natural lock, legitimate time
 recovery and other-user continuity observations. Its
 [zero-time PAM checks](../tests/integration/system_session_expiry.py) observe
 denied authentication/account checks and successful positive-time admission.

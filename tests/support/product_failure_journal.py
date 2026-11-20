@@ -1,6 +1,7 @@
-"""Guest-side qualification reader for the product's native failure journal."""
+"""Read qualified product journal evidence and classify it for an installed case."""
 
 from dataclasses import asdict, dataclass
+from enum import StrEnum
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,13 @@ import time
 
 MESSAGE = "Oh No! Parent Control product failure"
 COMPONENTS = ("broker", "parent", "child", "kiosk")
+ALLOWABLE_CATEGORIES = frozenset({"backend", "dependency", "operation", "presentation", "startup"})
+SOURCES = {
+    "broker": ("broker", "systemd"),
+    "parent": ("gtk",),
+    "child": ("gtk", "gnome-shell", "shell-log"),
+    "kiosk": ("gtk", "systemd"),
+}
 BROKER_UNIT = "oh-no-parent-control-broker.service"
 KIOSK_APP_UNIT = "oh-no-parent-control-app.service"
 BROKER_STARTUP_FAILURE = "onpc.runtime bootstrap failed"
@@ -23,6 +31,9 @@ BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 JOURNAL_SOCKET = "/run/systemd/journal/socket"
 SETTLE_SECONDS = 1
 MAX_OUTPUT = 256 * 1024
+MAX_DIAGNOSTIC_EVENTS = 8
+MAX_USEC = 10**19 - 1
+CATEGORY = re.compile(r"[a-z][a-z0-9-]{0,47}")
 FIELDS = (
     "__CURSOR,__MONOTONIC_TIMESTAMP,_BOOT_ID,_TRANSPORT,_UID,_PID,_EXE,_COMM,"
     "_CMDLINE,_SYSTEMD_UNIT,_SYSTEMD_USER_UNIT,MESSAGE,"
@@ -47,6 +58,80 @@ class Event:
     source: str
 
 
+@dataclass(frozen=True)
+class Allowance:
+    component: str
+    category: str
+    start_usec: int
+    end_usec: int
+
+    def __post_init__(self):
+        if (self.component not in COMPONENTS or not isinstance(self.category, str)
+                or self.category not in ALLOWABLE_CATEGORIES
+                or not _valid_usec(self.start_usec) or not _valid_usec(self.end_usec)
+                or self.start_usec >= self.end_usec):
+            raise ValueError("invalid product fault allowance")
+
+    def matches(self, event):
+        return (event.component == self.component and event.category == self.category
+                and self.start_usec <= event.monotonic_usec < self.end_usec)
+
+
+class _Reason(StrEnum):
+    AUTHORIZATION = "failure observation requires the authorized guest reader"
+    QUERY = "journal query unavailable"
+    BOUND = "journal output exceeded its bound"
+    OUTPUT = "invalid journal output"
+    SPAN = "invalid or changed journal span"
+    OPEN = "opening journal boundary unavailable"
+    CLOSE = "closing journal boundaries unavailable"
+    BOOT = "unexpected journal boot"
+    LOSS = "journal reported dropped records"
+    TIME = "missing or malformed journal time"
+    FORMAT = "unsupported failure record format"
+    HEADER = "invalid failure record header"
+    CATEGORY = "invalid failure category"
+    OCCURRENCE = "invalid failure occurrence time"
+    MALFORMED = "journal evidence unavailable or malformed"
+    ALLOWANCE = "product fault allowance outside the case span"
+
+
+_READER_REASONS = frozenset(_Reason)
+
+
+class FailureDisposition(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    BLOCKED = "blocked"
+
+
+@dataclass(frozen=True)
+class FailureEvaluation:
+    complete: bool
+    unexpected: tuple[Event, ...]
+    reason: str
+    unattributed: int
+
+    def disposition(self, *, case_failed=False):
+        if case_failed or self.unexpected:
+            return FailureDisposition.FAIL
+        return FailureDisposition.PASS if self.complete else FailureDisposition.BLOCKED
+
+    @property
+    def diagnostics(self):
+        lines = [
+            f"Unexpected product fault {event.component}/{event.category} "
+            f"from {event.source} at guest monotonic {event.monotonic_usec} us"
+            for event in self.unexpected[:MAX_DIAGNOSTIC_EVENTS]
+        ]
+        remaining = len(self.unexpected) - len(lines)
+        if remaining:
+            lines.append(f"{remaining} additional unexpected product faults")
+        if not self.complete:
+            lines.append(f"Product fault observation incomplete ({self.reason})")
+        return tuple(lines)
+
+
 class EvidenceUnavailable(ValueError):
     """The observed span cannot support a complete result."""
 
@@ -61,8 +146,25 @@ def _boot():
 def _usec(record, field):
     value = record.get(field)
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{1,19}", value):
-        raise EvidenceUnavailable("missing or malformed journal time")
+        raise EvidenceUnavailable(_Reason.TIME)
     return int(value)
+
+
+def _valid_usec(value):
+    return type(value) is int and 0 < value <= MAX_USEC
+
+
+def _valid_span(start, end):
+    return (isinstance(start, Boundary) and isinstance(end, Boundary)
+            and isinstance(start.boot_id, str) and re.fullmatch(r"[0-9a-f]{32}", start.boot_id)
+            and start.boot_id == end.boot_id and _valid_usec(start.monotonic_usec)
+            and _valid_usec(end.monotonic_usec) and start.monotonic_usec < end.monotonic_usec
+            and isinstance(start.token, str) and bool(start.token)
+            and isinstance(end.token, str) and bool(end.token) and start.token != end.token)
+
+
+def _span_identity(start, end):
+    return [start.boot_id, start.token, start.monotonic_usec, end.token, end.monotonic_usec]
 
 
 def _send(**fields):
@@ -81,35 +183,52 @@ def _records(boot, *matches, cursor=None, awaiting_marker=False):
     ]
     if cursor is not None:
         command.append(f"--cursor={cursor}")
+    reason = ""
     try:
         result = subprocess.run([*command, *matches], stdin=subprocess.DEVNULL,
                                 capture_output=True, timeout=3,
                                 env={**os.environ, "LC_ALL": "C"})
+        stdout, stderr = result.stdout, result.stderr
+        empty = result.returncode == 1 and not stdout and not stderr
+        if (result.returncode != 0 or stderr) and not (awaiting_marker and empty):
+            reason = _Reason.QUERY
+    except subprocess.TimeoutExpired as error:
+        stdout, stderr = error.output or b"", error.stderr or b""
+        reason = _Reason.QUERY
     except (OSError, subprocess.SubprocessError):
-        raise EvidenceUnavailable("journal command unavailable") from None
-    if len(result.stdout) + len(result.stderr) > MAX_OUTPUT:
-        raise EvidenceUnavailable("journal output exceeded its bound")
-    empty = result.returncode == 1 and not result.stdout and not result.stderr
-    if (result.returncode != 0 or result.stderr) and not (awaiting_marker and empty):
-        raise EvidenceUnavailable("journal query unavailable")
-    records = [json.loads(line) for line in result.stdout.splitlines()]
-    if any(not isinstance(item, dict) for item in records):
-        raise EvidenceUnavailable("invalid journal output")
-    return records
+        return [], _Reason.QUERY
+    if len(stdout) + len(stderr) > MAX_OUTPUT:
+        reason = _Reason.BOUND
+    records = []
+    for line in stdout[:MAX_OUTPUT].splitlines():
+        try:
+            record = json.loads(line)
+        except (ValueError, RecursionError):
+            record = None
+        if not isinstance(record, dict):
+            record = None
+        records.append(record)
+    return records, reason
 
 
 def capture_boundary():
     if os.geteuid() != 0:
-        raise EvidenceUnavailable("failure observation requires the authorized guest reader")
+        raise EvidenceUnavailable(_Reason.AUTHORIZATION)
     boot = _boot()
     token = secrets.token_hex(16)
     _send(MESSAGE="Oh No! Parent Control test boundary", **{FENCE: token})
     deadline = time.monotonic() + 4
     while time.monotonic() < deadline:
-        records = _records(boot, "_TRANSPORT=journal", "_UID=0", f"{FENCE}={token}",
-                           awaiting_marker=True)
+        records, reason = _records(boot, "_TRANSPORT=journal", "_UID=0", f"{FENCE}={token}",
+                                   awaiting_marker=True)
+        if reason:
+            raise EvidenceUnavailable(reason)
         if records:
-            record, = records
+            if any(record is None for record in records):
+                raise EvidenceUnavailable(_Reason.OUTPUT)
+            if len(records) != 1:
+                raise EvidenceUnavailable("test boundary provenance changed")
+            record = records[0]
             cursor = record.get("__CURSOR")
             if (record.get("_PID") != str(os.getpid()) or record.get("_BOOT_ID") != boot
                     or not isinstance(cursor, str) or not cursor):
@@ -126,7 +245,7 @@ def _is_boundary(record, boundary):
         and record.get("_BOOT_ID") == boundary.boot_id
         and record.get("_TRANSPORT") == "journal"
         and record.get("_UID") == "0"
-        and _usec(record, "__MONOTONIC_TIMESTAMP") == boundary.monotonic_usec
+        and record.get("__MONOTONIC_TIMESTAMP") == str(boundary.monotonic_usec)
     )
 
 
@@ -140,28 +259,34 @@ def _matches(*groups):
 
 
 def _closed_span(start, end, settle, *groups):
-    if (start.boot_id != _boot() or end.boot_id != start.boot_id
-            or settle.boot_id != start.boot_id
-            or not start.monotonic_usec < end.monotonic_usec < settle.monotonic_usec):
-        raise EvidenceUnavailable("invalid or changed journal span")
-    fences = tuple(("_TRANSPORT=journal", "_UID=0", f"{FENCE}={marker.token}")
-                   for marker in (start, end, settle))
-    records = _records(start.boot_id, *_matches(*fences, *groups), cursor=start.cursor)
-    if not records or not _is_boundary(records[0], start):
-        raise EvidenceUnavailable("opening journal boundary unavailable")
+    if os.geteuid() != 0:
+        return [], _Reason.AUTHORIZATION
+    if not _valid_span(start, end) or start.boot_id != _boot():
+        return [], _Reason.SPAN
+    if settle is not None and not _valid_span(end, settle):
+        settle = None
+    fences = [("_TRANSPORT=journal", "_UID=0", f"{FENCE}={marker.token}")
+              for marker in (start, end, settle) if marker is not None]
+    records, reason = _records(start.boot_id, *_matches(*fences, *groups), cursor=start.cursor)
+    if records and records[0] is not None and _is_boundary(records[0], start):
+        records = records[1:]
+    else:
+        reason = reason or _Reason.OPEN
     inside, found_end = [], False
-    for record in records[1:]:
+    for record in records:
+        if record is None:
+            reason = reason or _Reason.OUTPUT
+            continue
         if record.get("_BOOT_ID") != start.boot_id:
-            raise EvidenceUnavailable("unexpected journal boot")
+            reason = reason or _Reason.BOOT
+            continue
         if _is_boundary(record, end):
             found_end = True
-        elif _is_boundary(record, settle):
-            if not found_end:
-                break
-            return inside
-        else:
+        elif settle is not None and _is_boundary(record, settle):
+            return inside, reason or ("" if found_end else _Reason.CLOSE)
+        elif not _is_boundary(record, start):
             inside.append(record)
-    raise EvidenceUnavailable("closing journal boundaries unavailable")
+    return inside, reason or _Reason.CLOSE
 
 
 def _python_script(record, script):
@@ -205,10 +330,10 @@ def _source(record, parent_uid, child_uid, kiosk_uid):
     return None
 
 
-def _os_event(record, received, child_uid, kiosk_uid):
+def _os_fault(record, child_uid, kiosk_uid):
     if (record.get("_TRANSPORT") == "stdout" and record.get("MESSAGE") == BROKER_STARTUP_FAILURE
             and _from_broker(record)):
-        return Event("broker", "startup", received, "systemd")
+        return "broker", "startup", "systemd"
     if record.get("_UID") not in {child_uid, kiosk_uid}:
         return None
     try:
@@ -218,11 +343,11 @@ def _os_event(record, received, child_uid, kiosk_uid):
 
         kiosk = _kiosk_session_event(record, int(kiosk_uid))
         if kiosk is not None and kiosk[0] == "app-exit" and kiosk[2] != 0:
-            return Event("kiosk", "unexpected", received, "systemd")
+            return "kiosk", "unexpected", "systemd"
         shell = _gnome_shell_event(record, int(child_uid))
         if (shell is not None and shell[0] == "extension-manager.shell-journal"
                 and shell[1]["candidate"] == "our-extension"):
-            return Event("child", "unexpected", received, "shell-log")
+            return "child", "unexpected", "shell-log"
     except (ImportError, OSError, ValueError):
         return None
     return None
@@ -232,14 +357,49 @@ def _in_span(start, end, occurred):
     return start.monotonic_usec <= occurred < end.monotonic_usec
 
 
+def _record_failure(record, start, end, *, parent_uid, child_uid, kiosk_uid):
+    message = record.get("MESSAGE")
+    if (record.get("_UID") == "0" and record.get("_COMM") == "systemd-journal"
+            and isinstance(message, str) and message.startswith(("Suppressed ", "Missed "))
+            and start.monotonic_usec <= _usec(record, "__MONOTONIC_TIMESTAMP")):
+        raise EvidenceUnavailable(_Reason.LOSS)
+    if record.get("_TRANSPORT") == "journal" and (
+            "ONPC_FAILURE_VERSION" in record or "ONPC_COMPONENT" in record or message == MESSAGE):
+        producer = _source(record, parent_uid, child_uid, kiosk_uid)
+        if producer is None:
+            return None, True
+        component, source = producer
+        occurred = _usec(record, OCCURRENCE)
+        if not 0 < occurred <= _usec(record, "__MONOTONIC_TIMESTAMP"):
+            raise EvidenceUnavailable(_Reason.OCCURRENCE)
+        if not _in_span(start, end, occurred):
+            return None, False
+        if record.get("ONPC_FAILURE_VERSION") != "1":
+            raise EvidenceUnavailable(_Reason.FORMAT)
+        if record.get("ONPC_COMPONENT") != component:
+            raise EvidenceUnavailable(_Reason.HEADER)
+        category = record.get("ONPC_FAILURE_CATEGORY")
+        if not isinstance(category, str) or CATEGORY.fullmatch(category) is None:
+            raise EvidenceUnavailable(_Reason.CATEGORY)
+        return Event(component, category, occurred, source), False
+    fault = _os_fault(record, child_uid, kiosk_uid)
+    if fault is not None:
+        received = _usec(record, "__MONOTONIC_TIMESTAMP")
+        if _in_span(start, end, received):
+            component, category, source = fault
+            return Event(component, category, received, source), False
+    return None, False
+
+
 def read_failures(start, end, *, parent_uid, child_uid, kiosk_uid):
     parent_uid, child_uid, kiosk_uid = (str(int(uid)) for uid in (parent_uid, child_uid, kiosk_uid))
-    events = []
-    unattributed = 0
+    time.sleep(SETTLE_SECONDS)
     try:
-        time.sleep(SETTLE_SECONDS)
         settle = capture_boundary()
-        records = _closed_span(
+    except (OSError, ValueError):
+        settle = None
+    try:
+        records, reason = _closed_span(
             start, end, settle,
             ("_TRANSPORT=journal", f"MESSAGE={MESSAGE}"),
             ("_TRANSPORT=journal", "ONPC_FAILURE_VERSION=1"),
@@ -250,43 +410,73 @@ def read_failures(start, end, *, parent_uid, child_uid, kiosk_uid):
             ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
             ("_UID=0", "_COMM=systemd-journal"),
         )
-        for record in records:
-            received = _usec(record, "__MONOTONIC_TIMESTAMP")
-            message = record.get("MESSAGE")
-            if (record.get("_UID") == "0" and record.get("_COMM") == "systemd-journal"
-                    and isinstance(message, str) and message.startswith(("Suppressed ", "Missed "))
-                    and start.monotonic_usec <= received):
-                raise EvidenceUnavailable("journal reported dropped records")
-            if record.get("_TRANSPORT") == "journal" and (
-                    "ONPC_FAILURE_VERSION" in record or "ONPC_COMPONENT" in record
-                    or message == MESSAGE):
-                producer = _source(record, parent_uid, child_uid, kiosk_uid)
-                if producer is None:
-                    unattributed += 1
-                    continue
-                component, source = producer
-                if (record.get("ONPC_FAILURE_VERSION") != "1"
-                        or record.get("ONPC_COMPONENT") != component):
-                    raise EvidenceUnavailable("invalid failure record header")
-                category = record.get("ONPC_FAILURE_CATEGORY")
-                if not isinstance(category, str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,47}", category):
-                    raise EvidenceUnavailable("invalid failure category")
-                occurred = _usec(record, OCCURRENCE)
-                if not 0 < occurred <= received:
-                    raise EvidenceUnavailable("invalid failure occurrence time")
-                if _in_span(start, end, occurred):
-                    events.append(Event(component, category, occurred, source))
-            elif _in_span(start, end, received):
-                event = _os_event(record, received, child_uid, kiosk_uid)
-                if event is not None:
-                    events.append(event)
     except EvidenceUnavailable as error:
-        return {"complete": False, "events": [], "unattributed": unattributed, "reason": str(error)}
+        records, reason = [], str(error)
     except (OSError, ValueError, KeyError, TypeError):
-        return {"complete": False, "events": [], "unattributed": unattributed,
-                "reason": "journal evidence unavailable or malformed"}
-    return {"complete": True, "events": [asdict(event) for event in sorted(
-        events, key=lambda event: event.monotonic_usec)], "unattributed": unattributed, "reason": ""}
+        records, reason = [], _Reason.MALFORMED
+    events, unattributed = [], 0
+    for record in records:
+        try:
+            event, missing_source = _record_failure(
+                record, start, end, parent_uid=parent_uid, child_uid=child_uid, kiosk_uid=kiosk_uid)
+        except EvidenceUnavailable as error:
+            reason = reason or str(error)
+        except (ValueError, KeyError, TypeError):
+            reason = reason or _Reason.MALFORMED
+        else:
+            if event is not None:
+                events.append(event)
+            unattributed += missing_source
+    events.sort(key=lambda event: event.monotonic_usec)
+    return {"complete": not reason, "events": [asdict(event) for event in events],
+            "span": _span_identity(start, end) if _valid_span(start, end) else None,
+            "unattributed": unattributed, "reason": str(reason)}
+
+
+def evaluate_failures(observation, *, start, end, allowances=()):
+    """Apply case allowances to the reader's verified projection without I/O."""
+    if not _valid_span(start, end):
+        return FailureEvaluation(False, (), _Reason.SPAN, 0)
+    if not isinstance(observation, dict):
+        return FailureEvaluation(False, (), _Reason.MALFORMED, 0)
+    if observation.get("span") != _span_identity(start, end):
+        return FailureEvaluation(False, (), _Reason.SPAN, 0)
+    reason = ""
+    if observation.get("complete") is not True or observation.get("reason") != "":
+        detail = observation.get("reason")
+        reason = detail if isinstance(detail, str) and detail in _READER_REASONS else _Reason.MALFORMED
+    unattributed = observation.get("unattributed")
+    if type(unattributed) is not int or unattributed < 0:
+        reason = reason or _Reason.MALFORMED
+        unattributed = 0
+    events = observation.get("events")
+    if not isinstance(events, list):
+        return FailureEvaluation(False, (), reason or _Reason.MALFORMED, unattributed)
+    windows = []
+    for allowance in allowances:
+        if (isinstance(allowance, Allowance) and start.monotonic_usec <= allowance.start_usec
+                and allowance.end_usec <= end.monotonic_usec):
+            windows.append(allowance)
+        else:
+            reason = reason or _Reason.ALLOWANCE
+    unexpected = []
+    for item in events:
+        occurred = item.get("monotonic_usec") if isinstance(item, dict) else None
+        if not _valid_usec(occurred):
+            reason = reason or _Reason.OCCURRENCE
+            continue
+        if not _in_span(start, end, occurred):
+            continue
+        component, category, source = (item.get(key) for key in ("component", "category", "source"))
+        if (not isinstance(component, str) or source not in SOURCES.get(component, ())
+                or not isinstance(category, str) or CATEGORY.fullmatch(category) is None):
+            reason = reason or _Reason.MALFORMED
+            continue
+        event = Event(component, category, occurred, source)
+        if not any(allowance.matches(event) for allowance in windows):
+            unexpected.append(event)
+    unexpected.sort(key=lambda event: event.monotonic_usec)
+    return FailureEvaluation(not reason, tuple(unexpected), str(reason), unattributed)
 
 
 def _exercise():
@@ -300,8 +490,8 @@ def _exercise():
         PROBE: token, OCCURRENCE: occurred,
     })
     settle = capture_boundary()
-    rows = _closed_span(start, end, settle, ("_UID=0", "_TRANSPORT=journal", f"{PROBE}={token}"))
-    if (len(rows) != 1 or _usec(rows[0], "__MONOTONIC_TIMESTAMP") < end.monotonic_usec
+    rows, reason = _closed_span(start, end, settle, ("_UID=0", "_TRANSPORT=journal", f"{PROBE}={token}"))
+    if (reason or len(rows) != 1 or _usec(rows[0], "__MONOTONIC_TIMESTAMP") < end.monotonic_usec
             or not _in_span(start, end, _usec(rows[0], OCCURRENCE))):
         raise ValueError("late arrival lost its original case position")
     missing = Boundary(start.boot_id, start.monotonic_usec, start.cursor, secrets.token_hex(16))

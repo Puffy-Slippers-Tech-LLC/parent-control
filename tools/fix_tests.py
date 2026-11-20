@@ -173,7 +173,7 @@ def run_rounds(root, run, owner, request, *, operation=execute):
     from launcher_reload import STATUS as RELOAD_STATUS, replace, unaccepted
     from launcher_source_sync import STATUS as SYNC_STATUS
     from test_progress import SELECTION
-    from test_results import PENDING_STATUS, ResultStore, VARIABLE
+    from test_results import OBSERVATION_BLOCKED_STATUS, PENDING_STATUS, ResultStore, VARIABLE
     inventory = repair_inventory(root, request.get('categories', []))
     full_selection = [arg for category, spec in inventory.items() for arg in (category, *spec['args'])]
     rounds = request.get('rounds', 1)
@@ -243,6 +243,10 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 return status
             failure = results.failure()
             if failure is None:
+                if status == OBSERVATION_BLOCKED_STATUS:
+                    progress(run, number, rounds,
+                             'Product fault observation is incomplete. Resume to retry the pending work.')
+                    return status
                 failure = results.record(pending[0], 'command', '', status, complete=False,
                     options=inventory[pending[0]]['args'], command=command,
                     detail='The selected runner command failed before a case result was available. '

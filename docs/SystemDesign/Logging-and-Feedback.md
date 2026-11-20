@@ -113,9 +113,20 @@ time against the half-open span. A fault sent after the closing marker still
 belongs to that span if it occurred before the close. A complete result, even
 with zero events, requires valid records and all three markers within the read
 bounds. A missing boot or marker, truncated read or reported journal loss
-makes the observation unavailable. The reader reports the number of candidate
-records that lack source attribution. It projects each accepted event to
-component, category, guest occurrence time and source classification.
+makes the observation incomplete. The reader retains independently verified
+events from the owned boot and case interval and counts candidate records that
+lack source attribution. It binds the observation to the boot and case markers
+and projects each accepted event to component, category, guest occurrence time
+and source classification. Fault diagnostics use a bounded summary of these
+fields.
+
+An allowance covers a component and a specific recognized category during an
+action window with an inclusive start and exclusive end. Unfamiliar categories
+and the `unexpected` catch-all remain faults under every allowance. The case's
+assertions establish the intended fault and recovery, and the allowance ends
+before recovery checks. A verified unexpected fault or independent case failure
+retains its failed verdict when the observation is incomplete. Incomplete
+observation alone blocks the case pending a new observation.
 
 For abrupt failures the reader reuses the existing trusted OS projections
 for abnormal kiosk application exit and Shell errors naming the installed child

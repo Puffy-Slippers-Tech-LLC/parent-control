@@ -26,6 +26,7 @@ from regression_ui import buckets as ui_buckets
 from regression_unit import buckets as unit_buckets
 from regression_cleanup import buckets as cleanup_buckets
 from test_progress import percentage
+from test_results import OBSERVATION_BLOCKED_STATUS
 
 
 CATEGORY_NAMES = {
@@ -42,6 +43,16 @@ CATEGORY_NAMES = {
     'graphical-worker': 'Graphical worker containment', 'package-notice': 'Package notice lifecycle',
     'fast': 'Fast tests',
 }
+
+OBSERVATION_BLOCKED = 'Observation blocked'
+
+
+def category_status(categories):
+    if any(item.state == 'Failed' or item.failures for item in categories):
+        return 1
+    if any(item.state == OBSERVATION_BLOCKED for item in categories):
+        return OBSERVATION_BLOCKED_STATUS
+    return int(any(item.state != 'Passed' for item in categories))
 
 
 def duration_text(seconds):
@@ -140,7 +151,9 @@ class Dashboard:
         if interrupted:
             summary += ' | ' + ('Shutdown finished' if self.cleanup_finished else 'Shutting down safely')
         elif self.finished:
-            summary += ' | ' + ('Passed' if all(item.state == 'Passed' for item in self.categories) else 'Failed')
+            status = category_status(self.categories)
+            summary += ' | ' + ('Passed' if status == 0 else
+                                 OBSERVATION_BLOCKED if status == OBSERVATION_BLOCKED_STATUS else 'Failed')
         self.stream.controller(str(key), [summary])
         self.controller_key, self.controller_last = key, now
 
@@ -168,7 +181,8 @@ class Dashboard:
         label = {'Passed': '✓', 'Failed': '✗', 'Interrupted': '✗',
                  'Blocked': '✗'}.get(item.state, item.state)
         color = {'Passed': '0', 'Failed': '31', 'Interrupted': '31',
-                 'Blocked': '31', 'Running': '97;1', 'Pending': '90'}[item.state]
+                 'Blocked': '31', OBSERVATION_BLOCKED: '33',
+                 'Running': '97;1', 'Pending': '90'}[item.state]
         counts = (f' - {percent}% ' + self.counts(item.progress_done, item.failures, total)
                   if show_counts else '')
         return (f'\033[{color}m[{label}] {item.name}' + counts
@@ -257,6 +271,7 @@ class Dashboard:
         if overall_counts is not None:
             passed, failures, total = overall_counts(passed, failures, total)
         color = '31' if any(c.state in ('Failed', 'Interrupted', 'Blocked') for c in self.categories) else (
+            '33' if any(c.state == OBSERVATION_BLOCKED for c in self.categories) else
             '0' if all(c.state == 'Passed' for c in self.categories) else '97;1')
         lines.append('')
         lines.append(f'\033[{color}mOverall - {percentage(passed, failures, total)}% '
@@ -272,7 +287,7 @@ class Dashboard:
 
     def system(self, checks, now):
         """Summarize the selected checks without flooding each VM's dashboard."""
-        state = next((state for state in ('Failed', 'Interrupted', 'Blocked', 'Running')
+        state = next((state for state in ('Failed', 'Interrupted', OBSERVATION_BLOCKED, 'Blocked', 'Running')
                       if any(item.state == state for item in checks)),
                      'Passed' if all(item.state == 'Passed' for item in checks) else 'Pending')
         summary = Category(CATEGORY_NAMES['system'],
@@ -288,7 +303,8 @@ class Dashboard:
         lines.extend('  ' + self.category(replace(item, name='Check: ' + item.name.removeprefix(
                          CATEGORY_NAMES['system'] + ' — ')), now, show_counts=False)
                      for item in checks
-                     if item.state in ('Running', 'Failed', 'Interrupted', 'Blocked') or item.wait_reason)
+                     if item.state in ('Running', 'Failed', 'Interrupted', 'Blocked', OBSERVATION_BLOCKED)
+                     or item.wait_reason)
         return lines
 
     @classmethod
@@ -317,7 +333,7 @@ class Dashboard:
         def category_priority(plain):
             if plain.startswith(('Overall - ', 'Running category [', 'Tests interrupted.')):
                 return 0
-            if '[Running]' in plain or '[Waiting]' in plain or '[✗]' in plain:
+            if any(f'[{state}]' in plain for state in ('Running', 'Waiting', '✗', OBSERVATION_BLOCKED)):
                 return 1
             if plain.startswith(('├─ Host branch ', '└─ Join ')):
                 return 2
@@ -633,6 +649,7 @@ class Execution:
         self.inventory_seen = False
         self.resume_empty = False
         self.fixture_failed = False
+        self.vm_cleanup_failed = False
         self.infrastructure_failed = False
         self.argv = list(command)
         self.exit_status = None
@@ -728,6 +745,7 @@ class Execution:
         if line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
             if event['kind'] == 'vm-cleanup':
+                self.vm_cleanup_failed |= event.get('passed') is not True
                 if self.run.checkpoint is not None:
                     self.run.checkpoint.queue_vm_cleanup = event.get('passed') is True
                     self.run.checkpoint.queue_vm_interrupted = event.get('interrupted') is True
@@ -830,21 +848,29 @@ class Execution:
                         and self.pending.startswith(PREFIX.encode())):
                     self.line(self.pending)
                 self.pending = b''
+            observation_blocked = (not self.collect and item.retry_category in ('system', 'e2e')
+                                   and status == OBSERVATION_BLOCKED_STATUS)
+            if observation_blocked and (item.failures or self.output_error_summary or self.vm_cleanup_failed):
+                # Keep independently reported failure evidence repairable.
+                observation_blocked = False
+                status = 1
+                self.infrastructure_failed = self.vm_cleanup_failed
             tail = self.decoder.decode(b'', final=True)
             run.report.write('\n' + html.escape(tail) + '\n' + item.name +
-                             ' — Exit status: ' + str(status) + '\n')
+                             ' — Exit status: ' + str(self.exit_status) + '\n')
             if self.collect:
                 item.state = 'Passed' if self.resume_empty and status == 0 else 'Pending' if status == 0 else 'Failed'
             else:
                 if item.nodeids is not None and not self.inventory_seen and not run.control.stopped.is_set():
                     raise ValueError('missing test execution inventory')
-                if not self.events and not run.control.stopped.is_set():
+                if not self.events and not observation_blocked and not run.control.stopped.is_set():
                     before = item.done
                     item.done = (min(item.total or 1, item.done + self.units)
                                  if self.units is not None else item.total or 1)
                     if status:
                         item.failures += item.done - before
                 item.state = ('Failed' if self.fixture_failed or item.failures else
+                              OBSERVATION_BLOCKED if observation_blocked else
                               'Interrupted' if run.control.stopped.is_set() else
                               'Failed' if status or item.failures else
                               'Passed' if item.done == item.total else
@@ -853,12 +879,14 @@ class Execution:
             if item.state == 'Failed' and not item.error_detail:
                 detail = self.output_error_summary or self.output_tail.strip()[-2000:]
                 item.error_detail = (detail or f'Command exited with status {status}.')
+            if item.state == OBSERVATION_BLOCKED:
+                item.wait_reason = 'required product failure observations are incomplete'
             if item.state == 'Failed':
                 item.error_detail += '\nOutput: ' + str(self.raw.name)
             if self.recording_case:
                 if item.state == 'Failed' and not self.recording_failed:
                     self.recording_event('failure')
-                if item.state != 'Interrupted':
+                if item.state not in ('Interrupted', OBSERVATION_BLOCKED):
                     self.recording_event('finished')
                 self.recording_case = None
             self.run_times.finish()
@@ -867,7 +895,8 @@ class Execution:
             run.dashboard.draw(force=True)
             if self.fixture_failed:
                 raise ValueError('test fixture setup or cleanup failed; further host work refused')
-            if not self.collect and self.events and status not in (0, 1) and not run.control.stopped.is_set():
+            if (not self.collect and self.events and not observation_blocked
+                    and status not in (0, 1) and not run.control.stopped.is_set()):
                 self.infrastructure_failed = True
                 from test_retention import preserve_for_recovery
                 preserve_for_recovery()
@@ -987,7 +1016,7 @@ class Run:
                                                              if item.state == 'Running']})
 
     def result_status(self):
-        return int(any(item.state != 'Passed' for item in self.categories))
+        return category_status(self.categories)
 
     def command(self, category, *args):
         if category == 'ui':
@@ -1234,7 +1263,8 @@ class Run:
             if vm_step:
                 self.checkpoint.queue_vm_exit = status
             result = execution.finish(status)
-            if item.retry_category == 'system' and system_check_selection(command[2:]):
+            if (item.retry_category == 'system' and item.state != OBSERVATION_BLOCKED
+                    and system_check_selection(command[2:])):
                 case = system_check_selection(command[2:])
                 passed = item.state == 'Passed' or (vm_step and status == 0 and item.state == 'Interrupted')
                 if self.checkpoint is not None and (passed or not self.control.stopped.is_set()):
@@ -1607,14 +1637,14 @@ class Run:
         if system is not None:
             self.dashboard.controller_category = ('system', self.phases.index('system') + 1, len(self.phases))
             status, _ = self.execute(system, self.command('system', '--artifacts', artifacts), events=True)
-            if self.control.stopped.is_set():
+            if status == OBSERVATION_BLOCKED_STATUS or self.control.stopped.is_set():
                 return
             if status or system.state != 'Passed':
                 raise ValueError('installed-system attempt failed; subsequent VM attempts refused')
         for kind, args, item in self.vm_extras:
             self.dashboard.controller_category = (kind, self.phases.index(kind) + 1, len(self.phases))
             status, _ = self.execute(item, self.command(kind, *args), events=kind == 'system' and not args[0].startswith('check_'))
-            if self.control.stopped.is_set():
+            if status == OBSERVATION_BLOCKED_STATUS or self.control.stopped.is_set():
                 return
             if status or item.state != 'Passed':
                 raise ValueError('guarded VM check failed; subsequent VM attempts refused')
@@ -1728,6 +1758,7 @@ def retained_main(root=None, *, host_only=False, host_builds=False, serial_build
                         checkpoint.finish(run.categories)
                     report.write('\n## Final result\n\n' + ('Reload requested; progress retained' if reloading and status == RELOAD_STATUS else
                                  'Passed' if status == 0 else
+                                 'Observation blocked. Owned cleanup finished.' if status == OBSERVATION_BLOCKED_STATUS else
                                  'Interrupted; owned child cleanup finished' if status == 130 else 'Failed') + '\n')
                     report.write('\nVM backing verification: ' + run.verification_mode + '\n')
                     summary = '\n'.join(run.dashboard.render(time.monotonic()))

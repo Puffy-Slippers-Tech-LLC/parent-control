@@ -77,6 +77,21 @@ checking that neither report nor thanks reopened and no callback repeated;
 releasing the response alone does not prove the handler ran. This supplies local
 UI coverage, without real delivery or installed acceptance.
 
+## Product failure observation in VM cases
+
+The [product failure evaluator](product_failure_journal.py) classifies records
+from one case's owned observation. A verified unexpected fault or an independent
+assertion or cleanup failure uses the ordinary failure path. Keep the real
+failure identity and diagnostics even when observation is also incomplete.
+
+When observation remains incomplete after bounded read recovery and every other
+check passes, report the affected case and a bounded observation diagnostic.
+Use an observation-specific outcome in structured controller output.
+After owned cleanup succeeds, stop dispatch and return
+`OBSERVATION_BLOCKED_STATUS` from [test_results.py](../../tools/test_results.py).
+Withhold both the blocked case's `finished` and `failure` events. Preserve the
+terminal events of earlier cases so explicit resume can retry pending work.
+
 ## Development-only extension isolation
 
 `tools/disable-extension --vm NAME` accepts a registered VM name or ID in an

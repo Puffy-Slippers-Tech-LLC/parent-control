@@ -672,6 +672,70 @@ def test_closed_command_keeps_exact_inventory_failure_and_cleanup(report, tmp_pa
     assert not any(event[1]['kind'] == 'failure' for event in checkpoint_events)
 
 
+@pytest.mark.parametrize('route', ['suite', 'standalone', 'suite-with-failure'])
+def test_observation_block_stops_vm_dispatch_and_keeps_clear_results(tmp_path, monkeypatch, route):
+    from test_checkpoint import Checkpoint
+    from test_results import OBSERVATION_BLOCKED_STATUS
+
+    standalone = route == 'standalone'
+    independent_failure = route == 'suite-with-failure'
+    options = ['check_observation_fixture'] if standalone else ['--id', '1']
+    checkpoint = Checkpoint(tmp_path, [('system', options)])
+    earlier, failed, pending = ('fresh::test_' + case for case in ('earlier', 'failed', 'pending'))
+    passed_ids = [] if standalone else [earlier]
+    invocations, reports = [], []
+
+    def controller(self, command, *, output, **kwargs):
+        invocations.append(command)
+        assert len(invocations) == 1
+
+        def emit(kind, **fields):
+            message = regression.PREFIX + json.dumps(dict(kind=kind, **fields)) + '\n'
+            output(message.encode())
+
+        if not standalone:
+            nodeids = [earlier, failed, pending] if independent_failure else [earlier, pending]
+            emit('collection', total=len(nodeids), nodeids=nodeids)
+            emit('finished', nodeid=earlier)
+            if independent_failure:
+                emit('failure', nodeid=failed, when='call')
+                emit('finished', nodeid=failed)
+            emit('vm-cleanup', passed=True)
+        return OBSERVATION_BLOCKED_STATUS
+
+    def dispatch(run):
+        reports.append(run.report)
+        run.phases = ('system', 'e2e')
+        run.categories[0].state = 'Passed'
+        run.artifacts['build-a'] = 'fixture-artifacts'
+        system = regression.Category('Observation check', 1 if standalone else None)
+        later = regression.Category('Later E2E check')
+        run.categories.extend((system, later))
+        if standalone:
+            run.vm_extras = [('system', options, system)]
+        run.vm_tests(None if standalone else system, later, ready=True)
+
+    monkeypatch.setattr(regression.Run, 'run', dispatch)
+    monkeypatch.setattr(regression.Run, 'wait_for_resources', lambda *args: None)
+    monkeypatch.setattr(Control, 'run', controller)
+    status = regression.retained_main(tmp_path, host_only=True, checkpoint=checkpoint)
+
+    assert status == (1 if independent_failure else OBSERVATION_BLOCKED_STATUS)
+    assert checkpoint.passed('system') == set(passed_ids)
+    assert not checkpoint.complete('system')
+    report = reports[0]
+    record, = report.commands
+    assert record['exit_status'] == OBSERVATION_BLOCKED_STATUS
+    assert record['cleanup'] == 'complete'
+    failed_ids = [failed] if independent_failure else []
+    assert record['completed_ids'] == sorted(passed_ids + failed_ids)
+    assert record['failed_ids'] == failed_ids
+    assert (report.directory / 'failure.json').exists() is independent_failure
+    if not independent_failure:
+        assert record['status'] == 'diagnostic'
+        assert 'Observation blocked. Owned cleanup finished.' in (report.directory / 'report.md').read_text()
+
+
 @pytest.mark.parametrize('output', ['valid', 'missing-marker', 'missing-file', 'invalid-file',
                                   'stale', 'unregistered', 'replaced', 'symlink', 'ancestor-symlink'])
 def test_successful_coverage_requires_its_actual_outputs(tmp_path, monkeypatch, output):

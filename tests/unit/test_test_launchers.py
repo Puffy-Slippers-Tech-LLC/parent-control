@@ -241,6 +241,87 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
     assert events == ['test', 'agent', 'test']
 
 
+@pytest.mark.parametrize('independent_failure', [False, True])
+def test_product_observation_routes_only_clear_failure_to_repair(tmp_path, monkeypatch,
+                                                         independent_failure):
+    import fix_tests
+    import test_results
+    import vm_test_queue
+    from threading import Event
+    from types import SimpleNamespace
+
+    vm = SimpleNamespace(name='worker', family='family', compute_unit=1)
+    cases = ['passed', 'observed', 'queued']
+    items = [dict(category='e2e', options=[], cases=[case], case=case, area=False)
+             for case in cases]
+    plan = ({'concurrency': 1}, [vm], [], ['e2e'], [('e2e', [])], {vm.family: items})
+    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'e2e': {'args': []}})
+    monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
+    monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
+    attempted, operations = [], []
+    recovered = False
+    blocked = test_results.OBSERVATION_BLOCKED_STATUS
+
+    class Ready:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def run_ready(self, execute, *, choose, needed, completed, stop_on_error=True):
+            result = dict(status=0, handoffs=[])
+            while needed(vm):
+                result = completed(vm, execute(SimpleNamespace(vm=vm)))
+            return {vm.name: result}
+
+    def attempt(worker, assignment, inherited):
+        case = assignment['execution']['case']
+        attempted.append(case)
+        status = 0
+        if case == 'observed' and not recovered:
+            status = 1 if independent_failure else blocked
+        return dict(status=status, handoffs=[], evidence=dict(assignment, status=status,
+            cleanup=True, passed=[] if status else [case], failed=[case] if status == 1 else []))
+
+    def operation(root, run, owner, kind, command):
+        nonlocal recovered
+        operations.append(kind)
+        results = test_results.ResultStore()
+        if kind == 'agent':
+            assert command['case'] == 'observed' and command['vm'] == vm.name
+            assert '--resume-case=observed' in fix_tests.validation_command(root, command)
+            recovered = True
+            results.record('e2e', vm.family, 'observed', 0)
+            return 0
+        outcome = vm_test_queue.execute_pass(root, plan, SimpleNamespace(stopped=Event()),
+                                             attempt, continue_on_errors=not independent_failure)
+        if not recovered:
+            assert attempted == cases[:2]
+            assert outcome['cleanup_complete'] is True
+        return outcome['status']
+
+    monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
+    request = dict(categories=['e2e'], rounds=1)
+    status = fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=operation)
+    if independent_failure:
+        assert status == 0
+        assert operations == ['test', 'agent', 'test']
+    else:
+        assert status == blocked
+        assert operations == ['test']
+        results = test_results.ResultStore()
+        assert results.passed('e2e', vm.family) == {'passed'}
+        assert not results.failures() and results.failure() is None
+        recovered = True
+        assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=operation) == 0
+        assert operations == ['test', 'test']
+        assert attempted == ['passed', 'observed', 'observed', 'queued']
+
+
 def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_path, monkeypatch):
     import fix_tests
     import regression_session

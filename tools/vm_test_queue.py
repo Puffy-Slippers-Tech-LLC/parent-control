@@ -22,7 +22,7 @@ import test_activity
 import test_launcher
 from test_progress import OverallProgress, case_counts, combine_counts, overall_line, recorded_cases
 import test_retention
-from test_results import PENDING_STATUS
+from test_results import OBSERVATION_BLOCKED_STATUS, PENDING_STATUS
 from regression_process import Control, FRAME_PREFIX
 from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import Executor
@@ -152,6 +152,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
     admission = FamilyAdmission(vms)
     result_store = ResultStore()
     failed = threading.Event()
+    observation_blocked = threading.Event()
     changed = threading.Event()
     upstream_changed = False
     upstream_error = None
@@ -209,7 +210,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
 
         def needed(vm):
             with lock:
-                return (not failed.is_set() and not changed.is_set()
+                return (not failed.is_set() and not observation_blocked.is_set() and not changed.is_set()
                         and not control.stopped.is_set() and bool(pending(vm.family)))
 
         def attempt(worker):
@@ -234,7 +235,8 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     return dict(status=0, handoffs=[])
             with lock:
                 available = pending(vm.family)
-                if not available or failed.is_set() or changed.is_set() or control.stopped.is_set():
+                if (not available or failed.is_set() or observation_blocked.is_set()
+                        or changed.is_set() or control.stopped.is_set()):
                     return dict(status=0, handoffs=[])
                 if sources is not None and sources.source != source_identity(root):
                     changed.set()
@@ -281,6 +283,18 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     result_store.record(work['category'], vm.family, case, 1, vm=vm.name,
                         options=work['options'], output_tail=value.get('output_tail', ''),
                         handoffs=value.get('handoffs', []))
+                if check_status == OBSERVATION_BLOCKED_STATUS:
+                    # Only the joined, assignment-bound controller result can
+                    # distinguish an observation blocker from a command error.
+                    cleanup = observed.get('cleanup') is True
+                    if not actual_failures and cleanup and observed.get('status') == check_status:
+                        observation_blocked.set()
+                        publish_counts()
+                        return dict(value, pending=True, cleanup=True)
+                    value = dict(value, status=1, cleanup=cleanup)
+                    if not actual_failures:
+                        value['output_tail'] = (value.get('output_tail', '') +
+                            '\nThe VM worker could not confirm the observation blocker and its cleanup.')
                 if reloading and not actual_failures:
                     worker_status = observed.get('status')
                     cleanup = observed.get('cleanup') is True
@@ -330,12 +344,15 @@ def execute_pass(root, plan, control, execute, *, host=None,
             with Executor(root, vms, snapshot['concurrency'], control.stopped, sources=sources) as executor:
                 results.update(executor.run_ready(attempt, choose=admission.choose, needed=needed,
                     completed=completed, **({'stop_on_error': False} if continue_on_errors else {})))
-        unfinished = bool(deferred_work) or any(pending(family) for family in families)
+        blocked = observation_blocked.is_set()
+        unfinished = blocked or bool(deferred_work) or any(pending(family) for family in families)
         statuses = [value['status'] for value in results.values()]
         failures = result_store.failures()
         status = (1 if failed.is_set() or failed_work or any(
-                      status not in (0, 130, launcher_reload.STATUS, PENDING_STATUS) for status in statuses) else
+                      status not in (0, 130, launcher_reload.STATUS, PENDING_STATUS,
+                                     OBSERVATION_BLOCKED_STATUS) for status in statuses) else
                   130 if control.stopped.is_set() else
+                  OBSERVATION_BLOCKED_STATUS if blocked else
                   launcher_reload.STATUS if launcher_reload.STATUS in statuses else
                   130 if 130 in statuses else
                   0 if changed.is_set() else PENDING_STATUS if unfinished else 0)
@@ -561,7 +578,9 @@ def run(root, argv, *, reloading=False, return_outcome=False, upstream_run=None,
     for category, options in selection:
         if category in completed:
             results.finish_command(category, options)
-    if not last['status'] and any(item['outcome']['status'] for item in outcomes):
+    if ((not last['status'] and any(item['outcome']['status'] for item in outcomes))
+            or (last['status'] == OBSERVATION_BLOCKED_STATUS
+                and any(item['outcome']['status'] == 1 for item in outcomes))):
         last['status'] = 1
     last['groups'] = outcomes
     last['failures'] = results.failures()
@@ -913,6 +932,7 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                                   output_tail=details.get('traceback', str(error))[-16000:])
                 status = result['status']
                 state = {0: 'Finished', 130: 'Stopped',
+                         OBSERVATION_BLOCKED_STATUS: 'Blocked (incomplete product fault observation)',
                          launcher_reload.STATUS: 'Reload pending'}.get(status, f'Failed (exit {status})')
                 with output_lock:
                     frames[vm.name] = [state]
@@ -945,6 +965,12 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
             (directory / 'results.json').write_text(json.dumps(results, indent=2))
             (directory / 'results.json').chmod(0o600)
             print(f'VM results: {directory / "results.json"}', flush=True)
+            if outcome['status'] == OBSERVATION_BLOCKED_STATUS:
+                if hasattr(sys.stdout, 'frame'):
+                    sys.stdout.frame([])
+                print('VM tests blocked by incomplete product fault observation. Resume to retry pending work.',
+                      flush=True)
+                return outcome if return_outcome else outcome['status']
             if (not control.stopped.is_set() and launcher_reload.pending()
                     and all((result['status'] if isinstance(result, dict) else result)
                             in (0, launcher_reload.STATUS) for result in results.values())):
@@ -954,6 +980,8 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
             error_details = []
             for vm in vms:
                 result = results[vm.name]
+                if isinstance(result, dict) and result['status'] == OBSERVATION_BLOCKED_STATUS:
+                    continue
                 vm_categories = []
                 vm_failures = []
                 if isinstance(result, dict) and result['status']:
@@ -991,7 +1019,8 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                             vm_failures.append(dict(category=category, case='', vm=vm.name))
                 categories.extend(vm_categories)
                 failures.extend(vm_failures)
-            failed = any((result['status'] if isinstance(result, dict) else result) != 0
+            failed = any((result['status'] if isinstance(result, dict) else result)
+                         not in (0, OBSERVATION_BLOCKED_STATUS)
                          for result in results.values())
             if hasattr(sys.stdout, 'frame'):
                 sys.stdout.frame([])

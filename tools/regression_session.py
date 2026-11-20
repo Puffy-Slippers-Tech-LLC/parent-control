@@ -25,7 +25,7 @@ from launcher_source_sync import BOUNDARY_AGENT_ENV, BOUNDARY_AGENT_ENV_KEYS
 
 _startup = threading.RLock()
 
-from detached_launcher import FRAME_DIRECTORY, atomic, lock, busy
+from detached_launcher import FRAME_DIRECTORY, atomic, busy, durable_json, lock
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -103,9 +103,16 @@ def select(root, argv, *, reload=False, watch=None, implicit_default=False, resu
     from test_reset import startup
     test_source.finish_admission()
     with startup(root), _startup:
-        with test_source.admission(root, ['--reload'] if reload else argv, wait=False):
-            return _select(root, argv, reload=reload, watch=watch,
-                           implicit_default=implicit_default, resume_request=resume_request)
+        try:
+            with test_source.admission(root, ['--reload'] if reload else argv, wait=False):
+                return _select(root, argv, reload=reload, watch=watch,
+                               implicit_default=implicit_default, resume_request=resume_request)
+        except (test_source.SourceBusy, test_activity.ActivityBusy) as error:
+            from launcher_queue import REPLAY
+            if os.environ.get(REPLAY):
+                from launcher_controller import RetryQueuedStartup
+                raise RetryQueuedStartup(str(error)) from error
+            raise
 
 
 def _select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
@@ -134,6 +141,17 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
         expected_watch_run = os.environ.get('ONPC_WATCH_RUN')
         if expected_watch_run is not None and (not active or str(run) != expected_watch_run):
             raise ValueError('Watch launcher changed or stopped; refresh before trying again.')
+        from detached_launcher import WORKFLOW_DIRECTORY
+        from launcher_queue import Submission, retire_completed
+        submission = None
+        if (not reload and '--stop' not in argv and not any(os.environ.get(name) for name in (
+                FRAME_DIRECTORY, WORKFLOW_DIRECTORY, VARIABLE, 'ONPC_RUNNER_INVOCATION',
+                'ONPC_LAUNCHER_CONTROLLER_ROOT')) and os.environ.get('MAKELEVEL', '0') in ('', '0')):
+            submission = Submission.public(root, directory)
+            if submission is not None:
+                receipt = submission.admit(run, active)
+                if receipt is not None:
+                    return receipt, False
         if reload and not active:
             test_source.restart_execution()
         if active:
@@ -180,12 +198,13 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
             if broken and not (run / 'delivered').exists():
                 print(f'Previous test owner is idle; preserving its incomplete/failed output in {run}.',
                       file=sys.stderr, flush=True)
-        # Reconnection wins over new execution arguments, including invalid
-        # selections. Validate only when starting a new run, under the same gate.
+        # Validate the request against the current checkout before execution.
         # Idle invocations with no arguments start the complete aggregate.
         if implicit_default:
             requested = vm_config.filter_vm_hosts(requested, use_defaults=True)
         validate(root, requested)
+        if submission is None:
+            retire_completed(directory)
         admitted = None
         original = None
         if not host_only:
@@ -224,6 +243,7 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 test_retention.retain(run)
             with lock(run / 'owner') as owner, (run / 'output').open('xb') as output:
                 fcntl.flock(owner, fcntl.LOCK_EX)
+                from test_storage import scratch_descriptors
                 from detached_launcher import atomic
                 if admitted is None:
                     atomic(run / 'admitted-vms.json', [])
@@ -237,13 +257,11 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 from vm_selection import BATCH
                 from detached_launcher import owner_record, WORKFLOW_DIRECTORY
                 # Display provenance only; this grants no execution or input authority.
-                temporary.write_text(json.dumps(owner_record(run, launcher='run-tests', argv=record_argv,
+                record = owner_record(run, launcher='run-tests', argv=record_argv,
                     watch_visibility=False,
                     observer=os.environ.get(FRAME_DIRECTORY) or os.environ.get(WORKFLOW_DIRECTORY),
                     vm_requested=original,
-                    vm_batch=json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None)))
-                temporary.replace(current)
-                from test_storage import scratch_descriptors
+                    vm_batch=json.loads(os.environ[BATCH]) if BATCH in os.environ and not host_only else None)
                 from detached_launcher import nested_operation, WORKFLOW_DIRECTORY
                 environment = test_launcher.environment(root)
                 from test_progress import SELECTION
@@ -267,6 +285,8 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                 # Registration belongs to this public invocation. Test fixtures
                 # and further runner workers must not claim the agent's owner.
                 environment.pop(WORKFLOW_DIRECTORY, None)
+                from launcher_queue import REPLAY
+                environment.pop(REPLAY, None)
                 with nested_operation(root, run):
                     from test_checkpoint import request_record
                     remembered = [arg for arg in worker_argv
@@ -274,11 +294,27 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
                                   and not arg.startswith('--resume-case=')]
                     if not host_only and configured is None:
                         remembered.extend(('--vm', ','.join(original['vms'])))
-                    request_record(root, 'run-tests', {'argv': remembered, 'session_vm': session_vm})
-                    subprocess.Popen(command, cwd=root, env=environment,
-                                     stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
-                                     start_new_session=True,
-                                     pass_fds=(*test_activity.descriptors(), owner, *scratch_descriptors()))
+                    selection_record = {'argv': remembered, 'session_vm': session_vm}
+                    replay = submission is not None and submission.replay is not None
+                    descriptors = (*test_activity.descriptors(), owner, *scratch_descriptors())
+                    if submission is not None:
+                        durable_json(current, record)
+                    else:
+                        temporary.write_text(json.dumps(record))
+                        temporary.replace(current)
+                    if not replay:
+                        request_record(root, 'run-tests', selection_record)
+                    with (submission.starting(run) if submission is not None else nullcontext()):
+                        subprocess.Popen(command, cwd=root, env=environment,
+                                         stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                                         start_new_session=True,
+                                         pass_fds=descriptors)
+                    if replay:
+                        try:
+                            request_record(root, 'run-tests', selection_record)
+                        except (OSError, ValueError) as error:
+                            print(f'run-tests: could not save selection for bare --resume: {error}',
+                                  file=sys.stderr)
         return run, True
 
 
@@ -363,7 +399,7 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
     def cancel(*_):
         nonlocal requested
         requested = True
-        if run is not None:
+        if isinstance(run, Path):
             (run / 'cancel').touch(mode=0o600)
 
     previous = signal.signal(signal.SIGINT, cancel)
@@ -375,16 +411,21 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
                           **({'implicit_default': True} if implicit_default else {}))
         if reset:
             from test_reset import reset as reset_state
+            from launcher_queue import reset_gate
             from test_commands import host_only_request, validate
             from vm_selection import vm_config
             if implicit_default:
                 argv = vm_config.filter_vm_hosts(argv, use_defaults=True)
             validate(root, argv or ['all'])
             _, selector = vm_config.extract_selector(argv)
-            run, started = reset_state(root, test_source.restart_execution,
-                                       host_only=host_only_request(argv or ['all']), selector=selector)
+            with reset_gate(root, exclusive=True) as lease:
+                run, started = reset_state(root, lambda: test_source.restart_execution(reset_lease=os.dup(lease)),
+                                           host_only=host_only_request(argv or ['all']), selector=selector)
         else:
             run, started = start()
+        from launcher_queue import Receipt
+        if isinstance(run, Receipt):
+            return run.report('run-tests', sys.stdout)
         from test_results import VARIABLE
         if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
             from launcher_reload import STATUS as RELOAD_STATUS, unaccepted
@@ -427,11 +468,17 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
         signal.signal(signal.SIGINT, previous)
 
 
+def record_result(run, status, *, interrupted=False):
+    if interrupted:
+        durable_json(run / 'interrupted.json', True)
+    durable_json(run / 'result', status)
+
+
 def worker(root, argv, run, owner, *, reloading=False):
     # setsid in Popen disconnects the controlling terminal before this exec.
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     if (run / 'cancel').exists():
-        (run / 'result').write_text('130')
+        record_result(run, 130)
         os.close(owner)
         return 130
     with test_source.reader(root):
@@ -441,6 +488,7 @@ def worker(root, argv, run, owner, *, reloading=False):
         from test_storage import scratch_descriptors
     from launcher_control import watching, CancellationEvent
     regression_process.session_stop = CancellationEvent(run)
+    regression_process.session_interrupted = False
     # Keep cancellation cooperative through recorder startup, publication and
     # final result storage, after the inner category controllers have exited.
     with watching(run) as reload_request, regression_process.Control().installed(), test_io.low_io(), \
@@ -485,7 +533,7 @@ def worker(root, argv, run, owner, *, reloading=False):
                     status = 1
                     print(f'Test runner lifetime cleanup failed: {error}', file=sys.stderr, flush=True)
                 try:
-                    (run / 'result').write_text(str(status))
+                    record_result(run, status, interrupted=regression_process.session_interrupted)
                 finally:
                     os.close(owner)
             return status
@@ -575,7 +623,7 @@ def owned_worker(root, argv, run, owner, *, resources=None, reloading=False):
                              test_activity.COMPATIBILITY_VARIABLE):
                 if variable in os.environ:
                     os.close(int(os.environ.pop(variable)))
-            (run / 'result').write_text(str(status))
+            record_result(run, status, interrupted=regression_process.session_interrupted)
             os.close(owner)
     if reloading:
         raise ReloadRequested()

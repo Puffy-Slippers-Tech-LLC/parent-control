@@ -257,7 +257,8 @@ def launcher_arguments(record, kind, *, branch, execution_plan=False, value=None
             next(tokens, None)
         elif kind != 'resume' and arg.startswith(('--watch-ssh=', '--watch-view=')):
             continue
-        elif not arg.startswith('--add-session=') and arg not in ('--stop', '--cancel-stop', '--resume', '--reload', '--reset'):
+        elif not arg.startswith('--add-session=') and arg not in (
+                '--stop', '--cancel-stop', '--resume', '--reload', '--reset', '--start-fresh'):
             argv.append(arg)
     if kind in ('stop', 'cancel-stop', 'add-session') or test_controls or 'requested_argv' not in record:
         argv = ['--branch', branch, *argv]
@@ -265,7 +266,7 @@ def launcher_arguments(record, kind, *, branch, execution_plan=False, value=None
         return ['--add-session', '5', *argv]
     if kind in ('watch-view', 'watch-ssh'):
         return [f'--{kind}', value, *argv]
-    return argv if kind == 'resume' and execution_plan else [f'--{kind}', *argv]
+    return [f'--{kind}', *argv]
 
 
 class Viewer:
@@ -393,6 +394,30 @@ class Viewer:
         finally:
             self.run_times = None
             self.timing_records.clear()
+
+    def launcher_queues(self):
+        from launcher_queue import tickets
+        rows, errors = [], []
+        for root, branch in self.roots.items():
+            checkout_errors = []
+            try:
+                rows.extend(dict(row, root=str(root), branch=branch)
+                            for row in tickets(root, on_error=checkout_errors.append))
+            except (OSError, ValueError, TypeError) as error:
+                checkout_errors.append(str(error))
+            errors.extend(f'{branch}: {error}' for error in checkout_errors)
+        return rows, errors
+
+    def cancel_ticket(self, action):
+        from launcher_queue import cancel
+        try:
+            root = Path(action['root'])
+            if root not in self.roots:
+                raise ValueError('Checkout is no longer available.')
+            cancel(root, action['ticket'], wait=False)
+            return dict(ok=True)
+        except (OSError, ValueError, TypeError) as error:
+            return dict(ok=False, error=str(error))
 
     def artifact(self, request):
         """Serve only artifacts published by this reader, never arbitrary paths."""
@@ -927,10 +952,11 @@ class Viewer:
         policies = [meta.get('watch_ssh', True) for _feed, meta in self.vms.values() if meta]
         policies.extend(controlled_ssh)
         watch_ssh = any(policies) if policies else True
+        launcher_queue, queue_errors = self.launcher_queues()
         response = dict(protocol=1, capabilities=dict(sessions=True, session_roots=True, updates=True,
-                    artifacts=True, delete_run_times=True, file_search=True),
+                    artifacts=True, delete_run_times=True, file_search=True, launcher_queue=True),
                     scope=scope, selected=selected, entries=values,
-                    run_times=run_times,
+                    run_times=run_times, launcher_queue=launcher_queue, queue_errors=queue_errors,
                     runs=runs, session_result=result,
                     watch_launchers=[dict(id=key, run=str(target['run']), launcher=target['launcher'],
                         watch_controls=target['watch_controls'],
@@ -1013,6 +1039,15 @@ def main():
                         or 'value' in action and action['value'] not in ('on', 'off')):
                     raise ValueError('watch: invalid launcher action')
                 print(json.dumps(dict(protocol=1, launcher_result=viewer.launcher_command(action))), flush=True)
+                continue
+            if 'cancel_ticket' in request:
+                action = request['cancel_ticket']
+                if (set(request) - {'protocol', 'cancel_ticket'} or type(action) is not dict
+                        or set(action) != {'root', 'ticket'} or type(action['root']) is not str
+                        or type(action['ticket']) is not str
+                        or not re.fullmatch(r'[a-f0-9]{32}', action['ticket'])):
+                    raise ValueError('watch: invalid queue removal request')
+                print(json.dumps(dict(protocol=1, queue_result=viewer.cancel_ticket(action))), flush=True)
                 continue
             if 'artifact' in request:
                 artifact = request['artifact']

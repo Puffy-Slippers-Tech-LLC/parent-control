@@ -237,7 +237,8 @@ def resume_arguments(root, argv):
     args, selector = vm_config.extract_selector(argv)
     if any(arg not in ('--resume', '--record') for arg in args):
         return argv, None
-    previous = request_record(root, 'run-tests')
+    from launcher_controller import remembered_request
+    previous = remembered_request(lambda: request_record(root, 'run-tests'))
     if not isinstance(previous, dict) or not isinstance(previous.get('argv'), list):
         return argv, None
     saved, binding = vm_config.extract_selector(previous['argv'])

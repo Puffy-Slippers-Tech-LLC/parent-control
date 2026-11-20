@@ -939,15 +939,14 @@ Codex with this checkout trusted. Setup maintains these target grants for clean
 machines without changing personal user rules.
 
 The [runner contract](../tests/README.md#all-established-regressions) owns
-failure-stop flags; [reconnection](../tests/README.md#aggregate-execution-and-reconnection)
-owns terminal independence, scope-specific attachment, cancellation and unread
-results. Host and VM namespaces are independent. Explicit VM runs retain their
-canonical selection; default queue runs can attach without `--vm`. Help, listing
-and collection remain read-only inspections, never acceptance or execution.
+failure-stop flags. The [shared launcher queue](Execution-Plans.md#queued-launcher-jobs)
+owns waiting tickets and manual recovery. Host and VM scopes are independent.
+Explicit VM runs retain their canonical selection for controls. Help, listing
+and collection remain read-only inspections.
 
 The [repair launcher contract](../tests/README.md#scripted-repair-loop) owns
-option forwarding, retries, diagnostic handoffs and agent isolation. Reattachment
-does not execute new selectors. Checkout-tool changes activate on invocation
+option forwarding, retries, diagnostic handoffs and agent isolation.
+Checkout-tool changes activate on invocation
 (`none`) without installing or restarting the product on the development host.
 Selected guest lifecycle tests retain their installation and restart requirements.
 

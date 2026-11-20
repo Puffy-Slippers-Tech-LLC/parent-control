@@ -73,7 +73,7 @@ Raw test output remains in the linked report streams.
 
 `run-tests` uses its configured `default_branch`, which can select a different
 checkout from the command's working directory. When validating edits in another
-configured checkout, pass `--branch NAME` explicitly for execution and attachment;
+configured checkout, pass `--branch NAME` explicitly for execution and controls;
 retain the enclosing `ONPC_WORKFLOW_DIRECTORY` so nested results reach its owner.
 
 Readiness and leaf/composite status are registered with each command in
@@ -120,7 +120,7 @@ evidence rather than touching the VM.
 `vm` runs system tests and ready E2E scenarios, preparing their required package
 inputs without running host test suites. Separate `host` and `vm` invocations
 may run in parallel. Each scope has its own activity lock, session discovery,
-attachment, cancellation and retained results; combined selections reserve both
+queued jobs, cancellation and retained results; combined selections reserve both
 locks. Narrower categories use their owning scope's lock.
 
 Bare `system` includes the current-package suite, separate genuine upgrade
@@ -622,8 +622,8 @@ branch propagation using ordinary Git operations. It preserves unrelated work
 and histories, without the former repair ownership/fingerprint/journal protocol.
 A Git failure never revokes a test pass. Fresh jobs synchronize the selected
 controller checkout with its upstream before execution through shared startup
-admission. Attaching to an active repair does not pull over its edits; a new job
-refuses when synchronization cannot complete. Startup and resume do not
+admission. A waiting job starts when source can be synchronized safely.
+Startup and resume do not
 reconstruct interrupted Git close-out.
 
 `--resume` starts fresh execution using remembered results:
@@ -655,7 +655,8 @@ execution; they never accept its result as their own. Ordinary test invocations
 do not share the repair result store.
 
 Host-only and VM-containing selections retain separate detached launcher
-namespaces. Attach with the same scope to observe ongoing output.
+scopes and [queues](../docs/Execution-Plans.md#queued-launcher-jobs).
+Use Watch to observe ongoing output.
 `--reload` closes admission in the repair launcher's active test runner. VM steps
 are interrupted cooperatively, and the runner saves completed cases and joins
 owned cleanup before the repair launcher reloads. An active repair agent
@@ -807,41 +808,37 @@ replacement waits for owned cleanup, not completion of the admitted case group.
 Controllers join admitted work and preserve completed cases before replacement.
 Independent test runs and `fix-tests` synchronize upstream at this boundary.
 Repair validation reloads from the agent's working checkout.
-Source edits alone never trigger reload. When idle, `--reload` starts normally.
-`--watch-ssh on|off` and `--watch-view on|off` change actual Watch collection
-while the selected owner continues running. New independent runs default to
-both off; omitted options on attachment or reload leave the current settings
-unchanged. The [common launcher contract](../docs/Execution-Plans.md#common-launcher-interface)
+Source edits alone never trigger reload. When idle, `--reload` submits a normal
+launch under the same queue rules as a command without the flag.
+`--watch-ssh on|off` and `--watch-view on|off` set collection for new runs.
+New independent runs default to both off. Watch can change the settings during
+a run. The [common launcher contract](../docs/Execution-Plans.md#common-launcher-interface)
 owns inheritance, recording requirements and the distinction from test output.
-While a run is active, repeated execution commands acknowledge that owner and
-ignore new categories. Test invocations inside plan agents, repair supervisors
+Public execution commands submit jobs to the [launcher queue](../docs/Execution-Plans.md#queued-launcher-jobs)
+when their scope is busy. Test invocations inside plan agents, repair supervisors
 and Make recipes continue to wait for the completed test verdict.
-VM attachment and cancellation
+VM controls
 require the original canonical `--vm` selection for explicitly selected runs;
-missing or different selections refuse. Default queue runs attach and cancel
+missing or different selections refuse. Default pool runs accept controls
 without `--vm` or with the original list. IDs resolve to names before saving
 the selection; repair retries forward those names rather than expanding to all enabled VMs.
-`tools/run-tests --vm NAME --stop` attaches to a narrowed VM run, requests
+`tools/run-tests --vm NAME --stop` targets a narrowed VM run, requests
 cancellation, and returns immediately while owned cleanup continues; when idle it returns without starting
-tests or consuming saved results. Attachment searches only the requested scope:
+tests or consuming saved results. Controls target the requested scope:
 use a host category for host work and `vm` for VM work. Host and VM sessions and
 activity locks are independent, allowing separate runs and standalone VM
 preparation to overlap host tests. No arguments select the VM session namespace.
-The original selection and options remain in effect. Global and category help,
-listings, and collection-only invocations always return their requested inspection
-output without acquiring or checking test/session locks, attaching to a run, or
-marking its result delivered.
+Global and category help, listings, and collection-only invocations return
+their requested inspection output without acquiring execution locks.
 A failed or incomplete idle session can be replaced by an explicit new selection;
 its output is preserved and startup recovery runs before new VM checks. Host-only
 execution refuses pending VM recovery.
-When no run is active, an unread successful result is replayed within the
-requested host or VM scope. Invoke without arguments to replay any unread VM-side
-result. After delivery, or when no VM session exists, an invocation without arguments starts the `all`
-aggregate. VM session output and ownership records live under
+An invocation without arguments submits the `all` aggregate. VM session output
+and ownership records live under
 `output/test-runs/host/sessions/`; host-only records live under
-`output/test-runs/host/sessions-host/`. Reconnect to a host-only run with a host
-category such as `host`, `ui`, or `unit` to address its active owner; read retained
-results in the printed run directory.
+`output/test-runs/host/sessions-host/`. Use a host category such as `host`,
+`ui`, or `unit` to address its active owner. Read retained results in the
+printed run directory.
 Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
@@ -2298,8 +2295,7 @@ existing smaller input bound.
 On resume, reconcile the current working tree, the active runner's actual
 selection, and the latest retained category/attempt results with the handoff.
 The handoff can predate an already tested correction or a still-running retry.
-Attach to a matching run through the maintained launcher and let its cleanup
-finish; do not mistake attachment for execution of new arguments. Coordinate
+Observe a matching run in Watch and let its cleanup finish. Coordinate
 one editor for the same task when another agent is active, including close-out;
 the VM lease does not serialize source/document edits. Preserve existing work
 and valid results instead of restarting the whole investigation.

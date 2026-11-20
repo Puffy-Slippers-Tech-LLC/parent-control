@@ -366,12 +366,11 @@ def usage():
        tools/run-tests --stop
        tools/run-tests --reload
 
-With no categories, start the all aggregate. An active run takes precedence
-over new execution categories. Idle invocations start fresh.
-Launch commands return after admission; the printed run directory retains progress and results.
-Select a
-configured queue without --vm; narrowed runs require their original --vm NAME.
-Help, listing and collection return immediately without attaching.
+With no categories, submit the all aggregate. If this launcher scope is busy
+or already has waiting jobs, the command returns a queue ticket. Otherwise it
+starts the controller and prints the run directory.
+Select a configured VM pool without --vm. Use the original --vm NAME for
+controls targeting a narrowed run. Help, listing and collection are immediate.
 --reverse reverses cases within each category (JS: file order). Pytest and JS
 files run serially; VM workers claim cases backwards, retaining lifecycle
 prerequisites. Category/preparation order is unchanged. Bare --resume restores it.
@@ -381,9 +380,8 @@ Recording is off by default; --record enables VM watch video for this invocation
 Specify --record again on resume to keep recording.
 Watch collection is off by default for new runs. --watch-ssh on|off controls
 Watch VM SSH output, progress and transfer; --watch-view on|off controls
-screen capture and transfer. Attach with the same scope/VM selection to change
-either setting live, without reloading or restarting tests. Omitted settings
-remain unchanged on attachment and controller reload. --record requires both on;
+screen capture and transfer. ONPC: Watch can change either setting live.
+Controller reload preserves omitted settings. --record requires both on;
 neither can be disabled during a recording-enabled run.
 Failed, interrupted and incomplete cases remain pending. Without --resume, a new
 execution resets progress. Required preparation and lifecycle prerequisites still run.
@@ -393,7 +391,7 @@ fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --stop and --reload; inspection performs no reset.
 --stop requests cancellation and returns immediately; cleanup output stays in the run directory.
 --reload requests a controller refresh at safe boundaries and returns immediately;
-when idle, the flag is ignored and execution starts normally.
+when idle, the flag is ignored and the request follows the normal queue rules.
 VM categories read config/environment.json and select VMs with enabled equal to
 the string "true" on online hosts, using each host's max_compute_unit limit. Queue
 selectors skip offline VMs/hosts; direct maintenance refuses them. Each family
@@ -1546,8 +1544,7 @@ def vmhost_request(argv, vmhost, *, use_defaults):
     if vmhost is None and (is_inspection(args) or '--stop' in args or vm_artifact_request(args)):
         return argv, False
     if vmhost is None and selector is None:
-        # Unnarrowed runs share a session scope. Resolve defaults only when
-        # starting new work, after giving its active owner a chance to attach.
+        # Unnarrowed runs share a session scope. Resolve defaults when starting.
         return argv, True
     return vm_config.filter_vm_hosts(argv, vmhost, use_defaults=use_defaults), False
 

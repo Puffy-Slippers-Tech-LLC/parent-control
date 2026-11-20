@@ -311,8 +311,8 @@ A new job
 cannot fall back to stale imports when synchronization is busy.
 Independent host/VM scopes can start while another scope is active if a
 fetch-only check confirms that their shared source already contains upstream.
-It never applies updates over a live controller; an attachment can still use
-that owner, while a new job refuses until source can be synchronized safely.
+It never applies updates over a live controller. A waiting job can start only
+when source can be synchronized safely.
 The bootstrap remains a placement-only handoff. When early synchronization changes HEAD,
 admission replaces the launcher interpreter before selection, retaining the verified
 destination and avoiding a second pull. Controller imports and newly launched jobs
@@ -339,9 +339,8 @@ invocation exists. Explicit `--branch` still overrides this internal default.
 
 `run-tests` and `fix-tests` accept `--watch-ssh on|off` and
 `--watch-view on|off`. Both default to off for a new independent run, including
-a fresh resume. On attachment, only explicitly supplied settings change; an
-ordinary attachment or controller reload preserves the live settings. Use the
-same branch, scope and VM selection as the active owner. Changes use
+a fresh resume. ONPC: Watch can change an active run's settings, and a
+controller reload preserves any omitted settings. Changes use
 one atomic save path that writes the complete runtime policy, creating it
 when absent. Concurrent saves preserve settings omitted by the caller. A missing
 document reads as the default-off policy; invalid existing documents still refuse.
@@ -374,9 +373,8 @@ tools/execute-plan 'docs/Example.md' --stop
 `--tasks N` limits completed tasks in this run. Zero and negative values mean
 all remaining tasks. A larger positive limit warns and finishes successfully
 when the queue is exhausted; the launcher never invents tasks to fill the limit.
-On attachment, an explicit `--tasks` **replaces** the active run's total limit;
-omitting it keeps that limit. Lowering a limit never interrupts accepted ongoing
-work. All shared launchers default to `0`, running all remaining tasks in their
+`--tasks` on a new request applies to that run when it starts. All shared
+launchers default to `0`, running all remaining tasks in their
 selected queue. In `fix-tests`, each completed category scope counts once across
 its selected families. Exact-case validation and repair sessions do not consume
 additional tasks. Requested rounds are fixed; no source change adds a pass.
@@ -411,17 +409,17 @@ launcher code to support cancellation.
 `fix-tests` and `run-tests` retain their cooperative cancellation semantics.
 Launcher commands start the detached controller, print a green startup acknowledgement
 or a red failure, and exit. The acknowledgement reports admission, not completion.
-Repeating a command updates or acknowledges the existing owner without opening a
-terminal client. ONPC: Watch can attach at any time for progress, results, questions
-and conversation; closing Watch leaves the controller running. Model defaults do
-not change an active run. On attachment, `--reload` or `--stop`, omitted `--vm` preserves that owner's VM queue
+For a busy launcher, a normal public command saves a waiting ticket, even if
+the command is identical. See [queued launcher jobs](#queued-launcher-jobs).
+ONPC: Watch shows progress, results, questions and conversation.
+With `--reload` or `--stop`, omitted `--vm` preserves the active owner's VM queue
 and concurrency; fresh execution uses the current configured defaults. An explicit
 `--vm` must match the active run's binding.
-Attachment and `--stop` use the master's stable checkout-relative path and
+`--stop` uses the master's stable checkout-relative path and
 remain available while its contents or queue are incomplete; `--check` and fresh
 execution still validate the plan. A fresh plan run automatically resumes unfinished work, including accepted
 Git close-out and interrupted validation. It allows five more task implementation
-sessions for that task; attaching never renews this allowance. Ordinary-plan
+sessions for that task. Ordinary-plan
 coordinator repairs use a separate allowance of **three sessions per task**.
 Git reconciliation and rejected response correction consume only that repair
 allowance. Report expiry causes no repair session. Normal task continuations
@@ -607,6 +605,35 @@ terminal display, keyboard editor, mouse handling or output-following loop.
 Test invocations inside plan agents, repair supervisors or Make recipes still
 wait for their result; their exit status remains the test verdict. Supervised
 tests forward progress to their owning controller without a terminal UI.
+
+### Queued launcher jobs
+
+Public commands that start detached jobs share the existing launcher scopes.
+Each scope has its own first-in, first-out queue in its controller checkout.
+If the scope is idle and the queue is empty, the command starts immediately.
+Otherwise it saves a ticket and prints its ID, including for an identical
+command. The queued command starts through normal admission and uses the
+checkout's source and configuration at that time. An implicit `--resume`
+selection is captured when the ticket is queued. Internal calls that wait
+for a test verdict and active controls such as `--stop` and `--reload`
+keep their existing behavior.
+
+Use **Queue** in [ONPC: Watch](../vscode/onpc-watch/README.md#launcher-queue)
+to see and remove waiting tickets across connected checkouts. On the command
+line, use the launcher with `--queue-list` or `--queue-cancel TICKET`, and
+`--branch NAME` to select its checkout. Removal works while a queue is paused.
+After a ticket starts, use the launcher's active controls.
+
+A temporary helper advances each nonempty queue after the active owner ends.
+Pending tickets survive terminal disconnection and remain on disk if the helper
+exits unexpectedly. Another submission to that scope can restart the helper.
+If a run is interrupted without finishing, use `--resume` where supported
+or the original run command with `--start-fresh`. That run starts before
+the waiting tickets. The remaining tickets advance after it finishes.
+A checkout-wide `run-tests --reset` holds queued starts through cleanup
+and admission of its replacement run. A startup
+error stays visible on its ticket. Correct the error and submit again to wake
+the helper, or remove that ticket to let the next waiting job start.
 
 ### Git close-out and recovery
 

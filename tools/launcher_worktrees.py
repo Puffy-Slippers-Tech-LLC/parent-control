@@ -870,7 +870,7 @@ return continue with exact remaining work. No other task or launcher execution.
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         selected = _operation_selection(Path(details['source_root']), selection).get()
-        launcher._publish_start(previous, dict(owner_record, agent_selection=selected.record()))
+        launcher.durable_json(previous, dict(owner_record, agent_selection=selected.record()))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--resolve', str(root), str(session), str(owner)]
         from test_source import descriptors as source_descriptors

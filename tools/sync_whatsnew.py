@@ -276,7 +276,8 @@ def worker(root, run, owner, model, effort, subagents, batch_size):
                     str(subagents), str(batch_size)], (owner, *launcher.scratch_descriptors()))
             except OSError as error:
                 status, summary = 1, f'controller reload failed: {error}; resume the retained run'
-        launcher.atomic(run / 'result.json', dict(status=status, summary=summary))
+        launcher.durable_json(run / 'result.json', dict(status=status, summary=summary,
+            **({'interrupted': True} if sys.exc_info()[0] else {})))
         print('sync-whatsnew: ' + summary, flush=True)
         os.close(owner)
     return status

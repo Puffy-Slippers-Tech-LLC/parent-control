@@ -19,6 +19,15 @@
     const resources = document.getElementById('resources');
     const servers = document.getElementById('servers');
     const runs = document.getElementById('runs');
+    const queueButton = document.getElementById('launcher-queue-button');
+    const queuePanel = document.getElementById('launcher-queue');
+    const queueList = document.getElementById('launcher-queue-list');
+    const queueStatus = document.getElementById('launcher-queue-status');
+    const removingTickets = new Set();
+    const removedTickets = new Set();
+    let queueRows = [];
+    let queueErrors = [];
+    let queueSignature;
     const layout = document.getElementById('watch');
     const divider = document.getElementById('divider');
     const saved = vscode.getState();
@@ -48,6 +57,62 @@
     let runTimeRows = [];
     const cloudPath = 'M6 15a4 4 0 1 1 .2-8A5 5 0 0 1 15.5 8H16a3.5 3.5 0 0 1 0 7Z';
     const cloudOfflinePath = `${cloudPath} M2 2l16 16`;
+
+    function positionQueue() {
+        if (!queuePanel.matches(':popover-open')) return;
+        const bounds = queueButton.getBoundingClientRect();
+        const top = bounds.bottom + 4;
+        queuePanel.style.left = `${Math.max(6, bounds.right - queuePanel.offsetWidth)}px`;
+        queuePanel.style.top = `${top}px`;
+        queuePanel.style.maxHeight = `${Math.max(48, window.innerHeight - top - 8)}px`;
+    }
+
+    function renderQueue() {
+        const rows = queueRows.filter(row => !removedTickets.has(row.token));
+        const signature = JSON.stringify([rows, queueErrors, [...removingTickets]]);
+        if (queueSignature === signature) return;
+        queueSignature = signature;
+        queueList.replaceChildren();
+        for (const error of queueErrors) {
+            element('p', 'queue-note', queueList).textContent = error;
+        }
+        if (!rows.length && !queueErrors.length) {
+            element('p', 'queue-note', queueList).textContent = 'No waiting jobs.';
+        }
+        for (const row of rows) {
+            const item = element('div', 'queue-item', queueList);
+            const details = element('div', 'queue-details', item);
+            element('strong', '', details).textContent = `[${row.host}] ${row.branch} · ${row.launcher}`;
+            element('code', '', details).textContent = row.command;
+            element('small', '', details).textContent = row.ticket;
+            if (row.paused || row.error) {
+                element('p', 'queue-note', details).textContent = row.paused ?
+                    'Paused — interrupted run. Resume or start fresh to continue.' : row.error;
+            }
+            const remove = element('button', '', item);
+            remove.type = 'button';
+            remove.textContent = 'Remove';
+            remove.setAttribute('aria-label', `Remove queued ${row.launcher} on ${row.branch}, ticket ${row.ticket}`);
+            remove.disabled = removingTickets.has(row.token);
+            remove.addEventListener('click', () => {
+                removingTickets.add(row.token);
+                queueStatus.hidden = true;
+                remove.disabled = true;
+                vscode.postMessage({ type: 'cancelTicket', token: row.token });
+            });
+        }
+    }
+
+    queuePanel.addEventListener('toggle', () => {
+        const open = queuePanel.matches(':popover-open');
+        queueButton.setAttribute('aria-expanded', String(open));
+        if (open) {
+            renderQueue();
+            positionQueue();
+        }
+    });
+    window.addEventListener('resize', positionQueue);
+    new ResizeObserver(positionQueue).observe(document.getElementById('launchers'));
 
     function countdown(node) {
         const remaining = Math.max(0, Math.ceil(Number(node.dataset.deadline) - Date.now() / 1000));
@@ -2372,6 +2437,12 @@
     }
 
     async function render(snapshot) {
+        queueRows = snapshot.launcher_queue || [];
+        queueErrors = snapshot.queue_errors || [];
+        for (const token of removedTickets) {
+            if (!queueRows.some(row => row.token === token)) removedTickets.delete(token);
+        }
+        if (queuePanel.matches(':popover-open')) renderQueue();
         for (const result of snapshot.session_results || []) {
             if (!actions.has(result.id)) continue;
             const { section, draft, session } = actions.get(result.id);
@@ -2468,6 +2539,14 @@
         }
         if (event.data.type === 'watchSettings') {
             collectionSettings(event.data);
+        } else if (event.data.type === 'queueRemoval') {
+            const { token, error } = event.data;
+            removingTickets.delete(token);
+            if (!error) removedTickets.add(token);
+            queueSignature = undefined;
+            queueStatus.textContent = error || 'Ticket removed.';
+            queueStatus.hidden = false;
+            renderQueue();
         } else if (event.data.type === 'snapshot') {
             pending = pending.then(() => render(event.data)).catch(error => {
                 message(error.message);

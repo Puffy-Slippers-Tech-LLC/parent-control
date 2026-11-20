@@ -392,6 +392,32 @@ nav button { flex-shrink: 0; }
 }
 .pane-toolbar > strong { flex: 1; align-self: center; padding: 8px; }
 .pane-toolbar { min-height: 45px; }
+#launcher-queue-button {
+    align-self: center; flex: none; margin-inline: 4px 8px; padding: 4px 8px;
+    color: inherit; background: transparent; border: 1px solid transparent; border-radius: 3px;
+}
+#launcher-queue-button:hover, #launcher-queue-button[aria-expanded="true"] {
+    background: rgb(255 255 255 / 18%);
+}
+#launcher-queue {
+    position: fixed; inset: auto; margin: 0; padding: 0; width: min(460px, calc(100vw - 12px));
+    color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+    background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorWidget-border, var(--watch-border));
+    border-radius: 6px; box-shadow: 0 4px 16px var(--vscode-widget-shadow);
+    overflow: hidden;
+}
+#launcher-queue:popover-open { display: flex; flex-direction: column; }
+#launcher-queue header, .queue-item {
+    display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; padding: 8px 12px;
+}
+#launcher-queue header { align-items: center; border-bottom: 1px solid var(--watch-border); }
+#launcher-queue-list { min-height: 0; overflow-y: auto; }
+.queue-item + .queue-item { border-top: 1px solid var(--watch-border); }
+.queue-details { min-width: 0; overflow-wrap: anywhere; }
+.queue-details > * { display: block; }
+.queue-note, #launcher-queue-status { margin: 0; padding: 6px 12px; overflow-wrap: anywhere; }
+.queue-details .queue-note { padding-inline: 0; }
 #viewer-header { flex-wrap: wrap; }
 #watch-controls, .tile-layout { padding-inline: var(--pane-control-gap); }
 #watch-controls {

@@ -109,6 +109,13 @@ function validate(snapshot) {
                 (run.watch_controls && (typeof run.watch_ssh !== 'boolean' || typeof run.watch_view !== 'boolean')))) {
         throw new Error('Invalid live Watch launchers.');
     }
+    if (snapshot.capabilities?.launcher_queue && (!Array.isArray(snapshot.launcher_queue) ||
+            snapshot.launcher_queue.some(row => !row || !/^[a-f0-9]{32}$/.test(row.id) ||
+                typeof row.paused !== 'boolean' ||
+                ['root', 'branch', 'launcher', 'command', 'error'].some(field => typeof row[field] !== 'string')) ||
+            !Array.isArray(snapshot.queue_errors) || snapshot.queue_errors.some(error => typeof error !== 'string'))) {
+        throw new Error('Invalid launcher queue.');
+    }
     if (snapshot.run_times !== undefined && (!Array.isArray(snapshot.run_times) || snapshot.run_times.some(row =>
         !row || !['system', 'integration', 'e2e'].includes(row.category) ||
         !(Number.isInteger(row.id) && row.id > 0 || typeof row.id === 'string') ||
@@ -269,6 +276,7 @@ class Source {
         if (Buffer.byteLength(line) > MAX_REQUEST) throw new Error('Watch request too large.');
         const operation = request.session_action ? `session ${request.session_action.kind}` :
             request.launcher_action ? `launcher ${request.launcher_action.kind}` :
+            request.cancel_ticket ? 'remove queue ticket' :
             request.delete_run_times ? 'delete run times' : request.artifact ? 'artifact' : 'snapshot';
         this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true,
             operation, started: performance.now(), bytes: 0 };
@@ -398,6 +406,14 @@ class Source {
             this.artifactRequest = { request: { launcher_action: action }, response: 'launcher_result', resolve, reject };
         });
     }
+
+    cancelTicket(action) {
+        if (!this.child || this.status !== 'Connected') return Promise.reject(new Error('Source disconnected.'));
+        if (this.artifactRequest || this.pending?.resolve) return Promise.reject(new Error('Another Watch operation is in progress.'));
+        return new Promise((resolve, reject) => {
+            this.artifactRequest = { request: { cancel_ticket: action }, response: 'queue_result', resolve, reject };
+        });
+    }
 }
 
 class Bridge {
@@ -423,6 +439,7 @@ class Bridge {
         this.links = new Map();
         this.roots = new Map();
         this.timings = new Map();
+        this.tickets = new Map();
     }
 
     close() {
@@ -490,6 +507,7 @@ class Bridge {
 
     snapshot(request) {
         const entries = [], runs = [], checkouts = [], hosts = [], run_times = [], fileSuggestions = [];
+        const launcherQueue = [], queueErrors = [];
         const servers = new Map();
         this.serverErrors = new Map();
         for (const source of [...this.resourceSources, ...this.sources]) {
@@ -522,12 +540,24 @@ class Bridge {
         const selected = request.selected === 'run-time' || awaitingSelection || this.sources.some(source => (!scope || scope.source === source) &&
             source.snapshot?.entries.some(entry => key(source.config.id, entry.id) === request.selected)) ? request.selected : 'all';
         const visible = new Set();
-        this.links.clear(); this.roots.clear(); this.timings.clear();
+        this.links.clear(); this.roots.clear(); this.timings.clear(); this.tickets.clear();
         const labelSources = this.sources.length > 1 || this.sources[0].config.transport === 'ssh';
         for (const source of this.sources) {
             const { id, label } = source.config;
             const value = source.snapshot;
             const connected = source.status === 'Connected';
+            if (!connected) {
+                queueErrors.push(`${label}: checkout queues unavailable.`);
+            } else if (!value?.capabilities.launcher_queue) {
+                queueErrors.push(`${label}: update the Watch reader to see its queues.`);
+            } else {
+                queueErrors.push(...value.queue_errors.map(error => `${label}: ${error}`));
+                for (const { root, id: ticket, ...row } of value.launcher_queue) {
+                    const token = key(id, key(root, ticket));
+                    this.tickets.set(token, { source, root, ticket });
+                    launcherQueue.push({ ...row, token, ticket, host: label });
+                }
+            }
             if (source.fileSuggestions) {
                 fileSuggestions.push(source.fileSuggestions);
                 source.fileSuggestions = undefined;
@@ -653,6 +683,7 @@ class Bridge {
             status: source.status, connected: source.status === 'Connected',
             retrying: Number.isFinite(source.retryAt), failed: Boolean(source.failureDetail) }));
         return { entries, runs: updates, checkouts, hosts, servers: [...servers.values()], connections, run_times: times,
+            launcher_queue: launcherQueue, queue_errors: queueErrors,
             scope: checkouts.some(checkout => checkout.id === request.scope) ? request.scope : 'all',
             selected,
             session_results: this.results.splice(0), file_suggestions: fileSuggestions };
@@ -692,6 +723,13 @@ class Bridge {
             throw new Error('Invalid launcher command.');
         }
         return { ...result, source: route.source.config };
+    }
+
+    async cancelTicket(token) {
+        const route = this.tickets.get(token);
+        if (!route) throw new Error('Ticket already started or was removed.');
+        const result = await route.source.cancelTicket({ root: route.root, ticket: route.ticket });
+        if (result.ok !== true) throw new Error(result.error || 'Could not remove the ticket.');
     }
 
     async watchCommands(settings, { changedOnly = false } = {}) {

@@ -22,6 +22,10 @@ _host_only = False
 _named_vm = False
 
 
+class ActivityBusy(ValueError):
+    """Another test launcher holds the requested activity lock."""
+
+
 def retention_path(root):
     from test_storage import directory
     from vm_selection import BATCH, selected
@@ -73,7 +77,7 @@ def host_reservation(directory, required):
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            raise ValueError('another test launcher owns the host scope; wait for its cleanup') from error
+            raise ActivityBusy('another test launcher owns the host scope; wait for its cleanup') from error
         _host_descriptor = descriptor
         os.set_inheritable(descriptor, True)
         yield
@@ -208,7 +212,7 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
             try:
                 fcntl.flock(_compatibility_descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except BlockingIOError as error:
-                raise ValueError('another test launcher owns this checkout; wait for its cleanup') from error
+                raise ActivityBusy('another test launcher owns this checkout; wait for its cleanup') from error
         identity = os.fstat(opened)
         if (not stat.S_ISREG(identity.st_mode) or identity.st_uid != os.geteuid()
                 or stat.S_IMODE(identity.st_mode) != 0o600 or identity.st_nlink != 1):
@@ -222,7 +226,7 @@ def activity(root, *, host_only=None, named_vm=None, includes_host=False):
             fcntl.flock(descriptor, (fcntl.LOCK_SH if not host_only and not named_vm
                                      else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError as error:
-            raise ValueError('another test launcher owns this checkout; wait for its cleanup') from error
+            raise ActivityBusy('another test launcher owns this checkout; wait for its cleanup') from error
         if inherited is None:
             # Never reuse a previous invocation's passing gate, including after
             # an interrupted/crashed aggregate that left its lock file behind.

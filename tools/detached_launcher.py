@@ -210,7 +210,8 @@ def environment():
                  'ONPC_REGRESSION_INVENTORY', 'ONPC_TEST_RETRY_CASE', 'ONPC_TEST_COMPLETED_CASES',
                  FRAME_DIRECTORY, WORKFLOW_DIRECTORY, 'ONPC_REPAIR_STARTUP_FD',
                  'ONPC_REPAIR_WRITER_FD', 'ONPC_REPAIR_RECOVERY_ONLY',
-                 'ONPC_LAUNCHER_RELOAD_BASELINE', 'ONPC_VM_RELOAD_KEEPER'):
+                 'ONPC_LAUNCHER_RELOAD_BASELINE', 'ONPC_VM_RELOAD_KEEPER',
+                 'ONPC_LAUNCHER_QUEUE_REPLAY'):
         result.pop(name, None)
     result['PYTHONUNBUFFERED'] = '1'
     # Internal runner calls, including inventory discovery before a repair
@@ -785,7 +786,7 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
                 os.close(owner)
 
 
-def _start_record(path, *, private=True):
+def _start_record(path, *, private=True, limit=16384):
     """Read bounded caller-owned metadata without following replacements.
 
     Startup and resolver receipts require 0600. Legacy pipeline metadata uses
@@ -793,19 +794,22 @@ def _start_record(path, *, private=True):
     """
     if not private:
         private_directory(path.parent)
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         info = os.fstat(fd)
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
                 or private and stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
-                or info.st_size > 16384):
+                or info.st_size > limit):
             raise ValueError(f'unsafe workflow record: {path}')
-        return json.loads(os.read(fd, 16385))
+        data = os.read(fd, limit + 1)
+        if len(data) > limit:
+            raise ValueError(f'oversized workflow record: {path}')
+        return json.loads(data)
     finally:
         os.close(fd)
 
 
-def _publish_start(path, value):
+def durable_json(path, value):
     temporary = path.with_name(path.name + '.' + uuid.uuid4().hex)
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:
@@ -969,10 +973,18 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
         directory = private_directory(directory / namespace)
     import test_source
     repair = name in ('fix-tests', 'fix-tests-host')
+    from launcher_queue import Submission, retire_completed
+    submission = Submission.public(root, directory, launcher_name or name) if not (
+        stop or cancel_stop or reload or existing_only or add_session is not None) else None
     with lock(directory / 'gate') as gate, lock(directory / 'owner') as owner, \
             ExitStack() as capacity:
         fcntl.flock(gate, fcntl.LOCK_EX)
-        if busy(owner):
+        active = busy(owner)
+        if submission is not None:
+            receipt = submission.admit(current_run(directory), active)
+            if receipt is not None:
+                return receipt, False
+        if active:
             run = current_run(directory)
             if run is None:
                 raise ValueError(f'active {name} owner has no readable run record')
@@ -1040,6 +1052,8 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             run = directory / uuid.uuid4().hex
         # Validate and resolve prerequisites before allocating a new run.
         argv = command(run, owner)
+        if submission is None:
+            retire_completed(directory)
         admitted = None
         from vm_selection import BATCH, vm_config
         if BATCH in os.environ and name not in ('fix-tests', 'fix-tests-host', 'sync-whatsnew'):
@@ -1063,7 +1077,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                            source_run=(source or {}).get('run'), source_sha256=checksum,
                            source_retention_run=source_retention_run, source_allocation=source_allocation,
                            phase='allocated', published_record=None)
-            _publish_start(pending_path, pending)
+            durable_json(pending_path, pending)
         guard = (lambda: _audit_start(store, directory, pending)) if resumable_start else None
         recover = (lambda state: state['run'] == pending['run']) if resumable_start else None
         with (_fresh_repair_retention(store, run) if repair else
@@ -1071,7 +1085,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             test_retention.retain(run)
         if resumable_start:
             pending['phase'] = 'registered'
-            _publish_start(pending_path, pending)
+            durable_json(pending_path, pending)
         if on_start is not None:
             on_start(run)
         if admitted is not None:
@@ -1081,6 +1095,7 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
             with store.opened() as fd, store.locked(fd, 'owner.lock', blocking=False):
                 _audit_start(store, directory, pending)
         fcntl.flock(owner, fcntl.LOCK_EX)
+        descriptors = (owner, *scratch_descriptors())
         published_record = owner_record(run, launcher=launcher_name or name,
                                        watch_visibility=watch_visibility,
                                        argv=list(sys.argv[1:] if public_argv is None else public_argv))
@@ -1101,24 +1116,26 @@ def select(root, name, command, *, stop=False, cancel_stop=False, stop_marker='c
                     raise ValueError('pending workflow output identity changed')
             try:
                 pending.update(phase='ready', published_record=published_record)
-                _publish_start(pending_path, pending)
-                _publish_start(directory / 'current.json', published_record)
+                durable_json(pending_path, pending)
+                durable_json(directory / 'current.json', published_record)
                 _clear_start(pending_path)
             except BaseException:
                 os.close(output_fd)
                 raise
             output_context = os.fdopen(output_fd, 'wb')
         else:
-            atomic(directory / 'current.json', published_record)
+            publish = durable_json if submission is not None else atomic
+            publish(directory / 'current.json', published_record)
             output_context = (run / 'output').open('xb')
         with output_context as output:
             from launcher_reload import ReloadRequest
             child_environment = environment()
             ReloadRequest(run).inherit(child_environment)
             try:
-                subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
-                                 stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                                 pass_fds=(owner, *scratch_descriptors()))
+                with (submission.starting(run) if submission is not None else nullcontext()):
+                    subprocess.Popen(argv, cwd=root, env=child_environment, stdin=subprocess.DEVNULL,
+                                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                                     pass_fds=descriptors)
             except Exception as error:
                 record_exception(run, 'Controller spawn', error)
                 raise
@@ -1300,6 +1317,9 @@ def finish_shutdown(root, run, *, restore_vms=True):
 
 def report_start(run, *, label='launcher', started=False, stop=False, reload=False, stream=None):
     """Report controller admission, never the eventual workflow verdict."""
+    from launcher_queue import Receipt
+    if isinstance(run, Receipt):
+        return run.report(label, stream or sys.stdout)
     action = ('stop requested for' if stop else 'reload requested for' if reload
               else 'started' if started else 'already running')
     print(f'\033[32m{label}: controller {action}: {run.name}.\033[0m '

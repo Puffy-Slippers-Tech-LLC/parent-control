@@ -884,9 +884,16 @@ def worker(root, run, owner, spec, state, *, reloading=False):
         duration = time.time() - started if started is not None else None
         publish_completion(run, state['task_id'], heading(), duration, [state['task_id']])
 
+    interrupted = False
+
+    def interrupt(*_):
+        nonlocal interrupted
+        interrupted = True
+        (run / 'cancel').touch(mode=0o600)
+
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, lambda *_: (run / 'cancel').touch(mode=0o600))
+        signal.signal(sig, interrupt)
     budget = TaskBudget(run)
     status, reason = 0, 'queue complete'
     reload = False
@@ -1183,7 +1190,8 @@ def worker(root, run, owner, spec, state, *, reloading=False):
                         handoff.write(reason + '\n')
                     print(f'{spec.name}: {reason}.', flush=True)
             budget.close()
-            launcher.atomic(run / 'result.json', {'status': status, 'tasks': budget.read()['completed']})
+            launcher.durable_json(run / 'result.json', dict(status=status, tasks=budget.read()['completed'],
+                **({'interrupted': True} if interrupted or sys.exc_info()[0] else {})))
         finally:
             os.close(owner)
     return status
@@ -1226,7 +1234,7 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
     def cancel(*_):
         nonlocal interrupted
         interrupted = True
-        if run is not None:
+        if isinstance(run, Path):
             (run / 'cancel').touch(mode=0o600)
 
     previous_signal = signal.signal(signal.SIGINT, cancel)
@@ -1362,6 +1370,9 @@ def main(spec=PlanWorkflow('execute-plan'), argv=None):
             return 0
         if args.cancel_stop:
             return 0
+        from launcher_queue import Receipt
+        if isinstance(run, Receipt):
+            return run.report(spec.name, sys.stdout)
         if interrupted:
             cancel()
         publish_plan_view(run, path)

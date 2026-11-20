@@ -1145,10 +1145,10 @@ def test_shared_closeout_review_refuses_inactive_controller(shared_closeout):
     assert (run / 'checkpoint.json').read_bytes() == checkpoint
 
 
-def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolated_source):
+def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolated_source, monkeypatch):
     import detached_launcher as launcher
     import test_source
-    from launcher_controller import synchronize_boundary, synchronize_reload, upstream_update_ready
+    from launcher_controller import synchronize_boundary, synchronize_reload
     from launcher_source_sync import SyncError
     from regression_process import Control
     from test_storage import directory
@@ -1181,22 +1181,20 @@ def test_checkout_source_exclusive_sync_waits_for_live_readers(tmp_path, isolate
         fcntl.flock(owner, fcntl.LOCK_EX)
         fcntl.flock(host_owner, fcntl.LOCK_EX)
         control = Control()
-        assert not upstream_update_ready(root, 'main', run, control=control)
+        with monkeypatch.context() as blocked:
+            pull = Mock()
+            blocked.setattr('launcher_source_sync.pull', pull)
+            assert not synchronize_boundary(root, 'main', run, defer_if_live=True)
+            pull.assert_not_called()
         assert not synchronize_boundary(root, 'main', run)
         fcntl.flock(host_owner, fcntl.LOCK_UN)
 
         with launcher.lock(root / '.git/onpc-worktree-propagation.lock') as transaction:
             fcntl.flock(transaction, fcntl.LOCK_EX)
-            assert not upstream_update_ready(root, 'main', run, control=control)
+            assert not synchronize_boundary(root, 'main', run)
 
         assert isolated_source.admit(reader)
         isolated_source.validate(reader, held=True)
-        assert not upstream_update_ready(root, 'main', run, control=control)
-        fcntl.flock(reader, fcntl.LOCK_UN)
-        assert upstream_update_ready(root, 'main', run, control=control)
-
-        # Ownership can change after the probe while the runner joins its work.
-        assert isolated_source.admit(reader)
         assert not synchronize_boundary(root, 'main', run)
         with pytest.raises(SyncError, match='checkout synchronization is busy'):
             synchronize_reload(root, run)

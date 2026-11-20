@@ -62,22 +62,6 @@ def _upstream_pending(root, descriptors, control):
     return comparison.returncode == 1
 
 
-def upstream_pending(root, *, control=None):
-    """Fetch tracking refs if the shared Git guard is available for dispatch."""
-    try:
-        with _git_transaction(root) as transaction:
-            if control is not None:
-                import launcher_reload
-                launcher_reload.check()
-            try:
-                fcntl.flock(transaction, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return False
-            return _upstream_pending(root, (transaction,), control)
-    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-        raise SyncError(str(error)) from error
-
-
 def pull(root, *, recovery=False, frozen=False, descriptors=(),
          before_change=lambda: None, control=None):
     try:
@@ -178,14 +162,10 @@ def _pending_git(previous):
 
 
 def synchronize_checkout(root, branch, *, previous_runs=(), retained_start=False,
-                         live=False, on_boundary_admitted=None, check_only=False):
+                         live=False, on_boundary_admitted=None):
     """Pull under shared source guards; report whether imports need replacing."""
     from test_source import SourceProtection, source_directory, finish_admission, _lock
     boundary = on_boundary_admitted is not None
-    if check_only and live:
-        # A live workflow can be waiting for this run's result. Continue
-        # using the available checkout until there is a safe pull boundary.
-        return None
     finish_admission()
     protection = SourceProtection(source_directory(root))
     # Share the propagation lock and source lease, so no pull runs over active
@@ -211,8 +191,6 @@ def synchronize_checkout(root, branch, *, previous_runs=(), retained_start=False
                         fcntl.flock(source, fcntl.LOCK_SH | fcntl.LOCK_NB)
                     except BlockingIOError:
                         return None
-                if check_only:
-                    return True
                 frozen = any(_pending_git(run) for run in previous_runs)
                 recovery = frozen or retained_start
             if live:
@@ -236,7 +214,7 @@ def synchronize_checkout(root, branch, *, previous_runs=(), retained_start=False
                     raise ValueError('unfinished Git operation prevents controller source synchronization; '
                                      'source and recovery journals were preserved')
             head = git(root, 'rev-parse', 'HEAD')
-            message = ('Git: synchronizing before the next test bundle.' if boundary else
+            message = ('Git: checking upstream after test workers have joined.' if boundary else
                        'Git: synchronizing controller checkout with its upstream.')
             print(message, flush=True)
             pull_attempted = False

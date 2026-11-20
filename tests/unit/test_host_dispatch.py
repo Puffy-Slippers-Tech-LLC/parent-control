@@ -72,7 +72,7 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
     def synchronize(*args, **kwargs):
         assert args == (destination, branch)
         assert kwargs == dict(previous_runs=[], retained_start=False, live=False,
-                             on_boundary_admitted=None, check_only=False)
+                             on_boundary_admitted=None)
         synchronized.append(launcher)
         return False
     monkeypatch.setattr(launcher_controller, '_startup_sync', synchronize)

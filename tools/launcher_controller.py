@@ -90,7 +90,7 @@ def require_startup_sync():
         raise SyncBusy(detail)
 
 
-def _early_sync(root, branch, arguments, *, boundary_run=None, check_only=False):
+def _early_sync(root, branch, arguments, *, boundary_run=None, defer_if_live=False):
     """Check live owners before synchronizing at startup or a joined boundary."""
     if os.environ.get('ONPC_WATCH_RUN'):
         if (Path(sys.argv[0]).name not in ('run-tests', 'fix-tests') or not any(
@@ -147,26 +147,20 @@ def _early_sync(root, branch, arguments, *, boundary_run=None, check_only=False)
                 retained_start |= not kind.startswith('fix-tests') and (scope / 'pending-start.json').exists()
                 if previous is not None and not kind.startswith('fix-tests'):
                     previous_runs.append(previous)
+        if live and defer_if_live:
+            return None
         return _startup_sync(root, branch, previous_runs=previous_runs,
                              retained_start=retained_start, live=live,
-                             on_boundary_admitted=locks.close if boundary_run is not None else None,
-                             check_only=check_only)
+                             on_boundary_admitted=locks.close if boundary_run is not None else None)
 
 
-def synchronize_boundary(root, branch, run, *, check_only=False):
-    """Check or acquire sync admission. An occupied checkout defers the pull."""
+def synchronize_boundary(root, branch, run, *, defer_if_live=False):
+    """Synchronize at a joined boundary when the checkout is available."""
     try:
         _local_checkout(root, branch)
-        return _early_sync(root, branch, [], boundary_run=run, check_only=check_only) is not None
+        return _early_sync(root, branch, [], boundary_run=run, defer_if_live=defer_if_live) is not None
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         raise SyncError(str(error)) from error
-
-
-def upstream_update_ready(root, branch, run, *, control):
-    """Drain test workers only when upstream is ahead and a pull looks admissible."""
-    from launcher_source_sync import upstream_pending
-
-    return upstream_pending(root, control=control) and synchronize_boundary(root, branch, run, check_only=True)
 
 
 def synchronize_reload(root, run):

@@ -214,7 +214,7 @@ class PassGroup:
 
 def execute_pass(root, plan, control, execute, *, host=None,
                  checkpoint_scope='ordinary', continue_on_errors=False, sources=None,
-                 progress=None, check_upstream=None, histories=None, group_plans=None):
+                 progress=None, histories=None, group_plans=None):
     """Run current pending work, stop on failure and join all normal bookings."""
     from test_results import ResultStore
     from test_commands import selections
@@ -224,9 +224,6 @@ def execute_pass(root, plan, control, execute, *, host=None,
     result_store = ResultStore()
     failed = threading.Event()
     observation_blocked = threading.Event()
-    changed = threading.Event()
-    upstream_changed = False
-    upstream_error = None
     inflight, probing, results = {}, {}, {}
     host_completed = []
     histories = {} if histories is None else histories
@@ -262,8 +259,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     return group, work
 
         def accepting():
-            return not (failed.is_set() or observation_blocked.is_set() or changed.is_set()
-                        or control.stopped.is_set())
+            return not (failed.is_set() or observation_blocked.is_set() or control.stopped.is_set())
 
         def needed(vm):
             with lock:
@@ -284,33 +280,10 @@ def execute_pass(root, plan, control, execute, *, host=None,
         priority = {group.scope: order for order, group in enumerate(groups)}
 
         def attempt(worker):
-            nonlocal upstream_changed, upstream_error
             vm = worker.vm
-            if check_upstream is not None:
-                if not needed(vm):
-                    return dict(status=0, handoffs=[])
-                from launcher_source_sync import SyncError
-                try:
-                    pending_update = check_upstream(control=control)
-                except SyncError as error:
-                    with lock:
-                        upstream_error = str(error)
-                        changed.set()
-                    return dict(status=0, handoffs=[])
-                if pending_update:
-                    # Drain without cancelling bundles already running.
-                    with lock:
-                        upstream_changed = True
-                        changed.set()
-                    return dict(status=0, handoffs=[])
             with lock:
                 candidate = available(vm) if accepting() else None
                 if candidate is None:
-                    return dict(status=0, handoffs=[])
-                if sources is not None and sources.source != source_identity(root):
-                    changed.set()
-                    return dict(status=0, handoffs=[])
-                if control.stopped.is_set():
                     return dict(status=0, handoffs=[])
                 group, work = candidate
                 checkpoint = group.checkpoint
@@ -408,8 +381,6 @@ def execute_pass(root, plan, control, execute, *, host=None,
                             output_tail=value.get('output_tail', ''), handoffs=value.get('handoffs', []))
                 if group.focused:
                     group.focus_finished.add(vm.family)
-                if sources is not None and sources.source != source_identity(root):
-                    changed.set()
                 group.publish_counts()
                 return value
 
@@ -446,12 +417,13 @@ def execute_pass(root, plan, control, execute, *, host=None,
         elif 130 in statuses:
             status = 130
         else:
-            status = PENDING_STATUS if unfinished and not changed.is_set() else 0
+            status = PENDING_STATUS if unfinished else 0
+        can_refresh = cleanup_complete and not hard_failure and (
+            status in (0, PENDING_STATUS) or continue_on_errors and status == 1)
         return dict(status=status, results=results, failures=result_store.failures(),
-                    cleanup_complete=cleanup_complete,
-                    completed_categories=host_completed, source_changed=changed.is_set() and not hard_failure,
+                    cleanup_complete=cleanup_complete, can_refresh=can_refresh,
+                    completed_categories=host_completed,
                     pending=unfinished,
-                    upstream_changed=upstream_changed, upstream_error=upstream_error,
                     stopped=control.stopped.is_set() and not failed.is_set(),
                     group_statuses=group_statuses)
 
@@ -585,14 +557,13 @@ def run(root, argv, *, reloading=False, upstream_run=None, accounting=None):
 
     def validate_routing():
         from launcher_source_sync import SyncError
-        with test_source.startup(root, argv):
-            current = vm_config.registry()
-            try:
-                current_groups = execution_groups(root, argv, [current[vm.name] for vm in vms])
-            except (KeyError, ValueError) as error:
-                raise SyncError(f'cannot route the selected VM groups after pulling: {error}; resume to reselect') from error
+        current = vm_config.registry()
+        try:
+            current_groups = execution_groups(root, argv, [current[vm.name] for vm in vms])
+        except (KeyError, ValueError) as error:
+            raise SyncError(f'cannot route the selected VM groups after the source changed: {error}; resume to reselect') from error
         if current_groups != groups:
-            raise SyncError('the selected VM group routing changed after pulling; resume to use the new routing')
+            raise SyncError('the selected VM group routing changed; resume to use the new routing')
 
     original = {key: os.environ.get(key) for key in (BATCH, VARIABLE)}
     continue_on_errors = '--continue-on-errors' in argv
@@ -656,6 +627,9 @@ def _run_pass(root, argv, *, reloading=False, checkpoint_scope='ordinary',
               continue_on_errors=False, upstream_run=None, validate_routing=None,
               overall_counts=None, host_accounting=None, accounting_only=False,
               queue_vm=None, vm_groups=None):
+    from detached_launcher import Stopped
+    from launcher_controller import synchronize_boundary
+    from launcher_source_sync import SyncError, STATUS as SYNC_STATUS
     from remote_sources import FrozenSources
     histories = {}
     stopped = Control().stopped
@@ -664,79 +638,75 @@ def _run_pass(root, argv, *, reloading=False, checkpoint_scope='ordinary',
             return dict(status=130, stopped=True, cleanup_complete=True)
         launcher_reload.check()
         group_plans = None
-        with test_source.startup(root, argv):
-            if vm_groups:
-                group_plans = {}
-                targets = {}
-                snapshot = json.loads(os.environ[BATCH])
-                for group in vm_groups:
-                    args = group['args']
-                    if '--resume' in argv and '--resume' not in args:
-                        args = ['--resume', *args]
-                    try:
-                        selected = _plan(root, args, targets=group['vms'])
-                    except (OSError, ValueError, subprocess.CalledProcessError) as error:
-                        from test_commands import selections
-                        from test_results import ResultStore
-                        kind, selected_options = selections(root, args)[0]
-                        detail = f'{group["key"]}: {error}'
-                        command = ['tools/run-tests', *[arg for arg in args if arg != '--resume'],
-                                   '--vm', ','.join(group['vms'])]
-                        ResultStore().record(kind, 'command', '', 2, options=selected_options,
-                                             command=command, detail=detail)
-                        print(f'run-tests: {detail}', file=sys.stderr, flush=True)
-                        return dict(status=2, cleanup_complete=True)
-                    targets.update((vm.name, vm) for vm in selected[1])
-                    group_plans[checkpoint_scope + '/' + group['key']] = (
-                        selected, partial(overall_counts, group['key']))
-                vms = tuple(targets[name] for name in snapshot['vms'] if name in targets)
-                plan = snapshot, vms, [], [], [], {}
-            else:
-                plan = _plan(root, argv)
-        with FrozenSources(root) if plan[1] else nullcontext() as sources:
-            check_upstream = None
-            if sources is not None and upstream_run is not None:
-                from launcher_controller import upstream_update_ready
-                check_upstream = partial(upstream_update_ready, root, sources.branch, upstream_run)
+        with ExitStack() as capture:
+            with test_source.startup(root, argv):
+                if vm_groups:
+                    group_plans = {}
+                    targets = {}
+                    snapshot = json.loads(os.environ[BATCH])
+                    for group in vm_groups:
+                        args = group['args']
+                        if '--resume' in argv and '--resume' not in args:
+                            args = ['--resume', *args]
+                        try:
+                            selected = _plan(root, args, targets=group['vms'])
+                        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                            from test_commands import selections
+                            from test_results import ResultStore
+                            kind, selected_options = selections(root, args)[0]
+                            detail = f'{group["key"]}: {error}'
+                            command = ['tools/run-tests', *[arg for arg in args if arg != '--resume'],
+                                       '--vm', ','.join(group['vms'])]
+                            ResultStore().record(kind, 'command', '', 2, options=selected_options,
+                                                 command=command, detail=detail)
+                            print(f'run-tests: {detail}', file=sys.stderr, flush=True)
+                            return dict(status=2, cleanup_complete=True)
+                        targets.update((vm.name, vm) for vm in selected[1])
+                        group_plans[checkpoint_scope + '/' + group['key']] = (
+                            selected, partial(overall_counts, group['key']))
+                    vms = tuple(targets[name] for name in snapshot['vms'] if name in targets)
+                    plan = snapshot, vms, [], [], [], {}
+                else:
+                    plan = _plan(root, argv)
+                sources = capture.enter_context(FrozenSources(root)) if plan[1] else None
             outcome = _run_workers(root, plan, reloading=reloading,
                 checkpoint_scope=checkpoint_scope, sources=sources,
                 continue_on_errors=continue_on_errors, histories=histories, overall_counts=overall_counts,
                 host_accounting=host_accounting, accounting_only=accounting_only,
-                queue_vm=queue_vm, check_upstream=check_upstream, group_plans=group_plans)
-        # A refresh keeps the focused selector and only waives replays that ran.
-        if not (outcome.get('source_changed')
-                and (not outcome['status'] or continue_on_errors and outcome['status'] == 1)):
+                queue_vm=queue_vm, group_plans=group_plans)
+        # Keep assigning from the same snapshot until the pass finishes cleanup.
+        if sources is None or not outcome['can_refresh']:
             return outcome
         if stopped.is_set():
             outcome.update(status=130, stopped=True)
             return outcome
         launcher_reload.check()
-        from launcher_source_sync import SyncError, STATUS as SYNC_STATUS
         try:
-            if outcome.get('upstream_error') is not None:
-                raise SyncError(outcome['upstream_error'])
-            if outcome.get('upstream_changed'):
-                if not outcome['cleanup_complete']:
-                    raise SyncError('active test bundles did not finish cleanup')
-                from launcher_controller import synchronize_boundary
-                synchronized = synchronize_boundary(root, sources.branch, upstream_run)
-                if not synchronized:
-                    print('Git: checkout is busy. Deferring upstream synchronization.', flush=True)
-                elif not stopped.is_set() and validate_routing is not None:
-                    launcher_reload.check()
+            if upstream_run is not None and not synchronize_boundary(
+                    root, sources.branch, upstream_run, defer_if_live=True):
+                print('Git: checkout is busy. Deferring upstream synchronization.', flush=True)
+            if stopped.is_set():
+                raise Stopped()
+            launcher_reload.check()
+            with test_source.startup(root, argv, stopped=stopped.is_set, wait=False):
+                if sources.source == source_identity(root):
+                    return outcome
+                if validate_routing is not None:
                     validate_routing()
+        except test_source.SourceBusy:
+            return outcome
         except SyncError as error:
             print(f'run-tests: upstream synchronization failed: {error}', file=sys.stderr, flush=True)
             outcome['status'] = SYNC_STATUS
             return outcome
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, Stopped):
             outcome.update(status=130, stopped=True)
             return outcome
         argv = ['--resume', *[argument for argument in argv if argument != '--resume']]
 
 
 def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
-                 continue_on_errors=False, sources=None, histories=None, check_upstream=None, overall_counts=None,
+                 continue_on_errors=False, sources=None, histories=None, overall_counts=None,
                  host_accounting=None, accounting_only=False, queue_vm=None, group_plans=None):
     snapshot, vms, host_args, *_ = plan
     from test_commands import _main, selections
@@ -1049,7 +1019,7 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                                        checkpoint_scope=checkpoint_scope,
                                        continue_on_errors=continue_on_errors, sources=sources, histories=histories,
                                        progress=partial(progress, overall_counts) if vms else None,
-                                       check_upstream=check_upstream, group_plans=group_plans)
+                                       group_plans=group_plans)
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):

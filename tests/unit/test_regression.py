@@ -250,6 +250,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
 @pytest.mark.parametrize('focused', [False, True])
 def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         tmp_path, monkeypatch, changed_during, focused):
+    import launcher_controller
     import remote_sources
     import vm_test_queue
     from test_results import ResultStore, VARIABLE
@@ -257,15 +258,17 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
     monkeypatch.setenv(VARIABLE, str(tmp_path / 'results'))
     identity = {'digest': 'first'}
     vm = SimpleNamespace(name='one', family='family', compute_unit=1)
-    executed, captures, plans = [], [], []
+    executed, captures, plans, joined, synchronized = [], [], [], [], []
+    continue_on_errors = changed_during == 'reservation' and not focused
     class Sources:
+        branch = 'main'
         def __init__(self, root):
             self.source = dict(identity)
         def __enter__(self):
             captures.append(self.source['digest'])
             return self
         def __exit__(self, *_):
-            pass
+            joined.append(self.source['digest'])
     class Ready:
         def __init__(self, root, pool, limit, stopped, **kwargs):
             pass
@@ -273,13 +276,13 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
             return self
         def __exit__(self, *_):
             pass
-        def run_ready(self, execute, *, choose, needed, completed):
+        def run_ready(self, execute, *, choose, needed, completed, stop_on_error=True):
             value = dict(status=0, handoffs=[])
             while needed(vm):
                 if changed_during == 'reservation':
                     identity['digest'] = 'changed'
                 value = completed(vm, execute(SimpleNamespace(vm=vm)))
-                if value['status']:
+                if value['status'] and stop_on_error:
                     break
             return {'one': value}
     def plan(root, args):
@@ -289,13 +292,22 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         return ({'concurrency': 1}, [vm], [], args, [('e2e', [])], {'family': items})
     def execute(worker, assignment, inherited, group):
         case = assignment['execution']['case']
-        executed.append(case)
+        executed.append((case, captures[-1]))
         if case == 'last' and changed_during == 'last-case':
             identity['digest'] = 'changed'
+        if case == 'first' and continue_on_errors:
+            return dict(status=1, handoffs=[], evidence=dict(assignment, passed=[], failed=[case], cleanup=True))
         return dict(status=0, handoffs=[], evidence=dict(assignment, passed=[case], failed=[], cleanup=True))
     def group(root, selected, **kwargs):
         return vm_test_queue.execute_pass(root, selected, SimpleNamespace(stopped=threading.Event()),
-            execute, sources=kwargs['sources'], histories=kwargs['histories'])
+            execute, sources=kwargs['sources'], histories=kwargs['histories'],
+            continue_on_errors=kwargs['continue_on_errors'])
+    def synchronize(root, branch, run, *, defer_if_live):
+        assert defer_if_live
+        assert joined == captures
+        synchronized.append(joined[-1])
+        return True
+    monkeypatch.setattr(launcher_controller, 'synchronize_boundary', synchronize)
     monkeypatch.setattr(remote_sources, 'FrozenSources', Sources)
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     monkeypatch.setattr(vm_test_queue, '_plan', plan)
@@ -307,10 +319,13 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         args = ['--resume', '--resume-case=last', '--resume-case-only', 'e2e']
     else:
         args = ['e2e']
-    assert vm_test_queue._run_pass(tmp_path, args)['status'] == 0
-    assert captures == ['first', 'changed']
+    result = vm_test_queue._run_pass(tmp_path, args, upstream_run=tmp_path / 'run',
+                                     continue_on_errors=continue_on_errors)
+    assert result['status'] == int(continue_on_errors)
+    assert captures == synchronized == ['first', 'changed']
     assert plans == [args, ['--resume', *[argument for argument in args if argument != '--resume']]]
-    assert executed == (['last'] if focused else ['first', 'last', 'added'])
+    assert executed == ([('last', 'first')] if focused else
+                        [('first', 'first'), ('last', 'first'), ('added', 'changed')])
 
 
 @pytest.mark.parametrize(('selector', 'names'), [(None, ['one', 'two', 'three']),

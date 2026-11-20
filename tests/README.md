@@ -403,22 +403,17 @@ Workers return ordinary terminal case results to their coordinator. A result
 from another execution supplies no credit. Clear completed passes and failures
 are retained; absent or incomplete results mean pending work. There is no source
 fingerprint, historical receipt or cleanup-journal qualification of a result.
-Input changes are picked up at dispatch boundaries without revoking passes.
-Before claiming a VM work item, an independent `run-tests` run or a normal
-`fix-tests` test pass checks upstream when the Git lock is available. Each system
-area or lifecycle history uses a single source capture. When upstream advances
-and the checkout is available for a pull, dispatch pauses while active bundles
-finish and release their VM bookings. The controller then pulls under the shared
-checkout guards and captures the updated source for pending bundles. A busy
-checkout defers the pull while pending bundles continue with the available
-checkout. Admission is checked again before dispatch, including when ownership
-changes between the first check and the joined boundary. If the pull fails, one
-session uses the configured `agents.tools.conflict-resolver` profile in
-[`config/environment.json`](../config/environment.json). A clean pull runs
-without a session. If synchronization cannot complete, pending work stays
-pending and the runner reports a synchronization failure.
-When a pull changes VM group routing, the runner retains completed results and
-asks for `--resume` to resolve the selection with the updated routing.
+Dispatch uses the pass's frozen source. As each worker finishes cleanup and
+releases its VM booking, the next eligible assignment can start immediately.
+After the pass drains and joins cleanup, an independent `run-tests` run or a
+normal `fix-tests` test pass checks upstream through the shared checkout guards.
+A busy checkout defers the pull. If the source changed, refresh the inventory
+and schedule pending cases while keeping completed results. Changes to VM group
+routing require `--resume` to resolve the updated selection. A pull conflict uses
+the configured `agents.tools.conflict-resolver` profile in
+[`config/environment.json`](../config/environment.json). If synchronization
+fails, the runner reports the failure and keeps pending work for resume.
+Use `--reload` for an earlier source refresh.
 
 Expensive disk stages additionally share the host-wide
 [FIFO disk queue](../docs/Mandates/VM-Mandate.MD#host-disk-queue).
@@ -661,9 +656,10 @@ are interrupted cooperatively, and the runner saves completed cases and joins
 owned cleanup before the repair launcher reloads. An active repair agent
 finishes its session before replacement.
 `tools/fix-tests --stop` cancels active scopes; categories or `--vm` narrow the
-selection. Cancellation joins only the processes launched by this run. A killed
-controller's supervisor cancels its child. No previous run's cleanup transaction
-is a condition of starting another repair run.
+selection. After cleanup, `--resume` synchronizes upstream before starting a
+fresh launcher with the saved results. Cancellation joins only the processes
+launched by this run. A killed controller's supervisor cancels its child. A new
+repair run can start independently of previous cleanup transactions.
 
 Failure before case discovery goes to the repair session with the attempted
 operation and available output. Missing optional details do not prevent repair.

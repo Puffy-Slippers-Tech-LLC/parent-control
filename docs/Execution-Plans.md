@@ -295,7 +295,7 @@ source lease. Every public job launcher uses this infrastructure, including
 Nested test/validation calls belong to their existing controller and use its
 working source at startup. Independent VM runs and normal repair-queue passes
 also follow the [VM dispatch sync](../tests/README.md#vm-dispatch-and-upstream-sync)
-between bundles. Repair validation uses the agent's working source.
+after joining the dispatch pass. Repair validation uses the agent's working source.
 Old repair journals or source fences have no admission authority.
 Existing Git transaction journals pin their source base:
 startup fetches and verifies that source already contains upstream, refusing

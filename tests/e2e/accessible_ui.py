@@ -320,7 +320,8 @@ FLATPAK_APP_BINDINGS.update({
     'flatpak-' + name + '-' + action: (role, instance, action)
     for name, role, instance in (('allowed', 'A', 'primary'), ('hard', 'H', 'hard'),
                                  ('soft', 'S', 'soft'))
-    for action in ('search-ready', 'search-focused', 'search-entered', 'grid', 'grid-hidden')
+    for action in ('search-ready', 'search-focused', 'search-entered', 'grid', 'grid-hidden',
+                   'grid-denial-desktop')
 })
 FLATPAK_APP_BINDINGS.update({
     'flatpak-' + name + '-' + action: (role, instance, action)
@@ -14967,7 +14968,7 @@ class AccessibleUI:
             self.prepare_launch_desktop()
             self.wait(lambda: self.native_app_closed(instance, kind=kind, complete_absence=True),
                       'flatpak-hidden-window-absence')
-        elif action in ('desktop', 'closed'):
+        elif action in ('desktop', 'closed', 'grid-denial-desktop'):
             if action == 'closed':
                 if overlay:
                     self.require_child_overlay_session()
@@ -14975,6 +14976,8 @@ class AccessibleUI:
                     require_active_launch_session()
             self.wait(lambda: self.native_app_closed(instance, kind=kind,
                 complete_absence=kind == 'flatpak' or action == 'closed'), kind + '-closed')
+            if action == 'grid-denial-desktop':
+                self.prepare_flatpak_denial_search()
         elif action == 'command-launch':
             self.native_launch_command(**arguments)
         elif action == 'command-blocked':
@@ -14995,6 +14998,21 @@ class AccessibleUI:
                 self.require_child_overlay_session()
             self.native_app_snapshot('ONPC fixture draft', **arguments)
             self.activate_id('onpc-fixture-' + kind + '-' + instance + '-close')
+
+    def prepare_flatpak_denial_search(self):
+        """Keep Ubuntu's optional web results out of the owned child search."""
+        require_active_launch_session(unlocked=True)
+        provider = 'web-search-provider@ubuntu.com'
+
+        def extensions(*args):
+            return subprocess.run(['/usr/bin/gnome-extensions', *args],
+                                  stdin=subprocess.DEVNULL, capture_output=True,
+                                  text=True, check=True, timeout=5).stdout.splitlines()
+
+        if provider in extensions('list', '--enabled'):
+            # The runner restores the fixture's settings with the VM snapshot.
+            extensions('disable', provider)
+            require(provider not in extensions('list', '--enabled'), 'ui:flatpak-web-search-enabled')
 
     def native_app_owner(self, root, role, instance, *, implicit_instance=False, work_receipt=None):
         """Bind the GUI child to its live native policy executable and account."""

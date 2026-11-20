@@ -3982,6 +3982,11 @@ restores access, Ctrl+Enter opens a separately identified S/soft window while
 S/secondary and original A retain their submitted drafts. All three close
 normally. Other users, blocked H grid bindings and complete cases remain separate.
 
+Before a blocked Flatpak grid search, the shared desktop checkpoint disables
+Ubuntu's optional web search extension if enabled in the fixture child's session.
+The exact app query still requires GNOME's completed `No results` observation.
+The runner restores the fixture's settings with the VM snapshot.
+
 The fixture's exported desktop entry supplies its explicit instance and
 `SingleMainWindow=false`, truthfully declaring its independent-window support
 before GNOME loads the launcher. This scope passed on Ubuntu 26.04

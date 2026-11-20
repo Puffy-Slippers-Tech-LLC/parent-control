@@ -358,6 +358,7 @@ def flatpak_blocked_app(prefix, role, route, *, command_stage='denied'):
         stages = {stage: tag for stage, tag in native_usable_app(
             'grid', role=role, kind='flatpak').items()
             if stage in ('desktop', 'search-ready', 'search-focused', 'search-entered')}
+        stages['desktop'] = 'ui:flatpak-' + name + '-grid-denial-desktop'
         stages['app-grid'] = 'ui:flatpak-' + name + '-grid-hidden'
     stages[command_stage] = 'ui:flatpak-' + name + '-command-blocked'
     return prefixed_stages(prefix, stages)

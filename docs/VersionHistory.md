@@ -5,7 +5,8 @@
   
 ### Bug Fixes
 - **Child App**: Fixed an unnecessary error report blocking the time request after locking during parent approval.
-- **Kiosk**: Trivial corner case - selecting Oh No! Parent Control session type at logon enters an unusable kiosk session (nobody would intentionally do so), and has to reboot to recover. The fix is to bounce back to user list screen.
+- **Kiosk**: Selecting Oh No! Parent Control session type at logon enters an unusable kiosk session, and has to reboot to recover. The fix is to bounce back to user list screen. Not a likely real life scenario, but improves robustness.
+- **Broker**: Fixed a spurious broker error when a child account is deleted while the GNOME extension monitor is still watching it. Not a likely real life scenario, but improves robustness.
 
 
 ## v1.5 - 2026-10-31

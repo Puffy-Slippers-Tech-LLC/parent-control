@@ -7139,39 +7139,38 @@ class AccessibleUI:
     def time_explanation(self, child, *, language='en'):
         """PARENT20: one read-only showing explanation; never reveal or expand."""
         require(child in CHILD_IDENTITIES, 'ui:child-binding')
-        edges, identities, facts = {}, {}, {}
-        nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
-        observation = (nodes, edges, identities, facts)
-        root = self.snapshot_owned_target('parent-window', observation=observation,
-                                          check_prompt=True)
-        require(root is not None, 'ui:time-entry')
-        scoped = self.snapshot_scope(nodes, edges, root)
-        picker = self.snapshot_matches('parent-child-selector', scoped,
-                                       showing=True, show=self.showing)
-        require(picker is not None, 'ui:time-entry')
+        allowed = self.application_ids() if callable(self.application_ids) else self.application_ids
+        require(self.application_ui is not None and (allowed is None or PARENT_APPLICATION in allowed),
+                'ui:time-entry')
+        clients = self.application_ui.owned_clients(
+            owner_pids=self.owner_pids, application_owners=self.application_owners,
+            application_ids=(PARENT_APPLICATION,))
+        require(len(clients) == 1, 'ui:time-entry')
+        client = clients[0]
+        window = 'parent-window'
+        surfaces = client.listSurfaces()
+        require(any(surface['id'] == window and surface.get('visible') is True
+                    and surface.get('enabled') is True for surface in surfaces), 'ui:time-entry')
+        require(not any(surface['id'] != window and surface.get('visible') is True
+                        and surface.get('modal') is True for surface in surfaces), 'ui:time-modal')
+        controls = {item['id']: item for item in client.inventory(window) if item.get('visible') is True}
+        picker = 'parent-child-selector'
+        require(picker in controls, 'ui:time-entry')
         uid = (self.fixture_uids.get(child) if self.fixture_uids is not None
                else pwd.getpwnam(CHILD_ACCOUNTS[child]).pw_uid)
         require(type(uid) is int and uid >= 1000, 'ui:fixture-child-uid')
-        selected = [node for node in self.snapshot_scope(nodes, edges, picker)
-                    if re.fullmatch(r'parent-child-selected-[0-9]+', identities[node])
-                    and self.showing(node)]
-        require(len(selected) == 1 and identities[selected[0]] ==
-                'parent-child-selected-' + str(uid), 'ui:wrong-child')
-        labels = ([selected[0].getText()] if hasattr(selected[0], 'ui_element') else
-            [node.get_name() for node in self.snapshot_scope(nodes, edges, selected[0])
-             if node.get_role_name() == 'label' and self.showing(node)])
-        require(labels == [child], 'ui:wrong-child')
-        section = self.snapshot_matches('parent-time-status', scoped,
-                                        showing=True, show=self.showing)
-        require(section is not None, 'ui:time-entry')
-        section_nodes = self.snapshot_scope(nodes, edges, section)
-        explanation = self.snapshot_matches('parent-time-explanation', section_nodes,
-                                             showing=True, show=self.showing)
-        collapse = self.snapshot_matches('parent-time-calculation-collapse', section_nodes,
-                                         showing=True, show=self.showing)
-        require(explanation is not None and collapse is not None, 'ui:time-collapsed')
-        require(explanation.get_role_name() == 'label', 'ui:time-label')
-        text = explanation.get_name()
+        selected = 'parent-child-selected-' + str(uid)
+        require(controls.get(selected, {}).get('parent_id') == picker
+                and client.getText(selected, surface_id=window) == child, 'ui:wrong-child')
+        section = 'parent-time-status'
+        explanation = 'parent-time-explanation'
+        collapse = 'parent-time-calculation-collapse'
+        require(section in controls, 'ui:time-entry')
+        require(all(controls.get(identity, {}).get('parent_id') == section
+                    for identity in (explanation, collapse)), 'ui:time-collapsed')
+        require(controls[explanation].get('role') == 'label', 'ui:time-label')
+        text = client.getText(explanation, surface_id=window)
+        require(client.getValue(picker, surface_id=window) == str(uid), 'ui:wrong-child')
         require(type(text) is str and len(text) <= 256, 'ui:time-label')
         require(language in ('en', 'zh-Hans', 'he'), 'ui:time-language')
         pattern = {

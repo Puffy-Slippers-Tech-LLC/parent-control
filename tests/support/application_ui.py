@@ -218,8 +218,12 @@ class ApplicationUI:
             Gio.DBusCallFlags.NONE, 15000, None).unpack()
         return [frontend for frontend, name in ENDPOINTS.items() if name in names]
 
-    def applications(self, *, owner_pids=None, application_owners=None,
-                     application_ids=None):
+    def applications(self, **ownership):
+        return [self._application(client) for client in self.owned_clients(**ownership)]
+
+    def owned_clients(self, *, owner_pids=None, application_owners=None,
+                      application_ids=None):
+        """Resolve guarded endpoints without reading any surface inventory."""
         owners = application_owners() if callable(application_owners) else application_owners
         pids = owner_pids() if callable(owner_pids) else owner_pids
         allowed = application_ids() if callable(application_ids) else application_ids
@@ -264,7 +268,7 @@ class ApplicationUI:
                                f'endpoint_pid={client.pid}, '
                                f'live_owner_count={len(owners.get(client.application_id, ()))}')
                 raise error
-            result.append(self._application(client))
+            result.append(client)
         return result
 
     def _application(self, client):

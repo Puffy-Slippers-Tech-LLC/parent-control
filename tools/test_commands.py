@@ -400,11 +400,10 @@ case runs once per family. One VM uses the same queue as multiple workers.
 --vm accepts a VM name/ID or family name/ID, a comma-separated mixture, all-enabled, or all.
 Matching is case-insensitive. Families expand to their eligible VMs;
 overlapping entries select each VM once.
-Every selection skips offline VMs/hosts. Categories and their subcategories run
-sequentially. Each VM group filters the original --vm pool by its vm_tags before
-capacity admission reserves a fixed random subset, balancing compute across families.
-The reservation ends after that group's owned work and cleanup. Required family
-vm_tags are inherited by VMs unless a VM supplies its own replacement vm_tags.
+Every selection skips offline VMs/hosts. Each VM group filters the original --vm
+pool by its vm_tags. A ready VM takes the earliest eligible unclaimed work, including
+from a later group while earlier cases finish. Each attempt reserves compute through
+its own cleanup. VMs inherit family vm_tags unless they supply replacement vm_tags.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
 E2E also runs selected cases 22 and 30 in GNOME Classic on families prepared for it.

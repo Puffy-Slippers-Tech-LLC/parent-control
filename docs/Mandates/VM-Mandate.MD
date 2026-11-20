@@ -98,8 +98,8 @@ otherwise inheriting its family's value (legacy families default to 1). Both
 fields accept decimals. The host-wide capacity authority atomically calculates
 `available_compute = max_compute_unit - total_used_compute` across active
 reservations, independently of repository, branch or initiating machine.
-Test execution reserves capacity separately for each sequential category or
-subcategory. `run-tests` treats the launcher's `--vm` selection as the allowed
+Test execution reserves capacity for each VM attempt. `run-tests` treats the
+launcher's `--vm` selection as the allowed
 superset, applies enabled/host/branch restrictions, then matches the group's
 effective `vm_tags` against each VM's effective `vm_tags` before capacity admission.
 Category/subcategory `vm_tags` holds one required routing token.
@@ -111,24 +111,16 @@ The shared capacity scheduler receives eligible candidates only and owns no test
 membership or tag inheritance. `fix-tests` passes its allowed pool through and
 starts repair only after the ordinary run releases bookings; it performs no separate VM scheduling.
 
-Admission reserves a fixed random subset for the current test group, including
-prerequisite preparation and current execution. Owned execution and
-cleanup join before the reservation is released and the next group is admitted
-from the original allowed pool. Thus different groups need not fit simultaneously.
-Surviving owned commands retain the charge. The original request remains
-attachment metadata.
-Each new execution admits currently eligible workers from that allowed pool;
-historical worker assignments do not pin a resumed run to an old allocation.
-Clear completed cases stay complete within their family. Future groups receive
-admission when reached; resume never widens the requested pool. Shutdown cleanup
-uses only the current group's recorded admitted VMs. Its receipt is cleared
-after joined cleanup, so shutdown cannot revisit a VM released by an earlier group.
-If availability is below the smallest selected VM's cost on any selected host,
-test-group admission fails before work starts, with a red diagnostic giving the
-limit, used, available and minimum required compute. Earlier host reservations
-are released on failed admission.
+Each VM checkout charges its configured cost through prerequisite preparation,
+execution and joined cleanup. Surviving owned commands retain the charge. The
+original request remains attachment metadata. Resume selects currently eligible
+workers within that pool and keeps clear completed cases in their family and
+group. Each worker uses the existing VM-owned recovery checks on interruption
+and before starting another attempt on that VM.
+Temporary checkout or compute contention leaves work pending. Each required
+group and family needs an eligible VM whose cost fits its host ceiling.
 
-When the whole selection cannot fit, maximize family coverage first. Among
+For operations that request a fixed subset, maximize family coverage first. Among
 feasible allocations, minimize the squared distance of each covered family's
 compute from an equal share of the available budget, capped by the smallest
 covered family's attainable total, allowing indivisible-VM rounding. Balance
@@ -150,9 +142,10 @@ Owned stop/recovery retains its UUID, journal and instance checks after VM/host
 availability changes, without requesting new execution capacity. This exception
 permits only the existing recovery path and grants no new guest execution.
 
-Within each test group, tests use one pending case queue per admitted family: an available VM
-atomically claims its next case, so each case executes once per family. The same
-pull mechanism serves one or more VMs. Claims cannot overlap on a case identity;
+Each test group has one pending case queue per eligible family. A single
+dispatcher chooses the earliest eligible unclaimed work for each ready VM. Cases
+from later groups can start while earlier assignments finish. Claims cannot
+overlap on a case identity within a group and family;
 failed or interrupted attempts retain their live owner until joined cleanup.
 Historical claims are discarded; incomplete attempts return to pending.
 Stateful histories and system area attempts remain indivisible for scheduling,
@@ -181,13 +174,10 @@ log location before work begins.
 Ordinary tests, repairs and both preparation tools use the shared `vm_queue.py` executor,
 including explicit single-VM selections. Each worker reserves only its canonical
 target from the selected pool. Reservation waiters consume no execution capacity;
-workers use the current execution's stable source snapshot. Spare grants are
-released when capacity fills, rather than parking free VMs behind active workers.
-Normal test claims follow that admission. Waiters whose
-family work has drained are cancelled without waiting for the occupied VM.
-Failed test workers retain their reservations while the remaining workers finish,
-with their execution slots released. Reservation release follows joined owned
-cleanup, never a progress event or timeout. On the first failed case, the repair
+workers use the current execution's stable source snapshot. Test dispatch uses
+each checkout result as it becomes available. A checkout with no remaining
+eligible work closes without running a case. Reservation release follows joined
+owned cleanup. On the first failed case, the repair
 launcher stops admission, cancels and joins companions, and releases normal
 bookings. Clear terminal results remain; incomplete attempts return to pending.
 One goal session validates the failure on the same named VM through ordinary

@@ -156,12 +156,21 @@ class PassCheckpoint:
         return set(self.state['families'][family]['passed'].get(category, []))
 
     def pending(self, family):
-        from vm_case_queue import work_key
+        """Yield unclaimed work in dispatch order."""
         partition = self.state['families'][family]
-        active = {work_key(claim['work']) for claim in self.claims(family)}
-        return [work for key, work in partition['items'].items()
-                if key not in active and key not in partition['completed'] and (not work['cases']
-                    or not set(work['cases']) <= self.passed(family, work['category']))]
+        claims = partition['claims'].values()
+        passed = {category: set(cases) for category, cases in partition['passed'].items()}
+        completed = set(partition['completed'])
+        for key, work in partition['items'].items():
+            if (key not in completed and (not work['cases'] or not passed[work['category']].issuperset(work['cases']))
+                    and not self._claimed(work, claims)):
+                yield work
+
+    @staticmethod
+    def _claimed(work, claims):
+        cases = set(work['cases'])
+        return any(claim['work'] == work or (claim['work']['category'] == work['category']
+                   and cases.intersection(claim['work']['cases'])) for claim in claims)
 
     def retry(self, family, case, *, area=False):
         for category, passed in self.state['families'][family]['passed'].items():
@@ -170,8 +179,7 @@ class PassCheckpoint:
                 and not (area and node.partition('::')[0] == case.partition('::')[0])]
 
     def claim(self, family, vm, work, *, execution=None):
-        if any(claim['work']['category'] == work['category']
-               and set(claim['work']['cases']) & set(work['cases']) for claim in self.claims(family)):
+        if self._claimed(work, self.claims(family)):
             return None
         assignment = dict(run=self.state['run'], **{'pass': self.state['pass']},
                           assignment=uuid.uuid4().hex, attempt=uuid.uuid4().hex,

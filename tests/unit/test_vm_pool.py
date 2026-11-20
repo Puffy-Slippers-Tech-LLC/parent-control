@@ -91,28 +91,42 @@ def test_executor_failure_stops_admission_and_releases_bookings(executor_pool):
 
 
 def test_executor_failure_cancels_and_joins_running_companion(executor_pool, monkeypatch):
-    import vm_queue
+    from types import SimpleNamespace
+    import vm_test_queue
+    from test_results import REPAIR_QUEUE, ResultStore, VARIABLE
     from vm_selection import vm_config
 
     state = executor_pool
-    vms = [replace(vm, host=replace(vm.host, max_compute_unit=2)) for vm in state.vms]
+    vms = [replace(vm, family='family', host=replace(vm.host, max_compute_unit=2)) for vm in state.vms]
     monkeypatch.setattr(vm_config, 'load', {vm.name: vm for vm in vms}.__getitem__)
+    monkeypatch.setenv(VARIABLE, str(state.root / 'results'))
+    monkeypatch.setenv(REPAIR_QUEUE, '1')
+    snapshot = {'concurrency': 2}
+    plan = snapshot, vms, [], [], [], {}
+    groups = {}
+    for profile, pool in [('general', vms[:1]), ('gnome-classic', vms[1:])]:
+        options = ['--subcategory', profile]
+        work = dict(category='e2e', options=options, cases=['shared'], case='shared', area=False)
+        groups[profile] = ((snapshot, pool, [], ['e2e', *options], [('e2e', options)], {'family': [work]}), None)
     started = threading.Barrier(2, timeout=5)
     attempts = []
-    def execute(worker):
-        attempts.append(worker.vm.name)
+    def execute(worker, assignment, inherited, group):
+        assert worker.vm.name in state.held
+        attempts.append((worker.vm.name, group.scope))
         started.wait()
-        if worker.vm.name == 'first':
-            return dict(status=2, handoffs=['actual failure'])
+        if group.scope == 'gnome-classic':
+            return dict(status=2, handoffs=['actual failure'],
+                        evidence=dict(assignment, passed=[], failed=[], cleanup=True))
         assert worker.interrupt.wait(5), 'failure did not cancel its admitted companion'
-        return dict(status=130, interrupted=True, handoffs=[])
-    with vm_queue.Executor(state.root, vms, 2, threading.Event()) as executor:
-        results = executor.run_ready(execute, choose=lambda ready, active: ready[0],
-                                    needed=lambda vm: vm.name not in attempts)
-        assert not state.held
-    assert set(attempts) == {'first', 'second'}
-    assert results['first']['status'] == 2 and results['second']['status'] == 130
-    assert executor._active == 0
+        return dict(status=130, interrupted=True, handoffs=[],
+                    evidence=dict(assignment, passed=[], failed=[], cleanup=True))
+
+    outcome = vm_test_queue.execute_pass(state.root, plan, SimpleNamespace(stopped=threading.Event()),
+                                         execute, group_plans=groups)
+    assert not state.held
+    assert set(attempts) == {('first', 'general'), ('second', 'gnome-classic')}
+    assert outcome['results']['second']['status'] == 2 and outcome['results']['first']['status'] == 130
+    assert ResultStore().failure()['options'] == ['--subcategory', 'gnome-classic']
 
 
 def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_pool, monkeypatch):
@@ -145,17 +159,16 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
     errors = json.loads((run / 'controller-errors.json').read_text())
     assert errors[-1]['context'] == 'VM completion first'
     assert errors[-1]['traceback'] == result['first']['traceback']
-    # Slow release of an unselected VM overlaps completion of the running VM.
-    # Its next probe must become ready, not consume an old release as a result.
+    # At capacity, the next checkout starts after the previous result is joined.
     attempts.clear()
     first_completed = threading.Event()
 
     @contextmanager
     def reservation(name, **kwargs):
+        if name == 'second':
+            assert first_completed.is_set()
         with state.reservation(name, **kwargs) as receipt:
             yield receipt
-            if name == 'second':
-                assert first_completed.wait(5)
 
     def choose(ready, active):
         if not attempts:
@@ -170,6 +183,19 @@ def test_executor_ready_success_reenters_and_rejects_unready_choices(executor_po
                 completed=lambda vm, value: first_completed.set() if vm.name == 'first' else None)
     assert attempts == ['first', 'second']
     assert all(value['status'] == 0 for value in result.values())
+
+    outcomes = iter([dict(status=1, category='system', handoffs=['system failure']),
+                     dict(status=0, category='e2e', handoffs=[])])
+    attempts.clear()
+
+    def continue_on_failure(worker):
+        attempts.append(worker.vm.name)
+        return next(outcomes)
+
+    with vm_queue.Executor(state.root, state.vms[:1], 1, threading.Event()) as executor:
+        result = executor.run_ready(continue_on_failure, choose=lambda ready, active: ready[0],
+                                    needed=lambda vm: len(attempts) < 2, stop_on_error=False)
+    assert result['first'] == dict(status=1, category='system', cleanup=True, handoffs=['system failure'])
     with pytest.raises(ValueError, match='unavailable'):
         with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
             executor.run_ready(execute, choose=lambda ready, active: 'foreign', needed=lambda vm: True)
@@ -187,7 +213,7 @@ def test_executor_ready_busy_vm_has_no_source_and_late_checkin_cannot_pass(execu
     coordinator = threading.get_ident()
 
     @contextmanager
-    def reservation(name, *, stopped, bind, wait):
+    def reservation(name, *, stopped, bind, wait, stderr):
         assert wait is False
         if name == 'first':
             raise vm_pool.Busy('controlled occupied VM')

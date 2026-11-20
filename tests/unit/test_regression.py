@@ -170,7 +170,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
             return results
 
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
-    def execute(worker, assignment, inherited):
+    def execute(worker, assignment, inherited, group):
         case = assignment['execution']['case']
         observed.append((worker.vm.family, case))
         failed = fail[0] and case == 'last'
@@ -203,7 +203,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
         assert ResultStore().passed('e2e', family) == {'first', 'last'}
     assert len(observed) > len(before)
     replay = [*plan[:3], ['--resume', '--resume-case=first', '--resume-case-only', 'e2e'], *plan[4:]]
-    def cleanup_failure(worker, assignment, inherited):
+    def cleanup_failure(worker, assignment, inherited, group):
         return dict(status=2, cleanup=False, handoffs=[], evidence=dict(
             assignment, passed=['first'], failed=[], cleanup=False))
     assert vm_test_queue.execute_pass(tmp_path, tuple(replay), control(), cleanup_failure)['status'] == 1
@@ -287,7 +287,7 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         cases = ['first', 'last'] + (['added'] if identity['digest'] == 'changed' else [])
         items = [dict(category='e2e', options=[], cases=[case], case=case, area=False) for case in cases]
         return ({'concurrency': 1}, [vm], [], args, [('e2e', [])], {'family': items})
-    def execute(worker, assignment, inherited):
+    def execute(worker, assignment, inherited, group):
         case = assignment['execution']['case']
         executed.append(case)
         if case == 'last' and changed_during == 'last-case':
@@ -295,11 +295,11 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         return dict(status=0, handoffs=[], evidence=dict(assignment, passed=[case], failed=[], cleanup=True))
     def group(root, selected, **kwargs):
         return vm_test_queue.execute_pass(root, selected, SimpleNamespace(stopped=threading.Event()),
-            execute, sources=kwargs['sources'], replayed_families=kwargs['replayed_families'])
+            execute, sources=kwargs['sources'], histories=kwargs['histories'])
     monkeypatch.setattr(remote_sources, 'FrozenSources', Sources)
     monkeypatch.setattr(vm_test_queue, 'Executor', Ready)
     monkeypatch.setattr(vm_test_queue, '_plan', plan)
-    monkeypatch.setattr(vm_test_queue, '_execute_group', group)
+    monkeypatch.setattr(vm_test_queue, '_run_workers', group)
     monkeypatch.setattr(vm_test_queue, 'source_identity', lambda root: dict(identity))
     monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
     if focused:
@@ -307,7 +307,7 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
         args = ['--resume', '--resume-case=last', '--resume-case-only', 'e2e']
     else:
         args = ['e2e']
-    assert vm_test_queue._run_group(tmp_path, args, return_outcome=True)['status'] == 0
+    assert vm_test_queue._run_pass(tmp_path, args)['status'] == 0
     assert captures == ['first', 'changed']
     assert plans == [args, ['--resume', *[argument for argument in args if argument != '--resume']]]
     assert executed == (['last'] if focused else ['first', 'last', 'added'])
@@ -317,9 +317,7 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
                                                ('two,three', ['two', 'three'])])
 def test_pass_plan_uses_only_the_requested_or_configured_pool(
         tmp_path, monkeypatch, private_dispatch_source, selector, names):
-    from contextlib import contextmanager
     from dataclasses import replace
-    import host_compute
     import launcher_reload
     import runpy
     import vm_recording
@@ -366,35 +364,24 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     monkeypatch.setattr(vm_test_queue, 'case_inventory', collect)
     monkeypatch.setattr(vm_test_queue.test_source, 'startup', lambda *args, **kwargs: nullcontext())
     monkeypatch.setattr(launcher_reload, 'current', None)
-    active, executions, totals = [], [], []
-
-    @contextmanager
-    def admit(candidates, *, handoff):
-        assert not handoff and not active
-        assert all(vm.name in names for vm in candidates)
-        active.extend(vm.name for vm in candidates)
-        try:
-            yield candidates
-        finally:
-            active.clear()
+    executions, totals = [], []
 
     def execute(root, args, **kwargs):
-        assert active
-        executions.append(list(args))
+        groups = kwargs['vm_groups']
+        assert all(group['vms'] == names for group in groups)
+        executions.append([group['args'] for group in groups])
         progress = kwargs['overall_counts']
-        if args[0] == 'system':
-            totals.append(progress(0, 0, 148))
-            totals.append(progress(148, 0, 148))
-        elif 'general' in args:
-            totals.append(progress(2, 0, 2))
-        else:
-            totals.append(progress(1, 1, 2))
-            totals.append(progress(2, 0, 2))
+        totals.append(progress('system', 0, 0, 148))
+        if len(groups) > 1:
+            totals.append(progress('e2e.general', 2, 0, 2))
+            totals.append(progress('e2e.e2e-heavy', 1, 1, 2))
+        totals.append(progress('system', 148, 0, 148))
+        if len(groups) > 1:
+            totals.append(progress('e2e.e2e-heavy', 2, 0, 2))
         return dict(status=0, cleanup_complete=True)
 
-    monkeypatch.setattr(host_compute, 'launch', admit)
     monkeypatch.setattr(vm_recording, 'recording', lambda *args, **kwargs: nullcontext(None))
-    monkeypatch.setattr(vm_test_queue, '_run_group', execute)
+    monkeypatch.setattr(vm_test_queue, '_run_pass', execute)
     from test_results import ResultStore, VARIABLE
     monkeypatch.setenv(VARIABLE, str(tmp_path / 'results'))
     results = ResultStore()
@@ -403,16 +390,15 @@ def test_pass_plan_uses_only_the_requested_or_configured_pool(
     requested = ['system', 'check_first', 'system', 'check_second', 'e2e']
     assert vm_test_queue.run(tmp_path, requested) == 0
     assert not results.failures()
-    assert executions == [['system', 'check_first', 'system', 'check_second'],
-                          ['e2e', '--subcategory', 'general'],
-                          ['e2e', '--subcategory', 'e2e-heavy']]
-    assert totals == [(0, 0, 152), (148, 0, 152), (150, 0, 152), (151, 1, 152), (152, 0, 152)]
-    assert not active
+    assert executions == [[['system', 'check_first', 'system', 'check_second'],
+                           ['e2e', '--subcategory', 'general'],
+                           ['e2e', '--subcategory', 'e2e-heavy']]]
+    assert totals == [(0, 0, 152), (2, 0, 152), (3, 1, 152), (151, 1, 152), (152, 0, 152)]
 
     totals.clear()
     executions.clear()
     assert vm_test_queue.run(tmp_path, requested[:-1], accounting=requested) == 0
-    assert executions == [requested[:-1]]
+    assert executions == [[requested[:-1]]]
     assert totals == [(0, 0, 152), (148, 0, 152)]
 
 

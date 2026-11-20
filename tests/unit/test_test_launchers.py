@@ -103,7 +103,7 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch)
         assert recoveries == [False] and evidence['cleanup'] and evidence['interrupted']
         assert evidence['assignment'] == assignment['assignment'] and not evidence['passed']
         assert not shared.accept(assignment, evidence, 130, interrupted=True)
-        assert shared.pending('deb') == [work]
+        assert list(shared.pending('deb')) == [work]
 
 
 def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
@@ -358,7 +358,7 @@ def _system_observation_command(tmp_path, monkeypatch, case_id, transport):
 
     def run_attempts(suite, directory, selection, manifest, digest, ledger, **kwargs):
         # Simulate passing case assertions. The controller interval owns the final gate.
-        progress = Progress(phase, selection.executions, hold=[case])
+        progress = Progress(phase, selection.executions, failures={}, hold=[case])
         guest_output = StringIO()
         write_event(guest_output, 'finished', nodeid='test_install_smoke.py::' + case)
         progress(guest_output.getvalue().encode())
@@ -503,7 +503,7 @@ def test_product_observation_routes_only_clear_failure_to_repair(
         assert context['diagnostics'] == ([expected_diagnostic] if status else [])
         return status
 
-    def attempt(worker, assignment, inherited):
+    def attempt(worker, assignment, inherited, group):
         assert attempts == [] and assignment['execution']['case'] == case
         attempts.append(case)
         checkpoint = Checkpoint(tmp_path, selection, binding=vm.name)

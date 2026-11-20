@@ -55,9 +55,9 @@ regression tests and has no host branch or cleanup join stage.
 Recovery failures still fail the run; overall wall time includes cleanup.
 For example, `tools/run-tests unit -k 'grant' static shell` runs the selected unit
 tests followed by shell checks in one report. Each category keeps its own
-arguments, and all selections are validated before execution. Arbitrary category
-groups run in order; unit/UI selections and the established aggregates use their
-qualified parallel schedules.
+arguments, and all selections are validated before execution. Host category
+groups run in order. Unit/UI selections and aggregates use their qualified
+parallel schedules. VM groups use rolling dispatch.
 Multi-category runs collect selected unit, UI, component and fixture-runtime
 suites before executing the first category and reuse those inventories during
 execution. Overall counts therefore include later host suites from the start, including
@@ -310,9 +310,9 @@ The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
 Each host's positive numeric `max_compute_unit` limits reserved guest compute.
 VM costs inherit family `compute_unit` unless overridden; both accept decimals.
-The [capacity authority](../docs/Mandates/VM-Mandate.MD#target-selection) reserves
-a fixed subset for each test group, balances family compute, and independently
-guards VM admission. Every selected case runs once per admitted family.
+The [capacity authority](../docs/Mandates/VM-Mandate.MD#target-selection) guards
+each VM checkout and charges compute through that attempt's cleanup. Every
+selected case runs once per eligible family and test variant.
 VMs are eligible only when both VM and host have `enabled: "true"`. Every queue
 selection skips offline entries; direct maintenance refuses before access.
 Each available VM atomically claims the next pending work from its family's
@@ -330,8 +330,8 @@ All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
-`run-tests` expands categories into ordered subcategories and executes groups
-sequentially. The original `--vm` selection is an allowed superset. Test inventory
+`run-tests` expands categories into ordered subcategories. That order gives
+dispatch priority. The original `--vm` selection is an allowed superset. Test inventory
 owns `vm_tags` inheritance; VM configuration owns required family `vm_tags` and
 optional replacing VM overrides. The runner filters each group by exact tag
 membership before shared capacity admission. No matching VM for a required family
@@ -348,16 +348,15 @@ cases declare subcategory membership, never VM tags. FIX05 uses
 `e2e --subcategory e2e-heavy --qualify-lunar-profile` through the same routing.
 The VM registry owns the available machines and their tags.
 
-Within each group the ordinary `execute_pass` coordinator owns one FIFO per
-family. Ready VMs pull one item at a time; there are no advance shards.
-Repeated selectors for the same category/subcategory share that group's queue
-and accepted case credit.
-The group joins execution and cleanup before releasing its reservation;
-the next group selects afresh from the original allowed pool. Every included family keeps its complete selection,
-including while its VMs are occupied. Admission fills one available worker per
-family before a second, rotates equal-compute priority on refill, and uses spare
-capacity when a family is busy or drained. Repair starts after the executor releases all ordinary bookings. Host work runs once per pass through the existing host scheduler
-and shared source admission before VM groups, without consuming VM slots.
+One `execute_pass` coordinator dispatches across the existing per-group family
+queues and checkpoints. Repeated selectors for the same category/subcategory
+share case credit. A ready VM claims the earliest eligible unclaimed item and
+can take work from a later group while earlier attempts execute or clean up.
+For equally ranked candidates, admission prefers the family using less compute
+and rotates ties. Every included family keeps its complete selection while its
+VMs are occupied. Repair starts after the executor joins all owned work. Host
+work runs once through the existing host scheduler and shared source admission
+before VM dispatch, without consuming VM slots.
 Baseline and app-snapshot preparation use the same selector and rolling scheduler,
 with `tools/prepare-vm` defaulting to `all` online VMs in both
 modes and app-snapshot preparation defaulting to enabled VMs; see the
@@ -380,7 +379,7 @@ session after failed execution has joined, under the
 | --- | --- |
 | `tests/integration/vm_config.py` | Validate VM registry and resolve inherited VM tags. |
 | `tools/test_commands.py` and the category inventory | Declare categories, subcategories, test tags and case membership. |
-| `tools/vm_test_queue.py` (`run-tests` engine) | Select each group's eligible pool, run groups sequentially and record ordinary case results. |
+| `tools/vm_test_queue.py` (`run-tests` engine) | Route work by group, select the earliest eligible work for each VM and record ordinary case results. |
 | `tools/host_compute.py` and `tools/vm_queue.py` | Admit supplied candidates under capacity policy, dispatch workers and join owned cleanup; no test-tag rules. |
 | `tools/fix_tests.py` | Pass the requested selection through, run one goal session per failure and own explicitly requested rounds. |
 
@@ -394,12 +393,11 @@ retained results do not constitute a VM reservation.
 
 Ordinary test and preparation workers share `tools/vm_queue.py` for reservation,
 execution capacity and joined cleanup. Busy VM waiters use no execution slot.
-Test workers claim only after admission and release spare reservations when capacity fills. Workers
-cancel unused waiters when their family's work drains.
-Failed workers release capacity but retain their reservation until the executor
-closes after the worker join. Preparation uses one finite per-VM operation and
-continues after individual failures. These rules also cover explicit single-VM
-selections and repair attempts through the shared pass coordinator.
+Test workers claim only after admission. Unused checkouts close when their
+eligible work drains. Completing an attempt releases capacity and the VM after
+joined cleanup. Preparation uses one finite per-VM operation and continues after
+individual failures. Explicit single-VM tests and repair validation use the same
+test coordinator.
 Workers return ordinary terminal case results to their coordinator. A result
 from another execution supplies no credit. Clear completed passes and failures
 are retained; absent or incomplete results mean pending work. There is no source
@@ -537,7 +535,7 @@ or compatibility mode for the removed repair-ticket and source-fence formats.
 ### Scripted repair loop
 
 Run [`tools/fix-tests`](../tools/fix-tests) with the same categories and selectors
-as `run-tests`. It uses the ordinary allocation, category ordering, family
+as `run-tests`. It uses the ordinary allocation, group priority, family
 queues, VM booking, host compute and disk concurrency mechanisms.
 To scope a category run to one distro, select its family, for example
 `tools/fix-tests vm --vm f45`. The runner resolves the current family members

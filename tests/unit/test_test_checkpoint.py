@@ -44,10 +44,10 @@ def test_pass_credit_belongs_to_exact_attempt_and_family_after_cleanup(tmp_path)
                         {'deb': [work, added], 'rpm': [work]}, resume=True) as checkpoint:
         assert not checkpoint.claims()
         assert checkpoint.passed('deb', 'system') == {'first'}
-        assert checkpoint.pending('deb') == [work, added]
+        assert list(checkpoint.pending('deb')) == [work, added]
         current = checkpoint.claim('deb', 'two', work)
         assert checkpoint.accept(current, dict(current, passed=['last'], failed=[]), 0)
-        assert checkpoint.pending('deb') == [added]
+        assert list(checkpoint.pending('deb')) == [added]
 
 
 def event(checkpoint, kind, case, failed=()):

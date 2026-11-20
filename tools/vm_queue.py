@@ -8,6 +8,7 @@ import queue
 import re
 import sys
 import threading
+import time
 
 if __name__ == '__main__':
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -15,6 +16,8 @@ if __name__ == '__main__':
 import launcher_control
 from detached_launcher import exception_details, record_exception
 from preparation_report import preparation_report
+
+_COMPUTE_WAIT = 'waiting for host compute'
 
 
 class _NoWork(Exception):
@@ -26,7 +29,7 @@ class _CapacityWait(Exception):
 
 
 @contextmanager
-def _preparation_checkout(vm, stopped, report=None):
+def _worker_checkout(vm, stopped, report=None):
     """Probe the ordinary nonwaiting checkout and retry only temporary refusals."""
     from host_compute import units
     from vm_pool import Busy, reservation
@@ -47,7 +50,7 @@ def _preparation_checkout(vm, stopped, report=None):
                                          r'minimum vm\.compute_unit=(\S+)\. Available compute units are insufficient',
                                          detail)
                     if capacity and units(capacity[2]) <= units(capacity[1]):
-                        raise Busy('waiting for host compute') from error
+                        raise Busy(_COMPUTE_WAIT) from error
                     if detail:
                         raise ValueError(detail) from error
                     raise
@@ -207,7 +210,7 @@ class Executor:
                                 continue
                             try:
                                 receipt = checkout.enter_context(
-                                    _preparation_checkout(vm, lambda: self._abort(vm), report))
+                                    _worker_checkout(vm, lambda: self._abort(vm), report))
                             except Busy:
                                 # Bound failed probes across the whole host even
                                 # when all pending VMs are competing to retry.
@@ -219,7 +222,7 @@ class Executor:
                         continue
                     except Busy as error:
                         if report is not None:
-                            report.update(vm.name, 'compute' if str(error) == 'waiting for host compute' else 'vm')
+                            report.update(vm.name, 'compute' if str(error) == _COMPUTE_WAIT else 'vm')
                         elif not queued:
                             print(f'vm-queue: {vm.name} queued ({error})', flush=True)
                             queued = True
@@ -288,162 +291,141 @@ class Executor:
         import launcher_reload
         import test_source
         from detached_launcher import Stopped
-        from vm_pool import Busy, reservation
+        from host_compute import units
+        from vm_pool import Busy
         if self._pool is None or self._ran or self._closing.is_set():
             raise ValueError('vm-queue: run_ready requires a fresh active executor')
+        for vm in self.vms:
+            if units(vm.compute_unit) > units(vm.host.max_compute_unit):
+                raise ValueError(f'vm-queue: {vm.name} needs {vm.compute_unit} compute units, '
+                                 f'exceeding max_compute_unit={vm.host.max_compute_unit} on {vm.host.name}')
         self._ran, self._needed = True, needed
         events = queue.Queue()
-        commands = {vm.name: queue.Queue() for vm in self.vms}
         results = {vm.name: dict(status=0, handoffs=[]) for vm in self.vms}
         targets = {vm.name: vm for vm in self.vms}
+        costs = {vm.name: units(vm.compute_unit) for vm in self.vms}
+        # Each entry occupies one dispatch slot from probe through check-in.
+        # False means the VM has not acquired its checkout and source yet.
+        booked = {}
+        retry_after = {}
+        compute_retry = {}
 
-        def worker_loop(vm):
-            inbox = commands[vm.name]
+        def run_attempt(vm):
             with self.sources.use() if self.sources is not None else nullcontext():
-                while True:
-                    if inbox.get() == 'close':
-                        return
-                    published = False
-                    value = None
-                    terminal = False
-                    try:
-                        self._check(vm)
-                        with reservation(vm.name, stopped=lambda: self._abort(vm),
-                                         bind=False, wait=False) as receipt:
-                            with test_source.reader(
-                                    self.root if self.sources is None else self.sources.lease_root,
-                                    stopped=lambda: self._abort(vm), wait=False):
-                                self._check(vm)
-                                events.put(('ready', vm.name, None))
-                                published = True
-                                command = inbox.get()
-                                if command == 'close':
-                                    return
-                                if command != 'run':
-                                    # Release before reading the next queued probe.
-                                    # No execution took place, so publish no result.
-                                    continue
-                                worker = _Worker(self, vm, receipt)
-                                worker.interrupt = self._closing
-                                try:
-                                    with worker.operation():
-                                        value = execute(worker)
-                                    if not isinstance(value, dict) or type(value.get('status')) is not int:
-                                        raise ValueError('vm-queue: attempt must return integer status')
-                                except (_NoWork, _CapacityWait):
-                                    value = None
-                    except (Busy, test_source.SourceBusy, _NoWork, _CapacityWait):
-                        pass
-                    except (Stopped, KeyboardInterrupt):
-                        value, terminal = dict(status=130, handoffs=[], interrupted=True), True
-                    except launcher_reload.ReloadRequested:
-                        value, terminal = dict(status=launcher_reload.STATUS, handoffs=[]), True
-                    except BaseException as error:
-                        value, terminal = dict(status=2, handoffs=[], cleanup=False,
-                            **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error)), True
-                    # The operation and reservation have both exited before
-                    # the coordinator receives an actual execution result.
-                    events.put(('terminal' if terminal else 'done' if published else 'idle', vm.name, value))
-                    if terminal:
-                        return
+                self._check(vm)
+                with _worker_checkout(vm, lambda: self._abort(vm)) as receipt, test_source.reader(
+                        self.root if self.sources is None else self.sources.lease_root,
+                        stopped=lambda: self._abort(vm), wait=False):
+                    self._check(vm)
+                    events.put((vm.name, None))
+                    worker = _Worker(self, vm, receipt)
+                    worker.interrupt = self._closing
+                    value = execute(worker)
+                    if not isinstance(value, dict) or type(value.get('status')) is not int:
+                        raise ValueError('vm-queue: attempt must return integer status')
+                    return value
 
-        for vm in self.vms:
-            future = self._pool.submit(worker_loop, vm)
-            self._futures.append(future)
-            def finished(future, name=vm.name):
-                error = future.exception()
-                if error is not None:
-                    events.put(('terminal', name, dict(status=2, handoffs=[], cleanup=False,
-                        **record_exception(launcher_control.current_run, f'VM worker {name}', error))))
-            future.add_done_callback(finished)
-        active, retired = set(), set()
+        def capacity_key(vm):
+            return vm.host.name, costs[vm.name]
+
+        def can_retry(vm, now):
+            key = capacity_key(vm)
+            return (retry_after.get(vm.name, 0) <= now and
+                    (key not in compute_retry or compute_retry[key] <= now and
+                     all(ready or capacity_key(targets[name]) != key for name, ready in booked.items())))
+
+        def fits(vm):
+            used = sum(costs[name] for name in booked if targets[name].host.name == vm.host.name)
+            return used + costs[vm.name] <= units(vm.host.max_compute_unit)
+
+        def attempt_result(vm, future, admitted):
+            try:
+                return future.result()
+            except launcher_reload.ReloadRequested:
+                return dict(status=launcher_reload.STATUS, handoffs=[])
+            except BaseException as error:
+                if not admitted and isinstance(error, (Busy, test_source.SourceBusy, _NoWork)):
+                    if isinstance(error, Busy) and str(error) == _COMPUTE_WAIT:
+                        compute_retry[capacity_key(vm)] = time.monotonic() + 1
+                    return None
+                if isinstance(error, (Stopped, KeyboardInterrupt)):
+                    if launcher_reload.pending():
+                        return dict(status=launcher_reload.STATUS, handoffs=[])
+                    if self._closing.is_set() or self._cancelled():
+                        return dict(status=130, handoffs=[], interrupted=True)
+                    if not admitted and not needed(vm):
+                        return None
+                return dict(status=2, handoffs=[], cleanup=False,
+                            **record_exception(launcher_control.current_run, f'VM worker {vm.name}', error))
 
         def receive(timeout=None):
             try:
-                kind, name, value = events.get(timeout=timeout)
+                name, future = events.get(timeout=timeout)
             except queue.Empty:
-                return None, None
-            if kind in ('done', 'terminal'):
-                active.discard(name)
-                if value is not None:
-                    if completed is not None:
-                        try:
-                            replacement = completed(targets[name], dict(value))
-                            if replacement is not None:
-                                if (not isinstance(replacement, dict) or type(replacement.get('status')) is not int
-                                        or value['status'] and not replacement['status']):
-                                    raise ValueError('completion cannot accept a failed attempt')
-                                value = replacement
-                        except Exception as error:
-                            value = dict(status=2, cleanup=False, handoffs=value.get('handoffs', []),
-                                attempt_result=value, **record_exception(launcher_control.current_run,
-                                    f'VM completion {name}', error))
-                    previous = results[name]
-                    results[name] = dict(value, status=previous['status'] or value['status'],
-                                        handoffs=[*previous.get('handoffs', []),
-                                                         *value.get('handoffs', [])])
-                    if value['status'] and (stop_on_error or value['status'] == 130
-                                            or value.get('cleanup') is False):
-                        self._closing.set()
-                if kind == 'terminal':
-                    retired.add(name)
-            return kind, name
+                return False
+            vm = targets[name]
+            if future is None:
+                booked[name] = True
+                compute_retry.pop(capacity_key(vm), None)
+                return True
+            admitted = booked.pop(name)
+            if admitted:
+                for key in tuple(compute_retry):
+                    if key[0] == vm.host.name:
+                        del compute_retry[key]
+            value = attempt_result(vm, future, admitted)
+            if value is None:
+                retry_after[name] = time.monotonic() + .25
+                return True
+            if completed is not None:
+                try:
+                    replacement = completed(vm, dict(value))
+                    if replacement is not None:
+                        if (not isinstance(replacement, dict) or type(replacement.get('status')) is not int
+                                or value['status'] and not replacement['status']):
+                            raise ValueError('completion cannot accept a failed attempt')
+                        value = replacement
+                except Exception as error:
+                    value = dict(status=2, cleanup=False, handoffs=value.get('handoffs', []),
+                        attempt_result=value, **record_exception(launcher_control.current_run,
+                            f'VM completion {name}', error))
+            previous = results[name]
+            summary = previous if previous['status'] else value
+            results[name] = dict(summary, cleanup=previous.get('cleanup', True) and value.get('cleanup', True),
+                                handoffs=[*previous.get('handoffs', []), *value.get('handoffs', [])])
+            if value['status'] and (stop_on_error or value['status'] == 130 or value.get('cleanup') is False):
+                self._closing.set()
+            return True
 
         try:
             while True:
                 if self._cancelled() or launcher_reload.pending():
                     self._closing.set()
-                candidates = [vm for vm in self.vms if vm.name not in active | retired
+                while receive(0):
+                    pass
+                candidates = [vm for vm in self.vms if vm.name not in booked
                               and not self._closing.is_set() and needed(vm)]
-                if not candidates and not active:
+                if not candidates and not booked:
                     break
-                if len(active) >= self.limit or not candidates:
-                    receive(.1)
-                    continue
-                for vm in candidates:
-                    commands[vm.name].put('probe')
-                waiting = {vm.name for vm in candidates}
-                ready = set()
-                while waiting:
-                    kind, name = receive()
-                    if name in waiting:
-                        waiting.remove(name)
-                        if kind == 'ready':
-                            ready.add(name)
-                selected = []
-                try:
-                    while ready and len(active) + len(selected) < self.limit and not self._closing.is_set():
-                        admitted = active | set(selected)
-                        from host_compute import units
-                        available = tuple(vm.name for vm in self.vms if vm.name in ready and needed(vm)
-                            and sum((units(targets[name].compute_unit) for name in admitted
-                                     if targets[name].host.name == vm.host.name), units(0))
-                                + units(vm.compute_unit) <= units(vm.host.max_compute_unit))
-                        if not available:
-                            break
-                        name = choose(available, tuple(name for name in targets if name in admitted))
-                        if name is None:
-                            break
-                        if name not in available:
-                            raise ValueError('vm-queue: chooser selected an unavailable VM')
-                        selected.append(name)
-                        ready.remove(name)
-                finally:
-                    for name in ready:
-                        commands[name].put('release')
-                for name in selected:
-                    active.add(name)
-                    commands[name].put('run')
-                if not selected:
-                    self._closing.wait(.1)
+                while len(booked) < self.limit and not self._closing.is_set():
+                    now = time.monotonic()
+                    available = tuple(vm.name for vm in candidates if vm.name not in booked
+                                      and fits(vm) and can_retry(vm, now))
+                    if not available:
+                        break
+                    name = choose(available, tuple(name for name in targets if name in booked))
+                    if name is None:
+                        break
+                    if name not in available:
+                        raise ValueError('vm-queue: chooser selected an unavailable VM')
+                    future = self._pool.submit(run_attempt, targets[name])
+                    booked[name] = False
+                    future.add_done_callback(lambda done, name=name: events.put((name, done)))
+                receive(.1)
         finally:
             self._closing.set()
-            while active:
+            while booked:
                 receive()
-            for inbox in commands.values():
-                inbox.put('close')
-            for future in self._futures:
-                future.result()
         return results
 
 

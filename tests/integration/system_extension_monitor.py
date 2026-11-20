@@ -16,9 +16,9 @@ import sys
 import time
 
 import system_guest as guest
-from system_assertions import accepted, account_property, account_state, account_states, call
+from system_assertions import accepted, account_property, account_state, account_states, call, session_limits
 from system_graphical_expiry import child_session, wait_for
-from system_session_expiry import grant, identities, installed_manager
+from system_session_expiry import LIMITS, grant, identities, installed_manager
 
 UUID = 'oh-no-parent-control@tech.puffyslippers.com'
 SHELL = 'org.gnome.Shell'
@@ -57,6 +57,24 @@ def native_choices(manager, uid):
     return [manager._list(account, 'enabled-extensions'),
             manager._list(account, 'disabled-extensions'),
             manager._boolean(account, 'disable-user-extensions')]
+
+
+def seed_monitor_grant(uid, seconds):
+    """Prepare valid native limits without enabling the extension through the broker."""
+    from oh_no_parent_control.core import DAILY_LIMIT_FLAG
+
+    guest.guard()
+    daily_limit = 24 * 60 * 60
+    command = ['busctl', '--system', 'set-property', 'org.freedesktop.Accounts',
+               f'/org/freedesktop/Accounts/User{uid}', LIMITS]
+    # Malcontent requires enabled native limits for a current grant. Install
+    # the positive allowance before enabling limits so neither write can lock
+    # the running child desktop with a transient zero balance.
+    guest.run([*command, 'DailyLimit', 'u', str(daily_limit)])
+    guest.run([*command, 'LimitType', 'u', str(DAILY_LIMIT_FLAG)])
+    guest.require(session_limits(uid)[:2] == (DAILY_LIMIT_FLAG, daily_limit),
+                  'extension:fixture-native-limits-readback')
+    grant(uid, seconds)
 
 
 def prepare():
@@ -551,7 +569,7 @@ def verify(publish):
                                 'absent_payload_fixture_choices': 2})
         # A real positive grant makes preservation non-vacuous. No approval or
         # explicit activation is performed by this engineering policy setup.
-        grant(child, 1800)
+        seed_monitor_grant(child, 1800)
         native_before = account_state(child)[1:]
         snapshot = None
 
@@ -1225,7 +1243,7 @@ def verify_failure_reporting(publish):
         accepted(call(accounts['parent'], 'GetPreferences', '(u)', (child,)))
         identity = invocation()
         events = BrokerEvents(accepted(call(accounts['parent'], 'GetStartupTimings'))[0])
-        grant(child, 3600)
+        seed_monitor_grant(child, 3600)
         with (allow_product_fault('child', 'shell-extension-load'),
               allow_product_fault('broker', 'operation'), native_error()):
             with unavailable_display():

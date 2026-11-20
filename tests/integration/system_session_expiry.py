@@ -268,13 +268,16 @@ def observe_pam_scope(service, record):
         scope = observations[1].get('scope', '')
         guest.require(re.fullmatch(r'session-[a-zA-Z0-9_-]+\.scope', scope),
                       'expiry:scope-witness-identity')
-        journal = guest.run(['journalctl', '--no-pager', '-b', '-u', scope])
-        # pam_systemd moves the worker out of its launcher service. That
-        # service can exit successfully even when the scope kills its
-        # member. Require the owned scope's actual timer-expiry event.
-        guest.require(observations[1]['runtime_max'] != 'infinity'
-                      and 'Scope reached runtime time limit. Stopping.' in journal,
+        guest.require(observations[1]['runtime_max'] != 'infinity',
                       'expiry:non-gdm-runtime-witness')
+        # pam_systemd moves the worker out of its launcher service. That
+        # service can exit before journald has received the scope's expiry
+        # message. Allow time for delivery of the exact scope's event.
+        deadline = time.monotonic() + 10
+        while 'Scope reached runtime time limit. Stopping.' not in guest.run(
+                ['journalctl', '--no-pager', '-b', '-u', scope], timeout=5):
+            guest.require(time.monotonic() < deadline, 'expiry:non-gdm-runtime-witness')
+            time.sleep(0.25)
 
 
 def installed_manager():

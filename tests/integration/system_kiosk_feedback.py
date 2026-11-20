@@ -158,10 +158,10 @@ def no_grant():
     return {'broker_unavailable': True, 'no_grant': True}
 
 
-def qualification_uids():
+def qualification_uids(*, child_name='onpc-child-riley'):
     baseline = json.loads(guest.BASELINE.read_bytes())['accounts']
     parent = pwd.getpwnam('onpc-parent-jamie')
-    child = pwd.getpwnam('onpc-child-riley')
+    child = pwd.getpwnam(child_name)
     kiosk = pwd.getpwnam('oh-no-parent-control')
     guest.require(all(baseline.get(account.pw_name, {}).get('uid') == account.pw_uid
                       for account in (parent, child)) and
@@ -233,12 +233,18 @@ def broker_failures(probe='combined'):
 
     guest.guard()
     uids = qualification_uids()
-    parent, child, _ = uids
+    # Parent and the kiosk still use Riley during the graphical probe.
+    # Corrupt Jordan's preferences so their background reads stay healthy.
+    fault_uids = qualification_uids(child_name='onpc-child-jordan') if probe == 'combined' else uids
+    parent, child, _ = fault_uids
     original_service = service()
     guest.require(original_service['ActiveState'] == 'active' and
                   original_service['LoadState'] == 'loaded', 'kiosk-feedback:signal-broker-inactive')
     policy = account_property(child, 'com.endlessm.ParentalControls.AppFilter', 'AppFilter')
     guest.require(policy[0] is False, 'kiosk-feedback:signal-account-not-denylist')
+    if probe == 'combined':
+        guest.require(child != uids[1], 'kiosk-feedback:signal-target-overlaps-journey')
+        seed_preferences(fault_uids)
 
     def get_preferences():
         return call(parent, 'GetPreferences', '(u)', (child,))
@@ -316,11 +322,11 @@ def broker_failures(probe='combined'):
             'restored': True, 'fault_start': json.loads(fault_start), 'fault_end': json.loads(end)}
 
 
-def seed_preferences():
+def seed_preferences(uids=None):
     from system_assertions import accepted, call
 
     guest.guard()
-    parent, child, _ = qualification_uids()
+    parent, child, _ = qualification_uids() if uids is None else uids
     before = accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0]
     accepted(call(parent, 'SetPreferences', '(us)', (child, before)))
     guest.require(accepted(call(parent, 'GetPreferences', '(u)', (child,)))[0] == before,

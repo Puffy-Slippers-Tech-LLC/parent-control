@@ -794,6 +794,11 @@ def _execute_group(root, plan, *, reloading=False, return_outcome=False,
                 request.chmod(0o600)
                 environment[FAMILY_WORK] = str(request)
                 worker_args = arguments(work)
+                if (work['category'] == 'system' and not work['options']
+                        and (work['case'] or '').startswith('check_')):
+                    # The family already resolved this named check. Dispatch it
+                    # directly so the worker does not rediscover the full suite.
+                    worker_args.append(work['case'])
                 if '--stop-on-error' in guest_args:
                     worker_args.insert(0, '--stop-on-error')
                 command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),

@@ -469,8 +469,8 @@ class Store:
             value = json.load(stream)
         return validate_state(value)
 
-    def save(self, fd, value, *, name='current.json'):
-        out = os.open('current.tmp', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW,
+    def save(self, fd, value, *, name='current.json', temporary='current.tmp'):
+        out = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW,
                       0o600, dir_fd=fd)
         with os.fdopen(out, 'w') as stream:
             private(os.fstat(stream.fileno()), regular=True)
@@ -478,7 +478,7 @@ class Store:
             json.dump(value, stream)
             stream.flush()
             test_io.sync(stream.fileno(), os.fsync)
-        os.replace('current.tmp', name, src_dir_fd=fd, dst_dir_fd=fd)
+        os.replace(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
         test_io.sync(fd, os.fsync)
 
     def prune(self, fd, state, *, keep=RUNS_TO_KEEP, completed_guard=None, authorize=None):

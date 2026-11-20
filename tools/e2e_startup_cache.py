@@ -189,7 +189,9 @@ def receipt(root, name, *, lock='cache.lock'):
                 if not isinstance(record, dict) or record.get('schema') != SCHEMA:
                     record = None
         def save(value):
-            store.save(fd, {'schema': SCHEMA, **value}, name=name + '.json')
+            # Distinct receipt locks can publish concurrently in this directory.
+            store.save(fd, {'schema': SCHEMA, **value}, name=name + '.json',
+                       temporary=name + '.tmp')
         yield record, save
 
 
@@ -312,7 +314,7 @@ def prepare_artifacts(builder, output, target):
             if reuse and tree_digest(source) != record['payload']:
                 raise ValueError('startup cache: payload changed during copy')
         manifest = builder.verify(output)
-        after, _ = capture(builder, target)
+        after, after_metadata = capture(builder, target)
         if after != captured or any(manifest.get(k) != v for k, v in metadata.items()):
             # Keep refusal evidence in the launcher's retained log. The cache
             # receipt remains invalid, and no extra payload lifetime is needed.

@@ -781,12 +781,13 @@ def qualification_artifact_command(root, category, args):
     return python_file(root, 'tools/vm_artifacts.py', *flags, '--output', directory, *arguments())
 
 
-def prepare_qualification_artifacts(root, category, args, *, run):
+def prepare_qualification_artifacts(root, category, args, *, run, run_snapshot=None):
     """Refresh inputs once if sources changed during a completed build.
 
     Run after fixture preparation, immediately before dispatch. Never hand off
     an older bundle as current or retry a failed builder. Continued source edits
     refuse before the privileged consumer rather than selecting missing inputs.
+    Installed qualifications prepare their starting snapshot from that bundle.
     """
     for attempt in range(2):
         command = qualification_artifact_command(root, category, args)
@@ -801,6 +802,19 @@ def prepare_qualification_artifacts(root, category, args, *, run):
         if options is None:
             raise ValueError('qualification input declaration changed during preparation')
         if named_input(**options) == prepared:
+            selector = system_check_selection(args)
+            # The installed fixture qualification prepares both modes itself.
+            if (run_snapshot is not None and selector in INSTALLED_E2E_FIXTURE_SELECTORS
+                    and selector != 'check_fixture_e2e_installed'):
+                from dev_privileges import check
+                from vm_selection import arguments
+
+                helper = '/usr/local/libexec/onpc-test-runner'
+                check(helper)
+                recipe = ['--release-notes-upgrade'] if options.get('upgrade_source') else []
+                return run_snapshot(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                    helper, '--unattended', 'appsnapshot', '--overwrite', 'false',
+                    '--artifacts', str(prepared), *recipe, *arguments()])
             return 0
         if attempt == 0:
             print('qualification-input: sources changed during preparation; '
@@ -1416,10 +1430,17 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
             with Control().installed() as control:
                 return run_live_refresh(root, commands[-1], control=control, environment=env)
         commands[-1] += qualification_fixture_options(root, category, args)
+
+        def prepare_snapshot(command):
+            from regression_process import Control
+            with Control().installed() as control:
+                return control.run(command, cwd=root, env=env, cooperative=True)
+
         status = prepare_qualification_artifacts(
             root, category, args,
             run=lambda command: subprocess.run(
-                command, env=env, pass_fds=scratch_descriptors(), check=False).returncode)
+                command, env=env, pass_fds=scratch_descriptors(), check=False).returncode,
+            run_snapshot=prepare_snapshot)
         if status:
             return status if status > 0 else 128 - status
         if commands[-1][0] == '/usr/bin/pkexec':

@@ -169,7 +169,8 @@ def prepare(artifacts, expected_uuid, *, overwrite=True, release_notes_upgrade=F
             suite.prepare_installed(directory, assets,
                 {'schema_version': 1, 'scope': 'standalone-appsnapshot',
                  'source_sha256': source_inputs['source_sha256']},
-                root=ROOT, overwrite=overwrite, mode='online',
+                root=ROOT, overwrite=overwrite,
+                mode='online' if overwrite or release_notes_upgrade else 'either',
                 release_notes_upgrade=release_notes_upgrade)
     except Exception:
         # Keep the underlying host/guestfs failure in this existing private

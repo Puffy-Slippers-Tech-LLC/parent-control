@@ -586,7 +586,9 @@ def category_run(root, category, argv, *, pipe=True):
         commands[-1] += test_commands.qualification_fixture_options(
             root, category, argv, control=control, environment=env)
         status = test_commands.prepare_qualification_artifacts(
-            root, category, argv, run=lambda command: control.run(command, cwd=root, env=env))
+            root, category, argv, run=lambda command: control.run(command, cwd=root, env=env),
+            run_snapshot=lambda command: control.run(
+                command, cwd=root, env=env, cooperative=True, preserve_exit=preserve_exit))
         if status:
             return status
         for command in commands:

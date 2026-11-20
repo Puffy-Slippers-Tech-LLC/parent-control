@@ -1393,7 +1393,10 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
                                    'check_fixture_recorded_serial') else [])
     freeze = Mock(return_value=fixture_options)
     monkeypatch.setattr(commands, 'qualification_fixture_options', freeze)
-    execute = Mock(side_effect=[build_status, 0])
+    needs_snapshot = name in ('check_e2e_gdm_recipient', 'check_e2e_feedback_read',
+                              'check_e2e_read_overlay_about_and_links',
+                              'check_e2e_kiosk_eligible_choices')
+    execute = Mock(side_effect=[build_status, *([0] if needs_snapshot else []), 0])
     monkeypatch.setattr(regression_process.Control, 'run', execute)
     authorize = Mock()
     monkeypatch.setattr(dev_privileges, 'check', authorize)
@@ -1412,8 +1415,16 @@ def test_named_input_preparation_precedes_dispatch_and_failure_stops_privilege(
         authorize.assert_not_called()
         freeze.assert_called_once()
     else:
-        assert execute.call_count == 2
-        authorize.assert_called_once_with('/usr/local/libexec/onpc-test-runner')
+        assert execute.call_count == 2 + needs_snapshot
+        assert [call.args for call in authorize.call_args_list] == [
+            ('/usr/local/libexec/onpc-test-runner',)] * (1 + needs_snapshot)
+        if needs_snapshot:
+            snapshot = execute.call_args_list[1]
+            assert snapshot.args[0] == [
+                '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
+                '/usr/local/libexec/onpc-test-runner', '--unattended', 'appsnapshot',
+                '--overwrite', 'false', '--artifacts', output, *vm_args]
+            assert snapshot.kwargs['cooperative'] is True
         assert freeze.call_count == 1
         assert freeze.call_args.args == (ROOT, 'system', [selector])
         assert isinstance(freeze.call_args.kwargs['control'], regression_process.Control)

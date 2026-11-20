@@ -172,7 +172,7 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
     from provenance import VerifiedInputs
     from build_test_artifacts import MANIFEST_NAME, PACKAGE_INPUT_NAME, verify, verify_package_target
     system.require(type(overwrite) is bool, 'suite:invalid-overwrite')
-    system.require(mode in ('online', 'offline'), 'suite:invalid-snapshot-mode')
+    system.require(mode in ('online', 'offline', 'either'), 'suite:invalid-snapshot-mode')
     system.require(not release_notes_upgrade or mode == 'online', 'suite:upgrade-online-required')
     lease = suite.lease
     clean = lease.capture.state['guest'].get('fixture_boundary') == 'clean'
@@ -203,11 +203,16 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         lease.capture.vm_ownership.check_owner()
         lease.capture.revalidate()
         xml = lease.source.domain.snapshotLookupByName(name, 0).getXMLDesc(0)
-        mode_reason = mode_mismatch(xml, mode)
+        existing_mode = mode
+        if mode == 'either':
+            existing_mode = ('offline' if mode_mismatch(
+                xml, 'offline', offline_domain_xml=lease.original_xml) is None else 'online')
+        mode_reason = (None if mode == 'either' and existing_mode == 'offline'
+                       else mode_mismatch(xml, existing_mode))
         reason = mode_reason or mismatch(xml, expected)
         if mode_reason is not None:
             overwrite = True
-        if reason is None and mode == 'online':
+        if reason is None and existing_mode == 'online':
             from online_snapshot import load
             if load(lease.source, name, xml) is None:
                 reason = 'online snapshot credentials missing'
@@ -218,6 +223,8 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
             preparation('Reusing current snapshot ' + name)
             return False
         preparation('Refreshing snapshot ' + name + ': ' + reason)
+    if mode == 'either':
+        mode = 'online'
     system.log('stage:suite-installation')
     preparation('Restoring ' + system.baseline.SNAPSHOT)
     lease.prepare()

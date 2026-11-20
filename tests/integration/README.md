@@ -913,10 +913,13 @@ available after tests; final cleanup still audits and restores the outer baselin
 Partial post-install selections no longer run fresh-install assertions as
 prerequisites. Full runs retain all explicit package lifecycle checks.
 
-Kiosk-derived graphical qualifications also compare their frozen package,
-baseline and installation recipe before restoring an app snapshot. A mismatch
-refuses entry; the version name is insufficient. Their reports keep the saved
-snapshot identity separate from the staged input archive identity. The kiosk
+For kiosk-derived graphical qualifications, the per-check launcher prepares the
+app snapshot from the same verified package bundle that the check will use.
+Preparation reuses a matching online or offline snapshot for standard installs
+and captures an online snapshot when one is missing or stale. Each check still
+verifies the frozen package, baseline and installation recipe before restoring
+the snapshot. Reports keep the saved snapshot identity separate from the
+staged input archive identity. The kiosk
 entry qualification retains bounded private login and MAC diagnostics on failure.
 For live diagnosis before acceptance, `tools/test-vm --vm NAME reproduce-kiosk-entry`
 uses the existing owned maintenance envelope and public station-entry mechanics,

@@ -3050,6 +3050,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     history.close()
                     collect_guest(outcome)
                 ledger.pass_outcome('collection')
+            elif pytest_failures:
+                # Pytest flushes its traceback before reporting a failure. Save it
+                # before restoration even if cancellation cut short pytest teardown.
+                with cancellation_cleanup(), ledger.measure('collection'):
+                    lease.guard()
+                    traceback = 'regression-failures.jsonl'
+                    vm.copy(True, f'{PAYLOAD}/results/{traceback}',
+                            str(directory / 'guest-results' / traceback), timeout=30)
         except BaseException as error:
             collection_error = error
         # pytest already stops at the first failure. Publish after collection

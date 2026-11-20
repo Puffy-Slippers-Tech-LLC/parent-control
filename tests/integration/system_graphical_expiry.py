@@ -1216,11 +1216,8 @@ def verify(record):
         verify_zero_time_pam(record)
     with validation_stage('session-validation', 'runtime-rollback'):
         verify_runtime_rollback(record)
-    # Keep authenticated child/kiosk requests and final recovery checks even
-    # when the monitor restores the extension before approval completes.
-    request_global_extension_disable(manager, account)
     with validation_stage('session-validation', 'authenticated-extension'):
-        old_deadline = verify_request_extension(record)
+        old_deadline = verify_request_extension(record, manager, account)
     wait_for_extension_recovery(manager, account, 'expiry:grant-extension-not-recovered')
     guest.require(not manager._boolean(account, 'disable-user-extensions')
                   and manager._runtime_state(account) == (True, True)
@@ -1228,7 +1225,7 @@ def verify(record):
                   and manager._list(account, 'disabled-extensions') == disabled,
                   'expiry:kiosk-grant-did-not-recover-extension')
     record('onpc.expiry.kiosk-grant-recovery',
-           'polkit-authenticated; monitor-or-grant-recovery; configured-and-active; switch-and-selections-verified')
+           'polkit-authenticated; configured-and-active; switch-and-selections-verified')
     with validation_stage('session-validation', 'original-grant-deadline'):
         observation_deadline = time.monotonic() + REQUEST_EXTENSION_SECONDS + 20
         while time.time() <= old_deadline + 0.5:

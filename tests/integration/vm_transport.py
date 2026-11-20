@@ -637,7 +637,7 @@ class Transport:
                 'suspended_seconds': woke_at - suspended_at}
 
     @observed('Transferring VM files')
-    def copy(self, up, source, destination):
+    def copy(self, up, source, destination, *, timeout=300):
         require(source.endswith('/') == destination.endswith('/'), 'transport:copy-type')
         is_dir = source.endswith('/')
         local = local_path(self.config, destination if up else source)
@@ -645,10 +645,10 @@ class Transport:
         require(guest.startswith('/') and '..' not in Path(guest).parts and guest != '/', 'transport:guest-path')
         if up:
             if is_dir:
-                extract(self.call(['tar', '-C', guest, '-cf', '-', '.'], timeout=300,
+                extract(self.call(['tar', '-C', guest, '-cf', '-', '.'], timeout=timeout,
                                   diagnostic_stdout=transfer_diagnostic), local)
             else:
-                raw = self.call(['cat', '--', guest], timeout=300,
+                raw = self.call(['cat', '--', guest], timeout=timeout,
                                 diagnostic_stdout=transfer_diagnostic)
                 local.parent.mkdir(parents=True, exist_ok=True)
                 require(not local.is_symlink(), 'transport:host-symlink')
@@ -663,7 +663,7 @@ class Transport:
             # The destination stays a positional argument, including spaces
             # and shell metacharacters; failed mkdir cannot start tar.
             self.call(['/bin/sh', '-c', 'mkdir -p -- "$1" && exec tar -C "$1" -xf -',
-                       'onpc-copy', guest], input=stream.getvalue(), timeout=300)
+                       'onpc-copy', guest], input=stream.getvalue(), timeout=timeout)
         else:
             require(local.is_file() and not local.is_symlink(), 'transport:source-file')
             program = ('import os,pathlib,sys; p=pathlib.Path(sys.argv[1]); '
@@ -672,4 +672,4 @@ class Transport:
                        's=os.fdopen(f,"wb"); s.write(sys.stdin.buffer.read()); s.close(); '
                        'os.chmod(p,int(sys.argv[2]))')
             self.call(['python3', '-c', program, guest, str(stat.S_IMODE(local.stat().st_mode))],
-                      input=local.read_bytes(), timeout=300)
+                      input=local.read_bytes(), timeout=timeout)

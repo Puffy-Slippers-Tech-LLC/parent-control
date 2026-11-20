@@ -20,8 +20,8 @@ from system_assertions import accepted, account_property, account_state, account
 
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
 SERVICES = ('gdm-password', 'gdm-autologin', 'login', 'sshd')
-# Cover both reply/readback pairs and the next authentication (505 seconds at
-# their individual bounds), with room left before the original grant expires.
+# Cover both reply/readback pairs, the switch readback and the next
+# authentication with room left before the original grant expires.
 REQUEST_EXTENSION_SECONDS = 600
 
 
@@ -452,7 +452,7 @@ def verify_zero_time_pam(record):
         accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
 
 
-def verify_request_extension(record):
+def verify_request_extension(record, manager, account):
     """Authenticated real broker calls for child and kiosk, in the retained session.
 
     This observes the installed API and Polkit path; it is not UI click evidence.
@@ -480,6 +480,13 @@ def verify_request_extension(record):
                         else (child, parent, seconds, False),
             })
             agent.prompt(parent, other_parent)
+            if surface == 'kiosk':
+                # The verified prompt means approval already owns the broker
+                # transaction. Disable here so the monitor cannot win the lock
+                # before the request, and kiosk approval must restore the switch.
+                request_global_extension_disable(manager, account)
+                guest.require(manager._boolean(account, 'disable-user-extensions'),
+                              'expiry:kiosk-grant-disable-not-observed')
             agent.authenticate(password)
             result = accepted(caller.receive())
             guest.require(result[1] == 'approved', 'expiry:request-not-approved:' + surface)
@@ -504,6 +511,8 @@ def verify_runtime_rollback(record):
     runtime mask holds the broker's competing monitor stopped across these
     one-shot faults, allowing actual rollback operations and readback to run.
     """
+    from system_product_failures import allow_product_fault
+
     accounts = identities()
     manager = installed_manager()
     account, _ = manager._account(accounts['child'])
@@ -543,7 +552,9 @@ def verify_runtime_rollback(record):
                 raise RuntimeError('injected extension activation failure')
 
     before = account_states((accounts['child'], accounts['other']))
-    with guest.isolated_broker_for_faults():
+    # The deliberate broker outage interrupts the live extension's D-Bus
+    # queries while each injected rollback is exercised.
+    with allow_product_fault('child', 'dependency'), guest.isolated_broker_for_faults():
         if live:
             manager._set_version_check(account, False, live=True)
             guest.require(not manager._boolean(account, 'disable-extension-version-validation'),

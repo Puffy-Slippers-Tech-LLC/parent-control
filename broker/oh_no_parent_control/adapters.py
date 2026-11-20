@@ -16,7 +16,7 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from .core import UserAccount
+from .core import NativeDeadlineSuspended, UserAccount
 
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
@@ -48,6 +48,7 @@ RUNTIME_MAX_USEC_INFINITY = (1 << 64) - 1
 CALL_TIMEOUT_MS = 30_000
 USAGE_HELPER = "/usr/libexec/oh-no-parent-control-query-usage"
 MAX_USAGE_HELPER_OUTPUT_BYTES = 8 * 1024 * 1024
+NATIVE_SESSION_INACTIVE_EXIT = 84
 # Private exit statuses emitted by the fixed query helper. Keep the public
 # backend-unavailable failure while retaining its reviewed cause in diagnostics.
 USAGE_HELPER_ERROR_CATEGORIES = {
@@ -470,6 +471,9 @@ class TimerUsage:
                     extra_groups=(),
                     umask=0o077,
                 )
+                if (result.returncode == NATIVE_SESSION_INACTIVE_EXIT and
+                        arguments == ["--native-deadline"]):
+                    raise NativeDeadlineSuspended
                 if result.returncode != 0:
                     timer_category = USAGE_HELPER_ERROR_CATEGORIES.get(result.returncode)
                     if timer_category is not None:

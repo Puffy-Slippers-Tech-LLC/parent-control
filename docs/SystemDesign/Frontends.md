@@ -415,9 +415,11 @@ refresh every 30 idle seconds. Rest-of-day says until midnight. Higher-priority
 validation/loading/approval messages win. Estimate failure never blocks submission;
 approval recalculates the real grant. Disposal removes timers and invalidates reads.
 Unavailable estimates stay in the footer and retain structured diagnostics without
-opening a modal error report. This also keeps cancellation quiet when locking
-temporarily makes native time unavailable. Normal refreshes recover the estimate;
-preference-save and approval errors retain their ordinary reporting.
+opening a modal error report. When locking suspends the child session's native
+deadline, the broker returns a retryable `Busy` status for the overlay estimate.
+The next normal refresh can recover the estimate. If this occurs during a fixed
+approval, the broker cancels the request before any policy change. Other estimate,
+preference-save and approval failures retain their ordinary reporting.
 
 ## Request-selector state
 

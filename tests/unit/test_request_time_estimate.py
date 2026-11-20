@@ -6,6 +6,7 @@ import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
+from gi.repository import Gio
 
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.diagnostic_events import decode
@@ -1022,6 +1023,20 @@ def test_periodic_refresh_updates_estimate_and_recovers_after_failure():
     window._request_content.set_time_estimate.assert_called_with(
         "Estimated remaining time: 19m 50s",
     )
+
+
+def test_overlay_estimate_recovers_from_busy_without_reporting_a_fault():
+    window = scheduled_estimate_window(overlay=True)
+    window._refresh_time_estimate()
+    error = Gio.DBusError.new_for_dbus_error(
+        "com.puffyslippers.OhNoParentControl1.Error.Busy", "session locked")
+    reply(window, error=error)
+    window._request_content.set_time_estimate.assert_called_with("Time estimate unavailable")
+    window._errors.capture.assert_not_called()
+
+    window._refresh_time_estimate()
+    reply(window, seconds=1200)
+    window._request_content.set_time_estimate.assert_called_with("Estimated remaining time: 20m")
 
 
 @pytest.mark.parametrize("selection", (None, (1001, 0)))

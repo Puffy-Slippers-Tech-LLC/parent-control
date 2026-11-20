@@ -21,7 +21,7 @@ const XML = `<node><interface name="${INTERFACE}">
     </method>
 </interface></node>`;
 
-class UiError extends Error {
+export class UiError extends Error {
     constructor(code) {
         super('Application UI operation refused');
         this.code = code;

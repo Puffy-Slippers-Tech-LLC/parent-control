@@ -79,6 +79,10 @@ class RollbackFailure(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RollbackFailure"
 
 
+class NativeDeadlineSuspended(RuntimeError):
+    """The child session reports that native time is suspended."""
+
+
 def emit_backend_failure(error: BrokerError, *, original=None) -> None:
     if (isinstance(error, RollbackFailure) or
             (isinstance(error, BackendFailure) and not error.expected)):
@@ -718,6 +722,8 @@ class Broker:
             native_deadline = self._native_deadline(target_uid, preferences) if own else None
             stage = "grant"
             grant_time, grant_duration = self._accounts.get_extension(target_uid)
+        except NativeDeadlineSuspended as error:
+            raise Busy("native time is suspended while the child session is inactive") from error
         except Exception as error:
             LOG.warning("core.009", stage=stage, error_type=error_code(error))
             raise BackendFailure("remaining-time status is unavailable") from error
@@ -1775,6 +1781,9 @@ class Broker:
                     native_deadline = (self._native_deadline(target.uid, preferences)
                                        if request_kind == "child" else None)
                     grant_time, grant_duration = self._accounts.get_extension(target.uid)
+                except NativeDeadlineSuspended:
+                    LOG.info("core.027", request=correlation_id, outcome="cancelled")
+                    return correlation_id, "cancelled", 0
                 except Exception as error:
                     raise BackendFailure("remaining-time status is unavailable") from error
                 issued_at_time = self._now()

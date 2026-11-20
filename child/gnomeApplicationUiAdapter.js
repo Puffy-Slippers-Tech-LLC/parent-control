@@ -1,5 +1,6 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import GLib from 'gi://GLib';
+import {UiError} from './applicationUi.js';
 
 const SURFACE_ID = 'child-screen-time-indicator';
 const APPLICATION_ID = 'com.puffyslippers.OhNoParentControl.ChildUI';
@@ -173,9 +174,11 @@ export class GnomeApplicationUiAdapter {
 
     nativeAllowanceDeadline() {
         const manager = Main.timeLimitsManager;
-        const end = Number(manager.dailyLimitTime);
-        if (!this._state().available || !manager.dailyLimitEnabled ||
-            !Number.isFinite(end) || end <= 0)
+        const end = manager.dailyLimitTime;
+        const available = this._state().available && manager.dailyLimitEnabled;
+        if (available && end === 0 && (Main.sessionMode.isLocked || Main.sessionMode.isGreeter))
+            throw new UiError('SessionInactive');
+        if (!available || !Number.isFinite(end) || end <= 0)
             throw new Error('Native remaining time is unavailable');
         // Read the supported native deadline directly, including ongoing use.
         // Never substitute a retained panel estimate or completed usage here.

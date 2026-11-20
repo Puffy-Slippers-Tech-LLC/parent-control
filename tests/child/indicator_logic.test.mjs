@@ -539,7 +539,7 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
     const manager = {dailyLimitEnabled: true, dailyLimitTime: 140,
         getCurrentTime: () => 100};
     const context = vm.createContext({Main: {sessionMode, timeLimitsManager: manager},
-        GLib: {get_monotonic_time: () => 5_000_000}});
+        GLib: {get_monotonic_time: () => 5_000_000}, UiError: Error});
     const source = readFileSync(
         new URL('../../child/gnomeApplicationUiAdapter.js', import.meta.url), 'utf8')
         .replace(/^import[^\n]+\n/gm, '')
@@ -568,6 +568,14 @@ test('panel API becomes unavailable at lock or greeter before actors are hidden'
         assertAvailability(false);
         // Actor visibility is deliberately stale at the session transition.
         assert.equal(indicator.container.visible, true);
+        assert.equal(adapter.nativeAllowanceDeadline(), 45_000_000);
+        manager.dailyLimitTime = 0;
+        assert.throws(() => adapter.nativeAllowanceDeadline(), {message: 'SessionInactive'});
+        for (const invalid of [-1, NaN, Infinity, null, undefined, '0']) {
+            manager.dailyLimitTime = invalid;
+            assert.throws(() => adapter.nativeAllowanceDeadline(), /unavailable/);
+        }
+        manager.dailyLimitTime = 140;
         sessionMode[mode] = false;
         assertAvailability(true);
     }

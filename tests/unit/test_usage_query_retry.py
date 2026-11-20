@@ -21,6 +21,20 @@ def dbus_error(name):
     )
 
 
+@pytest.mark.parametrize(("remote", "status"), (
+    ("com.puffyslippers.OhNoParentControl.ApplicationUI1.SessionInactive", 84),
+    ("com.puffyslippers.OhNoParentControl.ApplicationUI1.Failed", 69),
+))
+def test_native_deadline_reports_only_inactive_session_as_temporary(monkeypatch, remote, status):
+    connection = Mock(call_sync=Mock(side_effect=Gio.DBusError.new_for_dbus_error(
+        remote, "private error details")))
+    monkeypatch.setattr(helper.sys, "argv", ["query-usage", "--native-deadline"])
+    monkeypatch.setattr(helper.os, "getuid", lambda: 1001)
+    monkeypatch.setattr(helper.os, "geteuid", lambda: 1001)
+    monkeypatch.setattr(Gio, "bus_get_sync", Mock(return_value=connection))
+    assert helper.main() == status
+
+
 @pytest.mark.parametrize("name", ("NoReply", "NameHasNoOwner", "ServiceUnknown", "Timeout", "TimedOut"))
 def test_idle_shutdown_reactivates_same_service_and_preserves_query(name):
     connection = Mock()

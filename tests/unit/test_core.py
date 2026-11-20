@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RollbackFailure,
-    UserAccount, calculate_active_extension_seconds, emit_backend_failure,
+    NativeDeadlineSuspended, UserAccount, calculate_active_extension_seconds, emit_backend_failure,
     format_requested_duration, seconds_until_local_midnight,
 )
 from oh_no_parent_control.preferences import (
@@ -1677,6 +1677,31 @@ class CoreTests(unittest.TestCase):
             broker.get_time_status(1001, 1001, 30)
         usage.query_native_deadline.assert_called_once_with(1001)
         self.assertEqual(accounts.events, [])
+
+    def test_suspended_native_status_defers_estimates_and_cancels_approval(self):
+        accounts, preferences, usage = Accounts(), Preferences(), TimerUsage()
+        authorizer, running_apps = Authorizer(), RunningApps()
+        preferences.values[1001].update(parent_control_enabled=True, daily_time_limit_minutes=30)
+        usage.query_native_deadline = mock.Mock(side_effect=NativeDeadlineSuspended)
+        broker = make_broker(accounts=accounts, preferences=preferences, timer_usage=usage,
+                             authorizer=authorizer, running_apps=running_apps)
+
+        with self.assertRaises(Busy):
+            broker.get_time_status(1001, 1001, 30)
+        request_id, outcome, duration = broker.request_own_access(1001, ":1.child", 1003, 30, False)
+        self.assertEqual((outcome, duration), ("cancelled", 0))
+        self.assertEqual(accounts.events, [])
+        self.assertEqual(running_apps.calls, [])
+        self.assertTrue(authorizer.pending.closed)
+        self.assertFalse(authorizer.pending.admitted)
+
+        usage.query_native_deadline.side_effect = None
+        usage.query_native_deadline.return_value = 160_000_000
+        self.assertEqual(broker.get_time_status(1001, 1001, 30).daily_allowance_remaining_seconds, 60)
+        fresh_id, outcome, duration = broker.request_own_access(1001, ":1.child", 1003, 30, True)
+        self.assertNotEqual(request_id, fresh_id)
+        self.assertEqual((outcome, duration), ("approved", 90))
+        self.assertEqual(len(authorizer.calls), 2)
 
     def test_native_balance_failure_or_identity_change_cannot_write_a_grant(self):
         for invalidation in ("unavailable", "approver-changed"):

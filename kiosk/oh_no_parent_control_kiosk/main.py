@@ -1986,8 +1986,10 @@ class RequestWindow(Adw.ApplicationWindow):
             LOG.warning("kiosk.023", error_type=error_code(error))
             # Advisory refreshes must not put a modal over a cancelled request.
             # Keep diagnostics and the footer; the existing refresh can recover.
-            self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
-                                 m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
+            if not (self._child_overlay and isinstance(error, GLib.Error) and
+                    Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.Busy"):
+                self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
+                                     m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
             self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
         else:
             LOG.debug("kiosk.024", seconds=seconds)

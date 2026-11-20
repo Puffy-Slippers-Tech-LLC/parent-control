@@ -31,6 +31,8 @@ ERROR_EXIT_CODES = {
     "timeout": 79, "access-denied": 80, "invalid-argument": 81,
     "failed": 82, "disconnected": 83,
 }
+NATIVE_SESSION_INACTIVE_EXIT = 84
+NATIVE_SESSION_INACTIVE_ERROR = "com.puffyslippers.OhNoParentControl.ApplicationUI1.SessionInactive"
 
 
 def timer_error_category(error):
@@ -107,7 +109,11 @@ def main() -> int:
             if type(deadline) is not int or not 0 <= deadline <= (1 << 64) - 1:
                 return 70
             sys.stdout.write(json.dumps(deadline))
-        except (GLib.Error, OSError, TypeError, ValueError):
+        except GLib.Error as error:
+            if Gio.DBusError.get_remote_error(error) == NATIVE_SESSION_INACTIVE_ERROR:
+                return NATIVE_SESSION_INACTIVE_EXIT
+            return 69
+        except (OSError, TypeError, ValueError):
             return 69
         return 0
     try:

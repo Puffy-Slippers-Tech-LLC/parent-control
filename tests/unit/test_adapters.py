@@ -8,7 +8,7 @@ from oh_no_parent_control.adapters import (
     AccountsService, RUNTIME_MAX_USEC_INFINITY, TimerUsage,
     TimerUsageError,
 )
-from oh_no_parent_control.core import UserAccount
+from oh_no_parent_control.core import NativeDeadlineSuspended, UserAccount
 from tests.support.broker import make_broker
 
 
@@ -316,6 +316,17 @@ class PolkitAdapterTests(unittest.TestCase):
                                side_effect=self._helper_result(reply)), \
                     self.assertRaises(TimerUsageError):
                 TimerUsage(object()).query_native_deadline(1001)
+
+    def test_native_deadline_inactive_status_is_specific_to_deadline_queries(self):
+        identity = SimpleNamespace(pw_name="child", pw_gid=1201)
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid", return_value=identity), \
+                mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                           side_effect=self._helper_result("", 84)):
+            usage = TimerUsage(object())
+            with self.assertRaises(NativeDeadlineSuspended):
+                usage.query_native_deadline(1001)
+            with self.assertRaisesRegex(TimerUsageError, "helper-failed"):
+                usage.query_usage(1001)
 
     def test_timer_usage_helper_runs_as_authenticated_approver(self):
         identity = SimpleNamespace(pw_name="parent", pw_gid=1200)

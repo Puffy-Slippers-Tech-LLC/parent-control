@@ -48,7 +48,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, source in {
-        "dpkg-parsechangelog": "#!/bin/sh\necho 1.0\n",
+        "dpkg-parsechangelog": "#!/bin/sh\necho 1.0~ubuntu24.04.1\n",
         "dpkg-architecture": "#!/bin/sh\necho amd64\n",
         "apt": (
             "#!/bin/sh\n"
@@ -71,7 +71,7 @@ def test_installer_hands_off_to_apt_and_preserves_failures(
         command.chmod(0o755)
     output = installer_checkout(tmp_path, 'ubuntu26.04-x86_64')
     output.mkdir(parents=True)
-    package = output / "oh-no-parent-control_1.0_amd64.deb"
+    package = output / "oh-no-parent-control_1.0~ubuntu26.04.1_amd64.deb"
     if failure != "package":
         package.write_bytes(b"package payload")
     # Any Make-side helper invocation is a parity regression, even if installed.

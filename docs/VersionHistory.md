@@ -5,9 +5,17 @@
   
 ### Bug Fixes
 - **Child App**: Fixed an unnecessary error report blocking the time request after locking during parent approval.
-- **Kiosk**: Selecting Oh No! Parent Control session type at logon enters an unusable kiosk session, and has to reboot to recover. The fix is to bounce back to user list screen. Not a likely real life scenario, but improves robustness.
-- **Broker**: Fixed a spurious broker error when a child account is deleted while the GNOME extension monitor is still watching it. Not a likely real life scenario, but improves robustness.
 
+### Robustness and Reliability Improvements
+This release further improves system resilience by addressing several edge cases identified through automated end-to-end stress testing. While the simulated test scenarios are very unlikely to occur during everyday use, these improvements help ensure more reliable operation under unexpected conditions.
+
+- **Kiosk:** Prevented an unusable kiosk session when selecting the Oh No! Parent Control session type at login. The system now safely returns to the user selection screen without requiring a reboot.
+- **Broker:** Improved handling of child account deletion while the GNOME extension monitor is still monitoring the account, preventing unnecessary errors.
+- **Broker:** Improved countdown reliability when the Malcontent timer service is slow to respond after waking from sleep or restarting.
+- **Broker:** Improved handling of concurrent screen-lock and time-request events, ensuring that pending approvals are gracefully cancelled rather than displaying an error.
+
+### Non Product Changes
+- Increases VM tests to total of 249 installed system + E2E cases per distro family, Ubuntu24.04, Fedora44, Fedora45.
 
 ## v1.5 - 2026-10-31
 ### Kind Ask

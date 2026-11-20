@@ -2,23 +2,27 @@
 
 # Test coverage
 
-## Test case counts
+## Test inventory counts
 
-| Category | Count (Ready/Pending/Total) | Description |
-| --- | ---: | --- |
-| Unit, property and contract | <span style="color: green">6089</span>/<span style="color: gray">0</span>/6089 | Checks isolated logic, invariants, interfaces and test-harness behavior. |
-| Private D-Bus component | <span style="color: green">226</span>/<span style="color: gray">0</span>/226 | Checks broker behavior through a private D-Bus without changing the host system. |
-| UI | <span style="color: green">307</span>/<span style="color: gray">0</span>/307 | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
-| Fixture runtime | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks that test fixtures prepare, validate and clean up their controlled environments. |
-| Installed system | <span style="color: green">68</span>/<span style="color: gray">0</span>/68 | Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM. |
-| Child Node | <span style="color: green">10</span>/<span style="color: gray">0</span>/10 | Checks child extension JavaScript logic in Node.js. |
-| Child GJS | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
-| graphical-worker | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks privileged graphical worker containment with isolated host fixtures. |
-| package-notice | <span style="color: green">1</span>/<span style="color: gray">0</span>/1 | Checks native package-manager notices in isolated host fixtures. |
-| E2E | <span style="color: green">138</span>/<span style="color: gray">50</span>/188 | Checks complete customer journeys through the installed product's public interfaces. |
-| **Total** | **<span style="color: green">6842</span>/<span style="color: gray">50</span>/6892** | All test cases across the categories above, including pending E2E scenarios. |
+Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggregate-execution-and-reconnection) for `tools/fix-tests vm --vm FAMILY` with this checkout and its configured default hosts.
 
-These are inventory counts, not passing results or code-coverage percentages. Python parameter combinations count separately; property-test examples do not. Script-based checks count once per executable entry point; Node subtests are not expanded. Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. Aggregate, build, static-analysis and prerequisite commands are not additional test cases.
+| Category | Host inventory | `u26` | `f44` | `f45` | Description |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Unit, property and contract | 6124 | — | — | — | Checks isolated logic, invariants, interfaces and test-harness behavior. |
+| Private D-Bus component | 226 | — | — | — | Checks broker behavior through a private D-Bus without changing the host system. |
+| UI | 307 | — | — | — | Checks GTK and GNOME Shell functional results and accessibility in isolated sessions. |
+| Fixture runtime | 1 | — | — | — | Checks that test fixtures prepare, validate and clean up their controlled environments. |
+| Child Node | 10 | — | — | — | Checks child extension JavaScript logic in Node.js. |
+| Child GJS | 1 | — | — | — | Checks child extension behavior that depends on the GNOME JavaScript runtime. |
+| graphical-worker | 1 | — | — | — | Checks privileged graphical worker containment with isolated host fixtures. |
+| package-notice | 1 | — | — | — | Checks native package-manager notices in isolated host fixtures. |
+| Installed system | — | 109 | 109 | 109 | Checks installed behavior, lifecycle integration and engineering safety boundaries. |
+| E2E | — | 138 | 140 | 140 | Checks complete customer journeys through the installed product’s public interfaces. |
+| **Total** | **6671** | **247** | **249** | **249** |  |
+
+VM totals include selected installed-system phases, registered standalone checks and runnable E2E variants. Platform filters and additional GNOME Classic executions can change the total by family.
+
+The host inventory counts parametrized Python cases and executable script entries. Property-test examples and Node subtests are included in their parent cases or files. The inventory excludes aggregate, build, static-analysis and prerequisite commands.
 
 ## E2E scenarios
 
@@ -26,6 +30,7 @@ These are inventory counts, not passing results or code-coverage percentages. Py
 | --- | ---: |
 | customer-journey | <span style="color: green">138</span>/<span style="color: gray">49</span>/187 |
 | runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
+| **Total** | **<span style="color: green">138</span>/<span style="color: gray">50</span>/188** |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 

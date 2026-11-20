@@ -37,8 +37,8 @@ def single_count(output, pattern, category):
     return int(matches[0])
 
 
-def collect_counts(root):
-    """Collect real parametrized pytest IDs; never run fixtures or use a VM."""
+def collect_host_counts(root):
+    """Collect host test inventory without running fixtures or tests."""
     rows = []
     for category, title, options, description in (
             ('unit', 'Unit, property and contract', [],
@@ -57,21 +57,6 @@ def collect_counts(root):
         count = single_count(output, r'^(\d+)(?:/\d+)? tests? collected\b', category)
         rows.append((title, count, description))
 
-    print('Collecting installed system...', file=sys.stderr, flush=True)
-    output = capture(root, [str(root / 'tools/run-tests'), 'system', '--list'])
-    marker = '  available-selectors:\n'
-    if output.count(marker) != 1:
-        raise ValueError('system: missing or ambiguous selector inventory')
-    cases = re.findall(r'^      (\S.*)$', output.split(marker)[1], re.MULTILINE)
-    if not cases:
-        raise ValueError('system: empty selector inventory')
-    inventory = runpy.run_path(str(root / 'tests/integration/system_checks.py'))
-    # Count registered standalone checks alongside lifecycle selectors, once
-    # across supported hosts. Focused qualification selectors are not tests.
-    system_checks = inventory['inventory'](root / 'tests/integration')
-    rows.append(('Installed system', len(cases) + len(system_checks),
-                 'Checks installed product behavior, lifecycle integration and standalone engineering safety boundaries on the test VM.'))
-
     commands, _ = test_commands.plan(root, 'child-node', [])
     # Node has no collect-only mode. Count the launcher's executable files,
     # explicitly, rather than execute their bodies or guess dynamic subtests.
@@ -81,12 +66,50 @@ def collect_counts(root):
     commands, _ = test_commands.plan(root, 'child-gjs', [])
     rows.append(('Child GJS', len(commands),
                  'Checks child extension behavior that depends on the GNOME JavaScript runtime.'))
+    inventory = runpy.run_path(str(root / 'tests/integration/system_checks.py'))
     for category in inventory['HOST_CHECKS']:
         description = {
             'graphical-worker': 'Checks privileged graphical worker containment with isolated host fixtures.',
             'package-notice': 'Checks native package-manager notices in isolated host fixtures.',
         }[category]
         rows.append((category, 1, description))
+    return rows
+
+
+def collect_vm_execution_counts(root):
+    """Project the full VM selection through the same inventory as Watch."""
+    from vm_test_queue import collect_families, execution_groups, selected_cases, vm_config
+    from vm_selection import VARIABLE
+
+    document = vm_config.read_document(validate_agent=False)
+    _, configured = vm_config.parse_configuration(document)
+    branch = vm_config.current_branch()
+    original_vm = os.environ.get(VARIABLE)
+    rows = []
+    try:
+        for family in document['families']:
+            selector = family.get('id', family['family'])
+            hosts = vm_config.default_vmhost(document, selector=selector)
+            vms = [vm for vm in configured.values()
+                   if vm.family == family['family'] and vm.enabled and vm.host.enabled
+                   and (not vm.owning_branch or vm.owning_branch == branch)
+                   and (not hosts or vm.host.name in hosts.split(','))]
+            if not vms:
+                continue
+            print(f'Collecting VM executions for {selector}...', file=sys.stderr, flush=True)
+            vm_config.select(vms[0].name)
+            counts = Counter()
+            for group in execution_groups(root, ['vm'], vms):
+                args = group['args']
+                families = collect_families(root, [configured[name] for name in group['vms']],
+                                            test_commands.selections(root, args))
+                counts[group['category']] += len(selected_cases(families, args))
+            rows.append((selector, counts['system'], counts['e2e']))
+    finally:
+        if original_vm is None:
+            os.environ.pop(VARIABLE, None)
+        else:
+            os.environ[VARIABLE] = original_vm
     return rows
 
 
@@ -111,39 +134,55 @@ def count_cell(ready, pending):
             f'<span style="color: gray">{pending}</span>/{ready + pending}')
 
 
-def render(document, counts, *, root=ROOT):
+def inventory_table(host_counts, vm_counts):
+    def row(*cells):
+        return '| ' + ' | '.join(map(str, cells)) + ' |'
+
+    return [
+        row('Category', 'Host inventory', *(f'`{selector}`' for selector, _, _ in vm_counts),
+            'Description'),
+        row('---', *(['---:'] * (1 + len(vm_counts))), '---'),
+        *[row(title, count, *(['—'] * len(vm_counts)), description)
+          for title, count, description in host_counts],
+        row('Installed system', '—', *(system for _, system, _ in vm_counts),
+            'Checks installed behavior, lifecycle integration and engineering safety boundaries.'),
+        row('E2E', '—', *(e2e for _, _, e2e in vm_counts),
+            'Checks complete customer journeys through the installed product’s public interfaces.'),
+        row('**Total**', f'**{sum(count for _, count, _ in host_counts)}**',
+            *(f'**{system + e2e}**' for _, system, e2e in vm_counts), ''),
+    ]
+
+
+def render(document, host_counts, vm_counts, *, root=ROOT):
     api = runpy.run_path(str(root / 'tests/e2e/inventory.py'))
     api['validate_inventory'](document, root=root)
     cases = sorted(((variant['coverage_id'], family, variant)
                     for family in document['scenarios'] for variant in family['variants']),
                    key=lambda item: (item[2]['status'] == 'pending', item[0]))
     totals = Counter((family['category'], variant['status']) for _, family, variant in cases)
-    rows = [(title, count, 0, description) for title, count, description in counts]
     categories = sorted({family['category'] for _, family, _ in cases})
-    rows.append(('E2E', sum(totals[category, 'ready'] for category in categories),
-                 sum(totals[category, 'pending'] for category in categories),
-                 'Checks complete customer journeys through the installed product\'s public interfaces.'))
-    ready_total = sum(ready for _, ready, _, _ in rows)
-    pending_total = sum(pending for _, _, pending, _ in rows)
+    ready_total = sum(totals[category, 'ready'] for category in categories)
+    pending_total = sum(totals[category, 'pending'] for category in categories)
     lines = [
         '> Generated by `tools/generate_test_coverage.sh`; do not manually modify.',
-        '', '# Test coverage', '', '## Test case counts', '',
-        '| Category | Count (Ready/Pending/Total) | Description |', '| --- | ---: | --- |',
-        *[f'| {title} | {count_cell(ready, pending)} | {description} |'
-          for title, ready, pending, description in rows],
-        f'| **Total** | **{count_cell(ready_total, pending_total)}** | All test cases across the categories above, including pending E2E scenarios. |',
+        '', '# Test coverage', '', '## Test inventory counts', '',
+        'Each VM family column uses the [ONPC: Watch accounting](../tests/README.md#aggregate-execution-and-reconnection) '
+        'for `tools/fix-tests vm --vm FAMILY` with this checkout and its configured default hosts.',
         '',
-        'These are inventory counts, not passing results or code-coverage percentages. '
-        'Python parameter combinations count separately; property-test examples do not. '
-        'Script-based checks count once per executable entry point; Node subtests are not expanded. '
-        'Installed-system cases count lifecycle selectors and registered standalone checks once, without repeated phases or prerequisites. '
-        'Host graphical-worker and package-notice registrations count separately; focused E2E building-block qualifications have no category membership. '
-        'Aggregate, build, static-analysis and prerequisite commands are not additional test cases.',
+        *inventory_table(host_counts, vm_counts),
+        '',
+        'VM totals include selected installed-system phases, registered standalone checks and runnable '
+        'E2E variants. Platform filters and additional GNOME Classic executions can change the total by family.',
+        '',
+        'The host inventory counts parametrized Python cases and executable script entries. '
+        'Property-test examples and Node subtests are included in their parent cases or files. '
+        'The inventory excludes aggregate, build, static-analysis and prerequisite commands.',
         '', '## E2E scenarios', '',
         '| Subcategory | Count (Ready/Pending/Total) |',
         '| --- | ---: |',
         *[f'| {category} | {count_cell(totals[category, "ready"], totals[category, "pending"])} |'
           for category in categories],
+        f'| **Total** | **{count_cell(ready_total, pending_total)}** |',
         '',
         'Each number selects exactly one variant. IDs are stored in '
         '`tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. '
@@ -190,7 +229,7 @@ def generate(root=ROOT):
     api = runpy.run_path(str(root / 'tests/e2e/inventory.py'))
     document, _ = api['read_json'](root / 'tests/e2e/scenarios.json')
     api['validate_inventory'](document, root=root)
-    content = render(document, collect_counts(root), root=root)
+    content = render(document, collect_host_counts(root), collect_vm_execution_counts(root), root=root)
     target = root / 'docs/Test-Coverage.md'
     # Leave the previous report intact on any collection or write failure.
     temporary = None
@@ -213,7 +252,7 @@ def main(argv=None):
     parser.parse_args(argv)
     try:
         generate()
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f'test-coverage: {error}', file=sys.stderr)
         return 1
     return 0

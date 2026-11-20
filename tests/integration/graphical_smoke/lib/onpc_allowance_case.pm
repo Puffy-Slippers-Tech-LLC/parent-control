@@ -185,6 +185,11 @@ sub daily_only {
         next if $retained && $name eq 'forty';
         my $leave = $journey->scope("$name-leave");
         onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
+        if (!$retained && $name eq 'enabled') {
+            my $returned = onpc_gdm::sign_in_challenge($journey, 'station-denied',
+                'station-denied-installed-greeter', 'station-denied-standard-focused', 'station-denied-returned');
+            $journey->consume_observation('station-denied-returned', $returned);
+        }
         my $denied = $name eq 'zero' || $name eq 'reenabled';
         onpc_desktop_session::enter_desktop($journey, 'gdm', 'other-child', $retained ? 'retained' : 'fresh',
             $denied ? 'time-denied' : 'success', "$name-entry");

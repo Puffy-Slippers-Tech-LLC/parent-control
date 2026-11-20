@@ -5992,6 +5992,22 @@ This slice supplies no general desktop/terminal/SSH protection or complete
 usability history; those checks retain their own bindings. A saved default or
 GDM command resolution alone is insufficient.
 
+### Child station-session rejection
+
+Case 7 uses `DailyAccessJourney` and `onpc_allowance_case::daily_only` to bind
+two fresh Jordan password challenges. Before the first, `session_control.observe`
+sets Jordan's saved GDM choice to `oh-no-parent-control` on Wayland through
+AccountsService. GDM loads that choice on sign-in. Opening a second GDM greeter
+peer can take over the Shell greeter's authentication signals. The saved
+choice leaves the existing masked-recipient checks and submission path in place.
+After submission, `gdm-returned` reads the account list through accessibility
+without sending input. logind alone cannot distinguish the list from a password
+prompt. The system observer also requires a new station-entry refusal for
+Jordan in the current boot and a closed login session before restoring the
+original AccountsService values for the existing desktop sign-in. The complete
+case, including the rejection, ordinary sign-in and owned cleanup, passed on
+Ubuntu 26.04, Fedora 44 and Fedora 45.
+
 ### Saved-routing variation and recovery
 
 `check_e2e_kiosk_routing_variation` dispatches

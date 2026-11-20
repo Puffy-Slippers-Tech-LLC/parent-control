@@ -47,6 +47,12 @@ BINDINGS['child-verify-classic'] = ('child', 'verify-classic')
 LABELS['select-classic'] = 'Selecting GNOME Classic for the fixture child'
 LABELS['verify-classic'] = 'Verifying the active GNOME Classic desktop'
 CLASSIC = ('gnome-classic', 'wayland')
+STATION_ROUTING = ['oh-no-parent-control', 'wayland']
+STATION_REFUSAL = 'onpc.kiosk entry outcome=denied reason=station-identity'
+BINDINGS['standard-select-station'] = ('standard', 'select-station')
+BINDINGS['standard-verify-station-refusal'] = ('standard', 'verify-station-refusal')
+LABELS['select-station'] = 'Selecting the request-station session through AccountsService'
+LABELS['verify-station-refusal'] = 'Verifying the rejected launch and restoring desktop routing'
 BINDINGS['parent-desktop-identity'] = ('parent', 'desktop-identity')
 BINDINGS['second-parent-desktop-identity'] = ('second-parent', 'desktop-identity')
 BINDINGS['child-desktop-identity'] = ('child', 'desktop-identity')
@@ -547,13 +553,68 @@ def classic_session(account, action):
     return {'desktop_session': CLASSIC[0], 'type': CLASSIC[1], 'session_sha256': identity}
 
 
-def execute(binding, *, diagnostic=False):
+def station_attempt_receipt(receipt):
+    require(type(receipt) is dict and set(receipt) == {'since_us', 'original_routing'}
+            and type(receipt['since_us']) is int and 0 < receipt['since_us'] < 10**16
+            and type(receipt['original_routing']) is list and len(receipt['original_routing']) == 2
+            and all(type(value) is str and re.fullmatch(r'[A-Za-z0-9_-]{0,64}', value)
+                    for value in receipt['original_routing'])
+            and receipt['original_routing'][0] != STATION_ROUTING[0], 'station-attempt-receipt')
+
+
+def station_attempt(account, receipt):
+    """Select the saved GDM choice before login; restore it after observed refusal."""
+    sys.path.insert(0, '/var/tmp/onpc-system-input')
+    import system_guest as guest
+
+    guest.guard()
+    entry_identity(sessions(), account.pw_uid, 'fresh')
+    address = ['org.freedesktop.Accounts', f'/org/freedesktop/Accounts/User{account.pw_uid}',
+               'org.freedesktop.Accounts.User']
+    properties = ('Session', 'SessionType')
+
+    def read_routing():
+        return [json.loads(call(['/usr/bin/busctl', '--system', '--json=short',
+                                 'get-property', *address, name]))['data'] for name in properties]
+
+    before = read_routing()
+    if receipt is None:
+        receipt = {'since_us': time.monotonic_ns() // 1000, 'original_routing': before}
+        station_attempt_receipt(receipt)
+        wanted = STATION_ROUTING
+        result = {'attempt': receipt}
+    else:
+        require(receipt['since_us'] <= time.monotonic_ns() // 1000, 'station-attempt-time')
+        require(before == STATION_ROUTING, 'station-attempt-routing-changed')
+        # GDM opens this stream under the login UID before running the selected command.
+        call(['/usr/bin/journalctl', '--sync'])
+        raw = call(['/usr/bin/journalctl', '-b', '--no-pager', '-n', '1', '--output=json',
+                    '--output-fields=MESSAGE', f'_UID={account.pw_uid}', 'MESSAGE=' + STATION_REFUSAL])
+        require(raw and int(json.loads(raw)['__MONOTONIC_TIMESTAMP']) >= receipt['since_us'],
+                'station-entry-refusal-unobserved')
+        wanted = receipt['original_routing']
+        result = {'station_entry_refused': True, 'ordinary_session_closed': True, 'routing_restored': True}
+    for name, old, value in zip(properties, before, wanted):
+        if old != value:
+            call(['/usr/bin/busctl', '--system', 'call', *address, 'Set' + name, 's', value])
+    require(read_routing() == wanted, 'station-attempt-routing-readback')
+    return result
+
+
+def execute(binding, *, diagnostic=False, station_receipt=None):
     require(binding in BINDINGS and os.geteuid() == 0, 'binding')
     require(type(diagnostic) is bool and (not diagnostic or binding == 'standard-logout'),
             'diagnostic-binding')
     role, action = BINDINGS[binding]
     account = pwd.getpwnam(ACCOUNTS[role])
     require(account.pw_uid >= 1000, 'fixture-identity')
+    if action == 'verify-station-refusal':
+        station_attempt_receipt(station_receipt)
+    else:
+        require(station_receipt is None, 'station-attempt-binding')
+    if action in ('select-station', 'verify-station-refusal'):
+        return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                **station_attempt(account, station_receipt)}
     if action in ('select-classic', 'verify-classic'):
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 **classic_session(account, action)}
@@ -737,7 +798,7 @@ def execute(binding, *, diagnostic=False):
             'destination': 'locked' if action == 'lock' else 'greeter'}
 
 
-def observe(transport, binding, *, diagnostic=False):
+def observe(transport, binding, *, diagnostic=False, station_receipt=None):
     """Shared controller leaf; the transport already binds the owned VM/attempt."""
     import watch_activity
     require(binding in BINDINGS, 'binding')
@@ -745,14 +806,29 @@ def observe(transport, binding, *, diagnostic=False):
             'diagnostic-binding')
     role, action = BINDINGS[binding]
     classic = action in ('select-classic', 'verify-classic')
+    selection = action in ('select-station', 'verify-station-refusal')
+    if action == 'verify-station-refusal':
+        station_attempt_receipt(station_receipt)
+        arguments = [json.dumps(station_receipt)]
+    else:
+        require(station_receipt is None, 'station-attempt-binding')
+        arguments = ['--diagnostic'] if diagnostic else []
     with watch_activity.operation(LABELS[action] + ' [' + role + ']'):
-        environment = ['env', 'ONPC_EXPECTED_RUN=' + transport.config['run']] if classic else []
-        raw = transport.call([*environment, '/usr/bin/python3', '-I', '-', binding,
-                              *(['--diagnostic'] if diagnostic else [])],
+        environment = ['env', 'ONPC_EXPECTED_RUN=' + transport.config['run']] if classic or selection else []
+        raw = transport.call([*environment, '/usr/bin/python3', '-I', '-', binding, *arguments],
                              input=Path(__file__).read_bytes(),
                              timeout=LOGOUT_WAIT_SECONDS + 60 if action == 'logout' else 90)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
+    if selection:
+        expected = {'operation': binding, 'outcome': 'passed', 'interface': 'system session'}
+        if action == 'verify-station-refusal':
+            expected.update(station_entry_refused=True, ordinary_session_closed=True, routing_restored=True)
+        else:
+            station_attempt_receipt(result.get('attempt'))
+            expected['attempt'] = result['attempt']
+        require(result == expected, 'selection-response')
+        return result
     if classic:
         require(type(result) is dict and set(result) == {
             'operation', 'outcome', 'interface', 'desktop_session', 'type', 'session_sha256'}
@@ -827,6 +903,9 @@ if __name__ == '__main__':
     try:
         if len(sys.argv) == 4 and sys.argv[1] == 'maintenance-logout':
             result = maintenance_logout(int(sys.argv[2]), sys.argv[3])
+        elif len(sys.argv) == 3 and sys.argv[1] == 'standard-verify-station-refusal':
+            require(len(sys.argv[2]) <= 256, 'station-attempt-arguments')
+            result = execute(sys.argv[1], station_receipt=json.loads(sys.argv[2]))
         else:
             require(len(sys.argv) in (2, 3) and sys.argv[2:] in ([], ['--diagnostic']), 'arguments')
             result = execute(sys.argv[1], diagnostic=len(sys.argv) == 3)

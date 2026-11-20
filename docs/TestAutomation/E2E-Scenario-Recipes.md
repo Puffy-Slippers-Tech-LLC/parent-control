@@ -598,7 +598,9 @@ direct command invocation, without opening Terminal).
 Implementation status: Cases 7 (`daily-only-new`) and 8 (`daily-only-retained`)
 are implemented through `daily_access_case.DailyAccessJourney`,
 `RetainedDailyAccessJourney` and the shared `onpc_allowance_case` worker.
-Both complete bindings are qualified on Ubuntu 26.04. Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
+Case 7, including the [station-session rejection step](E2E-Building-Blocks.md#child-station-session-rejection),
+passed on Ubuntu 26.04, Fedora 44 and Fedora 45. Case 8 passed on Ubuntu 26.04.
+Case 9 (`grant-only-new`) also passed on Ubuntu 26.04 through
 `grant_access_case.GrantAccessJourney` and
 `onpc_allowance_case::grant_only_new`. Case 10 (`grant-only-retained`) is
 implemented through `grant_access_case.RetainedGrantAccessJourney` and
@@ -619,6 +621,11 @@ Bindings: time = daily-only / grant-only / combined; session = new / retained.
 2. UI17(on) → PARENT08 → PARENT09 → C(variant entry, expected access) → access-check. Grant profiles: G → FLOW06(short grant) → P(retained) → PARENT09.
 3. Save the positive allowance edit and then zero through PARENT06 → PARENT08 → PARENT09, comparing the saved allowance, actual balances and preserved grant deadline. Visit C at the positive and zero boundaries to require the declared access result. Leave through the declared route before returning to P; sample app launches at the enable/disable transitions.
 4. Repeat(off,on): UI17 → PARENT08 → PARENT09 → C → access-check → leave-child. Read saved settings in Parent at finish.
+
+In step 2 of case 7, Jordan first selects the Oh No! Parent Control session
+with 30 minutes available. One valid sign-in must return automatically to the
+account list with Jordan's attempted session closed. His existing fresh login
+then selects the ordinary desktop and continues to the countdown and app checks.
 
 Case 8 starts Jordan with limits off, captures an Allowed app's usable work and
 returns to Jamie's original Parent window through Switch User. Each child visit

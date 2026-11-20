@@ -14,6 +14,7 @@ from native_fixtures import fixture_actions
 from journey_checks import RetainedDesktopJourney
 from policy_edits import AppPolicyJourney, policy_edit
 from private_artifacts import require
+import session_control
 from ui_observations import SettingsObservation
 
 
@@ -34,6 +35,10 @@ SETUP = {
     'setup-off-balance': 'ui:time-explanation-reach-read',
 }
 TRANSITIONS = ('enabled', 'forty', 'zero', 'off', 'reenabled')
+STATION_REFUSAL = prefixed_stages('station-denied', {
+    **{stage: tag for stage, tag in fresh_desktop('other-child').items() if stage != 'desktop'},
+    'returned': 'ui:gdm-returned',
+})
 ENTRIES = {}
 SCREENS = dict(SETUP)
 PHASES = {stage: 'step-1' for stage in SETUP}
@@ -58,6 +63,7 @@ for name in TRANSITIONS:
         **prefixed_stages(name + '-leave', {
             'desktop': 'ui:desktop', 'switch-user': 'system:parent-switch-user',
             'gdm-switched': 'ui:gdm-returned'}),
+        **(STATION_REFUSAL if name == 'enabled' else {}),
         **prefixed_stages(name + '-entry', entry),
     }
     if denied:
@@ -105,9 +111,12 @@ PLAN = JourneyPlan(
                   for suffix in ('open', 'old', 'match', 'final-match')},
     access_checks={prefix + '-access': (MATCH_APPS[role], access)
                    for role, _draft, access, prefix in EDITS},
-    invocations=tuple(stage for stage in SCREENS if stage in LOGIN_STAGES | DENIAL_STAGES),
+    invocations=tuple(stage for stage in SCREENS
+                      if stage in LOGIN_STAGES | DENIAL_STAGES or stage in STATION_REFUSAL),
     challenges={
         'initial': ('parent', 'recipient-qualified', 'recipient-rechecked'),
+        'station-denied': ('other-child', 'station-denied-standard-recipient-qualified',
+                           'station-denied-standard-recipient-rechecked'),
         **{prefix: ('parent' if prefix.endswith('-return') else 'other-child',
             prefix + ('-recipient-qualified' if prefix.endswith('-return') else '-standard-recipient-qualified'),
             prefix + ('-recipient-rechecked' if prefix.endswith('-return') else '-standard-recipient-rechecked'))
@@ -203,6 +212,14 @@ class DailyAccessJourney(AppPolicyJourney):
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
+        if self.plan is PLAN:
+            if stage == 'enabled-leave-gdm-switched':
+                observed['selection'] = session_control.observe(self.transport, 'standard-select-station')
+            elif stage == 'station-denied-returned':
+                attempt = next(step['selection']['attempt'] for step in self.steps
+                               if step['stage'] == 'enabled-leave-gdm-switched')
+                observed['refusal'] = session_control.observe(
+                    self.transport, 'standard-verify-station-refusal', station_receipt=attempt)
         saved_states = RETAINED_SAVED if self.plan is RETAINED_PLAN else SAVED
         if stage in saved_states:
             enabled, minutes = saved_states[stage]

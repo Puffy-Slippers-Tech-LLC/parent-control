@@ -683,7 +683,7 @@
         ],
         "steps": [
           {"id": "step-1", "operation": "ui", "description": "Sign in as a parent, select the child and prepare the declared time profile using Screen Limits and actual requests. Set one app Always Allowed and another Hard Blocked. Finish preparation with limits off and no grant; retained cases also leave a usable child desktop open."},
-          {"id": "step-2", "operation": "ui", "description": "Enable the screen limit, read How it's calculated, then enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit."},
+          {"id": "step-2", "operation": "ui", "description": "Enable the screen limit and read How it's calculated. In case 7, sign in as Jordan with the Oh No! Parent Control session selected and require a return to the account list before opening his ordinary desktop. Enter the child desktop through the declared fresh or retained route: positive daily time permits use and zero denies it. For grant-only or combined, obtain real request-station approval before the next allowance edit."},
           {"id": "step-3", "operation": "ui", "description": "While limits stay on, daily-only and combined save 30, 40 and 0 minutes; grant-only saves 0, 30 and 0. Read the saved allowance and preserved grant deadline after each change; visit the child at positive and zero access boundaries. Zero daily time denies daily-only access while an active grant still permits use. App launches are sampled at enable/disable transitions."},
           {"id": "step-4", "operation": "ui", "description": "Turn limits off and visit the child; then turn them on and revisit. Off removes the countdown and time restriction but keeps app blocks. On uses the saved allowance without restoring the old grant. Log out between new-session visits and Switch User for retained visits."}
         ],
@@ -697,7 +697,7 @@
       "interventions": [],
       "assertions": {
         "visible": [
-          {"id": "visible-result", "step_id": "step-4", "description": "Each saved transition changes child access correctly. Enabled allowance edits preserve the grant deadline; toggles clear it. App blocks remain effective with limits off."}
+          {"id": "visible-result", "step_id": "step-4", "description": "Each saved transition changes child access correctly. In case 7, selecting the request-station session as Jordan returns to the account list and Jordan can then open his ordinary desktop. Enabled allowance edits preserve the grant deadline; toggles clear it. App blocks remain effective with limits off."}
         ],
         "backend": [],
         "other_user": []

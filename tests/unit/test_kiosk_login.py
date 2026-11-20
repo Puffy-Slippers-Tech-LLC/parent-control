@@ -23,8 +23,7 @@ def _selected_config(relative):
 
 def test_selected_session_preserves_release_identity_and_kiosk_selection():
     desktop = _selected_config('wayland-sessions/oh-no-parent-control.desktop')['Desktop Entry']
-    assert shlex.split(desktop['Exec']) == [
-        'gnome-session', '--session', 'oh-no-parent-control']
+    assert desktop['Exec'] == '/usr/libexec/oh-no-parent-control-kiosk-entry'
     assert desktop['TryExec'] == 'gnome-session'
     assert not desktop.getboolean('NoDisplay', fallback=False)
     assert desktop['DesktopNames'] == 'GNOME-Kiosk;GNOME;'
@@ -116,6 +115,7 @@ def test_selected_runtime_has_complete_production_package_source_selection():
         'kiosk/oh-no-parent-control',
         'kiosk/oh_no_parent_control_kiosk/notifications.py',
         'kiosk/oh_no_parent_control_kiosk/session_logout.py',
+        'tools/kiosk_entry.c',
         'tools/provision.py',
         'tools/pam_oh_no_parent_control.c',
         'tools/oh-no-parent-control-login-check',
@@ -127,13 +127,12 @@ def test_selected_runtime_has_complete_production_package_source_selection():
 
 
 @pytest.fixture(scope="module")
-def wellbeing_entry(tmp_path_factory):
-    directory = tmp_path_factory.mktemp("onpc-wellbeing-entry")
+def native_entries(tmp_path_factory):
+    directory = tmp_path_factory.mktemp("onpc-native-entries")
     identity = directory / "identity.c"
-    entry = directory / "entry"
-    # Exercise the production native dispatch/sanitization without requiring
-    # a kiosk account, live GJS process or mutation of host settings. The exec
-    # observer records the exact argv and inherited environment at the boundary.
+    wellbeing = directory / "wellbeing"
+    kiosk = directory / "kiosk"
+    # Observe the fixed exec boundary without host accounts or a graphical session.
     identity.write_text('''#define _GNU_SOURCE
 #include <pwd.h>
 #include <stdio.h>
@@ -141,11 +140,17 @@ def wellbeing_entry(tmp_path_factory):
 #include <string.h>
 #include <unistd.h>
 extern char **environ;
+uid_t __wrap_getuid(void) {
+    return 23001;
+}
 struct passwd *__wrap_getpwnam(const char *name) {
     static struct passwd account;
     if (strcmp(name, "oh-no-parent-control") != 0)
         _exit(2);
-    account.pw_uid = getuid() + (strcmp(getenv("TEST_IDENTITY"), "ordinary") == 0);
+    const char *identity = getenv("TEST_IDENTITY");
+    if (strcmp(identity, "missing") == 0)
+        return NULL;
+    account.pw_uid = __wrap_getuid() + (strcmp(identity, "ordinary") == 0);
     return &account;
 }
 int __wrap_execv(const char *path, char *const argv[]) {
@@ -158,18 +163,38 @@ int __wrap_execv(const char *path, char *const argv[]) {
     exit(0);
 }
 ''')
-    subprocess.run([
-        "cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
-        '-DKIOSK_LAUNCH_ROLE="wellbeing"', "-Wl,--wrap=getpwnam",
-        "-Wl,--wrap=execv", "-o", str(entry), str(identity),
-        str(ROOT / "tools/kiosk_session.c"),
-    ], check=True, capture_output=True, text=True, timeout=30,
-        pass_fds=scratch_descriptors())
-    return entry
+    compiler = ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
+                "-Wl,--wrap=getuid", "-Wl,--wrap=getpwnam", "-Wl,--wrap=execv", str(identity)]
+    for output, source, options in (
+        (wellbeing, "tools/kiosk_session.c", ['-DKIOSK_LAUNCH_ROLE="wellbeing"']),
+        (kiosk, "tools/kiosk_entry.c", []),
+    ):
+        subprocess.run([*compiler, *options, "-o", str(output), str(ROOT / source)],
+                       check=True, capture_output=True, text=True, timeout=30,
+                       pass_fds=scratch_descriptors())
+    return wellbeing, kiosk
+
+
+@pytest.mark.parametrize("identity", ["ordinary", "missing", "kiosk"])
+def test_station_entry_launches_gnome_kiosk_only_for_station_uid(native_entries, identity):
+    _, kiosk = native_entries
+    environment = dict(os.environ, TEST_IDENTITY=identity, USER="oh-no-parent-control")
+    result = subprocess.run([str(kiosk)], env=environment, capture_output=True, text=True, timeout=5,
+                            pass_fds=scratch_descriptors())
+    if identity == "kiosk":
+        assert result.returncode == 0
+        command, _ = result.stdout.split("\n\n", 1)
+        assert command.splitlines() == [
+            "/usr/bin/gnome-session", "/usr/bin/gnome-session", "--session", "oh-no-parent-control"]
+    else:
+        assert result.returncode != 0
+        assert result.stdout == ""
+        assert result.stderr == "onpc.kiosk entry outcome=denied reason=station-identity\n"
 
 
 @pytest.mark.parametrize("identity", ["ordinary", "kiosk"])
-def test_wellbeing_entry_preserves_ordinary_settings_environment(wellbeing_entry, tmp_path, identity):
+def test_wellbeing_entry_preserves_ordinary_settings_environment(native_entries, tmp_path, identity):
+    wellbeing, _ = native_entries
     settings = {
         "DCONF_PROFILE": str(tmp_path / "profile"),
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
@@ -177,7 +202,7 @@ def test_wellbeing_entry_preserves_ordinary_settings_environment(wellbeing_entry
         "GJS_PATH": str(tmp_path / "modules"),
     }
     environment = dict(os.environ, TEST_IDENTITY=identity, **settings)
-    result = subprocess.run([str(wellbeing_entry)], env=environment,
+    result = subprocess.run([str(wellbeing)], env=environment,
                             check=True, capture_output=True, text=True, timeout=5,
                             pass_fds=scratch_descriptors())
     command, inherited = result.stdout.split("\n\n", 1)

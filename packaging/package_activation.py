@@ -123,7 +123,7 @@ def activation_for(path: str) -> str:
         "usr/share/gnome-shell/extensions/oh-no-parent-control@tech.puffyslippers.com/",
         "usr/share/gnome-session/",
         "usr/share/wayland-sessions/",
-    )):
+    )) or path == "usr/libexec/oh-no-parent-control-kiosk-entry":
         return "session-renewal"
     # GNOME Shell may retain an icon texture for the running session.  The next
     # login reliably picks up a replacement without requiring a reboot.

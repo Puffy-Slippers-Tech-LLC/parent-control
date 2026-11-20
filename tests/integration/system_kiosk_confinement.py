@@ -280,7 +280,7 @@ def verify_session_composition(record):
     session = installed_configuration(Path('/usr/share/gnome-session/sessions/oh-no-parent-control.session'),
                                       'GNOME Session')
     app = installed_configuration(Path('/usr/lib/systemd/user/oh-no-parent-control-app.service'), 'Service')
-    guest.require(desktop.get('Exec') == 'gnome-session --session oh-no-parent-control' and
+    guest.require(desktop.get('Exec') == '/usr/libexec/oh-no-parent-control-kiosk-entry' and
                   desktop.get('TryExec') == 'gnome-session' and session.getboolean('Kiosk') and
                   app.get('ExecStart') == '/usr/bin/oh-no-parent-control',
                   'kiosk-session:installed-composition')

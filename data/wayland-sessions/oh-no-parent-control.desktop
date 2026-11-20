@@ -1,8 +1,9 @@
 # Release-based dedicated kiosk runtime.
+# GNOME Shell 51 needs this entry in its session menu to select it for the station.
 [Desktop Entry]
 Name=Oh No! Parent Control
 Comment=Request additional child access in a restricted kiosk session
-Exec=gnome-session --session oh-no-parent-control
+Exec=/usr/libexec/oh-no-parent-control-kiosk-entry
 TryExec=gnome-session
 Icon=com.puffyslippers.OhNoParentControl
 Type=Application

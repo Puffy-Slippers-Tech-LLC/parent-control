@@ -88,8 +88,9 @@ composition cannot establish usable passwordless graphical entry.
 
 ## Native execution and executable identity
 
-The Wayland session directly starts distribution
-`gnome-session --session oh-no-parent-control` and GNOME Kiosk.
+The Wayland session's [entry command](../../tools/kiosk_entry.c) compares the
+login process UID with the station account's UID and starts the distribution's
+`gnome-session --session oh-no-parent-control` for that account.
 Isolated Python entrypoints run the shared form and notifications; the vendor
 authentication agent retains its public systemd identity. App exit/failure requests
 session shutdown. Reading, choosing language and authenticating have no idle deadline.
@@ -315,7 +316,12 @@ graphical launcher. Chooser cancellation resets GDM's selection.
 Keep the station's desktop entry visible in GDM's session menu. GNOME Shell 51
 can turn the fallback desktop into an explicit selection when marking the menu
 item active. The saved station session must be available in that menu to replace
-the fallback during passwordless entry. [GNOME Shell session menu change](https://github.com/GNOME/gnome-shell/commit/e2aa1ff1d4)
+the fallback during passwordless entry. The menu lists the same sessions for
+ordinary accounts. If an ordinary user chooses the station session, the entry
+command exits before starting GNOME Session and GDM returns to sign-in. The
+user can choose their desktop in the session menu on the next attempt, since
+GDM can save its session selection before running the entry command.
+[GNOME Shell session menu change](https://github.com/GNOME/gnome-shell/commit/e2aa1ff1d4)
 
 Native PAM receives no selected-command input. Do not infer a desktop barrier
 from `PAM_SERVICE`, saved routing or `XDG_SESSION_TYPE`. Public chooser

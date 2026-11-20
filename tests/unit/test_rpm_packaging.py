@@ -52,7 +52,8 @@ def test_selected_kiosk_runtime_replaces_private_framework_fedora_payload(fedora
                    for path in fedora_payload.rglob('*'))
     desktop = (fedora_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
     app = (fedora_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
-    assert 'Exec=gnome-session --session oh-no-parent-control\n' in desktop
+    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-entry\n' in desktop
+    assert (fedora_payload / 'usr/libexec/oh-no-parent-control-kiosk-entry').stat().st_mode & 0o111
     assert 'ExecStart=/usr/bin/oh-no-parent-control\n' in app
     for name in ('session', 'app', 'notifications', 'notification-client', 'cleanup', 'audio',
                  'dbus', 'confinement', 'confinement-integration', 'support'):

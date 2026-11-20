@@ -20,6 +20,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(LIBEXECDIR)/oh-no-parent-control-migrate-state \
 	$(LIBEXECDIR)/oh-no-parent-control-provision \
 	$(LIBEXECDIR)/oh-no-parent-control-login-check \
+	$(LIBEXECDIR)/oh-no-parent-control-kiosk-entry \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-wellbeing \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-packages \
 	$(LIBEXECDIR)/oh-no-parent-control-kiosk-lifecycle \
@@ -177,7 +178,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
-PACKAGE_SOURCE_FILES += tools/kiosk_session.c
+PACKAGE_SOURCE_FILES += tools/kiosk_session.c tools/kiosk_entry.c
 PACKAGE_SOURCE_FILES += tools/oh-no-parent-control-kiosk-lifecycle \
 	packaging/lifecycle_migration.py packaging/distro_pam.py
 
@@ -553,6 +554,9 @@ ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0755 packaging/fedora_execution_policy.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy"
 endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
+		-o "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-entry" tools/kiosk_entry.c
+	chmod 0755 "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-kiosk-entry"
 	@for role in wellbeing packages; do \
 		$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
 			-DKIOSK_LAUNCH_ROLE=\"$$role\" \

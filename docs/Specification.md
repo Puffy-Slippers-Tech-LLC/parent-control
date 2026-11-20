@@ -247,6 +247,7 @@ Technical interfaces, storage formats and verification limits are in the
 ### Request station
 
 - [ONPC-COMP-KIOSK-001] The installed dedicated session provides the request form and system authentication agent and returns to sign-in on exit. It offers no general desktop. The station account cannot be used for a different graphical session, terminal login or SSH login.
+  Selecting the station session for an ordinary account returns to sign-in before the request station opens. The ordinary account can then sign in with its desktop session.
 - [ONPC-COMP-KIOSK-002] Lists eligible children and parents, loads the chosen child's request preferences, and shows the estimated post-approval time described above.
 - [ONPC-COMP-KIOSK-003] Submission waits for account lists and the selected child's settings. The form explains missing children, missing eligible parents and disabled screen-time control.
 - [ONPC-COMP-KIOSK-004] Prevents duplicate submission or changes to the pending request while waiting for authentication.

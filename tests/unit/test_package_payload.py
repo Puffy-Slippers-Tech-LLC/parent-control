@@ -76,7 +76,8 @@ def test_selected_kiosk_runtime_replaces_private_framework_payload(production_pa
                    for path in production_payload.rglob('*'))
     desktop = (production_payload / 'usr/share/wayland-sessions/oh-no-parent-control.desktop').read_text()
     app = (production_payload / 'usr/lib/systemd/user/oh-no-parent-control-app.service').read_text()
-    assert 'Exec=gnome-session --session oh-no-parent-control\n' in desktop
+    assert 'Exec=/usr/libexec/oh-no-parent-control-kiosk-entry\n' in desktop
+    assert (production_payload / 'usr/libexec/oh-no-parent-control-kiosk-entry').stat().st_mode & 0o111
     assert 'ExecStart=/usr/bin/oh-no-parent-control\n' in app
     assert (production_payload / 'usr/libexec/oh-no-parent-control-kiosk-lifecycle').read_bytes() == (
         ROOT / 'tools/oh-no-parent-control-kiosk-lifecycle').read_bytes()

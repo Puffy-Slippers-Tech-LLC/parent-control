@@ -480,7 +480,7 @@ def test_composition_uses_current_entry_and_distro_pam_without_starting_a_manage
     command = Mock()
     monkeypatch.setattr(helper.guest, 'run', command)
     sections = {
-        'Desktop Entry': {'Exec': 'gnome-session --session oh-no-parent-control', 'TryExec': 'gnome-session'},
+        'Desktop Entry': {'Exec': '/usr/libexec/oh-no-parent-control-kiosk-entry', 'TryExec': 'gnome-session'},
         'GNOME Session': parser['GNOME Session'],
         'Service': {'ExecStart': '/usr/bin/oh-no-parent-control'},
     }

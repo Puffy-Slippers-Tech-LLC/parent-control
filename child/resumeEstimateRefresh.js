@@ -88,7 +88,7 @@ export class ResumeEstimateRefresh {
             if (cancellable.is_cancelled()) return;
             if (replayed) {
                 stage = 'timer-estimate';
-                const estimates = await queryEstimatedTimes();
+                const estimates = await queryEstimatedTimes(cancellable);
                 if (cancellable.is_cancelled()) return;
                 stage = 'estimate-processing';
                 const remaining = Number(estimates['']?.[2]) - GLib.get_real_time() / 1_000_000;

@@ -627,9 +627,11 @@ The child estimate client also retries `NoReply`, `NameHasNoOwner`,
 `ServiceUnknown`, and local/remote timeout errors, covering timer-owner loss
 around idle shutdown and suspend/resume. Each retry addresses the well-known
 service name so D-Bus activation can select its new owner. These failures allow
-at most three attempts; busy backoff retains at most six total attempts. Mixed
-failures share those attempt indices and one 25-second monotonic budget, with
-each call limited to five seconds. Authorization, invalid arguments and unknown
+up to five attempts with delays of 200 ms, 1 s, 3 s and 5 s. Busy backoff retains
+at most six total attempts. Mixed failures share attempt indices and one
+25-second monotonic budget, with each call limited to five seconds. Cancelling
+a resume refresh, superseding an indicator refresh or disposing of the indicator
+releases its estimate read or retry wait. Authorization, invalid arguments and unknown
 errors are not retried. A successful recovery updates the countdown without
 opening the reporter; exhausted retries retain the previous verified estimate
 and report the failure. No failed read becomes zero remaining time.

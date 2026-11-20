@@ -4,7 +4,7 @@ import vm from 'node:vm';
 // Host-only adapter for the production indicator class. Each call creates a
 // fresh VM context; its platform dependencies are explicit test inputs. Real
 // Shell lifecycle and input behavior remain covered by the nested-Shell suite.
-export function createIndicator(dependencies = {}) {
+export function createIndicator({Gio = {}, ...dependencies} = {}) {
     const source = readFileSync(
         new URL('../../../child/remainingTimeIndicator.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')
@@ -13,6 +13,7 @@ export function createIndicator(dependencies = {}) {
         GObject: {registerClass: klass => klass},
         PanelMenu: {Button: class {}},
         GLib: {Error: class extends Error {}, get_monotonic_time: () => 0},
+        Gio: {Cancellable: class { cancel() {} }, ...Gio},
         ...dependencies,
     });
     vm.runInContext(source, context, {filename: 'remainingTimeIndicator.js'});

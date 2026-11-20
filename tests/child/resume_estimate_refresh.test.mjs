@@ -62,8 +62,22 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
         },
         Gio: {
             Cancellable: class {
-                cancel() { this.cancelled = true; }
+                handlers = new Map();
+                lastId = 0;
+                cancel() {
+                    this.cancelled = true;
+                    for (const handler of this.handlers.values()) handler();
+                }
                 is_cancelled() { return Boolean(this.cancelled); }
+                set_error_if_cancelled() {
+                    if (this.cancelled) throw new BusError('CANCELLED');
+                }
+                connect(handler) {
+                    const id = ++this.lastId;
+                    this.handlers.set(id, handler);
+                    return id;
+                }
+                disconnect(id) { this.handlers.delete(id); }
             },
             Credentials: {new: () => ({get_unix_user: () => 1003})},
             DBusError: {
@@ -113,6 +127,21 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
 
 const settle = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
 const plain = value => JSON.parse(JSON.stringify(value));
+
+test('closing the resume refresh cancels estimate backoff and releases the timer queue', async () => {
+    const h = harness({active: false});
+    h.setFailure('NO_REPLY', 'GetEstimatedTimes');
+    await settle();
+    assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [200]);
+    h.setFailure(null);
+    const next = h.query();
+    h.bridge.close();
+    await settle();
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.calls.filter(args => args[3] === 'GetEstimatedTimes').length, 2);
+    assert.equal((await next)[''][2], 200);
+    assert.equal(h.reports.length, 0);
+});
 
 test('continuous use and unchanged native notifications do not write usage', async () => {
     const h = harness();
@@ -611,7 +640,7 @@ test('a limit lifecycle change rearms reporting without requiring a successful r
     h.bridge.close();
 });
 
-test('an exhausted estimate read reports immediately after its existing bounded retries', async () => {
+test('an exhausted estimate read reports immediately after its bounded retries', async () => {
     const h = harness({remaining: 0});
     h.activity(false);
     await settle();
@@ -619,8 +648,8 @@ test('an exhausted estimate read reports immediately after its existing bounded 
     h.setFailure('NO_REPLY', 'GetEstimatedTimes');
     h.activity(true);
     await settle();
-    for (let retry = 0; retry < 2; retry++) {
-        assert.equal([...h.timers.values()][0].delay, 200);
+    for (const delay of [200, 1000, 3000, 5000]) {
+        assert.equal([...h.timers.values()][0].delay, delay);
         h.tick();
         await settle();
     }

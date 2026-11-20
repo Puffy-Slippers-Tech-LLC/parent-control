@@ -510,6 +510,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         this._destroyed = true;
         this._cancelLockDecision();
         this._cancelRefreshRetry();
+        this._refreshCancellable?.cancel();
         if (this._sessionPrepareRetryId) {
             GLib.source_remove(this._sessionPrepareRetryId);
             this._sessionPrepareRetryId = 0;
@@ -638,16 +639,19 @@ class RemainingTimeIndicator extends PanelMenu.Button {
         const serial = this._refreshSerial = (this._refreshSerial ?? 0) + 1;
         if (this._refreshPending) {
             this._refreshAgain = true;
+            this._refreshCancellable?.cancel();
             return;
         }
 
         this._refreshPending = true;
+        const cancellable = new Gio.Cancellable();
+        this._refreshCancellable = cancellable;
         let stage = 'timer-estimate';
         let nativeEndpoint = 'not-read';
         let timerEndpoint = 'not-read';
         const refreshStarted = GLib.get_monotonic_time();
         try {
-            const estimates = await queryEstimatedTimes();
+            const estimates = await queryEstimatedTimes(cancellable);
             if (this._destroyed || serial !== this._refreshSerial)
                 return;
 
@@ -714,6 +718,7 @@ class RemainingTimeIndicator extends PanelMenu.Button {
                     this._onError?.(error, 'countdown-refresh');
             }
         } finally {
+            this._refreshCancellable = null;
             this._refreshPending = false;
             if (!this._destroyed) {
                 this._sync();

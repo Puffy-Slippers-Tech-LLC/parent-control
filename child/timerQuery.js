@@ -10,6 +10,7 @@ const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
 const ESTIMATE_REPLY_TYPE = '(ta{s(btttt)})';
 const QUERY_BUDGET_MS = 25000;
 const CALL_TIMEOUT_MS = 5000;
+const REACTIVATION_RETRY_DELAYS_MS = [200, 1000, 3000, 5000];
 let _queue = Promise.resolve();
 
 function enqueue(task) {
@@ -18,27 +19,31 @@ function enqueue(task) {
     return result;
 }
 
-export function queryEstimatedTimes() {
+export function queryEstimatedTimes(cancellable = null) {
     return enqueue(async () => {
         const started = GLib.get_monotonic_time() / 1000;
         const deadline = started + QUERY_BUDGET_MS;
         let lastError;
         for (let attempt = 0; ; attempt++) {
+            cancellable?.set_error_if_cancelled();
             const remaining = Math.floor(deadline - GLib.get_monotonic_time() / 1000);
             if (remaining <= 0)
                 throw lastError;
             try {
-                const estimates = await callEstimatedTimes(Math.min(CALL_TIMEOUT_MS, remaining));
+                const estimates = await callEstimatedTimes(Math.min(CALL_TIMEOUT_MS, remaining),
+                    cancellable);
+                cancellable?.set_error_if_cancelled();
                 if (attempt > 0)
                     logInfo('child.timer-recovered', {attempts: attempt + 1});
                 return estimates;
             } catch (error) {
+                cancellable?.set_error_if_cancelled();
                 lastError = error;
                 const category = timerErrorCategory(error);
                 const retryDelay = category === 'busy'
                     ? busyRetryDelay('org.freedesktop.MalcontentTimer1.Child.Error.Busy', attempt)
-                    : (['no-reply', 'no-owner', 'service-unknown', 'timeout'].includes(category) &&
-                        attempt < 2 ? 200 : undefined);
+                    : (['no-reply', 'no-owner', 'service-unknown', 'timeout'].includes(category)
+                        ? REACTIVATION_RETRY_DELAYS_MS[attempt] : undefined);
                 const retry = retryDelay !== undefined &&
                     deadline - GLib.get_monotonic_time() / 1000 > retryDelay;
                 logWarning('child.timer-read-failed', {
@@ -48,7 +53,7 @@ export function queryEstimatedTimes() {
                     throw error;
                 // Re-address the well-known name: the previous daemon may have
                 // exited at its idle deadline or while the desktop was asleep.
-                await waitForRetry(retryDelay);
+                await waitForRetry(retryDelay, cancellable);
             }
         }
     });
@@ -94,9 +99,9 @@ export function replayOwnUsage(cancellable, observeStage = () => {}, activeSince
     });
 }
 
-async function callEstimatedTimes(timeoutMs) {
+async function callEstimatedTimes(timeoutMs, cancellable) {
     const [, estimates] = await callTimer(INTERFACE, 'GetEstimatedTimes',
-        new GLib.Variant('(s)', ['login-session']), ESTIMATE_REPLY_TYPE, timeoutMs);
+        new GLib.Variant('(s)', ['login-session']), ESTIMATE_REPLY_TYPE, timeoutMs, cancellable);
     return estimates;
 }
 
@@ -152,11 +157,23 @@ export function timerErrorCategory(error) {
     return 'other';
 }
 
-export function waitForRetry(delayMs) {
-    return new Promise(resolve => {
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, () => {
-            resolve();
-            return GLib.SOURCE_REMOVE;
+export async function waitForRetry(delayMs, cancellable = null) {
+    let timer = 0;
+    let handler = 0;
+    try {
+        await new Promise(resolve => {
+            timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delayMs, () => {
+                timer = 0;
+                resolve();
+                return GLib.SOURCE_REMOVE;
+            });
+            if (cancellable)
+                handler = cancellable.connect(() => resolve());
         });
-    });
+    } finally {
+        if (timer)
+            GLib.source_remove(timer);
+        if (handler)
+            cancellable.disconnect(handler);
+    }
 }

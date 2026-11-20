@@ -1230,6 +1230,11 @@ def verify_failure_reporting(publish):
               allow_product_fault('broker', 'operation'), native_error()):
             with unavailable_display():
                 failed_at = time.monotonic()
+                # Load the fault through GNOME while saved control is still off.
+                # An eligible monitor would recover the unloaded extension.
+                manager._run_as(account, 'gnome-extensions', 'enable', '--quiet', UUID)
+                wait(lambda: shell.info().get('state') == 3 and shell.call(SHELL, PATH, INTERFACE,
+                     'GetExtensionErrors', '(s)', (UUID,), '(as)'), 'native-error-not-observed')
                 preferences = store.load(child)
                 store.save(child, {**preferences, 'parent_control_enabled': True})
                 snapshot = state_digest(child)
@@ -1242,8 +1247,6 @@ def verify_failure_reporting(publish):
                 finally:
                     guest.run(['busctl', '--system', 'call', 'org.freedesktop.Accounts',
                         f'/org/freedesktop/Accounts/User{child}', interface, 'SetLanguage', 's', language])
-                wait(lambda: shell.info().get('state') == 3 and shell.call(SHELL, PATH, INTERFACE,
-                     'GetExtensionErrors', '(s)', (UUID,), '(as)'), 'native-error-not-observed')
                 wait(lambda: monitor_reported_failure(failed_at), 'missing-display-error-not-observed')
                 guest.require(invocation() == identity and report_state()['MainPID'] == '0',
                               'extension:failure-report-not-deferred')

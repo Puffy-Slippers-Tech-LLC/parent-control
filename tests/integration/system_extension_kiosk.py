@@ -18,7 +18,7 @@ from system_extension_monitor import (
     BrokerEvents, DISABLED_CHOICE, ENABLED_CHOICE, Shell, UUID,
     invocation, native_choices, state_digest,
 )
-from system_extension_parent import isolated_monitor_bus
+from system_extension_parent import isolated_extension_monitor
 from system_graphical_expiry import child_session, wait_for
 from system_session_expiry import LIMITS, grant, identities, installed_manager
 
@@ -54,7 +54,7 @@ def verify(record):
         # broker. Fixture controls and headroom grants are outside the measured
         # single approval; no natural-expiry or authentication matrix is replayed.
         accepted(call(parent, 'GetPreferences', '(u)', (child,)))
-        with isolated_monitor_bus():
+        with isolated_extension_monitor():
             accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 0)))
             grant(child, 1200)
             accepted(call(parent, 'SetParentControl', '(ubu)', (accounts['other'], True, 30)))

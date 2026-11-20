@@ -89,17 +89,25 @@ for (const [code, category] of [
     });
 }
 
+test('reactivation can recover after three consecutive lost replies', async () => {
+    const expected = {'': [true, 0, 123, 0, 0]};
+    const h = harness(['NO_REPLY', 'NO_REPLY', 'NO_REPLY', expected]);
+    assert.equal(await h.query(), expected);
+    assert.deepEqual(h.waits, [200, 1000, 3000]);
+    assert.deepEqual(h.logs.at(-1), {event: 'child.timer-recovered', attempts: 4});
+});
+
 test('persistent interruption is bounded, never becomes a zero estimate, and releases the queue', async () => {
     const expected = {'': [true, 0, 60, 0, 0]};
-    const h = harness(['NO_REPLY', 'NO_REPLY', 'NO_REPLY', expected]);
+    const h = harness([...Array(5).fill('NO_REPLY'), expected]);
     const failed = h.query();
     const next = h.query();
     await assert.rejects(failed, error => error.code === 'NO_REPLY');
     assert.equal(await next, expected);
-    assert.equal(h.calls.length, 4);
-    assert.deepEqual(h.waits, [200, 200]);
+    assert.equal(h.calls.length, 6);
+    assert.deepEqual(h.waits, [200, 1000, 3000, 5000]);
     assert.deepEqual(h.logs.at(-1), {
-        event: 'child.timer-read-failed', category: 'no-reply', attempt: 3, retry: false,
+        event: 'child.timer-read-failed', category: 'no-reply', attempt: 5, retry: false,
     });
 });
 

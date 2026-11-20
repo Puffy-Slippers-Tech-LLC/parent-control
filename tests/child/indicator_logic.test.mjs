@@ -876,6 +876,31 @@ test('delayed and invalidated replies cannot restart time or replace newer polic
     assert.equal(indicator._deadlineUsec, 180_000_000, 'disposed indicators reject late replies');
 });
 
+test('a superseded estimate releases the next indicator refresh without reporting', async () => {
+    let reads = 0;
+    const indicator = createIndicator({
+        Gio: {Cancellable: class { cancel() { this.onCancel?.(); } }},
+        GLib: {get_monotonic_time: () => 100_000_000},
+        queryEstimatedTimes(cancellable) {
+            if (++reads === 1)
+                return new Promise((_resolve, reject) => {
+                    cancellable.onCancel = () => reject(new Error('cancelled'));
+                });
+            return Promise.resolve({'': [false, 0, 200]});
+        },
+        calculateOwnDeadline: async () => 200_000_000,
+        remainingSeconds, logInfo() {},
+        Main: {timeLimitsManager: {getCurrentTime: () => 100, dailyLimitTime: 200}},
+    });
+    Object.assign(indicator, {_sync() {}, _onError: () => assert.fail('obsolete read reported')});
+    const obsolete = indicator._refreshEstimate();
+    indicator.refreshEstimate();
+    await obsolete;
+    await new Promise(setImmediate);
+    assert.equal(reads, 2);
+    assert.equal(indicator._deadlineUsec, 200_000_000);
+});
+
 test('broker replacement cannot duplicate or strand an already pending lock request', () => {
     const callbacks = [];
     const events = [];

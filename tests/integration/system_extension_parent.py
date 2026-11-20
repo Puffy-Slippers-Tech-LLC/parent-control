@@ -6,11 +6,10 @@ monitor-only repair is accepted as a successful Parent recovery.
 """
 
 from contextlib import contextmanager
-import hashlib
 import json
 import os
 from pathlib import Path
-import stat
+from tempfile import TemporaryDirectory
 import time
 
 import system_guest as guest
@@ -23,56 +22,42 @@ from system_graphical_expiry import child_session, wait_for
 from system_session_expiry import grant, identities, installed_manager
 
 
-def monitor_bus_identity():
-    """Pin the installed helper before an attempt-owned permission fault."""
-    from oh_no_parent_control.child_bus import HELPER_PATH
-    helper = Path(HELPER_PATH)
-    original = helper.lstat()
-    guest.require(stat.S_ISREG(original.st_mode) and original.st_uid == original.st_gid == 0
-                  and original.st_nlink == 1 and original.st_mode & 0o044 == 0o044
-                  and not original.st_mode & 0o022, 'extension-parent:unsafe-bus-helper')
-    mode = stat.S_IMODE(original.st_mode)
-    return {'device': original.st_dev, 'inode': original.st_ino, 'mode': mode,
-            'sha256': hashlib.sha256(helper.read_bytes()).hexdigest()}
-
-
-def set_monitor_bus_mode(identity, expected_mode, desired_mode):
-    """Change only the pinned helper in the caller's exact expected state."""
-    from oh_no_parent_control.child_bus import HELPER_PATH
-    helper = Path(HELPER_PATH)
-    def owned(mode):
-        current = helper.lstat()
-        guest.require(stat.S_ISREG(current.st_mode) and current.st_uid == current.st_gid == 0
-                      and current.st_nlink == 1
-                      and (current.st_dev, current.st_ino) == (identity['device'], identity['inode'])
-                      and stat.S_IMODE(current.st_mode) == mode
-                      and hashlib.sha256(helper.read_bytes()).hexdigest() == identity['sha256'],
-                      'extension-parent:bus-helper-replaced')
-    owned(expected_mode)
-    os.chmod(helper, desired_mode, follow_symlinks=False)
-    owned(desired_mode)
-
-
 @contextmanager
-def isolated_monitor_bus():
-    """Deny new monitor connections; retain root's installed activation path.
+def isolated_extension_monitor():
+    """Use the installed broker with only its optional monitor factory absent."""
+    from oh_no_parent_control import extension_monitor
 
-    Stop the broker first so no connected monitor survives. A Shell observer
-    must connect before entering. Restore only the pinned file and fault state.
-    """
-    identity = monitor_bus_identity()
-    mode = identity['mode']
-    injected = mode & ~0o044
-
-    changed = False
-    try:
-        with guest.isolated_broker_for_faults():
-            set_monitor_bus_mode(identity, mode, injected)
-            changed = True
-        yield
-    finally:
-        if changed:
-            set_monitor_bus_mode(identity, injected, mode)
+    guest.guard()
+    overrides = Path('/run/systemd/system') / (guest.BROKER + '.d')
+    override = overrides / 'onpc-test-extension-monitor.conf'
+    overrides.mkdir(exist_ok=True)
+    # Keep the bind source visible to systemd when the broker uses PrivateTmp.
+    with TemporaryDirectory(prefix='no-extension-monitor-', dir=overrides) as work:
+        module = Path(work) / 'extension_monitor.py'
+        module.write_text('ExtensionMonitor = None\n')
+        unit = f'[Service]\nBindReadOnlyPaths={module}:{extension_monitor.__file__}\n'
+        identity = None
+        started = False
+        try:
+            with guest.isolated_broker_for_faults():
+                with override.open('x') as stream:
+                    status = os.fstat(stream.fileno())
+                    identity = (status.st_dev, status.st_ino)
+                    stream.write(unit)
+                guest.run(['systemctl', 'daemon-reload'])
+            started = True
+            yield
+        finally:
+            if identity is not None:
+                status = override.lstat()
+                guest.require((status.st_dev, status.st_ino) == identity,
+                              'extension-parent:monitor-override-replaced')
+                override.unlink()
+                guest.run(['systemctl', 'daemon-reload'])
+                if started:
+                    # Prevent pending child requests from cancelling the stop.
+                    with guest.isolated_broker_for_faults():
+                        pass
 
 
 # Run as the administrator on that administrator's real session bus. The
@@ -175,7 +160,7 @@ def verify(publish):
         # Saved-off autologin need not start the D-Bus-activated broker. Start
         # it through a read before the shared isolation helper pins its owner.
         accepted(call(accounts['parent'], 'GetPreferences', '(u)', (child,)))
-        with isolated_monitor_bus():
+        with isolated_extension_monitor():
             verify_actions(publish, accounts, manager, shell, session)
     finally:
         shell.close()

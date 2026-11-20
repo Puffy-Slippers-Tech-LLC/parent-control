@@ -582,7 +582,7 @@ def preparation(root, tool, args, concurrency, vms, *, control=None, report=None
             with test_source.reader(root):
                 acceptance_status = baseline_control().run(
                     [str(root / 'setup.sh'), '--test-tools-only'], cwd=root, env=os.environ.copy(),
-                    output=lambda data: report.log(None, data, host=host), wait_on_cancel=True)
+                    output=report.host_setup_output(host, accepted), wait_on_cancel=True)
         except (ValueError, OSError) as error:
             report.note(None, exception_details(error)['traceback'], host=host)
             acceptance_status = 2

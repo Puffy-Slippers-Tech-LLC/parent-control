@@ -32,8 +32,9 @@ PHASES = {
     'install': 'Installing the product',
     'app-snapshot': 'Saving the app snapshot',
     'resume': 'Starting the VM from the app snapshot',
-    'accept': 'Waiting for baseline acceptance',
-    'refresh': 'Refreshing test tools and accepting the baseline',
+    'accept': 'Snapshots saved · waiting for the VM batch to finish',
+    'refresh': 'Accepting baselines and updating test helpers',
+    'finish-setup': 'Test helpers updated · finishing host setup',
     'confirm': 'Confirming host completion',
 }
 
@@ -64,8 +65,10 @@ def row_priority(line):
         return 0
     if line.startswith(LOG_LABEL):
         return 2
-    if line.startswith('✓ ') or line.endswith('] Queued'):
+    if line.endswith('] ' + PHASES['accept']):
         return 3
+    if line.startswith('✓ ') or line.endswith('] Queued'):
+        return 4
     return 1
 
 
@@ -221,6 +224,20 @@ class Report:
             lines(data)
 
         return output, lines.finish
+
+    def host_setup_output(self, host, names):
+        def stage(line):
+            if line.rstrip(b'\r\n') == b'setup: [stage:graphical-host-policies]':
+                for name in names:
+                    self.update(name, 'finish-setup')
+
+        lines = Lines(stage, 4096)
+
+        def output(data):
+            self.log(None, data, host=host)
+            lines(data)
+
+        return output
 
     def remote_output(self, host, names):
         def diagnostics(data):

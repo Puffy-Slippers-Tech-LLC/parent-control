@@ -61,7 +61,7 @@ class LoginRecoveryJourney(InstalledJourney):
 
 
 def run_login_recovery(directory, lease, transport, ledger, *, expected_inputs, progress, context):
-    # host-ready persists the helper identity before any permission mutation.
+    # host-ready records the runtime monitor override for guarded cleanup.
     # Even a refused/uncertain worker is followed by the same guarded restore.
     try:
         history_command(transport, 'host-ready')

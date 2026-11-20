@@ -94,7 +94,8 @@ def watching(executions, lease):
 
 
 class Progress:
-    def __init__(self, phase, executions, *, watch=None, observation_sources=None, hold=()):
+    def __init__(self, phase, executions, *, failures, watch=None, observation_sources=None,
+                 hold=()):
         self.phase = phase
         self.expected = {item.case_id for item in executions}
         self.pending = b''
@@ -108,6 +109,7 @@ class Progress:
         self.blocked = None
         self.hold = set(hold)
         self.held = []
+        self.failures = failures
 
     def publish_finished(self, event):
         if self.watch is None or not self.watch.defer_finished(event):
@@ -185,6 +187,8 @@ class Progress:
                     elif kind == 'finished':
                         self.close(finished=True)
                         self.completed.add(nodeid)
+                        if result['nodeid'] in self.failures:
+                            continue
                         if (self.observation_sources is not None and
                                 self.observations.get(nodeid) in (None, 'blocked')):
                             self.blocked = self.blocked or nodeid
@@ -213,7 +217,9 @@ class Progress:
                                     'system_assertions.py', 'system_enforcement.py', 'owned_commands.py')
                                 and type(site.get('line')) is int
                                 and 0 < site['line'] <= 1000000]
-                write_event(sys.stdout, **result)
+                    self.failures.setdefault(result['nodeid'], result)
+                else:
+                    write_event(sys.stdout, **result)
             except (ValueError, TypeError, AttributeError):
                 continue
         # An unrelated malformed diagnostic cannot accumulate unbounded memory.

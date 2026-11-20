@@ -114,8 +114,7 @@ class ChildBusTransportTests(unittest.TestCase):
     def test_cleanup_errors_keep_helper_owned_until_reaped_and_monitor_retries(self):
         account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
         manager = mock.Mock()
-        manager.session_bus_address.return_value = "unix:path=/safe/bus"
-        manager._account.return_value = (account, None)
+        manager.session_bus_endpoint.return_value = (account, "unix:path=/safe/bus")
         process = mock.Mock()
         process.poll.return_value = None
         with (mock.patch.object(extension_monitor.threading.Thread, "start"),
@@ -154,6 +153,27 @@ class ChildBusTransportTests(unittest.TestCase):
                 self.assertIsNotNone(watch.connecting)
                 monitor._disconnect(watch)
                 self.assertEqual(monitor._attempts, {})
+
+    def test_monitor_rejects_changed_account_after_hello_at_same_address(self):
+        account = SimpleNamespace(pw_uid=1001, pw_gid=1001)
+        replacement = SimpleNamespace(pw_uid=1001, pw_gid=1002)
+        address = "unix:path=/safe/bus"
+        manager = mock.Mock()
+        manager.session_bus_endpoint.side_effect = [(account, address), (replacement, address)]
+        attempt, connection = mock.Mock(), mock.Mock()
+        with (mock.patch.object(extension_monitor.threading.Thread, "start"),
+              mock.patch.object(extension_monitor, "connect_child_bus", return_value=attempt) as connect):
+            monitor = extension_monitor.ExtensionMonitor(mock.Mock(), manager, mock.Mock())
+            watch = monitor.watches[1001] = extension_monitor._Watch(1001)
+            with mock.patch.object(monitor, "_retry") as retry:
+                monitor._connect(watch)
+                connect.call_args.args[-1](connection, None)
+            retry.assert_called_once_with(watch)
+        connection.close.assert_called_once_with(None, None, None)
+        connection.signal_subscribe.assert_not_called()
+        self.assertIsNone(watch.connection)
+        self.assertIsNone(watch.connecting)
+        self.assertEqual(monitor._attempts, {})
 
     def test_helper_failure_preserves_safe_category_and_differs_from_malformed_fd(self):
         from gi.repository import Gio, GLib
@@ -430,6 +450,11 @@ class ExtensionManagerTests(unittest.TestCase):
 
     def tearDown(self):
         self.runtime.cleanup()
+
+    @mock.patch("oh_no_parent_control.extension_manager.pwd.getpwuid", side_effect=KeyError)
+    def test_session_bus_endpoint_is_unavailable_after_account_disappears(self, getpwuid):
+        self.assertIsNone(self.manager.session_bus_endpoint(self.account.pw_uid))
+        getpwuid.assert_called_once_with(self.account.pw_uid)
 
     def test_loading_error_sentinel_is_not_a_confirmed_failure(self):
         from gi.repository import GLib

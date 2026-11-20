@@ -103,8 +103,7 @@ def test_child_extension_monitor_recovers_public_signals_and_reports_failure_onc
         return popen(*args, **kwargs)
 
     try:
-        with (mock.patch.object(manager, "session_bus_address", return_value=dbusmock_session.address),
-              mock.patch.object(manager, "_account", return_value=(account, None)),
+        with (mock.patch.object(manager, "session_bus_endpoint", return_value=(account, dbusmock_session.address)),
               mock.patch.object(child_bus, "HELPER_PATH", str(Path(child_bus.__file__).resolve())),
               mock.patch.object(child_bus.subprocess, "Popen", side_effect=private_helper),
               mock.patch.object(manager, "set_enabled", side_effect=enable),
@@ -203,8 +202,8 @@ def test_monitor_shutdown_drains_removed_watch_hello_after_delayed_completion(db
     broker, manager = mock.Mock(), mock.Mock()
     uids = [1001]
     broker.extension_watch_uids.side_effect = lambda: uids[:]
-    manager.session_bus_address.return_value = "unix:path=/unused"
-    manager._account.return_value = (SimpleNamespace(pw_uid=1001, pw_gid=1001), None)
+    manager.session_bus_endpoint.return_value = (
+        SimpleNamespace(pw_uid=1001, pw_gid=1001), "unix:path=/unused")
     attempts, completions = [], []
 
     def stalled_connection(account, address, context, callback):

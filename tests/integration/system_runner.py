@@ -2326,13 +2326,13 @@ def capture_session_screen(lease, output):
         raise
 
 
-def run_pytest(vm, run, phase, selection, *, on_output=None, observe_faults=False,
+def run_pytest(vm, run, phase, selection, *, failures, on_output=None, observe_faults=False,
                hold=()):
     """Forward only registered test events; raw SSH output stays private."""
     from system_progress import Progress
     previous = getattr(vm.commands, 'progress', None)
     executions = phase_executions(selection, phase)
-    progress = Progress(phase, executions, watch=watch_progress, hold=hold,
+    progress = Progress(phase, executions, failures=failures, watch=watch_progress, hold=hold,
                         observation_sources={item.case_id: AREA_SOURCES[item.area].name
                                              for item in executions} if observe_faults else None)
     vm.commands.progress = progress
@@ -2755,6 +2755,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
 
     run = lease.state['run']
     qualification_pending = False
+    pytest_failures = {}
 
     def capture_graphical_result():
         with ledger.measure('collection'):
@@ -2772,7 +2773,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         if owner is not None:
             controller_cases.add(owner.case_id)
         try:
-            progress = run_pytest(vm, run, phase, selection, on_output=on_output,
+            progress = run_pytest(vm, run, phase, selection, failures=pytest_failures,
+                                  on_output=on_output,
                                   observe_faults=current_build, hold=controller_cases)
         except CommandError as error:
             domain = ('product' if getattr(vm.commands, 'last_returncode', None) == 1
@@ -3050,6 +3052,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 ledger.pass_outcome('collection')
         except BaseException as error:
             collection_error = error
+        # pytest already stops at the first failure. Publish after collection
+        # so the outer fail-fast stop cannot cut off this guest's traceback.
+        if pytest_failures:
+            from tools.regression_events import write_event
+
+            for event in pytest_failures.values():
+                write_event(sys.stdout, **event)
         if qualification_pending:
             if collection_error is None and is_qualification_failure(directory, selection):
                 ledger.fail_outcome('infrastructure', QUALIFICATION_FAILURE)

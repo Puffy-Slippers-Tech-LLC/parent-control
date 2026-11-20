@@ -223,11 +223,11 @@ class ExtensionMonitor:
         if watch.uid in self._attempts.values():
             self._retry(watch)
             return
-        address = self.manager.session_bus_address(watch.uid)
-        if address is None:
+        endpoint = self.manager.session_bus_endpoint(watch.uid)
+        if endpoint is None:
             self._retry(watch)
             return
-        account, _home = self.manager._account(watch.uid)
+        account, address = endpoint
 
         def connected(connection, error):
             self._attempts.pop(attempt, None)
@@ -242,7 +242,7 @@ class ExtensionMonitor:
                 if self._stopped.is_set() or self.watches.get(watch.uid) is not watch:
                     connection.close(None, None, None)
                     return
-                if address != self.manager.session_bus_address(watch.uid):
+                if endpoint != self.manager.session_bus_endpoint(watch.uid):
                     connection.close(None, None, None)
                     self._retry(watch)
                     return

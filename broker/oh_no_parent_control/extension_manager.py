@@ -200,10 +200,20 @@ class ExtensionManager:
             else:
                 self._command_context.budget = previous
 
+    def session_bus_endpoint(self, uid):
+        """Resolve the account and its ownership-checked live bus together."""
+        try:
+            account, _home = self._account(uid)
+        except KeyError:
+            # A watch can outlive the NSS entry until the next refresh.
+            return None
+        address = self._live_session_address(account)
+        return (account, address) if address is not None else None
+
     def session_bus_address(self, uid):
-        """Return only the fixed, ownership-checked live child bus address."""
-        account, _home = self._account(uid)
-        return self._live_session_address(account)
+        """Return the ownership-checked live bus address when available."""
+        endpoint = self.session_bus_endpoint(uid)
+        return endpoint[1] if endpoint is not None else None
 
     def _live_session_address(self, account):
         _command, environment, transport = self._command(account, ())

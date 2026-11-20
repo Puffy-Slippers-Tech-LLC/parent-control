@@ -863,9 +863,13 @@ def test_system_progress_survives_diagnostics_between_writes(monkeypatch, kind):
             pass
 
     monkeypatch.setattr(sys, 'stdout', InterleavedOutput())
-    parser = Progress('installed', [SimpleNamespace(case_id='case')])
+    failures = {}
+    parser = Progress('installed', [SimpleNamespace(case_id='case')], failures=failures)
     parser((regression.PREFIX + json.dumps(dict(kind=kind, nodeid='test.py::case',
                                               detail='private guest diagnostic')) + '\n').encode())
+    if kind == 'failure':
+        assert not chunks
+        regression_events.write_event(sys.stdout, **failures['installed::case'])
     lines = ''.join(chunks).splitlines()
     events = [json.loads(line[len(regression.PREFIX):]) for line in lines
               if line.startswith(regression.PREFIX)]
@@ -882,7 +886,7 @@ def test_system_progress_survives_diagnostics_between_writes(monkeypatch, kind):
         watch.prepare_attempt(executions)
         chunks.clear()
         for index, execution in enumerate(executions):
-            parser = Progress(execution.phase, [execution], watch=watch)
+            parser = Progress(execution.phase, [execution], failures={}, watch=watch)
             parser((regression.PREFIX + json.dumps(dict(
                 kind='finished', nodeid='test.py::' + execution.case_id,
                 monotonic_ns=100 + index)) + '\n').encode())
@@ -1540,7 +1544,8 @@ def test_fixture_failure_cancels_before_exit_and_retains_cleanup(report, tmp_pat
 
 
 def test_guest_event_parser_never_forwards_unregistered_or_raw_secrets(capsys):
-    parser = Progress('enforcement', [SimpleNamespace(case_id='test_allowed')])
+    failures = {}
+    parser = Progress('enforcement', [SimpleNamespace(case_id='test_allowed')], failures=failures)
     prefix = regression_events.PREFIX
     parser(b'password=secret\n')
     event = prefix + json.dumps(dict(kind='failure', nodeid='test.py::test_allowed',
@@ -1548,6 +1553,8 @@ def test_guest_event_parser_never_forwards_unregistered_or_raw_secrets(capsys):
     parser(event[:12].encode())
     parser(event[12:].encode())
     parser((prefix + json.dumps(dict(kind='finished', nodeid='test.py::unregistered')) + '\n').encode())
+    assert not capsys.readouterr().out
+    regression_events.write_event(sys.stdout, **failures['enforcement::test_allowed'])
     output = capsys.readouterr().out
     assert 'enforcement::test_allowed' in output
     assert 'secret' not in output and 'unregistered' not in output

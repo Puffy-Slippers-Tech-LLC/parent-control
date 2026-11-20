@@ -1468,12 +1468,13 @@ System ID 301, `test_child_extension_login_unlock_recovery`, uses a separate
 daily time and no grant, then authenticates a fresh child login and one unlock
 of that same desktop after individual and global extension disablement. The
 shared guarded worker captures and resumes the child's original application
-work. A pinned permission fault holds automatic monitoring aside; each PAM
-recovery request must own the actual offline or live activation. Native active
-state and positive time, exact grants and policy, existing usage intervals and
-other extension choices are independently checked. The owner restores the
-permission fault before its verdict and the normal VM cleanup follows. Existing
-system 281/282 zero-time denial and expiry histories remain unchanged.
+work. A temporary guest service override disables only the extension monitor,
+leaving the installed child-bus helper available to the test and to live PAM
+recovery. Each PAM recovery request must own the actual offline or live
+activation. Native active state and positive time, exact grants and policy,
+existing usage intervals and other extension choices are independently checked.
+The owner removes the override and starts the normal broker before its verdict.
+Existing system 281/282 zero-time denial and expiry histories remain unchanged.
 
 For an explicit update check, add `--previous-artifacts '<prior-artifact-allocation>'` alongside
 `--artifacts '<current-artifact-allocation>'`, using the maintained builder's

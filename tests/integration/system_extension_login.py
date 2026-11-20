@@ -1,24 +1,50 @@
 """Real GDM login and retained-lock recovery with automatic repair isolated.
 
-The installed owner restores the permission fault in finally, including worker
+The installed owner removes the monitor override in finally, including worker
 failure. Native usage reads preserve existing records while allowing normal
 accounting from the real desktop; no usage is seeded, reset or replayed.
 """
 
 import json
 from pathlib import Path
+import stat
 import sys
 import time
 
 import system_guest as guest
 from system_assertions import accepted, account_property, call, session_limits
 from system_extension_monitor import BrokerEvents, UUID, invocation, native_choices, state_digest
-from system_extension_parent import monitor_bus_identity, recovery_proof, set_monitor_bus_mode
+from system_extension_parent import recovery_proof
 from system_graphical_expiry import child_session, screen_lock_observation, wait_for
 from system_session_expiry import identities, installed_manager
 
 HISTORY = guest.PAYLOAD / 'results' / 'extension-login.json'
 LIMITS = 'com.endlessm.ParentalControls.SessionLimits'
+MONITOR_OVERRIDE = Path('/run/systemd/system') / (guest.BROKER + '.d') / '90-onpc-login-test.conf'
+# Run the installed launcher, including its trust checks. Override only the
+# monitor factory when the launcher imports the service. Live PAM recovery
+# and the test's independent Shell observation both need the child-bus helper.
+BROKER_WITHOUT_MONITOR = '''\
+import builtins
+from dataclasses import replace
+import runpy
+import sys
+
+def import_for_launcher(name, *args, **kwargs):
+    module = builtins.__import__(name, *args, **kwargs)
+    if name == 'oh_no_parent_control.service':
+        production_dependencies = module.production_dependencies
+        module.production_dependencies = lambda bus: replace(
+            production_dependencies(bus), extension_monitor_factory=None)
+    return module
+
+launcher = '/usr/libexec/oh-no-parent-control-broker'
+sys.argv = [launcher]
+runpy.run_path(launcher, run_name='__main__', init_globals={
+    '__builtins__': dict(vars(builtins), __import__=import_for_launcher)})
+'''
+OVERRIDE_CONTENT = ('[Service]\nExecStart=\nExecStart=/usr/bin/python3 -I -B -c '
+                    + json.dumps(BROKER_WITHOUT_MONITOR) + '\n')
 
 
 def prepare():
@@ -43,6 +69,41 @@ def load():
 
 def save(history):
     HISTORY.write_text(json.dumps(history, sort_keys=True))
+
+
+def reload_broker():
+    guest.run(['systemctl', 'daemon-reload'])
+    # An active desktop can request D-Bus activation during a separate stop.
+    guest.run(['systemctl', 'restart', guest.BROKER])
+    guest.activate_broker(restart=False)
+
+
+def isolate_monitor(history):
+    directory = MONITOR_OVERRIDE.parent
+    directory.mkdir(mode=0o755, exist_ok=True)
+    status = directory.lstat()
+    guest.require(stat.S_ISDIR(status.st_mode) and status.st_uid == status.st_gid == 0
+                  and not status.st_mode & 0o022, 'extension-login:unsafe-service-drop-ins')
+    with MONITOR_OVERRIDE.open('x') as stream:
+        status = MONITOR_OVERRIDE.lstat()
+        history['override'] = [status.st_dev, status.st_ino]
+        stream.write(OVERRIDE_CONTENT)
+    save(history)
+    reload_broker()
+
+
+def restore_monitor(history):
+    if 'override' not in history:
+        return
+    guest.enable_diagnostics()
+    status = MONITOR_OVERRIDE.lstat()
+    guest.require(stat.S_ISREG(status.st_mode) and status.st_uid == status.st_gid == 0
+                  and status.st_nlink == 1 and not status.st_mode & 0o022
+                  and [status.st_dev, status.st_ino] == history['override']
+                  and MONITOR_OVERRIDE.read_text() == OVERRIDE_CONTENT,
+                  'extension-login:monitor-override-replaced')
+    MONITOR_OVERRIDE.unlink()
+    reload_broker()
 
 
 def timer():
@@ -104,15 +165,11 @@ def begin():
     accepted(call(parent, 'SetParentControl', '(ubu)', (child, True, 1440)))
     accepted(call(parent, 'RevokeOneTimeGrant', '(u)', (child,)))
     guest.require(session_limits(child) == (2, 86400, [0, 0]), 'extension-login:not-daily-only')
-    fault = monitor_bus_identity()
     history = {'run': marker['run'], 'boot': Path('/proc/sys/kernel/random/boot_id').read_text(),
-               'fault': fault, 'fault_restored': False, 'proofs': {}, 'phase': 'preparing'}
-    # Persist the pinned original before injecting, so outer finally can safely
-    # restore either an unmodified original or the exact injected mode.
+               'monitor_restored': False, 'proofs': {}, 'phase': 'preparing'}
     with HISTORY.open('x') as stream:
         json.dump(history, stream)
-    with guest.isolated_broker_for_faults():
-        set_monitor_bus_mode(fault, fault['mode'], fault['mode'] & ~0o044)
+    isolate_monitor(history)
     history['invocation'] = invocation()
     history['startup'] = accepted(call(parent, 'GetStartupTimings'))[0]
     history['states'] = {role: state_digest(uid) for role, uid in accounts.items()}
@@ -188,22 +245,12 @@ def command(name):
         return begin()
     if name == 'restore' and not HISTORY.exists():
         guest.require(not HISTORY.is_symlink(), 'extension-login:history-link')
-        return {'restored': True}  # Preparation refused before recording or changing the helper.
+        return {'restored': True}  # Preparation refused before recording an override.
     history = load()
     if name == 'restore':
-        if not history['fault_restored']:
-            # Restore is a fresh process; load the installed package through
-            # the same guarded import route used by the measured commands.
-            installed_manager()
-            fault = history['fault']
-            # Injection can fail before chmod; accept only these two pinned modes.
-            from oh_no_parent_control.child_bus import HELPER_PATH
-            import stat
-            mode = stat.S_IMODE(Path(HELPER_PATH).lstat().st_mode)
-            guest.require(mode in (fault['mode'], fault['mode'] & ~0o044),
-                          'extension-login:unexpected-helper-mode')
-            set_monitor_bus_mode(fault, mode, fault['mode'])
-            history['fault_restored'] = True
+        if not history['monitor_restored']:
+            restore_monitor(history)
+            history['monitor_restored'] = True
             save(history)
         return {'restored': True}
     accounts, manager = identities(), installed_manager()
@@ -240,7 +287,7 @@ def command(name):
 
 def verify(record):
     history = load()
-    guest.require(history['phase'] == 'complete' and history['fault_restored']
+    guest.require(history['phase'] == 'complete' and history['monitor_restored']
                   and set(history['proofs']) == {'login', 'unlock'}, 'extension-login:history-incomplete')
     for name, proof in history['proofs'].items():
         record('onpc.extension-login.' + name, json.dumps(proof, sort_keys=True))

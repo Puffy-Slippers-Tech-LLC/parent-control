@@ -11,6 +11,10 @@ import system_runner as system
 from private_artifacts import require
 from guest_inputs import Bundle
 
+# Snapshot preparation only needs the package recipe and guarded guest entry
+# point, with their dependencies selected from the caller's frozen bundle.
+SNAPSHOT_INPUTS = ('install-source/Makefile', 'system_guest.py')
+
 
 @contextmanager
 def timed_stage(stage):
@@ -48,16 +52,6 @@ def inputs(root, *, product_failure_signal=False):
         'tests/integration/wellbeing_probe.py', *failure_helpers)]])
 
 
-def snapshot_inputs(bundle):
-    """Select installation helpers from the caller's already frozen inputs.
-
-    Snapshot preparation needs no fixture declarations or scenario workers.
-    Keep its package recipe and guarded guest entry point, including their
-    transitive imports, without reading replacement bytes from the checkout.
-    """
-    return bundle.subset('install-source/Makefile', 'system_guest.py')
-
-
 def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_only=False,
           upgrade=False):
     """Bind the existing installed payload and fixed helper bytes before bootstrap."""
@@ -81,7 +75,6 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
             (assets / name).exists() or (assets / name).is_symlink()
             for name in {'package.deb', 'package.rpm'} - set(packages)),
             'setup:snapshot-platform')
-        bundle = snapshot_inputs(bundle)
         destination.mkdir(mode=0o700)
         for name in (*packages, 'installed-files.json'):
             shutil.copyfile(assets / name, destination / name)
@@ -103,7 +96,7 @@ def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_
         (destination / 'previous-inputs.json').write_bytes(system.baseline.encode({
             'sha256': previous['sha256'], 'source': pair['sources']['previous']}))
         (destination / 'previous-inputs.json').chmod(0o600)
-    files = bundle.stage(destination)
+    files = bundle.stage(destination, entries=SNAPSHOT_INPUTS if snapshot else None)
     if package_only:
         # Shared system inputs may include scenario comparison fixtures. The
         # snapshot whitelist above excludes them; guard the outgoing payload.

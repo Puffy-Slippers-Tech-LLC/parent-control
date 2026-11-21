@@ -144,7 +144,8 @@ class Bundle:
         return cls(root, [(item['source'], target) for target, item in entries.items()],
                    frozen=frozen)
 
-    def closure(self, entries):
+    def closure(self, *entries):
+        """Select frozen payload paths with their resolved import dependencies."""
         pending, selected = list(entries), set()
         while pending:
             target = pending.pop()
@@ -152,26 +153,22 @@ class Bundle:
                 continue
             selected.add(target)
             pending.extend(self.dependencies[self.sources[target]])
-        return sorted(selected)
-
-    def subset(self, *entries):
-        """Keep the frozen dependency closure under its original guest paths."""
-        selected = self.closure(entries)
-        return Bundle(self.root, [(self.sources[target], target) for target in selected],
-                      frozen={self.sources[target]: self.files[target] for target in selected})
+        return selected
 
     def digest(self, entry):
         """Identify only an entry point's frozen transitive dependency closure."""
         value = hashlib.sha256()
-        for target in self.closure([entry]):
+        for target in sorted(self.closure(entry)):
             value.update(target.encode() + b'\0')
             value.update(hashlib.sha256(self.files[target]).digest())
         return value.hexdigest()
 
-    def stage(self, destination):
+    def stage(self, destination, *, entries=None):
         destination = Path(destination)
         result = {}
-        for target, data in sorted(self.files.items()):
+        targets = self.files if entries is None else self.closure(*entries)
+        for target in sorted(targets):
+            data = self.files[target]
             path = destination / target
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.is_symlink() or path.resolve() != path:

@@ -703,12 +703,12 @@ def qualify(directory, assets):
         assets = directory / 'assets'
         provenance = preflight_source(assets)
         bundle = suite.input_bundle(ROOT)
-        lean = installed_setup.snapshot_inputs(bundle)
         target = prepare_vm.vm_config.selected().name
         system.require(target in TARGETS, 'fixture-snapshots:target-not-qualified')
         os_id = TARGETS[target]
-        allowed = set(lean.files) | {'package.' + ('rpm' if os_id == 'fedora' else 'deb'), 'installed-files.json',
-                                   'selected-inputs.json', 'transfer-sha256.json'}
+        allowed = bundle.closure(*installed_setup.SNAPSHOT_INPUTS) | {
+            'package.' + ('rpm' if os_id == 'fedora' else 'deb'), 'installed-files.json',
+            'selected-inputs.json', 'transfer-sha256.json'}
         product_paths = installed_product_paths(assets)
         source, _, lease = suite.acquire(system.RunLedger())
         system.require(source.domain.name() == target,

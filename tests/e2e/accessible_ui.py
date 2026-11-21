@@ -15307,7 +15307,7 @@ class AccessibleUI:
             require_active_launch_session(unlocked=True)
             require(self.native_app_closed(instance, desktop=False, complete_absence=True),
                     'ui:native-blocked-window')
-        self.observe_launch_denial(denied, 'native-blocked-absence')
+        self.observe_launch_denial(denied, 'native-blocked-absence', retry_incomplete=True)
         self.prepare_launch_desktop()
         self.wait(lambda: self.native_app_closed(instance), 'native-blocked-desktop')
 
@@ -15320,8 +15320,8 @@ class AccessibleUI:
             try:
                 read()
             except (UiError, *self.query_errors):
-                # An attributed command denial can reacquire the public
-                # result. Discard the interval that contained a failed read.
+                # Reacquiring a read restarts the absence interval. Keep the
+                # previous sample time so the observation gap still counts.
                 started = None
                 raise
             observed = time.monotonic()

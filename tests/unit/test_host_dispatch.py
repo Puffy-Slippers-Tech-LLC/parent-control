@@ -251,8 +251,15 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
         monkeypatch.setattr('test_source.reader', live_reader)
         with frozen.use():
             assert remote_sources.current_sources(controller) is frozen
+        artifact = tmp_path / 'controller-artifact'
+        artifact.mkdir()
+        (artifact / 'fixture.txt').write_text('checked fixture bytes\n')
+        monkeypatch.setattr(remote_sources, 'artifact_inputs',
+                            lambda *args, **kwargs: {str(artifact): artifact})
+        guest_input = b'guest input follows the artifact\n'
         with remote_sources.capsule(controller, frozen.host,
-                [str(controller / 'tools/test-vm')], {}, sources=frozen) as (command, payload, request):
+                [str(controller / 'tools/test-vm')], {}, sources=frozen,
+                stdin_file=io.BytesIO(guest_input)) as (command, payload, request):
             assert command[0] == '/usr/bin/python3'
             assert command[-1] == str(frozen.directory)
             assert request['source_identity'] == baseline
@@ -261,6 +268,15 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
             second = tmp_path / 'frozen-dispatch'
             receive_transfer(io.BytesIO(payload.read(header['size'])), second, header['manifest'])
             assert (second / 'payload.txt').read_text() == 'uncommitted controller change\n'
+            assert payload.read(header['git_size']) == frozen.git_path.read_bytes()
+            [bundle] = header['bundles']
+            assert header['stdin_size'] == len(guest_input)
+            tail = payload.read(bundle['size'] + header['stdin_size'])
+            assert tail[bundle['size']:] == guest_input
+            transferred = tmp_path / 'transferred-artifact'
+            receive_transfer(io.BytesIO(tail[:bundle['size']]), transferred, bundle['manifest'])
+            assert (transferred / 'fixture.txt').read_text() == 'checked fixture bytes\n'
+            assert payload.read() == b''
             result = subprocess.run(command, input=b'\0' * 8, cwd=controller,
                 env=environment, capture_output=True, timeout=10, check=False,
                 pass_fds=scratch_descriptors())

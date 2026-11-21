@@ -5,6 +5,7 @@ from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 import base64
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -349,6 +350,28 @@ def verify_artifacts(path):
         verify(path, package_only=(path / PACKAGE_INPUT_NAME).is_file())
 
 
+class _CapsulePayload(io.RawIOBase):
+    """Expose the header and independently owned inputs as one binary stream."""
+
+    def __init__(self, parts):
+        super().__init__()
+        self._parts = iter(parts)
+        self._current = next(self._parts)
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        if not buffer:
+            return 0
+        while self._current is not None:
+            size = self._current.readinto(buffer)
+            if size:
+                return size
+            self._current = next(self._parts, None)
+        return 0
+
+
 @contextmanager
 def capsule(root, host, command, environment, *, mode='operation', cooperative=False,
             execution=None, cwd=None, separate_stderr=False, stdin_file=None, sources=None,
@@ -381,11 +404,10 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
     if local and sources is not None:
         worker_command.append(str(sources.directory))
     ssh = worker_command if local else ssh_command(host, worker_command)
-    with ExitStack() as inputs, tempfile.TemporaryFile(dir=scratch_directory()) as archive, \
-            tempfile.TemporaryFile(dir=scratch_directory()) as payload, \
-            tempfile.TemporaryFile(dir=scratch_directory()) as guest_input, \
-            tempfile.TemporaryFile(dir=scratch_directory()) as git_pack:
+    with ExitStack() as inputs:
+        guest_input = None
         if stdin_file is not None:
+            guest_input = inputs.enter_context(tempfile.TemporaryFile(dir=scratch_directory()))
             for block in iter(lambda: stdin_file.read(1024 * 1024), b''):
                 guest_input.write(block)
                 if guest_input.tell() > 64 * 1024 * 1024:
@@ -393,13 +415,19 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
         with (nullcontext() if sources is not None else
               test_source.reader(root, wait=mode != 'pool', stopped=stopped)):
             if sources is None:
+                archive = inputs.enter_context(tempfile.TemporaryFile(dir=scratch_directory()))
                 manifest = transfer_archive(root, archive)
-                git_snapshot = transfer_git(root, git_pack) if mode != 'pool' else None
             else:
                 archive = inputs.enter_context(sources.archive_path.open('rb'))
-                git_pack = inputs.enter_context(sources.git_path.open('rb'))
                 manifest = sources.manifest
-                git_snapshot = sources.git if mode != 'pool' else None
+            if mode == 'pool':
+                git_pack = git_snapshot = None
+            elif sources is None:
+                git_pack = inputs.enter_context(tempfile.TemporaryFile(dir=scratch_directory()))
+                git_snapshot = transfer_git(root, git_pack)
+            else:
+                git_pack = inputs.enter_context(sources.git_path.open('rb'))
+                git_snapshot = sources.git
             files = {}
             # A family assignment is small controller-owned input, never an
             # ambient descriptor or a request for another controller's files.
@@ -425,9 +453,9 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 bundles.append(dict(original=original, controller_path=str(path),
                                     size=stream.tell(), manifest=bundle_manifest))
                 bundle_streams.append(stream)
-                stream.seek(0)
             archive.seek(0, os.SEEK_END)
-            git_pack.seek(0, os.SEEK_END)
+            if git_pack is not None:
+                git_pack.seek(0, os.SEEK_END)
             request = dict(mode=mode, receipt=uuid.uuid4().hex, host=host.name,
                 branch=sources.branch if sources is not None else vm_config.current_branch(),
                 controller_root=str(root), source_identity=sources.source if sources is not None else source_identity(root),
@@ -436,23 +464,23 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                              if key not in ('SSH_AUTH_SOCK', watch_control.VARIABLE)},
                 watch=watch_control.settings(),
                 cooperative=cooperative, execution=execution or {}, cwd=str(cwd or root),
-                stdin_size=guest_input.tell() if stdin_file is not None else None,
+                stdin_size=guest_input.tell() if guest_input is not None else None,
                 separate_stderr=separate_stderr, files=files, manifest=manifest, size=archive.tell())
-            request.update(git=git_snapshot, git_size=git_pack.tell() if mode != 'pool' else 0, bundles=bundles)
+            request.update(git=git_snapshot, git_size=git_pack.tell() if git_pack is not None else 0,
+                           bundles=bundles)
             header = json.dumps(request).encode()
-            payload.write(len(header).to_bytes(8, 'big') + header)
-            archive.seek(0)
-            shutil.copyfileobj(archive, payload)
-            if mode != 'pool':
-                git_pack.seek(0)
-                shutil.copyfileobj(git_pack, payload)
-            # ExitStack owns these finite bundle streams through transmission.
-            for stream in bundle_streams:
-                shutil.copyfileobj(stream, payload)
-            guest_input.seek(0)
-            shutil.copyfileobj(guest_input, payload)
-            payload.seek(0)
-        yield ssh, payload, request
+            # The source reader can exit before transmission: every part is
+            # either a private input or an independently opened frozen file.
+            parts = [io.BytesIO(len(header).to_bytes(8, 'big')), io.BytesIO(header), archive]
+            if git_pack is not None:
+                parts.append(git_pack)
+            parts.extend(bundle_streams)
+            if guest_input is not None:
+                parts.append(guest_input)
+            for part in parts:
+                part.seek(0)
+        with io.BufferedReader(_CapsulePayload(parts)) as payload:
+            yield ssh, payload, request
 
 
 @contextmanager

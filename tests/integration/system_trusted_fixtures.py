@@ -306,9 +306,11 @@ def qualify(record):
     password = FixturePassword()
     password.install(parent)
     other_parent = pwd.getpwnam('onpc-parent-casey').pw_uid
-    with PersistentCaller(child) as caller, TextAgent(caller) as agent:
-        caller.send({'kind': 'call', 'method': 'RequestOwnAccess',
-                     'signature': '(uub)', 'args': (parent, 600, True)})
+    kiosk = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
+    # The kiosk can request a fixed grant while the child is signed out.
+    with PersistentCaller(kiosk) as caller, TextAgent(caller) as agent:
+        caller.send({'kind': 'call', 'method': 'RequestAccess',
+                     'signature': '(uuub)', 'args': (child, parent, 600, True)})
         agent.prompt(parent, other_parent)
         agent.authenticate(password)
         result = accepted(caller.receive())

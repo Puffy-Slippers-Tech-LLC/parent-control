@@ -109,11 +109,10 @@ class AsyncFeed:
 
     def run(self):
         try:
-            while not self.stop.is_set():
-                try:
-                    pixels = self.requests.get(timeout=.1)
-                except queue.Empty:
-                    continue
+            while True:
+                pixels = self.requests.get()
+                if self.stop.is_set():
+                    break
                 frame = self.feed.poll(pixels=pixels)
                 progress = self.feed.progress()
                 activity = self.feed.activity()
@@ -152,6 +151,7 @@ class AsyncFeed:
 
     def close(self):
         self.stop.set()
+        self.replace(self.requests, None)
         # The transport owner releases mappings after its bounded socket work.
         # Do not make GTK wait for another cell's connection or shutdown.
 

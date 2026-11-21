@@ -322,10 +322,11 @@ the observation. The tuple is the fresh-child tuple above.
 
 `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` freshly observe
 the greeter after the system confirms time denial. A usable account list ends
-recovery. A uniquely identified prompt for the same child permits Escape. A
-fresh, sensitive, focused, empty password field for that child permits the
-second Escape when GDM renews the prompt. The helper independently verifies
-the final usable account list and refuses ambiguous or wrong recipients.
+recovery. A uniquely identified prompt for the same child permits Escape.
+After that Escape, a fresh observation of a sensitive, focused, empty password
+field for the same child permits one more Escape. This also covers GDM showing
+an empty password prompt in the first observation. The helper independently
+verifies the final usable account list and refuses ambiguous or wrong recipients.
 
 #### Jordan daily access qualification
 

@@ -71,11 +71,12 @@ sub return_from_time_denial {
     $journey->consume_observation($ready_stage, $ready);
     testapi::send_key('esc') unless $ready_state eq 'account-list';
     my $state = $journey->invoke($state_stage);
-    die 'gdm:denial-return-state' unless ($state->{gdm_return_state} // '') eq 'account-list'
-        || ($state->{gdm_return_state} // '') eq 'child-prompt';
+    my $return_state = $state->{gdm_return_state} // '';
+    die 'gdm:denial-return-state' unless $return_state eq 'account-list' || $return_state eq 'child-prompt';
     $journey->consume_observation($state_stage, $state);
-    testapi::send_key('esc') if $ready_state eq 'rejected-prompt'
-        && $state->{gdm_return_state} eq 'child-prompt';
+    # GDM can already show an empty child prompt in the first observation.
+    # Base a second Escape on a fresh prompt observation after the first Escape.
+    testapi::send_key('esc') if $ready_state ne 'account-list' && $return_state eq 'child-prompt';
     return $journey->invoke($returned_stage);
 }
 

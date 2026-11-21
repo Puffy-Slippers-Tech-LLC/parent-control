@@ -699,13 +699,62 @@ def install_package():
     return transaction
 
 
-def install_previous():
+def restore_previous_debdb():
+    """Give the historical installer the original Ubuntu configuration."""
+    from native_trust import (BACKEND_CONFIG, BACKEND_RECORD, TRUST_FILE,
+                              TRUST_PENDING, validate_backend_record)
+
+    def read_owned(path, limit):
+        require(path.resolve() == path, 'previous-package:backend-path')
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == 0
+                    and not info.st_mode & 0o022 and info.st_size <= limit,
+                    'previous-package:backend-owner')
+            return stream.read(limit + 1), info
+
+    require(not any(os.path.lexists(path) for path in (TRUST_FILE, TRUST_PENDING)),
+            'previous-package:fixture-trust-present')
+    raw, receipt = read_owned(Path(BACKEND_RECORD), 300000)
+    require(receipt.st_gid == 0 and stat.S_IMODE(receipt.st_mode) == 0o600,
+            'previous-package:backend-receipt')
+    record = validate_backend_record(json.loads(raw))
+    config = Path(BACKEND_CONFIG)
+    current, info = read_owned(config, 65536)
+    before = bytes.fromhex(record['before_hex'])
+    require(record['complete'] and record['os_id'] == 'ubuntu'
+            and current == bytes.fromhex(record['after_hex'])
+            and record['metadata'] == {'uid': info.st_uid, 'gid': info.st_gid,
+                                       'mode': stat.S_IMODE(info.st_mode)},
+            'previous-package:backend-substituted')
+    if before == current:
+        return
+
+    # v1.3 uses its native reboot deferral when it enables the file backend.
+    # The live daemon keeps its current configuration until that reboot.
+    with tempfile.TemporaryDirectory(dir=config.parent) as directory:
+        replacement = Path(directory) / config.name
+        with replacement.open('xb') as staged:
+            staged.write(before)
+            staged.flush()
+            os.fchown(staged.fileno(), info.st_uid, info.st_gid)
+            os.fchmod(staged.fileno(), stat.S_IMODE(info.st_mode))
+            os.fsync(staged.fileno())
+        os.replace(replacement, config)
+
+
+def install_previous(*, original_debdb=False):
     before_install()
     enable_diagnostics()
     previous = PAYLOAD / ('previous-package' + package_path().suffix)
     expected = json.loads((PAYLOAD / 'previous-inputs.json').read_text())
     require(sha(previous) == expected['sha256'], 'previous-package-digest')
     from guest_install_recipe import install as install_recipe
+    if original_debdb:
+        require(previous.suffix == '.deb' and expected['source'].get('release_name') == 'v1.3',
+                'previous-package:original-debdb-release')
+        restore_previous_debdb()
     install_recipe(run, guard, previous)
     verify_package_files(previous, category='previous-package')
     (PAYLOAD / 'results').mkdir(mode=0o700, exist_ok=True)
@@ -1294,6 +1343,8 @@ def main(argv=None):
             print(json.dumps(activation_state(argv[1]), sort_keys=True))
         elif argv == ['prepare-activation-greeter']:
             prepare_activation_greeter()
+        elif argv == ['install-previous', '--original-debdb']:
+            install_previous(original_debdb=True)
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],

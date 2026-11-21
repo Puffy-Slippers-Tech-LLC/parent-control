@@ -2640,6 +2640,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 for extension in ('deb', 'rpm')]
     has_previous = any(path.exists() for path in previous)
     current_build = not has_previous
+    original_debdb = (clean and not already_installed and not preparation_only and previous[0].is_file()
+                      and json.loads((directory / 'input/previous-inputs.json').read_bytes())[
+                          'source'].get('release_name') == 'v1.3')
 
     def phase_owner(phase, case_id=None):
         return next(item for item in phase_executions(selection, phase)
@@ -2725,8 +2728,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     lease.product_log_capture = None
                 raise
         start_initial_history()
-        try:
-            if already_installed:
+        def prepare_fixtures():
+            if already_installed or original_debdb:
                 with ledger.measure('bootstrap', operation='startup-readiness'):
                     vm.wait_boot_complete()
             with ledger.measure('bootstrap', operation='fixture-provisioning'):
@@ -2741,7 +2744,13 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 else:
                     observed = None
                 context['controller'].require_ready(context['receipt'])
-                fixture_context = context
+                return context, observed
+
+        try:
+            # v1.3 enables the file backend from the original Debian config.
+            # Install and boot it before admitting any attempt-owned file trust.
+            if not original_debdb:
+                fixture_context, observed = prepare_fixtures()
         except BaseException:
             try:
                 with cancellation_cleanup():
@@ -2879,7 +2888,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         elif has_previous:
             log('stage:package-install')
             with ledger.measure('install', operation='previous-package'):
-                vm.call(guest_command(run, 'install-previous'), timeout=2400)
+                install_options = ('--original-debdb',) if original_debdb else ()
+                vm.call(guest_command(run, 'install-previous', *install_options), timeout=2400)
             if trusted_fixtures:
                 # Preserve the verified old installation before its required
                 # boot can lose transport. Qualification still runs only after
@@ -2889,6 +2899,8 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             log('stage:previous-package-reboot')
             with ledger.measure('reboot', operation='previous-package'):
                 vm.reboot()
+            if original_debdb:
+                fixture_context, _ = prepare_fixtures()
             if previous_policy:
                 log('stage:pytest-previous-policy')
                 with ledger.measure('test', operation='pytest-previous-policy'):

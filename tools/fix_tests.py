@@ -84,8 +84,10 @@ def validation_command(root, failure, *, record=False):
     if not failure.get('case') and isinstance(failure.get('work'), dict):
         from vm_case_queue import arguments
         command += arguments(failure['work'])
-        if failure.get('vm'):
-            command += ['--vm', failure['vm']]
+        vms = failure.get('validation_vms') if failure['work']['area'] else None
+        selector = ','.join(vms) if vms else failure.get('vm')
+        if selector:
+            command += ['--vm', selector]
         return command
     if failure.get('case'):
         command += ['--resume', '--resume-case=' + failure['case'], '--resume-case-only']
@@ -103,7 +105,7 @@ def repair_prompt(root, failure, *, record=False):
         'There is no triage session, pre-repair recheck, intermediate JSON response or '
         'launcher-managed continuation. Do not return an intermediate handoff.\n\n'
         'The scheduler has stopped other cases and released its bookings. The normal '
-        'runner below books the failing VM and supplies lifecycle prerequisites. Results '
+        'runner below books the selected VMs and supplies lifecycle prerequisites. Results '
         'are recorded automatically; do not edit result files or mark tests passed yourself. '
         'Preserve original selectors and expected behavior. For a failure before case '
         'discovery, repair the operation and validate its actual selected work.\n\n'

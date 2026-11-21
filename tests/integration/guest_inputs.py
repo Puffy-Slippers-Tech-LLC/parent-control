@@ -144,17 +144,26 @@ class Bundle:
         return cls(root, [(item['source'], target) for target, item in entries.items()],
                    frozen=frozen)
 
-    def digest(self, entry):
-        """Identify only an entry point's frozen transitive dependency closure."""
-        pending, selected = [entry], set()
+    def closure(self, entries):
+        pending, selected = list(entries), set()
         while pending:
             target = pending.pop()
             if target in selected:
                 continue
             selected.add(target)
             pending.extend(self.dependencies[self.sources[target]])
+        return sorted(selected)
+
+    def subset(self, *entries):
+        """Keep the frozen dependency closure under its original guest paths."""
+        selected = self.closure(entries)
+        return Bundle(self.root, [(self.sources[target], target) for target in selected],
+                      frozen={self.sources[target]: self.files[target] for target in selected})
+
+    def digest(self, entry):
+        """Identify only an entry point's frozen transitive dependency closure."""
         value = hashlib.sha256()
-        for target in sorted(selected):
+        for target in self.closure([entry]):
             value.update(target.encode() + b'\0')
             value.update(hashlib.sha256(self.files[target]).digest())
         return value.hexdigest()

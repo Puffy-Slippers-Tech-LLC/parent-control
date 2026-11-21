@@ -318,8 +318,10 @@ selection skips offline entries; direct maintenance refuses before access.
 Each available VM atomically claims the next pending work from its family's
 queue, including when the family has only one VM. Claims are recorded before
 execution, preventing concurrent duplicate cases; credit follows teardown and
-owned cleanup. Stateful histories remain indivisible, as do independent system
-area attempts that share preparation. Cancellation stops queued work and waits
+owned cleanup. Stateful histories and ordinary system area attempts that share
+preparation remain indivisible. A focused independent system area replay
+dispatches its cases separately when several eligible VMs can serve the family.
+Cancellation stops queued work and waits
 for active guests' cleanup. `--vm` accepts a VM name/ID or family name/ID, a comma-separated
 mixture, `all-enabled`, or `all`, with case-insensitive matching. Families expand to eligible members and overlapping
 selectors include each VM once. Optional `--vmhost` accepts one host or a comma-separated
@@ -559,6 +561,13 @@ The session continues its own work until validation succeeds. The launcher
 does not submit corrective turns, interpret intermediate JSON statuses, escalate
 models, count repair conversations or recover old threads. Native automatic
 goal continuation belongs to the session runtime.
+
+For an enclosing failure in an independent system area, the validation command
+keeps its case selectors and uses the eligible workers from that family in the
+original pool. The runner finishes the same area operation after every selected
+case has passed and its worker has finished cleanup. Older case passes keep
+their round credit while validation executes the full area again. A single
+eligible VM can run the area together and share preparation.
 
 Repair model and effort come from
 `agents.tools.fix-tests` in

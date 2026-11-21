@@ -55,9 +55,7 @@ def snapshot_inputs(bundle):
     Keep its package recipe and guarded guest entry point, including their
     transitive imports, without reading replacement bytes from the checkout.
     """
-    return Bundle(bundle.root, [('Makefile', 'install-source/Makefile'),
-        ('tests/integration/system_guest.py', 'system_guest.py')],
-        frozen={bundle.sources[target]: data for target, data in bundle.files.items()})
+    return bundle.subset('install-source/Makefile', 'system_guest.py')
 
 
 def stage(directory, assets, selection, *, bundle=None, snapshot=False, package_only=False,

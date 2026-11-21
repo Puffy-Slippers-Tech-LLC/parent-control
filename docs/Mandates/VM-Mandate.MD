@@ -148,8 +148,11 @@ from later groups can start while earlier assignments finish. Claims cannot
 overlap on a case identity within a group and family;
 failed or interrupted attempts retain their live owner until joined cleanup.
 Historical claims are discarded; incomplete attempts return to pending.
-Stateful histories and system area attempts remain indivisible for scheduling,
-but guest steps inside them may be interrupted for repair, reload or cancellation.
+Stateful histories and ordinary system area attempts remain indivisible for
+scheduling. Focused validation of an independent system area can dispatch its
+cases across eligible workers in the same family through the
+[repair contract](../../tests/README.md#scripted-repair-loop). Guest steps
+may be interrupted for repair, reload or cancellation.
 Each VM runs one attempt at a time, retaining its own lease and journals.
 Run independent installed checks concurrently on eligible VMs up to the
 host's available compute capacity. When checks need separate exact-selector
@@ -180,8 +183,9 @@ eligible work closes without running a case. Reservation release follows joined
 owned cleanup. On the first failed case, the repair
 launcher stops admission, cancels and joins companions, and releases normal
 bookings. Clear terminal results remain; incomplete attempts return to pending.
-One goal session validates the failure on the same named VM through ordinary
-booking and lifecycle prerequisites. There are no repair source fences, impact
+One goal session validates the failure through ordinary booking and lifecycle
+prerequisites using the [repair contract](../../tests/README.md#scripted-repair-loop).
+There are no repair source fences, impact
 holds, borrowed writer leases or retained repair tickets. The
 [repair contract](../../tests/README.md#scripted-repair-loop) owns that flow and
 explicit rounds.

@@ -27,6 +27,31 @@ def same_desktop_profile(category, saved, requested):
     return category != 'e2e' or classic_profile(saved) == classic_profile(requested)
 
 
+def system_area_options(options):
+    """Normalize case selectors while retaining the operation's input options."""
+    selectors, inputs = {}, []
+    args = iter(options)
+    for arg in args:
+        flag, sep, value = arg.partition('=')
+        if flag in ('--area', '--test', '--id'):
+            selectors[flag] = value if sep else next(args, '')
+        else:
+            inputs.append(arg)
+    return selectors, inputs
+
+
+def area_selected(work, cases, options):
+    previous = work.get('options')
+    if not isinstance(previous, list) or any(not isinstance(arg, str) for arg in previous):
+        return False
+    prior_selection, prior_inputs = system_area_options(previous)
+    selection, inputs = system_area_options(options)
+    required = work.get('cases')
+    return prior_inputs == inputs and (
+        prior_selection == selection or isinstance(required, list) and bool(required)
+        and all(case in cases for case in required))
+
+
 def result_key(record):
     key = [record['category'], record['family'], record['case'], record.get('work')]
     if not same_desktop_profile(record['category'], record.get('options', []), ()):
@@ -88,13 +113,17 @@ class ResultStore:
         for record in self.failures():
             saved = record.get('work')
             case = record['case'] or (saved.get('case') if isinstance(saved, dict) else '')
+            area = isinstance(saved, dict) and saved.get('area')
             if (record['category'] == category and record['family'] in (family, 'command')
                     and same_desktop_profile(category, record.get('options', []), options)
+                    and (not area or area_selected(saved, cases, options))
                     and (case in cases if case else record.get('options') == options)):
                 vm = record.get('vm') if record.get('vm') in vms else next(iter(vms), '')
                 failure = dict(record, options=options, vm=vm)
                 if isinstance(saved, dict):
                     failure['work'] = dict(saved, category=category, options=options)
+                    if area:
+                        failure['validation_vms'] = list(vms)
                 self._save(self.directory / 'failure.json', failure)
                 return failure
         return None
@@ -121,6 +150,8 @@ class ResultStore:
             matching = (not saved and record.get('options') == options if work is None else
                         isinstance(saved, dict) and all(saved.get(key) == work.get(key)
                                                        for key in ('case', 'area')))
+            if matching and work is not None and work.get('area'):
+                matching = area_selected(saved, work['cases'], options)
             if (record['category'] == category and not record['case']
                     and (family is None or record['family'] in (family, 'command'))
                     and same_desktop_profile(category, record.get('options', []), options) and matching):
@@ -164,7 +195,7 @@ class ResultStore:
         if len(encoded) > 128 * 1024:
             record = {key: value for key, value in record.items()
                       if key in ('category', 'family', 'case', 'status', 'vm', 'options',
-                                 'complete', 'work', 'invocation')}
+                                 'complete', 'work', 'invocation', 'validation_vms')}
             encoded = json.dumps(record, ensure_ascii=True)
         fd, temporary = tempfile.mkstemp(prefix='result-', dir=path.parent)
         temporary = Path(temporary)

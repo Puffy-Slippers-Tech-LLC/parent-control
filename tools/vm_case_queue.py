@@ -54,7 +54,7 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     return cases
 
 
-def work_items(category, options, cases, *, upgrade=None):
+def work_items(category, options, cases, *, upgrade=None, area_retry=False):
     """Keep independent areas and stateful system histories indivisible."""
     from test_checkpoint import INDEPENDENT_SYSTEM_AREAS
     def item(selected, *, area=False):
@@ -76,7 +76,8 @@ def work_items(category, options, cases, *, upgrade=None):
             continue
         phase, _, logical = case.partition('::')
         area = phase in INDEPENDENT_SYSTEM_AREAS
-        key = ('case', case) if area and reverse else (('area', phase) if area else ('history', logical))
+        key = ('case', case) if area and reverse and not area_retry else (
+            ('area', phase) if area else ('history', logical))
         groups.setdefault(key, []).append(case)
     result = [item(selected, area=key[0] == 'area') for key, selected in groups.items()]
     return result[::-1] if reverse else result

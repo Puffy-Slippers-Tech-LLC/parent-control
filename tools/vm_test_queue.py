@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections import Counter
 from contextlib import ExitStack, nullcontext
 from dataclasses import dataclass, field
 from functools import partial
@@ -80,7 +81,7 @@ def _plan(root, argv, *, targets=None):
     if not vms and guest_args:
         raise ValueError('VM work requires its configured allowed pool')
     guest_selection = selections(root, guest_args) if guest_args else []
-    families = collect_families(root, vms, guest_selection)
+    families = collect_families(root, vms, guest_selection, area_retry='--resume-area-only' in guest_args)
     replay = next((arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')), None)
     if replay and len(guest_selection) == 1:
         from upgrade_history import upgrade_from
@@ -97,7 +98,7 @@ def _plan(root, argv, *, targets=None):
     return snapshot, vms, host_args, guest_args, guest_selection, families
 
 
-def collect_families(root, vms, selection):
+def collect_families(root, vms, selection, *, area_retry=False):
     from test_commands import execution_selections
     from upgrade_history import FROM_OPTION, main_revision, supported_releases, upgrade_from, upgrade_matrix
 
@@ -114,7 +115,7 @@ def collect_families(root, vms, selection):
                 cases = case_inventory(root, category, options, vm=vm.name,
                                        pass_fds=test_source.descriptors())
                 if category != 'system' or '--upgrade-inputs' not in options:
-                    items.extend(work_items(category, options, cases))
+                    items.extend(work_items(category, options, cases, area_retry=area_retry))
                     continue
                 package_format = vm.require_package_format()
                 if build is None:
@@ -133,7 +134,8 @@ def collect_families(root, vms, selection):
                 for version in previous:
                     flags = options if source else [*options, FROM_OPTION + 'v' + version]
                     items.extend(work_items(category, flags, cases,
-                                            upgrade=f'@v{version}-to-v{current}-{build[:16]}'))
+                                            upgrade=f'@v{version}-to-v{current}-{build[:16]}',
+                                            area_retry=area_retry))
     finally:
         if original_vm is None:
             os.environ.pop(VARIABLE, None)
@@ -189,6 +191,7 @@ class GroupHistory:
     failed_work: set = field(default_factory=set)
     observed_failures: set = field(default_factory=set)
     replayed_families: set = field(default_factory=set)
+    validated_area_cases: dict = field(default_factory=dict)
 
 
 class PassGroup:
@@ -209,12 +212,37 @@ class PassGroup:
         self.area = '--resume-area-only' in self.args
         self.focused = self.area or '--resume-case-only' in self.args
         self.selected = selected_cases(self.families, self.args)
+        self.split_areas = {}
+        if self.area:
+            workers = Counter(self.targets.values())
+            reverse = os.environ.get('ONPC_TEST_REVERSE') == '1'
+            self.families = {family: self.partition_area(family, items, reverse=reverse)
+                             if workers[family] > 1 or reverse else items
+                             for family, items in self.families.items()}
         self.checkpoint = stack.enter_context(PassCheckpoint(root, [['_host', host_args], ['_guest', self.args]],
             self.targets, self.families, resume='--resume' in (*host_args, *self.args), scope=scope))
         if self.replay:
             for family in self.families:
-                if family not in history.replayed_families:
+                if family in self.split_areas:
+                    # An older durable case pass cannot validate this operation.
+                    # A source refresh can carry forward this invocation's own passes.
+                    validated = history.validated_area_cases.get(family, set())
+                    for case in self.split_areas[family]['cases']:
+                        if case not in validated:
+                            self.checkpoint.retry(family, case)
+                elif family not in history.replayed_families:
                     self.checkpoint.retry(family, self.replay, area=self.area)
+
+    def partition_area(self, family, items, *, reverse):
+        partition = []
+        for work in items:
+            if work['area'] and self.replay in work['cases']:
+                self.split_areas[family] = dict(work, case=self.replay)
+                cases = reversed(work['cases']) if reverse else work['cases']
+                partition.extend(dict(work, case=case, cases=[case], area=False) for case in cases)
+            else:
+                partition.append(work)
+        return partition
 
     @staticmethod
     def key(family, work):
@@ -224,10 +252,12 @@ class PassGroup:
     def next_work(self, family):
         if self.focused and family in self.focus_finished:
             return None
+        area = self.split_areas.get(family)
         for work in self.checkpoint.pending(family):
             key = self.key(family, work)
-            if (key not in self.history.failed_work and key not in self.deferred_work
-                    and (not self.focused or self.replay in work['cases'])):
+            selected = (work['case'] in area['cases'] if area else
+                        not self.focused or self.replay in work['cases'])
+            if selected and key not in self.history.failed_work and key not in self.deferred_work:
                 return work
 
     def publish_counts(self):
@@ -313,6 +343,17 @@ def execute_pass(root, plan, control, execute, *, host=None,
         targets = {vm.name: vm for vm in vms}
         priority = {group.scope: order for order, group in enumerate(groups)}
 
+        def record_operation_failure(group, vm, work, value):
+            work = group.split_areas.get(vm.family, work)
+            context = {}
+            if work['area']:
+                context['validation_vms'] = [name for name, family in group.targets.items()
+                                             if family == vm.family]
+            result_store.record(work['category'], vm.family, '', value['status'],
+                vm=vm.name, options=work['options'], work=work,
+                output_tail=value.get('traceback', value.get('output_tail', '')),
+                handoffs=value.get('handoffs', []), **context)
+
         def attempt(worker):
             vm = worker.vm
             with lock:
@@ -322,7 +363,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
                 group, work = candidate
                 checkpoint = group.checkpoint
                 execution = None
-                if group.focused:
+                if group.focused and vm.family not in group.split_areas:
                     execution = dict(work, case=group.replay, area=group.area,
                                      cases=work['cases'] if group.area else [group.replay])
                 assignment = checkpoint.claim(vm.family, vm.name, work, execution=execution)
@@ -342,15 +383,13 @@ def execute_pass(root, plan, control, execute, *, host=None,
                         if probe is not None:
                             group, work = probe
                             group.failed = True
-                            result_store.record(work['category'], vm.family, '', value['status'],
-                                vm=vm.name, options=work['options'], work=work,
-                                output_tail=value.get('traceback', value.get('output_tail', '')),
-                                handoffs=value.get('handoffs', []))
+                            record_operation_failure(group, vm, work, value)
                             value['category'] = work['category']
                     return value
                 group, assignment = attempt
                 checkpoint = group.checkpoint
                 work = assignment['execution']
+                area = group.split_areas.get(vm.family)
                 evidence = value.get('evidence')
                 check_status = value['status']
                 reloading = check_status == 130 and launcher_reload.pending() and not control.stopped.is_set()
@@ -365,7 +404,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     result_store.record(work['category'], vm.family, case, 0, vm=vm.name,
                                         options=work['options'])
                 actual_failures = set(observed.get('failed', [])) & set(work['cases'])
-                if group.replay in observed.get('passed', []) or group.replay in actual_failures:
+                if not area and (group.replay in observed.get('passed', []) or group.replay in actual_failures):
                     group.history.replayed_families.add(vm.family)
                 for case in actual_failures:
                     group.history.observed_failures.add((vm.family, work['category'], case))
@@ -396,11 +435,16 @@ def execute_pass(root, plan, control, execute, *, host=None,
                 interrupted = value.get('interrupted') or value['status'] in (130, launcher_reload.STATUS)
                 complete = accepted is not None and (set(work['cases']) <= checkpoint.passed(vm.family, work['category'])
                             if work['cases'] else accepted is True)
+                if area:
+                    complete = complete and cleanup and work['case'] in observed.get('passed', [])
                 if complete and not work['cases']:
                     result_store.record(work['category'], vm.family, '', 0, vm=vm.name,
                                         options=work['options'], complete=True)
                 if complete and check_status == 0:
-                    result_store.finish_command(work['category'], work['options'], family=vm.family, work=work)
+                    if area:
+                        group.history.validated_area_cases.setdefault(vm.family, set()).add(work['case'])
+                    else:
+                        result_store.finish_command(work['category'], work['options'], family=vm.family, work=work)
                 if not value['status'] and not complete:
                     group.deferred_work.add(group.key(vm.family, assignment['work']))
                     value = dict(value, pending=True)
@@ -410,20 +454,25 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     if not continue_on_errors or not actual_failures or not observed.get('cleanup'):
                         failed.set()
                     if not actual_failures:
-                        result_store.record(work['category'], vm.family, '', value['status'],
-                            vm=vm.name, options=work['options'], work=work,
-                            output_tail=value.get('output_tail', ''), handoffs=value.get('handoffs', []))
-                if group.focused:
+                        record_operation_failure(group, vm, work, value)
+                if group.focused and not area:
                     group.focus_finished.add(vm.family)
                 group.publish_counts()
                 return value
 
         for group in groups:
             for family, items in group.families.items():
+                if failed.is_set():
+                    break
                 eligible = tuple(name for name, kind in group.targets.items() if kind == family)
-                if not failed.is_set() and any(result_store.select_failure(
-                        work['category'], family, work['cases'], work['options'], vms=eligible)
-                        for work in items):
+                # A reverse pass may queue an area's cases individually. Match
+                # a saved operation against the full selected inventory.
+                scopes = {}
+                for work in items:
+                    key = (work['category'], tuple(work['options']))
+                    scopes.setdefault(key, []).extend(work['cases'])
+                if any(result_store.select_failure(category, family, cases, list(options), vms=eligible)
+                       for (category, options), cases in scopes.items()):
                     failed.set()
                     group.failed = True
         if vms and not failed.is_set() and not control.stopped.is_set():
@@ -452,6 +501,10 @@ def execute_pass(root, plan, control, execute, *, host=None,
             status = 130
         else:
             status = PENDING_STATUS if unfinished else 0
+        if status == 0 and cleanup_complete:
+            for group in groups:
+                for family, area in group.split_areas.items():
+                    result_store.finish_command(area['category'], area['options'], family=family, work=area)
         can_refresh = cleanup_complete and not hard_failure and (
             status in (0, PENDING_STATUS) or continue_on_errors and status == 1)
         return dict(status=status, results=results, failures=result_store.failures(),
@@ -573,7 +626,7 @@ def run(root, argv, *, reloading=False, upstream_run=None, accounting=None):
                     continue
                 try:
                     families = collect_families(root, [configured[name] for name in group['vms']],
-                                                selections(root, args))
+                                                selections(root, args), area_retry='--resume-area-only' in args)
                 except (OSError, ValueError, subprocess.CalledProcessError):
                     # Dispatch still owns discovery errors for this group.
                     progress.update(key, 0, 0, None)

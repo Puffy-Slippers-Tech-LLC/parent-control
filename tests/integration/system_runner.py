@@ -2714,7 +2714,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 'command', 'catalogue', 'whitespace', 'pattern', 'retention')
                 if subset not in subsets)
         with ledger.measure('bootstrap', operation='ssh-readiness'):
-            vm.probe_ready()
+            try:
+                vm.probe_ready()
+            except KeyboardInterrupt:
+                if clean and not already_installed:
+                    # The product-free guest was interrupted before SSH readiness.
+                    # There are no product logs to fetch during restoration.
+                    lease.product_log_capture = None
+                raise
         start_initial_history()
         try:
             if already_installed:

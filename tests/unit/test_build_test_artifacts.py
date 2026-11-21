@@ -272,16 +272,36 @@ def test_development_only_commit_preserves_package_metadata(tmp_path, monkeypatc
 
     git('init', '-q')
     (tmp_path / 'product').write_text('product input\n')
-    git('add', 'product')
+    (tmp_path / 'Makefile').write_text(
+        "package-source-files:\n\t@printf '%s\\n' Makefile product $(wildcard assets/*.txt)\n")
+    git('add', 'Makefile', 'product')
     git('commit', '-qm', 'Product')
+    previous = git('rev-parse', 'HEAD').stdout.decode().strip()
     monkeypatch.setattr(artifacts, 'REPOSITORY', tmp_path)
     monkeypatch.setattr(artifacts, '_command_version', lambda command: 'tool-version')
     before = artifacts._metadata([Path('product')], 'digest')
     (tmp_path / 'docs').mkdir()
     (tmp_path / 'docs/internal.md').write_text('development-only\n')
-    git('add', 'docs/internal.md')
+    (tmp_path / 'docs/shortcut.txt').symlink_to('/outside/the/archive')
+    git('add', 'docs/internal.md', 'docs/shortcut.txt')
     git('commit', '-qm', 'Documentation')
     assert artifacts._metadata([Path('product')], 'digest') == before
+
+    current = git('rev-parse', 'HEAD').stdout.decode().strip()
+    with artifacts.historical_source(previous) as source:
+        before = artifacts.historical_identity(source, previous)
+    with artifacts.historical_source(current) as source:
+        after = artifacts.historical_identity(source, current)
+        assert set(source.iterdir()) == {source / 'Makefile', source / 'product'}
+    assert after == {**before, 'revision': current}
+
+    (tmp_path / 'assets').mkdir()
+    git('mv', 'docs/shortcut.txt', 'assets/shortcut.txt')
+    git('commit', '-qm', 'Select the link as a package input')
+    linked = git('rev-parse', 'HEAD').stdout.decode().strip()
+    with pytest.raises(artifacts.ArtifactError, match='historical package input is missing or nonregular'):
+        with artifacts.historical_source(linked):
+            pytest.fail('exported a linked package input')
 
 
 def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monkeypatch):

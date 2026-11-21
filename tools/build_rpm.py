@@ -119,7 +119,7 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
                     raise ValueError(f'rpmbuild or {target} builder is missing; sources retained in {output}; run ./setup.sh --rpm-build-tools')
                 arguments = rpm_builder.command(root, top, mode, epoch=epoch,
                                                 target=target, architecture=architecture,
-                                                container_image=container_image)
+                                                container_image=container_image, environment=environment)
             else:
                 if shutil.which('rpmbuild') is None:
                     raise ValueError('rpmbuild is missing; run ./setup.sh --rpm-build-tools')

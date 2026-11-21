@@ -203,17 +203,16 @@ def target_build(source, workspace, target, environment):
                    '--source', str(source), '--output', str(workspace / 'compiled'),
                    '--target', target, *flags]
     else:
-        builder = deb_builder if target == 'ubuntu' else rpm_builder
-        image = builder.require_image(source)
-        # Rootless image/storage identity belongs to the authenticated caller.
-        # Compiler HOME remains private; Podman must see the same existing
-        # caller-owned images as require_image(), never a fresh private store.
+        # Resolve and run the image with the same caller-owned rootless storage.
         environment = environment | {'HOME': str(Path.home())}
-        # Pin actual image bytes, not a mutable tag. No pull, build or network.
-        identity = _run(['podman', 'image', 'inspect', '--format', '{{.Id}}', image],
-                        environment=environment).stdout.strip()
-        if re.fullmatch('[0-9a-f]{64}', identity) is None:
-            raise ValueError('fixture target image identity unavailable')
+        if target == 'fedora':
+            identity = rpm_builder.image_id(source, environment=environment)
+        else:
+            image = deb_builder.require_image(source)
+            identity = _run(['podman', 'image', 'inspect', '--format', '{{.Id}}', image],
+                            environment=environment).stdout.strip()
+            if re.fullmatch('[0-9a-f]{64}', identity) is None:
+                raise ValueError('fixture target image identity unavailable')
         image_identity = 'sha256:' + identity
         command = [sys.executable, '-I', '-S', '-B', str(source / 'tools/fixture_container.py'),
                    '--source', str(source), '--workspace', str(workspace),

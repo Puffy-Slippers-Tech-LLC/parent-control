@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
 from countdown import CountdownObservation, check_countdown_balance
-from installed_journey import JourneyPlan, record_installed_journey
+from installed_journey import GDM_DENIAL_TAG, JourneyPlan, record_installed_journey
 from journey_blocks import (allowance_selection, custom_allowance, desktop_entry,
                             fresh_desktop, native_blocked_app, native_usable_app,
                             native_activity_entry, native_activity_resume,
@@ -92,7 +92,7 @@ for name in TRANSITIONS:
 
 LOGIN_STAGES = set(fresh_desktop('parent')) | {
     prefix + '-' + stage for prefix, screens in ENTRIES.items()
-    for stage, tag in screens.items() if tag.startswith('ui:')}
+    for stage, tag in screens.items() if tag.startswith('ui:') or tag == GDM_DENIAL_TAG}
 DENIAL_STAGES = {name + '-denial-' + stage for name in ('zero', 'reenabled')
                  for stage in rejected_gdm_return()}
 PLAN = JourneyPlan(

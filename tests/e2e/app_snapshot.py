@@ -219,7 +219,9 @@ def prepare(suite, directory, assets, selection, *, root, overwrite=True, mode='
         if reason is None:
             if json.loads(ET.fromstring(xml).findtext('description'))['schema_version'] == 1:
                 preparation('Recording content fingerprint for existing snapshot ' + name)
-                lease.record_installed_inputs(name, xml, expected)
+                xml = lease.record_installed_inputs(name, xml, expected)
+            lease.installed_name = name
+            lease.installed_xml = xml
             preparation('Reusing current snapshot ' + name)
             return False
         preparation('Refreshing snapshot ' + name + ': ' + reason)

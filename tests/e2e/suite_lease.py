@@ -157,6 +157,7 @@ class SuiteLease(system.Lease):
     def prepare(self):
         if not self._fast:
             super().prepare()
+            self._restored_name = self.capture.state['proof']['name']
             self._fast = True
         else:
             system.require(self._restored, 'suite:baseline-not-restored')
@@ -345,43 +346,45 @@ class Suite:
         return created
 
     def prepare_case(self, case, directory, assets, selection, *, root, observe_failures=None):
+        lease = self.lease
+        baseline_name = lease.capture.state['proof']['name']
+        installed = needs_installed(case)
         upgrade = 'installed-release-notes-upgrade' in case['preconditions']
         if self.prepared and upgrade != self.prepared_release_notes_upgrade:
             # Online attempts already return to the powered-off baseline. Never
             # reuse the preceding case's installed recipe merely because its
             # package version has the same canonical snapshot name.
-            self.lease.restore_installed = False
-            if self.lease._restored_name != self.lease.capture.state['proof']['name']:
-                self.lease._restored = self.lease._reset_attempted = False
-            self.lease.stop()
+            lease.restore_installed = False
+            if lease._restored_name != baseline_name:
+                lease._restored = lease._reset_attempted = False
+            lease.stop()
             self.prepared = False
+        case_prepared = False
         if not self.prepared:
             created = self.prepare_installed(directory, assets, selection, root=root,
                                             overwrite=False, mode=self.snapshot_mode,
                                             release_notes_upgrade=upgrade,
                                             observe_failures=observe_failures)
             if not created:
-                from app_snapshot import snapshot_name
-                package = assets / ('package.' + system.package_format(self.lease.capture.state['guest']))
-                version = system.package_version(self.commands, package)
-                self.lease.installed_name = snapshot_name(version)
-                self.lease.installed_xml = self.lease.source.domain.snapshotLookupByName(
-                    self.lease.installed_name, 0).getXMLDesc(0)
-                self.lease.prepare()
+                lease.prepare()
+                # The powered-off baseline is already ready. start() will
+                # restore the online app snapshot after staging fresh keys.
+                case_prepared = installed and lease.installed_online
                 self.prepared = True
                 if system.watch_progress is not None:
                     system.watch_progress.suite_prepared()
             self.prepared_release_notes_upgrade = upgrade
-            self.lease.restore_installed = needs_installed(case)
-            self.lease.stop()
-        online = needs_installed(case) and self.lease.installed_online
-        expected = (self.lease.installed_name if needs_installed(case) and not online
-                    else self.lease.capture.state['proof']['name'])
-        system.require(expected is not None and self.lease._restored_name == expected,
+            if not case_prepared:
+                lease.restore_installed = installed
+                lease.stop()
+        online = installed and lease.installed_online
+        expected = lease.installed_name if installed and not online else baseline_name
+        system.require(expected is not None and lease._restored_name == expected,
                        'suite:case-snapshot-not-restored')
-        self.lease.prepare()
-        self.lease.online_pending = online
-        self.lease.restore_installed = needs_installed(self.next_case)
+        if not case_prepared:
+            lease.prepare()
+        lease.online_pending = online
+        lease.restore_installed = needs_installed(self.next_case)
 
     def acquire(self, ledger):
         if self.source is None:

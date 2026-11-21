@@ -17793,7 +17793,7 @@ def main():
                 print(json.dumps(snap_startup_diagnostic(), sort_keys=True), file=sys.stderr, flush=True)
             except Exception:
                 print('ui:snap-startup-diagnostic-unavailable', file=sys.stderr, flush=True)
-        if (sys.argv[1] == 'desktop'
+        if (sys.argv[1] in ('desktop', 'standard-desktop')
                 and str(error) == 'ui:system-prompt-refused:desktop:shell-polkit'):
             try:
                 desktop_prompt_diagnostic(ui)

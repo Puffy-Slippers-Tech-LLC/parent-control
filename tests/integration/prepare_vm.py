@@ -677,9 +677,6 @@ def disable_screensaver(username: str, *, runner: Runner) -> None:
 def disable_software_updates(username: str, *, runner: Runner) -> None:
     """Keep background package downloads under baseline preparation ownership."""
     settings = settings_command(username)
-    # GNOME Software is optional on supported desktops. Do not install it just
-    # to configure it. A retained inactive session otherwise refreshes Flatpak
-    # metadata and can leave an administrator-password dialog over the desktop.
     schema = 'org.gnome.software'
     if schema not in runner.run([*settings, 'list-schemas']).stdout.splitlines():
         return
@@ -1107,6 +1104,15 @@ def main(password=None) -> int:
         existing = preflight_accounts()
         digest = preparation_digest()
         prepare_test_dependencies(runner=runner, os_id=guest.os_id)
+        if guest.os_id == 'fedora':
+            # GNOME Software requests a system Flatpak OCI summary at startup
+            # even with automatic updates disabled. Inactive sessions can get
+            # an authentication prompt. Prevent service activation in test VMs.
+            user_units = ['systemctl', '--user', '--global']
+            service = 'gnome-software.service'
+            runner.run([*user_units, 'mask', service])
+            if runner.run([*user_units, 'is-enabled', service], check=False).stdout.strip() != 'masked':
+                raise PreparationError('verify:software-updates', 'GNOME Software service remains unmasked')
         snap_prepared = vm_config.snap_tests_enabled()
         if snap_prepared:
             from baseline_snaps import reconcile as reconcile_snaps

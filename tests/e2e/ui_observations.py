@@ -1247,7 +1247,7 @@ class UiObservations:
                                     'feedback-collection-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
                 and self.accessibility_trace is None):
-            if operation in ('desktop', 'gdm-station-list'):
+            if operation in ('desktop', 'standard-desktop', 'gdm-station-list'):
                 # Retained command logs can rotate before a repair session.
                 # Keep static source sites and matched public policy action IDs
                 # in the category log; never forward dialog text or raw stderr.
@@ -1341,7 +1341,7 @@ class UiObservations:
                                         'accessible_ui', 'public_atspi', 'fixture_ui')
                                     and type(site.get('line')) is int
                                     and 0 < site['line'] <= 100000]
-                    if operation == 'desktop':
+                    if operation in ('desktop', 'standard-desktop'):
                         print('e2e:desktop-failure-sites=' + json.dumps(sites, sort_keys=True),
                               file=sys.stderr, flush=True)
                         print('e2e:desktop-prompt-policy=' + json.dumps(policies),

@@ -377,7 +377,7 @@ def main(argv=None):
     parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (default: off)')
     parser.add_argument('--vm', help='registered VM name or configured pool selector')
     parser.add_argument('--resume', action='store_true', help='keep clear results; restart unfinished work')
-    parser.add_argument('--stop', action='store_true', help='cancel running cases or repair')
+    parser.add_argument('--stop', '--kill', action='store_true', help='cooperatively cancel running cases or repair')
     parser.add_argument('--reset', action='store_true', help='start without previous results')
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
     parser.add_argument('--reverse', action='store_true')

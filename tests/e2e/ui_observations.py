@@ -44,6 +44,53 @@ def guest_ui_program():
     return modules + source_bytes(system.ROOT / 'tests/e2e/accessible_ui.py').decode('utf-8')
 
 
+# Fedora may have only a system journal. Read the selected child's launch
+# messages through the existing root transport and retain only fixed markers.
+SNAP_STARTUP_JOURNAL = r'''
+import hashlib
+import json
+import pwd
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+account, boot = sys.argv[1:]
+if boot and hashlib.sha256(Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest() != boot:
+    raise SystemExit('ui:snap-diagnostic-boot-changed')
+uid = pwd.getpwnam(account).pw_uid
+result = subprocess.run([
+    '/usr/bin/journalctl', '--boot', '--since=2 minutes ago', '--lines=64',
+    '--output=json', '--output-fields=MESSAGE', '--no-pager', '--quiet',
+    '--grep=onpc-fixture-allowed|onpc\\\\x2dfixture\\\\x2dallowed|snap-confine|snap-exec',
+    f'_UID={uid}',
+], stdin=subprocess.DEVNULL, capture_output=True, timeout=5)
+# journalctl --grep reports no matching entries with exit status 1.
+if result.returncode != 0 and (result.returncode != 1 or result.stdout or result.stderr):
+    raise SystemExit('ui:snap-diagnostic-journal')
+if len(result.stdout) > 65536:
+    raise SystemExit('ui:snap-diagnostic-bound')
+markers = (
+    ('shell-dispatched', 'Application launched by gnome-shell'),
+    ('snap-scope-started', 'Started snap.onpc-fixture-allowed.'),
+    ('permission-denied', 'Permission denied'),
+    ('operation-not-permitted', 'Operation not permitted'),
+    ('namespace-failed', 'cannot update snap namespace'),
+    ('scope-failed', 'Failed to start app-'),
+)
+now_us = time.monotonic_ns() // 1000
+events = []
+for line in result.stdout.splitlines():
+    entry = json.loads(line)
+    message = entry.get('MESSAGE')
+    if not isinstance(message, str):
+        continue
+    age_ms = (now_us - int(entry['__MONOTONIC_TIMESTAMP'])) // 1000
+    events.extend((marker, age_ms) for marker, text in markers if text in message)
+print(json.dumps({'event': 'ui-snap-startup-journal', 'markers': events}))
+'''
+
+
 # Collection replies need room for their full bounded semantic projection.
 # App rows still validate at most 256 fixed-format ID/access/match triples.
 RESPONSE_BYTE_LIMITS = {
@@ -1889,8 +1936,21 @@ class UiObservations:
         try:
             raw, prompts = self.call(['/usr/bin/python3', '-I', '-', operation, version, *binding],
                                      operation, input=program.encode())
-        except BaseException:
+        except BaseException as error:
             watch_activity.event('SSH UI observation failed: ' + operation)
+            if (isinstance(error, Exception) and
+                    operation in ('snap-allowed-opened', 'overlay-snap-allowed-opened')):
+                account = accessible_ui.CHILD_ACCOUNTS[
+                    accessible_ui.CHILD if operation.startswith('overlay-') else accessible_ui.EXISTING_CHILD]
+                commands = self.transport.commands
+                status = commands.last_returncode
+                try:
+                    self.transport.call(['/usr/bin/python3', '-I', '-', account, self.boot_guard or ''],
+                                        input=SNAP_STARTUP_JOURNAL.encode(), timeout=10)
+                except Exception:
+                    print('e2e:snap-startup-journal-unavailable', file=sys.stderr, flush=True)
+                finally:
+                    commands.last_returncode = status
             raise
         require(isinstance(raw, bytes) and 0 < len(raw) <=
                 RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')

@@ -17071,8 +17071,8 @@ def require_active_launch_session(*, unlocked=False):
 
 
 def snap_startup_diagnostic():
-    """Bounded, failure-only process and startup categories for Allowed Snap."""
-    value = {'event': 'ui-snap-startup', 'process_states': [], 'markers': []}
+    """Observe the current child's live Allowed Snap processes after a failure."""
+    value = {'event': 'ui-snap-processes', 'process_states': []}
     try:
         processes = list(Path('/proc').iterdir())
         require(len(processes) <= 8192, 'ui:snap-diagnostic-bound')
@@ -17084,36 +17084,16 @@ def snap_startup_diagnostic():
                     continue
                 argv = (process / 'cmdline').read_bytes()[:8192].split(b'\0')
                 if not any(arg == b'onpc-fixture-allowed' or
-                           arg.startswith(b'/snap/onpc-fixture-allowed/') for arg in argv):
+                           arg.startswith((b'/snap/onpc-fixture-allowed/',
+                                           b'/var/lib/snapd/snap/onpc-fixture-allowed/'))
+                           for arg in argv):
                     continue
                 state = (process / 'stat').read_text().rpartition(') ')[2].split()[0]
                 value['process_states'].append(state if state in 'RSDZTtIX' else 'other')
             except (OSError, IndexError):
                 continue
-        result = subprocess.run([
-            '/usr/bin/journalctl', '--user', '--boot', '--lines=128',
-            '--output=json', '--no-pager', '--quiet',
-        ], stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=5)
-        require(len(result.stdout) + len(result.stderr) <= 131072, 'ui:snap-diagnostic-bound')
-        markers = (
-            ('snap-started', 'Started snap.onpc-fixture-allowed.'),
-            ('display-unavailable', 'cannot open display'),
-            ('permission-denied', 'Permission denied'),
-            ('operation-not-permitted', 'Operation not permitted'),
-            ('traceback', 'Traceback (most recent call last):'),
-            ('segmentation-fault', 'segfault'),
-            ('namespace-failed', 'cannot update snap namespace'),
-            ('scope-failed', 'Failed to start app-'),
-        )
-        entries = [json.loads(line) for line in result.stdout.splitlines()]
-        require(len(entries) <= 128, 'ui:snap-diagnostic-bound')
-        for label, text in markers:
-            if any(type(entry.get('MESSAGE')) is str and text in entry['MESSAGE']
-                   for entry in entries):
-                value['markers'].append(label)
-        value['journal'] = 'read'
     except Exception:
-        value['journal'] = 'unavailable'
+        value['process_states'] = None
     return value
 
 

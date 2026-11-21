@@ -23,7 +23,8 @@ import test_commands as commands
 VM_ARGS = ['--vm', vm_name()]
 
 
-def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch):
+@pytest.mark.parametrize('interruption', ['startup', 'missing-cleanup-receipt'])
+def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch, interruption):
     import hashlib
     import threading
     import launcher_reload
@@ -96,11 +97,24 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch)
         recoveries = []
         monkeypatch.setattr(test_recovery, 'cleanup',
                             lambda root: recoveries.append(control.stopped.is_set()) or 0)
-        monkeypatch.setattr(commands, '_main', lambda *args, **kwargs: pytest.fail('cancelled test started'))
-        control.stopped.set()
+
+        def cancelled_attempt(args, *, detached, checkpoint):
+            assert interruption == 'missing-cleanup-receipt'
+            control.stopped.set()
+            checkpoint.queue_finalized = True
+            checkpoint.queue_vm_started = True
+            checkpoint.queue_vm_exit = 1
+            # A finished case event without a cleanup receipt is provisional.
+            checkpoint.event('system', dict(kind='finished', nodeid='check_snapshot'), set())
+            return 130
+
+        monkeypatch.setattr(commands, '_main', cancelled_attempt)
+        if interruption == 'startup':
+            control.stopped.set()
         assert vm_test_queue.worker(['--execute', 'one', 'system', 'check_snapshot']) == 130
         evidence = test_checkpoint.Checkpoint.worker_result(tmp_path, 'one')
-        assert recoveries == [False] and evidence['cleanup'] and evidence['interrupted']
+        assert recoveries == [False] * (1 if interruption == 'startup' else 2)
+        assert evidence['cleanup'] and evidence['interrupted']
         assert evidence['assignment'] == assignment['assignment'] and not evidence['passed']
         assert not shared.accept(assignment, evidence, 130, interrupted=True)
         assert list(shared.pending('deb')) == [work]
@@ -574,6 +588,12 @@ def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_
     from io import StringIO
 
     monkeypatch.delenv(regression_session.FRAME_DIRECTORY, raising=False)
+    with monkeypatch.context() as scoped:
+        stop = Mock(return_value=(None, False))
+        scoped.setattr(fix_tests.launcher, 'select', stop)
+        assert fix_tests.main(['--kill']) == 0
+        assert [(call.args[1], call.kwargs) for call in stop.call_args_list] == [
+            ('fix-tests-host', {'stop': True}), ('fix-tests', {'stop': True})]
     incomplete = tmp_path / 'interrupted-run'
     incomplete.mkdir(mode=0o700)
     # Diagnostic output is optional; only a readable final verdict counts.
@@ -2580,16 +2600,28 @@ def test_internal_worker_uses_verified_activity_instead_of_attaching(tmp_path, m
     execute.assert_called_once_with(['static', 'shell'])
 
 
-def test_detached_e2e_failed_build_never_starts_privileged_runner(tmp_path, monkeypatch):
+def test_unattended_e2e_cancelled_build_never_starts_privileged_runner(tmp_path, monkeypatch):
     import regression_process
+    import test_retention
+    from vm_selection import WORKER
+    monkeypatch.setenv(WORKER, '1')
+    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
     monkeypatch.setattr(commands, 'plan', lambda *_: (
         [['/usr/bin/pkexec', '/usr/local/libexec/onpc-test-runner', 'e2e']], False))
-    monkeypatch.setattr('tempfile.mkdtemp', lambda **_: str(tmp_path))
-    execute = Mock(return_value=130)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    assert regression_process.category_run(ROOT, 'e2e', [], pipe=False) == 130
-    execute.assert_called_once()
-    assert execute.call_args.args[0][2].endswith('/tools/vm_artifacts.py')
+    monkeypatch.setattr(test_retention, 'allocate', lambda *args, **kwargs: str(tmp_path))
+    monkeypatch.setattr(commands, 'subprocess', Mock())
+    calls = []
+
+    def cancel(control, command, **kwargs):
+        assert control.pipe
+        calls.append(command)
+        return 130
+
+    monkeypatch.setattr(regression_process.Control, 'run', cancel)
+    assert commands._main(['e2e', '--unattended', *VM_ARGS]) == 130
+    commands.subprocess.run.assert_not_called()
+    build, = calls
+    assert build[2].endswith('/tools/vm_artifacts.py')
 
 
 @pytest.fixture

@@ -664,11 +664,14 @@ Use Watch to observe ongoing output.
 are interrupted cooperatively, and the runner saves completed cases and joins
 owned cleanup before the repair launcher reloads. After a launcher interruption
 with verified cleanup, reload or resume starts each unfinished case from the
-beginning. Recorded case failures still go to repair. An active repair agent
-finishes its session before replacement.
-`tools/fix-tests --stop` cancels active scopes; categories or `--vm` narrow the
-selection. After cleanup, `--resume` synchronizes upstream before starting a
-fresh launcher with the saved results. Cancellation joins only the processes
+beginning. If an interrupted worker exits without a cleanup receipt, the worker
+uses guarded recovery. If its receipt is still unavailable after check-in, the
+next booking runs guarded recovery before attempting the case. Recorded case
+failures still go to repair. An active repair agent finishes its session before
+replacement.
+`tools/fix-tests --stop` and `--kill` cooperatively cancel active scopes.
+Categories or `--vm` narrow the selection. After cleanup, `--resume` synchronizes
+upstream before starting a fresh launcher with the saved results. Cancellation joins only the processes
 launched by this run. A killed controller's supervisor cancels its child. A new
 repair run can start independently of previous cleanup transactions.
 
@@ -830,7 +833,8 @@ without `--vm` or with the original list. IDs resolve to names before saving
 the selection; repair retries forward those names rather than expanding to all enabled VMs.
 `tools/run-tests --vm NAME --stop` targets a narrowed VM run, requests
 cancellation, and returns immediately while owned cleanup continues; when idle it returns without starting
-tests or consuming saved results. Controls target the requested scope:
+tests or consuming saved results. `--kill` uses the same cooperative stop route.
+Controls target the requested scope:
 use a host category for host work and `vm` for VM work. Host and VM sessions and
 activity locks are independent, allowing separate runs and standalone VM
 preparation to overlap host tests. No arguments select the VM session namespace.

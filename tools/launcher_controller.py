@@ -230,7 +230,7 @@ def dispatch(entry):
             if not selected or selected.startswith('-'):
                 raise ValueError('--branch requires a configured branch name')
         else:
-            arguments.append(token)
+            arguments.append('--stop' if token == '--kill' and name in ('run-tests', 'fix-tests') else token)
 
     # Exec preserves PID. A legacy destination can ignore this marker without
     # letting its later child commands accidentally inherit a pinned route.

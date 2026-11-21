@@ -112,6 +112,12 @@ class ResultStore:
             return None
         for record in self.failures():
             saved = record.get('work')
+            if (not record['case'] and isinstance(saved, dict) and record['status'] == 1
+                    and str(record.get('output_tail', '')).endswith(
+                        '\nVM reload could not confirm a successful or cleanly interrupted attempt.')):
+                # Older queues recorded an unconfirmed interruption as an
+                # operation failure. Normal booking recovers it before retry.
+                continue
             case = record['case'] or (saved.get('case') if isinstance(saved, dict) else '')
             area = isinstance(saved, dict) and saved.get('area')
             if (record['category'] == category and record['family'] in (family, 'command')

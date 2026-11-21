@@ -395,6 +395,9 @@ def execute_pass(root, plan, control, execute, *, host=None,
                 reloading = check_status == 130 and launcher_reload.pending() and not control.stopped.is_set()
                 if reloading and isinstance(evidence, dict) and evidence.get('status') == 0:
                     check_status = 0  # The assignment and its cleanup are still checked below.
+                if (value['status'] == 130 and isinstance(evidence, dict)
+                        and (evidence.get('cleanup') is not True or value.get('cleanup') is False)):
+                    evidence = dict(evidence, passed=[])
                 accepted = checkpoint.accept(assignment, evidence, check_status)
                 observed = evidence if accepted is not None else {}
                 cleanup = observed.get('cleanup') is True and value.get('cleanup') is not False
@@ -424,14 +427,10 @@ def execute_pass(root, plan, control, execute, *, host=None,
                         value['output_tail'] = (value.get('output_tail', '') +
                             '\nThe VM worker could not confirm the observation blocker and its cleanup.')
                 if reloading and not actual_failures:
-                    worker_status = observed.get('status')
-                    if cleanup and (worker_status == 0 or (
-                            worker_status == 130 and observed.get('interrupted') is True)):
-                        value = dict(value, status=launcher_reload.STATUS)
-                    else:
-                        value = dict(value, status=1, interrupted=False, cleanup=cleanup,
-                                     output_tail=value.get('output_tail', '') +
-                                     '\nVM reload could not confirm a successful or cleanly interrupted attempt.')
+                    value = dict(value, status=launcher_reload.STATUS)
+                    if not cleanup:
+                        value['output_tail'] = (value.get('output_tail', '') +
+                            '\nVM cleanup receipt unavailable after interruption. The next booking will recover the VM.')
                 interrupted = value.get('interrupted') or value['status'] in (130, launcher_reload.STATUS)
                 complete = accepted is not None and (set(work['cases']) <= checkpoint.passed(vm.family, work['category'])
                             if work['cases'] else accepted is True)
@@ -491,7 +490,7 @@ def execute_pass(root, plan, control, execute, *, host=None,
             status = 1
         elif control.stopped.is_set():
             status = 130
-        elif cleanup_complete and (launcher_reload.STATUS in statuses or vms and launcher_reload.pending()):
+        elif launcher_reload.STATUS in statuses or (cleanup_complete and vms and launcher_reload.pending()):
             status = launcher_reload.STATUS
         elif 1 in group_statuses.values() or 1 in statuses:
             status = 1
@@ -1212,9 +1211,9 @@ def worker(argv):
     except (Stopped, KeyboardInterrupt):
         status = 130
     if status == 130 and not finished:
-        # Startup may have been interrupted before its checkpoint existed.
-        # Reuse original-VM recovery, without starting preparation or tests,
-        # and publish proof only after that recovery and all owners close.
+        # The interrupted worker may have exited without verified cleanup.
+        # Recover the original VM without starting preparation or tests, and
+        # publish proof only after recovery and all owners close.
         if request is not None:
             os.environ[FAMILY_WORK] = request
         status = _worker(argv, finished, cleanup_only=True)
@@ -1316,11 +1315,15 @@ def _worker(argv, finished, *, cleanup_only=False):
             cleanup = finalized and (verdict == 0 or
                     not control.stopped.is_set() or getattr(checkpoint, 'queue_vm_cleanup', False)
                     or not started)
-            if status == 130 and not cleanup and (not started or vm_exit == 130):
-                return status  # Join the existing guarded interruption recovery.
+            failures = getattr(checkpoint, 'queue_failures', [])
+            interrupted = getattr(checkpoint, 'queue_vm_interrupted', False) or (status == 130 and not started)
+            if verdict == 130 and not failures and not (cleanup and interrupted):
+                # Cancellation can land during preparation or between the VM's
+                # exit and its receipt. Prove cleanup through the guarded
+                # recovery path before returning unverified work to pending.
+                return status
             evidence = dict(assignment, status=verdict, passed=sorted(observed), cleanup=cleanup,
-                failed=[case + upgrade for case in getattr(checkpoint, 'queue_failures', [])],
-                interrupted=getattr(checkpoint, 'queue_vm_interrupted', False) or (status == 130 and not started),
+                failed=[case + upgrade for case in failures], interrupted=interrupted,
                 diagnostic=False)
             finished.append((checkpoint, evidence))
         return status

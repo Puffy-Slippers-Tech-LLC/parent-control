@@ -14,7 +14,7 @@ import uuid
 
 import system_guest as guest
 from system_removal_faults import metadata, parents
-from system_removal_ownership import pinned, rename_exclusive, witness
+from system_removal_ownership import MOUNTINFO_ESCAPES, pinned, rename_exclusive, witness
 
 
 IDENTITY_FILESYSTEM_VARIANTS = (
@@ -54,6 +54,22 @@ def ancestor_metadata(path, variant):
     return value[:-1] if variant == 'kiosk-marker-uid' and path == STATE_ROOT else value
 
 
+def identity_mounts(mounts, target, backup=None):
+    """Track mounts that can cover the fixture or any of its contents."""
+    ancestors = {str(path).translate(MOUNTINFO_ESCAPES) for path in target.parents}
+    roots = tuple(str(path).translate(MOUNTINFO_ESCAPES)
+                  for path in (target, backup) if path is not None)
+    ancestor_mounts = {}
+    fixture_mounts = {}
+    for key, row in mounts.items():
+        mountpoint = row[0][4]
+        if mountpoint in ancestors:
+            ancestor_mounts[key] = row
+        elif any(mountpoint == root or mountpoint.startswith(root + '/') for root in roots):
+            fixture_mounts[key] = row
+    return ancestor_mounts, fixture_mounts
+
+
 def write_all(fd, data, progress):
     offset = 0
     while offset < len(data):
@@ -64,9 +80,9 @@ def write_all(fd, data, progress):
 
 
 class IdentityConflict:
-    def __init__(self, variant, target, fd, namespace, mounts, ancestors, foreign_account):
+    def __init__(self, variant, target, fd, namespace, ancestor_mounts, ancestors, foreign_account):
         self.variant, self.target, self.fd = variant, target, fd
-        self.namespace, self.mounts, self.ancestors = namespace, mounts, ancestors
+        self.namespace, self.ancestor_mounts, self.ancestors = namespace, ancestor_mounts, ancestors
         self.foreign_account = foreign_account
         self.expected_marker_uid = None
         self.preflight = variant in ('kiosk-marker-uid', 'home-owner', 'home-link',
@@ -93,8 +109,9 @@ class IdentityConflict:
         require(tuple((p, ancestor_metadata(p, self.variant)) for p, _ in self.ancestors) ==
                 self.ancestors, 'parent-identity-changed')
         namespace, mounts = mount_inventory()
-        require(namespace == self.namespace and mounts == self.mounts | self.owned_mounts,
-                'mount-identity-changed')
+        ancestor_mounts, fixture_mounts = identity_mounts(mounts, self.target, self.backup)
+        require(namespace == self.namespace and ancestor_mounts == self.ancestor_mounts and
+                fixture_mounts == self.owned_mounts, 'mount-identity-changed')
 
     def root(self):
         return self.backup if self.backup is not None else self.target
@@ -188,15 +205,14 @@ def identity_filesystem_conflict(variant, foreign_uid, record):
             'unsafe-original-owner')
     require(info.st_uid != foreign_uid, 'unchanged-owner')
     from system_removal import mount_inventory
-    namespace, mounts = mount_inventory()
-    # A nested mount is equally unsafe; do not hide or adopt an existing mount.
-    require(not any(row[0][4] == str(target) or
-                    row[0][4].startswith(str(target) + '/') for row in mounts.values()),
-            'preexisting-mount')
+    namespace, existing_mounts = mount_inventory()
+    ancestor_mounts, fixture_mounts = identity_mounts(existing_mounts, target)
+    require(not fixture_mounts, 'preexisting-mount')
     ancestors = tuple((p, ancestor_metadata(p, variant)) for p in target.parents)
     fd = os.open(target, (os.O_RDWR if marker else os.O_RDONLY | os.O_DIRECTORY) |
                  os.O_NOFOLLOW | os.O_CLOEXEC)
-    conflict = IdentityConflict(variant, target, fd, namespace, mounts, ancestors, foreign_account)
+    conflict = IdentityConflict(variant, target, fd, namespace, ancestor_mounts, ancestors,
+                                foreign_account)
     try:
         require(metadata(os.fstat(fd)) == metadata(info), 'original-identity-changed')
         conflict.original = pinned(fd) if marker else directory_witness(fd)
@@ -258,17 +274,16 @@ def identity_filesystem_conflict(variant, foreign_uid, record):
                     finally:
                         # A command may fail after the kernel accepted its mount.
                         # Recover only our one exact self-bind, never extra rows.
-                        current_namespace, current = mount_inventory()
-                        owned = {key: row for key, row in current.items() if key not in mounts}
-                        if current_namespace == namespace and not owned and current == mounts:
-                            pass
-                        else:
-                            require(current_namespace == namespace and len(owned) == 1 and
-                                    next(iter(owned.values()))[0][4] == str(target) and
-                                    current == mounts | owned and
+                        current_namespace, mounts = mount_inventory()
+                        current_ancestors, current = identity_mounts(mounts, target)
+                        require(current_namespace == namespace and current_ancestors == ancestor_mounts,
+                                'mount-not-attributable')
+                        if current:
+                            require(len(current) == 1 and current.keys().isdisjoint(existing_mounts) and
+                                    next(iter(current.values()))[0][4] == str(target) and
                                     metadata(target.lstat()) == conflict.original[0],
                                     'mount-not-attributable')
-                            conflict.owned_mounts = owned
+                            conflict.owned_mounts = current
                     require(bool(conflict.owned_mounts), 'mount-not-created')
             conflict.verify()
             record('onpc.identity.conflict', json.dumps({

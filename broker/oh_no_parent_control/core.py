@@ -634,24 +634,29 @@ class Broker:
                 timeout=EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS):
             raise Busy("another request is already in progress")
         try:
-            if not self._is_admin(caller_uid):
-                raise AccessDenied("administrator access is required")
-            target = self._target(self._load_config(), target_uid)
-            preferences = self._load_request_preferences(target.uid)
-            if not preferences["parent_control_enabled"]:
-                return False
-            if self._extensions is None:
-                raise BackendFailure("extension management is unavailable")
-            try:
-                self._extensions.set_enabled(target.uid, True, recover_global_switch=True)
-            except Exception as error:
-                failure = BackendFailure("could not recover the child extension",
-                                         expected=isinstance(error, ChildExtensionSessionLost))
-                emit_backend_failure(failure, original=error)
-                raise failure from error
-            if on_recovered is not None:
-                on_recovered(target.uid)
-            return True
+            for retry in (False, True):
+                if not self._is_admin(caller_uid):
+                    raise AccessDenied("administrator access is required")
+                target = self._target(self._load_config(), target_uid)
+                preferences = self._load_request_preferences(target.uid)
+                if not preferences["parent_control_enabled"]:
+                    return False
+                if self._extensions is None:
+                    raise BackendFailure("extension management is unavailable")
+                try:
+                    self._extensions.set_enabled(target.uid, True, recover_global_switch=True)
+                except Exception as error:
+                    session_lost = isinstance(error, ChildExtensionSessionLost)
+                    # Fresh login can overlap logout. After session loss, activation
+                    # has made no writes or verified their rollback, so retry once.
+                    if session_lost and not retry:
+                        continue
+                    failure = BackendFailure("could not recover the child extension", expected=session_lost)
+                    emit_backend_failure(failure, original=error)
+                    raise failure from error
+                if on_recovered is not None:
+                    on_recovered(target.uid)
+                return True
         finally:
             self._release_request_lock()
 

@@ -260,8 +260,13 @@ if its brief healthy transition is missed, while preserving any pending report.
 It does not clear a newer confirmed failure.
 Observing the extension healthy also clears the hold.
 Ordinary logout/relogin with extensions globally enabled does not trigger an
-error report or this hold. A confirmed product-extension error remains reportable
-after a Shell restart, even if the replacement Shell has already recovered it.
+error report or this hold. If the previous session disappears during explicit
+recovery, the broker retries activation once under the same transaction lock
+after rechecking administrator authority, child eligibility and saved controls.
+The second attempt uses fresh settings and Shell identity. A failed retry still
+fails recovery.
+A confirmed product-extension error remains reportable after a Shell restart,
+even if the replacement Shell has already recovered it.
 
 ### Extension recovery verification boundaries
 

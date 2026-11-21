@@ -17,7 +17,9 @@ from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
-from oh_no_parent_control.extension_manager import ChildExtensionFailed, ChildExtensionUnavailable
+from oh_no_parent_control.extension_manager import (
+    ChildExtensionFailed, ChildExtensionSessionLost, ChildExtensionUnavailable,
+)
 
 
 from tests.support.broker import (
@@ -87,11 +89,60 @@ def test_login_recovery_respects_saved_control_and_preserves_account_state(calle
     on_recovered.assert_called_once_with(1001)
     assert extensions.recoveries == [1001]
     assert accounts.events == []
-    with mock.patch.object(extensions, "set_enabled", side_effect=RuntimeError("failure")):
+    with mock.patch.object(extensions, "set_enabled", side_effect=RuntimeError("failure")) as activate:
         with pytest.raises(BackendFailure):
             broker.recover_child_extension(caller, 1001, on_recovered=on_recovered)
+        activate.assert_called_once()
     on_recovered.assert_called_once_with(1001)
     assert broker.recover_child_extension(caller, 1001)  # Failure released the transaction lock.
+
+
+@pytest.mark.parametrize("session_still_lost", [False, True])
+def test_login_recovery_retries_once_after_session_loss(session_still_lost):
+    preferences, extensions = Preferences(), Extensions()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(preferences=preferences, extensions=extensions)
+    on_recovered = mock.Mock()
+    outcomes = iter([True, session_still_lost])
+
+    def activate(*_args, **_kwargs):
+        assert broker._request_lock.locked()
+        if next(outcomes):
+            raise ChildExtensionSessionLost("session ended during logout")
+
+    with mock.patch.object(extensions, "set_enabled", side_effect=activate) as activation:
+        if session_still_lost:
+            with pytest.raises(BackendFailure) as failure:
+                broker.recover_child_extension(0, 1001, on_recovered=on_recovered)
+            assert isinstance(failure.value.__cause__, ChildExtensionSessionLost)
+            on_recovered.assert_not_called()
+        else:
+            assert broker.recover_child_extension(0, 1001, on_recovered=on_recovered)
+            on_recovered.assert_called_once_with(1001)
+
+    assert activation.call_args_list == [mock.call(1001, True, recover_global_switch=True)] * 2
+    assert not broker._request_lock.locked()
+
+
+@pytest.mark.parametrize("changed_uid", [1001, 1003])
+def test_login_recovery_rechecks_roles_after_session_loss(changed_uid):
+    preferences, extensions, accounts = Preferences(), Extensions(), Accounts()
+    preferences.values[1001]["parent_control_enabled"] = True
+    broker = make_broker(preferences=preferences, extensions=extensions, accounts=accounts)
+    on_recovered = mock.Mock()
+
+    def activate(*_args, **_kwargs):
+        account = accounts.users[changed_uid]
+        accounts.users[changed_uid] = replace(account, is_admin=not account.is_admin)
+        raise ChildExtensionSessionLost("session ended during logout")
+
+    with mock.patch.object(extensions, "set_enabled", side_effect=activate) as activation:
+        with pytest.raises(AccessDenied):
+            broker.recover_child_extension(1003, 1001, on_recovered=on_recovered)
+
+    activation.assert_called_once_with(1001, True, recover_global_switch=True)
+    on_recovered.assert_not_called()
+    assert not broker._request_lock.locked()
 
 
 def test_session_extension_hints_revalidate_policy_and_roles_under_transaction_lock():

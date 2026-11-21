@@ -7,8 +7,12 @@
 /.codex/rules/*
 !/.codex/rules/tests.rules
 /.codex-staged-*
-# Optional native agent credentials, caches and private session state.
-/.claude/
+# Track only shared Claude Code configuration; private state stays local.
+/.claude/*
+!/.claude/settings.json
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/commit
 # Independent development checkouts are not source inputs for this checkout.
 /.worktrees/
 # One-time diagnostic downloads from test machines; never commit their contents.

@@ -129,6 +129,16 @@ and reports missing upstream;
 it never copies authentication, private keys, session history or personal trust
 lists. See [signing setup](Publishing.md#noninteractive-signing) for publishing.
 
+### Interactive Claude Code
+
+When you open `claude` directly in a checkout, [CLAUDE.md](../CLAUDE.md)
+imports the shared repository instructions and the project skill directory makes
+[/commit](../.agents/skills/commit/SKILL.md) available on explicit invocation.
+Git carries the project files and relative skill link to each checkout.
+No `./setup.sh` step is required for skill discovery. Claude Code applies its own
+workspace trust and command permissions. Use Claude's native `/goal <condition>`
+when you need a persistent session goal.
+
 ### Local state and worktree portability
 
 The user's private `~/.onpc-config/.envrc` is shared across all checkouts and worktrees on

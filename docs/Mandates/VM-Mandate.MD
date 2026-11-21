@@ -616,11 +616,11 @@ the existing case or unfinished brief, linked here.
   nested stages borrow that process's lock without releasing the enclosing lease.
   Each preparation worker captures the baseline source inputs once. Guest staging,
   baseline verification and app-snapshot acquisition use that same capture.
-  Ordinary setup and test attempts never prepare or replace it implicitly.
-  The [Snap switch](../../tests/integration/Environment.md#reusable-preparation-ownership)
-  has one worker-admission exception: enabling Snap against a baseline recorded
-  without it invokes this maintained auto-mode route before tests, under the
-  selected VM's existing reservation. Other stale preparation still requires
-  the preapproved auto-mode preparation separately.
+  Before a test attempt or standalone app-snapshot preparation, the worker
+  checks the selected baseline under its VM reservation. When the read-only
+  probe confirms stale preparation or missing enabled Snap capability, the
+  worker runs the maintained auto-mode route before proceeding. The
+  [Snap switch](../../tests/integration/Environment.md#reusable-preparation-ownership)
+  affects only the capability check. Test attempts use the prepared baseline.
   Baseline preparation and E2E require the literal `TEST_ACCOUNT_PASSWORD` in the
   host user's private `~/.onpc-config/.envrc`; E2E never changes passwords.

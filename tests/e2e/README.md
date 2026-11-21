@@ -460,6 +460,8 @@ packages. A pending package transaction refuses preparation.
 On the native Ubuntu build host, Fedora artifacts built with Podman also use
 this cache. Each Fedora target has its own receipt and lock. The RPM key also
 includes the Podman binary, exact builder image ID, and RPM builder sources.
+Preparation uses the selected image by ID throughout. A tag update changes
+the image selected by the next preparation.
 Native and mock-backed RPM builds use the ordinary fresh builder.
 Cleanup code, retention code, scenario/test edits, fixture prose, unrelated
 `tools/` bytecode, desktop settings, boot identity, installed test helpers and

@@ -1,9 +1,14 @@
 """Record initial aggregate source identity for informational provenance."""
 
+from fnmatch import fnmatchcase
 import hashlib
 import os
 from pathlib import Path
 import subprocess
+
+
+AGENT_METADATA = ('.agents/*', '.claude/*', '.codex/*',
+                  'AGENTS.md', '*/AGENTS.md', 'CLAUDE.md', '*/CLAUDE.md')
 
 
 def paths(root):
@@ -35,6 +40,8 @@ def paths(root):
 def identity(root):
     digest = hashlib.sha256()
     for relative in paths(root):
+        if any(fnmatchcase(relative.as_posix(), pattern) for pattern in AGENT_METADATA):
+            continue
         name = os.fsencode(relative)
         path = root / relative
         if path.is_symlink():

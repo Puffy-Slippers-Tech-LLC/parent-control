@@ -10,6 +10,7 @@ import test_activity
 import test_launcher
 import test_retention
 import test_source
+from detached_launcher import Stopped
 from dev_privileges import check
 from regression_process import Control
 from test_recovery import cleanup
@@ -18,14 +19,12 @@ from vm_queue import preparation, prepare_hosts, require_host_queue
 from vm_pool import binding, check_queue, reservation
 
 
-def ensure_snap_prepared(root, control, environment):
+def ensure_baseline_ready(root, control, environment):
     """Refresh the selected outdated or Snap-incomplete baseline under its reservation.
 
     Run before acquiring checkout activity: maintained preparation owns that
     activity and keeps all baseline/snapshot/VM ownership checks itself.
     """
-    if not vm_config.snap_tests_enabled():
-        return 0
     helper = '/usr/local/libexec/onpc-test-runner'
     with test_source.reader(root, stopped=control.stopped.is_set):
         status = control.run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
@@ -48,11 +47,13 @@ def ensure_snap_prepared(root, control, environment):
 
 
 @contextmanager
-def snap_ready_reservation(root, name, control):
+def baseline_ready_reservation(root, name, control):
     with reservation(name, stopped=control.stopped):
-        status = ensure_snap_prepared(root, control, test_launcher.environment(root))
+        status = ensure_baseline_ready(root, control, test_launcher.environment(root))
+        if status == 130:
+            raise Stopped()
         if status:
-            raise ValueError(f'Snap baseline readiness failed (status {status})')
+            raise ValueError(f'VM baseline readiness failed (status {status})')
         yield
 
 
@@ -139,7 +140,7 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
                                control=_control, report=_report)
         os.environ.pop(BATCH, None)
         select(args.vm)
-        with Control().installed() as control, snap_ready_reservation(root, args.vm, control), \
+        with Control().installed() as control, baseline_ready_reservation(root, args.vm, control), \
                 test_activity.activity(root, named_vm=True), \
                 test_source.reader(root, stopped=control.stopped.is_set):
             check(helper)
@@ -203,6 +204,8 @@ def main(argv=None, *, _worker=False, _snapshot_only=False, _expected=None, _con
             if status or _snapshot_only:
                 return status
             return snapshot_action('--resume')
+    except Stopped:
+        return 130
     except (ValueError, OSError) as error:
         if _report is not None:
             raise

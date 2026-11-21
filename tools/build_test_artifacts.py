@@ -220,14 +220,15 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
 
 
 def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None,
-          build_target=None, architecture='x86_64') -> Path:
+          build_target=None, architecture='x86_64', container_image=None) -> Path:
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     source_paths = package_inputs.paths(REPOSITORY)
     source_digest = package_inputs.digest(REPOSITORY, source_paths)
     metadata = _metadata(source_paths, source_digest)
     return _build(output, REPOSITORY, source_paths, source_digest, metadata,
-                  reuse=reuse, package_format=package_format, build_target=build_target, architecture=architecture)
+                  reuse=reuse, package_format=package_format, build_target=build_target,
+                  architecture=architecture, container_image=container_image)
 
 
 def _target_metadata(metadata, source_root, target, rpm_release='0.1.dev'):
@@ -242,7 +243,7 @@ def _target_metadata(metadata, source_root, target, rpm_release='0.1.dev'):
 
 
 def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None,
-           rpm_release='0.1.dev', build_target=None, architecture='x86_64'):
+           rpm_release='0.1.dev', build_target=None, architecture='x86_64', container_image=None):
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     target = build_targets.get(build_target or ('fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
@@ -283,7 +284,8 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                 # maintained builder freezes inputs and disables networking.
                 from tools.build_package import build_rpm
                 build_rpm(source_copy, package_output, release=rpm_release,
-                          target=target.name, architecture=target.architecture)
+                          target=target.name, architecture=target.architecture,
+                          container_image=container_image)
                 packages = sorted(package_output.glob('oh-no-parent-control-[0-9]*.x86_64.rpm'))
             else:
                 from tools import build_package

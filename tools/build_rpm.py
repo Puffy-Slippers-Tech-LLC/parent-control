@@ -92,7 +92,8 @@ def native_fedora44():
 
 
 def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
-          inherited_fds=(), inherited_environment=None, target='fedora44', architecture='x86_64'):
+          inherited_fds=(), inherited_environment=None, target='fedora44', architecture='x86_64',
+          container_image: str | None = None):
     selected = build_targets.get(target, architecture, 'rpm')
     if mode not in ('rpm', 'srpm', 'rpm-source'):
         raise ValueError('invalid RPM build mode')
@@ -111,11 +112,14 @@ def build(root: Path, output: Path, *, release='0.1.dev', mode='rpm',
             native = mode == 'rpm' and (native_fedora44() if target == 'fedora44' else selected.native())
             mock = mode == 'rpm' and not native and shutil.which('mock') is not None
             container = not native and not mock and (mode == 'rpm' or shutil.which('rpmbuild') is None)
+            if container_image is not None and not container:
+                raise ValueError('RPM container backend changed during preparation')
             if container:
                 if shutil.which('podman') is None:
                     raise ValueError(f'rpmbuild or {target} builder is missing; sources retained in {output}; run ./setup.sh --rpm-build-tools')
                 arguments = rpm_builder.command(root, top, mode, epoch=epoch,
-                                                target=target, architecture=architecture)
+                                                target=target, architecture=architecture,
+                                                container_image=container_image)
             else:
                 if shutil.which('rpmbuild') is None:
                     raise ValueError('rpmbuild is missing; run ./setup.sh --rpm-build-tools')

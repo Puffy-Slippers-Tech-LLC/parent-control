@@ -111,10 +111,10 @@ def test_copied_snap_sources_require_their_exact_receipt_before_retirement(subst
 
 
 @pytest.mark.parametrize('enabled,probe,expected', [
-    (False, 8, []), (True, 3, ['probe']), (True, 5, ['probe']),
+    (False, 8, ['probe', 'prepare']), (True, 3, ['probe']), (True, 5, ['probe']),
     (True, 8, ['probe', 'prepare']), (True, 2, ['probe']),
 ])
-def test_snap_refresh_uses_only_maintained_preparation_before_execution(monkeypatch, capsys, enabled, probe, expected):
+def test_baseline_refresh_uses_only_maintained_preparation_before_execution(monkeypatch, capsys, enabled, probe, expected):
     from contextlib import contextmanager, nullcontext
     import prepare_appsnapshot as preparation
     monkeypatch.setattr(preparation.vm_config, 'snap_tests_enabled', lambda: enabled)
@@ -144,11 +144,11 @@ def test_snap_refresh_uses_only_maintained_preparation_before_execution(monkeypa
                            '--mode', 'auto', '--y']
         assert kwargs['wait_on_cancel']
         return 0
-    status = preparation.ensure_snap_prepared(ROOT, SimpleNamespace(run=run,
+    status = preparation.ensure_baseline_ready(ROOT, SimpleNamespace(run=run,
         stopped=SimpleNamespace(is_set=lambda: False)), {})
     assert commands == expected
-    assert status == (2 if enabled and probe == 2 else 0)
-    assert recover.call_count == int(enabled and probe == 8)
+    assert status == (2 if probe == 2 else 0)
+    assert recover.call_count == int(probe == 8)
     output = capsys.readouterr().out
     if 'prepare' in expected:
         assert 'baseline preparation required; automatically refreshing' in output

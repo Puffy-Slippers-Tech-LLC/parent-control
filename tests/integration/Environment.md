@@ -413,11 +413,11 @@ and declared fixtures remain available.
 
 New baselines record the verified `snap_prepared` capability independently of
 the preparation fingerprint. A Snap-ready baseline works in either switch state.
-When the switch is enabled against a baseline recorded without Snap, the selected
-worker runs the maintained `tools/prepare-vm --mode auto --y` before admitting
-tests or app-snapshot preparation. That operation refreshes the baseline and app
-snapshots under the existing VM reservation; it never prepares another VM or
-installs prerequisites inside a test attempt.
+Before admitting tests or app-snapshot preparation, the selected worker runs
+the maintained `tools/prepare-vm --mode auto --y` if the read-only probe finds
+stale preparation or missing enabled Snap capability. The operation refreshes
+the baseline and app snapshots under the existing VM reservation, regardless of
+the Snap switch when preparation is stale.
 
 `tools/prepare-vm` owns all reusable one-time guest preparation. Tests,
 qualification workers and app-snapshot preparation verify readiness and refuse

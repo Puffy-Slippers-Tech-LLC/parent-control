@@ -75,7 +75,7 @@ def _build(root: Path, target: build_targets.Target, *, destination: Path, envir
 
 
 def build_rpm(root: Path, output: Path, *, release='0.1.dev', mode='rpm', stopped=None,
-              disk_queue=True, target='fedora44', architecture='x86_64'):
+              disk_queue=True, target='fedora44', architecture='x86_64', container_image=None):
     if __package__:
         from .build_rpm import build as backend
     else:
@@ -83,6 +83,7 @@ def build_rpm(root: Path, output: Path, *, release='0.1.dev', mode='rpm', stoppe
     with (host_disk.operation('Building the RPM package', stopped=stopped)
           if disk_queue else nullcontext()):
         return backend(root, output, release=release, mode=mode, target=target, architecture=architecture,
+                       container_image=container_image,
                        inherited_fds=host_disk.descriptors(),
                        inherited_environment=host_disk.environment())
 

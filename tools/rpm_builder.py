@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -39,6 +40,16 @@ def require_image(root: Path, *, target='fedora44', architecture='x86_64') -> st
     return image
 
 
+def image_id(root: Path, *, target='fedora44', architecture='x86_64') -> str:
+    image = require_image(root, target=target, architecture=architecture)
+    result = subprocess.run(['podman', 'image', 'inspect', '--format', '{{.Id}}', image],
+                            check=True, capture_output=True, text=True, pass_fds=scratch_descriptors())
+    identity = result.stdout.strip().removeprefix('sha256:')
+    if re.fullmatch(r'[0-9a-f]{64}', identity) is None:
+        raise ValueError(f'{target} RPM builder image identity is invalid')
+    return identity
+
+
 def setup(root: Path, *, target='fedora44', architecture='x86_64') -> None:
     if shutil.which('podman') is None:
         raise ValueError('podman is missing; run ./setup.sh --rpm-build-tools')
@@ -53,14 +64,17 @@ def setup(root: Path, *, target='fedora44', architecture='x86_64') -> None:
     print(f'setup: {target}/{architecture} RPM builder is ready', flush=True)
 
 
-def command(root: Path, top: Path, mode: str, *, epoch: int, target='fedora44', architecture='x86_64') -> list[str]:
+def command(root: Path, top: Path, mode: str, *, epoch: int, target='fedora44',
+            architecture='x86_64', container_image: str | None = None) -> list[str]:
     selected = build_targets.get(target, architecture, 'rpm')
     if type(epoch) is not int or epoch < 0:
         raise ValueError('invalid RPM source timestamp')
+    image = container_image if container_image is not None else require_image(
+        root, target=target, architecture=architecture)
     return ['podman', 'run', '--rm', '--pull=never', '--network=none',
             '--userns=keep-id', '--cap-drop=all',
             '--env', f'SOURCE_DATE_EPOCH={epoch}',
-            '--volume', f'{top}:/build:rw,Z', require_image(root, target=target, architecture=architecture),
+            '--volume', f'{top}:/build:rw,Z', image,
             'rpmbuild', '--define', '_topdir /build', '--define', 'dist ' + selected.dist,
             '-ba' if mode == 'rpm' else '-bs', '/build/SPECS/oh-no-parent-control.spec']
 

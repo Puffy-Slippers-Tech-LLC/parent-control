@@ -1211,10 +1211,6 @@ def worker(argv):
         status = _worker(argv, finished)
     except (Stopped, KeyboardInterrupt):
         status = 130
-    except ValueError as error:
-        if str(error) != 'Snap baseline readiness failed (status 130)':
-            raise
-        status = 130
     if status == 130 and not finished:
         # Startup may have been interrupted before its checkpoint existed.
         # Reuse original-VM recovery, without starting preparation or tests,
@@ -1243,12 +1239,12 @@ def _worker(argv, finished, *, cleanup_only=False):
     # The batch's checkout-local gate is not a VM reservation or cleanup proof.
     os.environ.pop(test_activity.VARIABLE, None)
     sys.stdout.frame(['Queued (waiting for VM checkout)'])
-    from prepare_appsnapshot import snap_ready_reservation
+    from prepare_appsnapshot import baseline_ready_reservation
     control = Control()
     if cleanup_only:
         control.stopped = threading.Event()
     owner = (reservation(name, stopped=control.stopped) if cleanup_only else
-             snap_ready_reservation(root, name, control))
+             baseline_ready_reservation(root, name, control))
     with control.installed(pipe=not cleanup_only), owner, \
             test_activity.activity(root, named_vm=True), test_source.reader(root, stopped=control.stopped.is_set):
         # Nested aggregate controllers observe the same parent cancellation.

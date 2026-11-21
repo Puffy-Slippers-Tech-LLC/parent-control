@@ -152,22 +152,18 @@ def runtime_inputs(root):
     return result
 
 
-def rpm_container_inputs(root, target):
+def rpm_container_inputs(root, target, *, container_image=None):
     from e2e_startup_cache import file_digest
-    from tools.rpm_builder import require_image
+    from tools.rpm_builder import image_id
     podman = shutil.which('podman')
     if podman is None or shutil.which('mock') is not None:
         raise ValueError('startup cache: RPM container backend changed during preparation')
-    image = require_image(root, target=target.name, architecture=target.architecture)
-    result = subprocess.run([podman, 'image', 'inspect', '--format', '{{.Id}}', image],
-                            check=True, capture_output=True, text=True)
-    image_id = result.stdout.strip()
-    if re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', image_id) is None:
-        raise ValueError('startup cache: RPM build image identity is invalid')
-    return {'image_id': image_id, 'podman': [podman, file_digest(Path(podman).resolve())]}
+    if container_image is None:
+        container_image = image_id(root, target=target.name, architecture=target.architecture)
+    return {'image_id': container_image, 'podman': [podman, file_digest(Path(podman).resolve())]}
 
 
-def capture(builder, target):
+def capture(builder, target, *, container_image=None):
     from e2e_startup_cache import digest
     root = builder.REPOSITORY
     paths = builder.package_inputs.paths(root)
@@ -188,5 +184,5 @@ def capture(builder, target):
                      'shared': shared, **runtime['fixtures']},
     }
     if target.package_format == 'rpm':
-        inputs['package']['container'] = rpm_container_inputs(root, target)
+        inputs['package']['container'] = rpm_container_inputs(root, target, container_image=container_image)
     return inputs, metadata

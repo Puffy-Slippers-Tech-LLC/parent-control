@@ -805,7 +805,11 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None if name == 'mock' else '/fixture/' + name)
-    monkeypatch.setattr(rpm_builder, 'require_image', lambda root, **_: 'localhost/fixture:fc44')
+    def unexpected_tag_lookup(*args, **kwargs):
+        pytest.fail('a pinned RPM build must not resolve the mutable builder tag')
+
+    monkeypatch.setattr(rpm_builder, 'require_image', unexpected_tag_lookup)
+    image_id = 'a' * 64
     monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')
     original_run = subprocess.run
     commands = []
@@ -814,6 +818,7 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
         if arguments[0] != 'podman':
             return original_run(arguments, **kwargs)
         commands.append(arguments)
+        assert arguments[arguments.index('--volume') + 2] == image_id
         assert '--network=none' in arguments and '--pull=never' in arguments
         assert '--userns=keep-id' in arguments and '--cap-drop=all' in arguments
         epoch = str(build_rpm.metadata(ROOT, '0.1.dev')[1])
@@ -831,9 +836,9 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm.subprocess, 'run', run)
     if empty:
         with pytest.raises(ValueError, match='no product binary RPM'):
-            build_rpm.build(ROOT, output)
+            build_rpm.build(ROOT, output, container_image=image_id)
     else:
-        build_rpm.build(ROOT, output)
+        build_rpm.build(ROOT, output, container_image=image_id)
         assert (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').read_bytes() == b'fixture rpm'
     assert len(commands) == 1
     assert (output / 'build.log').is_file()

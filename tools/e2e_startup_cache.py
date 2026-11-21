@@ -256,6 +256,7 @@ def prepare_artifacts(builder, output, target):
             receipt(builder.REPOSITORY, **cache) as (record, save):
         started = time.monotonic()
         captured, metadata = capture(builder, target)
+        container_image = captured['package'].get('container', {}).get('image_id')
         before = digest(captured)
         reuse = {}
         previous = record.get('inputs', {}) if record else {}
@@ -307,14 +308,16 @@ def prepare_artifacts(builder, output, target):
             print('run-tests: verified artifact bundle reused; content identity=' + before, flush=True)
         else:
             builder.build(output, package_format=target.package_format, build_target=target.name,
-                          architecture=target.architecture, reuse=reuse)
+                          architecture=target.architecture, reuse=reuse, container_image=container_image)
             for part, path in reuse.items():
                 if tree_digest(output / part) != tree_digest(path):
                     raise ValueError('startup cache: payload changed during copy')
             if reuse and tree_digest(source) != record['payload']:
                 raise ValueError('startup cache: payload changed during copy')
         manifest = builder.verify(output)
-        after, after_metadata = capture(builder, target)
+        # The selected image ID is immutable. A later retag affects the next
+        # preparation, while this one still verifies every other build input.
+        after, after_metadata = capture(builder, target, container_image=container_image)
         if after != captured or any(manifest.get(k) != v for k, v in metadata.items()):
             # Keep refusal evidence in the launcher's retained log. The cache
             # receipt remains invalid, and no extra payload lifetime is needed.

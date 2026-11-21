@@ -27,6 +27,8 @@ from ui_observations import (
     compare_app_activity, compare_settings,
 )
 
+GDM_DENIAL_TAG = 'system:' + session_control.GDM_DENIAL_OPERATION
+
 
 # Declaration validation and runtime capture must recognize the same endpoints.
 # Cases retain their capture order and expected same/separate/closed result.
@@ -213,7 +215,7 @@ class JourneyPlan:
                 and list(self.invocations) == [stage for stage in self.screen_tags
                                                if stage in self.invocations]
                 and all((self.screen_tags[stage].startswith('ui:')
-                         or self.screen_tags[stage] in ('system:child-desktop-identity',
+                         or self.screen_tags[stage] in (GDM_DENIAL_TAG, 'system:child-desktop-identity',
                                                        'system:standard-desktop-identity'))
                         for stage in self.invocations), self.prefix + ':invocation-plan')
         require(set(self.assertions_after) <= set(self.screen_tags)
@@ -395,6 +397,18 @@ class JourneyPlan:
                     and self.screen_tags[second] == 'ui:' + recipient + '-rechecked',
                     self.prefix + ':challenge-plan')
             used.update((first, second))
+        for preparation, result in self.gdm_denials.items():
+            challenge = self.challenge_at(preparation)
+            require(challenge is not None and challenge['check'] == 'rechecked'
+                    and challenge['role'] in ('child', 'other-child') and result in self.invocations,
+                    self.prefix + ':gdm-denial-plan')
+        require(sum(tag == GDM_DENIAL_TAG for tag in self.screen_tags.values()) == len(self.gdm_denials),
+                self.prefix + ':gdm-denial-plan')
+
+    @property
+    def gdm_denials(self):
+        return {before: after for before, after in zip(self.stages[2:], self.stages[3:])
+                if self.screen_tags[after] == GDM_DENIAL_TAG}
 
     def challenge_at(self, stage):
         for identity, (role, first, second) in self.challenges.items():
@@ -601,6 +615,8 @@ class InstalledJourney:
         self.vm = None
         self.transport = None
         self.ui = None
+        self.gdm_denials = plan.gdm_denials
+        self.gdm_denial_attempt = None
         self.trace_token = None
         self.boot = None
         self.classic = getattr(context, 'desktop_session', None) == 'gnome-classic'
@@ -1002,6 +1018,11 @@ class InstalledJourney:
                     self.ui.work_document_receipt = files.previous
                     self.ui.work_document_state = plan.work_texts.get(stage)
                 challenge = plan.challenge_at(stage)
+                if stage in self.gdm_denials:
+                    require(self.gdm_denial_attempt is None, plan.prefix + ':gdm-denial-order')
+                    role = 'standard' if challenge['role'] == 'other-child' else 'child'
+                    attempt = session_control.observe_gdm_denial(self.transport, role, self.boot)
+                    self.gdm_denial_attempt = (self.gdm_denials[stage], role, attempt)
                 if tag.removeprefix('ui:') in accessible_ui.SHELL_SUCCESS_OPERATIONS:
                     def worker_input(token, source):
                         guard()
@@ -1036,6 +1057,15 @@ class InstalledJourney:
                 current = self.ui.boot_proof
                 if challenge:
                     observed['challenge'] = challenge
+            elif tag == GDM_DENIAL_TAG:
+                require(self.gdm_denial_attempt is not None and self.gdm_denial_attempt[0] == stage,
+                        plan.prefix + ':gdm-denial-order')
+                _, role, attempt = self.gdm_denial_attempt
+                self.gdm_denial_attempt = None
+                observed['system'] = session_control.observe_gdm_denial(
+                    self.transport, role, self.boot, attempt)
+                self.ui.record_gdm_denial(role)
+                current = self.boot
             else:
                 current = self.vm.read('boot')['boot_sha256']
                 require(self.boot is None or self.boot == current, plan.prefix + ':boot-changed')

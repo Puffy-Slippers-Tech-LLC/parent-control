@@ -175,7 +175,6 @@ OPERATION_LABELS = {
     'child-countdown-animation-on': 'Enabling the child countdown animation preference',
     'child-countdown-animation-off': 'Disabling the child countdown animation preference',
     'child-countdown-animation-wrong-account-refused': 'Refusing countdown preference input on another account',
-    'gdm-child-time-denied': 'Observing the intended child’s specific time-limit rejection',
     'gdm-child-denied-return-ready': 'Checking the current greeter state after the child time denial',
     'gdm-child-denied-return-state': 'Checking the account list or a fresh empty child prompt after Cancel',
     'gdm-child-denied-returned': 'Observing the usable account list after rejection',
@@ -1715,6 +1714,13 @@ class UiObservations:
             self.pending_challenge = None
             raise
 
+    def record_gdm_denial(self, role):
+        """Authorize greeter recovery after the independent system result."""
+        require(role in ('standard', 'child') and not self.challenge_failed
+                and self.last_operation == f'gdm-{role}-recipient-rechecked', 'ui:denial-order')
+        self.last_operation = 'gdm-child-time-denied'
+        self.last_child = 'existing' if role == 'standard' else 'child'
+
     def _observe(self, operation, *, child=None, parent=None):
         if operation == 'kiosk-pending-close':
             require(not self.challenge_failed
@@ -1749,15 +1755,12 @@ class UiObservations:
                 operation in accessible_ui.NAMED_CHILD_OPERATIONS), 'ui:custom-child-binding')
         if operation in accessible_ui.GDM_DENIAL_OPERATIONS:
             previous = {
-                'gdm-child-time-denied': ('gdm-standard-recipient-rechecked' if child == 'existing'
-                                          else 'gdm-child-recipient-rechecked'),
                 'gdm-child-denied-return-ready': 'gdm-child-time-denied',
                 'gdm-child-denied-return-state': 'gdm-child-denied-return-ready',
                 'gdm-child-denied-returned': 'gdm-child-denied-return-state',
             }
             require(self.last_operation == previous[operation], 'ui:denial-order')
-            if operation != 'gdm-child-time-denied':
-                require(self.last_child == (child or 'child'), 'ui:denial-child-changed')
+            require(self.last_child == (child or 'child'), 'ui:denial-child-changed')
         import re
         # Qualifications lack a scenario recorder, but use the same existing
         # spectator command pane as customer cases. Keep private program/stdin
@@ -3396,14 +3399,6 @@ class UiObservations:
                 'child': accessible_ui.CHILD_IDENTITIES[ready_child], 'ready': True},
                 'ui:request-readiness-response')
             expected['request_readiness'] = result['request_readiness']
-        if operation == 'gdm-child-time-denied':
-            require(type(result) is dict and set(result) == {*expected, 'denial'}
-                    and type(result['denial']) is dict
-                    and result['denial'] == {'recipient': accessible_ui.CHILD_IDENTITIES[
-                        accessible_ui.NAMED_CUSTOM_CHILDREN[child or 'child']],
-                        'reason': 'time-limit', 'desktop_access': False}
-                    and result['denial']['desktop_access'] is False, 'ui:time-denial')
-            expected['denial'] = result['denial']
         if operation in ('gdm-child-denied-return-ready', 'gdm-child-denied-return-state'):
             states = ('account-list', 'child-prompt')
             if operation == 'gdm-child-denied-return-ready':

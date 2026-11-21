@@ -70,6 +70,9 @@ LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
 # GNOME can wait over a minute for a session client to finish. Leave room for
 # that shutdown and a slow guest; this polls the result without repeating input.
 LOGOUT_WAIT_SECONDS = 240
+GDM_DENIAL_OPERATION = 'gdm-child-time-denied'
+GDM_TIME_CHECK = 'oh-no-parent-control-session-limit-check'
+GDM_TIME_DENIAL = 'onpc.session-limit authentication outcome=denied-no-time target=[Child user]'
 
 
 class SessionError(RuntimeError):
@@ -513,6 +516,86 @@ def entry_identity(current, uid, mode):
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
+def gdm_denial_guest(role, boot, attempt):
+    """Correlate one normal GDM rejection with the existing PAM time-check event."""
+    require(role in ('child', 'standard') and os.geteuid() == 0, 'gdm-denial-account')
+    uid = str(pwd.getpwnam(ACCOUNTS[role]).pw_uid)
+    boot_file = Path('/proc/sys/kernel/random/boot_id')
+    require(hashlib.sha256(boot_file.read_bytes()).hexdigest() == boot, 'gdm-denial-boot')
+
+    def child_sessions(current):
+        owned = {key: props for key, props in current.items()
+                 if local_graphical(props) and props['User'] == uid
+                 and props['Class'] in ('user', 'user-early')}
+        require(len(owned) <= 1 and all(props['Active'] == 'no' for props in owned.values()),
+                'gdm-denial-desktop-access')
+        return hashlib.sha256(json.dumps(owned, sort_keys=True).encode()).hexdigest()
+
+    if attempt is None:
+        current = sessions()
+        active = [p['Class'] for p in current.values() if local_graphical(p) and p['Active'] == 'yes']
+        require(active == ['greeter'], 'gdm-denial-greeter')
+        return {'since_us': time.monotonic_ns() // 1000, 'sessions': child_sessions(current)}
+
+    require(gdm_denial_receipt(attempt) and attempt['since_us'] <= time.monotonic_ns() // 1000,
+            'gdm-denial-receipt')
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        raw = call(['/usr/bin/journalctl', '-b', '--no-pager', '-n', '64', '--output=json',
+                    '--output-fields=AUDIT_FIELD_EXE,AUDIT_FIELD_UID,AUDIT_FIELD_ACCT,AUDIT_FIELD_RES,MESSAGE,_TRANSPORT',
+                    '_TRANSPORT=audit', '_AUDIT_TYPE=1112', '_UID=0', '+',
+                    '_UID=0', 'SYSLOG_IDENTIFIER=' + GDM_TIME_CHECK], deadline=deadline)
+        records = [json.loads(line) for line in raw.splitlines()]
+        recent = [record for record in records
+                  if int(record['__MONOTONIC_TIMESTAMP']) >= attempt['since_us']]
+        require(len(recent) < 64, 'gdm-denial-journal-bound')
+        logins = [r for r in recent if r.get('_TRANSPORT') == 'audit'
+                  and isinstance(r.get('AUDIT_FIELD_EXE'), str)
+                  and Path(r['AUDIT_FIELD_EXE']).name == 'gdm-session-worker']
+        reasons = [r.get('MESSAGE') for r in recent if r.get('_TRANSPORT') != 'audit']
+        require(len(logins) <= 1 and len(reasons) <= 1, 'gdm-denial-ambiguous')
+        if logins:
+            login = logins[0]
+            require((login.get('AUDIT_FIELD_UID') == uid
+                     or login.get('AUDIT_FIELD_ACCT') == ACCOUNTS[role])
+                    and login.get('AUDIT_FIELD_RES') == 'failed', 'gdm-denial-login-outcome')
+        if reasons:
+            require(reasons == [GDM_TIME_DENIAL], 'gdm-denial-time-check-outcome')
+        if logins and reasons:
+            require(child_sessions(sessions(deadline=deadline)) == attempt['sessions'],
+                    'gdm-denial-session-changed')
+            require(hashlib.sha256(boot_file.read_bytes()).hexdigest() == boot, 'gdm-denial-boot')
+            return {'operation': GDM_DENIAL_OPERATION, 'outcome': 'passed',
+                    'interface': 'system session', 'reason': 'time-limit', 'desktop_access': False}
+        time.sleep(.2)
+    raise SessionError('session:gdm-denial-unobserved')
+
+
+def gdm_denial_receipt(value):
+    return (type(value) is dict and set(value) == {'since_us', 'sessions'}
+            and type(value['since_us']) is int and 0 < value['since_us'] < 10**16
+            and type(value['sessions']) is str and re.fullmatch(r'[0-9a-f]{64}', value['sessions']))
+
+
+def observe_gdm_denial(transport, role, boot, attempt=None):
+    import watch_activity
+
+    require(role in ('child', 'standard') and type(boot) is str
+            and re.fullmatch(r'[0-9a-f]{64}', boot)
+            and (attempt is None or gdm_denial_receipt(attempt)), 'gdm-denial-binding')
+    label = 'Preparing the GDM denial observation' if attempt is None else 'Checking GDM and PAM for time denial'
+    with watch_activity.operation(label):
+        raw = transport.call(['/usr/bin/python3', '-I', '-', GDM_DENIAL_OPERATION, role, boot,
+                              json.dumps(attempt)], input=Path(__file__).read_bytes(), timeout=75)
+    require(type(raw) is bytes and 0 < len(raw) <= 512, 'gdm-denial-response')
+    result = json.loads(raw)
+    require(gdm_denial_receipt(result) if attempt is None else result == {
+                'operation': GDM_DENIAL_OPERATION, 'outcome': 'passed',
+                'interface': 'system session', 'reason': 'time-limit', 'desktop_access': False},
+            'gdm-denial-response')
+    return result
+
+
 def classic_session(account, action):
     """Change only the fresh attempt's child routing, or witness its live desktop."""
     sys.path.insert(0, '/var/tmp/onpc-system-input')
@@ -901,7 +984,10 @@ def observe(transport, binding, *, diagnostic=False, station_receipt=None):
 
 if __name__ == '__main__':
     try:
-        if len(sys.argv) == 4 and sys.argv[1] == 'maintenance-logout':
+        if len(sys.argv) == 5 and sys.argv[1] == GDM_DENIAL_OPERATION:
+            require(len(sys.argv[4]) <= 256, 'gdm-denial-arguments')
+            result = gdm_denial_guest(sys.argv[2], sys.argv[3], json.loads(sys.argv[4]))
+        elif len(sys.argv) == 4 and sys.argv[1] == 'maintenance-logout':
             result = maintenance_logout(int(sys.argv[2]), sys.argv[3])
         elif len(sys.argv) == 3 and sys.argv[1] == 'standard-verify-station-refusal':
             require(len(sys.argv[2]) <= 256, 'station-attempt-arguments')

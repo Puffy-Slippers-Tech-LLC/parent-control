@@ -316,7 +316,7 @@ does not permit hidden setup or automatic repair after a failed step.
 | C / V(user) | FLOW15(user, source, entry, result). First entry is fresh; a previously retained desktop uses retained. Expected result is success unless denial is stated. |
 | G | From desktop DESK03; from lock/rejected sign-in DESK11; from a closed station GDM01. Choose from the already observed source, never by trying routes. |
 | request-entry | Overlay: C → REQUEST02. Station: G → REQUEST01. Limits must already be enabled, and overlay needs positive time. Reading persistence never runs FLOW04 choices first. |
-| access-check | After success, TIME01 → FLOW08(A usable) → FLOW08(H denied). With limits off TIME01 requires absence. After denial, GDM06 reads the time-limit explanation; no app-window assertion is made. |
+| access-check | After success, TIME01 → FLOW08(A usable) → FLOW08(H denied). With limits off TIME01 requires absence. For a denied sign-in, GDM06 verifies that the child's login was rejected for lack of time and no desktop access was granted. |
 | leave-child | New-session variant: DESK04 after a successful visit. Retained variant: DESK03. After denial: DESK11. |
 | repeat / watch | Iterate the finite table with new observations each time. watch(observer){input} = UI25 start and readiness → the named input once → UI26 finish; UI22 is this declared composite. |
 | AppSet | FLOW19: P → FLOW03 for each explicitly named app/rule → G. Default assets are A (Always Allowed), H (Hard Blocked), S (Soft Blocked), N (nonmatching allowed). |

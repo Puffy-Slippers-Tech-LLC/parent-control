@@ -136,7 +136,7 @@ def retained_denial_plan(retained=False):
         **({'retained-list': 'ui:gdm-child-list', 'retained-focused': 'ui:gdm-child-focused',
             'retained-recipient-qualified': 'ui:gdm-child-recipient',
             'retained-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
-            'time-denied': 'ui:gdm-child-time-denied', **rejected_gdm_return()}
+            'time-denied': 'system:gdm-child-time-denied', **rejected_gdm_return()}
            if retained else {
                'enter-locked': 'system:child-enter-locked',
                'curtain': 'ui:child-lock-curtain', 'reveal-ready': 'ui:child-lock-reveal-ready',

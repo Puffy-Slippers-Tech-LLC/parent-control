@@ -459,7 +459,7 @@ OPERATIONS |= frozenset({'overlay-wrong-account-refused'})
 CHILD_GREETER_OPERATIONS = frozenset({
     'gdm-child-list', 'gdm-child-focused', 'gdm-child-wrong-recipient-refused',
     'gdm-child-recipient', 'gdm-child-recipient-rechecked',
-    'gdm-child-time-denied', 'gdm-child-denied-return-ready', 'gdm-child-denied-return-state',
+    'gdm-child-denied-return-ready', 'gdm-child-denied-return-state',
     'gdm-child-denied-returned',
 })
 OPERATIONS |= CHILD_DESKTOP_OPERATIONS | CHILD_GREETER_OPERATIONS
@@ -948,7 +948,7 @@ NAMED_TIME_OPERATIONS = frozenset({
     'time-explanation-zero-read', 'time-explanation-off-read',
 })
 GDM_DENIAL_OPERATIONS = frozenset({
-    'gdm-child-time-denied', 'gdm-child-denied-return-ready',
+    'gdm-child-denied-return-ready',
     'gdm-child-denied-return-state', 'gdm-child-denied-returned',
 })
 NAMED_CHILD_OPERATIONS = (NAMED_CUSTOM_OPERATIONS | NAMED_TIME_OPERATIONS
@@ -1039,7 +1039,6 @@ GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
-GDM_TIME_DENIAL = 'Your account was given a time limit that’s now passed.'
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
     'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
 SECOND_PARENT_GREETER_OPERATIONS = frozenset('gdm-second-parent-' + suffix
@@ -10441,31 +10440,6 @@ class AccessibleUI:
         self.gdm_session_focus(name, 'cancel')
         return {**result, 'disposition': 'cancel-focused'}
 
-    def gdm_child_time_denied(self, *, child=CHILD):
-        """GDM06: exact English-GDM expiry explanation on the bound greeter bus.
-
-        The provider's PAM account-expiry message is distinct from failed
-        password authentication. Read only public labels, never password text.
-        A fresh snapshot must still identify the child and hide the account list.
-        """
-        require(child in (CHILD, EXISTING_CHILD), 'ui:child-binding')
-        def denied():
-            owner, nodes = self.gdm_semantic_nodes(protect_text=True)
-            showing = [node for node in nodes if self.showing(node)]
-            require(not self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)),
-                    'ui:gdm-denial-list-overlap')
-            recipients = [node for node in showing if node.get_role_name() == 'label'
-                          and self.gdm_semantic_name(node) in (PARENT, OTHER_PARENT, EXISTING_CHILD, CHILD)]
-            require(len(recipients) == 1 and self.gdm_semantic_name(recipients[0]) == child,
-                    'ui:gdm-denial-recipient')
-            messages = [node for node in showing if node.get_role_name() == 'label'
-                        and self.gdm_semantic_name(node) == GDM_TIME_DENIAL]
-            require(len(messages) <= 1, 'ui:gdm-denial-ambiguous')
-            return bool(messages)
-
-        self.wait(denied, 'gdm-child-time-denied', prompt_in_predicate=True)
-        return {'recipient': CHILD_IDENTITIES[child], 'reason': 'time-limit', 'desktop_access': False}
-
     def gdm_denied_return_state(self, *, child=CHILD, after_cancel=False):
         """Read the current greeter destination after an independently observed denial."""
         require(not self.input_uncertain, 'ui:uncertain-input')
@@ -10474,10 +10448,9 @@ class AccessibleUI:
         showing = [node for node in nodes if self.showing(node)]
         labels = [self.gdm_semantic_name(node) for node in showing
                   if node.get_role_name() == 'label']
-        messages = labels.count(GDM_TIME_DENIAL)
         fields = [node for node in showing if node.get_role_name() == 'password text']
         if self.gdm_semantic_account_rows(owner, showing, tuple(GREETER_IDENTITIES)):
-            require(not fields and not messages, 'ui:gdm-list-prompt-overlap')
+            require(not fields, 'ui:gdm-list-prompt-overlap')
             if self.gdm_semantic_rows((PARENT, KIOSK, child), pending_missing=True,
                                       snapshot=(owner, showing)):
                 return 'account-list'
@@ -10485,16 +10458,12 @@ class AccessibleUI:
 
         recipients = [label for label in labels if label in GREETER_IDENTITIES]
         require(not recipients or recipients == [child], 'ui:gdm-denial-recipient')
-        require(messages <= 1 and len(fields) <= 1, 'ui:gdm-denial-ambiguous')
+        require(len(fields) <= 1, 'ui:gdm-denial-ambiguous')
         # GDM can briefly hide both surfaces while replacing the rejected
         # verification. Wait for a complete state before authorizing Escape.
         if not recipients:
             return None
-        if messages and not after_cancel:
-            return 'rejected-prompt'
-        # GDM can clear the message's opacity while keeping its label in the
-        # accessibility tree. After Cancel, a focused, sensitive, empty field
-        # for this child is the renewed prompt even if that label is still there.
+        # A focused, sensitive, empty field for the same child is the renewed prompt.
         if fields:
             field = fields[0]
             if (self.has_state(field, self.api.StateType.SENSITIVE)
@@ -10503,7 +10472,7 @@ class AccessibleUI:
                 require(interface is not None and self.api.Text.get_character_count(interface) == 0,
                         'ui:gdm-return-password-recipient')
                 return 'child-prompt'
-        return None
+        return None if after_cancel else 'rejected-prompt'
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""
@@ -16076,9 +16045,7 @@ class AccessibleUI:
             else:
                 result['initial'] = self.cancel_initial_language()
         elif operation in GREETER_OPERATIONS:
-            if operation == 'gdm-child-time-denied':
-                result['denial'] = self.gdm_child_time_denied(child=child)
-            elif operation in GDM_DENIAL_OPERATIONS:
+            if operation in GDM_DENIAL_OPERATIONS:
                 def return_state():
                     state = self.gdm_denied_return_state(child=child,
                         after_cancel=operation != 'gdm-child-denied-return-ready')

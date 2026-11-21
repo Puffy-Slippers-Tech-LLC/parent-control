@@ -289,7 +289,7 @@ destination still requires an independent public UI observation.
 | GDM09 | C | Dismiss an already observed GDM password prompt with one Escape and independently observe the account list again. No secret is typed. | `onpc_gdm::product_free_qualification` consumes each scoped prompt proof before one Escape and obtains a fresh `gdm_product_free_account()` returned-list proof; `check_e2e_gdm_product_free` qualifies both independent cycles. The installed qualification separately covers the prepared other-parent and Parent prompts. Retained locks and other prompt surfaces remain unqualified. | pending; prepared installed and product-free Parent bindings qualified |
 | GDM04 | C | Harness safety qualification only: prove that another recipient cannot authorize an intended fixture secret. Never compose this negative exercise into customer sign-in. | `onpc_gdm::recipient_qualification`; wrong-recipient unit regressions. | ready; harness only |
 | GDM05 | C | Deliver the intended fixture password once to an already selected prompt after two fresh ordered recipient checks. Do not submit or infer success. No wrong-account visit is a prerequisite. | `onpc_password::enter_gdm_challenge` binds two fresh proofs to each declared challenge through `JourneyPlan.challenges` and `onpc_journey::declare_challenges`. `check_e2e_challenges` qualified two Parent authentications separated by shared DESK04 logout, independent desktop results and wrong-entry refusal, with durable assertions, reconciliation, private collection and owned cleanup. The explicit child challenge passed [fresh child qualification](#fresh-child-success-qualification). Compatibility entries remain `enter_parent_gdm_password` / `enter_standard_gdm_password`; child input requires an explicit challenge. The distinct child `retained-login` challenge passed [successful child unlock and retained GDM qualification](#successful-child-unlock-and-retained-gdm-reauthentication-qualification). Other recipients and surfaces remain pending. | pending; distinct Parent, fresh and retained-child GDM challenge bindings ready |
-| GDM06 | C | Observe the declared access result at GDM or lock: usable intended desktop, or time-limit rejection with its explanation and no desktop access. A generic failed login is not the expected denial. | `standard_shell_desktop(no_prompt=True)` supplies intended-child usable desktop; `gdm_child_time_denied` requires specific fresh zero-time rejection. [Retained success](#successful-child-unlock-and-retained-gdm-reauthentication-qualification) and [configured-zero denial/restriction](#retained-child-time-restriction-and-greeter-return-qualification) have separate GDM/lock proofs. Generic login failure cannot substitute. | pending; fresh success/zero-time denial, stated retained success and configured-zero GDM/native-lock restriction bindings ready |
+| GDM06 | C | Observe the declared access result at GDM or lock: usable intended desktop, or a confirmed time-limit rejection with no desktop access. | `standard_shell_desktop(no_prompt=True)` observes usable child entry. `session_control.observe_gdm_denial` verifies the bound child's GDM login failure and PAM's no-time decision. [Retained success](#successful-child-unlock-and-retained-gdm-reauthentication-qualification) and [configured-zero denial/restriction](#retained-child-time-restriction-and-greeter-return-qualification) have separate GDM and lock proofs. | pending; fresh success/zero-time denial, stated retained success and configured-zero GDM/native-lock restriction bindings ready |
 | GDM07 | C | Shared minimal fresh graphical entry for the intended fixture account with declared success or product time-limit denial. Retained targets use unlock. | `journey_blocks.fresh_desktop` and `onpc_parent::sign_in`: intended account focus/Enter → fresh GDM03 proofs → GDM05 → Enter → GDM06/DESK01. Explicit challenges use `onpc_gdm::sign_in_challenge`; `fresh_desktop('child')` declares the [qualified child success](#fresh-child-success-qualification), and `fresh_desktop('child', 'time-denied')` declares the [qualified denial](#fresh-child-time-denial-and-return-qualification). `ProductFreeEntryJourney` / `onpc_product_free_entry::run` qualify the product-free Parent binding; see [qualification scope](#product-free-parent-entry-and-command-context). No wrong-account visit or prompt-cancellation tour. Preserve real graphical PAM enforcement. | product-free Parent and fresh child success/zero-time denial ready; other unqualified bindings pending |
 | GDM10 | C | Retired duplicate legacy Parent sign-in. | Consumers reuse shared GDM07; no separate provider qualification or implementation task. | retired |
 
@@ -314,22 +314,18 @@ This does not qualify retained entry, another provider tuple or a complete case.
 `check_e2e_unlock` / `fresh_child_denied.PLAN` /
 `FreshChildDeniedJourney` qualify zero-daily/no-grant fresh-child denial
 through the same guarded GDM challenge. `fresh_desktop('child', 'time-denied')`
-and `AccessibleUI.gdm_child_time_denied` require the intended child, hidden
-account list, specific English account-expiry explanation and no desktop access;
-generic failed authentication is insufficient. The tuple is the fresh-child
-tuple above.
+starts the system observation before the final fresh password-recipient proof.
+After one submission, it requires a same-boot GDM login failure for the
+fixture account, the corresponding PAM no-time decision, and unchanged child
+desktop sessions with no foreground access. Missing or ambiguous records fail
+the observation. The tuple is the fresh-child tuple above.
 
 `rejected_gdm_return` / `onpc_gdm::return_from_time_denial` freshly observe
-the greeter after the time-limit message has been verified. If GDM has already
-returned to a usable account list, no Escape is needed. A visible rejection or
-the same child's empty, focused masked prompt allows one Escape. Only a fresh
-empty prompt following Escape from the rejection allows a second Escape. GDM
-may keep the old denial label in its accessibility tree after Cancel, so the
-renewed prompt is identified by its focused, sensitive, empty password field
-and bound child. The helper independently verifies the final usable account
-list. It waits through incomplete transition states within the existing
-deadline and refuses ambiguous or wrong owners and recipients. Credentials are
-never replayed.
+the greeter after the system confirms time denial. A usable account list ends
+recovery. A uniquely identified prompt for the same child permits Escape. A
+fresh, sensitive, focused, empty password field for that child permits the
+second Escape when GDM renews the prompt. The helper independently verifies
+the final usable account list and refuses ambiguous or wrong recipients.
 
 #### Jordan daily access qualification
 
@@ -339,19 +335,18 @@ Ubuntu 26.04. Jamie saves Jordan's positive
 15-minute daily allowance with no grant; fresh Jordan entry reads a countdown
 against that public balance. Normal logout and retained Jamie entry preserve
 the original desktop, Parent endpoint/PID, selected Jordan, page and saved
-settings before further edits. Public zero-time setup then produces the specific
-English time-limit denial and usable account-list return twice, with the second
+settings before further edits. Public zero-time setup then produces a confirmed
+time-limit denial and usable account-list return twice, with the second
 valid entry supplied directly through the shared GDM challenge. Each entry
 requires two fresh Jordan recipient proofs and one correct-password submission.
 Finally, limits-off fresh access has stable countdown absence.
 
 The named observer binding is `JourneyPlan.child_bindings={stage: 'existing'}`
-for the declared denial/return, retained Parent, time and countdown operations;
-the entry role is `other-child`. `AccessibleUI.gdm_child_time_denied`,
-`gdm_denied_return_state` and `retained_parent_operation` accept the explicit
-child while retaining Riley as the default. Countdown dispatch binds Jordan's
-own session and canonical identity. Changed-child denial chains refuse before
-guest observation; existing credential/input and ownership guards remain.
+for the declared greeter return, retained Parent, time and countdown operations.
+The `other-child` credential challenge binds the system denial to Jordan's
+account. `gdm_denied_return_state` and `retained_parent_operation` accept the
+explicit child while retaining Riley as the default. Countdown dispatch binds
+Jordan's own session and canonical identity.
 The public balance comparison allows a finite five-minute navigation bracket,
 the shared display/sampling tolerance and the existing 30-minute worker budget.
 No clock, policy, usage or grant injection supplies results.
@@ -566,8 +561,8 @@ on the tuples above. After positive-time admission, Switch User preserves the
 child and Parent publicly changes daily/grant to zero.
 
 Retained GDM uses two fresh same-child GDM03 proofs and one sealed submission,
-then independently observes the specific time-limit explanation/no desktop and
-returns to a usable list. Native configured-zero Shell restriction instead
+then checks the system's GDM and PAM results and the retained desktop's
+continued inaccessibility before returning to a usable list. Native configured-zero Shell restriction
 shows **Screen Time Limit Reached** and **Daily limit for screen time on this
 device has been reached. Resume tomorrow.**, with no password input or desktop
 access. `child-enter-locked` activates the preserved session through logind

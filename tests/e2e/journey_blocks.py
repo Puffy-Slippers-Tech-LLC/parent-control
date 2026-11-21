@@ -553,7 +553,7 @@ def fresh_desktop(account, expected='success', *, product_free=False):
             'child-recipient-qualified': 'ui:gdm-child-recipient',
             'child-recipient-rechecked': 'ui:gdm-child-recipient-rechecked',
             ('desktop' if expected == 'success' else 'denied'):
-                ('ui:fresh-child-desktop' if expected == 'success' else 'ui:gdm-child-time-denied'),
+                ('ui:fresh-child-desktop' if expected == 'success' else 'system:gdm-child-time-denied'),
         }
     if account == 'other-child':
         return {
@@ -564,7 +564,7 @@ def fresh_desktop(account, expected='success', *, product_free=False):
             'standard-recipient-qualified': 'ui:gdm-standard-recipient',
             'standard-recipient-rechecked': 'ui:gdm-standard-recipient-rechecked',
             ('desktop' if expected == 'success' else 'denied'):
-                ('ui:standard-desktop' if expected == 'success' else 'ui:gdm-child-time-denied'),
+                ('ui:standard-desktop' if expected == 'success' else 'system:gdm-child-time-denied'),
         }
     return {
         'installed-greeter': 'ui:gdm-product-free-list' if product_free else 'ui:gdm-list',

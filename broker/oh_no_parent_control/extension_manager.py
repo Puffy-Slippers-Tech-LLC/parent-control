@@ -757,21 +757,40 @@ class ExtensionManager:
                     connection.signal_unsubscribe(subscription)
                 connection.signal_unsubscribe(owner_subscription)
 
-    def _runtime_uuids(self, account, state, *, shell_owner=None):
-        result = self._run_command(
-            account,
-            ("gnome-extensions", "list", f"--{state}", "--quiet"),
-            require_live=True, shell_owner=shell_owner,
-        )
-        return {
-            line.strip() for line in result.stdout.splitlines() if line.strip()
-        }
-
     def _runtime_state(self, account, *, shell_owner=None):
-        configured = UUID in self._runtime_uuids(account, "enabled", shell_owner=shell_owner)
-        active = UUID in self._runtime_uuids(account, "active", shell_owner=shell_owner)
-        if shell_owner is not None:
-            self._require_shell_owner(account, shell_owner)
+        from gi.repository import Gio, GLib
+
+        address = self._live_session_address(account)
+        if address is None:
+            raise ChildExtensionSessionLost("child GNOME session is unavailable")
+        # The CLI's separate Extensions proxy can exit while Shell stays up.
+        # Read both values from one reply on the authenticated Shell connection.
+        try:
+            with self._live_child_bus(account, address, COMMAND_TIMEOUT_SECONDS) as (connection, _, remaining):
+                identity = self._bus_shell_identity(connection, remaining)
+                if identity is None or (shell_owner is not None and identity != shell_owner):
+                    raise ChildExtensionSessionLost("child GNOME session changed")
+                try:
+                    reply = connection.call_sync(identity[1], "/org/gnome/Shell",
+                        "org.gnome.Shell.Extensions", "GetExtensionInfo", GLib.Variant("(s)", (UUID,)),
+                        GLib.VariantType.new("(a{sv})"), Gio.DBusCallFlags.NO_AUTO_START,
+                        max(1, int(remaining() * 1000)), None)
+                finally:
+                    # A replaced bus can leave the original connection usable.
+                    if self._shell_owner(account, timeout=min(2, remaining())) != identity:
+                        raise ChildExtensionSessionLost("child GNOME session changed")
+                if reply.get_size() > 65536:
+                    raise RuntimeError("oversized child extension state")
+                info, = reply.unpack()
+        except GLib.Error as error:
+            raise RuntimeError("child GNOME interface is unavailable") from error
+
+        configured, state = info.get("enabled"), info.get("state")
+        if info and (info.get("uuid") != UUID or type(configured) is not bool or
+                     type(state) not in (int, float) or state not in {1, 2, 3, 4, 5, 6, 7, 8, 99}):
+            raise RuntimeError("invalid child extension state")
+        configured = configured is True
+        active = state == 1
         LOG.info("extension-manager.runtime-observed", configured=configured, active=active)
         return configured, active
 

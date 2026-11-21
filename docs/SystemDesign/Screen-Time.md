@@ -183,9 +183,10 @@ its own saves; request approvals also revalidate the saved preference snapshot
 around their asynchronous work.
 
 Shell availability checks ownership of `org.gnome.Shell`. The separate
-`org.gnome.Shell.Extensions` proxy service starts on demand; its absence must
-not select offline activation for a running desktop. The supported CLI still
-performs activation and configured/active verification.
+`org.gnome.Shell.Extensions` proxy service starts on demand and exits when idle.
+The supported CLI performs activation. The broker reads the configured and active
+state together through `GetExtensionInfo` on the authenticated connection to the
+original Shell owner. That verification remains available across proxy restarts.
 
 GNOME may turn on `disable-user-extensions` after a session startup failure.
 Startup reassertion for a saved enabled child, kiosk approval for that child,

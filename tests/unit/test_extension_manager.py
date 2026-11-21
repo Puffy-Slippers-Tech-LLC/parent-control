@@ -429,15 +429,13 @@ class GnomeRecoveryState:
                 self.values[DISABLED_KEY].remove(UUID)
             if UUID not in self.values[ENABLED_KEY]:
                 self.values[ENABLED_KEY].append(UUID)
-        elif arguments[:2] == ("gnome-extensions", "list"):
-            configured = UUID in self.values[ENABLED_KEY]
-            active = configured and not self.values[DISABLE_ALL_KEY] and not self.inactive
-            if (arguments[2] == "--enabled" and configured or
-                    arguments[2] == "--active" and active):
-                stdout = UUID + "\n"
         else:
             raise AssertionError("unexpected GNOME command")
         return subprocess.CompletedProcess(arguments, 0, stdout=stdout, stderr="")
+
+    def runtime_state(self, _account, *, shell_owner):
+        configured = UUID in self.values[ENABLED_KEY]
+        return configured, configured and not self.values[DISABLE_ALL_KEY] and not self.inactive
 
 
 class ExtensionManagerTests(unittest.TestCase):
@@ -1083,19 +1081,33 @@ class ExtensionManagerTests(unittest.TestCase):
         ):
             self.manager._set_live(self.account, True, shell_owner=SHELL_IDENTITY)
 
-    def test_live_activation_rejects_replacement_before_mutation_or_after_successful_lists(self):
+    def test_live_activation_rejects_replacement_before_mutation_or_after_successful_read(self):
+        from gi.repository import GLib
+
+        connection = mock.Mock()
+        connection.call_sync.return_value = GLib.Variant("(a{sv})", ({},))
         for replacement in ((BUS_ID, ":1.51"), (RESTARTED_BUS_ID, SHELL_OWNER)):
-            for owners, attempted in (([replacement], False), ([SHELL_IDENTITY, replacement], True)):
+            for owner, attempted in ((replacement, False), (SHELL_IDENTITY, True)):
                 with self.subTest(replacement=replacement, attempted=attempted):
-                    with (mock.patch.object(self.manager, "_shell_owner", side_effect=owners),
+                    connection.reset_mock()
+                    with (mock.patch.object(self.manager, "_shell_owner", side_effect=[owner, replacement]) as current,
+                          mock.patch.object(self.manager, "_live_session_address", return_value="unix:path=/safe/bus"),
+                          mock.patch.object(self.manager, "_live_child_bus") as bus,
+                          mock.patch.object(self.manager, "_bus_shell_identity",
+                                            return_value=SHELL_IDENTITY),
                           mock.patch.object(self.manager, "_run_command",
                                             return_value=SimpleNamespace(stdout=UUID)) as run,
                           mock.patch.object(self.manager, "_list") as settings,
                           self.assertRaises(ChildExtensionSessionLost)):
+                        bus.return_value.__enter__.return_value = (connection, None, lambda: 1)
                         self.manager._set_live(self.account, True, shell_owner=SHELL_IDENTITY)
                     settings.assert_not_called()
+                    self.assertEqual(connection.call_sync.call_count, int(attempted))
+                    self.assertEqual(current.call_count, 1 + int(attempted))
+                    if attempted:
+                        current.assert_called_with(self.account, timeout=1)
                     commands = [call.args[1][1] for call in run.call_args_list]
-                    self.assertEqual(commands, ["enable", "list", "list"] if attempted else [])
+                    self.assertEqual(commands, ["enable"] if attempted else [])
 
     def test_persistent_live_settings_disagreement_rolls_back(self):
         clock = [0.0]
@@ -1202,26 +1214,36 @@ class ExtensionManagerTests(unittest.TestCase):
         ])
         collect.assert_called_once_with((account.pw_uid,))
 
-    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
-    def test_runtime_state_uses_cli_configured_and_active_filters(self, run):
-        run.side_effect = [
-            subprocess.CompletedProcess([], 0, stdout=f"{UUID}\n", stderr=""),
-            subprocess.CompletedProcess([], 0, stdout=f"{UUID}\n", stderr=""),
-        ]
-        manager = ExtensionManager()
-        with mock.patch.object(
-                manager, "_command",
-                side_effect=lambda _account, arguments: (
-                    list(arguments), {}, "live-session"
-                )):
-            self.assertEqual(manager._runtime_state(self.account), (True, True))
+    def test_runtime_state_reads_configured_and_active_from_the_same_shell_reply(self):
+        from gi.repository import Gio, GLib
 
-        self.assertEqual(run.call_args_list[0].args[0], [
-            "gnome-extensions", "list", "--enabled", "--quiet",
-        ])
-        self.assertEqual(run.call_args_list[1].args[0], [
-            "gnome-extensions", "list", "--active", "--quiet",
-        ])
+        for enabled, state, expected in ((True, 1, (True, True)), (True, 2, (True, False)),
+                                         (None, None, (False, False)), (False, 1.5, None)):
+            with self.subTest(enabled=enabled, state=state):
+                info = {} if enabled is None else {
+                    "uuid": GLib.Variant("s", UUID), "enabled": GLib.Variant("b", enabled),
+                    "state": GLib.Variant("d", state),
+                }
+                connection = mock.Mock()
+                connection.call_sync.return_value = GLib.Variant("(a{sv})", (info,))
+                with (mock.patch.object(self.manager, "_live_session_address", return_value="unix:path=/safe/bus"),
+                      mock.patch.object(self.manager, "_live_child_bus") as bus,
+                      mock.patch.object(self.manager, "_shell_owner", return_value=SHELL_IDENTITY),
+                      mock.patch.object(self.manager, "_bus_shell_identity", return_value=SHELL_IDENTITY)):
+                    bus.return_value.__enter__.return_value = (connection, None, lambda: 1)
+                    if expected is None:
+                        with self.assertRaisesRegex(RuntimeError, "invalid child extension state"):
+                            self.manager._runtime_state(self.account, shell_owner=SHELL_IDENTITY)
+                    else:
+                        self.assertEqual(self.manager._runtime_state(self.account, shell_owner=SHELL_IDENTITY), expected)
+                connection.call_sync.assert_called_once()
+                destination, path, interface, method, arguments, signature, flags, timeout, _ = (
+                    connection.call_sync.call_args.args)
+                self.assertEqual((destination, path, interface, method),
+                                 (SHELL_OWNER, "/org/gnome/Shell", "org.gnome.Shell.Extensions", "GetExtensionInfo"))
+                self.assertEqual(arguments.unpack(), (UUID,))
+                self.assertEqual(signature.dup_string(), "(a{sv})")
+                self.assertEqual((flags, timeout), (Gio.DBusCallFlags.NO_AUTO_START, 1000))
 
     def test_version_validation_change_is_verified_and_transactionally_reversible(self):
         for live in (False, True):
@@ -1554,6 +1576,7 @@ class ExtensionManagerTests(unittest.TestCase):
                 ),
                 mock.patch.object(manager, "_verify_installation"),
                 mock.patch.object(manager, "_shell_owner", return_value=SHELL_IDENTITY if live else None),
+                mock.patch.object(manager, "_runtime_state", side_effect=state.runtime_state),
                 mock.patch.object(manager, "_run_command", side_effect=state.run),
             ):
                 if transaction is not None:

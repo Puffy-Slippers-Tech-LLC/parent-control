@@ -1851,6 +1851,7 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
         allocation=original.allocation.replace('a' * 64, 'd' * 64))
     source = source_proof_selection(original)
     events = []
+    interrupted = False
 
     def run(command, **kwargs):
         if '--live-refresh-source' in command:
@@ -1863,7 +1864,7 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
             assert events == ['build-a', 'retain-a']
             events.append('build-b')
             if failure == 'build-b':
-                return 7
+                return 130 if interrupted else 7
             kwargs['output'](b'fixture-execution: selection=' + json.dumps(replacement.record()).encode() + b'\n')
         elif command[-1] == 'retain-a':
             events.append('retain-a')
@@ -1893,6 +1894,15 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
     assert cleanup.call_count == (1 if failure in ('build-b', 'replace-b') else 0)
     if failure in ('build-b', 'replace-b'):
         assert cleanup.call_args.args[0][-4:] == ['vm', '--vm', vm, 'stop']
+    if failure == 'build-b':
+        from detached_launcher import Stopped
+        interrupted = True
+        events.clear()
+        cleanup.reset_mock()
+        with pytest.raises(Stopped):
+            commands.run_live_refresh(ROOT, command, control=control, environment={})
+        assert events == ['build-a', 'retain-a', 'build-b']
+        assert cleanup.call_count == 1
 
 
 @pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)

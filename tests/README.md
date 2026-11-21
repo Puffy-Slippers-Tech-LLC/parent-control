@@ -653,7 +653,9 @@ scopes and [queues](../docs/Execution-Plans.md#queued-launcher-jobs).
 Use Watch to observe ongoing output.
 `--reload` closes admission in the repair launcher's active test runner. VM steps
 are interrupted cooperatively, and the runner saves completed cases and joins
-owned cleanup before the repair launcher reloads. An active repair agent
+owned cleanup before the repair launcher reloads. After a launcher interruption
+with verified cleanup, reload or resume starts each unfinished case from the
+beginning. Recorded case failures still go to repair. An active repair agent
 finishes its session before replacement.
 `tools/fix-tests --stop` cancels active scopes; categories or `--vm` narrow the
 selection. After cleanup, `--resume` synchronizes upstream before starting a
@@ -1645,7 +1647,9 @@ callbacks. System pytest captures each case after teardown, including cases
 sharing one area VM, and the controller transfers those sets independently of
 the larger result collector. An interrupted pytest invocation falls back to
 capturing the live guest. A capture error is a collection failure and cannot
-prevent owned cleanup or replace the original test failure.
+prevent owned cleanup or replace the original test failure. When the launcher
+has already interrupted the guest step, an unavailable SSH log fetch is recorded
+as a diagnostic and the VM restoration still determines cleanup success.
 
 Sets live under the attempt's existing `private/product-logs/` storage. E2E
 uses fixed `broker.log`, `parent.log`, `child.log` and `kiosk.log` files; system

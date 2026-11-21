@@ -17,7 +17,7 @@ import sys
 import threading
 import time
 
-from owned_commands import (Commands, guest_step, vm_operation, cancellation_cleanup,
+from owned_commands import (Commands, guest_step, vm_operation, cancellation_cleanup, cancellation_delivered,
                             require, CommandError as Error)
 import vm_config
 from watch_activity import observed
@@ -229,8 +229,18 @@ class Transport:
                 if self.product_logs_per_case:
                     return
         program = Path(product_logs.__file__).read_text()
-        raw = self.call(['/usr/bin/python3', '-I', '-c', program],
-                        timeout=80, diagnostic_stdout=transfer_diagnostic)
+        try:
+            raw = self.call(['/usr/bin/python3', '-I', '-c', program],
+                            timeout=80, diagnostic_stdout=transfer_diagnostic)
+        except (Error, subprocess.TimeoutExpired) as error:
+            ssh_unavailable = (Path(error.cmd[0]).name == 'ssh' if isinstance(error, subprocess.TimeoutExpired)
+                               else self.commands.last_returncode == 255 and str(error) == 'command:failed:ssh')
+            if not (ssh_unavailable and cancellation_delivered()):
+                raise
+            # Cancellation can leave the guest unavailable while the owner
+            # restores it. The failed exchange is already in private output.
+            print('product-logs:capture-unavailable-after-interruption', file=sys.stderr, flush=True)
+            return
         snapshot = json.loads(raw)
         require(isinstance(snapshot, dict) and snapshot.keys() == set(product_logs.COMPONENTS)
                 and all(isinstance(log, str) for log in snapshot.values()),

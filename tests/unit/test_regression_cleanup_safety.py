@@ -296,12 +296,39 @@ finally:
 
         @cancellable
         def failed_cleanup():
-            from system_runner import RunLedger
+            from system_runner import Lease, RunLedger, address
             from tools import vm_recording
+            from vm_transport import Transport, Error
             failures = []
             monkeypatch.setattr(vm_recording, 'report_failure', lambda: failures.append('failure'))
             ledger = RunLedger()
             ledger.fail_outcome('infrastructure', 'execution:interrupted')
+            assert not cancellation_failed() and not failures
+
+            def unavailable(*args, **kwargs):
+                raise Error('command:failed:ssh')
+
+            commands = SimpleNamespace(directory=tmp_path, last_returncode=255)
+            transport = Transport({}, commands)
+            transport.call = unavailable
+            with pytest.raises(Error, match='command:failed:ssh'):
+                transport.capture_product_logs()
+            removed_timers = []
+            source = SimpleNamespace(api=SimpleNamespace(virEventAddTimeout=lambda *_: 7,
+                                                        virEventRemoveTimeout=removed_timers.append))
+            signal.raise_signal(signal.SIGINT)
+            with pytest.raises(KeyboardInterrupt):
+                address(source)
+            assert removed_timers == [7]
+            commands.last_returncode = 1
+            with pytest.raises(Error, match='command:failed:ssh'):
+                transport.capture_product_logs()
+            commands.last_returncode = 255
+            lease = SimpleNamespace(product_log_capture=transport.capture_product_logs,
+                                    guard=lambda: None, commands=commands, ledger=ledger)
+            Lease.collect_product_logs(lease)
+            assert lease.product_log_capture is None
+            assert ledger.outcomes['collection']['outcome'] == 'not-run'
             assert not cancellation_failed() and not failures
             record_vm_cleanup(True)
             ledger.fail_outcome('collection', 'artifact:digest')

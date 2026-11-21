@@ -246,7 +246,7 @@ require = baseline.require
 Error = baseline.CaptureError
 
 from owned_commands import (Commands, CommandError, cancellable, cancellation_requested,
-                            cancellation_cleanup, record_vm_cleanup, record_vm_failure,
+                            cancellation_cleanup, check_cancellation, record_vm_cleanup, record_vm_failure,
                             CANCELLATION_CODES)
 
 
@@ -2182,6 +2182,7 @@ def address(source, timeout=300):
     observed_count = 0
     try:
         while time.monotonic() < deadline:
+            check_cancellation()
             interfaces = source.domain.interfaceAddresses(source.api.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
             addresses = [a['addr'] for item in interfaces.values() for a in item.get('addrs', [])
                          if a['type'] == source.api.VIR_IP_ADDR_TYPE_IPV4]
@@ -2192,6 +2193,7 @@ def address(source, timeout=300):
                 return str(value)
             event.wait(max(0, deadline - time.monotonic()))
             event.clear()
+        check_cancellation()
         log(f'network:readiness-timeout ipv4-lease-count={observed_count}')
         raise Error('network:readiness-timeout')
     finally:

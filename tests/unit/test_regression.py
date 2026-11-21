@@ -234,6 +234,29 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
     retry_last = [*plan[:3], ['--resume', '--resume-case=last', '--resume-case-only', 'e2e'], *plan[4:]]
     assert vm_test_queue.execute_pass(tmp_path, tuple(retry_last), control(), execute)['status'] == 0
     assert not [record for record in ResultStore().failures() if record.get('work')]
+    # Reload preserves the earlier pass and leaves the interrupted case pending
+    # in the repair ledger, even though the worker exited with status 130.
+    import launcher_reload
+    monkeypatch.setenv(VARIABLE, str(tmp_path / 'reload-results'))
+    reloading = threading.Event()
+    monkeypatch.setattr(launcher_reload, 'pending', reloading.is_set)
+    before = len(observed)
+
+    def interrupt_last(worker, assignment, inherited, group):
+        if assignment['execution']['case'] == 'last':
+            reloading.set()
+            return dict(status=130, handoffs=[], evidence=dict(assignment,
+                status=130, passed=[], failed=[], cleanup=True, interrupted=True))
+        return execute(worker, assignment, inherited, group)
+
+    assert vm_test_queue.execute_pass(tmp_path, plan, control(), interrupt_last)['status'] == launcher_reload.STATUS
+    assert not ResultStore().failures()
+    reloading.clear()
+    with monkeypatch.context() as repair:
+        repair.setenv(REPAIR_QUEUE, '1')
+        assert vm_test_queue.execute_pass(tmp_path, tuple(resumed), control(), execute)['status'] == 0
+    assert observed[before:].count(('a', 'first')) == observed[before:].count(('b', 'first')) == 1
+    assert ResultStore().passed('e2e', 'a') == ResultStore().passed('e2e', 'b') == {'first', 'last'}
     # Ordinary execution has no repair result ledger to poison later runs.
     monkeypatch.delenv(VARIABLE)
     import test_commands

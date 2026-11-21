@@ -65,6 +65,11 @@ def cancellation_requested():
     return cancellation is not None and cancellation.requested
 
 
+def cancellation_delivered():
+    cancellation = _cancellation.get()
+    return cancellation is not None and cancellation.delivered
+
+
 def check_cancellation():
     """Deliver a latched request between owned worker callbacks/VM operations."""
     cancellation = _cancellation.get()

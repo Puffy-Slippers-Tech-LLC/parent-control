@@ -988,6 +988,7 @@ def live_refresh_selection(category, args):
 
 def run_live_refresh(root, command, *, control, environment):
     """Keep A's host owner alive while a fixed maintenance history builds B."""
+    from detached_launcher import Stopped
     from fixture_execution import Selection, validate_source_selection
     from vm_selection import selected, vm_config
     from vm_pool import arguments as checkout_arguments
@@ -1014,7 +1015,9 @@ def run_live_refresh(root, command, *, control, environment):
                 raise ValueError('fixture live refresh builder output is invalid')
         status = control.run(python_file(root, 'tools/fixture_execution.py', '--target', targets[selected().name],
                                         '--fixture-path', selected().fixture_path, *options),
-                             cwd=root, env=environment, output=output, timeout=600.0)
+                             cwd=root, env=environment, output=output, timeout=600.0, preserve_exit=True)
+        if status == 130:
+            raise Stopped()
         if status or len(records) != 1:
             raise ValueError('fixture live refresh preparation failed; status=' + str(status))
         return Selection.from_record(json.loads(records[0])), sources

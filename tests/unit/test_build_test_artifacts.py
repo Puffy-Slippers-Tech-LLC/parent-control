@@ -286,14 +286,16 @@ def test_development_only_commit_preserves_package_metadata(tmp_path, monkeypatc
 
 def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monkeypatch):
     from tools import build_rpm
+    image_id = 'a' * 64
     metadata = {'source': {'revision': 'a' * 40},
                 'build_inputs': {'source_date_epoch': 1, 'deb_build_options': 'nocheck'}, 'tools': {}}
     monkeypatch.setattr(artifacts.package_inputs, 'paths', lambda _: [Path('README.md')])
     monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
     monkeypatch.setattr(artifacts, '_metadata', lambda *_: metadata)
     calls = []
-    def rpm(source, output, **_lifetime):
+    def rpm(source, output, *, container_image, **_lifetime):
         assert source != ROOT and (source / 'README.md').read_bytes() == (ROOT / 'README.md').read_bytes()
+        assert container_image == image_id
         calls.append(source)
         output.mkdir()
         (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').write_bytes(b'rpm package')
@@ -308,7 +310,7 @@ def test_rpm_build_uses_frozen_source_and_records_exact_artifact(tmp_path, monke
         'name': 'oh-no-parent-control', 'architecture': 'x86_64', 'version': '0:1.2-0.1.dev.fc44'})
     monkeypatch.setattr(artifacts, '_run', fixture)
     output = tmp_path / 'output'
-    artifacts.build(output, package_format='rpm')
+    artifacts.build(output, package_format='rpm', container_image=image_id)
     record = artifacts.verify(output)
     assert len(calls) == 1
     assert record['build_inputs']['package_format'] == 'rpm'

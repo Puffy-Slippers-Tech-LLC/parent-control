@@ -16,6 +16,9 @@ else:
     from test_storage import scratch_directory, scratch_descriptors
 
 
+_IMAGE_ID = re.compile(r'[0-9a-f]{64}')
+
+
 def inputs(root: Path, *, target='fedora44', architecture='x86_64'):
     target = build_targets.get(target, architecture, 'rpm')
     recipe = (root / 'rpm/Containerfile').read_bytes()
@@ -29,23 +32,18 @@ def inputs(root: Path, *, target='fedora44', architecture='x86_64'):
     return recipe, spec, f'localhost/onpc-rpm-builder:fc{target.version}-{fingerprint[:20]}'
 
 
-def require_image(root: Path, *, target='fedora44', architecture='x86_64') -> str:
+def image_id(root: Path, *, target='fedora44', architecture='x86_64', environment=None) -> str:
     image = inputs(root, target=target, architecture=architecture)[2]
-    if shutil.which('podman') is None:
-        raise ValueError(f'{target} RPM builder is missing; run ./setup.sh --rpm-build-tools')
-    result = subprocess.run(['podman', 'image', 'exists', image], check=False,
-                            pass_fds=scratch_descriptors())
+    try:
+        result = subprocess.run(['podman', 'image', 'inspect', '--format', '{{.Id}}', image],
+                                env=environment, check=False, capture_output=True, text=True,
+                                pass_fds=scratch_descriptors())
+    except FileNotFoundError as error:
+        raise ValueError(f'{target} RPM builder is missing; run ./setup.sh --rpm-build-tools') from error
     if result.returncode != 0:
         raise ValueError(f'{target} RPM builder is unavailable or outdated; run ./setup.sh --rpm-build-tools')
-    return image
-
-
-def image_id(root: Path, *, target='fedora44', architecture='x86_64') -> str:
-    image = require_image(root, target=target, architecture=architecture)
-    result = subprocess.run(['podman', 'image', 'inspect', '--format', '{{.Id}}', image],
-                            check=True, capture_output=True, text=True, pass_fds=scratch_descriptors())
     identity = result.stdout.strip().removeprefix('sha256:')
-    if re.fullmatch(r'[0-9a-f]{64}', identity) is None:
+    if _IMAGE_ID.fullmatch(identity) is None:
         raise ValueError(f'{target} RPM builder image identity is invalid')
     return identity
 
@@ -60,17 +58,19 @@ def setup(root: Path, *, target='fedora44', architecture='x86_64') -> None:
         (context / 'oh-no-parent-control.spec').write_text(spec)
         subprocess.run(['podman', 'build', '--pull=missing', '--tag', image, str(context)],
                        check=True, pass_fds=scratch_descriptors())
-    require_image(root, target=target, architecture=architecture)
+    image_id(root, target=target, architecture=architecture)
     print(f'setup: {target}/{architecture} RPM builder is ready', flush=True)
 
 
 def command(root: Path, top: Path, mode: str, *, epoch: int, target='fedora44',
-            architecture='x86_64', container_image: str | None = None) -> list[str]:
+            architecture='x86_64', container_image: str | None = None, environment=None) -> list[str]:
     selected = build_targets.get(target, architecture, 'rpm')
     if type(epoch) is not int or epoch < 0:
         raise ValueError('invalid RPM source timestamp')
-    image = container_image if container_image is not None else require_image(
-        root, target=target, architecture=architecture)
+    if container_image is not None and _IMAGE_ID.fullmatch(container_image) is None:
+        raise ValueError('RPM container build requires an exact image ID')
+    image = container_image if container_image is not None else image_id(
+        root, target=target, architecture=architecture, environment=environment)
     return ['podman', 'run', '--rm', '--pull=never', '--network=none',
             '--userns=keep-id', '--cap-drop=all',
             '--env', f'SOURCE_DATE_EPOCH={epoch}',

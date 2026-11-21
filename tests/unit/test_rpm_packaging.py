@@ -780,7 +780,9 @@ def test_setup_prepares_a_private_container_context_and_propagates_failure(tmp_p
             assert {p.name for p in context.iterdir()} == {'Containerfile', 'oh-no-parent-control.spec'}
             assert 'dnf -y builddep' in (context / 'Containerfile').read_text()
             assert 'BuildRequires:  systemd-rpm-macros' in (context / 'oh-no-parent-control.spec').read_text()
-        return subprocess.CompletedProcess(arguments, 0)
+            return subprocess.CompletedProcess(arguments, 0)
+        assert arguments[1:5] == ['image', 'inspect', '--format', '{{.Id}}']
+        return subprocess.CompletedProcess(arguments, 0, stdout='sha256:' + 'a' * 64 + '\n')
 
     monkeypatch.setattr(rpm_builder.subprocess, 'run', run)
     rpm_builder.setup(ROOT)
@@ -805,18 +807,20 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm, 'scratch_descriptors', lambda: ())
     monkeypatch.setattr(build_rpm, 'native_fedora44', lambda: False)
     monkeypatch.setattr(build_rpm.shutil, 'which', lambda name: None if name == 'mock' else '/fixture/' + name)
-    def unexpected_tag_lookup(*args, **kwargs):
-        pytest.fail('a pinned RPM build must not resolve the mutable builder tag')
-
-    monkeypatch.setattr(rpm_builder, 'require_image', unexpected_tag_lookup)
     image_id = 'a' * 64
     monkeypatch.setenv('SOURCE_DATE_EPOCH', '1')
     original_run = subprocess.run
     commands = []
+    lookups = []
 
     def run(arguments, **kwargs):
         if arguments[0] != 'podman':
             return original_run(arguments, **kwargs)
+        if arguments[1] == 'image':
+            assert empty, 'a preselected RPM build must not resolve the builder tag again'
+            assert arguments[1:5] == ['image', 'inspect', '--format', '{{.Id}}']
+            lookups.append(arguments[-1])
+            return subprocess.CompletedProcess(arguments, 0, stdout='sha256:' + image_id + '\n')
         commands.append(arguments)
         assert arguments[arguments.index('--volume') + 2] == image_id
         assert '--network=none' in arguments and '--pull=never' in arguments
@@ -836,8 +840,11 @@ def test_container_binary_build_is_offline_and_requires_a_product_rpm(tmp_path, 
     monkeypatch.setattr(build_rpm.subprocess, 'run', run)
     if empty:
         with pytest.raises(ValueError, match='no product binary RPM'):
-            build_rpm.build(ROOT, output, container_image=image_id)
+            build_rpm.build(ROOT, output)
+        assert lookups == [rpm_builder.inputs(ROOT)[2]]
     else:
+        with pytest.raises(ValueError, match='requires an exact image ID'):
+            rpm_builder.command(ROOT, scratch, 'rpm', epoch=1, container_image=rpm_builder.inputs(ROOT)[2])
         build_rpm.build(ROOT, output, container_image=image_id)
         assert (output / 'oh-no-parent-control-1.2-0.1.dev.fc44.x86_64.rpm').read_bytes() == b'fixture rpm'
     assert len(commands) == 1

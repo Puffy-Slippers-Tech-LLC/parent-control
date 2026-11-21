@@ -10,7 +10,7 @@ from common.oh_no_parent_control_ui.translation_widgets import (
 import argparse
 import hashlib
 import math
-from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code, gio_error_category
 from common.oh_no_parent_control_ui.diagnostic_events import configure_console, log_version
 import os
 import re
@@ -365,6 +365,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self.set_size_request(820, -1)
         self._client_factory = client_factory
         self._client = None
+        self._shutdown_subscription = 0
+        self._system_shutting_down = False
         self._startup_started = False
         self._own_language = None
         self._applied_language = None
@@ -449,7 +451,17 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._closed:
             return
         self._client = client
+        if isinstance(client, BrokerClient):
+            self._shutdown_subscription = client.connection.signal_subscribe(
+                "org.freedesktop.login1", "org.freedesktop.login1.Manager",
+                "PrepareForShutdown", "/org/freedesktop/login1", None,
+                Gio.DBusSignalFlags.NONE, self._prepare_for_shutdown,
+            )
         self._load_language()
+
+    def _prepare_for_shutdown(self, _connection, _sender, _path, _interface, _signal,
+                              parameters, _user_data=None):
+        self._system_shutting_down, = parameters.unpack()
 
     def _stage_panel(self, name, content, placeholder=None):
         # Homogeneous measurement reserves the finished panel's space while
@@ -1670,6 +1682,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._errors.present(report, on_close=on_close)
 
     def _show_refresh_error(self, error, detail, *, uid=None):
+        if self._refresh_interrupted_by_shutdown(error):
+            return
         if (uid is not None and isinstance(error, GLib.Error)
                 and Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.InvalidRequest"):
             # Status polling can reach a removed child before account polling
@@ -1696,6 +1710,13 @@ class ParentWindow(Adw.ApplicationWindow):
             self._toast(detail)
         else:
             self._show_error(error, detail)
+
+    def _refresh_interrupted_by_shutdown(self, error):
+        # A broker or bus that disappears during an announced shutdown is
+        # expected. Keep reporting other failures, including explicit writes.
+        return self._system_shutting_down and gio_error_category(error) in {
+            "disconnected", "no-owner", "no-reply", "service-unknown",
+        }
 
     def _clear_catalog_rows(self):
         for row in self._app_rows:
@@ -1867,6 +1888,8 @@ class ParentWindow(Adw.ApplicationWindow):
         if self._users_loaded_once and not management_access_denied(error):
             # Keep an already-authorized window usable during a transient
             # discovery outage. Each operation still authorizes at the broker.
+            if self._refresh_interrupted_by_shutdown(error):
+                return
             if not self._user_discovery_error_reported:
                 self._user_discovery_error_reported = True
                 self._show_refresh_error(error, m.CHILD_ACCOUNTS_COULD_NOT_BE_REFRESHED_RETRYING_AUTOMATICALLY)
@@ -2256,7 +2279,7 @@ class ParentWindow(Adw.ApplicationWindow):
         self._load_time_status()
 
     def _refresh_time_status(self):
-        if self._selected_uid() is not None:
+        if not self._system_shutting_down and self._selected_uid() is not None:
             self._load_time_status()
             self._load_policy_warnings()
         return GLib.SOURCE_CONTINUE
@@ -2319,11 +2342,15 @@ class ParentWindow(Adw.ApplicationWindow):
                                      uid=uid)
 
     def _refresh_users(self):
-        self._load_users()
+        if not self._system_shutting_down:
+            self._load_users()
         return GLib.SOURCE_CONTINUE
 
     def _close_requested(self, *_args):
         self._closed = True
+        if self._shutdown_subscription:
+            self._client.connection.signal_unsubscribe(self._shutdown_subscription)
+            self._shutdown_subscription = 0
         self._cancel_apps_paint()
         legend = getattr(self, "_legend_popover", None)
         if legend is not None and legend.get_parent() is not None:

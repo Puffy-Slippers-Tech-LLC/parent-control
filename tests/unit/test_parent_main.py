@@ -4,7 +4,7 @@ import struct
 from pathlib import Path
 from unittest import mock
 from types import SimpleNamespace
-from gi.repository import Gio
+from gi.repository import Gio, GLib
 
 from common.oh_no_parent_control_ui.languages import selected_language, session_language, supported_language
 from common.oh_no_parent_control_ui import messages as m
@@ -531,8 +531,16 @@ class ParentWindowTests(unittest.TestCase):
         ParentWindow._policy_warnings_failed(window, 1002, RuntimeError("private"))
         window._show_error.assert_not_called()
 
+    def refresh_window(self):
+        window = mock.Mock(_system_shutting_down=False)
+        window._refresh_interrupted_by_shutdown = (
+            lambda error: ParentWindow._refresh_interrupted_by_shutdown(window, error))
+        window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
+            window, error, detail, **options)
+        return window
+
     def test_warning_query_errors_and_discovery_outages_do_not_close_loaded_window(self):
-        window = mock.Mock()
+        window = self.refresh_window()
         window._language_dialog = None
         window._whats_new_dialog = None
         window._policy_warnings_closed = False
@@ -540,8 +548,6 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid.return_value = 1001
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
-        window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
-            window, error, detail, **options)
         error = RuntimeError("private")
         for _ in range(3):
             ParentWindow._policy_warnings_failed(window, 1001, error)
@@ -552,14 +558,12 @@ class ParentWindowTests(unittest.TestCase):
         window.get_application.assert_not_called()
 
     def test_background_broker_outage_keeps_loaded_management_available(self):
-        window = mock.Mock()
+        window = self.refresh_window()
         window._language_dialog = window._whats_new_dialog = None
         window._policy_warnings_closed = window._policy_warning_query_failed = False
         window._selected_uid.return_value = 1001
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
-        window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
-            window, error, detail, **options)
         error = Gio.DBusError.new_for_dbus_error(
             "org.freedesktop.DBus.Error.NameHasNoOwner", "private-detail")
         for _ in range(3):
@@ -575,15 +579,50 @@ class ParentWindowTests(unittest.TestCase):
         ParentWindow._users_loaded(window, [])
         self.assertFalse(window._user_discovery_error_reported)
 
+    def test_shutdown_pauses_polls_and_ignores_inflight_refresh_disconnects(self):
+        window = self.refresh_window()
+        window._users_loaded_once = True
+        window._user_discovery_error_reported = False
+        window._selected_uid.return_value = 1001
+        unavailable = Gio.DBusError.new_for_dbus_error(
+            "org.freedesktop.DBus.Error.NameHasNoOwner", "private-detail")
+        with mock.patch("parent.oh_no_parent_control_parent.main.record_frontend_failure") as report:
+            ParentWindow._prepare_for_shutdown(window, None, None, None, None, None,
+                                               GLib.Variant("(b)", (True,)))
+            ParentWindow._refresh_users(window)
+            ParentWindow._refresh_time_status(window)
+            ParentWindow._users_failed(window, unavailable)
+            window._show_refresh_error(unavailable, "refresh unavailable")
+            window._load_users.assert_not_called()
+            window._load_time_status.assert_not_called()
+            window._load_policy_warnings.assert_not_called()
+            window._toast.assert_not_called()
+            window._show_error.assert_not_called()
+            report.assert_not_called()
+            self.assertFalse(window._user_discovery_error_reported)
+
+            unexpected = RuntimeError("private")
+            window._show_refresh_error(unexpected, "refresh failed")
+            window._show_error.assert_called_once_with(unexpected, "refresh failed")
+
+            ParentWindow._prepare_for_shutdown(window, None, None, None, None, None,
+                                               GLib.Variant("(b)", (False,)))
+            ParentWindow._refresh_users(window)
+            ParentWindow._refresh_time_status(window)
+            ParentWindow._users_failed(window, unavailable)
+            window._load_users.assert_called_once_with()
+            window._load_time_status.assert_called_once_with()
+            window._load_policy_warnings.assert_called_once_with()
+            window._toast.assert_called_once()
+            report.assert_called_once_with("Parent App", unavailable, "dependency")
+
     def test_removed_child_refresh_error_requires_fresh_confirmed_absence(self):
         error = Gio.DBusError.new_for_dbus_error(
             "com.puffyslippers.OhNoParentControl1.Error.InvalidRequest", "private-detail")
         for outcome in ('removed', 'eligible', 'discovery-failed', 'selection-changed'):
             with self.subTest(outcome=outcome):
-                window = mock.Mock()
+                window = self.refresh_window()
                 window._selected_uid.return_value = 1001
-                window._show_refresh_error = lambda error, detail, **options: ParentWindow._show_refresh_error(
-                    window, error, detail, **options)
                 window._show_refresh_error(error, 'status unavailable', uid=1001)
                 window._show_error.assert_not_called()
                 success, failure = window._run.call_args.args[1:]

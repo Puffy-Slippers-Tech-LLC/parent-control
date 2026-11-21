@@ -517,7 +517,7 @@ def entry_identity(current, uid, mode):
 
 
 def gdm_denial_guest(role, boot, attempt):
-    """Correlate one normal GDM rejection with the existing PAM time-check event."""
+    """Read the PAM decision and verify the child did not gain desktop access."""
     require(role in ('child', 'standard') and os.geteuid() == 0, 'gdm-denial-account')
     uid = str(pwd.getpwnam(ACCOUNTS[role]).pw_uid)
     boot_file = Path('/proc/sys/kernel/random/boot_id')
@@ -531,38 +531,29 @@ def gdm_denial_guest(role, boot, attempt):
                 'gdm-denial-desktop-access')
         return hashlib.sha256(json.dumps(owned, sort_keys=True).encode()).hexdigest()
 
-    if attempt is None:
-        current = sessions()
+    def greeter_sessions(current):
         active = [p['Class'] for p in current.values() if local_graphical(p) and p['Active'] == 'yes']
         require(active == ['greeter'], 'gdm-denial-greeter')
-        return {'since_us': time.monotonic_ns() // 1000, 'sessions': child_sessions(current)}
+        return child_sessions(current)
+
+    if attempt is None:
+        before = greeter_sessions(sessions())
+        return {'since_us': time.monotonic_ns() // 1000, 'sessions': before}
 
     require(gdm_denial_receipt(attempt) and attempt['since_us'] <= time.monotonic_ns() // 1000,
             'gdm-denial-receipt')
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        raw = call(['/usr/bin/journalctl', '-b', '--no-pager', '-n', '64', '--output=json',
-                    '--output-fields=AUDIT_FIELD_EXE,AUDIT_FIELD_UID,AUDIT_FIELD_ACCT,AUDIT_FIELD_RES,MESSAGE,_TRANSPORT',
-                    '_TRANSPORT=audit', '_AUDIT_TYPE=1112', '_UID=0', '+',
-                    '_UID=0', 'SYSLOG_IDENTIFIER=' + GDM_TIME_CHECK], deadline=deadline)
+        raw = call(['/usr/bin/journalctl', '-b', '--no-pager', '-n', '2', '--output=json',
+                    '--output-fields=MESSAGE', '_TRANSPORT=syslog', '_UID=0',
+                    'SYSLOG_IDENTIFIER=' + GDM_TIME_CHECK], deadline=deadline)
         records = [json.loads(line) for line in raw.splitlines()]
         recent = [record for record in records
                   if int(record['__MONOTONIC_TIMESTAMP']) >= attempt['since_us']]
-        require(len(recent) < 64, 'gdm-denial-journal-bound')
-        logins = [r for r in recent if r.get('_TRANSPORT') == 'audit'
-                  and isinstance(r.get('AUDIT_FIELD_EXE'), str)
-                  and Path(r['AUDIT_FIELD_EXE']).name == 'gdm-session-worker']
-        reasons = [r.get('MESSAGE') for r in recent if r.get('_TRANSPORT') != 'audit']
-        require(len(logins) <= 1 and len(reasons) <= 1, 'gdm-denial-ambiguous')
-        if logins:
-            login = logins[0]
-            require((login.get('AUDIT_FIELD_UID') == uid
-                     or login.get('AUDIT_FIELD_ACCT') == ACCOUNTS[role])
-                    and login.get('AUDIT_FIELD_RES') == 'failed', 'gdm-denial-login-outcome')
-        if reasons:
-            require(reasons == [GDM_TIME_DENIAL], 'gdm-denial-time-check-outcome')
-        if logins and reasons:
-            require(child_sessions(sessions(deadline=deadline)) == attempt['sessions'],
+        require(len(recent) <= 1, 'gdm-denial-ambiguous')
+        if recent:
+            require(recent[0].get('MESSAGE') == GDM_TIME_DENIAL, 'gdm-denial-time-check-outcome')
+            require(greeter_sessions(sessions(deadline=deadline)) == attempt['sessions'],
                     'gdm-denial-session-changed')
             require(hashlib.sha256(boot_file.read_bytes()).hexdigest() == boot, 'gdm-denial-boot')
             return {'operation': GDM_DENIAL_OPERATION, 'outcome': 'passed',

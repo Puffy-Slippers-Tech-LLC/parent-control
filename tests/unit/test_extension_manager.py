@@ -1,7 +1,9 @@
 import ast
 import array
+import errno
 import os
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -561,7 +563,8 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["user"], 1001)
         self.assertEqual(run.call_args.kwargs["group"], 1001)
         self.assertEqual(run.call_args.kwargs["extra_groups"], ())
-        self.assertEqual(run.call_args.kwargs["timeout"], 10)
+        self.assertGreater(run.call_args.kwargs["timeout"], 0)
+        self.assertLessEqual(run.call_args.kwargs["timeout"], 10)
         self.assertEqual(run.call_args.kwargs["env"]["HOME"], "/home/child")
         self.assertEqual(run.call_args.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], "unix:path=/dev/null")
 
@@ -685,6 +688,118 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertNotIn(secret, "\n".join(logs.output))
         self.assertNotIn("diagnostic.rejected", [item["event"] for item in payloads])
         self.assertEqual(run.call_args.kwargs["env"]["LC_MESSAGES"], "C")
+
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_uncommitted_settings_write_retries_on_the_available_bus(self, run, private_session):
+        from gi.repository import Gio, GLib
+
+        arguments = ("gsettings", "set", "org.gnome.shell", ENABLED_KEY, "[]")
+        runtime = self.manager.runtime_root / "1001"
+        bus = runtime / "bus"
+        directory = SimpleNamespace(st_mode=stat.S_IFDIR, st_uid=1001)
+        stale = SimpleNamespace(st_mode=stat.S_IFSOCK, st_uid=1001, st_dev=1, st_ino=2)
+        renewed = SimpleNamespace(st_mode=stat.S_IFSOCK, st_uid=1001, st_dev=1, st_ino=3)
+        committed = subprocess.CompletedProcess(arguments, 0, stdout="", stderr="")
+        private_session.return_value = committed
+        for scenario, expected_transport in (
+                ("stale socket", "private"), ("socket removed", "private"),
+                ("replacement bus", "live"), ("replaced during probe", "live"),
+                ("replaced after missing path", "live"), ("replaced after missing endpoint", "live"),
+                ("live only", None), ("access denied", None)):
+            socket_status = stale
+            reason = "Permission denied" if scenario == "access denied" else "The connection is closed"
+            warning = f"dconf-WARNING: failed to commit changes to dconf: {reason}\n"
+            uncommitted = subprocess.CompletedProcess(arguments, 0, stdout="", stderr=warning)
+
+            def lstat(path):
+                if path == runtime:
+                    return directory
+                if path == bus and socket_status is not None:
+                    return socket_status
+                raise FileNotFoundError(path)
+
+            def execute(_command, **_options):
+                nonlocal socket_status
+                if run.call_count == 1:
+                    if scenario == "socket removed":
+                        socket_status = None
+                    return uncommitted
+                return committed
+
+            def connect(_account, _address, _context, callback, *, timeout):
+                nonlocal socket_status
+                error = None
+                if scenario.startswith("replaced "):
+                    socket_status = renewed
+                if scenario == "replaced after missing path":
+                    error = FileNotFoundError(errno.ENOENT, "socket missing", str(bus))
+                elif scenario == "replaced after missing endpoint":
+                    error = GLib.Error.new_literal(Gio.io_error_quark(), "socket missing", Gio.IOErrorEnum.NOT_FOUND)
+                elif scenario in {"stale socket", "replaced during probe"}:
+                    error = GLib.Error.new_literal(Gio.io_error_quark(), "bus closed", Gio.IOErrorEnum.CLOSED)
+                connection = None if error else mock.Mock(**{"is_closed.return_value": False})
+                callback(connection, error)
+                return mock.Mock(pending=False)
+
+            with (self.subTest(scenario=scenario),
+                  mock.patch.object(Path, "lstat", autospec=True, side_effect=lstat),
+                  mock.patch("oh_no_parent_control.extension_manager.connect_child_bus", side_effect=connect)):
+                run.reset_mock()
+                private_session.reset_mock()
+                run.side_effect = execute
+                result = self.manager._run_command(self.account, arguments,
+                                                   require_live=scenario == "live only")
+                self.assertIs(result, committed if expected_transport else uncommitted)
+                if expected_transport == "private":
+                    run.assert_called_once()
+                    private_session.assert_called_once()
+                    self.assertEqual(private_session.call_args.args[0], ["dbus-run-session", "--", *arguments])
+                    options = private_session.call_args.kwargs
+                    self.assertNotIn("DBUS_SESSION_BUS_ADDRESS", options["env"])
+                    self.assertEqual(options["env"].get("XDG_RUNTIME_DIR"),
+                                     str(runtime) if scenario == "stale socket" else None)
+                    self.assertEqual((options["user"], options["group"], options["extra_groups"]),
+                                     (1001, 1001, ()))
+                    self.assertGreater(options["timeout"], 0)
+                    self.assertLessEqual(options["timeout"], run.call_args.kwargs["timeout"])
+                else:
+                    private_session.assert_not_called()
+                    self.assertEqual(run.call_count, 2 if expected_transport else 1)
+                    self.assertEqual(run.call_args.kwargs["env"]["DBUS_SESSION_BUS_ADDRESS"], f"unix:path={bus}")
+
+    @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
+    @mock.patch("oh_no_parent_control.extension_manager.subprocess.run")
+    def test_settings_retry_rechecks_cutoff_after_transport_diagnostics(self, run, private_session):
+        arguments = ("gsettings", "set", "org.gnome.shell", ENABLED_KEY, "[]")
+        run.return_value = subprocess.CompletedProcess(arguments, 0, stdout="", stderr=(
+            "dconf-WARNING: failed to commit changes to dconf: The connection is closed\n"))
+        environment = {"HOME": "/home/child", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1001/bus",
+                       "XDG_RUNTIME_DIR": "/run/user/1001"}
+        routes = ((list(arguments), environment, "live-session"),
+                  (["dbus-run-session", "--", *arguments], {"HOME": "/home/child"}, "offline"))
+        for cancel in (False, True):
+            now = 5
+            stopped = threading.Event()
+
+            def log(event, *, transport, **_fields):
+                nonlocal now
+                if event == "extension-manager.command" and transport == "offline":
+                    if cancel:
+                        stopped.set()
+                    else:
+                        now += 3
+
+            with (self.subTest(cancel=cancel),
+                  mock.patch.object(self.manager, "_command", side_effect=routes),
+                  mock.patch("oh_no_parent_control.extension_manager.LOG.info", side_effect=log),
+                  mock.patch("oh_no_parent_control.extension_manager.time.monotonic", side_effect=lambda: now),
+                  self.manager.command_budget(3, stopped)):
+                with self.assertRaises(_CommandCancelled if cancel else RuntimeError) as failure:
+                    self.manager._run_command(self.account, arguments)
+                if not cancel:
+                    self.assertIsInstance(failure.exception.__cause__, TimeoutError)
+            private_session.assert_not_called()
 
     @mock.patch("oh_no_parent_control.extension_manager._run_private_session")
     def test_successful_exit_preserves_offline_bus_root_cause_and_commit_failure(self, run):
@@ -1307,6 +1422,40 @@ class ExtensionManagerTests(unittest.TestCase):
         self.assertTrue(state.values[DISABLE_ALL_KEY])
         self.assertNotIn(UUID, state.values[ENABLED_KEY])
         self.assertIn(UUID, state.values[DISABLED_KEY])
+
+    def test_session_loss_retries_a_rollback_write_that_was_not_persisted(self):
+        state = GnomeRecoveryState()
+        state.values[DISABLE_ALL_KEY] = False
+        old_enabled = state.values[ENABLED_KEY][:]
+        old_disabled = state.values[DISABLED_KEY][:]
+        original_run = state.run
+        restore_attempts = []
+
+        def run(account, arguments, **kwargs):
+            if arguments[:4] == ("gsettings", "set", "org.gnome.shell", ENABLED_KEY):
+                restore_attempts.append(arguments[4])
+                if len(restore_attempts) == 1:
+                    return subprocess.CompletedProcess(arguments, 0, stdout="", stderr="")
+            return original_run(account, arguments, **kwargs)
+
+        def interrupted_enable(*_args, **_kwargs):
+            state.values[ENABLED_KEY].append(UUID)
+            state.values[DISABLED_KEY].remove(UUID)
+            raise ChildExtensionSessionLost()
+
+        state.run = run
+
+        def transaction(manager):
+            with mock.patch.object(manager, "_set_live", side_effect=interrupted_enable):
+                manager.set_enabled(1001, True, recover_global_switch=True)
+
+        with (mock.patch("oh_no_parent_control.extension_manager.emit_failure_once") as emit,
+              self.assertRaises(ChildExtensionSessionLost)):
+            self._recover(state, live=True, transaction=transaction)
+        self.assertEqual(restore_attempts, [repr(old_enabled)] * 2)
+        self.assertEqual(state.values[ENABLED_KEY], old_enabled)
+        self.assertEqual(state.values[DISABLED_KEY], old_disabled)
+        emit.assert_not_called()
 
     def test_version_validation_reload_waits_without_replaying_enable(self):
         with (mock.patch.object(self.manager, '_run_command') as run,

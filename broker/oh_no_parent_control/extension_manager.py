@@ -228,7 +228,7 @@ class ExtensionManager:
             raise RuntimeError("child account has an unsafe home directory")
         return account, home
 
-    def _command(self, account, arguments):
+    def _command(self, account, arguments, *, disconnected_socket=None):
         environment = {
             "HOME": account.pw_dir,
             "LANG": os.environ.get("LANG", "C.UTF-8"),
@@ -253,14 +253,42 @@ class ExtensionManager:
         if (bus.is_symlink() or not stat.S_ISSOCK(bus_status.st_mode) or
                 bus_status.st_uid != account.pw_uid):
             raise RuntimeError("child session bus is unsafe")
-        environment.update({
-            "DBUS_SESSION_BUS_ADDRESS": f"unix:path={bus}",
-            "XDG_RUNTIME_DIR": str(runtime),
-        })
+        environment["XDG_RUNTIME_DIR"] = str(runtime)
+        if disconnected_socket is not None and os.path.samestat(bus_status, disconnected_socket):
+            # Keep dconf on the validated runtime cache used for readback.
+            return ["dbus-run-session", "--", *arguments], environment, "offline"
+        environment["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
         return list(arguments), environment, "live-session"
 
     def _run_as(self, account, *arguments):
         return self._run_command(account, arguments)
+
+    def _retry_settings_command(self, account, arguments, deadline):
+        from gi.repository import GLib
+
+        command, environment, transport = self._command(account, arguments)
+        if transport == "offline":
+            return command, environment, transport
+        bus = Path(environment["XDG_RUNTIME_DIR"]) / "bus"
+        try:
+            socket_status = bus.lstat()
+        except FileNotFoundError:
+            return self._command(account, arguments)
+        # Let a reachable replacement bus notify Shell. If the probe loses
+        # its endpoint, bypass it only while the same socket inode remains.
+        try:
+            with self._live_child_bus(account, environment["DBUS_SESSION_BUS_ADDRESS"],
+                                      min(2, deadline - time.monotonic())):
+                return command, environment, transport
+        except ChildExtensionSessionLost:
+            pass
+        except (FileNotFoundError, GLib.Error) as error:
+            # A new bus may already exist by the time the probe classifies
+            # the old socket's disappearance.
+            if (getattr(error, "filename", None) != str(bus) and
+                    gio_error_category(error) != "not-found"):
+                raise
+        return self._command(account, arguments, disconnected_socket=socket_status)
 
     def _run_command(self, account, arguments, *, require_live=False,
                      timeout=COMMAND_TIMEOUT_SECONDS, shell_owner=None):
@@ -278,45 +306,61 @@ class ExtensionManager:
         operation = arguments[1] if len(arguments) > 1 else "unknown"
         if operation not in {"get", "set", "reset", "list", "enable", "disable", "call", "unknown"}:
             operation = "other"
-        LOG.info("extension-manager.001", operation=operation, transport=transport)
         context = _command_diagnostics(arguments)
-        LOG.info("extension-manager.command", operation=operation, transport=transport,
-                 tool=context["tool"], key=context["key"])
         # Most settings reads need only the local dconf database. A service-db
         # profile can need the bus to populate its cache before reading.
         offline_read = transport == "offline" and context["tool"] == "gsettings" and operation == "get"
-        attempts = [(command, environment)]
+        retry_settings_write = (transport == "live-session" and not require_live
+                                and context["tool"] == "gsettings" and operation == "set")
+        attempts = ("private",) if transport == "offline" else ("live",)
         if offline_read:
-            # Prevent GLib from discovering a child-owned cache socket before
-            # dconf can report that the service database needs initialization.
-            read_env = dict(environment, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
-            attempts.insert(0, (list(arguments), read_env))
+            attempts = ("local", "private")
+        elif retry_settings_write:
+            attempts = ("live", "reconnect")
         # Without XDG_RUNTIME_DIR, GLib uses the user's cache directory. Other
         # dconf databases emit the same warning and cannot be fixed by the bus.
         cache_warning = f"unable to open file '{account.pw_dir.rstrip('/')}/.cache/dconf-service/"
         deadline = time.monotonic() + timeout
         if budget is not None:
             deadline = min(deadline, budget[0])
+        logged_transport = None
         try:
-            for attempt, attempt_env in attempts:
+            for mode in attempts:
+                attempt, attempt_env = command, environment
+                if mode == "local":
+                    # Let dconf report an uninitialized service database without
+                    # discovering a child-owned cache socket first.
+                    attempt = list(arguments)
+                    attempt_env = dict(environment, DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
+                elif mode == "reconnect":
+                    attempt, attempt_env, transport = self._retry_settings_command(account, arguments, deadline)
+                if transport != logged_transport or mode == "reconnect":
+                    LOG.info("extension-manager.001", operation=operation, transport=transport)
+                    LOG.info("extension-manager.command", operation=operation, transport=transport,
+                             tool=context["tool"], key=context["key"])
+                    logged_transport = transport
+                if budget is not None and cancelled.is_set():
+                    raise _CommandCancelled("child extension operation was interrupted")
+                timeout = deadline - time.monotonic()
+                if timeout <= 0:
+                    raise TimeoutError("child extension operation was interrupted")
                 options = dict(env=attempt_env, user=account.pw_uid, group=account.pw_gid,
                                extra_groups=(), timeout=timeout)
-                if transport == "offline" and attempt is command:
+                if transport == "offline" and mode != "local":
                     result = _run_private_session(attempt, **options)
                 else:
                     result = subprocess.run(attempt, check=True, text=True, capture_output=True,
                                             **options)
                 self._log_stderr(result.stderr, operation, transport, context)
-                if not (offline_read and any(
+                degraded_read = offline_read and any(
                         cache_warning in line and line.endswith("; expect degraded performance")
-                        for line in (result.stderr or "").splitlines())):
+                        for line in (result.stderr or "").splitlines())
+                uncommitted_write = (retry_settings_write and mode == "live"
+                                     and _stderr_reason(result.stderr) == "dconf-commit-failed")
+                # dconf can exit successfully even when it could not commit
+                # a write or populate the service database for a read.
+                if not (degraded_read or uncommitted_write):
                     break
-                # dconf can exit successfully with defaults after this warning.
-                timeout = deadline - time.monotonic()
-                if budget is not None and cancelled.is_set():
-                    raise _CommandCancelled("child extension operation was interrupted")
-                if timeout <= 0:
-                    raise TimeoutError("child extension operation was interrupted")
             else:
                 raise OSError("dconf settings database is unavailable")
         except _CommandCancelled:
@@ -1044,7 +1088,19 @@ class ExtensionManager:
                 (not shell_available or old_runtime == (True, True))):
             return None
 
-        def restore():
+        def restore_lists():
+            LOG.info("extension-manager.activation-step", stage="rollback-lists")
+            self._set_list(account, ENABLED_KEY, old_enabled)
+            self._set_list(account, DISABLED_KEY, old_disabled)
+
+        def lists_restored():
+            LOG.info("extension-manager.activation-step", stage="rollback-verification")
+            return (self._verify_setting(
+                        ENABLED_KEY, self._list(account, ENABLED_KEY) == old_enabled, "rollback") and
+                    self._verify_setting(
+                        DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback"))
+
+        def restore(*, session_lost=False):
             runtime = "not-observed"
             LOG.info("extension-manager.rollback-result", outcome="started", restore_switch=bool(restore_switch), runtime=runtime)
             try:
@@ -1061,15 +1117,15 @@ class ExtensionManager:
                             LOG.info("extension-manager.activation-step", stage="rollback-switch")
                             self._set_boolean(account, DISABLE_ALL_KEY, True)
                 finally:
-                    LOG.info("extension-manager.activation-step", stage="rollback-lists")
-                    self._set_list(account, ENABLED_KEY, old_enabled)
-                    self._set_list(account, DISABLED_KEY, old_disabled)
-                LOG.info("extension-manager.activation-step", stage="rollback-verification")
-                if (not self._verify_setting(
-                        ENABLED_KEY, self._list(account, ENABLED_KEY) == old_enabled, "rollback") or
-                        not self._verify_setting(
-                            DISABLED_KEY, self._list(account, DISABLED_KEY) == old_disabled, "rollback")):
-                    raise RuntimeError("GNOME extension rollback verification failed")
+                    restore_lists()
+                if not lists_restored():
+                    # A dying user bus can acknowledge the first write while
+                    # it is still pending. Retry the complete pair once when
+                    # session loss is known, then verify both durable values.
+                    if session_lost:
+                        restore_lists()
+                    if not session_lost or not lists_restored():
+                        raise RuntimeError("GNOME extension rollback verification failed")
                 try:
                     if shell_available and self._shell_owner(account) == shell_owner:
                         restored_runtime = (self._wait_runtime_state(account, old_runtime, shell_owner=shell_owner)
@@ -1114,7 +1170,8 @@ class ExtensionManager:
                 # Persist the desired state for Shell to consume at next login.
                 self._set_offline(account, enabled, old_enabled, old_disabled)
         except Exception as error:
-            session_ended = isinstance(error, (ChildExtensionSessionLost, _CommandCancelled))
+            session_lost = isinstance(error, ChildExtensionSessionLost)
+            session_ended = session_lost or isinstance(error, _CommandCancelled)
             if not session_ended:
                 emit_failure_once("broker", "operation", error)
             # Preserve the shipped failure location before the broker converts
@@ -1136,9 +1193,9 @@ class ExtensionManager:
                 # A cancelled/exhausted observation must still undo writes.
                 # This separate small allowance is also bounded during stop.
                 with self.command_budget(3, threading.Event()):
-                    restore()
+                    restore(session_lost=session_lost)
             else:
-                restore()
+                restore(session_lost=session_lost)
             if failed:
                 failure = ChildExtensionFailed("child GNOME extension has failed")
                 emit_failure_once("broker", "operation", failure, original=error)

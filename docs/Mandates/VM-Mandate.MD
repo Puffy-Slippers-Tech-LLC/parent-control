@@ -518,7 +518,9 @@ the existing case or unfinished brief, linked here.
 - `run-tests` and `fix-tests` may explicitly disable their optional screen and
   SSH/intention observation under the [live Watch controls](../Execution-Plans.md#common-launcher-interface).
   Their new independent runs default to both off. This exception stops Watch
-  producer work, preserves execution/ownership and required diagnostics, and
+  screen and command collection. Case metadata and controller step changes
+  still use the shared progress publication. The settings preserve
+  execution/ownership and required diagnostics, and
   does not disable screenshots or observations required by a test assertion.
   Recordings require both feeds on. Standalone maintenance and preparation keep
   the observation requirements below.

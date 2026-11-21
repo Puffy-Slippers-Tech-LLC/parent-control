@@ -1595,6 +1595,8 @@
             () => minimizeTile(entry.id), toggleMaximize);
         const content = element('div', 'card-content', body);
         const heading = element('div', 'heading', content);
+        const description = entry.kind === 'vm' ? element('div', 'case-description', content) : null;
+        if (description) description.hidden = true;
         const step = element('div', 'step', content);
         const display = element('div', 'display', content);
         const canvas = element('canvas', 'screen', display);
@@ -1646,7 +1648,7 @@
                 persist();
             });
         }
-        return { body, title, heading, step, canvas, waiting, activity, status, memory, sshToggle,
+        return { body, title, heading, description, step, canvas, waiting, activity, status, memory, sshToggle,
             screenshot, maximize, maximizeShape };
     }
 
@@ -2595,6 +2597,12 @@
             tileTitle(view.title, entry);
             tileMaximizeState(view, state.selected === entry.id, entry.label);
             if (view.heading.textContent !== entry.heading) view.heading.textContent = entry.heading;
+            const description = entry.description || '';
+            if (view.description && view.description.textContent !== description) {
+                view.description.textContent = description;
+                view.description.title = description;
+                view.description.hidden = !description;
+            }
             if (view.step.textContent !== entry.step) view.step.textContent = entry.step;
             if (view.memory && view.memorySample !== entry.memory?.sample) {
                 view.memorySample = entry.memory?.sample;

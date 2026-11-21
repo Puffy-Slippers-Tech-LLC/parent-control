@@ -13,6 +13,7 @@ const SSH_REFUSAL = /Permission denied|Host key verification failed|REMOTE HOST 
 const key = (source, value) => JSON.stringify([source, value]);
 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
 const RUN_BODIES = ['rows', 'error_rows', 'launcher_output', 'launcher_rows'];
+const CASE_FIELDS = ['heading', 'description', 'step'];
 
 function configuration(values, root) {
     if (!Array.isArray(values) || values.length > 16) throw new Error('Watch sources must be an array of at most 16 sources.');
@@ -137,6 +138,7 @@ function validate(snapshot) {
             !identifier(entry.id) || ['all', '__hidden__'].includes(entry.id) || !identifier(entry.source) ||
             typeof entry.active !== 'boolean' || typeof entry.locked !== 'boolean' ||
             ['id', 'source', 'label', 'heading', 'step', 'status', 'activity'].some(field => typeof entry[field] !== 'string') ||
+            (Object.hasOwn(entry, 'description') && typeof entry.description !== 'string') ||
             (Object.hasOwn(entry, 'screen') && !screen(entry.screen)) ||
             (entry.memory && !chart(entry.memory))) ||
         snapshot.runs.some(run => !run || !identifier(run.id) || typeof run.label !== 'string' ||
@@ -285,6 +287,7 @@ class Source {
             request.cancel_ticket ? 'remove queue ticket' :
             request.delete_run_times ? 'delete run times' : request.artifact ? 'artifact' : 'snapshot';
         this.pending = { ...pending, updates: request.updates === true, reset: request.reset === true,
+            caseUpdates: request.case_updates === true,
             operation, started: performance.now(), bytes: 0 };
         this.timeout = setTimeout(() => this.fail('Watch request timed out.', true, true),
             request.artifact ? 90000 : 10000);
@@ -310,9 +313,15 @@ class Source {
                     }
                 }
                 for (const entry of Array.isArray(value.entries) ? value.entries : []) {
-                    if (!entry?.screen || Object.hasOwn(entry.screen, 'image')) continue;
+                    if (!entry) continue;
                     const previous = !pending.reset && this.snapshot?.entries.find(item =>
                         item.id === entry.id && item.source === entry.source);
+                    if (pending.caseUpdates && entry.kind === 'vm' && previous?.kind === 'vm') {
+                        for (const field of CASE_FIELDS) {
+                            if (!Object.hasOwn(entry, field)) entry[field] = previous[field];
+                        }
+                    }
+                    if (!entry.screen || Object.hasOwn(entry.screen, 'image')) continue;
                     const frame = previous && this.frames.get(entry.id);
                     if (frame && frame.width === entry.screen.width && frame.height === entry.screen.height) {
                         entry.screen.image = frame.image;
@@ -382,6 +391,8 @@ class Source {
         this.fileSearch = undefined;
         this.send({ ...request, reset: !this.snapshot || this.status !== 'Connected',
             ...(this.snapshot?.capabilities.updates === true ? { updates: true } : {}),
+            ...(this.status === 'Connected' && this.snapshot?.capabilities.case_updates === true &&
+                this.snapshot.capabilities.updates === true ? { case_updates: true } : {}),
             ...(action ? { session_action: action } : {}),
             ...(fileSearch ? { file_search: fileSearch } : {}) }, { action, fileSearch });
     }

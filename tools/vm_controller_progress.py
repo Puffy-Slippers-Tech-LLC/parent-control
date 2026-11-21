@@ -6,6 +6,8 @@ PID, determines liveness; it grants no VM, input or cancellation authority.
 
 from contextlib import contextmanager, ExitStack
 import fcntl
+from functools import lru_cache
+import json
 import os
 from pathlib import Path
 import re
@@ -63,10 +65,41 @@ def registered(root):
         return
 
 
-def progress(root, name, current, *, reader):
+@lru_cache(maxsize=64)
+def _standalone_case(root, dispatch, category, case):
+    # The dispatch identity pins this description until the case leaves the VM.
+    from vm_run_times import metadata
+    if category == 'system' and (root / 'tests/integration' / (case + '.py')).is_symlink():
+        return None
+    try:
+        item = metadata(root, category, case)
+    except (OSError, ValueError, KeyError, TypeError, SyntaxError, StopIteration):
+        from vm_recording import case_identity
+        identifier, title = case_identity(root, category, dict(nodeid=case))
+        item = dict(id=identifier, title=title, description='')
+    if item is None:
+        return None
+    return dict(current=1, total=1, case_id=str(item['id']), title=item['title'],
+                step='', operation='', description=' '.join(item['description'].split())[:1024])
+
+
+def _standalone_selection(root, dispatch, category, args):
+    if category == 'system':
+        from test_commands import system_check_selection
+        case = system_check_selection(args)
+    elif category == 'e2e':
+        from vm_recording import E2E_QUALIFICATIONS
+        case = next((arg for arg in args if arg in E2E_QUALIFICATIONS), None)
+    else:
+        return None
+    return _standalone_case(root, dispatch, category, case) if case else None
+
+
+def progress(root, name, current, *, reader, show_operation=True):
+    if current and not show_operation:
+        return current
     from watch_output import open_private
     from e2e_watch_protocol import progress_packet
-    import json
     try:
         value = reader.read(registration(root, name), 8192)
         report = Path(value['report'])
@@ -81,6 +114,15 @@ def progress(root, name, current, *, reader):
             else:
                 return current
             categories = reader.read(report / 'progress.json')
+            if not current:
+                for item in categories:
+                    if item.get('state') == 'Running':
+                        current = _standalone_selection(root, report, item.get('retry_category'),
+                                                        item.get('selection_args') or ())
+                        if current:
+                            break
+            if not show_operation:
+                return current
             pending = next((item for item in categories if item.get('wait_reason')), None)
             if current and pending is None:
                 return current
@@ -89,6 +131,7 @@ def progress(root, name, current, *, reader):
                 title='VM controller', step=''))
             fallback.update(operation=operation)
             fallback.pop('operation_started_ns', None)
-            return json.loads(progress_packet(fallback))
+            description = fallback.pop('description', '')
+            return dict(json.loads(progress_packet(fallback)), description=description)
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return current

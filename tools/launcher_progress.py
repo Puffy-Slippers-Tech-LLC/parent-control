@@ -163,43 +163,6 @@ def publish_completion(run, key, heading, duration, keys):
     publish_progress(run, 'complete-' + key, [capture.get()], replaces=keys)
 
 
-def watch_system_check_progress(root, vm, progress, *, reader):
-    """Resolve standalone system checks, which have no lifecycle heartbeat."""
-    import ast
-    from test_storage import directory
-    from watch_output import active_run
-    try:
-        base = directory('sessions', root=root, create=False) / ('vm-' + vm)
-        run = active_run(base, reader=reader)
-        if run is None:
-            return progress
-        current = reader.read(base / 'current.json', 4096)
-        if current['run'] != run.name:
-            return progress
-        args = current['argv']
-        if 'system' not in args:
-            return progress
-        case = next((arg.partition('=')[2] for arg in args
-                     if arg.startswith('--resume-case=')), None)
-        if case is None:
-            from test_commands import system_check_selection
-            case = system_check_selection(args) or ''
-        case = case.removesuffix('.py')
-        if not re.fullmatch(r'check_[a-z][a-z0-9_]*', case):
-            return progress
-        source = root / 'tests/integration' / (case + '.py')
-        if source.is_symlink():
-            return progress
-        description = ast.get_docstring(ast.parse(source.read_text())) or ''
-        title = case.removeprefix('check_').replace('_', ' ').capitalize()
-        counts = ({key: progress[key] for key in ('current', 'total')}
-                  if progress and progress.get('case_id') == case else dict(current=1, total=1))
-        return dict(**counts, case_id=case, title=title,
-                    step=' '.join(description.split()), operation='')
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, SyntaxError):
-        return progress
-
-
 def read_progress(run):
     try:
         return json.loads((run / 'controller.json').read_text())

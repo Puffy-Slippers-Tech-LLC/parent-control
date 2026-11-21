@@ -353,10 +353,12 @@ reload, test interruption or safe-boundary wait. Small bounded control polling
 remains active while collection is off. Internal test and repair workers inherit
 their controlling launcher's live policy, including across host dispatch.
 
-SSH controls Watch's filtered command transcript, VM intention/progress and
-optional resource sampling. It does not suppress actual test SSH commands,
-assertion inputs, normal runner progress or failure diagnostics. View controls
-the copied QEMU display listener, host UI capture services and downstream image
+SSH controls Watch's filtered command transcript, VM intentions and optional
+resource sampling. Case titles, descriptions and controller step updates
+remain visible. The controller publishes progress when it changes, and Watch
+can load the current case on reconnect. Actual test SSH commands, assertion
+inputs, normal runner progress and failure diagnostics remain available. View
+controls the copied QEMU display listener, host UI capture services and downstream image
 processing/transfer. Disabling a feed stops its producer work rather than
 hiding its presentation. Standalone VM tools retain their existing observation.
 `--record` requires both Watch settings on; a recording-enabled controller

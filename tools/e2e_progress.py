@@ -35,6 +35,11 @@ class Progress:
         self.publish_progress = None
         self.snapshot_value = None
 
+    def _publish(self, *, operation_only=False):
+        publish = self.publish_progress
+        if publish is not None:
+            publish(operation_only=operation_only)
+
     def suite_preparation(self, label):
         """Coarse controller milestones take precedence over detailed VM logs."""
         with self.lock:
@@ -48,8 +53,7 @@ class Progress:
                                         operation_started_ns=time.monotonic_ns())
         # Publish before entering a blocking snapshot operation; the heartbeat
         # thread may not get scheduled between this milestone and the next one.
-        if self.publish_progress is not None:
-            self.publish_progress()
+        self._publish()
 
     @contextmanager
     def snapshot_operation(self, label):
@@ -59,18 +63,17 @@ class Progress:
             self.snapshot_value = dict(operation=label,
                                        operation_started_ns=time.monotonic_ns())
         try:
-            if self.publish_progress is not None:
-                self.publish_progress()
+            self._publish(operation_only=True)
             yield
         finally:
             with self.lock:
                 self.snapshot_value = previous
-            if self.publish_progress is not None:
-                self.publish_progress()
+            self._publish(operation_only=True)
 
     def suite_prepared(self):
         with self.lock:
             self.suite_value = None
+        self._publish()
 
     def prepare(self, case_id):
         self.case(case_id)
@@ -85,14 +88,14 @@ class Progress:
                     case_id=str(case['coverage_id']), title=case['title'], step='',
                     operation='Preparing VM: Waiting for VM cleanup',
                     started_ns=self.started_ns, case_started_ns=time.monotonic_ns())
+        self._publish()
 
     def preparation_output(self, line):
         with self.lock:
             target = self.next_value if self.next_value is not None else self.value
             if target and (self.next_value is not None or self.preparing):
                 target['operation'] = 'Preparing VM: ' + line
-        if self.publish_progress is not None:
-            self.publish_progress()
+        self._publish(operation_only=True)
 
     def case(self, case_id):
         index = next(i for i, case in enumerate(self.cases) if case['case_id'] == case_id)
@@ -110,8 +113,7 @@ class Progress:
             self.worker = None
         print(f"{self.suite}:case=[{index + 1}/{len(self.cases)}] [{case['coverage_id']}]: {case['title']}",
               file=sys.stderr, flush=True)
-        if self.publish_progress is not None:
-            self.publish_progress()
+        self._publish()
 
     def step(self, description):
         with self.lock:
@@ -121,8 +123,7 @@ class Progress:
             # Never carry the previous step's worker action into a new step.
             self.after = self.worker_sequence()
         print(self.suite + ':step=' + description, file=sys.stderr, flush=True)
-        if self.publish_progress is not None:
-            self.publish_progress()
+        self._publish()
 
     def follow_worker(self, directory, labels):
         with self.lock:
@@ -137,8 +138,7 @@ class Progress:
             self._time_operation(self.value)
             self.after = self.worker_sequence()
         print(self.suite + ':operation=' + label, file=sys.stderr, flush=True)
-        if self.publish_progress is not None:
-            self.publish_progress()
+        self._publish(operation_only=True)
 
     def worker_value(self):
         if self.worker is None:
@@ -161,7 +161,7 @@ class Progress:
     def worker_sequence(self):
         return self.worker_value().get('sequence', 0)
 
-    def snapshot(self, *, display=False):
+    def snapshot(self, *, display=False, worker=True):
         with self.lock:
             if self.suite_value is not None:
                 result = dict(self.suite_value)
@@ -170,23 +170,26 @@ class Progress:
                 result['operation_started_ns'] = result['case_started_ns']
             else:
                 result = dict(self.value)
-                value = self.worker_value()
-                if value.get('sequence', 0) > self.after:
-                    result['operation'] = value['operation']
-                self._time_operation(result)
+                if worker:
+                    value = self.worker_value()
+                    if value.get('sequence', 0) > self.after:
+                        result['operation'] = value['operation']
                 if result:
-                    result['operation_started_ns'] = self.operation_started_ns
+                    result['operation_started_ns'] = self._time_operation(result, track=worker)
             if result and self.snapshot_value is not None:
                 result.update(self.snapshot_value)
             return result
 
-    def _time_operation(self, value):
+    def _time_operation(self, value, *, track=True):
         if not value:
             return
         preparing = value['operation'].startswith('Preparing VM:')
         key = (value['case_started_ns'],
                'Preparing VM:' if preparing else (value['step'], value['operation']))
-        if key != self.operation_key:
+        if key == self.operation_key:
+            return self.operation_started_ns
+        started = value['case_started_ns'] if preparing else time.monotonic_ns()
+        if track:
             self.operation_key = key
-            self.operation_started_ns = (value['case_started_ns'] if preparing
-                                         else time.monotonic_ns())
+            self.operation_started_ns = started
+        return started

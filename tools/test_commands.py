@@ -379,8 +379,9 @@ use current arguments and inventory, retaining readable completed case results.
 Recording is off by default; --record enables VM watch video for this invocation.
 Specify --record again on resume to keep recording.
 Watch collection is off by default for new runs. --watch-ssh on|off controls
-Watch VM SSH output, progress and transfer; --watch-view on|off controls
-screen capture and transfer. ONPC: Watch can change either setting live.
+Watch VM command output and transfer; --watch-view on|off controls screen
+capture and transfer. Case details and step updates remain visible in Watch.
+ONPC: Watch can change either setting live.
 Controller reload preserves omitted settings. --record requires both on;
 neither can be disabled during a recording-enabled run.
 Failed, interrupted and incomplete cases remain pending. Without --resume, a new

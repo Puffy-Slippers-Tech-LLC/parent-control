@@ -557,9 +557,9 @@ nav button { flex-shrink: 0; }
 .tile-action:disabled { opacity: .5; cursor: default; }
 .tile-action svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .tile-maximize svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.heading, .step, .status { padding: 4px 8px; overflow: hidden; overflow-wrap: anywhere; }
-.heading, .status { white-space: nowrap; text-overflow: ellipsis; }
-.card .heading, .card .step { flex: 0 1 auto; min-height: 0; }
+.heading, .case-description, .step, .status { padding: 4px 8px; overflow: hidden; overflow-wrap: anywhere; }
+.heading, .case-description, .status { white-space: nowrap; text-overflow: ellipsis; }
+.card .heading, .card .case-description, .card .step { flex: 0 1 auto; min-height: 0; }
 .vm .step { height: 3lh; max-height: 3lh; white-space: pre-wrap; overflow: hidden; }
 .ui .step, .ui .activity { display: none; }
 .display { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }

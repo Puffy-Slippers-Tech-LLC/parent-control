@@ -70,14 +70,12 @@ def prepare_native(os_id='ubuntu'):
     enabled = runner.run(['systemctl', 'is-enabled', 'fapolicyd.service'])
     if enabled.stdout.strip() != 'enabled':
         raise ValueError('baseline:native-not-ready')
-    # This packaged Type=forking daemon exits its parent before loading trust.
-    # An old readable database can precede native initialization. Require the
-    # public status handshake in the same bounded wait before the fresh dump;
-    # never repair or create database files.
+    # The packaged Type=forking daemon can become active before loading trust.
+    # On Ubuntu, --dump-db reads LMDB without locks and can abort if it races
+    # that write. Wait for the daemon's status report before reading any rows.
     deadline = time.monotonic() + 180
     last_status_error = None
     ready = False
-    rows = []
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -89,40 +87,29 @@ def prepare_native(os_id='ubuntu'):
         if remaining <= 0:
             break
         try:
-            database = runner.run([cli, '--dump-db'], timeout=min(30, remaining))
-        except subprocess.CalledProcessError as error:
-            if 'mdb_env_open failed, error 2 ' not in (error.stderr or ''):
+            runner.run([cli, '--check-status'], timeout=min(60, remaining))
+        except subprocess.TimeoutExpired as error:
+            if last_status_error is None or time.monotonic() < deadline:
                 raise
-            database = subprocess.CompletedProcess([cli, '--dump-db'], 0, stdout='')
-        rows = [line.split() for line in database.stdout.splitlines() if line.strip()]
-        remaining = deadline - time.monotonic()
-        if any(row[0] == vendor for row in rows) and remaining > 0:
-            try:
-                runner.run([cli, '--check-status'], timeout=min(60, remaining))
-            except subprocess.TimeoutExpired as error:
-                if last_status_error is None or time.monotonic() < deadline:
-                    raise
-                # A final deadline-clipped request can outlive the remaining
-                # native polling window. Diagnose it without retrying it.
-                print(last_status_error.stdout, flush=True)
-                last_status_error = error
-                break
-            except subprocess.CalledProcessError as error:
-                if (error.returncode != 1 or error.stderr not in (None, '')
-                        or error.stdout not in ("Can't find fapolicyd: timed out waiting for report",
-                                                "Can't find fapolicyd: timed out waiting for report\n")):
-                    raise
-                last_status_error = error
-            else:
-                ready = time.monotonic() < deadline
-                break
+            # A final deadline-clipped request can outlive the remaining
+            # native polling window. Diagnose it without retrying it.
+            print(last_status_error.stdout, flush=True)
+            last_status_error = error
+            break
+        except subprocess.CalledProcessError as error:
+            if (error.returncode != 1 or error.stderr not in (None, '')
+                    or error.stdout not in ("Can't find fapolicyd: timed out waiting for report",
+                                            "Can't find fapolicyd: timed out waiting for report\n")):
+                raise
+            last_status_error = error
+        else:
+            ready = time.monotonic() < deadline
+            break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         time.sleep(min(1, remaining))
     if not ready:
-        print(f'baseline: [native:inspection] enabled=1 active=1 '
-              f'database_rows={len(rows)} vendor_rows={sum(row[0] == vendor for row in rows)}', flush=True)
         print('baseline: [native:readiness-timeout]', flush=True)
         if last_status_error is not None:
             try:

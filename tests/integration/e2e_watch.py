@@ -123,13 +123,13 @@ class DisplayAdapter:
 
 
 class ProgressPublication:
-    """Invocation heartbeat independent of VM display and lease lifetime."""
+    """Publish changed controller progress independently of the VM feeds."""
 
     def __init__(self, progress):
         self.progress = progress
-        self.stop = threading.Event()
-        self.thread = None
         self.path = None
+        self.owner = None
+        self.previous = None
         self.publish_lock = threading.Lock()
         uid = os.environ.get('PKEXEC_UID', '')
         if os.geteuid() != 0 or not uid.isdecimal() or int(uid) <= 0:
@@ -147,54 +147,81 @@ class ProgressPublication:
                         and stat.S_IMODE(info.st_mode) == 0o755
                         and parent.resolve() == parent, 'registry-owner')
             from vm_config import selected
-            self.vm_name = selected().name
-            self.path = directory / ('progress-' + self.vm_name.encode('ascii').hex() + '.json')
+            vm = selected().name
+            self.path = directory / ('progress-' + vm.encode('ascii').hex() + '.json')
+            self.registration = dict(vm=vm, **checkout_metadata())
+            from vm_run_times import descriptions
+            try:
+                self.descriptions = descriptions(ROOT)
+            except (OSError, ValueError, KeyError, TypeError):
+                self.descriptions = {}
+            self.publish()
             self.progress.publish_progress = self.publish
-            self.thread = threading.Thread(target=self._publish, daemon=True,
-                                           name='e2e-watch-progress')
-            self.thread.start()
         except Exception:
             log('progress-disabled')
 
-    def publish(self):
-        """Flush a milestone immediately, serialized with periodic heartbeats."""
-        if not watch_control.enabled('ssh'):
-            return True
+    def publish(self, *, operation_only=False):
+        """Replace the bounded publication only when controller text changes."""
         from e2e_watch_protocol import progress_packet
-        import uuid
+        try:
+            include_operation = watch_control.enabled('ssh')
+        except (OSError, ValueError):
+            include_operation = False
+        if operation_only and not include_operation:
+            return
         with self.publish_lock:
-            temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
+            if self.path is None:
+                return
+            stream = None
             try:
-                value = dict(updated_ns=time.monotonic_ns(), vm=self.vm_name,
-                             **checkout_metadata(),
-                             progress=json.loads(progress_packet(self.progress.snapshot(display=True))))
-                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
-                with os.fdopen(fd, 'w') as stream:
-                    os.fchmod(stream.fileno(), 0o644)
-                    json.dump(value, stream)
+                progress = self.progress.snapshot(display=True, worker=False)
+                if progress and not include_operation:
+                    progress['operation'] = ''
+                    progress.pop('operation_started_ns', None)
+                comparable = {key: value for key, value in progress.items()
+                              if key != 'operation_started_ns'}
+                if comparable == self.previous:
+                    return
+                description = ''
+                if progress:
+                    case_id = progress['case_id']
+                    identifier = int(case_id) if case_id.isdecimal() else case_id
+                    metadata = self.descriptions.get((self.progress.suite, identifier), {})
+                    description = ' '.join(metadata.get('summary', '').split())
+                    description = description.encode()[:1024].decode(errors='ignore')
+                value = dict(self.registration, updated_ns=time.monotonic_ns(), lock_owned=True,
+                    progress=json.loads(progress_packet(progress)), description=description)
+                temporary = self.path.with_name(uuid.uuid4().hex + '.progress')
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                stream = os.fdopen(fd, 'w')
+                # An exclusive POSIX lock requires write permission on this inode.
+                fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                json.dump(value, stream, ensure_ascii=False, separators=(',', ':'))
+                stream.flush()
+                os.fchmod(fd, 0o644)
                 temporary.replace(self.path)
+                if self.owner is not None:
+                    self.owner.close()
+                self.owner, stream = stream, None
+                self.previous = comparable
             except Exception:
                 log('progress-disabled')
-                return False
             finally:
-                try:
-                    temporary.unlink(missing_ok=True)
-                except OSError:
-                    pass
-            return True
-
-    def _publish(self):
-        while not self.stop.is_set():
-            if not self.publish():
-                break
-            self.stop.wait(.25)
+                if stream is not None:
+                    stream.close()
+                    try:
+                        temporary.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     def close(self):
         if self.progress.publish_progress == self.publish:
             self.progress.publish_progress = None
-        self.stop.set()
-        if self.thread is not None:
-            self.thread.join(timeout=2)
+        with self.publish_lock:
+            self.path = None
+            if self.owner is not None:
+                self.owner.close()
+                self.owner = None
 
 
 def log(event):

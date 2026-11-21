@@ -1,5 +1,7 @@
 """Manually opened GTK window displaying only local read-only frame copies."""
 
+import errno
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -61,6 +63,22 @@ def activity_text(activity, progress=None, *, now_ns=None):
     return activity['operation'] + f' - ({elapsed})'
 
 
+def display_progress(meta, progress):
+    frame = meta.get('progress') if meta.get('watch_ssh', True) else None
+    if not progress or not frame:
+        return progress or frame
+    # Frame updates can carry worker operations that the controller has not
+    # published. Use them only for the same case attempt and current step.
+    fields = ('case_id', 'case_started_ns', 'step')
+    started = frame.get('operation_started_ns')
+    current_started = progress.get('operation_started_ns', None if progress['operation'] else 0)
+    if (started is not None and current_started is not None and started >= current_started
+            and all(frame.get(key) == progress.get(key) for key in fields)):
+        return dict(progress, operation=frame['operation'],
+                    operation_started_ns=started)
+    return progress
+
+
 class AsyncFeed:
     """One transport owner per VM; GTK only consumes its latest snapshot.
 
@@ -97,9 +115,8 @@ class AsyncFeed:
                 except queue.Empty:
                     continue
                 frame = self.feed.poll(pixels=pixels)
-                watch_ssh = self.feed.watch_ssh
-                progress = self.feed.progress() if watch_ssh else None
-                activity = self.feed.activity() if watch_ssh else None
+                progress = self.feed.progress()
+                activity = self.feed.activity()
                 # Keep an unread changed frame when the next poll has no update.
                 try:
                     previous = self.updates.get_nowait()
@@ -152,6 +169,9 @@ class Feed:
         self.sequence = 0
         self.next_connect = 0
         self.last_frame = time.monotonic()
+        self.next_progress = 0
+        self.progress_value = None
+        self.progress_record = None
         self.next_activity = 0
         self.activity_value = None
         self.activity_offsets = {}
@@ -321,34 +341,57 @@ class Feed:
             self.memory.close()
             self.memory = None
 
-    def progress(self):
-        """Read only the root-owned, bounded, fresh invocation heartbeat."""
-        if not self.watch_ssh:
-            return None
+    def read_progress(self):
+        """Read the bounded publication, using its owner lock to reject stale text."""
         directory = BASE / str(os.getuid())
-        try:
-            for path in (BASE, directory):
-                info = path.lstat()
-                require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
-                        and not info.st_mode & 0o022 and path.resolve() == path, 'registry-owner')
-            fd = os.open(self.registration_path('progress'), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            with os.fdopen(fd, 'rb') as stream:
-                info = os.fstat(stream.fileno())
-                require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
-                        and not info.st_mode & 0o022 and info.st_size <= 8192, 'progress-owner')
+        fd = os.open(self.registration_path('progress'), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(fd)
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == 0
+                    and not info.st_mode & 0o022 and info.st_size <= 8192, 'progress-owner')
+            identity = info.st_ino, info.st_dev, info.st_ctime_ns, info.st_size
+            if self.progress_record is None or self.progress_record[0] != identity:
+                for path in (BASE, directory):
+                    parent = path.lstat()
+                    require(stat.S_ISDIR(parent.st_mode) and parent.st_uid == 0 and
+                            not parent.st_mode & 0o022 and path.resolve() == path, 'registry-owner')
                 value = json.loads(stream.read(8193))
-            if value.get('vm') != self.vm_name or not self.matches_checkout(value):
-                raise ValueError('watch: progress belongs to another controller')
+                require(isinstance(value, dict) and value.get('vm') == self.vm_name
+                        and self.matches_checkout(value), 'progress-checkout')
+                progress = json.loads(progress_packet(value['progress']))
+                if progress and isinstance(value.get('description'), str):
+                    progress['description'] = value['description'][:1024]
+                self.progress_record = identity, value, progress
+            _, value, progress = self.progress_record
+            if value.get('lock_owned') is True:
+                try:
+                    fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except OSError as error:
+                    if error.errno in (errno.EACCES, errno.EAGAIN):
+                        return progress
+                    raise
+                return None
+            # Older controllers still indicate liveness through a heartbeat.
             age = time.monotonic_ns() - value['updated_ns']
             require(0 <= age < 3_000_000_000, 'progress-expired')
-            progress = json.loads(progress_packet(value['progress']))
-        except (OSError, ValueError, KeyError, TypeError):
-            progress = None
-        if self.root is not None:
-            from launcher_progress import watch_system_check_progress
-            progress = watch_system_check_progress(self.root, self.vm_name, progress, reader=self.case_reader)
-            from vm_controller_progress import progress as controller_progress
-            progress = controller_progress(self.root, self.vm_name, progress, reader=self.case_reader)
+            return progress
+
+    def progress(self):
+        now = time.monotonic()
+        if now >= self.next_progress:
+            self.next_progress = now + .25
+            try:
+                progress = self.read_progress()
+            except (OSError, ValueError, KeyError, TypeError):
+                progress = None
+            if self.root is not None:
+                from vm_controller_progress import progress as controller_progress
+                progress = controller_progress(self.root, self.vm_name, progress,
+                                               reader=self.case_reader, show_operation=self.watch_ssh)
+            self.progress_value = progress
+        progress = self.progress_value
+        if progress and not self.watch_ssh:
+            return dict(progress, operation='')
         return progress
 
     def poll(self, *, pixels=True):
@@ -554,11 +597,10 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
                 self.screen.clear()
             elif frame is not None:
                 self.screen.update(frame)
-            meta = dict(self.metadata)
-            if progress:
-                meta['progress'] = progress
+            meta = dict(self.metadata, progress=display_progress(self.metadata, progress))
             title, step, operation = progress_text(meta)
             self.heading.set_label(title)
+            description = (meta['progress'] or {}).get('description', '')
             attributes = Pango.AttrList()
             if meta.get('progress'):
                 completed = Pango.attr_foreground_new(0, 0x8000, 0)
@@ -566,7 +608,7 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
                 completed.end_index = title.index('/')
                 attributes.insert(completed)
             self.heading.set_attributes(attributes)
-            self.step.set_label(step)
+            self.step.set_label(step or description)
             self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
                 ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
                  CONNECTED if meta.get('lease_locked') else WAITING))

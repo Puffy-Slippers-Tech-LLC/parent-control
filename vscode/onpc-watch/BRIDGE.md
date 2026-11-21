@@ -96,20 +96,28 @@ including before the first main snapshot arrives.
 Live launcher controls are independent of the visible Watch selection.
 `--watch-view off` stops server capture and prevents VM pixel copies, checksums
 and PNG encoding. `--watch-ssh off` stops VM command transcript/activity polling
-and transfer. Host counter sampling remains active. Disabled displays and command text are cleared. Minimal
-policy/connection heartbeats, launcher and agent session progress, errors and
-controls remain available. Frame metadata requires boolean `watch_view` and
-`watch_ssh` fields.
+and transfer. The case title, description and latest controller step remain
+available from the shared progress publication, which writes only on changes.
+Host counter sampling remains active. Disabled displays and command text are
+cleared. Minimal policy/connection heartbeats, launcher and agent session
+progress, errors and controls remain available. Frame metadata requires boolean
+`watch_view` and `watch_ssh` fields.
 
 Adapters may advertise `capabilities.updates: true`. Only after that advertisement,
 the bridge sends optional `updates: true`. Such responses set `updates: true` and
 may omit unchanged run body fields (`rows`, `error_rows`, `launcher_output`,
 `launcher_rows`, and `session_view.rows`). Omission reuses the preceding snapshot's
-field for the same run ID, run identity and session identity. Run membership and
-all other metadata remain complete; a null session view clears its body. A new
+field for the same run ID, run identity and session identity. The response
+includes current run membership. A null session view clears its body. A new
 identity, newly opened session body or reset requires full bodies. State is scoped
 to one connection; reconnects and `reset: true` require full visible images and bodies.
 Without negotiation, snapshots keep the full format below.
+
+Adapters advertising `capabilities.case_updates: true` accept `case_updates: true`
+together with `updates: true`. VM entries can then omit unchanged `heading`,
+`description` and `step` fields for the same entry ID and source. Empty strings
+clear the corresponding fields. A reset or newly visible source entry sends all
+three fields.
 
 In an update response, `screen.image` may also be omitted to reuse the preceding
 desktop for that viewer's producer identity and dimensions. Cursor metadata is
@@ -188,7 +196,8 @@ authoritative after exit; the UI does not freeze the first idle response.
 
 A viewer entry has string fields `id`, `source` (producer identity), `kind` (`vm`
 or `ui`), `label`, `heading`, `step`, `status`, `activity`; booleans `active` and
-`locked`; optional `memory` (`{text, sample, segments}`); and optional `screen`.
+`locked`; optional string `description`; optional `memory` (`{text, sample, segments}`);
+and optional `screen`.
 `source` identifies the frame producer generation and changes when its cached
 pixels cease to be valid (including producer replacement). Changing `source`
 invalidates the previously displayed frame even if `screen` is omitted. `screen` omitted

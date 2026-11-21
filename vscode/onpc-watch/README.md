@@ -461,6 +461,7 @@ Watch preferences. Closing Watch leaves those workers' last applied settings int
 With **View** off, image areas show **View disabled**. With global **SSH** off,
 VM command output is hidden and each tile's SSH switch is disabled. A tile that
 was on stays on; enabling global SSH restores its saved visibility preference.
+The active case's title, description and latest step remain visible.
 Launcher progress, sessions, errors and controls remain available. Recording
 guards and unavailable sources can refuse application to a launcher. Saves recheck
 the exact live owner and retain the recording guard; a missing runtime file is
@@ -577,8 +578,8 @@ three buttons. Choosing any layout restores all tiles using that layout.
 Overflowing tiles scroll in the chosen direction; the layout buttons stay pinned.
 Viewer rows shrink to fit the pane, down to the combined height of each tile's
 title bar and footer. The VM image shrinks first; with less room, the case title,
-short description and optional SSH output are clipped. The title bar and footer
-remain visible, and footer text uses the title bar's font size.
+short description, latest step and optional SSH output are clipped. The title
+bar and footer remain visible, and footer text uses the title bar's font size.
 Screens and case text do not impose a minimum tile size. The viewer grid resizes
 with the right pane and scrolls only when its title bars and footers cannot fit
 in the chosen layout. Horizontal tiles can shrink below 300 pixels wide, down

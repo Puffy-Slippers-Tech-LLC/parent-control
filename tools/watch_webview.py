@@ -22,12 +22,14 @@ import zlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from e2e_watch_viewer import AsyncFeed, Feed, activity_text, progress_text, WAITING, CONNECTED
+from e2e_watch_viewer import AsyncFeed, Feed, activity_text, display_progress, progress_text, WAITING, CONNECTED
 from ui_watch_transport import Feeds, label
 from watch_checkouts import Discovery, checkout, identity, matching_files
 from watch_model import ResourceUsage, VMMemory, viewer_entries
 from watch_output import Output, SessionOutput, JsonReader, active_launchers, watch_closed, TAIL_BYTES
 from tests.integration.watch_activity import TerminalControls
+
+CASE_FIELDS = ('heading', 'description', 'step')
 
 
 def inline_video(stream):
@@ -287,6 +289,7 @@ class Viewer:
         self.status_cache = {}
         self.span_cache = {}
         self.sent_runs = {}
+        self.sent_cases = {}
         self.launcher_logs = {}
         self.launcher_controls = {}
         self.sessions = {}
@@ -837,7 +840,7 @@ class Viewer:
 
         runs = self.run_status(request.get('session_root'), request.get('session_roots', ()))
         # A disabled controller can be waiting for its first VM frame. Do not
-        # scan progress/transcript sockets just because there is no header yet.
+        # scan transcript sockets just because there is no header yet.
         controlled_ssh = [not target['watch_controls'] or target['ssh']
                           for target in self.watch_targets.values()]
         for feed, _meta in self.vms.values():
@@ -884,13 +887,13 @@ class Viewer:
             active = bool(meta or progress or (activity and activity.get('operation_active')))
             locked = bool(progress or (activity and activity.get('operation_active')) or
                           (meta and meta.get('lease_locked', True)))
-            title, step, operation = progress_text(dict(meta, **({'progress': progress} if progress else {})))
-            case = progress or meta.get('progress')
+            case = display_progress(meta, progress)
+            title, step, operation = progress_text(dict(meta, progress=case))
             if case:
                 title = f"[{case['case_id']}] {case['title']}"
-            view = dict(kind='vm', heading=title, step=step,
+            view = dict(kind='vm', heading=title, description=(case or {}).get('description', ''), step=step,
                 memory=self.vm_memory.setdefault((root, name), VMMemory()).chart(meta),
-                status=activity_text(activity, progress or meta.get('progress')) or operation or
+                status=activity_text(activity, case) or operation or
                     ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
                      CONNECTED if meta.get('lease_locked') else WAITING),
                 activity=(activity or {}).get('text', ''))
@@ -959,6 +962,7 @@ class Viewer:
         watch_ssh = any(policies) if policies else True
         launcher_queue, queue_errors = self.launcher_queues()
         response = dict(protocol=1, capabilities=dict(sessions=True, session_roots=True, updates=True,
+                    case_updates=True,
                     artifacts=True, delete_run_times=True, file_search=True, launcher_queue=True),
                     scope=scope, selected=selected, entries=values,
                     run_times=run_times, launcher_queue=launcher_queue, queue_errors=queue_errors,
@@ -979,6 +983,18 @@ class Viewer:
         # representation omits unchanged bodies, and only after negotiation.
         previous_runs = self.sent_runs if not request.get('reset') else {}
         self.sent_runs = {run['id']: run for run in runs}
+        previous_cases = self.sent_cases if not request.get('reset') else {}
+        self.sent_cases = {}
+        if request.get('case_updates'):
+            for entry in values:
+                if entry['kind'] != 'vm':
+                    continue
+                key = entry['id'], entry['source']
+                case = self.sent_cases[key] = {field: entry[field] for field in CASE_FIELDS}
+                previous = previous_cases.get(key, {})
+                for field in CASE_FIELDS:
+                    if case[field] == previous.get(field):
+                        del entry[field]
         if request.get('updates'):
             response['updates'] = True
             response['runs'] = []
@@ -1067,7 +1083,7 @@ def main():
                 print(json.dumps(dict(protocol=1, artifact_result=result),
                                  separators=(',', ':')), flush=True)
                 continue
-            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'resources',
+            if (set(request) - {'protocol', 'scope', 'selected', 'reset', 'updates', 'case_updates', 'resources',
                                 'session_root', 'session_roots', 'session_action', 'file_search'} or
                     any(type(request.get(key, 'all')) is not str for key in ('scope', 'selected')) or
                     type(request.get('session_root', '')) is not str or
@@ -1076,7 +1092,9 @@ def main():
                         for root in request.get('session_roots', [])) or
                     type(request.get('reset', False)) is not bool or
                     type(request.get('resources', True)) is not bool or
-                    type(request.get('updates', False)) is not bool):
+                    type(request.get('updates', False)) is not bool or
+                    type(request.get('case_updates', False)) is not bool or
+                    (request.get('case_updates') and not request.get('updates'))):
                 raise ValueError('watch: invalid request')
             action = request.get('session_action')
             if action is not None and (type(action) is not dict

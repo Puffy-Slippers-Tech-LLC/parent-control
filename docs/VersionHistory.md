@@ -13,6 +13,10 @@ This release further improves system resilience by addressing several edge cases
 - **Broker:** Improved handling of child account deletion while the GNOME extension monitor is still monitoring the account, preventing unnecessary errors.
 - **Broker:** Improved countdown reliability when the Malcontent timer service is slow to respond after waking from sleep or restarting.
 - **Broker:** Improved handling of concurrent screen-lock and time-request events, ensuring that pending approvals are gracefully cancelled rather than displaying an error.
+- **Parent App** — Pauses background refreshes during shutdown or restart to avoid spurious errors as system services stop.
+- **Screen Time** — Retries extension recovery once if the previous desktop session closes while a child is signing back in or a parent is loading that child’s settings.
+- **Screen Time** — Checks directly with the child’s desktop that the extension is running, so verification can succeed even if GNOME’s extension helper stops or restarts.
+- **Screen Time** — Retries and verifies restoration of the child’s original GNOME extension settings if the session disconnects during recovery.
 
 ### Non Product Changes
 - Increases VM tests to total of 249 installed system + E2E cases per distro family, Ubuntu24.04, Fedora44, Fedora45.

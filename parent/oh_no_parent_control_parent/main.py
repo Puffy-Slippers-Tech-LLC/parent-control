@@ -2864,18 +2864,24 @@ class ParentWindow(Adw.ApplicationWindow):
 
     def _update_match_rule_icon(self, row):
         rule = row.match_rule or self._default_match_rule(row)
-        match = MATCH_RULES[0] if self._is_pattern(rule) else MATCH_RULES[1]
-        row.match_rule_button.set_css_classes(
-            ["match-rule-button", "policy-choice", match["css"]]
-        )
-        value = self._match_rule_image(match)
-        set_automation_id(
-            value, f"parent-app-{_app_automation_key(row.app['id'])}-match-{match['id']}",
-        )
-        row.match_rule_button.set_child(value)
-        set_text(row.match_rule_button, 'tooltip-text', match["label"])
+        displayed = getattr(row, "_displayed_match_rule", None)
+        if displayed == rule:
+            return
+        pattern = self._is_pattern(rule)
+        if displayed is None or self._is_pattern(displayed) != pattern:
+            match = MATCH_RULES[0] if pattern else MATCH_RULES[1]
+            row.match_rule_button.set_css_classes(
+                ["match-rule-button", "policy-choice", match["css"]]
+            )
+            value = self._match_rule_image(match)
+            set_automation_id(
+                value, f"parent-app-{_app_automation_key(row.app['id'])}-match-{match['id']}",
+            )
+            row.match_rule_button.set_child(value)
+            set_text(row.match_rule_button, 'tooltip-text', match["label"])
         describe_control(row.match_rule_button, m.ROW_APP_NAME_S_MATCH_RULE % {'row_app_name': row.app['name']},
                          m.CURRENT_MATCH_RULE_RULE_S % {'rule': rule})
+        row._displayed_match_rule = rule
 
     @staticmethod
     def _match_rule_image(match):

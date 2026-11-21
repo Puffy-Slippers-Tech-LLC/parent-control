@@ -184,7 +184,8 @@ def _identity(widget):
 
 
 def _binding(widget):
-    return getattr(widget, "_application_ui_binding", _Binding())
+    binding = getattr(widget, "_application_ui_binding", None)
+    return _Binding() if binding is None else binding
 
 
 def _visible(widget):
@@ -473,11 +474,15 @@ class GtkUIAdapter:
             count += 1
             if count > _MAX_WIDGETS:
                 raise UIError("Unavailable")
-            # A nested dialog has its own scope, independent of native hosting.
-            if widget is not surface and _is_surface(widget) and _identity(widget):
-                continue
             identity = _identity(widget)
-            for element_id in set((identity,) + _binding(widget).aliases) - {""}:
+            # Only identified nested surfaces have their own scope.
+            if identity and widget is not surface and _is_surface(widget):
+                continue
+            binding = getattr(widget, "_application_ui_binding", None)
+            identities = (identity,) if identity else ()
+            if binding is not None and binding.aliases:
+                identities += tuple(alias for alias in binding.aliases if alias != identity)
+            for element_id in identities:
                 if element_id in elements:
                     raise UIError("Unavailable")
                 elements[element_id] = widget

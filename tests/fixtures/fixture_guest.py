@@ -494,9 +494,9 @@ class Native:
         trusted, rules = self._trusted(request), self._rules(request)
         f = self.files
         identity, cursor = self._started()
-        if self.target['os'] == 'fedora':
-            for member in request['members'].values():
-                self.command(['/usr/sbin/restorecon', '-F', '--', member['destination']])
+        destinations = [member['destination'] for member in request['members'].values()]
+        if self.target['os'] == 'fedora' and destinations:
+            self.command(['/usr/sbin/restorecon', '-F', '--', *destinations])
         previous = request.get('replaces')
         if trusted:
             if previous is None:
@@ -523,35 +523,31 @@ class Native:
                 f.write(path, data, gid=self.gid, mode=0o644)
             else:
                 f.replace(path, data, expected=self._rules(previous)[path], gid=self.gid, mode=0o644)
-            self.command(['/usr/sbin/restorecon', '-F', '--', path])
         if rules:
+            self.command(['/usr/sbin/restorecon', '-F', '--', *rules])
             self.command(['/usr/sbin/fagenrules', '--load'])
-        self.labels(request)
 
-    def labels(self, request, *, verify=False):
+    def verify_labels(self, request):
         if self.target['os'] != 'fedora':
             return
         paths = [m['destination'] for m in request['members'].values()]
         paths += list(self._rules(request))
         if self._trusted(request):
             paths.append(TRUST)
-        for path in sorted(paths):
-            self.command(['/usr/sbin/matchpathcon', '-V', path] if verify else
-                         ['/usr/sbin/restorecon', '-F', '--', path])
+        if paths:
+            self.command(['/usr/sbin/matchpathcon', '-V', '--', *sorted(paths)])
 
     def verify_database(self, request, *, installed=True):
         trusted = self._trusted(request) if installed else {}
-        selected = {m['destination'] for m in request['members'].values()}
+        selected = {member['destination']: key for key, member in request['members'].items()}
         rows = {path: [] for path in selected}
         for line in self.command([self.cli, '--dump-db']).decode().splitlines():
-            fields = native_trust.database_row(line)
-            if fields is not None and fields[1] in rows:
+            fields = native_trust.database_row(line, paths=selected)
+            if fields is not None:
                 rows[fields[1]].append(fields)
-        for path in sorted(selected):
+        for path, key in sorted(selected.items()):
             expected = ([['filedb', path, str(trusted[path]['size']), trusted[path]['sha256']]]
                         if path in trusted else [])
-            key = next(key for key, member in request['members'].items()
-                       if member['destination'] == path)
             require(rows[path] == expected, 'native-database:' + json.dumps({
                 'member': key, 'expected': [[row[0], row[2], row[3]] for row in expected],
                 'observed': [[row[0], row[2], row[3]] for row in rows[path]]}, sort_keys=True))
@@ -571,7 +567,7 @@ class Native:
         if rules:
             output = self.command(['/usr/sbin/fagenrules', '--check']).decode().splitlines()
             require('/usr/sbin/fagenrules: No change' in output, 'native-rules-not-active')
-        self.labels(request, verify=True)
+        self.verify_labels(request)
 
 
 def accounts():

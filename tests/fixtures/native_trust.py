@@ -150,13 +150,15 @@ def trust_entries(content):
     return entries
 
 
-def database_row(line):
+def database_row(line, *, paths=None):
     """Native dumps preserve spaces in paths; size/hash are the last fields."""
     source = line.split(None, 1)
     if len(source) != 2:
         return None
     fields = source[1].rsplit(None, 2)
-    return [source[0], *fields] if len(fields) == 3 else None
+    if len(fields) != 3 or (paths is not None and fields[0] not in paths):
+        return None
+    return [source[0], *fields]
 
 
 def validate_trusted_shape(record, *, pending=False, allow_legacy=False):

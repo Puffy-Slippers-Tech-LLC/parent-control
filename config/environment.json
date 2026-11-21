@@ -49,7 +49,7 @@
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
       "max_compute_unit": 10,
-      "disk_concurrency": 3
+      "disk_concurrency": 4
     }
   ],
   "branches": [

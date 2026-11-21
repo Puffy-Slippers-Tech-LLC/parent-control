@@ -356,21 +356,47 @@ def released_source(*, repository=None, package_format='deb', release=None):
 
 @contextmanager
 def historical_source(commit, *, repository=None):
-    """Export an exact reviewed commit, without changing its source or version."""
+    """Export the package inputs declared by an exact reviewed commit."""
     repository = REPOSITORY if repository is None else repository
     prefix = ['git', '-c', 'safe.directory=' + str(repository)]
     from tools.test_storage import scratch_directory, scratch_descriptors
     with tempfile.TemporaryDirectory(prefix='onpc-release-source-', dir=scratch_directory()) as name:
-        root = Path(name)
-        raw = subprocess.run([*prefix, 'archive', '--format=tar', commit],
-            cwd=repository, check=True, capture_output=True, pass_fds=scratch_descriptors()).stdout
-        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
-            # Source links and special files are never accepted as build inputs.
-            for entry in archive.getmembers():
-                if (Path(entry.name).is_absolute() or '..' in Path(entry.name).parts
-                        or not (entry.isfile() or entry.isdir())):
-                    raise ArtifactError('unsafe released source archive')
-            archive.extractall(root, filter='data')
+        workspace = Path(name)
+        discovery = workspace / 'discovery'
+        root = workspace / 'package'
+        discovery.mkdir()
+        with tempfile.TemporaryFile(dir=workspace) as exported:
+            subprocess.run([*prefix, 'archive', '--format=tar', commit], cwd=repository,
+                           check=True, stdout=exported, pass_fds=scratch_descriptors())
+            exported.seek(0)
+            with tarfile.open(fileobj=exported) as archive:
+                members = archive.getmembers()
+                files = set()
+                other_paths = []
+                for entry in members:
+                    relative = Path(entry.name)
+                    if relative.is_absolute() or '..' in relative.parts:
+                        raise ArtifactError(f'unsafe historical archive path in {commit[:12]}: {entry.name!r}')
+                    if entry.isfile():
+                        files.add(relative)
+                    elif not entry.isdir():
+                        other_paths.append(relative)
+                archive.extractall(discovery, members=(entry for entry in members if entry.isfile() or entry.isdir()),
+                                   filter='data')
+        if Path('Makefile') not in files:
+            raise ArtifactError(f'historical package manifest requires a regular Makefile in {commit[:12]}')
+        # Preserve tracked names for Make wildcards without extracting links or special files.
+        for relative in other_paths:
+            (discovery / relative).touch(exist_ok=False)
+        selected = package_inputs.paths(discovery)
+        for relative in selected:
+            if relative not in files:
+                raise ArtifactError(f'historical package input is missing or nonregular in {commit[:12]}: {relative}')
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            (discovery / relative).rename(target)
+        if package_inputs.paths(root) != selected:
+            raise ArtifactError(f'historical package manifest depends on files outside its input list in {commit[:12]}')
         yield root
 
 

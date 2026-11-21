@@ -1,4 +1,4 @@
-## v2.0 - 2026-11-01
+## v2.0
 ### New Features
 - **Parent App**: Feedback and error reporting prompts for reply email but still does not require it
 - **Child App**: Tamper-free child app - automatically restores the child extension when disabled, with retry backoff and standard error reporting for failures.
@@ -105,30 +105,4 @@ This release further improves system resilience by addressing several edge cases
 
 ## v1.0 — 2026-09-10
 ### New Features
-- Initial release.
-
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
-- Initial release.
 - Initial release.

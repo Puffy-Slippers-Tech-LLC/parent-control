@@ -32,9 +32,9 @@ PHASES = {
     'install': 'Installing the product',
     'app-snapshot': 'Saving the app snapshot',
     'resume': 'Starting the VM from the app snapshot',
-    'accept': 'Snapshots saved · waiting for the VM batch to finish',
-    'refresh': 'Accepting baselines and updating test helpers',
-    'finish-setup': 'Test helpers updated · finishing host setup',
+    'accept': 'Snapshots saved',
+    'refresh': 'Snapshots saved · updating host test helpers',
+    'finish-setup': 'Snapshots saved · finishing host setup',
     'confirm': 'Confirming host completion',
 }
 
@@ -65,9 +65,9 @@ def row_priority(line):
         return 0
     if line.startswith(LOG_LABEL):
         return 2
-    if line.endswith('] ' + PHASES['accept']):
+    if line.startswith('✓ '):
         return 3
-    if line.startswith('✓ ') or line.endswith('] Queued'):
+    if line.endswith('] Queued'):
         return 4
     return 1
 
@@ -155,14 +155,18 @@ class Report:
                 print(f'Preparation report incomplete: {self.output_error}', file=sys.stderr, flush=True)
 
     def rows(self, *, color):
-        for name, state in self.states.items():
-            if isinstance(state, str):
-                yield f'[{name}] {PHASES[state]}'
-                continue
-            icon = '✗' if state else '✓'
-            message = 'Cancelled' if state == 130 else 'Preparation failed' if state else self.ready
+        for name, status in self.states.items():
+            if isinstance(status, str):
+                message = PHASES[status]
+                if status not in ('accept', 'refresh', 'finish-setup'):
+                    yield f'[{name}] {message}'
+                    continue
+                status = 0  # The VM worker succeeded; host setup can still fail.
+            else:
+                message = 'Cancelled' if status == 130 else 'Preparation failed' if status else self.ready
+            icon = '✗' if status else '✓'
             line = f'{icon} [{name}] {message}'
-            yield f'\033[{31 if state else 32}m{line}\033[0m' if color else line
+            yield f'\033[{31 if status else 32}m{line}\033[0m' if color else line
 
     def draw(self):
         if self.dashboard is not None:

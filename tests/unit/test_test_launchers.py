@@ -753,7 +753,7 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     import test_source
     import test_storage
     import vm_pool
-    from preparation_report import PREFIX
+    from preparation_report import PREFIX, Report
     from vm_queue import prepare_hosts
     import host_compute
     monkeypatch.setattr(host_compute, 'launch',
@@ -776,6 +776,13 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     monkeypatch.setitem(main.__globals__, 'tool_host', lambda _: vms[0].host)
     monkeypatch.setattr(os, 'geteuid', lambda: 1000)
     held, calls, refreshes = set(), [], []
+    live_rows = set()
+
+    def draw(report):
+        assert all(name not in held for name, state in report.states.items() if state == 'accept')
+        live_rows.update(report.rows(color=True))
+
+    monkeypatch.setattr(Report, 'draw', draw)
     stopped = threading.Event()
     inherited = test_retention.environment()
     cancel_after_two = False
@@ -830,6 +837,8 @@ def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path,
     assert main(options) == 1
     assert len(calls) == len(names) and set(calls) == set(names)
     assert len(refreshes) == 1 and not held
+    assert f'\033[32m✓ [{calls[-1]}] Snapshots saved\033[0m' in live_rows
+    assert f'\033[32m✓ [{calls[-1]}] Snapshots saved · updating host test helpers\033[0m' in live_rows
 
     calls.clear()
     cancel_after_two = True

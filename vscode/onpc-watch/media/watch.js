@@ -578,22 +578,40 @@
         return span;
     }
 
-    function sessionAction(section, kind, command) {
+    function sessionAction(section, kind, command, { preserveDraft = false } = {}) {
         if ((section.pending && kind !== 'extend') || !section.entry.session || actions.size >= 16) return;
-        if (kind === 'send' && (section.input.disabled || !section.input.value.trim())) return;
-        const id = crypto.randomUUID();
         const draft = section.input.value;
         const text = kind === 'send' ? command ?? draft :
             kind === 'extend' ? section.entry.session_question : '';
+        if (kind === 'send' && (section.input.disabled || !text.trim())) return;
+        const id = crypto.randomUUID();
         const refreshModels = command === '/model';
         if (kind !== 'extend' && !refreshModels) section.pending = id;
-        if (kind === 'send') section.completion.reset();
-        actions.set(id, { section, draft: kind === 'send' && !refreshModels ? draft : undefined,
+        if (kind === 'send' && !preserveDraft) section.completion.reset();
+        actions.set(id, { section, draft: kind === 'send' && !refreshModels && !preserveDraft ? draft : undefined,
             session: section.entry.session });
         section.error.textContent = '';
         vscode.postMessage({ type: 'sessionAction', id, kind, root: section.entry.id,
             session: section.entry.session, question: section.entry.session_question || '', text });
         return true;
+    }
+
+    function requestSessionModel(section, model, effort, options) {
+        const reasoning = effort ? ` --reasoning=${effort}` : '';
+        return sessionAction(section, 'send', `/model ${model}${reasoning}`, options);
+    }
+
+    function stepSessionEffort(section, offset) {
+        const entry = section.entry;
+        const selection = entry?.session_view?.model_selection;
+        if (!selection || entry.session_question) return;
+        const choice = selection.options.find(option => option.model === selection.model);
+        if (!choice?.efforts.length) return;
+        const current = choice.efforts.includes(selection.effort) ? selection.effort : choice.default;
+        const next = choice.efforts[choice.efforts.indexOf(current) + offset];
+        if (next) {
+            requestSessionModel(section, choice.model, next, { preserveDraft: true });
+        }
     }
 
     function sessionPrompt(parent, text) {
@@ -1048,8 +1066,7 @@
             if (!current()) return close();
             const choice = selection.options[selectedIndex];
             if (!choice) return;
-            const reasoning = efforts.value ? ` --reasoning=${efforts.value}` : '';
-            if (sessionAction(section, 'send', `/model ${choice.model}${reasoning}`)) close(true);
+            if (requestSessionModel(section, choice.model, efforts.value)) close(true);
         });
         cancel.addEventListener('click', () => close(true));
         function draftChanged(event) {
@@ -1087,6 +1104,16 @@
         section.completion = chatCompletion(section);
         section.modelPicker = modelPicker(section);
         input.addEventListener('keydown', event => {
+            if (event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing &&
+                    !event.getModifierState('AltGraph')) {
+                const { key, code } = event;
+                if (key === '<' || key === '>' || (event.shiftKey && (code === 'Comma' || code === 'Period'))) {
+                    event.preventDefault();
+                    const lower = key === '<' || (key !== '>' && code === 'Comma');
+                    if (!event.repeat) stepSessionEffort(section, lower ? -1 : 1);
+                    return;
+                }
+            }
             if (event.key === 'Escape' && !event.isComposing && section.modelPicker.close()) {
                 event.preventDefault();
                 return;

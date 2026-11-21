@@ -171,7 +171,8 @@ When the active agent provides a model catalogue, `session_view.model_selection`
 contains `{model, effort, options}`. Each option is
 `{model, label?, description?, efforts, default}`. Watch displays the optional
 description when it is a nonempty plain-text string. Model IDs and effort levels
-are strings. An adapter can use an empty `efforts` array and a null `default`
+are strings. List `efforts` from lowest to highest for the picker and chatbox
+shortcuts. An adapter can use an empty `efforts` array and a null `default`
 for a model without an effort control. The `options` array may be empty while
 the catalogue is unavailable.
 When the active session provides skill completion, `session_view.skill_options`
@@ -228,8 +229,9 @@ The bridge routes actions only to their displayed source/session.
 Disconnected sources disable input while retaining the observed transcript.
 Fresh snapshots update their retained panels after reconnecting.
 The model picker sends `/model` as a `send` action to refresh the source catalogue.
-It sends `/model <model> [--reasoning=<level>]` to apply a selection. The owning
-session validates the choice and confirms application in its transcript.
+The picker and chatbox shortcuts send `/model <model> [--reasoning=<level>]`
+to apply a selection. The adapter validates the choice against its catalogue,
+maps the request to its provider's controls and confirms it in the session transcript.
 
 Watch inserts a selected skill as `$<name>` in the draft and submits it with the
 ordinary chat action. The adapter owns skill discovery and how it resolves

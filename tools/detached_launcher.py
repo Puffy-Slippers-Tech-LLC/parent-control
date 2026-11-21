@@ -370,11 +370,13 @@ class _GoalSession:
                 self.protocol.start_turn(self.prompt)
                 if 'model_session' in self.session_view:
                     self.protocol.list_models()
-            elif event.kind in ('model_options', 'model_changed'):
+            elif event.kind in ('model_options', 'model_changed', 'skill_options'):
                 if self.done:
                     continue
-                if event.kind == 'model_options':
-                    self.session_view['model_options'] = event.data['options']
+                if event.kind == 'skill_options':
+                    self.session_view['skill_session'] = self.session_view['session']
+                if event.kind in ('model_options', 'skill_options'):
+                    self.session_view[event.kind] = event.data['options']
                 else:
                     self.session_view.update(event.data)
                     _optional_observation(model_notice, self.renderer, event.data)

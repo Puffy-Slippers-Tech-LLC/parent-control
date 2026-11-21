@@ -99,6 +99,9 @@ function validate(snapshot) {
             (option.label === undefined || identifier(option.label)) &&
             Array.isArray(option.efforts) && option.efforts.every(identifier) &&
             (option.efforts.length ? option.efforts.includes(option.default) : option.default === null));
+    const skillOptions = value => Array.isArray(value) && value.length <= 256 &&
+        new Set(value).size === value.length && value.every(name => typeof name === 'string' &&
+            name.length <= 128 && /^[\w-]+(?::[\w-]+)*$/u.test(name));
     if (snapshot?.protocol !== VERSION) throw new Error('Incompatible Watch bridge; update the adapter (protocol 1 required).');
     if (typeof snapshot.watch_ssh !== 'boolean') {
         throw new Error('Invalid Watch SSH policy.');
@@ -147,7 +150,9 @@ function validate(snapshot) {
             !rows(run.rows) || !rows(run.error_rows) || (run.session_view &&
                 (!rows(run.session_view.rows) || typeof run.session_view.input_enabled !== 'boolean' ||
                     (Object.hasOwn(run.session_view, 'model_selection') &&
-                        !modelSelection(run.session_view.model_selection))))) ||
+                        !modelSelection(run.session_view.model_selection)) ||
+                    (Object.hasOwn(run.session_view, 'skill_options') &&
+                        !skillOptions(run.session_view.skill_options))))) ||
         snapshot.resource_charts.some(value => !chart(value) || typeof value.label !== 'string' || typeof value.text !== 'string') ||
         snapshot.checkouts.some(checkout => !checkout || !identifier(checkout.id) || checkout.id === 'all' || typeof checkout.label !== 'string') ||
         !unique(snapshot.entries) || !unique(snapshot.runs) || !unique(snapshot.checkouts)) {

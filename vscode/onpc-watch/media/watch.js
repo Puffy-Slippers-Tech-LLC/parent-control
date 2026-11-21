@@ -638,7 +638,13 @@
         input.setAttribute('aria-controls', menu.id);
         input.setAttribute('aria-autocomplete', 'list');
         let token, request, timer, selected;
+        let dismissed;
         let shown = [];
+        const labels = {
+            command: { label: 'Supported commands', empty: 'No matching commands.' },
+            skill: { label: 'Available skills', empty: 'No matching skills.' },
+            file: { label: 'Matching files' },
+        };
 
         function currentToken() {
             const entry = section.entry;
@@ -651,11 +657,19 @@
                 return { kind: 'command', session: entry.session, query: draft,
                     start: input.value.length - draft.length, end: input.value.length };
             }
-            if (!entry.session_file_search || entry.session_waiting) return;
             const caret = input.selectionStart;
-            const match = input.value.slice(0, caret).match(/(?:^|[\s([{])@([^\s@)\]},;:!?]*)$/u);
+            const before = input.value.slice(0, caret);
+            const after = input.value.slice(caret);
+            const skill = before.match(/(?:^|[\s([{])(\$[\w:-]*)$/u);
+            if (skill) {
+                const suffix = after.match(/^[\w:-]*/u)[0].replace(/:+$/u, '');
+                return { kind: 'skill', session: entry.session, query: skill[1],
+                    start: caret - skill[1].length, end: caret + suffix.length };
+            }
+            if (!entry.session_file_search || entry.session_waiting) return;
+            const match = before.match(/(?:^|[\s([{])@([^\s@)\]},;:!?]*)$/u);
             if (!match || match[1].length > 512) return;
-            const suffix = input.value.slice(caret).match(/^[^\s@)\]},;:!?]*/u)[0].replace(/\.+$/u, '');
+            const suffix = after.match(/^[^\s@)\]},;:!?]*/u)[0].replace(/\.+$/u, '');
             return { kind: 'file', session: entry.session, query: match[1], start: caret - match[1].length - 1,
                 end: caret + suffix.length };
         }
@@ -668,6 +682,7 @@
         function hide() {
             clearTimeout(timer);
             request = undefined;
+            dismissed = true;
             if (!menu.firstElementChild) return;
             if (menu.matches(':popover-open')) menu.hidePopover();
             window.removeEventListener('resize', hide);
@@ -688,6 +703,14 @@
 
         function invalidate() {
             if (token && !sameToken(currentToken())) reset();
+            if (token?.kind === 'skill' && !dismissed) showLocalSuggestions();
+        }
+
+        function showLocalSuggestions() {
+            const values = token.kind === 'command' ? ['/model'] :
+                section.entry.session_view?.skill_options?.map(name => '$' + name);
+            if (values) showSuggestions(values.filter(value => value.startsWith(token.query)));
+            else if (menu.matches(':popover-open')) hide();
         }
 
         function refresh(event) {
@@ -699,8 +722,9 @@
                     token.start !== current.start)) hide();
             clearTimeout(timer);
             token = current;
-            if (current.kind === 'command') {
-                showSuggestions(['/model'].filter(command => command.startsWith(current.query)), 'No matching commands.');
+            dismissed = false;
+            if (current.kind !== 'file') {
+                showLocalSuggestions();
                 return;
             }
             // Keep the existing list visible while searching within the same @ mention.
@@ -727,16 +751,17 @@
         function choose(value) {
             if (request) return;
             if (!sameToken(currentToken())) return reset();
-            const command = token.kind === 'command';
+            const { kind, start, end } = token;
             let text = value;
-            if (!command) {
-                if (/[\s"\\]/u.test(value)) text = JSON.stringify(value);
-                if (!/[\s)\]},.;:!?]/u.test(input.value.charAt(token.end))) text += ' ';
+            if (kind !== 'command') {
+                if (kind === 'file' && /[\s"\\]/u.test(value)) text = JSON.stringify(value);
+                if (!/[\s)\]},.;:!?]/u.test(input.value.charAt(end))) text += ' ';
             }
-            input.setRangeText(text, token.start, token.end, 'end');
+            input.setRangeText(text, start, end, 'end');
             reset();
+            if (kind === 'skill') token = currentToken();
             section.fitInput();
-            if (command) section.modelPicker.open();
+            if (kind === 'command') section.modelPicker.open();
         }
 
         function positionMenu() {
@@ -759,12 +784,12 @@
             showSuggestions(paths);
         }
 
-        function showSuggestions(values, emptyMessage) {
+        function showSuggestions(values) {
             if (menu.matches(':popover-open') && values.length === shown.length &&
                     values.every((value, index) => value === shown[index])) return;
             const previous = shown[selected];
             shown = values;
-            menu.setAttribute('aria-label', token.kind === 'command' ? 'Supported commands' : 'Matching files');
+            menu.setAttribute('aria-label', labels[token.kind].label);
             const options = document.createDocumentFragment();
             values.forEach((value, index) => {
                 const option = element('div', 'session-suggestion-option', options);
@@ -779,7 +804,7 @@
                 const empty = element('div', 'session-suggestion-empty', options);
                 empty.setAttribute('role', 'option');
                 empty.setAttribute('aria-disabled', 'true');
-                empty.textContent = emptyMessage;
+                empty.textContent = labels[token.kind].empty;
                 selected = undefined;
                 input.removeAttribute('aria-activedescendant');
             }

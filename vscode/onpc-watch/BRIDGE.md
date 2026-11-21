@@ -174,6 +174,12 @@ description when it is a nonempty plain-text string. Model IDs and effort levels
 are strings. An adapter can use an empty `efforts` array and a null `default`
 for a model without an effort control. The `options` array may be empty while
 the catalogue is unavailable.
+When the active session provides skill completion, `session_view.skill_options`
+contains up to 256 unique skill names, without the `$` prefix, in display
+order. Each name is at most 128 ASCII characters and uses letters, digits,
+underscores and hyphens, with optional colon-separated namespaces. An empty
+array is an available catalogue with no entries. Omit the field when the session
+cannot supply a catalogue.
 Status requests the same transcript body as Session when embedding an active session.
 Only requested runs need transcript bodies. An idle run must keep its retained
 contents and disable input when its owner exits. Final status updates remain
@@ -224,6 +230,17 @@ Fresh snapshots update their retained panels after reconnecting.
 The model picker sends `/model` as a `send` action to refresh the source catalogue.
 It sends `/model <model> [--reasoning=<level>]` to apply a selection. The owning
 session validates the choice and confirms application in its transcript.
+
+Watch inserts a selected skill as `$<name>` in the draft and submits it with the
+ordinary chat action. The adapter owns skill discovery and how it resolves
+those mentions in that session. Codex uses structured skill inputs.
+[Codex App Server skills](https://learn.chatgpt.com/docs/app-server#skills)
+
+A Claude Code adapter can translate a leading mention to the native `/<name>`
+command. A Gemini CLI adapter can request the named skill in the prompt and let
+Gemini handle activation and consent.
+[Claude Agent SDK skills](https://code.claude.com/docs/en/agent-sdk/skills)
+[Gemini CLI skills](https://geminicli.com/docs/cli/using-agent-skills/)
 
 Actions are never retried automatically. Losing a response leaves delivery
 unknown; inspect the authoritative transcript before submitting again. Exactly

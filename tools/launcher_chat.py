@@ -239,8 +239,10 @@ class AppSession:
         self.protocol = command.protocol
         if self.protocol is None:
             raise ValueError('interactive agent session requires a protocol handler')
+        self.view_identity = view_identity
         self.model_session = view_identity if hasattr(self.protocol, 'list_models') else None
         self.model_options = []
+        self.skill_options = None
         self.outgoing = self.protocol.outgoing
         self.messages = []
         self.recovered_input = None
@@ -278,6 +280,8 @@ class AppSession:
             'progress_key': self.progress_key}
         if self.model_session is not None:
             state.update(model_session=self.model_session, model_options=self.model_options)
+        if self.view_identity is not None and self.skill_options is not None:
+            state.update(skill_session=self.view_identity, skill_options=self.skill_options)
         if status == 'running' and self.turn_started_at is not None:
             state['turn_started_at'] = self.turn_started_at
         if status == 'finished':
@@ -444,6 +448,9 @@ class AppSession:
                 self.protocol.list_models()
         elif kind == 'model_options' and not self.done:
             self.model_options = data['options']
+            self.publish(self.status)
+        elif kind == 'skill_options' and not self.done:
+            self.skill_options = data['options']
             self.publish(self.status)
         elif kind == 'model_changed' and not self.done:
             self.model, self.effort = data['model'], data['effort']

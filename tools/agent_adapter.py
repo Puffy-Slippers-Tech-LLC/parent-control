@@ -133,10 +133,13 @@ class SessionEvent:
     Native wire names and request IDs stay inside the concrete handler.
     Protocols that offer model selection supply list_models() and
     change_model(text), and emit model_options and model_changed events.
+    Protocols with skill completion emit skill_options with the session's
+    available names and resolve $name in user input using their native API.
     """
     kind: Literal['ready', 'turn_completed', 'retry_input',
                   'discard_result', 'text', 'text_delta', 'item', 'diagnostic',
-                  'command_output', 'usage', 'notice', 'failure', 'model_options', 'model_changed']
+                  'command_output', 'usage', 'notice', 'failure', 'model_options',
+                  'model_changed', 'skill_options']
     data: dict
 
 

@@ -17,6 +17,9 @@ SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions tha
                 'the resulting codebase as a whole, not merely minimize the patch. '
                 'Keep refactoring within the task’s scope.')
 MODEL_REQUEST_TIMEOUT = 10
+OBSERVATION_REQUESTS = ('model/list', 'thread/settings/update', 'skills/list')
+SKILL_NAME = r'[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*'
+SKILL_MENTION = re.compile(r'(?<![^\s(\[{])\$(' + SKILL_NAME + ')')
 
 GOAL_INSTRUCTIONS = f"""Before task work, use get_goal to inspect this session's actual
 Codex goal state. If absent or complete, call create_goal with objective:
@@ -379,6 +382,9 @@ class CodexWire:
         self.model_list_request = None
         self.model_change_request = None
         self.applied_model_request = 0
+        self.skills = {}
+        self.skill_list_request = None
+        self.skills_changed = False
 
     def encode(self, packet):
         self.outgoing.extend((json.dumps(packet) + '\n').encode('utf-8'))
@@ -396,7 +402,58 @@ class CodexWire:
         lines = (self.pending + data).split(b'\n')
         self.pending = lines.pop()
         for line in lines:
-            yield from self.event(json.loads(line))
+            packet = json.loads(line)
+            if packet.get('method') == 'skills/changed' and 'id' not in packet:
+                if self.thread is not None:
+                    self.list_skills()
+            else:
+                yield from self.event(packet)
+
+    def list_skills(self):
+        if self.skill_list_request is not None:
+            self.skills_changed = True
+            return
+        self.skill_list_request = self.rpc('skills/list', {
+            'cwds': [str(self.request.root)], 'forceReload': True})
+
+    def observation_reply(self, method, params, packet):
+        if method != 'skills/list':
+            return self.model_reply(method, params, packet)
+        self.skill_list_request = None
+        if self.skills_changed:
+            self.skills_changed = False
+            self.list_skills()
+            return None
+        result = packet.get('result')
+        if not isinstance(result, dict) or not isinstance(result.get('data'), list):
+            return None
+        skills = {}
+        for group in result['data']:
+            if (not isinstance(group, dict) or group.get('cwd') != params['cwds'][0]
+                    or not isinstance(group.get('skills'), list)):
+                continue
+            for item in group['skills']:
+                if not isinstance(item, dict):
+                    continue
+                name, path = item.get('name'), item.get('path')
+                if (item.get('enabled') is True and isinstance(name, str)
+                        and len(name) <= 128 and re.fullmatch(SKILL_NAME, name)
+                        and isinstance(path, str) and Path(path).is_absolute()):
+                    skills.setdefault(name, path)
+        self.skills = {name: skills[name] for name in sorted(skills)[:256]}
+        return SessionEvent('skill_options', {'options': list(self.skills)})
+
+    def chat_input(self, text):
+        items = [{'type': 'text', 'text': text}]
+        if self.skills:
+            for name in dict.fromkeys(SKILL_MENTION.findall(text)):
+                if name in self.skills:
+                    items.append({'type': 'skill', 'name': name, 'path': self.skills[name]})
+        return items
+
+    def steer(self, text):
+        self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
+                 'input': self.chat_input(text)})
 
     def list_models(self):
         if self.model_list_request is None:
@@ -557,7 +614,11 @@ class CodexProtocol(CodexWire):
     def start_turn(self, text):
         self.completed = False
         self.interrupted = False
-        params = {'threadId': self.thread, 'input': [{'type': 'text', 'text': text}],
+        # Keep the original assignment (including a schema recovery replay)
+        # intact. Subsequent chat turns may explicitly invoke skills.
+        entries = (self.chat_input(text) if self.started and not self.schema_retried
+                   else [{'type': 'text', 'text': text}])
+        params = {'threadId': self.thread, 'input': entries,
                   'outputSchema': self.schema}
         if not self.started:
             params.update(model=self.request.model, effort=self.request.effort)
@@ -565,10 +626,6 @@ class CodexProtocol(CodexWire):
         # Later turns inherit the native settings. Sending a client-side copy
         # could overwrite a model change whose acknowledgement arrived late.
         self.rpc('turn/start', params)
-
-    def steer(self, text):
-        self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
-                 'input': [{'type': 'text', 'text': text}]})
 
     def interrupt(self):
         self.interrupted = True
@@ -600,8 +657,8 @@ class CodexProtocol(CodexWire):
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
-            if method in ('model/list', 'thread/settings/update'):
-                event = self.model_reply(method, params, packet)
+            if method in OBSERVATION_REQUESTS:
+                event = self.observation_reply(method, params, packet)
                 if event is not None:
                     yield event
                 return
@@ -673,6 +730,7 @@ class CodexProtocol(CodexWire):
                     raise ValueError('resumed agent thread identity changed')
                 self.model_provider = result.get('modelProvider')
                 yield SessionEvent('ready', {'thread_id': self.thread})
+                self.list_skills()
             elif method == 'turn/start':
                 self.schema_retried = False
                 if not self.completed:
@@ -769,14 +827,10 @@ class CodexGoalProtocol(CodexWire):
             self.settle()
         return event
 
-    def steer(self, text):
-        self.rpc('turn/steer', {'threadId': self.thread, 'expectedTurnId': self.turn,
-                 'input': [{'type': 'text', 'text': text}]})
-
     def settle(self):
         if (not self.done and self.completed and self.turn is None
                 and self.model_change_request is None
-                and all(method in ('model/list', 'thread/settings/update') for method, _ in self.requests.values())):
+                and all(method in OBSERVATION_REQUESTS for method, _ in self.requests.values())):
             # Native continuation owns active goals. An ordinary session end
             # supplies no test verdict; the runner's results decide what remains.
             self.done = self.goal is None or self.goal.get('status') != 'active'
@@ -786,8 +840,8 @@ class CodexGoalProtocol(CodexWire):
     def event(self, packet):
         if 'method' not in packet:
             method, params = self.requests.pop(packet['id'])
-            if method in ('model/list', 'thread/settings/update'):
-                event = self.model_reply(method, params, packet)
+            if method in OBSERVATION_REQUESTS:
+                event = self.observation_reply(method, params, packet)
                 if event is not None:
                     yield event
                 self.settle()
@@ -817,6 +871,7 @@ class CodexGoalProtocol(CodexWire):
                 self.thread = result['thread']['id']
                 self.model_provider = result.get('modelProvider')
                 yield SessionEvent('ready', {'thread_id': self.thread})
+                self.list_skills()
             elif method == 'turn/start':
                 if not self.completed:
                     self.turn = result['turn']['id']

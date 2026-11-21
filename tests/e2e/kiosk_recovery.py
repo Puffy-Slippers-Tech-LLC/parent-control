@@ -2,7 +2,7 @@
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
 from approval_flow import rejected_request
 from feedback_composition import text_fragment
-from installed_journey import JourneyPlan, record_installed_journey
+from installed_journey import GDM_DENIAL_TAG, JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, fresh_desktop, native_usable_app,
                             parent_management, prefixed_stages, rejected_gdm_return,
                             retained_parent_entry, station_entry)
@@ -82,7 +82,8 @@ PLAN = JourneyPlan(
                    'kiosk-cancel-remembered': 'step-3', 'kiosk-final-remembered': 'step-4'},
     stage_actions={'desktop': 'native-verify'},
     invocations=tuple(stage for stage, tag in SCREENS.items()
-                      if tag.startswith('ui:') and stage in _entries | _returns),
+                      if stage in _entries | _returns and
+                      (tag.startswith('ui:') or tag == GDM_DENIAL_TAG)),
     challenges={prefix: ('child' if prefix.endswith('-child') else 'parent',
         prefix + ('-child-recipient-qualified' if prefix.endswith('-child') else '-recipient-qualified'),
         prefix + ('-child-recipient-rechecked' if prefix.endswith('-child') else '-recipient-rechecked'))

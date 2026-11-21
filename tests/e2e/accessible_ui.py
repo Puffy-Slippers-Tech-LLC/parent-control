@@ -7678,9 +7678,9 @@ class AccessibleUI:
             if root is None:
                 return None
             picker = self.snapshot_owned_target('parent-child-selector', root=root)
-            if picker is None:
+            # Parent disables the selector while loading the new child's settings.
+            if picker is None or not self.has_state(picker, self.api.StateType.SENSITIVE):
                 return None
-            require(self.has_state(picker, self.api.StateType.SENSITIVE), 'ui:unusable-target')
             require(self.child_id_control(child, 'parent-child-selected-', root=picker,
                                           showing=True) is not None, 'ui:selected-child')
             return {'child': CHILD_IDENTITIES[child]}

@@ -135,7 +135,7 @@ def tree_paths(root):
     return sorted(path for path in root.rglob('*') if path.is_symlink() or not path.is_dir())
 
 
-def transfer_git(root, destination):
+def transfer_git(root, destination, *, upgrade_tags=()):
     """Pack finite source snapshots, without copying repository history/caches.
 
     Current HEAD supplies Git identity; the artifact builder declares the only
@@ -143,20 +143,32 @@ def transfer_git(root, destination):
     optional profiles stay missing, just as they would on the controller.
     """
     import subprocess
-    from tools import build_test_artifacts as artifacts, package_inputs
+    from tools import build_test_artifacts as artifacts, package_inputs, upgrade_history
     from tools.host_dispatch import git
     root = Path(root)
     head = git(root, 'rev-parse', '--verify', 'HEAD^{commit}')
     commits = {head}
     references = {}
     objects = set()
-    for release in artifacts.PREVIOUS_RELEASES.values():
-        result = subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/' + release['name']],
-                                cwd=root, capture_output=True, text=True, check=False)
-        if not result.returncode and result.stdout.strip() == release['tag']:
-            references[release['name']] = release['tag']
-            objects.add(release['tag'])
-            commits.add(release['commit'])
+    legacy = {release['name']: release for release in artifacts.PREVIOUS_RELEASES.values()}
+    main = (upgrade_history.main_revision(root, optional=upgrade_tags is None)
+            if upgrade_tags is None or upgrade_tags else None)
+    if main:
+        commits.add(main)
+    if upgrade_tags is None:
+        _, releases = upgrade_history.release_history(root, revision=main)
+        upgrade_tags = ['v' + version for version, _ in releases]
+    names = {*legacy, *upgrade_tags}
+    for row in git(root, 'for-each-ref', '--format=%(refname:strip=2) %(objecttype) %(objectname) %(*objectname)',
+                   *('refs/tags/' + name for name in sorted(names))).splitlines():
+        fields = row.split()
+        if len(fields) != 4 or fields[1] != 'tag':
+            continue
+        name, _, tag, commit = fields
+        if name in names and (name not in legacy or tag == legacy[name]['tag']):
+            references[name] = tag
+            objects.add(tag)
+            commits.add(commit)
     for revision in (*artifacts.NO_ACTION_REVISIONS.values(), artifacts.PROCESS_BASELINE,
                      artifacts.SESSION_BASELINE, artifacts.REBOOT_BASELINE):
         result = subprocess.run(['git', 'cat-file', '-e', revision + '^{commit}'],
@@ -179,6 +191,7 @@ def transfer_git(root, destination):
     if len(metadata) != 2 or not metadata[1].isdecimal():
         raise ValueError('vm source snapshot: invalid package revision')
     return dict(head=head, commits=sorted(commits), tags=references,
+                **({'main': main} if main else {}),
                 package_revision=metadata[0], package_epoch=int(metadata[1]))
 
 

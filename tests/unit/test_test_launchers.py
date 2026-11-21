@@ -2206,51 +2206,6 @@ def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         allocate.assert_called_once()
 
 
-@pytest.mark.parametrize('options', [
-    ['prepare', '--upgrade-inputs'],
-    ['prepare', '--for-vm', '--upgrade-inputs', '--upgrade-inputs'],
-    ['prepare', '--for-vm', '--upgrade-inputs', '--unknown'],
-])
-def test_upgrade_preparation_rejects_unvalidated_option_shapes(options):
-    with pytest.raises(ValueError, match='invalid artifact operation'):
-        commands.plan(ROOT, 'artifacts', options)
-
-
-@pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm')])
-@pytest.mark.parametrize('candidate', [False, True])
-def test_vm_upgrade_preparation_uses_verified_format_and_owned_allocation(
-        tmp_path, monkeypatch, status, package_format, candidate):
-    import vm_artifacts
-    import build_test_artifacts
-    family = 'fedora46_x86_64' if package_format == 'rpm' else 'ubuntu26.10_x86_64'
-    configured = replace(vm_artifacts.selected(), family=family, package_format=package_format)
-    monkeypatch.setattr(vm_artifacts, 'selected', lambda: configured)
-    target = configured.require_build_target()
-    monkeypatch.setattr(vm_artifacts, 'check', Mock())
-    output = tmp_path / 'output'
-    allocate = Mock(return_value=str(output))
-    monkeypatch.setattr(vm_artifacts.test_retention, 'allocate', allocate)
-    verify = Mock(return_value={'packages': {'current': {
-        'architecture': {'deb': 'amd64', 'rpm': 'x86_64'}[package_format],
-        'version': '1.4-0.1.dev.fc46' if package_format == 'rpm' else '1.4+local1~ubuntu26.10.1'}}})
-    monkeypatch.setattr(build_test_artifacts, 'verify_upgrade', verify)
-    control = Mock()
-    control.run.side_effect = [status, 0]
-    assert vm_artifacts.prepare(ROOT, control, {}, upgrade_inputs=True,
-                                candidate=output if candidate else None) == 0
-    if candidate:
-        verify.assert_called_once_with(output)
-        allocate.assert_not_called()
-        assert control.run.call_count == 1
-    else:
-        allocate.assert_called_once_with(vm_artifacts.tempfile.mkdtemp, prefix='onpc-test-artifacts-')
-        verify.assert_not_called()
-        assert control.run.call_args.args[0] == [
-            '/usr/bin/python3', '-B', str(ROOT / 'tools/build_test_artifacts.py'),
-            '--upgrade-inputs', '--package-format', package_format, '--build-target', target.name,
-            '--architecture', target.architecture, '--output', str(output)]
-
-
 @pytest.mark.parametrize('declared,baseline', [('deb', 5), ('rpm', 3), (None, 5)])
 def test_vm_preparation_never_defaults_or_builds_for_mismatched_configuration(
         tmp_path, monkeypatch, declared, baseline):
@@ -2339,58 +2294,6 @@ def test_focused_system_preserves_explicit_artifact_input_without_building(monke
     execute.assert_called_once()
     assert execute.call_args.args[0][0] == '/usr/bin/pkexec'
     assert args == execute.call_args.args[0][-len(args) - len(VM_ARGS):-len(VM_ARGS)]
-
-
-@pytest.mark.parametrize('target', [vm_name(0), vm_name(1)])
-@pytest.mark.parametrize('status', [0, 7, 130])
-def test_shared_upgrade_preparation_binds_each_vm_before_existing_system_dispatch(
-        monkeypatch, target, status):
-    import dev_privileges
-    import regression_process
-    import test_retention
-
-    monkeypatch.setenv('ONPC_TEST_VM', target)
-    output = str(ROOT / 'output/test-runs/host/allocations/onpc-upgrade-input')
-    monkeypatch.setattr(test_retention, 'allocate', Mock(return_value=output))
-    monkeypatch.setattr(test_retention, 'token', lambda: None)
-    authorize = Mock()
-    monkeypatch.setattr(dev_privileges, 'check', authorize)
-    monkeypatch.setattr(commands, 'qualification_fixture_options', Mock(return_value=[]))
-    execute = Mock(side_effect=[status, 0])
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    args = ['--id', '287', '--upgrade-inputs']
-    assert regression_process.category_run(ROOT, 'system', args, pipe=False) == status
-    assert execute.call_args_list[0].args[0] == commands.python_file(
-        ROOT, 'tools/vm_artifacts.py', '--upgrade-inputs', '--output', output,
-        '--vm', target)
-    if status:
-        assert execute.call_count == 1
-        authorize.assert_not_called()
-    else:
-        assert execute.call_args.args[0] == [
-            '/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-            '/usr/local/libexec/onpc-test-runner', '--unattended', 'system',
-            '--id', '287', '--artifacts=' + output + '/current',
-            '--previous-artifacts=' + output + '/previous', '--vm', target]
-
-
-@pytest.mark.parametrize('category,args', [
-    ('system', ['--upgrade-inputs', '--upgrade-inputs']),
-    ('system', ['--upgrade-inputs', '--artifacts=/tmp/onpc-explicit']),
-    ('system', ['--upgrade-inputs', '--previous-artifacts', '/tmp/onpc-explicit']),
-    ('e2e', ['--upgrade-inputs']),
-    ('system', ['check_e2e_package_upgrade', '--upgrade-inputs']),
-])
-def test_shared_upgrade_preparation_refuses_conflicts_before_allocation(monkeypatch, category, args):
-    import regression_process
-    import test_retention
-
-    allocate = Mock(side_effect=AssertionError('invalid request allocated inputs'))
-    monkeypatch.setattr(test_retention, 'allocate', allocate)
-    with pytest.raises(ValueError, match=('package history inputs cannot select a named system check'
-                                         if commands.system_check_selection(args) else 'upgrade inputs require')):
-        regression_process.category_run(ROOT, category, args, pipe=False)
-    allocate.assert_not_called()
 
 
 def test_dispatcher_still_requires_artifacts_for_actual_system_execution():

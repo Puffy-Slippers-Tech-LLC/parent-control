@@ -104,8 +104,7 @@ def native_state(uid):
 
 def saved_preferences(uid):
     raw = json.loads((PREFERENCES / f'{uid}.json').read_text())
-    # v1.2 uses schema 3; v1.3 already uses 4. The current writer requires
-    # schema 4, with the preserved/default personal language after migration.
+    # The current writer requires schema 4 and the preserved/default personal language.
     guest.require(raw.get('version') == 4 and raw.get('personal', {}).get('language') == '',
                   'previous-upgrade:preference-migration')
     return policy_projection(raw)
@@ -123,10 +122,7 @@ def verify_grant(expected, observed, now):
 def upgraded_identity(role, expected):
     if role != 'kiosk':
         return expected
-    guest.require(expected['account'][-1] == '/bin/bash',
-                  'previous-upgrade:prior-kiosk-shell')
-    # The pinned releases' package-owned kiosk used bash. Current provisioning
-    # deliberately installs nologin; every other account/home field stays exact.
+    # Current provisioning migrates the old Bash kiosk shell and preserves nologin.
     return {**expected, 'account': [*expected['account'][:-1], '/usr/sbin/nologin']}
 
 
@@ -174,14 +170,18 @@ def prepare(record):
     old = guest.package_identity(previous, installed=True)
     guest.require(old != guest.package_identity(guest.package_path()),
                   'previous-upgrade:requires-earlier-package')
-    guest.require(not os.path.lexists(guest.KIOSK_CONFINEMENT_STATE),
-                  'previous-upgrade:expected-prelease-package')
+    product = json.loads(Path('/usr/share/oh-no-parent-control/app.json').read_text())['version']
+    version = tuple(map(int, product.split('.')))
+    prelease = version < (1, 4)
+    if prelease:
+        guest.require(not os.path.lexists(guest.KIOSK_CONFINEMENT_STATE),
+                      'previous-upgrade:expected-prelease-package')
     record('onpc.previous-upgrade.packages', json.dumps({
         'previous_version': old,
         'candidate_version': guest.package_identity(guest.package_path()),
         'previous_sha256': guest.sha(previous),
         'candidate_sha256': marker['package_sha256'],
-        'boundary': 'prelease-package-without-confinement-record-to-admission-protocol-1',
+        'previous_confinement_record': os.path.lexists(guest.KIOSK_CONFINEMENT_STATE),
     }, sort_keys=True))
     variants = ('trusted-hard', 'trusted-soft')
     accounts = provision_native('trusted-hard', trusted_variants=variants)
@@ -216,7 +216,7 @@ def prepare(record):
         guest.require(result[1] == 'approved', 'previous-upgrade:request-not-approved')
     saved = json.loads(call(parent, 'GetPreferences', '(u)', (child,))[0])
     policy = policy_projection(saved)
-    expected_schema = 4 if guest.package_path().suffix == '.rpm' else 3
+    expected_schema = 3 if version < (1, 3) else 4
     guest.require(saved['version'] == expected_schema, 'previous-upgrade:prior-preference-schema')
     guest.require(policy['parent_control_enabled'] is True
                   and policy['daily_time_limit_minutes'] == DAILY_MINUTES
@@ -233,7 +233,8 @@ def prepare(record):
     guest.require(account_digest(other) == before_other, 'previous-upgrade:setup-other-changed')
     kiosk = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
     accounts['kiosk'] = kiosk
-    guest.require(identity(kiosk)['account'][-1] == '/bin/bash',
+    expected_shell = '/bin/bash' if prelease else '/usr/sbin/nologin'
+    guest.require(identity(kiosk)['account'][-1] == expected_shell,
                   'previous-upgrade:prior-kiosk-shell')
     state = {'schema': 1, 'binding': binding(marker), 'boot': boot(), 'old_version': old,
              'accounts': accounts, 'identities': {role: identity(uid) for role, uid in accounts.items()},

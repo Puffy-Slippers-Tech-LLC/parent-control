@@ -262,7 +262,7 @@ def test_source_changes_refresh_pending_inventory_without_replaying_passes(
     continue_on_errors = changed_during == 'reservation' and not focused
     class Sources:
         branch = 'main'
-        def __init__(self, root):
+        def __init__(self, root, *, upgrade_tags):
             self.source = dict(identity)
         def __enter__(self):
             captures.append(self.source['digest'])

@@ -54,7 +54,8 @@ def _git_transaction(root):
 
 
 def _upstream_pending(root, descriptors, control):
-    _check(_run(root, ['fetch', '--no-tags'], descriptors, control=control))
+    # Follow the published tags attached to fetched source for the VM upgrade matrix.
+    _check(_run(root, ['fetch'], descriptors, control=control))
     comparison = _run(root, ['merge-base', '--is-ancestor', '@{upstream}', 'HEAD'],
                       descriptors, control=control)
     if comparison.returncode != 1:

@@ -39,8 +39,9 @@ class FrozenSources:
     positions or retain the live checkout's source reader.
     """
 
-    def __init__(self, root):
+    def __init__(self, root, *, upgrade_tags=()):
         self.root = Path(root)
+        self.upgrade_tags = upgrade_tags
         self._temporary = None
 
     @staticmethod
@@ -83,7 +84,7 @@ class FrozenSources:
                     os.fchmod(archive.fileno(), 0o600)
                     os.fchmod(packed.fileno(), 0o600)
                     self.manifest = transfer_archive(self.root, archive)
-                    self.git = transfer_git(self.root, packed)
+                    self.git = transfer_git(self.root, packed, upgrade_tags=self.upgrade_tags)
             with self.archive_path.open('rb') as archive:
                 receive_transfer(archive, self.directory, self.manifest)
             _restore_git(self.directory, self.git, self.git_path, self.branch)
@@ -423,8 +424,10 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
             if mode == 'pool':
                 git_pack = git_snapshot = None
             elif sources is None:
+                from upgrade_history import transfer_release_tags
                 git_pack = inputs.enter_context(tempfile.TemporaryFile(dir=scratch_directory()))
-                git_snapshot = transfer_git(root, git_pack)
+                selectors = command[:command.index('--')] if '--' in command else command
+                git_snapshot = transfer_git(root, git_pack, upgrade_tags=transfer_release_tags([selectors]))
             else:
                 git_pack = inputs.enter_context(sources.git_path.open('rb'))
                 git_snapshot = sources.git
@@ -548,6 +551,9 @@ def _restore_git(root, snapshot, git_pack, branch):
     (root / '.git/shallow').write_text('\n'.join(snapshot['commits']) + '\n')
     subprocess.run(['git', 'update-ref', 'refs/heads/' + branch, snapshot['head']],
                    cwd=root, check=True)
+    if snapshot.get('main'):
+        subprocess.run(['git', 'update-ref', 'refs/remotes/origin/main', snapshot['main']],
+                       cwd=root, check=True)
     for name, revision in snapshot['tags'].items():
         subprocess.run(['git', 'update-ref', 'refs/tags/' + name, revision], cwd=root, check=True)
     subprocess.run(['git', 'read-tree', 'HEAD'], cwd=root, check=True)

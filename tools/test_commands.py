@@ -452,7 +452,7 @@ Complete categories (combine in any order; execute host, system, e2e)
   Latest category-ID-VMs.webm files live in output/test-runs/recordings/.
   VM names follow numeric config IDs; no timestamp, age or size rotation.
   system --id N[,N...] selects persistent IDs shown by system --list.
-  Bare system also runs 287 and 288 as separate upgrade-input attempts.
+  Bare system runs 287 and 288 for each release selected by VersionHistory.md.
   system --list includes the registered standalone installed checks.
   system CHECK selects a named standalone check or engineering qualification.
   E2E building blocks are not standalone registrations. A focused qualification
@@ -484,7 +484,8 @@ Aggregate aliases (no suite selectors)
   Bare artifacts runs two builds and their reproducibility comparison.
   artifacts prepare reuses matching verified inputs or builds on a miss.
   artifacts prepare --for-vm --vm NAME selects RPM/DEB from the verified baseline.
-  Add --upgrade-inputs to build pinned earlier-release/current inputs in a new retained bundle.
+  Add --upgrade-inputs to build the newest eligible release and main in one retained bundle.
+  Use --upgrade-from=vX.Y to prepare a specific supported source release.
   artifacts prepare --for-vm --no-action-inputs prepares the named metadata-only
   upgrade pair without starting the customer journey.
   artifacts prepare --no-action-inputs --package-format deb|rpm builds the same
@@ -493,8 +494,9 @@ Aggregate aliases (no suite selectors)
   pair in retained storage; it does not install packages or qualify the live history.
   artifacts prepare --native-inputs --package-format deb|rpm prepares that finite
   pair without a VM probe; installed-baseline compatibility still needs preflight.
-  system --upgrade-inputs prepares that pair independently in each VM worker
-  and supplies --artifacts/--previous-artifacts to the existing installed runner.
+  system --upgrade-inputs prepares a separate release-to-main pair per attempt
+  and supplies --artifacts/--previous-artifacts to the installed runner.
+  Use --upgrade-from=vX.Y to focus the run on one supported source release.
   It requires the VM's declared format to match its verified baseline; no format defaults.
   Explicit artifact paths cannot be combined with system --upgrade-inputs.
   system --native-inputs prepares current product and finite native dependency
@@ -653,7 +655,11 @@ def vm_input_options(category, argv):
     Each VM worker resolves its own format through vm_artifacts' pinned-baseline
     probe. Explicit existing bundles and automatically built pairs are exclusive.
     """
+    from upgrade_history import FROM_OPTION, upgrade_from
     upgrade = '--upgrade-inputs' in argv
+    source = upgrade_from(argv)
+    if source is not None and not upgrade:
+        raise ValueError('--upgrade-from requires --upgrade-inputs')
     native = '--native-inputs' in argv
     if (upgrade or native) and system_check_selection(argv):
         raise ValueError('package history inputs cannot select a named system check')
@@ -667,7 +673,8 @@ def vm_input_options(category, argv):
                            or value.startswith(('--artifacts=', '--previous-artifacts=', '--native-artifacts='))
                            for value in argv)):
         raise ValueError('upgrade inputs require system and no explicit artifact paths')
-    return [value for value in argv if value not in ('--upgrade-inputs', '--native-inputs')], upgrade
+    return [value for value in argv if value not in ('--upgrade-inputs', '--native-inputs')
+            and not value.startswith(FROM_OPTION)], upgrade
 
 
 def vm_preparation_flags(category, argv):
@@ -686,8 +693,18 @@ def vm_preparation_flags(category, argv):
         if any(case['case_id'] == 'E2E-026/process' for case in plan.get('cases', [])):
             return ['--process-inputs']
     _, upgrade = vm_input_options(category, argv)
+    from upgrade_history import FROM_OPTION, upgrade_from
     return (['--system-native-inputs'] if '--native-inputs' in argv else
-            ['--upgrade-inputs'] if upgrade else [])
+            ['--upgrade-inputs', FROM_OPTION + (upgrade_from(argv) or latest_upgrade_source(
+                Path(__file__).resolve().parents[1]))] if upgrade else [])
+
+
+def latest_upgrade_source(root):
+    from upgrade_history import main_revision, upgrade_matrix
+    from vm_selection import selected
+
+    _, versions = upgrade_matrix(root, selected().require_package_format(), revision=main_revision(root))
+    return 'v' + versions[-1]
 
 
 def prepared_vm_options(category, argv, directory):
@@ -1240,9 +1257,13 @@ def plan(root, category, argv):
             return [[*command, *(['--matrix'] if category == 'artifacts' else [])]], False
         if category == 'artifacts' and argv == ['prepare']:
             return [[*command, '--package-format', 'deb', '--reuse']], False
-        if category == 'artifacts' and argv == ['prepare', '--for-vm', '--upgrade-inputs']:
+        if category == 'artifacts' and argv[:3] == ['prepare', '--for-vm', '--upgrade-inputs']:
+            from upgrade_history import FROM_OPTION, upgrade_from
             from vm_selection import arguments
-            return [python_file(root, 'tools/vm_artifacts.py', '--upgrade-inputs', *arguments())], False
+            if len(argv) == 3 or (len(argv) == 4 and upgrade_from(argv[3:])):
+                source = upgrade_from(argv[3:]) or latest_upgrade_source(root)
+                return [python_file(root, 'tools/vm_artifacts.py', '--upgrade-inputs',
+                                    FROM_OPTION + source, *arguments())], False
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--no-action-inputs']:
             from vm_selection import arguments
             return [python_file(root, 'tools/vm_artifacts.py', '--no-action-inputs', *arguments())], False

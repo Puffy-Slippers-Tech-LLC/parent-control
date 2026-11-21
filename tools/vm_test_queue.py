@@ -29,7 +29,7 @@ from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import Executor
 from vm_pool import reservation
 import launcher_reload
-from vm_case_queue import case_inventory, work_items, arguments
+from vm_case_queue import case_inventory, work_items, arguments, replay_case
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -82,6 +82,15 @@ def _plan(root, argv, *, targets=None):
     guest_selection = selections(root, guest_args) if guest_args else []
     families = collect_families(root, vms, guest_selection)
     replay = next((arg.partition('=')[2] for arg in guest_args if arg.startswith('--resume-case=')), None)
+    if replay and len(guest_selection) == 1:
+        from upgrade_history import upgrade_from
+        if upgrade_from(guest_selection[0][1]):
+            matches = {case for items in families.values() for work in items
+                       if (case := replay_case(work, replay)) is not None}
+            if len(matches) == 1:
+                current, = matches
+                guest_args[guest_args.index('--resume-case=' + replay)] = '--resume-case=' + current
+                replay = current
     if replay and (len(guest_selection) != 1 or any(
             not any(replay in work['cases'] for work in items) for items in families.values())):
         raise ValueError('case retry requires one category and a selected case')
@@ -89,17 +98,42 @@ def _plan(root, argv, *, targets=None):
 
 
 def collect_families(root, vms, selection):
+    from test_commands import execution_selections
+    from upgrade_history import FROM_OPTION, main_revision, supported_releases, upgrade_from, upgrade_matrix
+
     families = {}
+    build = None
     original_vm = os.environ.get(VARIABLE)
     try:
         for vm in vms:
             if vm.family in families:
                 continue
             vm_config.select(vm.name)
-            families[vm.family] = [work for category, options in selection
-                                   for work in work_items(category, options, case_inventory(
-                                       root, category, options, vm=vm.name,
-                                       pass_fds=test_source.descriptors()))]
+            items = families[vm.family] = []
+            for category, options in execution_selections(root, selection):
+                cases = case_inventory(root, category, options, vm=vm.name,
+                                       pass_fds=test_source.descriptors())
+                if category != 'system' or '--upgrade-inputs' not in options:
+                    items.extend(work_items(category, options, cases))
+                    continue
+                package_format = vm.require_package_format()
+                if build is None:
+                    from package_inputs import digest, paths
+                    revision = main_revision(root)
+                    build = revision or digest(root, paths(root))
+                source = upgrade_from(options)
+                if source:
+                    # Explicit replays keep their source even after it ages out.
+                    current, history = supported_releases(root, package_format, revision=revision)
+                    if source[1:] not in {version for version, _ in history}:
+                        raise ValueError(f'{source} is not a supported earlier release on {vm.family}')
+                    previous = [source[1:]]
+                else:
+                    current, previous = upgrade_matrix(root, package_format, revision=revision)
+                for version in previous:
+                    flags = options if source else [*options, FROM_OPTION + 'v' + version]
+                    items.extend(work_items(category, flags, cases,
+                                            upgrade=f'@v{version}-to-v{current}-{build[:16]}'))
     finally:
         if original_vm is None:
             os.environ.pop(VARIABLE, None)
@@ -668,7 +702,12 @@ def _run_pass(root, argv, *, reloading=False, checkpoint_scope='ordinary',
                     plan = snapshot, vms, [], [], [], {}
                 else:
                     plan = _plan(root, argv)
-                sources = capture.enter_context(FrozenSources(root)) if plan[1] else None
+                sources = None
+                if plan[1]:
+                    from upgrade_history import transfer_release_tags
+                    plans = [group for group, _ in group_plans.values()] if group_plans is not None else [plan]
+                    options = (work['options'] for group in plans for items in group[-1].values() for work in items)
+                    sources = capture.enter_context(FrozenSources(root, upgrade_tags=transfer_release_tags(options)))
             outcome = _run_workers(root, plan, reloading=reloading,
                 checkpoint_scope=checkpoint_scope, sources=sources,
                 continue_on_errors=continue_on_errors, histories=histories, overall_counts=overall_counts,
@@ -849,7 +888,7 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                                                   assignment=assignment)))
                 request.chmod(0o600)
                 environment[FAMILY_WORK] = str(request)
-                worker_args = arguments(work)
+                worker_args = arguments(work, worker=True)
                 if (work['category'] == 'system' and not work['options']
                         and (work['case'] or '').startswith('check_')):
                     # The family already resolved this named check. Dispatch it
@@ -877,10 +916,11 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                             if value.startswith('Runner case failed: '):
                                 try:
                                     failure = json.loads(value.removeprefix('Runner case failed: '))
+                                    case = failure.get('case', '') + work.get('upgrade', '')
                                     if (failure.get('category') == work['category']
-                                            and failure.get('case') in work['cases']):
+                                            and case in work['cases']):
                                         from test_results import ResultStore
-                                        ResultStore().record(work['category'], vm.family, failure['case'], 1,
+                                        ResultStore().record(work['category'], vm.family, case, 1,
                                             vm=vm.name, options=work['options'])
                                         if not continue_on_errors:
                                             control.stop()
@@ -970,8 +1010,9 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                 for path in handoffs:
                     try:
                         failed = json.loads(Path(path).read_text()).get('failures', [])
-                        case = next((item.get('case') for item in failed
-                                     if item.get('case') in work['cases']), None)
+                        suffix = work.get('upgrade', '')
+                        case = next((item['case'] + suffix for item in failed
+                                     if item.get('case') and item['case'] + suffix in work['cases']), None)
                         if case is not None:
                             result['failure_case'] = case
                             break
@@ -1172,17 +1213,25 @@ def _worker(argv, finished, *, cleanup_only=False):
         from test_commands import selections
         work_path = os.environ.pop(FAMILY_WORK, None)
         work = json.loads(Path(work_path).read_text()) if work_path else None
+        assignment = work['assignment'] if work else None
+        executed = assignment.get('execution', assignment['work']) if assignment else {}
+        upgrade = executed.get('upgrade', '')
         original = work['selection'] if work else args
+        if upgrade:
+            original = [executed['category'], *executed['options']]
         checkpoint = Checkpoint(root, selections(root, original), resume=not work and '--resume' in args)
         if work:
             # The parent owns shared family credit. This VM writes only its
             # private attempt checkpoint; concurrent workers never overwrite it.
+            if upgrade:
+                checkpoint.results = None
             for category in checkpoint.selected:
                 passed = work['passed'][category]
+                if upgrade:
+                    passed = [case.removesuffix(upgrade) for case in passed if case.endswith(upgrade)]
                 checkpoint.entry(category).update(passed=passed, complete=False)
                 checkpoint.excluded[category] = set(passed)
                 checkpoint.snapshot(category)
-            assignment = work['assignment']
             if assignment['vm'] != name:
                 raise ValueError('assignment belongs to another VM')
             checkpoint.state['queue_assignment'] = assignment
@@ -1208,8 +1257,7 @@ def _worker(argv, finished, *, cleanup_only=False):
             # The report owns case teardown; main returns through retained-output
             # finalization before this bounded result is made available.
             category = assignment['work']['category']
-            executed = assignment.get('execution', assignment['work'])
-            observed = checkpoint.executed_passes.get(category, set()) & set(executed['cases'])
+            observed = {case + upgrade for case in checkpoint.executed_passes.get(category, ())} & set(executed['cases'])
             finalized = getattr(checkpoint, 'queue_finalized', False)
             started = getattr(checkpoint, 'queue_vm_started', False)
             vm_exit = getattr(checkpoint, 'queue_vm_exit', None)
@@ -1222,7 +1270,7 @@ def _worker(argv, finished, *, cleanup_only=False):
             if status == 130 and not cleanup and (not started or vm_exit == 130):
                 return status  # Join the existing guarded interruption recovery.
             evidence = dict(assignment, status=verdict, passed=sorted(observed), cleanup=cleanup,
-                failed=getattr(checkpoint, 'queue_failures', []),
+                failed=[case + upgrade for case in getattr(checkpoint, 'queue_failures', [])],
                 interrupted=getattr(checkpoint, 'queue_vm_interrupted', False) or (status == 130 and not started),
                 diagnostic=False)
             finished.append((checkpoint, evidence))

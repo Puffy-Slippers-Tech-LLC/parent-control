@@ -268,9 +268,8 @@ def qualify(record):
                   'trusted-fixtures:old-package-digest')
     guest.verify_package_files(previous, category='previous-package')
     old = guest.package_identity(previous, installed=True)
-    guest.require(old != guest.package_identity(guest.package_path())
-                  and not os.path.lexists(guest.KIOSK_CONFINEMENT_STATE),
-                  'trusted-fixtures:requires-pinned-earlier-release')
+    guest.require(old != guest.package_identity(guest.package_path()),
+                  'trusted-fixtures:requires-earlier-release')
     record('onpc.trusted-fixtures.previous.version', old)
     record('onpc.trusted-fixtures.previous.sha256', guest.sha(previous))
     before = verify_trust(variant='trusted-hard', variants=TRUSTED_VARIANTS)

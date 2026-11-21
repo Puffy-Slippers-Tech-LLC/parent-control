@@ -642,9 +642,8 @@ logical task charges do not multiply with the VM count.
 
 `tools/run-tests vm` and `all` include current-package system tests, two separate
 upgrade histories (287 policy preservation and 288 trusted native fixtures),
-registered standalone checks and ready E2E cases. Bare `system` includes those
-three lifecycle attempts and the registered standalone checks; explicit lifecycle
-selectors keep their existing scope. Each upgrade uses
+registered standalone checks and ready E2E cases. Bare `system` schedules both
+histories for every source release selected for the VM's package format. Each uses
 the existing `--id N --upgrade-inputs` route and its independent preparation,
 restore, failure reporting, resume prerequisites and cleanup. History 289 remains
 pending and is never selected. Other pending/retired system IDs and pending E2E
@@ -1496,20 +1495,28 @@ upgrade under test. `update-activation.json` records both package digests and
 the same-version reinstall observation. Neither package is installed on the host.
 
 `package` → `test_previous_package_policy_preservation` (ID **287**) adds a finite
-genuine earlier-release history to that route. Prepare its owned input with
-`tools/run-tests artifacts prepare --for-vm --upgrade-inputs --vm NAME`, then pass
-the returned bundle's `current` and `previous` directories as `--artifacts` and
-`--previous-artifacts`. Ubuntu pins released v1.2; Fedora pins released v1.3.
-For later Fedora test targets, the builder removes the historical installer’s
-fixed Fedora release check and GNOME Shell upper bound in the private build
-copy. It verifies the resulting RPM and retains its Workstation, native PAM and
-minimum Shell prerequisites. The released broker and desktop code are used as
-shipped. For an Ubuntu target, the private build copy sets the Ubuntu series
-in the binary package version while retaining the historical product and
-package revision. The builder verifies the annotated tag/commit, exact source
-digest, package version and architecture and native strictly increasing version
-order. The focused selector refuses a missing prior input or a fabricated release.
-Ordinary current-package suites omit this optional history.
+genuine earlier-release history to that route. The candidate is the latest main
+build. On main the launcher builds the checkout it is running from. Other
+branches use the locally available `origin/main` or `main` Git revision.
+The runner parses [main's release history](../../docs/VersionHistory.md). An
+undated top entry is the build version and must agree with `data/app.json`.
+Earlier releases with dates from the past two calendar months, including the
+cutoff day, run oldest first. Fedora requires v1.5 or later. When the window is
+empty, each format uses its newest eligible earlier release. Each source gets a
+separate attempt and checkpoint identity bound to the target build.
+
+To prepare just one pair, use `tools/run-tests artifacts prepare --for-vm
+--upgrade-inputs --upgrade-from=v1.5 --vm NAME`. Omit `--upgrade-from` to prepare
+the newest eligible pair. Pass the returned `current` and `previous` directories
+as `--artifacts` and `--previous-artifacts` to reuse that pair. The builder binds
+the earlier source to its annotated Git tag and commit and verifies source
+digests, architecture and strictly increasing native package versions. The
+controller's upstream fetch follows published tags into the fetched history. For newer
+Fedora targets, historical Fedora 44-only installers are adapted in a private
+build copy while retaining the Workstation, native PAM and minimum Shell
+requirements. Ubuntu binaries use the target series and retain the historical
+product and package revision. Existing fixed release-notes qualifications retain
+their own historical input pair.
 
 For a parallel selection, shared runner infrastructure prepares and binds each
 VM's independent pair before invoking that same `--previous-artifacts` route:
@@ -1519,7 +1526,9 @@ tools/run-tests system --vm 'NAME,OTHER_NAME' --id 287 --upgrade-inputs
 ```
 
 `system --upgrade-inputs` applies to an explicit lifecycle selection needing a
-real package update. It cannot accompany explicit artifact paths. Each worker
+real package update. `--upgrade-from=vX.Y` selects one supported dated source,
+including for replays after the date window changes. It cannot accompany explicit
+artifact paths. Each worker
 requires its registry `package_format` and verifies that format against the
 pinned baseline before building; there is no DEB/RPM default or case-specific
 builder. Preparation failure prevents that worker's installation. Existing
@@ -1537,10 +1546,11 @@ current distro PAM verification and absence of retired legacy integration
 state/helper replace the removed private admission-receipt assertion. After reboot, public policy/time
 queries, session preparation, hard-app denial, approved soft-app execution,
 unrelated-user execution and saved identity/policy preservation must pass.
-The exact declared kiosk-shell change from the pinned releases' `/bin/bash` to
-current `/usr/sbin/nologin` is required; UID, group, home identity and every
-ordinary account remain unchanged. Ubuntu also requires schema 3 → 4 migration;
-Fedora retains schema 4. Saved language/default language remains intact.
+The kiosk shell must reach `/usr/sbin/nologin` from the source release's expected
+shell. The test preserves UID, group, home identity and every ordinary account.
+Source preference schemas depend on the release, with schema 3 through v1.2 and
+schema 4 from v1.3. The candidate must save schema 4 and preserve the default
+language.
 Each phase is collected before crossing its next lifecycle boundary. Resume
 replays the entire unfinished history; earlier phase passes cannot be spliced
 into another restored guest. This engineering case supplies no customer GUI
@@ -1549,7 +1559,7 @@ update-journey acceptance.
 `package` → `test_trusted_native_upgrade_fixtures` (ID **288**) separately
 qualifies the trusted inputs for an earlier-release history. It uses the same
 verified current/previous artifact pair and an isolated product-free baseline
-attempt. The runner installs and boots only the pinned earlier package, then
+attempt for each selected release. The runner installs and boots only the earlier package, then
 runs `trusted-fixtures`; the candidate is never installed in this qualification.
 Both fixed children first execute the independently named trusted hard/soft
 fixtures without restriction. Public old-broker policy operations then require

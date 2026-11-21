@@ -123,8 +123,8 @@ may run in parallel. Each scope has its own activity lock, session discovery,
 queued jobs, cancellation and retained results; combined selections reserve both
 locks. Narrower categories use their owning scope's lock.
 
-Bare `system` includes the current-package suite, separate genuine upgrade
-attempts for histories 287 and 288 through `system --id N --upgrade-inputs`, and
+Bare `system` includes the current-package suite, genuine upgrade histories 287
+and 288 for each source in the [release-history matrix](integration/README.md#aggregate-scheduling), and
 registered standalone checks through guarded per-check launches. The
 [standalone inventory](integration/system_checks.py) registers installed checks
 positively; `system --list` lists lifecycle selectors and standalone registrations.

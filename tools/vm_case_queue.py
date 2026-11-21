@@ -9,37 +9,29 @@ import subprocess
 
 def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     """Collect existing public identities without starting a VM."""
-    from test_commands import execution_selections
     if category == 'system':
         import test_launcher
+        from test_commands import system_check_selection
         from test_storage import scratch_descriptors
         from vm_selection import selected
-        name = vm or selected().name
-        cases = []
-        for _, arguments in execution_selections(root, [('system', list(options))]):
-            from test_commands import system_check_selection
-            check = system_check_selection(arguments)
-            if check:
-                cases.append(check)
-                continue
-            command = [str(root / 'tools/run-tests'), 'system', *arguments,
-                       '--vm', name, '--list']
+        check = system_check_selection(options)
+        if check:
+            cases = [check]
+        else:
+            command = [str(root / 'tools/run-tests'), 'system', *options,
+                       '--vm', vm or selected().name, '--list']
             environment = test_launcher.environment(root)
-            # This inventory belongs to the active controller's checkout.
-            # The sanitized test environment drops its admission marker; without
-            # restoring it, the public launcher can route to its default branch.
+            # Keep inspection on the controller's checkout under the sanitized environment.
             environment['ONPC_LAUNCHER_CONTROLLER_ROOT'] = str(root)
             try:
                 result = subprocess.run(command, cwd=root, env=environment,
                                         capture_output=True, text=True, check=True,
                                         pass_fds=tuple(dict.fromkeys((*scratch_descriptors(), *pass_fds))))
             except subprocess.CalledProcessError as error:
-                # Keep the original refusal and status visible in the owning
-                # runner output; a generic child exit hides preparation causes.
                 print((error.stdout or '')[-8000:] + (error.stderr or '')[-8000:], flush=True)
                 raise
-            cases.extend(match[1] for line in result.stdout.splitlines()
-                         if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line)))
+            cases = [match[1] for line in result.stdout.splitlines()
+                     if (match := re.fullmatch(r'    (\S+::\S+) \[selected\](?: \[system-\d+\])?', line))]
     elif category == 'e2e':
         import runpy
         runner = runpy.run_path(str(root / 'tests/e2e/runner.py'))
@@ -62,12 +54,15 @@ def case_inventory(root, category, options, *, vm=None, pass_fds=()):
     return cases
 
 
-def work_items(category, options, cases):
+def work_items(category, options, cases, *, upgrade=None):
     """Keep independent areas and stateful system histories indivisible."""
     from test_checkpoint import INDEPENDENT_SYSTEM_AREAS
     def item(selected, *, area=False):
+        if upgrade:
+            selected = [case + upgrade for case in selected]
         return dict(category=category, options=list(options), cases=list(selected),
-                    case=selected[-1] if selected else None, area=area)
+                    case=selected[-1] if selected else None, area=area,
+                    **({'upgrade': upgrade} if upgrade else {}))
     if cases is None:
         return [item([])]
     if category != 'system':
@@ -91,9 +86,22 @@ def work_key(work):
     return hashlib.sha256(json.dumps(work, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def arguments(work):
+def arguments(work, *, worker=False):
     args = ['--resume', work['category'], *work['options']]
     if work['case'] is not None:
-        args[1:1] = ['--resume-case=' + work['case'],
+        case = work['case'].removesuffix(work.get('upgrade', '')) if worker else work['case']
+        args[1:1] = ['--resume-case=' + case,
                      '--resume-area-only' if work['area'] else '--resume-case-only']
     return args
+
+
+def replay_case(work, requested):
+    """Rebind a focused source-release retry after the main build changes."""
+    suffix = work.get('upgrade')
+    if not suffix:
+        return requested if requested in work['cases'] else None
+    chosen_source = suffix.split('-to-', 1)[0]
+    for case in work['cases']:
+        raw = case.removesuffix(suffix)
+        if requested == raw or requested.split('-to-', 1)[0] == raw + chosen_source:
+            return case

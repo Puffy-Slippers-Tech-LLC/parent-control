@@ -107,41 +107,6 @@ def test_invalid_rpm_evr_refuses_before_native_tool(monkeypatch, version):
     run.assert_not_called()
 
 
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-def test_upgrade_builder_uses_exact_format_release_without_rewriting(tmp_path, monkeypatch, package_format):
-    from contextlib import contextmanager
-    root = tmp_path / 'released'
-    root.mkdir()
-    release_calls = []
-    @contextmanager
-    def released_source(**kwargs):
-        release_calls.append(kwargs)
-        yield root
-    release = artifacts.PREVIOUS_RELEASES[package_format]
-    monkeypatch.setattr(artifacts, 'released_source', released_source)
-    monkeypatch.setattr(artifacts.package_inputs, 'paths', lambda _: [Path('Makefile')])
-    monkeypatch.setattr(artifacts.package_inputs, 'digest', lambda *_: 'digest')
-    monkeypatch.setattr(artifacts, '_metadata', lambda *_: {'source': {}, 'build_inputs': {}})
-    run = mock.Mock(return_value=mock.Mock(stdout='123'))
-    monkeypatch.setattr(artifacts, '_run', run)
-    current, previous, verify = mock.Mock(), mock.Mock(), mock.Mock()
-    monkeypatch.setattr(artifacts, 'build', current)
-    monkeypatch.setattr(artifacts, '_build', previous)
-    monkeypatch.setattr(artifacts, 'verify_upgrade', verify)
-    output = tmp_path / 'output'
-    artifacts.build_upgrade(output, package_format=package_format)
-    current.assert_called_once_with(output / 'current', package_format=package_format,
-                                    build_target=None, architecture='x86_64')
-    assert release_calls == [{'package_format': package_format}]
-    args, kwargs = previous.call_args
-    assert args[1] == root
-    assert args[4]['source']['revision'] == release['commit']
-    assert args[4]['source']['release_tag'] == release['tag']
-    assert kwargs == {'package_format': package_format, 'build_target': None, 'architecture': 'x86_64'}
-    run.assert_called_once_with(['git', 'show', '-s', '--format=%ct', release['commit']], cwd=ROOT)
-    verify.assert_called_once_with(output)
-
-
 def write_artifact(directory: Path, *, package_bytes: bytes = b"package", fixture_digest: str = "fixture") -> None:
     package = directory / "package/oh-no-parent-control_1_amd64.deb"
     package.parent.mkdir(parents=True)

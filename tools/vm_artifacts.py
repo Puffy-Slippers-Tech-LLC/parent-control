@@ -16,7 +16,9 @@ from vm_selection import arguments, extract, selected
 
 def prepare(root, control, environment, *, candidate=None, output=None, upgrade_inputs=False,
             native_inputs=False, system_native_inputs=False, no_action_inputs=False, process_inputs=False,
-            session_inputs=False, reboot_inputs=False):
+            session_inputs=False, reboot_inputs=False, upgrade_from=None):
+    if upgrade_from is not None and not upgrade_inputs:
+        raise ValueError('--upgrade-from requires --upgrade-inputs')
     if no_action_inputs or process_inputs or session_inputs or reboot_inputs:
         if (native_inputs or system_native_inputs or upgrade_inputs
                 or sum((no_action_inputs, process_inputs, session_inputs, reboot_inputs)) != 1):
@@ -102,6 +104,8 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
         if upgrade_inputs:
             from build_test_artifacts import verify_upgrade
             receipt = verify_upgrade(Path(candidate))
+            if upgrade_from is not None and receipt['sources']['previous'].get('release_name') != upgrade_from:
+                raise ValueError('upgrade input release mismatch')
             if no_action_inputs and receipt.get('activation') != 'none':
                 raise ValueError('no-action input profile mismatch')
             if process_inputs and receipt.get('activation') != 'process-restart':
@@ -140,6 +144,7 @@ def prepare(root, control, environment, *, candidate=None, output=None, upgrade_
           ['--process-inputs'] if process_inputs else ['--no-action-inputs'] if no_action_inputs else
           ['--native-inputs'] if native_inputs else ['--upgrade-inputs'] if upgrade_inputs
           else ['--reuse']),
+        *(['--upgrade-from=' + upgrade_from] if upgrade_from is not None else []),
         '--package-format', package_format, '--build-target', target.name,
         '--architecture', target.architecture, '--output', str(output)],
         cwd=root, env=environment)
@@ -153,6 +158,7 @@ def main(argv=None):
     parser.add_argument('--candidate')
     parser.add_argument('--output')
     parser.add_argument('--upgrade-inputs', action='store_true')
+    parser.add_argument('--upgrade-from')
     parser.add_argument('--no-action-inputs', action='store_true')
     parser.add_argument('--process-inputs', action='store_true')
     parser.add_argument('--session-inputs', action='store_true')
@@ -164,6 +170,7 @@ def main(argv=None):
     with Control().installed(pipe=False) as control:
         return prepare(root, control, test_launcher.environment(root),
                        candidate=args.candidate, output=args.output, upgrade_inputs=args.upgrade_inputs,
+                       upgrade_from=args.upgrade_from,
                        **({'no_action_inputs': True} if args.no_action_inputs else {}),
                        **({'process_inputs': True} if args.process_inputs else {}),
                        **({'session_inputs': True} if args.session_inputs else {}),

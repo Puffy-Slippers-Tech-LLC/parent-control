@@ -316,6 +316,13 @@ line. These exchanges are nested within stage totals. Directory uploads prepare
 their destination and extract the archive in one guarded SSH exchange, retaining
 the transfer deadline and stopping before extraction if preparation fails.
 
+For ordinary commands and readiness probes, the controller's command deadline
+covers the SSH handshake and remote reply. Readiness retries consume the original
+deadline. Reboot, shutdown and suspend requests use short SSH connection and
+liveness limits so the controller can observe the transition after a disconnect.
+Lifecycle inputs are submitted once, with the same host-key, guest and VM identity
+guards as other commands.
+
 The shared command layer emits `ssh-command-failure:` JSON for nonzero SSH
 exits, controller deadlines and interrupted exchanges, including commands run
 with `check=False`. It records the command sequence, exit status, configured

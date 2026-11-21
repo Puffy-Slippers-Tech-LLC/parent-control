@@ -108,7 +108,8 @@ Closing the tab leaves tests running.
 
 Restart Codex after refreshing rules; trust this checkout.
 Portable project settings and command approvals are tracked in `.codex/` and
-arrive with every worktree. Setup installs host policies automatically. For a server, use `./setup.sh --headless`. See
+arrive with every worktree. Setup installs host policies automatically. For a
+server, use `./setup.sh --server`. See
 [portable Codex configuration](docs/Approval-Tools.md#portable-codex-configuration)
 for desktop integrations and separately provisioned credentials, signing keys
 and account authentication.

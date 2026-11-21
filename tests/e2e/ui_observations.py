@@ -1429,7 +1429,8 @@ class UiObservations:
                 require(len(records) < 2 and value == (qualified if not records else acknowledged),
                         'ui:restart-response')
                 records.append(value)
-        self.transport.call(argv, input=input, timeout=120, check=False, on_output=output)
+        self.transport.call(argv, input=input, timeout=120, check=False,
+                            on_output=output, transition=True)
         status = self.transport.commands.last_returncode
         # Preserve strict refusal, interrupt and ownership errors. A missing or
         # partial readiness record never authorizes accepting a lost receipt.

@@ -2,6 +2,7 @@
 """Install development helpers that resolve the invoking repository root."""
 
 from contextlib import ExitStack
+import fcntl
 import json
 import importlib.util
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import platform
 import pwd
 import grp
+import shlex
 import stat
 import subprocess
 import sys
@@ -22,6 +24,9 @@ import vm_config
 
 HEADLESS_RULE = Path('/etc/polkit-1/rules.d/49-onpc-headless.rules')
 HEADLESS_ACCOUNT = Path('/usr/local/libexec/onpc-headless-account')
+KVM_POLL_LOCK = Path('/run/onpc-kvm-polling.lock')
+KVM_POLL_CONFIG = Path('/etc/modprobe.d/oh-no-parent-control-kvm.conf')
+KVM_HALT_POLL_NS = Path('/sys/module/kvm/parameters/halt_poll_ns')
 
 
 def headless_rule(root):
@@ -232,6 +237,80 @@ def install_file(destination, data, mode, *, exclusive=False):
         Path(temporary).unlink(missing_ok=True)
 
 
+def configured_kvm_halt_poll(document, host):
+    for entry in document.get('hosts', []):
+        if entry['name'] == host and 'kvm_halt_poll_ns' in entry:
+            value = entry['kvm_halt_poll_ns']
+            if type(value) is not int or not 0 <= value < 2**32:
+                raise ValueError('host kvm_halt_poll_ns must be an unsigned 32-bit integer')
+            return value
+    return None
+
+
+def kvm_halt_poll_options():
+    # kmod reports merged drop-ins and kernel command-line module options
+    # without loading a module. An administrator's competing setting is an error.
+    config = subprocess.run(['/usr/sbin/modprobe', '-c'], env={'LANG': 'C.UTF-8'},
+                            encoding='utf-8', capture_output=True, check=True, timeout=30).stdout
+    values = []
+    for line in config.splitlines():
+        fields = line.split(maxsplit=2)
+        if len(fields) == 3 and fields[:2] == ['options', 'kvm']:
+            for argument in shlex.split(fields[2]):
+                name, _, value = argument.partition('=')
+                if name.replace('-', '_') == 'halt_poll_ns':
+                    values.append(value)
+    return values
+
+
+def configure_kvm_halt_poll(poll_ns):
+    value = str(poll_ns)
+    prefix = b'# Managed by ./setup.sh --server\noptions kvm halt_poll_ns='
+    desired = prefix + value.encode('ascii') + b'\n'
+    with ExitStack() as stack:
+        # Keep the boot configuration and live setting in the same order even
+        # if setup runs concurrently from two different registered checkouts.
+        lock_fd = os.open(KVM_POLL_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        stack.callback(os.close, lock_fd)
+        lock = os.fstat(lock_fd)
+        if not stat.S_ISREG(lock.st_mode) or lock.st_uid != 0 or lock.st_nlink != 1 or lock.st_mode & 0o077:
+            raise ValueError(f'unsafe KVM polling lock: {KVM_POLL_LOCK}')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            info = KVM_POLL_CONFIG.lstat()
+        except FileNotFoundError:
+            current = None
+        else:
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                    or info.st_mode & 0o022 or info.st_size > len(prefix) + len(b'4294967295\n')):
+                raise ValueError(f'unsafe KVM polling configuration: {KVM_POLL_CONFIG}')
+            current = KVM_POLL_CONFIG.read_bytes()
+            if not current.startswith(prefix) or not current[len(prefix):].removesuffix(b'\n').isdigit():
+                raise ValueError(f'existing KVM polling configuration is unmanaged: {KVM_POLL_CONFIG}')
+        options = kvm_halt_poll_options()
+        if current != desired:
+            previous = current[len(prefix):].strip().decode('ascii') if current is not None else None
+            if previous in options:
+                options.remove(previous)
+            if set(options) - {value}:
+                raise ValueError('conflicting KVM halt_poll_ns in modprobe configuration or kernel command line')
+            install_file(KVM_POLL_CONFIG, desired, 0o644)
+            options = kvm_halt_poll_options()
+        if set(options) != {value}:
+            raise ValueError('effective modprobe configuration differs from the configured KVM halt_poll_ns')
+
+        try:
+            live = KVM_HALT_POLL_NS.read_text(encoding='ascii').strip()
+        except FileNotFoundError:
+            print(f'setup: KVM halt polling configured for the next module load ({poll_ns} ns)')
+            return
+        if live != value:
+            KVM_HALT_POLL_NS.write_text(value + '\n', encoding='ascii')
+            if KVM_HALT_POLL_NS.read_text(encoding='ascii').strip() != value:
+                raise ValueError('live KVM halt-polling setting did not match the configured value')
+    print(f'setup: KVM halt polling set to {poll_ns} ns (live and on module load)')
+
+
 def repair_checkout_bytecode(root):
     """Return the old dispatcher's cache directory to the tools directory owner.
 
@@ -259,12 +338,11 @@ def repair_checkout_bytecode(root):
             print('test-runner-install: restored checkout bytecode directory ownership')
 
 
-def setup_host(root, *, headless):
+def setup_host(root, document, *, headless):
     """Explicit server setup establishes identity; refreshes preserve it."""
-    current = vm_config.installed_host()
     if not headless:
         return vm_config.execution_host()
-    document = vm_config.read_document(validate_agent=False)
+    current = vm_config.installed_host()
     branches = vm_config.branch_registry(document)
     branch = branches.get(vm_config.current_branch())
     if branch is not None and Path(branch['repo_root']).resolve() == root.resolve():
@@ -288,11 +366,14 @@ def main():
     headless = sys.argv[1:] == ['--headless']
     headless_data = headless_rule(root) if headless else None
     # Offline flags do not erase accepted local identities used by owned cleanup.
-    host = setup_host(root, headless=headless)
+    document = vm_config.read_document(validate_agent=False)
+    host = setup_host(root, document, headless=headless)
     if host is None:
         raise ValueError('VM host identity is missing; run ./setup.sh --server from its registered checkout')
+    poll_ns = configured_kvm_halt_poll(document, host) if headless else None
+    _, registry = vm_config.parse_configuration(document)
     identity = {name: pinned_vm_uuid(vm.baseline_directory)
-                for name, vm in vm_config.registry().items() if vm.host.name == host}
+                for name, vm in registry.items() if vm.host.name == host}
     pins = [value for value in identity.values() if value is not None]
     if len(pins) != len(set(pins)):
         raise ValueError('test-runner-install:duplicate-baseline-uuid')
@@ -339,6 +420,8 @@ def main():
         # requiring the caller to traverse Polkit's potentially private directory.
         install_file(HEADLESS_ACCOUNT, headless_data[1], 0o644)
         print('test-runner-install: enabled scoped headless access for the invoking administrator')
+    if poll_ns is not None:
+        configure_kvm_halt_poll(poll_ns)
     repair_checkout_bytecode(root)
     print('test-runner-install: installed root-owned development tools and scoped authorizations')
     print('test-runner-install: VM identities pinned only for finalized configured baselines')
@@ -347,5 +430,5 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, KeyError, OSError, ET.ParseError, subprocess.CalledProcessError) as error:
+    except (ValueError, KeyError, OSError, ET.ParseError, subprocess.SubprocessError) as error:
         sys.exit(f'test-runner-install: refused installation: {error}')

@@ -108,13 +108,16 @@ def readiness_events():
         libvirt.virEventRemoveTimeout(timer)
 
 
-def ssh(config, *, attempts=1):
+def ssh(config, *, attempts=1, transition=False):
     directory = config['directory']
+    # Lifecycle requests let SSH report a lost connection before their caller
+    # observes the transition independently. Other commands use the controller.
+    connect = ('-o', 'ConnectTimeout=5') if transition else ()
     return ['ssh', '-F', '/dev/null', '-i', directory + '/ssh-key',
             '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=yes',
             '-o', 'UserKnownHostsFile=' + directory + '/known-hosts',
-            '-o', 'GlobalKnownHostsFile=/dev/null', '-o', 'ConnectTimeout=5',
-            '-o', f'ConnectionAttempts={attempts}', '-o', 'ServerAliveInterval=10',
+            '-o', 'GlobalKnownHostsFile=/dev/null', '-o', f'ConnectionAttempts={attempts}',
+            *connect, '-o', f'ServerAliveInterval={10 if transition else 0}',
             '-o', 'ServerAliveCountMax=3', 'root@' + config['hostname']]
 
 
@@ -264,11 +267,12 @@ class Transport:
         # Submit once. A disconnect is uncertain; the owning controller must
         # independently observe this exact instance off, never replay input.
         self.call(['systemctl', '--no-ask-password', '--no-block', 'poweroff'],
-                  timeout=30, check=False)
+                  timeout=30, check=False, transition=True)
         require(self.commands.last_returncode in (0, 255), 'transport:poweroff-command-failed')
 
     def call(self, argv, *, input=None, timeout=120, check=True, attempts=1, on_output=None,
-             on_stream=None, diagnostic_stdout=None):
+             on_stream=None, diagnostic_stdout=None, transition=False):
+        require(type(timeout) in (int, float) and 0 < timeout < math.inf, 'transport:invalid-timeout')
         require(on_output is None or on_stream is None, 'transport:ambiguous-output-callback')
         from watch_activity import operation, remote_command
         selection = remote_command(argv, input is not None)
@@ -281,11 +285,12 @@ class Transport:
                 try:
                     return self._call(argv, input=input, timeout=timeout, check=check,
                                       attempts=attempts, on_output=on_output, on_stream=on_stream,
-                                      selection=selection, diagnostic_stdout=diagnostic_stdout)
+                                      selection=selection, diagnostic_stdout=diagnostic_stdout,
+                                      transition=transition)
                 except subprocess.TimeoutExpired as error:
                     if (check and timeout == 30 and input is None
                             and tuple(argv) == ('/usr/bin/python3', '-c', BOOT_SHA256_PROBE)
-                            and error.cmd == [*ssh(self.config, attempts=attempts),
+                            and error.cmd == [*ssh(self.config, attempts=attempts, transition=transition),
                                               remote(self.config, argv)]):
                         status = self.commands.last_returncode
                         try:
@@ -351,7 +356,7 @@ class Transport:
             error.add_note('transport:host-storage-diagnostic-unavailable')
 
     def _call(self, argv, *, input, timeout, check, attempts, on_output, on_stream, selection,
-              diagnostic_stdout):
+              diagnostic_stdout, transition):
         started = time.perf_counter()
         command_started = None
         sequence = None
@@ -368,7 +373,8 @@ class Transport:
                 if stream == 'stdout':
                     on_output(data)
             with guest_step():
-                result = self.commands.run([*ssh(self.config, attempts=attempts), remote(self.config, argv)],
+                command = [*ssh(self.config, attempts=attempts, transition=transition), remote(self.config, argv)]
+                result = self.commands.run(command,
                                            input=input, timeout=timeout, check=check, merge_stderr=False,
                                            on_output=on_stream if on_stream is not None else
                                            command_output if on_output is not None else None,
@@ -545,7 +551,7 @@ class Transport:
             '.hexdigest()==sys.argv[1]; '
             'os.execv("/usr/bin/systemctl", ["systemctl", "--no-ask-password", "reboot"])')
         self.call(['/usr/bin/python3', '-c', program, previous_boot_sha256],
-                  timeout=180, check=False)
+                  timeout=180, check=False, transition=True)
         require(self.commands.last_returncode in (0, 255), 'transport:reboot-command-failed')
 
     @observed('Suspending and waking the same owned child computer')
@@ -625,7 +631,8 @@ class Transport:
             'os.execv("/usr/bin/systemctl", ["systemctl", "--no-ask-password", "--no-block", "suspend"])')
         try:
             self.call(['/usr/bin/python3', '-c', program, previous_boot_sha256],
-                      timeout=max(1, deadline - time.monotonic()), check=False, on_stream=tick)
+                      timeout=max(1, deadline - time.monotonic()), check=False,
+                      on_stream=tick, transition=True)
             status = self.commands.last_returncode
             require(status in (0, 255), 'transport:suspend-command-failed')
             while woke_at is None:

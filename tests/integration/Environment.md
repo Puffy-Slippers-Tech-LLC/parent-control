@@ -172,6 +172,15 @@ its registered branch and absolute checkout path. Ordinary setup selects the
 local host when no assignment exists. Later refreshes preserve the assignment;
 a conflicting server assignment requires administrator repair. Existing servers
 must run `./setup.sh --server` once after receiving this implementation.
+
+An optional `kvm_halt_poll_ns` on the assigned host sets its KVM polling cap
+in nanoseconds during `./setup.sh --server`. `myserver` uses 25,000 ns (25 µs).
+Setup records the cap in `/etc/modprobe.d/oh-no-parent-control-kvm.conf` for
+future module loads and applies it live through
+`/sys/module/kvm/parameters/halt_poll_ns` when KVM is loaded. Setup checks the
+effective module options and refuses competing values. This step runs
+without VM tests, guest access or module reloads.
+
 Public dispatch follows the executing registered branch. A transferred source
 uses its verified destination placement while retaining the controller's logical
 branch for VM ownership. Privileged backends independently enforce the installed

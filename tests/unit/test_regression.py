@@ -246,17 +246,28 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
         if assignment['execution']['case'] == 'last':
             reloading.set()
             return dict(status=130, handoffs=[], evidence=dict(assignment,
-                status=130, passed=[], failed=[], cleanup=True, interrupted=True))
+                status=130, passed=['last'], failed=[], cleanup=False, interrupted=False))
         return execute(worker, assignment, inherited, group)
 
-    assert vm_test_queue.execute_pass(tmp_path, plan, control(), interrupt_last)['status'] == launcher_reload.STATUS
+    outcome = vm_test_queue.execute_pass(tmp_path, plan, control(), interrupt_last)
+    assert outcome['status'] == launcher_reload.STATUS and not outcome['cleanup_complete']
     assert not ResultStore().failures()
+    interrupted = [(name, result) for name, result in outcome['results'].items()
+                   if result['status'] == launcher_reload.STATUS]
+    for name, result in interrupted:
+        evidence = result['evidence']
+        assert ResultStore().passed('e2e', evidence['family']) == {'first'}
+        # A resume from an older controller retries its falsely recorded
+        # reload failure through normal VM admission.
+        ResultStore().record('e2e', evidence['family'], '', 1, vm=name, work=evidence['execution'],
+            output_tail='Interrupted\nVM reload could not confirm a successful or cleanly interrupted attempt.')
     reloading.clear()
     with monkeypatch.context() as repair:
         repair.setenv(REPAIR_QUEUE, '1')
         assert vm_test_queue.execute_pass(tmp_path, tuple(resumed), control(), execute)['status'] == 0
     assert observed[before:].count(('a', 'first')) == observed[before:].count(('b', 'first')) == 1
     assert ResultStore().passed('e2e', 'a') == ResultStore().passed('e2e', 'b') == {'first', 'last'}
+    assert not ResultStore().failures()
     # Ordinary execution has no repair result ledger to poison later runs.
     monkeypatch.delenv(VARIABLE)
     import test_commands

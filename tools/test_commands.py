@@ -390,7 +390,8 @@ execution resets progress. Required preparation and lifecycle prerequisites stil
 cleanup, recovers recorded resources and clears saved progress before starting
 fresh. Source edits and historical logs are preserved. Conflicts with --resume,
 --stop and --reload; inspection performs no reset.
---stop requests cancellation and returns immediately; cleanup output stays in the run directory.
+--stop (also --kill) requests cooperative cancellation and returns immediately;
+cleanup output stays in the run directory.
 --reload requests a controller refresh at safe boundaries and returns immediately;
 when idle, the flag is ignored and the request follows the normal queue rules.
 VM categories read config/environment.json and select VMs with enabled equal to
@@ -1372,9 +1373,17 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
             if category in ('unit', 'component', 'ui'):
                 return host_run(root, category, options, pipe=False)
             return category_run(root, category, options, pipe=False)
+        if args[:1] == ['--unattended']:
+            from regression_process import host_run, category_run
+            if category in ('unit', 'component', 'ui'):
+                return host_run(root, category, args[1:])
+            if category not in CATEGORIES:
+                raise ValueError('unsupported unattended category')
+            # The same cancellation channel must own artifact preparation and
+            # the test. A synchronous build here would bypass the STOP listener.
+            return category_run(root, category, args[1:])
         if category in ('system', 'e2e') and '--list' not in args and not system_check_selection(args):
-            options = args[1:] if args[:1] == ['--unattended'] else args
-            planned, _ = plan(root, category, options)
+            planned, _ = plan(root, category, args)
             if not has_artifacts(planned[0]):
                 from test_retention import allocate
                 from test_storage import scratch_descriptors
@@ -1383,7 +1392,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
                 print('run-tests: output=' + directory, flush=True)
                 status = subprocess.run(
                     python_file(root, 'tools/vm_artifacts.py',
-                                *vm_preparation_flags(category, options),
+                                *vm_preparation_flags(category, args),
                                 '--output', directory,
                                 *vm_arguments()),
                     cwd=root, env=host.environment(root), pass_fds=scratch_descriptors(),
@@ -1391,13 +1400,6 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
                 if status:
                     return status if status > 0 else 128 - status
                 args = prepared_vm_options(category, args, directory)
-        if args[:1] == ['--unattended']:
-            from regression_process import host_run, category_run
-            if category in ('unit', 'component', 'ui'):
-                return host_run(root, category, args[1:])
-            if category not in CATEGORIES:
-                raise ValueError('unsupported unattended category')
-            return category_run(root, category, args[1:])
         if category in ('unit', 'component'):
             return host.run_host(root, category, args)
         if category == 'ui':

@@ -207,9 +207,11 @@ def prepare(record):
     password = FixturePassword()
     password.install(parent)
     other_parent = pwd.getpwnam('onpc-parent-casey').pw_uid
-    with PersistentCaller(child) as caller, TextAgent(caller) as agent:
-        caller.send({'kind': 'call', 'method': 'RequestOwnAccess',
-                     'signature': '(uub)', 'args': (parent, GRANT_SECONDS, True)})
+    kiosk = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
+    # The kiosk can request a fixed grant while the child is signed out.
+    with PersistentCaller(kiosk) as caller, TextAgent(caller) as agent:
+        caller.send({'kind': 'call', 'method': 'RequestAccess',
+                     'signature': '(uuub)', 'args': (child, parent, GRANT_SECONDS, True)})
         agent.prompt(parent, other_parent)
         agent.authenticate(password)
         result = accepted(caller.receive())
@@ -231,7 +233,6 @@ def prepare(record):
                   'previous-upgrade:daily-limit-not-applied')
     remaining = verify_grant(native['limits'][2], native['limits'][2], time.time())
     guest.require(account_digest(other) == before_other, 'previous-upgrade:setup-other-changed')
-    kiosk = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())['kiosk_uid']
     accounts['kiosk'] = kiosk
     expected_shell = '/bin/bash' if prelease else '/usr/sbin/nologin'
     guest.require(identity(kiosk)['account'][-1] == expected_shell,

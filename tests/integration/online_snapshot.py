@@ -369,13 +369,12 @@ def saved_transport(lease, directory, record, hostname):
         observe_failures(transport, 'restored-current-snapshot')
     # Resuming RAM may resume an old realtime clock. Correct it before tests
     # establish time expectations; no boot or customer action has begun.
-    before = int(time.time())
-    transport.call(['date', '--set', '@' + str(before)])
-    # Setting time can be delayed by SSH or guest scheduling. Compare the
-    # readback with its own host interval, not the earlier requested value.
-    read_started = int(time.time())
+    # The guest can apply this timestamp late, so bracket the readback across
+    # both SSH calls, starting when the host sampled the timestamp.
+    set_started = int(time.time())
+    transport.call(['date', '--set', '@' + str(set_started)])
     current = transport.call(['date', '+%s']).strip()
-    system.require(current.isdigit() and read_started - 2 <= int(current) <= int(time.time()) + 2,
+    system.require(current.isdigit() and set_started - 2 <= int(current) <= int(time.time()) + 2,
                    'online-snapshot:clock-not-corrected')
     from chinese_language_assets import verify_transport
     with system.operation('Verifying the restored Chinese baseline language assets'):

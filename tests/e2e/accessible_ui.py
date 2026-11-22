@@ -1039,6 +1039,7 @@ GDM_NONSECRET_OPERATIONS = frozenset({
     'gdm-station-list', 'gdm-station-focused', 'gdm-station-returned',
 })
 GDM_SEMANTIC_APPLICATION_NAMES = frozenset({'gnome-shell', 'gnome shell'})
+GDM_TIME_DENIAL = 'Your account was given a time limit that’s now passed.'
 GDM_NONSECRET_OPERATIONS |= frozenset({'gdm-child-list', 'gdm-child-focused',
     'gdm-product-free-child-list', 'gdm-product-free-child-focused'})
 SECOND_PARENT_GREETER_OPERATIONS = frozenset('gdm-second-parent-' + suffix
@@ -10463,6 +10464,9 @@ class AccessibleUI:
         # verification. Wait for a complete state before authorizing Escape.
         if not recipients:
             return None
+        if not after_cancel and GDM_TIME_DENIAL in labels:
+            require(labels.count(GDM_TIME_DENIAL) == 1, 'ui:gdm-denial-ambiguous')
+            return 'rejected-prompt'
         # A focused, sensitive, empty field for the same child is the renewed prompt.
         if fields:
             field = fields[0]
@@ -10472,7 +10476,8 @@ class AccessibleUI:
                 require(interface is not None and self.api.Text.get_character_count(interface) == 0,
                         'ui:gdm-return-password-recipient')
                 return 'child-prompt'
-        return None if after_cancel else 'rejected-prompt'
+        # An insensitive prompt may still be processing the submitted password.
+        return None
 
     def station_entry_branch(self, owner):
         """Read the offered branch without selecting or dismissing any control."""

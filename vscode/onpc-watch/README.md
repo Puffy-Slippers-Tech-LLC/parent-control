@@ -299,9 +299,10 @@ For `fix-tests`, these are passed/unfinished/total cases from the runner's
 overall counts. Failed cases remain unfinished until repaired, and the summary
 shows how many cases failed when the count is nonzero. Before discovery, the
 counts show dashes.
-The **Tasks:** label is bold. When the whole plan
-finishes, the same line adds **Ended:** with the local completion time (`HH:MM`),
-and the launcher title, including `(finished)`, turns green.
+The **Tasks:** label is bold. When the entire plan or repair run finishes, the
+same line adds **Ended:** with the completion time (`HH:MM`) in the timezone of
+the computer displaying VS Code. This also applies to SSH sources running a
+current adapter. The launcher title, including `(finished)`, turns green.
 An accepted safe-boundary stop shows **Stopped** in red, even when cleanup
 succeeds with exit code zero. **Finished** is reserved for a completed plan;
 an incomplete plan never receives that label.

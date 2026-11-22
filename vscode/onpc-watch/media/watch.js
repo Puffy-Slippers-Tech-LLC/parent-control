@@ -568,11 +568,19 @@
     }
 
     function runSpan(parent, part) {
+        let text = part.text;
+        if (part.ended_at !== undefined) {
+            const ended = new Date(part.ended_at * 1000);
+            if (Number.isFinite(ended.getTime())) {
+                text = [ended.getHours(), ended.getMinutes()]
+                    .map(value => String(value).padStart(2, '0')).join(':');
+            }
+        }
         const linked = typeof part.link === 'string';
-        const span = linked ? link(parent, part.text,
+        const span = linked ? link(parent, text,
             () => vscode.postMessage({ type: 'openRunFile', uri: part.link })) :
             element('span', '', parent);
-        span.textContent = part.text;
+        span.textContent = text;
         if (part.color) span.style.color = part.color;
         if (part.bold) span.style.fontWeight = 'bold';
         return span;

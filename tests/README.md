@@ -629,7 +629,7 @@ admission. A waiting job starts when source can be synchronized safely.
 Startup and resume do not
 reconstruct interrupted Git close-out.
 
-`--resume` starts fresh execution using remembered results:
+An immediate `--resume` starts execution using remembered results:
 
 | Readable terminal result | Action |
 | --- | --- |
@@ -658,7 +658,9 @@ execution; they never accept its result as their own. Ordinary test invocations
 do not share the repair result store.
 
 Host-only and VM-containing selections retain separate detached launcher
-scopes and [queues](../docs/Execution-Plans.md#queued-launcher-jobs).
+scopes and [queues](../docs/Execution-Plans.md#queued-launcher-jobs). Each queued
+job runs its selection from the beginning, including when it was submitted
+with `--resume`. Omitted options are still restored when the ticket is queued.
 Use Watch to observe ongoing output.
 `--reload` closes admission in the repair launcher's active test runner. VM steps
 are interrupted cooperatively, and the runner saves completed cases and joins

@@ -616,7 +616,8 @@ If the scope is idle and the queue is empty, the command starts immediately.
 Otherwise it saves a ticket and prints its ID, including for an identical
 command. The queued command starts through normal admission and uses the
 checkout's source and configuration at that time. An implicit `--resume`
-selection is captured when the ticket is queued. Internal calls that wait
+selection is captured when the ticket is queued. Queued `fix-tests` jobs use
+that selection and start with an empty result store. Internal calls that wait
 for a test verdict and active controls such as `--stop` and `--reload`
 keep their existing behavior.
 

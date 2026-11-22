@@ -371,12 +371,15 @@ def select(root, request, *, host_only, resume=False, stop=False, reload=False, 
 
 
 def main(argv=None):
+    from launcher_queue import REPLAY
     from vm_selection import vm_config
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--watch-ssh', choices=('on', 'off'), help='collect Watch SSH output (default: off)')
     parser.add_argument('--watch-view', choices=('on', 'off'), help='collect Watch screenshots (default: off)')
     parser.add_argument('--vm', help='registered VM name or configured pool selector')
-    parser.add_argument('--resume', action='store_true', help='keep clear results; restart unfinished work')
+    parser.add_argument('--resume', action='store_true',
+                        help='restore omitted options and keep clear results when starting immediately. '
+                             'Queued runs restore options and start from the beginning.')
     parser.add_argument('--stop', '--kill', action='store_true', help='cooperatively cancel running cases or repair')
     parser.add_argument('--reset', action='store_true', help='start without previous results')
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
@@ -424,7 +427,9 @@ def main(argv=None):
         request['vmhost'] = saved.get('vmhost')
     if not use_defaults:
         prepare_request(root, request, host_only=host_only)
-    run, started = select(root, request, host_only=host_only, resume=args.resume and not args.reset,
+    # Queue replay restores the submitted request, but owns a new set of results.
+    resume = args.resume and not args.reset and not os.environ.get(REPLAY)
+    run, started = select(root, request, host_only=host_only, resume=resume,
                           stop=args.stop, reload=args.reload, use_defaults=use_defaults)
     if run is None:
         print('fix-tests: no active launcher.')

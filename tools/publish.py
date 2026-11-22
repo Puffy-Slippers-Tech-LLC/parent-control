@@ -1009,6 +1009,8 @@ def main(argv=None):
                       help='monitor the latest recorded release without publishing or changing local files')
     mode.add_argument('--preflight-rpm', action='store_true',
                       help='check COPR project chroots, authentication and build permission without publishing')
+    mode.add_argument('--retry-rejected-rpm', action='store_true',
+                      help='retry a recorded COPR HTTP 400 rejection after correcting the submission request')
     args = parser.parse_args(argv)
     original_env = dict(os.environ)
     safe_env = environment()
@@ -1022,7 +1024,7 @@ def main(argv=None):
             copr.authorized_builder()
             say('COPR preflight passed for ' + ', '.join(copr.chroots()), success=True)
         else:
-            channels.run(ROOT, sys.modules[__name__], status=args.status)
+            channels.run(ROOT, sys.modules[__name__], status=args.status, retry_rejected=args.retry_rejected_rpm)
     except ValueError as error:
         say(str(error), error=True)
         return 1
@@ -1030,7 +1032,10 @@ def main(argv=None):
         say(f'stopped ({type(error).__name__}); check prerequisites and the retained release log', error=True)
         return 1
     except KeyboardInterrupt:
-        say('interrupted; rerun the same command to resume the recorded release', error=True)
+        if args.retry_rejected_rpm:
+            say('interrupted; run tools/publish.py --status to check the recorded release', error=True)
+        else:
+            say('interrupted; rerun the same command to resume the recorded release', error=True)
         return 130
     finally:
         os.environ.clear()

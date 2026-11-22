@@ -169,8 +169,10 @@ def authorized_builder():
 def submit(revision, authorization):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('COPR source must be pinned to an exact Git commit')
+    # COPR validates nonempty spec paths as .spec files. The make_srpm
+    # recipe renders its own spec from the template in the signed source.
     data = dict(ownername=OWNER, projectname=PROJECT, clone_url=GIT_URL, committish=revision,
-        subdirectory='', spec='rpm/oh-no-parent-control.spec.in', scm_type='git',
+        subdirectory='', scm_type='git',
         source_build_method='make_srpm', chroots=list(chroots()), enable_net=False)
     return json.loads(read(API + SCM_SUBMISSION, data=json.dumps(data).encode(),
                            authorization=authorization))
@@ -235,11 +237,11 @@ def source_matches(build_id, revision):
     return (configuration.get('source_type') == 'scm'
             and scm.get('type') == 'git' and scm.get('clone_url') == GIT_URL
             and scm.get('committish') == revision and scm.get('subdirectory') == ''
-            and scm.get('spec') == 'rpm/oh-no-parent-control.spec.in'
+            and scm.get('spec') in (None, '', 'rpm/oh-no-parent-control.spec.in')
             and scm.get('srpm_build_method') == 'make_srpm')
 
 
-def status(product, record):
+def status(product, record, *, retry_rejected=False):
     configuration = project()
     targets = chroots()
     candidates = []
@@ -260,7 +262,7 @@ def status(product, record):
             if source_matches(build['id'], record['revision']):
                 record['build_id'] = build['id']
             unresolved.discard(build['id'])
-            if not matches_product and build['id'] != record.get('build_id'):
+            if not retry_rejected and not matches_product and build['id'] != record.get('build_id'):
                 continue
         if build['id'] == record.get('build_id'):
             if name not in (None, source.PACKAGE) or (version and version.split('-')[0] != product):
@@ -307,13 +309,18 @@ def status(product, record):
             error.close()
         successful[build_id] = None
     recorded = next((item for item in candidates if item['id'] == record.get('build_id')), None)
-    if record.get('phase') == 'rejected':
-        raise ValueError(f'COPR rejected the submission (HTTP {record["http_status"]}); inspect credentials/project before retrying')
     if record.get('build_id') and recorded is None:
         return 'uncertain', 'recorded COPR build is missing; submission blocked'
-    if record.get('revision') and not record.get('build_id'):
+    if record.get('phase') == 'rejected' and recorded is None and not retry_rejected:
+        code = record['http_status']
+        action = ('after correcting the request, use tools/publish.py --retry-rejected-rpm'
+                  if code == 400 else 'inspect credentials and project settings')
+        raise ValueError(f'COPR rejected the submission (HTTP {code}); {action}')
+    if record.get('revision') and not record.get('build_id') and not retry_rejected:
         return 'uncertain', 'recorded COPR source is not listed; monitoring without resubmitting'
     if candidates:
+        if retry_rejected and recorded is None:
+            return 'uncertain', 'COPR lists a build for this version with different source; submission blocked'
         build = recorded or max(candidates, key=lambda item: item['id'])
         record['build_id'] = build['id']
         if set(build['chroots']) != set(targets):
@@ -329,6 +336,6 @@ def status(product, record):
         return 'pending', f'build {build["id"]} is {build["state"]}'
     if unresolved:
         return 'uncertain', 'an unidentified COPR source build is in progress; submission blocked'
-    if record.get('phase') in ATTEMPT_PHASES:
+    if record.get('phase') in ATTEMPT_PHASES and not retry_rejected:
         return 'uncertain', 'recorded submission is not listed; monitoring without resubmitting'
     return 'absent', 'no submission for this product version'

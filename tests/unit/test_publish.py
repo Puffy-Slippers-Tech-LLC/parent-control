@@ -379,7 +379,7 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
     monkeypatch.setattr(channels.copr, 'authorized_builder', authorized_builder)
     monkeypatch.setattr(channels.copr, 'submit', submit)
 
-    def copr_status(product, record):
+    def copr_status(product, record, *, retry_rejected=False):
         if ('copr-submit',) not in calls:
             return 'absent', 'not submitted'
         if not any(call[0] == 'dput' for call in calls):
@@ -435,7 +435,7 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
 
     with monkeypatch.context() as patch:
         outcomes = iter([('absent', 'not submitted'), ('uncertain', 'COPR offline')])
-        patch.setattr(channels.copr, 'status', lambda *a: next(outcomes))
+        patch.setattr(channels.copr, 'status', lambda *a, **k: next(outcomes))
         with pytest.raises(ValueError, match='blocked both submissions.*COPR offline'):
             channels.run(root, publish)
     assert not any(call[0] in ('copr-submit', 'dput') for call in calls)
@@ -516,13 +516,46 @@ def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase
 
     monkeypatch.setattr(publish, 'published_binary', check)
     rpm_result = ('failed', 'COPR build 10 failed') if phase == 'published' else ('published', 'verified')
-    monkeypatch.setattr(channels.copr, 'status', lambda *a: rpm_result)
+    monkeypatch.setattr(channels.copr, 'status', lambda *a, **k: rpm_result)
     monkeypatch.setattr(channels.copr, 'authorized_builder', lambda: pytest.fail('checked credentials for an existing release'))
     monkeypatch.setattr(channels.copr, 'submit', lambda *a: pytest.fail('repeated COPR submission'))
     monkeypatch.setattr(publish, 'publish', lambda *a, **k: pytest.fail('re-entered full publisher'))
     monkeypatch.setattr(publish, 'verify_frozen', lambda *a: pytest.fail('required old upload archives'))
     if main_phase == 'complete':
         monkeypatch.setattr(publish, 'confirm_main_update', lambda *a: pytest.fail('repeated completed main pause'))
+        channels_path = path.with_name('channels.json')
+        deb_record = dict(phase='upload-started', version=state['version'])
+        revision = 'a' * 40
+        publish.save(channels_path, dict(product=state['product'], branch=state['branch'], deb=deb_record,
+                                        rpm=dict(phase='rejected', revision=revision, http_status=400)))
+        before = path.read_bytes()
+        submissions = []
+
+        def retry_status(product, record, *, retry_rejected):
+            if submissions:
+                assert record['build_id'] == 10
+                return 'published', 'verified'
+            assert retry_rejected
+            return 'absent', 'not submitted'
+
+        def retry_submit(commit, authorization):
+            assert commit == revision and authorization == 'private test credential'
+            recorded = publish.load_journal(channels_path)['rpm']
+            assert recorded['phase'] == 'upload-started' and recorded['revision'] == commit
+            submissions.append(commit)
+            return dict(id=10, ownername=channels.copr.OWNER, projectname=channels.copr.PROJECT)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(channels, 'deb_status', lambda *a: pytest.fail('COPR retry checked Launchpad'))
+            patch.setattr(publish, 'resume_delivery', lambda *a: pytest.fail('COPR retry touched DEB delivery'))
+            patch.setattr(channels, 'pin_source', lambda *a: revision)
+            patch.setattr(channels.copr, 'status', retry_status)
+            patch.setattr(channels.copr, 'authorized_builder', lambda: 'private test credential')
+            patch.setattr(channels.copr, 'submit', retry_submit)
+            channels.run(root, publish, retry_rejected=True)
+        assert submissions == [revision]
+        assert publish.load_journal(channels_path)['deb'] == deb_record
+        assert path.read_bytes() == before
     if phase == 'published':
         with pytest.raises(ValueError, match='publication failed for rpm'):
             channels.run(root, publish)
@@ -642,7 +675,7 @@ def copr_service(monkeypatch):
         if endpoint.startswith('/build/source-build-config/'):
             return {'source_type': 'scm', 'source_dict': dict(
                 type='git', clone_url=copr.GIT_URL, committish='a' * 40, subdirectory='',
-                spec='rpm/oh-no-parent-control.spec.in', srpm_build_method='make_srpm')}
+                spec=None, srpm_build_method='make_srpm')}
         pytest.fail('unexpected COPR API operation: ' + endpoint)
 
     monkeypatch.setattr(copr, 'api', api)
@@ -757,8 +790,18 @@ def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, m
     listing.clear()
     with pytest.raises(ValueError, match='HTTP 403'):
         channels.copr.status('1.1', {'phase': 'rejected', 'revision': 'a' * 40, 'http_status': 403})
-    copr_build.update(state='succeeded', source_package={'name': publish.release.PACKAGE, 'version': '1.1-1'})
+    rejection = {'phase': 'rejected', 'revision': 'a' * 40, 'http_status': 400}
+    assert channels.copr.status('1.1', dict(rejection, build_id=10))[0] == 'uncertain'
+    assert channels.copr.status('1.1', rejection.copy(), retry_rejected=True)[0] == 'absent'
     listing.append(copr_build)
+    with pytest.raises(ValueError, match='build 10 failed'):
+        channels.copr.status('1.1', rejection.copy(), retry_rejected=True)
+    other_revision = dict(rejection, revision='b' * 40)
+    copr_build['source_package'] = {'name': publish.release.PACKAGE, 'version': '1.1-1'}
+    outcome, detail = channels.copr.status('1.1', other_revision, retry_rejected=True)
+    assert outcome == 'uncertain' and 'different source' in detail
+    assert 'build_id' not in other_revision
+    copr_build['state'] = 'succeeded'
     copr_service.index_repositories('legacy')
     assert channels.copr.status('1.1', {'build_id': 10})[0] == 'published'
     rpm_url = next(url for url in responses if url.endswith('.rpm'))
@@ -769,7 +812,7 @@ def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, m
     record = {}
     journal = []
     monkeypatch.setattr(channels, 'pin_source', lambda *args: 'a' * 40)
-    monkeypatch.setattr(channels, 'check', lambda *args: ('absent', 'not submitted'))
+    monkeypatch.setattr(channels, 'check', lambda *args, **kwargs: ('absent', 'not submitted'))
     monkeypatch.setattr(channels.copr, 'submit', lambda *args: [])
     channels.submit_rpm(ROOT, ROOT, '1.1', record, 'test credential', publish,
                         lambda: journal.append(record.copy()))
@@ -908,6 +951,12 @@ def test_public_reads_require_cache_revalidation(monkeypatch):
                 assert request.full_url == copr.API + '/build/create/scm'
                 assert request.get_method() == 'POST' and request.has_header('Authorization')
                 assert redirect.redirect_request(request, None, 302, '', {}, pulp) is None
+                if request.data != b'{}':
+                    assert json.loads(request.data) == dict(
+                        ownername=copr.OWNER, projectname=copr.PROJECT, clone_url=copr.GIT_URL,
+                        committish='a' * 40, subdirectory='', scm_type='git', source_build_method='make_srpm',
+                        chroots=['fedora-44-x86_64', 'fedora-45-x86_64'], enable_net=False)
+                    return json_response({'id': 10})
             return Response()
 
         return SimpleNamespace(open=open_copr)
@@ -916,6 +965,7 @@ def test_public_reads_require_cache_revalidation(monkeypatch):
     assert copr.read(repository) == b'current publication status'
     assert copr.read(copr.API + '/build/create/scm', data=b'{}',
                      authorization='private test credential') == b'current publication status'
+    assert copr.submit('a' * 40, 'private test credential') == {'id': 10}
     with pytest.raises(ValueError, match='unexpected authenticated COPR endpoint'):
         copr.read(permission_url, authorization='private test credential')
     monkeypatch.setattr(copr, 'credentials', lambda: 'private test credential')

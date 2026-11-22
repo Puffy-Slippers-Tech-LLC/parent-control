@@ -10970,6 +10970,17 @@ class AccessibleUI:
             }
             if projection['child'] is None or projection['approver'] is None:
                 return None
+            # The native prompt can close before the app finishes handling
+            # Cancel. Its public controls can also update between reads.
+            # Reacquire the form until the whole enabled projection is usable.
+            if enabled and not (
+                (overlay or projection['child_selector_enabled'])
+                and projection['approver_selector_enabled']
+                and projection['soft_choice_enabled']
+                and projection['request_enabled']
+                and projection['cancel_enabled']
+            ):
+                return None
             if overlay:
                 require(projection['child'] == CHILD_IDENTITIES[overlay_child], 'ui:overlay-fixed-child')
             if expected_selection is not None and projection[expected_selection[0]] != expected_selection[1]:

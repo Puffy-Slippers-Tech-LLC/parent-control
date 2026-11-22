@@ -496,18 +496,21 @@ def test_privileged_fixture_password_refuses_missing_caller_before_open(monkeypa
     opened.assert_not_called()
 
 
-@pytest.mark.parametrize('operation,previous,last_child,error', [
-    ('gdm-child-time-denied', 'gdm-child-recipient-rechecked', 'child', 'denial-order'),
-    ('gdm-child-denied-return-ready', 'gdm-child-time-denied', 'child', 'denial-child-changed'),
-])
-def test_named_gdm_denial_cannot_authorize_return_for_another_child(
-        operation, previous, last_child, error):
+def test_gdm_denial_cannot_be_recorded_for_another_child():
     ui = ui_observations.UiObservations(None)
-    ui.last_operation = previous
-    ui.last_child = last_child
+    ui.last_operation = 'gdm-child-recipient-rechecked'
+    with pytest.raises(EvidenceError, match='ui:denial-order'):
+        ui.record_gdm_denial('standard')
+    assert ui.last_operation == 'gdm-child-recipient-rechecked'
+
+
+def test_named_gdm_denial_cannot_authorize_return_for_another_child():
+    ui = ui_observations.UiObservations(None)
+    ui.last_operation = 'gdm-child-recipient-rechecked'
+    ui.record_gdm_denial('child')
     ui.call = Mock(side_effect=AssertionError('guest observation after conclusive refusal'))
-    with pytest.raises(EvidenceError, match=error):
-        ui._observe(operation, child='existing')
+    with pytest.raises(EvidenceError, match='ui:denial-child-changed'):
+        ui._observe('gdm-child-denied-return-ready', child='existing')
     ui.call.assert_not_called()
 
 

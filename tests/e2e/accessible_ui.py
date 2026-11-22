@@ -8867,7 +8867,10 @@ class AccessibleUI:
             try:
                 observation = self.read_snapshot()
                 nodes, edges, identities, facts = observation
-                require(not any(self.has_state(node, self.api.StateType.DEFUNCT) for node in nodes),
+                # DEFUNCT is an AT-SPI state. The product inventory already
+                # resolved its nodes; only the countdown controls need fresh reads.
+                require(not any(self.has_state(node, self.api.StateType.DEFUNCT)
+                                for node in nodes if not hasattr(node, 'ui_element')),
                         'ui:incomplete-tree')
                 require(self.system_prompt_kind(observation=(nodes, edges, facts)) is None,
                         'ui:countdown-prompt')

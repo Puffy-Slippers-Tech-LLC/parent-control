@@ -165,6 +165,10 @@ Rows are arrays of spans: `{text, bold?, compact?, waiting?, color?, link?}`.
 They contain text, never HTML. `text` is a string, optional flags are booleans,
 `color` is a CSS color string or null, and `link` is a string reference of at most
 8192 characters or null.
+In a finished plan or `fix-tests` summary, the clock span after **Ended:**
+includes an optional `ended_at` timestamp in Unix seconds. The webview formats
+it in the VS Code window's local timezone. Older clients display the span's
+fallback `text`.
 In `fix-tests` Status rows, an optional `vm_column` on each span identifies its
 table cell (`name`, `group` or `status`). Consecutive rows that start with a
 `name` span form a table. Spans without column metadata serve as text separators

@@ -206,6 +206,8 @@ class Output:
 
     def task_summary(self, active):
         """Render plan counters or the repair runner's published case totals."""
+        from rich.style import Style
+        from rich.text import Text
         from launcher_display import CASE_PROGRESS, case_progress_counts, task_summary_lines
         from launcher_runtime import task_counters
         from launcher_session import clock_duration
@@ -259,10 +261,15 @@ class Output:
         if not active and self.completion_status() == 'finished':
             try:
                 with open_private(self.run / 'result.json') as stream:
-                    ended = os.fstat(stream.fileno()).st_mtime
-                lines.append('Ended: ' + time.strftime('%H:%M', time.localtime(ended)))
+                    ended_at = os.fstat(stream.fileno()).st_mtime
             except (OSError, ValueError):
                 pass
+            else:
+                # Older Watch clients display the fallback clock text.
+                ended = Text('Ended: ')
+                ended.append(time.strftime('%H:%M', time.localtime(ended_at)),
+                             style=Style(meta={'ended_at': ended_at}))
+                lines.append(ended)
         return lines
 
     @property

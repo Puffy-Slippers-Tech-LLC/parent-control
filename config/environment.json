@@ -19,7 +19,7 @@
     "tools": {
       "fix-tests": { "model": "workhorse" },
       "execute-plan": { "model": "workhorse" },
-      "sync-whatsnew": { "model": "workhorse" },
+      "sync-whatsnew": { "model": "bargain" },
       "commit-skill-driver": { "model": "bargain" },
       "conflict-resolver": { "model": "workhorse" },
       "execution-plan-worker": { "model": "workhorse" },

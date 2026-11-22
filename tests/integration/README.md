@@ -1526,9 +1526,10 @@ product and package revision. Existing fixed release-notes qualifications retain
 their own historical input pair.
 
 For a parallel selection, VM workers on the same host share the current build
-for each build target and architecture within the frozen queue pass. Workers
-copy the verified inputs into their own retained allocations and invoke the same
-`--previous-artifacts` route:
+for each build target and architecture. Reloads and subsequent passes can reuse
+a verified retained build under the [current-build cache contract](../../docs/Mandates/Test-Storage-Mandate.md#past-release-packages).
+Workers copy the verified inputs into their own retained allocations and invoke
+the same `--previous-artifacts` route:
 
 ```sh
 tools/run-tests system --vm 'NAME,OTHER_NAME' --id 287 --upgrade-inputs

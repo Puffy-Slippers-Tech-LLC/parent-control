@@ -3,12 +3,14 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import subprocess
 import tempfile
 
 from e2e_startup_cache import MAX_RECEIPT_BYTES, SCHEMA, cache_path, digest, file_digest, receipt, tree_digest
 import test_retention
-from test_launcher import SOURCE_CAPTURE
+from test_launcher import SOURCE_CAPTURE, SOURCE_DIGEST
 from test_storage import cache_staging_directory, snapshot_credential_root
 from vm_selection import vm_config
 
@@ -44,15 +46,37 @@ def _reuse_current(builder, output, source, cached):
     return []
 
 
-def prepare_current(builder, output, target, metadata, build):
-    """Build the current input once for compatible workers in a queue pass."""
+def _build_inputs(root, target):
+    from artifact_inputs import rpm_container_inputs, runtime_inputs
+    from tools import build_targets
+
+    container = None
+    try:
+        if target.package_format == 'rpm':
+            if (target.native() or shutil.which('mock') is not None
+                    or not build_targets.get('ubuntu26.04', target.architecture).native()):
+                return None
+            container = rpm_container_inputs(root, target)
+        elif not target.native():
+            return None
+        return {'runtime': runtime_inputs(root), 'container': container}
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'test-artifacts: cross-pass upgrade reuse unavailable: {error}', flush=True)
+        return None
+
+
+def prepare_current(builder, output, source_root, target, metadata, build):
+    """Share a verified current input across workers and qualifying reloads."""
     capture = os.environ.get(SOURCE_CAPTURE)
     if not test_retention.valid_token(capture) or test_retention.token() is None:
         build()
         return
+    source_digest = os.environ.get(SOURCE_DIGEST, '')
+    inputs = _build_inputs(source_root, target) if re.fullmatch(r'[0-9a-f]{64}', source_digest) else None
+    container = inputs['container'] if inputs else None
     root, scope = _scope(builder.REPOSITORY, target)
     name = 'upgrade-current-' + scope
-    key = digest([capture, metadata])
+    key = digest([source_digest, metadata, inputs] if inputs else [capture, metadata])
     with receipt(root, name, lock=name + '.lock') as (record, save):
         outputs = (record or {}).get('outputs')
         outputs = outputs if isinstance(outputs, dict) else {}
@@ -60,13 +84,16 @@ def prepare_current(builder, output, target, metadata, build):
         allocations = _reuse_current(builder, output, metadata['source'], cached)
         if allocations:
             payload = cached['payload']
-            print('test-artifacts: reused current upgrade input for this VM queue', flush=True)
+            print('test-artifacts: reused current upgrade input for matching frozen sources', flush=True)
         else:
-            build()
+            build(container_image=container['image_id'] if container else None)
+            if inputs and _build_inputs(source_root, target) != inputs:
+                print('test-artifacts: upgrade build inputs changed; current build was not cached', flush=True)
+                return
             payload = tree_digest(output)
         allocations = list(dict.fromkeys([output.parent.name, *allocations]))
         outputs[key] = {'allocations': allocations, 'payload': payload}
-        # Fit the shared receipt format, keeping the newest capture and copies.
+        # Fit the shared receipt format, keeping the most recently used keys and copies.
         while len(json.dumps({'schema': SCHEMA, 'outputs': outputs})) > MAX_RECEIPT_BYTES:
             if len(outputs) > 1:
                 del outputs[next(iter(outputs))]

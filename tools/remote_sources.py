@@ -601,12 +601,15 @@ def run_worker(root, request_file, request, paths):
 
     environment = test_launcher.environment(root)
     environment.pop(test_launcher.SOURCE_CAPTURE, None)
+    environment.pop(test_launcher.SOURCE_DIGEST, None)
     if 'source_capture' in request:
         from test_retention import valid_token
         capture = request['source_capture']
         if not valid_token(capture):
             raise ValueError('remote source: invalid frozen capture identity')
         environment[test_launcher.SOURCE_CAPTURE] = capture
+        environment[test_launcher.SOURCE_DIGEST] = hashlib.sha256(
+            json.dumps(request['manifest'], sort_keys=True).encode()).hexdigest()
     if request.get('bundles'):
         import test_retention
         environment.pop(test_retention.VARIABLE, None)

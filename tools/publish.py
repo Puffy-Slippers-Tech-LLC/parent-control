@@ -34,6 +34,7 @@ API = release.API
 SERIES = 'https://api.launchpad.net/1.0/ubuntu/resolute'
 PPA_FILES = f'https://ppa.launchpadcontent.net/{release.OWNER}/{release.PACKAGE}/ubuntu/'
 PUBLIC_GIT = 'https://github.com/Puffy-Slippers-Tech-LLC/parent-control.git'
+RELEASE_BRANCH = re.compile(r'releases/v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))')
 PHASES = ('prepared', 'signed', 'built', 'push-started', 'pushed', 'upload-started', 'published', 'complete')
 POLL_SECONDS = 30
 WAIT_SECONDS = 24 * 60 * 60
@@ -160,12 +161,37 @@ def journal_directory(root):
     return directory / 'onpc-publish'
 
 
-@contextmanager
-def locked(root, *, attach=False, name='lock'):
-    directory = journal_directory(root)
+def load_journal(path):
+    try:
+        state = json.loads(path.read_text(encoding='utf-8'))
+    except FileNotFoundError:
+        return None
+    if not isinstance(state, dict):
+        raise ValueError('invalid publishing journal; preserve it for recovery')
+    return state
+
+
+def release_directory(directory, product):
+    parse_product_version(product)
+    return directory / ('v' + product)
+
+
+def latest_journal(directory, name):
+    return max(directory.glob(f'v*/{name}'),
+               key=lambda path: parse_product_version(path.parent.name[1:]),
+               default=directory / name)
+
+
+def ensure_journal_directory(directory):
     directory.mkdir(mode=0o700, exist_ok=True)
     if directory.is_symlink() or directory.stat().st_uid != os.getuid():
         raise ValueError('unsafe publishing journal directory')
+
+
+@contextmanager
+def locked(root, *, attach=False, name='lock', product=None):
+    directory = journal_directory(root)
+    ensure_journal_directory(directory)
     fd = os.open(directory / name, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as lock:
         try:
@@ -175,6 +201,9 @@ def locked(root, *, attach=False, name='lock'):
                 yield None
                 return
             raise ValueError('another publisher is already running for this checkout') from None
+        if product is not None:
+            directory = release_directory(directory, product)
+            ensure_journal_directory(directory)
         yield directory / 'state.json'
 
 
@@ -244,7 +273,7 @@ def publishing_branch(root, product=None):
         branch = command('git', 'symbolic-ref', '--short', 'HEAD', cwd=root)
     except ValueError:
         raise ValueError('run the publisher from a releases/vX.Y branch, not a detached HEAD') from None
-    match = re.fullmatch(r'releases/v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))', branch)
+    match = RELEASE_BRANCH.fullmatch(branch)
     if match is None:
         raise ValueError('run the publisher from a releases/vX.Y branch in a separate checkout')
     if product is not None and match[1] != product:
@@ -568,11 +597,10 @@ def reconcile_main_monitor(state, state_path):
         # Publish its reference before MAIN UPDATED so a reader on main sees
         # both channels even while COPR submission has yet to start.
         channels_path = state_path.with_name('channels.json')
-        if channels_path.exists():
-            channels = json.loads(channels_path.read_text(encoding='utf-8'))
-            if channels.get('product') == state['product']:
-                save(target_state.with_name('channels-monitor.json'),
-                     dict(channels, journal=str(channels_path.resolve())))
+        channels = load_journal(channels_path)
+        if channels is not None and channels.get('product') == state['product']:
+            save(target_state.with_name('channels-monitor.json'),
+                 dict(channels, journal=str(channels_path.resolve())))
 
 
 def inspect_source(checkout, log):
@@ -750,7 +778,6 @@ def publication_status(root=ROOT, *, wait=True):
     Frozen upload artifacts and the development checkout are not monitoring inputs.
     """
     directory = journal_directory(root)
-    path = directory / 'state.json'
     monitor_path = directory / 'monitor.json'
     monitor = None
     try:
@@ -764,21 +791,13 @@ def publication_status(root=ROOT, *, wait=True):
             raise ValueError('invalid main publication monitoring record')
         publication_version_key(monitor.get('version'))
         path = Path(monitor['journal'])
-    try:
-        state = json.loads(path.read_text(encoding='utf-8'))
-        if not isinstance(state, dict):
-            raise ValueError('invalid publishing journal; preserve it and inspect the recorded release')
-    except FileNotFoundError:
-        if monitor is not None:
-            # The exact version remains monitorable after its release checkout
-            # is removed. Never select a different PPA version in this case.
+    if monitor is None:
+        state = load_journal(latest_journal(directory, 'state.json'))
+    else:
+        state = load_journal(path)
+        if state is None or state.get('version') != monitor['version']:
+            # Legacy references can outlive the original journal or checkout.
             state = monitor
-        else:
-            state = None
-    if monitor is not None and isinstance(state, dict) and state.get('version') != monitor['version']:
-        # A reused release checkout has begun another attempt before handing
-        # it to main. Keep following the version already reconciled into main.
-        state = monitor
     if state is None:
         entries = [item for item in sources() if item['distro_series_link'] == SERIES]
         if not entries:
@@ -917,19 +936,20 @@ def publish(root=ROOT, *, wait=True, before_upload=None):
         publication_status(root)
         return
     branch = publishing_branch(root)
+    selected_product = branch.removeprefix('releases/v')
     delivery_options = {'before_upload': before_upload} if before_upload is not None else {}
-    with locked(root, attach=True) as state_path:
+    with locked(root, attach=True, product=selected_product) as state_path:
         if state_path is None:
             say('publisher already running; connecting to publication monitoring')
             publication_status(root)
             return
-        state = json.loads(state_path.read_text()) if state_path.exists() else None
+        state = load_journal(state_path)
+        if state is not None and state.get('product') != selected_product:
+            raise ValueError('publishing journal does not match its release version')
         if state is not None and state['phase'] != 'complete':
-            if 'branch' not in state:
-                raise ValueError('legacy publication journal has no publishing branch; preserve it and do not resume or replace it')
             if state['checkout'] != str(root) or state['phase'] not in PHASES:
                 raise ValueError('unfinished release belongs to a different checkout or has an invalid journal')
-            if state['branch'] != branch:
+            if state.get('branch') != branch:
                 raise ValueError('unfinished release belongs to a different publishing branch')
         if state is None or state['phase'] == 'complete':
             update_version(root)

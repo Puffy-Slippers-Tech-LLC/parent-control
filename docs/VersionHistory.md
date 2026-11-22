@@ -1,3 +1,6 @@
+## v2.1
+### Bug Fixes
+
 ## v2.0 - 2026-11-22
 ### New Features
 - **Fedora Support**: Fedora Workstation 44 and 45 are now officially supported!

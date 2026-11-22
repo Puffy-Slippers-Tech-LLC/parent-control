@@ -38,7 +38,8 @@ NATIVE_RULES_SOURCE_PATTERN = (
 def verify_snaps(g):
     """Offline capture proof; attempts additionally query the active Snap state."""
     from tests.fixtures import snap_assets
-    from baseline_snaps import RECORD as snap_record, PURPOSE as snap_purpose, validate_hashes
+    from baseline_snaps import (GNOME_SCOPE_DROPIN, PURPOSE as snap_purpose, RECORD as snap_record,
+                                fedora_gnome_scope_paths, validate_hashes)
     path = str(snap_record)
     regular(g, path, 0, 0, 0o600)
     require(g.filesize(path) < 65536, 'snap-record')
@@ -48,6 +49,12 @@ def verify_snaps(g):
             and record['purpose'] == snap_purpose and record['pending'] is None
             and record['source'] == marker['preparation_script_sha256'], 'snap-record')
     validate_hashes(record['files'])
+    if marker['guest'].get('os_id') == 'fedora':
+        for path in map(str, fedora_gnome_scope_paths()):
+            directory(g, str(Path(path).parent))
+            regular(g, path, 0, 0, 0o644)
+            require(g.filesize(path) == len(GNOME_SCOPE_DROPIN)
+                    and g.read_file(path) == GNOME_SCOPE_DROPIN, 'snap-gnome-scope-dropin')
     for _, name, _ in snap_assets.ASSETS:
         candidates = g.glob_expand('/var/lib/snapd/snaps/' + name + '_*.snap')
         require(type(candidates) is list and len(candidates) <= 10, 'snap-revisions')

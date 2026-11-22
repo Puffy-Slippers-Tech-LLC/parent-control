@@ -131,9 +131,11 @@ ownership on the cache filesystem, including recovery after interruption.
 Published releases are outside run rotation and survive test resets. A corrupt
 entry fails verification with its exact location and is preserved. Current
 packages, fixtures, and copied upgrade inputs remain in ordinary owned
-allocations. A small current-build receipt coordinates reuse within one frozen
-source capture for a target while a verified retained copy is available. Each
-worker verifies its copy before installation.
+allocations. Workers share a small current-build receipt per target. Native Ubuntu
+DEB and Ubuntu-hosted container RPM builds can reuse a retained copy after reload
+when frozen source contents and qualified build inputs match. Other builders
+share builds within each frozen queue pass. Each worker verifies its copy before
+installation.
 
 ## Prohibited storage choices
 

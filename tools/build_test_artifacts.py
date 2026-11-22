@@ -614,9 +614,10 @@ def build_upgrade(output, *, package_format, build_target=None, architecture='x8
         paths = package_inputs.paths(root)
         metadata = (_historical_upgrade_metadata(historical_identity(root, revision)) if revision else
                     _metadata(paths, package_inputs.digest(root, paths)))
-        prepare_current(builder, current, target, metadata,
-                        lambda: _build(current, root, paths, metadata['source']['digest_sha256'],
-                                       metadata, **target_options))
+        prepare_current(builder, current, root, target, metadata,
+                        lambda container_image=None: _build(current, root, paths,
+                            metadata['source']['digest_sha256'], metadata,
+                            container_image=container_image, **target_options))
     with released_source(package_format=package_format, **({'release': release} if upgrade_from else {})) as root:
         source = release_identity(root, release, named=bool(upgrade_from))
         previous = output / 'previous'

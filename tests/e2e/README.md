@@ -995,9 +995,9 @@ replacements do not invalidate the attempt. The selected acceptance plan remains
 the one resolved before execution even if the inventory file changes.
 Root controller reads scope Git's `safe.directory` to this invocation's
 trusted checkout, without changing global configuration. Ignored build outputs
-are excluded. The capture rejects symlinks,
-hardlinks and special input files, pins parent directory opens and checks file
-identity around each read. This provenance capture records initial identities;
+and the exact checked-in Claude commit-skill alias are excluded. The capture
+rejects symlinks, hardlinks and special input files, pins parent directory opens
+and checks file identity around each read. This provenance capture records initial identities;
 it is separate from the dispatcher's disposable VM helper copy described below.
 The worker stages validated distribution bytes separately and guards that
 private copy throughout execution.

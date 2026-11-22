@@ -22,6 +22,7 @@ import time
 import test_retention
 
 SCHEMA = 3
+MAX_RECEIPT_BYTES = 32768
 PROSE_FILES = frozenset(('README.md', 'AGENTS.md', 'tests/README.md', 'tests/e2e/README.md'))
 
 
@@ -182,8 +183,8 @@ def receipt(root, name, *, lock='cache.lock'):
             with os.fdopen(source) as stream:
                 test_retention.private(os.fstat(stream.fileno()), regular=True)
                 try:
-                    contents = stream.read(32769)
-                    record = json.loads(contents) if len(contents) <= 32768 else None
+                    contents = stream.read(MAX_RECEIPT_BYTES + 1)
+                    record = json.loads(contents) if len(contents) <= MAX_RECEIPT_BYTES else None
                 except ValueError:
                     record = None
                 if not isinstance(record, dict) or record.get('schema') != SCHEMA:

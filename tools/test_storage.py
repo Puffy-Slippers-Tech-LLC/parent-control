@@ -667,6 +667,59 @@ def reset_orphan_scratch(*, root=None):
     return removed
 
 
+def _reclaim_scratch(parent, fd, retention):
+    for name in os.listdir(fd):
+        if re.fullmatch(r'run-[0-9a-f]{32}', name) is None:
+            continue
+        try:
+            child = retention.directory(parent / name)
+            try:
+                retention.private(os.fstat(child))
+                owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=child)
+                try:
+                    retention.private(os.fstat(owner), regular=True)
+                    try:
+                        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        continue
+                    receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                      dir_fd=child)
+                    with os.fdopen(receipt) as stream:
+                        info = os.fstat(stream.fileno())
+                        retention.private(info, regular=True)
+                        if info.st_size > 65536:
+                            raise ValueError('scratch identity receipt exceeds metadata limit')
+                        record = json.load(stream)
+                    if not isinstance(record, dict) or record.get('path') != str(parent / name):
+                        raise ValueError('scratch identity path changed')
+                    retention.remove(record)
+                finally:
+                    os.close(owner)
+            finally:
+                os.close(child)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            print(f'Scratch: preserved unavailable old allocation {parent / name}: {error}',
+                  file=sys.stderr)
+
+
+@contextmanager
+def cache_staging_directory(root):
+    """Owned scratch on the destination cache filesystem for atomic publication."""
+    if __package__:
+        from . import test_retention as retention
+    else:
+        import test_retention as retention
+    parent = directory('cache', root=root)
+    store = retention.Store(parent)
+    with store.opened() as fd, store.locked(fd, 'scratch-gate'):
+        _reclaim_scratch(parent, fd, retention)
+        path, owner = allocate_scratch(parent, fd, retention)
+    try:
+        yield path
+    finally:
+        os.close(owner)
+
+
 def scratch_directory():
     """Process-owned disk scratch, also reclaimed after an abrupt owner exit.
 
@@ -686,38 +739,7 @@ def scratch_directory():
     with retention.Store(parent).opened() as fd, retention.Store(parent).locked(fd, 'gate'):
         if _scratch is not None:
             return _scratch
-        for name in os.listdir(fd):
-            if re.fullmatch(r'run-[0-9a-f]{32}', name) is None:
-                continue
-            try:
-                child = retention.directory(parent / name)
-                try:
-                    retention.private(os.fstat(child))
-                    owner = os.open('owner', os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=child)
-                    try:
-                        retention.private(os.fstat(owner), regular=True)
-                        try:
-                            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        except BlockingIOError:
-                            continue
-                        receipt = os.open('identity.json', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
-                                          dir_fd=child)
-                        with os.fdopen(receipt) as stream:
-                            info = os.fstat(stream.fileno())
-                            retention.private(info, regular=True)
-                            if info.st_size > 65536:
-                                raise ValueError('scratch identity receipt exceeds metadata limit')
-                            record = json.load(stream)
-                        if not isinstance(record, dict) or record.get('path') != str(parent / name):
-                            raise ValueError('scratch identity path changed')
-                        retention.remove(record)
-                    finally:
-                        os.close(owner)
-                finally:
-                    os.close(child)
-            except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
-                print(f'Scratch: preserved unavailable old allocation {parent / name}: {error}',
-                      file=sys.stderr)
+        _reclaim_scratch(parent, fd, retention)
         _scratch, _scratch_fd = allocate_scratch(parent, fd, retention)
         # Descendants are launched with scratch_descriptors(), so an abruptly
         # terminated coordinator cannot make a still-running child's tree idle.

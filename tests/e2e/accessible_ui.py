@@ -7711,7 +7711,14 @@ class AccessibleUI:
         # shared within this invocation; scanning the entire installed catalogue
         # again for every filter needlessly exhausts the observation deadline.
         root = self.parent()
-        self.id_target('parent-app-search', root=root, sensitive=True)
+
+        def search_ready():
+            search = self.snapshot_owned_target('parent-app-search', root=root,
+                                                check_prompt=True)
+            return search is not None and self.has_state(search, self.api.StateType.SENSITIVE)
+
+        # Parent exposes the search control before the catalogue is ready.
+        self.wait(search_ready, 'parent-app-search-ready', prompt_in_predicate=True)
         print('ui:parent-page=search-ready', file=sys.stderr, flush=True)
         self.reveal_id('parent-filter-access-rule', root=root)
         self.reveal_id('parent-filter-match-rule', root=root)

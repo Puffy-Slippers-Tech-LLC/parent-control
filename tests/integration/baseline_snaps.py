@@ -4,12 +4,15 @@ Local fixtures are deliberately unasserted, strict, system-wide packages. Only
 baseline preparation calls reconcile; workers call verify and never repair.
 """
 import configparser
+from contextlib import contextmanager
 import hashlib
 import http.client
 import json
 import os
 from pathlib import Path
+import platform
 import re
+import secrets
 import shlex
 import socket
 import stat
@@ -22,6 +25,7 @@ from tests.fixtures import snap_assets as assets
 RECORD = Path('/var/lib/onpc-baseline-snaps.json')
 INPUT = Path('/var/lib/onpc-baseline-preparation/snap-inputs')
 PURPOSE = 'onpc-baseline-snaps-v1'
+GNOME_SCOPE_DROPIN = b'[Unit]\nRefuseManualStart=yes\n'
 
 
 def require(value, detail):
@@ -52,12 +56,9 @@ def base_cache_peer(info):
         os.close(cache)
 
 
-def read(path, *, limit=1024 * 1024, base_cache=False):
-    """Read root-owned regular bytes through pinned, non-writable ancestors."""
-    path = Path(path)
+@contextmanager
+def parent_directory(path):
     require(path.is_absolute() and '..' not in path.parts, 'path')
-    require(not base_cache or re.fullmatch(
-        r'/var/lib/snapd/snaps/core26_[1-9][0-9]*[.]snap', str(path)), 'base-cache-scope')
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         for part in path.parts[1:-1]:
@@ -66,11 +67,23 @@ def read(path, *, limit=1024 * 1024, base_cache=False):
             fd = child
             info = os.fstat(fd)
             require(info.st_uid == 0 and not info.st_mode & 0o022, 'ancestor-owner')
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def read(path, *, limit=1024 * 1024, base_cache=False, mode=None):
+    """Read root-owned regular bytes through pinned, non-writable ancestors."""
+    path = Path(path)
+    require(not base_cache or re.fullmatch(
+        r'/var/lib/snapd/snaps/core26_[1-9][0-9]*[.]snap', str(path)), 'base-cache-scope')
+    with parent_directory(path) as fd:
         child = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd)
         with os.fdopen(child, 'rb') as stream:
             info = os.fstat(stream.fileno())
             require(stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0
                     and not info.st_mode & 0o022
+                    and (mode is None or stat.S_IMODE(info.st_mode) == mode)
                     and info.st_size <= limit, 'file-owner-or-size')
             cached = base_cache_peer(info) if base_cache and info.st_nlink == 2 else None
             require(info.st_nlink == 1 or cached is not None, 'file-links')
@@ -78,8 +91,47 @@ def read(path, *, limit=1024 * 1024, base_cache=False):
             require(len(data) == info.st_size, 'file-changed')
             require(cached is None or hashlib.sha3_384(data).hexdigest() == cached, 'base-cache-digest')
             return data
-    finally:
-        os.close(fd)
+
+
+def fedora_gnome_scope_paths():
+    for _, name, _ in assets.ASSETS:
+        desktop = assets.desktop_id(name).removesuffix('.desktop').replace('-', r'\x2d')
+        yield (Path('/etc/systemd/user') / f'app-gnome-{desktop}-.scope.d'
+               / '80-onpc-test-snap-scope.conf')
+
+
+def fedora_gnome_scopes(*, prepare=False):
+    """Keep GNOME from moving the fixture PID out of Snap's own startup scope."""
+    if platform.freedesktop_os_release().get('ID') != 'fedora':
+        return
+    for path in fedora_gnome_scope_paths():
+        if prepare and not os.path.lexists(path):
+            with parent_directory(path.parent) as fd:
+                try:
+                    os.mkdir(path.parent.name, mode=0o755, dir_fd=fd)
+                except FileExistsError:
+                    created = False
+                else:
+                    created = True
+            with parent_directory(path) as fd:
+                if created:
+                    os.fchmod(fd, 0o755)
+                temporary = '.onpc-snap-scope-' + secrets.token_hex(8)
+                descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                                     0o644, dir_fd=fd)
+                try:
+                    with os.fdopen(descriptor, 'wb') as stream:
+                        os.fchmod(stream.fileno(), 0o644)
+                        stream.write(GNOME_SCOPE_DROPIN)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(temporary, path.name, src_dir_fd=fd, dst_dir_fd=fd)
+                except BaseException:
+                    os.unlink(temporary, dir_fd=fd)
+                    raise
+                os.fsync(fd)
+        require(read(path, limit=len(GNOME_SCOPE_DROPIN), mode=0o644) == GNOME_SCOPE_DROPIN,
+                'gnome-scope-dropin')
 
 
 def validate_hashes(expected):
@@ -227,6 +279,7 @@ def verify(expected, *, source=None):
     saved = record()
     require(saved['files'] == expected and saved['pending'] is None
             and (source is None or saved['source'] == source), 'stale-baseline')
+    fedora_gnome_scopes()
     rows = installed()
     require(set(rows) == {assets.BASE, *(name for _, name, _ in assets.ASSETS)}, 'missing-package')
     result = {name: package_readback(name, rows[name], expected=expected[name + '.snap'], title=title)
@@ -284,6 +337,7 @@ def reconcile(source, *, runner):
             raise
     else:
         package_readback(assets.BASE, rows[assets.BASE])
+    fedora_gnome_scopes(prepare=True)
     desired = {'purpose': PURPOSE, 'source': source, 'files': expected, 'pending': None}
     if saved == desired:
         return verify(expected, source=source)

@@ -3789,6 +3789,13 @@ offline capture verifies the installed package digests. Preparation retires the
 copied builder/runtime sources and transfer bytes before capture. Installed Snap
 packages remain baseline-owned prerequisites rather than FIX04 transfer inputs.
 
+On Fedora, baseline preparation also installs systemd user drop-ins for the
+three fixture launcher scope prefixes. GNOME and Snap otherwise race to move the
+same launcher process into separate scopes, which can make Snap reject startup.
+The drop-ins refuse GNOME's competing scope for these fixtures and leave Snap's
+own confinement scope available. Baseline capture and installed fixture readback
+both verify the drop-ins. [Upstream bug report](https://bugs.launchpad.net/bugs/2011806)
+
 The Snap fixture launchers declare `SingleMainWindow=false`, matching the GUI's
 separate-process windows. Keep this standard desktop key in the shared builder
 and verify it with current pinned package inputs. GNOME can otherwise classify

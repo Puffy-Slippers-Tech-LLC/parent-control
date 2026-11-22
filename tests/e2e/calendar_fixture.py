@@ -66,7 +66,7 @@ def preset_ordinary_daytime(journey, guard):
     return _preset_ordinary(journey, guard, ORDINARY_DAYTIME,
                             ('homework-game', 'game-permission', 'riley-game-permission',
                              'family-routines', 'lunar-denial', 'lunar-autostart', 'minecraft-access',
-                             'lunar-access', 'kiosk-feedback-confinement'))
+                             'lunar-access', 'kiosk-feedback-confinement', 'offline-approvals'))
 
 
 def _preset_ordinary(journey, guard, program, prefixes):

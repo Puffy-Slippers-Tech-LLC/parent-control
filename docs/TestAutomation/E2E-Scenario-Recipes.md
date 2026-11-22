@@ -1965,12 +1965,15 @@ journey; case ID 195 must not be reused.
 
 1. P → LIFE06(disconnect) → FLOW16 → FLOW03(hard/soft/allowed).
 2. request-entry(child-overlay) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → TIME01 → FLOW08(soft usable, hard denied).
-3. DESK04(normal child logout) → request-entry(kiosk) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → C(fresh) → FLOW08(allowed/soft usable,hard denied) → TIME02.
-4. P → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → LIFE06(reconnect).
+3. DESK04(normal child logout) → P(retained) → PARENT09(current daily and grant) → G → request-entry(kiosk) → FLOW04(entry=open, including estimate read) → FLOW05(soft included) → C(fresh) → FLOW08(allowed/soft usable,hard denied) → TIME02.
+4. P → PARENT09(verify station grant) → PARENT17 → PARENT18(confirm) → PARENT09(no grant) → C → FLOW08(allowed usable,soft/hard denied) → LIFE06(reconnect).
 
 Use one child, one parent and one ordinary native app per rule. Save a
 30-minute daily allowance, require at least 900 seconds actually remaining,
 and save the three app rules once while offline.
+Use [pre-test daytime clock preparation](#pre-test-clock-preparation) before
+customer input so the desktop's midnight cutoff cannot shorten the daily
+balance used for the comparison across request surfaces.
 Start with no grant. Request 3 minutes with soft apps included on each screen;
 read the estimate before each fresh local authentication and observe success
 before the form exits. On the child desktop after each approval, independently
@@ -1980,6 +1983,9 @@ countdown progression and retain the allowed app's work for the later
 revocation check. Check the overlay result before normal sign-out to the station.
 Date each asynchronous estimate by its recorded calculation bracket when
 comparing it with the later countdown, including time before the label read.
+After sign-out, compare the station estimate with the larger of recorded daily
+time and the continuing grant. Use the approval and Parent balance read brackets
+to verify the station grant's expiry before revoking it.
 Do not reset, revoke or reconnect between approvals. The positive daily
 allowance keeps the final desktop usable after the single revocation, so prove
 soft-app closure/refused relaunch, retained allowed access and hard refusal

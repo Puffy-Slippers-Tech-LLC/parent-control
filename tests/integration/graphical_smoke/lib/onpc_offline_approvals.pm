@@ -59,6 +59,13 @@ sub run {
     app_results($journey, 'first', 0);
     my $logout = $journey->scope('logout');
     onpc_desktop_session::log_out($logout, $logout->seen('desktop'));
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained',
+        'success', 'station-parent');
+    $journey->consume_observation('station-balance-parent-retained', onpc_parent::open_for_child(
+        $journey, 'desktop', 'same-user', 'retained', 'child', 'station-balance', 0));
+    $journey->seen('station-before-approval');
+    my $leave = $journey->scope('station-parent-leave');
+    onpc_desktop_session::switch_user($leave, $leave->seen('desktop'));
     my $station = $journey->scope('station');
     $station->{kiosk_request} = $kiosk_request;
     onpc_request_flow::prepare($station, 'open', 'new', 'observed',

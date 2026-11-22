@@ -59,11 +59,14 @@ Finalize the history date and notes, rerun `make updateversion` and applicable
 tests if inputs changed, then commit the release inputs on `main`, including
 `data/app.json`, `debian/changelog` and the dated history entry.
 Create `releases/vX.Y` from that commit and check it out in a
-separate enlistment. For example, for version 1.3 with a linked worktree:
+checkout separate from `main`. An existing linked worktree can switch from its
+day-to-day branch to `releases/vX.Y` for publication and switch back afterward.
+For example, for version 1.3:
 
 ```sh
 git branch 'releases/v1.3' 'main'
-git worktree add '../parent-control-release-1.3' 'releases/v1.3'
+# In the existing linked worktree:
+git switch 'releases/v1.3'
 ```
 
 An independent clone is also supported: push the prepared release branch, then
@@ -161,9 +164,10 @@ source preparation and retains the result for the COPR submission. A failed
 account check blocks both submissions.
 Monitoring an existing submission uses public reads.
 
-`onpc-publish/channels.json` records the DEB and RPM states alongside the legacy
-DEB `state.json`, under the release checkout's private Git directory. COPR's
-submission intent is saved before the POST and its build ID after acceptance.
+Each release has its own `onpc-publish/vX.Y/` directory under the checkout's
+private Git directory. `channels.json` records both channels and `state.json`
+tracks the source and DEB delivery. The publisher saves COPR's submission intent
+before the POST and its build ID after acceptance.
 An uncertain response never causes an automatic second submission. An
 unidentified source build also blocks submission until its identity is resolved.
 For a lost COPR submission response, public SCM configuration can bind the
@@ -174,12 +178,14 @@ repository primary metadata and a downloaded RPM with matching size/checksum.
 Pulp repository paths omit the build ID, so the publisher matches the full RPM
 identity reported by COPR for each chroot. If multiple builds report the same
 identity, the publisher refuses to verify that RPM through Pulp.
-The channel lock is checkout-local; retain one release checkout per version.
-It does not serialize independent clones or third-party clients.
+The channel lock is checkout-local. Wait for the publisher to exit before
+switching branches. Keep retries for each version in the checkout that started
+it. The lock does not serialize independent clones or third-party clients.
 
 Main receives a `channels-monitor.json` reference in addition to the existing
 DEB handoff. Main and `--status` monitor both channels without uploads or journal
-writes. Historical DEB-only records remain readable and select the same product
+writes. On a `releases/vX.Y` branch, `--status` checks that version. Historical
+DEB-only records remain readable and select the same product
 for the COPR check. A channel that has not been submitted is reported as such;
 read-only monitoring cannot submit it. Missing temporary DEB artifacts do not
 prevent public status checks. Fedora acceptance remains required before release;
@@ -484,7 +490,7 @@ below; preserve the submitted version and tags.
 
 A publishing-only lock in the invoking checkout's private Git directory
 (`git rev-parse --absolute-git-dir`) prevents concurrent publishers in that
-checkout. `onpc-publish/state.json` there records the checkout identity,
+checkout. The release's `onpc-publish/vX.Y/state.json` records the checkout identity,
 publishing branch, exact source, version, artifacts and phase. Linked worktrees
 use their own Git directories, so their journals and publishing locks are
 independent of main's. Independent clones also own separate journals and locks.
@@ -496,8 +502,9 @@ refs or checkout indexes; there is no long-lived lock held on main while
 building, uploading or monitoring. Main is updated only during the confirmed
 handoff and is available for development during monitoring.
 
-Choose one release enlistment for each publication and retain it until
-completion. A different clone has no knowledge of an uncertain upload: do not
+Use the same branch and checkout to resume a release. The checkout can publish
+later versions while retaining older journals. A different clone has no
+knowledge of an uncertain upload: do not
 restart the same release there or copy/delete the journal to bypass recovery.
 The atomic non-forced branch/tag push prevents competing prepared attempts
 from replacing published refs, but local locks do not coordinate independent

@@ -15,16 +15,6 @@ ACTIVE_CHANNELS = ('deb', 'rpm')
 DEB_ATTEMPT_PHASES = {'upload-started', 'published', 'complete'}
 
 
-def load(path):
-    try:
-        result = json.loads(path.read_text(encoding='utf-8'))
-    except FileNotFoundError:
-        return None
-    if not isinstance(result, dict):
-        raise ValueError('invalid channel publication journal; preserve it for recovery')
-    return result
-
-
 def deb_status(product, record, p):
     entries = [item for item in p.sources() if item['distro_series_link'] == p.SERIES
                and re.fullmatch(re.escape(product) + r'\+ppa[1-9][0-9]*~ubuntu26\.04\.1',
@@ -108,8 +98,8 @@ def pin_source(root, directory, product, p):
     return revision
 
 
-def merge_deb_journal(root, record, p, product):
-    journal = load(p.journal_directory(root) / 'state.json')
+def merge_deb_journal(path, record, p, product):
+    journal = p.load_journal(path)
     if journal and journal.get('product') == product:
         if journal['phase'] in DEB_ATTEMPT_PHASES or record.get('phase') not in DEB_ATTEMPT_PHASES:
             record.update({key: journal[key] for key in ('phase', 'version')})
@@ -158,10 +148,23 @@ def monitor(product, records, p, *, persist=None):
 
 def monitor_status(root, p):
     directory = p.journal_directory(root)
-    reference = load(directory / 'channels-monitor.json')
-    state = load(Path(reference['journal'])) if reference else load(directory / 'channels.json')
-    if reference and (state is None or state.get('product') != reference['product']):
-        state = reference
+    branch = p.command('git', 'branch', '--show-current', cwd=root)
+    release = p.RELEASE_BRANCH.fullmatch(branch)
+    if release:
+        product = release[1]
+        release_directory = p.release_directory(directory, product)
+        state = p.load_journal(release_directory / 'channels.json')
+        if state is None:
+            state = {'product': product, 'deb': {}, 'rpm': {}}
+        merge_deb_journal(release_directory / 'state.json', state['deb'], p, product)
+    else:
+        reference = p.load_journal(directory / 'channels-monitor.json')
+        if reference:
+            state = p.load_journal(Path(reference['journal']))
+            if state is None or state.get('product') != reference['product']:
+                state = reference
+        else:
+            state = p.load_journal(p.latest_journal(directory, 'channels.json'))
     if state is None:
         # Retain compatibility with Launchpad-only historical journals and main
         # handoffs, without changing them or choosing an unrelated RPM version.
@@ -209,26 +212,24 @@ def run(root, p, *, status=False):
     if status or p.command('git', 'branch', '--show-current', cwd=root) == 'main':
         return monitor_status(root, p)
     branch = p.publishing_branch(root)
-    with p.locked(root, attach=True, name='channels.lock') as legacy_path:
-        if legacy_path is None:
+    product = branch.removeprefix('releases/v')
+    with p.locked(root, attach=True, name='channels.lock', product=product) as deb_path:
+        if deb_path is None:
             return monitor_status(root, p)
-        product, _ = p.history_notes((root / p.HISTORY).read_text())
-        p.publishing_branch(root, product)
-        path = legacy_path.with_name('channels.json')
-        state = load(path)
-        if state and state.get('product') != product:
-            if any(state[key].get('phase') != 'published' for key in ACTIVE_CHANNELS):
-                raise ValueError('unfinished channel publication belongs to a different version; preserve its journal')
-            state = None
+        history_product, _ = p.history_notes((root / p.HISTORY).read_text())
+        if p.publishing_branch(root, history_product) != branch:
+            raise ValueError('publishing branch changed during startup')
+        path = deb_path.with_name('channels.json')
+        state = p.load_journal(path)
         if state is None:
             state = {'product': product, 'branch': branch, 'deb': {}, 'rpm': {}}
-        if state.get('branch') != branch:
+        if state.get('branch') != branch or state.get('product') != product:
             raise ValueError('channel publication belongs to a different release branch')
 
         def persist():
             p.save(path, state)
 
-        journal = merge_deb_journal(root, state['deb'], p, product)
+        journal = merge_deb_journal(deb_path, state['deb'], p, product)
         # Only local submission intent can carry the shared gate across an
         # interruption. Observing a remote attempt does not authorize its sibling.
         attempted = set()
@@ -268,7 +269,7 @@ def run(root, p, *, status=False):
             except (ValueError, OSError) as error:
                 delivery_error = error
             finally:
-                merge_deb_journal(root, state['deb'], p, product)
+                merge_deb_journal(deb_path, state['deb'], p, product)
                 persist()
             if delivery_error is not None:
                 if (str(delivery_error) == 'publication cancelled before updating main'
@@ -278,12 +279,12 @@ def run(root, p, *, status=False):
                 p.say(str(delivery_error), error=True)
         # Public status never depends on archived .changes/.dsc/tar files or
         # auto-commits local edits. Only an unfinished Git handoff is resumed.
-        journal = load(legacy_path)
+        journal = p.load_journal(deb_path)
         if ('deb' not in recovery_errors and journal and journal.get('product') == product
                 and journal.get('phase') in ('upload-started', 'published')):
             try:
-                with p.locked(root) as delivery_path:
-                    p.resume_delivery(root, journal, delivery_path)
+                with p.locked(root):
+                    p.resume_delivery(root, journal, deb_path)
             except (ValueError, OSError) as error:
                 if str(error) == 'publication cancelled before updating main':
                     raise
@@ -296,10 +297,10 @@ def run(root, p, *, status=False):
         persist()
         # Hand main an independent channel reference even when only one service
         # needed a submission. Preserve a newer release's monitoring selection.
-        journal = load(legacy_path)
+        journal = p.load_journal(deb_path)
         if journal and journal.get('product') == product and journal.get('main_update', {}).get('phase') == 'complete':
             try:
-                p.reconcile_main_monitor(journal, legacy_path)
+                p.reconcile_main_monitor(journal, deb_path)
             except (ValueError, OSError) as error:
                 recovery_errors['monitor'] = str(error)
                 p.say(f'local monitoring handoff incomplete: {error}', error=True)
@@ -310,15 +311,15 @@ def run(root, p, *, status=False):
             monitor_error = error
         # Complete legacy checkout synchronization after DEB publication. A
         # failed RPM must not prevent an independently successful DEB close-out.
-        journal = load(legacy_path)
+        journal = p.load_journal(deb_path)
         if ('deb' not in recovery_errors and state['deb'].get('phase') == 'published' and journal
                 and journal.get('product') == product
                 and journal.get('phase') in ('upload-started', 'published')):
             try:
                 if state['deb'].get('published_version') != journal['version']:
                     raise ValueError('published DEB revision differs from the recorded submission; reconcile the release journal')
-                with p.locked(root) as delivery_path:
-                    p.resume_delivery(root, journal, delivery_path, published=True)
+                with p.locked(root):
+                    p.resume_delivery(root, journal, deb_path, published=True)
             except (ValueError, OSError) as error:
                 recovery_errors['deb'] = str(error)
                 p.say(f'DEB publication confirmed; local release recovery incomplete: {error}', error=True)

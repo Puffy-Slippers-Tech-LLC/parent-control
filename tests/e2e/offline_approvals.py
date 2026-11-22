@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from access_choices import AccessChoiceJourney
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS
+from calendar_fixture import preset_ordinary_daytime
 from countdown import CountdownSample, await_countdown_progress, check_countdown_balance
 from installed_journey import JourneyPlan, record_installed_journey
 from journey_blocks import (desktop_entry, desktop_return, fresh_desktop, native_usable_app,
@@ -55,6 +56,10 @@ OVERLAY = {
 }
 STATION = {
     **desktop_return('logout', account='child', action='logout'),
+    **prefixed_stages('station-parent', desktop_entry('parent', source='gdm', entry='retained')),
+    **prefixed_stages('station-balance', retained_parent_entry(source='same-user', desktop_observation=False)),
+    'station-before-approval': 'ui:revoke-balances',
+    **desktop_return('station-parent-leave', account='parent'),
     **prefixed_stages('station', approval_and_return(prefix='open', entry='new',
         surface='kiosk', child_entry='fresh', **CHOICES)),
     **app_results('second', retained=True),
@@ -78,6 +83,7 @@ REVOCATION = {
 }
 SCREENS = {**PREPARATION, **OVERLAY, **STATION, **REVOCATION}
 LOGINS = {'': ('parent', 'parent-login'), 'child-': ('child', 'child'),
+          'station-parent-': ('parent', 'station-parent'),
           'station-fresh-': ('child', 'station-fresh'),
           'parent-return-': ('parent', 'parent-return'),
           'child-return-': ('child', 'child-return')}
@@ -99,7 +105,8 @@ PLAN = JourneyPlan(
                 for prefix, (role, identity) in LOGINS.items()},
     child_bindings={stage: 'child' for stage, tag in SCREENS.items()
                     if tag.startswith('ui:') and tag[3:] in NAMED_CHILD_OPERATIONS},
-    stage_actions={'desktop': 'native-verify', 'offline-enter': 'offline',
+    stage_actions={'setup-detached': 'daytime-window', 'desktop': 'native-verify',
+                   'offline-enter': 'offline',
                    'station-countdown': 'ticks',
                    'offline-restore': 'online'},
     balance_checks={'allowance': 1800},
@@ -161,30 +168,77 @@ class OfflineApprovalsJourney(KioskRequestJourney, AccessChoiceJourney):
         self.estimates = {}
         self.latest_countdown = None
         self.saved_policy = None
+        self.station_balance = None
+        self.station_approval = None
+        self.revoke_read_started_ns = None
 
     def check_estimate(self, observed):
-        # The second approval extends the still-running first result. A normal
-        # logout does not reset that public balance, unlike fresh qualifier data.
         choice = observed.get('ui', {}).get('valid_choice')
         if choice is None:
             return
         require(choice['request']['child'] == CHOICES['child']
                 and choice['estimate']['kind'] == 'fixed', 'offline-approvals:estimate-child')
-        if self.latest_countdown is None:
+        if choice['request']['surface'] == 'child-overlay':
             return super().check_estimate(observed)
-        earlier = self.latest_countdown.countdown
-        elapsed = (choice['observed_monotonic_ns'] - earlier.observed_monotonic_ns) / 1e9
-        require(0 <= elapsed <= 600
-                and earlier.seconds + 180 - elapsed - 2 <= choice['estimate']['seconds']
-                <= earlier.seconds + 180 + 2, 'offline-approvals:estimate-increment')
+        # Signed-out daily time can stay constant while the existing grant
+        # continues to run. Either operand can be larger at the station.
+        daily, grant, read_start, read_end = self.station_balance
+        start, end = _estimate_read_bounds(choice)
+        least_elapsed = (start - read_end) / 1e9
+        most_elapsed = (end - read_start) / 1e9
+        base = choice['estimate']['seconds'] - CHOICES['duration_seconds']
+        require(0 <= least_elapsed <= most_elapsed <= 600
+                and max(daily, grant - most_elapsed) - 2 <= base
+                <= max(daily, grant - least_elapsed) + 2, 'offline-approvals:estimate-increment')
+
+    def check_station_grant(self, balances):
+        daily, grant, read_start, read_end = self.station_balance
+        approval_start, approval_end = self.station_approval
+        # Compare expiry brackets so time spent returning to the desktop and
+        # exercising apps cannot count against the granted addition.
+        earliest_base_end = max(approval_start + daily * 1e9, read_start + grant * 1e9)
+        latest_base_end = max(approval_end + daily * 1e9, read_end + grant * 1e9)
+        observed_grant = balances['one_time']['seconds'] * 1e9
+        earliest_end = self.revoke_read_started_ns + observed_grant
+        latest_end = balances['observed_monotonic_ns'] + observed_grant
+        added = CHOICES['duration_seconds'] * 1e9
+        margin = 2_000_000_000  # Whole-second balances and grant issuance.
+        require(0 < read_end <= approval_start <= approval_end <= self.revoke_read_started_ns
+                <= balances['observed_monotonic_ns'], 'offline-approvals:station-order')
+        require(latest_base_end - earliest_base_end + latest_end - earliest_end + 2 * margin < added,
+                'offline-approvals:station-addition-unobservable')
+        require(earliest_end <= latest_base_end + added + margin
+                and latest_end >= earliest_base_end + added - margin,
+                'offline-approvals:station-added-time')
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)
         value = observed.get('ui', {})
-        if stage == 'allowance':
+        if stage == 'installed-greeter':
+            clock = self.vm.local_calendar()
+            noon = self.steps[1]['fixture']['target_epoch_ns']
+            require(0 <= clock['epoch_ns'] - noon < 11 * 3600 * 1e9,
+                    'offline-approvals:midnight-margin')
+        elif stage == 'allowance':
             require_zero_grant(value['time_explanation'])
             require(value['time_explanation']['daily']['seconds'] >= 900,
                     'offline-approvals:daily-margin')
+        elif stage == 'station-before-approval':
+            balances = value['revoke_cancel']['balances']
+            daily, grant = (balances[key]['seconds'] for key in ('daily', 'one_time'))
+            start, end = balances['read_started_ns'], balances['observed_monotonic_ns']
+            earlier = self.latest_countdown.countdown
+            require(daily > 0 and grant > 0 and earlier.observed_monotonic_ns <= start
+                    and earlier.seconds - (end - earlier.observed_monotonic_ns) / 1e9 - 2 <= grant
+                    <= earlier.seconds - (start - earlier.observed_monotonic_ns) / 1e9 + 2,
+                    'offline-approvals:first-grant-retained')
+            self.station_balance = (daily, grant, start, end)
+        elif stage == 'station-approval-open':
+            self.station_approval = (self.vm.local_calendar()['guest_monotonic_end_ns'],)
+        elif stage == 'station-approval-success':
+            self.station_approval += (self.vm.local_calendar()['guest_monotonic_end_ns'],)
+        elif stage == 'supplied-parent-retained':
+            self.revoke_read_started_ns = self.vm.local_calendar()['guest_monotonic_end_ns']
         if stage in ('overlay-open-estimate', 'station-open-estimate'):
             self.estimates[stage.split('-')[0]] = deepcopy(value['valid_choice'])
         if stage in ('before-countdown', 'overlay-countdown', 'station-countdown'):
@@ -200,12 +254,14 @@ class OfflineApprovalsJourney(KioskRequestJourney, AccessChoiceJourney):
                     seconds=estimate['estimate']['seconds'], precision_seconds=1,
                     observed_monotonic_ns=start,
                     max_elapsed_seconds=300, sampling_seconds=0)
-                earlier = self.latest_countdown.countdown
-                elapsed = (current.countdown.observed_monotonic_ns - earlier.observed_monotonic_ns) / 1e9
-                require(0 < elapsed <= 600 and abs(current.countdown.seconds
-                    - (earlier.seconds + 180 - elapsed)) <= 2,
-                    'offline-approvals:added-time')
-                observed.setdefault('comparison', {}).update(comparison, added_seconds=180)
+                observed.setdefault('comparison', {}).update(comparison)
+                if stage == 'overlay-countdown':
+                    earlier = self.latest_countdown.countdown
+                    elapsed = (current.countdown.observed_monotonic_ns - earlier.observed_monotonic_ns) / 1e9
+                    require(0 < elapsed <= 600 and abs(current.countdown.seconds
+                        - (earlier.seconds + CHOICES['duration_seconds'] - elapsed)) <= 2,
+                        'offline-approvals:added-time')
+                    observed['comparison']['added_seconds'] = CHOICES['duration_seconds']
             self.latest_countdown = current
         if stage in ('before-revoke', 'after-revoke'):
             policy = value['revoke_cancel']
@@ -215,6 +271,8 @@ class OfflineApprovalsJourney(KioskRequestJourney, AccessChoiceJourney):
                     'offline-approvals:daily-preserved')
             if stage == 'before-revoke':
                 require(balances['one_time']['seconds'] > 0, 'offline-approvals:grant-before-revoke')
+                self.check_station_grant(balances)
+                observed.setdefault('comparison', {})['station_added_seconds'] = CHOICES['duration_seconds']
                 self.saved_policy = deepcopy(policy)
             else:
                 require_zero_grant(balances)
@@ -228,7 +286,8 @@ def execute(recorder, context):
     context.fixture_caller = 'E2E-043/both-surfaces'
     record_installed_journey(recorder, context, PLAN, timeout=3600,
         journey_type=OfflineApprovalsJourney,
-        actions={**fixture_actions(include_refusal=False), 'offline': offline, 'online': online, 'ticks': ticks})
+        actions={**fixture_actions(include_refusal=False), 'daytime-window': preset_ordinary_daytime,
+                 'offline': offline, 'online': online, 'ticks': ticks})
 
 
 E2E_CASES = {'both-surfaces': execute}

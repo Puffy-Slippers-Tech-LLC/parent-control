@@ -100,11 +100,16 @@ def source_paths(root):
                           for p in paths), 'provenance:source-path')
     present = []
     for relative in paths:
+        path = root / relative
         try:
-            # Match the artifact builder's current working-tree inputs. lstat
-            # keeps dangling links and special files visible to safety checks.
-            (root / relative).lstat()
+            # Keep dangling links and special files visible to safety checks.
+            info = path.lstat()
         except FileNotFoundError:
+            continue
+        # The checked-in Claude skill alias is outside the VM source transfer.
+        # Keep every other link subject to the regular source-file checks.
+        if (relative == '.claude/skills/commit' and stat.S_ISLNK(info.st_mode)
+                and os.readlink(path) == '../../.agents/skills/commit'):
             continue
         present.append(relative)
     require(present, 'provenance:source-path')

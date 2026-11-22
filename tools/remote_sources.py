@@ -70,6 +70,7 @@ class FrozenSources:
         self._temporary = storage
         self._storage_identity = self._identity(storage, directory=True)
         try:
+            self.capture = uuid.uuid4().hex
             self.directory = self.lease_root = storage / 'source'
             self.archive_path, self.git_path = storage / 'source.tar.gz', storage / 'source.pack'
             with test_source.reader(self.root):
@@ -471,6 +472,8 @@ def capsule(root, host, command, environment, *, mode='operation', cooperative=F
                 separate_stderr=separate_stderr, files=files, manifest=manifest, size=archive.tell())
             request.update(git=git_snapshot, git_size=git_pack.tell() if git_pack is not None else 0,
                            bundles=bundles)
+            if sources is not None:
+                request['source_capture'] = sources.capture
             header = json.dumps(request).encode()
             # The source reader can exit before transmission: every part is
             # either a private input or an independently opened frozen file.
@@ -597,6 +600,13 @@ def run_worker(root, request_file, request, paths):
         return value
 
     environment = test_launcher.environment(root)
+    environment.pop(test_launcher.SOURCE_CAPTURE, None)
+    if 'source_capture' in request:
+        from test_retention import valid_token
+        capture = request['source_capture']
+        if not valid_token(capture):
+            raise ValueError('remote source: invalid frozen capture identity')
+        environment[test_launcher.SOURCE_CAPTURE] = capture
     if request.get('bundles'):
         import test_retention
         environment.pop(test_retention.VARIABLE, None)

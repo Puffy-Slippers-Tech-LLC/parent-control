@@ -121,6 +121,20 @@ unmarked owners. A source-only pending intent also guards its named recipient
 before the recipient intent is published; retry the identical command after an
 interruption. Unrelated allocations and reports remain intact.
 
+## Past-release packages
+
+Genuine upgrade inputs keep one permanent verified binary and its original
+build metadata under the shared host cache for each checkout, branch, build
+target, architecture and annotated release identity. Publication uses an atomic
+rename under the release lock. The staging directory uses shared scratch
+ownership on the cache filesystem, including recovery after interruption.
+Published releases are outside run rotation and survive test resets. A corrupt
+entry fails verification with its exact location and is preserved. Current
+packages, fixtures, and copied upgrade inputs remain in ordinary owned
+allocations. A small current-build receipt coordinates reuse within one frozen
+source capture for a target while a verified retained copy is available. Each
+worker verifies its copy before installation.
+
 ## Prohibited storage choices
 
 - Test producers must not choose `/tmp`, `/var/tmp`, a caller-supplied `TMPDIR`

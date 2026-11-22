@@ -147,7 +147,8 @@ channels are still monitored; the journal stays unfinished until that recovery
 succeeds.
 
 COPR uses its SCM `make srpm` method, pinned to the verified signed product
-commit. The remote recipe builds RPM Release `1`; ordinary local `make build`
+commit. The request leaves the optional spec field unset because `.copr/Makefile`
+renders the spec from the template. The remote recipe builds RPM Release `1`; ordinary local `make build`
 keeps its development counter. No local SRPM upload or separate `copr-cli`
 installation is needed. The caller-owned, mode-0600 `~/.config/copr` supplies
 the API login/token for the authentication check and the single submission.
@@ -170,6 +171,10 @@ tracks the source and DEB delivery. The publisher saves COPR's submission intent
 before the POST and its build ID after acceptance.
 An uncertain response never causes an automatic second submission. An
 unidentified source build also blocks submission until its identity is resolved.
+After correcting a request that COPR rejected with HTTP 400, run
+`tools/publish.py --retry-rejected-rpm` from the release checkout. This command
+checks and monitors only COPR. Before submitting, it checks for an existing build,
+verifies the recorded signed commit, and records the new submission intent.
 For a lost COPR submission response, public SCM configuration can bind the
 stored exact commit and recipe to a build ID, even if source generation failed
 before COPR learned the package name/version.

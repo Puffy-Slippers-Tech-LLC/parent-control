@@ -364,9 +364,10 @@ This is included in `tools/run-tests publish`, `tools/run-tests host`,
 builder prerequisites. The shared runner may overlap it with `publish-deb`
 when resources allow; their snapshots and results are independent.
 An actual COPR build remains separate qualification.
-The [publisher](Publishing.md#independent-channel-gates) configures the repository
-root, this source method and `rpm/oh-no-parent-control.spec.in` as the recipe
-path. It verifies the shared signed product tag and pins that exact commit,
+The [publisher](Publishing.md#independent-channel-gates) selects the repository
+root and the `make srpm` method. Leave COPR's optional spec field blank. The
+recipe renders `rpm/oh-no-parent-control.spec.in` through the shared builder.
+The publisher verifies the shared signed product tag and pins that exact commit,
 restricting the build to the configured Fedora chroots (`fedora-44-x86_64` and
 `fedora-45-x86_64`) in
 `puffyslipperstechllc/oh-no-parent-control`. It reads API credentials only from
@@ -389,8 +390,8 @@ Neither `make build` nor this recipe submits a release.
 
 Use an operator-provisioned staging COPR project with the same two x86_64
 chroots and Pulp storage. Submit the exact candidate Git commit as an SCM build
-with the `make srpm` method, the repository root as the working directory and
-`rpm/oh-no-parent-control.spec.in` as the spec path. Keep the RPM build network
+with the `make srpm` method and the repository root as the working directory.
+Leave the optional spec field blank. Keep the RPM build network
 setting aligned with production. Check both chroot results, then verify that
 each staging repository indexes and serves the expected RPM and that DNF can
 install it with RPM signature verification enabled on clean Fedora VMs. Use the

@@ -265,7 +265,12 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
                                     "DEB_BUILD_OPTIONS": metadata["build_inputs"]["deb_build_options"]}
         package_output = output / "package"
         if 'package' in reuse:
-            shutil.copytree(reuse['package'], package_output)
+            cached = reuse['package']
+            if cached.is_dir():
+                shutil.copytree(cached, package_output)
+            else:
+                package_output.mkdir()
+                shutil.copy2(cached, package_output / cached.name)
             packages = sorted(package_output.glob('oh-no-parent-control_*.deb' if
                 package_format == 'deb' else 'oh-no-parent-control-[0-9]*.x86_64.rpm'))
         else:
@@ -594,29 +599,46 @@ def adapt_prior_rpm_installer(root):
 
 def build_upgrade(output, *, package_format, build_target=None, architecture='x86_64', upgrade_from=None):
     """Finite genuine release/current preparation; no fabricated predecessor."""
+    from upgrade_package_cache import prepare_current, prepare_release
+
     revision = upgrade_history.main_revision(REPOSITORY) if upgrade_from else None
     release = (matrix_release(REPOSITORY, package_format, upgrade_from, revision=revision) if upgrade_from else
                _require_previous_release(package_format))
     output = _require_empty_output(output)
-    target_options = dict(package_format=package_format, build_target=build_target, architecture=architecture)
-    if revision is None:
-        build(output / 'current', **target_options)
-    else:
-        with historical_source(revision) as root:
-            build_historical_upgrade_member(output / 'current', root, historical_identity(root, revision),
-                                            **target_options)
+    target = build_targets.get(build_target or ('fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
+                               architecture, package_format)
+    target_options = dict(package_format=package_format, build_target=target.name, architecture=architecture)
+    builder = sys.modules[__name__]
+    current = output / 'current'
+    with historical_source(revision) if revision else nullcontext(REPOSITORY) as root:
+        paths = package_inputs.paths(root)
+        metadata = (_historical_upgrade_metadata(historical_identity(root, revision)) if revision else
+                    _metadata(paths, package_inputs.digest(root, paths)))
+        prepare_current(builder, current, target, metadata,
+                        lambda: _build(current, root, paths, metadata['source']['digest_sha256'],
+                                       metadata, **target_options))
     with released_source(package_format=package_format, **({'release': release} if upgrade_from else {})) as root:
         source = release_identity(root, release, named=bool(upgrade_from))
-        build_historical_upgrade_member(output / 'previous', root, source, **target_options)
-    verify_upgrade(output)
+        previous = output / 'previous'
+
+        def build_previous(*, package=None, metadata=None):
+            reuse = {'fixtures': current / 'fixtures'}
+            if package is not None:
+                reuse['package'] = package
+            _build(previous, root, package_inputs.paths(root), source['digest_sha256'],
+                   metadata or _historical_upgrade_metadata(source), reuse=reuse, **target_options)
+            verify_upgrade(output)
+            return verify(previous)
+
+        prepare_release(builder, previous, target, source, build_previous)
 
 
-def build_historical_upgrade_member(output, root, source, **target_options):
+def _historical_upgrade_metadata(source):
     metadata = _metadata(package_inputs.paths(REPOSITORY), source['digest_sha256'])
     metadata['source'] = source
     metadata['build_inputs']['source_date_epoch'] = int(_run(
         ['git', 'show', '-s', '--format=%ct', source['revision']], cwd=REPOSITORY).stdout.strip())
-    _build(output, root, package_inputs.paths(root), source['digest_sha256'], metadata, **target_options)
+    return metadata
 
 
 def package_identity(path):

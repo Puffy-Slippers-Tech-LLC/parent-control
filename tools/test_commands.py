@@ -496,7 +496,7 @@ Aggregate aliases (no suite selectors)
   pair in retained storage; it does not install packages or qualify the live history.
   artifacts prepare --native-inputs --package-format deb|rpm prepares that finite
   pair without a VM probe; installed-baseline compatibility still needs preflight.
-  system --upgrade-inputs prepares a separate release-to-main pair per attempt
+  system --upgrade-inputs prepares verified release-to-main inputs per attempt
   and supplies --artifacts/--previous-artifacts to the installed runner.
   Use --upgrade-from=vX.Y to focus the run on one supported source release.
   It requires the VM's declared format to match its verified baseline; no format defaults.

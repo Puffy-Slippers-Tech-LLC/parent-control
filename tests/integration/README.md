@@ -1525,8 +1525,10 @@ requirements. Ubuntu binaries use the target series and retain the historical
 product and package revision. Existing fixed release-notes qualifications retain
 their own historical input pair.
 
-For a parallel selection, shared runner infrastructure prepares and binds each
-VM's independent pair before invoking that same `--previous-artifacts` route:
+For a parallel selection, VM workers on the same host share the current build
+for each build target and architecture within the frozen queue pass. Workers
+copy the verified inputs into their own retained allocations and invoke the same
+`--previous-artifacts` route:
 
 ```sh
 tools/run-tests system --vm 'NAME,OTHER_NAME' --id 287 --upgrade-inputs
@@ -1537,8 +1539,11 @@ real package update. `--upgrade-from=vX.Y` selects one supported dated source,
 including for replays after the date window changes. It cannot accompany explicit
 artifact paths. Each worker
 requires its registry `package_format` and verifies that format against the
-pinned baseline before building; there is no DEB/RPM default or case-specific
-builder. Preparation failure prevents that worker's installation. Existing
+pinned baseline before preparing inputs. The past-release package and its build
+provenance are cached permanently on the build host for that checkout, branch,
+release identity and target. Each attempt rechecks the binary and uses fixtures
+from its current build. The [test storage mandate](../../docs/Mandates/Test-Storage-Mandate.md#past-release-packages)
+owns publication and retention. Preparation failure prevents installation. Existing
 explicit current/previous input paths remain supported for one target.
 
 One baseline attempt installs and boots the old package, then runs

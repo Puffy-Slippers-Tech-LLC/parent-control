@@ -26,10 +26,6 @@ DEFAULT_BATCH_SIZE = 24
 SCHEMA = Path(__file__).with_name('sync_whatsnew_response.schema.json')
 
 
-def available_model(model, effort, subagents=0, *, selection=None):
-    agent_command(ROOT, None, model, effort, subagents, selection=selection).preflight()
-
-
 def agent_command(root, run, model, effort, subagents, *, selection=None):
     selection = selection or resolve_selection(root)
     model, effort = resolve_profile('translator', model=model, effort=effort, selection=selection)
@@ -356,8 +352,8 @@ def main(argv=None):
             release = catalogs.latest(ROOT) if pending_pull is None else None
             work = catalogs.pending(ROOT, release) if release is not None else {}
             if work:
-                available_model(model, effort, args.subagents, selection=selection)
-                agent_command(ROOT, run, model, effort, args.subagents, selection=selection)
+                # The supervisor prepares run-local profiles after allocation.
+                agent_command(ROOT, None, model, effort, args.subagents, selection=selection).preflight()
             return [sys.executable, '-IBu', str(Path(__file__).resolve()), '--worker', str(ROOT),
                     str(run), str(owner), model, effort, str(args.subagents), str(args.batch_size)]
 

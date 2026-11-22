@@ -253,11 +253,11 @@ def test_finish_refuses_concurrent_edit_without_losing_it(repository, tmp_path, 
 
 
 def test_lock_excludes_second_publisher_and_releases_on_error(repository):
-    with publish.locked(repository):
+    with publish.locked(repository, product='1.1'):
         with pytest.raises(ValueError, match='already running'):
-            with publish.locked(repository):
+            with publish.locked(repository, product='1.2'):
                 pytest.fail('second lock acquired')
-    with publish.locked(repository) as state_path:
+    with publish.locked(repository, product='1.2') as state_path:
         publish.save(state_path, {'phase': 'upload-started'})
         assert json.loads(state_path.read_text())['phase'] == 'upload-started'
 
@@ -271,7 +271,8 @@ def execution(tmp_path, monkeypatch):
                  revision='frozen', base='base', source_tag='v1.1+ppa1_ubuntu26.04.1',
                  product_tag='v1.1', branch='releases/v1.1', directory=str(directory),
                  checkout=str(ROOT), main_update={'phase': 'pending', 'checkout': str(ROOT)})
-    state_path = tmp_path / 'state.json'
+    state_path = tmp_path / 'v1.1' / 'state.json'
+    state_path.parent.mkdir()
     publish.save(state_path, state)
     calls = []
 
@@ -315,6 +316,20 @@ def execution(tmp_path, monkeypatch):
 
 def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkeypatch):
     state, path, calls = execution
+    # The same checkout previously published DEB and has an unfinished RPM
+    # attempt for a different release. Neither record belongs to this run.
+    journal_root = path.parent.parent
+    older_release = journal_root / 'v1.0'
+    older_release.mkdir()
+    old_journals = {}
+    for directory in (journal_root, older_release):
+        old_deb = directory / 'state.json'
+        old_channels = directory / 'channels.json'
+        publish.save(old_deb, {'product': '1.0', 'phase': 'complete'})
+        publish.save(old_channels, {'product': '1.0', 'branch': 'releases/v1.0',
+                                    'deb': {'phase': 'published'}, 'rpm': {'phase': 'upload-started'}})
+        old_journals.update({old: old.read_bytes() for old in (old_deb, old_channels)})
+    channels_path = path.with_name('channels.json')
     root = tmp_path / 'checkout'
     state['checkout'] = str(root)
     (root / 'data').mkdir(parents=True)
@@ -322,7 +337,7 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
     # Channel gates select the history product before metadata preparation.
     (root / 'data/app.json').write_text('{"version": "1.0"}')
     (root / publish.HISTORY).write_text(NOTES)
-    monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent)
+    monkeypatch.setattr(publish, 'journal_directory', lambda root: journal_root)
     original = publish.command
 
     def command(*args, **kwargs):
@@ -336,7 +351,7 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
         return []
 
     def submit(revision, authorization):
-        recorded = json.loads(path.with_name('channels.json').read_text())
+        recorded = json.loads(channels_path.read_text())
         assert recorded['rpm']['phase'] == 'upload-started'
         assert not any(call[0] == 'dput' for call in calls)
         assert ('wait',) not in calls
@@ -438,7 +453,7 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
 
     with pytest.raises(ValueError, match='publication failed for deb'):
         channels.run(root, publish)
-    channel_state = json.loads(path.with_name('channels.json').read_text())
+    channel_state = json.loads(channels_path.read_text())
     assert channel_state['rpm']['phase'] == 'published'
     assert json.loads(path.read_text())['phase'] == 'upload-started'
 
@@ -463,6 +478,12 @@ def test_full_workflow_publishes_without_local_tests(execution, tmp_path, monkey
     before = list(calls)
     channels.run(root, publish)
     assert all(call[:2] == ('git', 'symbolic-ref') or call == ('public-check',) for call in calls[len(before):])
+    assert {old: old.read_bytes() for old in old_journals} == old_journals
+    handoff = journal_root / 'channels-monitor.json'
+    assert json.loads(handoff.read_text())['journal'] == str(channels_path.resolve())
+    current = {journal: journal.read_bytes() for journal in (path, channels_path, handoff)}
+    channels.run(root, publish, status=True)
+    assert {journal: journal.read_bytes() for journal in current} == current
 
 
 @pytest.mark.parametrize('phase', ['upload-started', 'published'])
@@ -477,7 +498,7 @@ def test_resume_never_reuploads_or_rebuilds_an_attempted_upload(execution, phase
     main_phase = 'complete' if phase == 'upload-started' else 'pending'
     state.update(checkout=str(root), main_update={'phase': main_phase, 'checkout': str(root)})
     publish.save(path, state)
-    monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent)
+    monkeypatch.setattr(publish, 'journal_directory', lambda root: path.parent.parent)
     original = publish.command
     monkeypatch.setattr(publish, 'command', lambda *args, **kwargs:
                         state['branch'] if args[:3] == ('git', 'branch', '--show-current')
@@ -990,7 +1011,7 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
     state = dict(phase=phase, version=version, base=original_head, revision='release-commit',
                  checkout=str(repository), branch='releases/v1.1', directory='/missing-release-artifacts')
     # A reader also works while the publisher owns its lock.
-    with publish.locked(repository) as path:
+    with publish.locked(repository, product='1.1') as path:
         publish.save(path, state)
         journal_before = path.read_bytes()
         if changed_head:
@@ -1267,8 +1288,8 @@ def test_corrected_source_can_replace_only_attempts_without_public_writes(reposi
     directory.mkdir()
     state = dict(phase=phase, checkout=str(repository), directory=str(directory),
                  base='old-base', revision='old-release-commit', history_sha256='old-history',
-                 branch='releases/v1.1')
-    with publish.locked(repository) as path:
+                 branch='releases/v1.1', product='1.1')
+    with publish.locked(repository, product='1.1') as path:
         publish.save(path, state)
     prepared = []
 
@@ -1353,7 +1374,7 @@ def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, m
                  base=base, revision=revision, product='1.1', version='1.1+ppa1~ubuntu26.04.1',
                  source_tag='v1.1+ppa1_ubuntu26.04.1', product_tag='v1.1', directory=str(directory),
                  history_sha256=hashlib.sha256(NOTES.encode()).hexdigest())
-    with publish.locked(root) as path:
+    with publish.locked(root, product='1.1') as path:
         publish.save(path, state)
     common = Path(git(repository, 'rev-parse', '--git-common-dir'))
     if not common.is_absolute():
@@ -1450,22 +1471,22 @@ def test_release_isolation_and_interrupted_upload_resume(repository, tmp_path, m
 
 
 @pytest.mark.usefixtures('release_repository')
-@pytest.mark.parametrize('change', ['branch', 'checkout', 'legacy'])
+@pytest.mark.parametrize('change', ['branch', 'checkout', 'missing branch'])
 def test_resume_refuses_changed_owner_before_execution(repository, monkeypatch, change):
     base = git(repository, 'rev-parse', 'HEAD')
-    state = dict(phase='upload-started', checkout=str(repository), branch='releases/v1.1',
+    state = dict(phase='upload-started', checkout=str(repository), branch='releases/v1.1', product='1.1',
                  base=base, revision='frozen', history_sha256=hashlib.sha256(NOTES.encode()).hexdigest())
     if change == 'branch':
-        git(repository, 'switch', '-c', 'releases/v1.2')
+        state['branch'] = 'releases/v1.2'
     elif change == 'checkout':
         state['checkout'] += '-another-clone'
     else:
         del state['branch']
-    with publish.locked(repository) as path:
+    with publish.locked(repository, product='1.1') as path:
         publish.save(path, state)
     before = path.read_bytes()
     monkeypatch.setattr(publish, 'execute', lambda *args: pytest.fail('execution started'))
-    with pytest.raises(ValueError, match='branch|checkout|legacy'):
+    with pytest.raises(ValueError, match='branch|checkout'):
         publish.publish(repository)
     assert path.read_bytes() == before
 
@@ -1637,7 +1658,7 @@ def test_declining_publish_stops_before_preparation(main_update_candidate, monke
     monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('network before confirmation'))
     with pytest.raises(ValueError, match='cancelled'):
         publish.publish(root)
-    assert not (publish.journal_directory(root) / 'state.json').exists()
+    assert not (publish.journal_directory(root) / 'v1.1' / 'state.json').exists()
 
 
 def test_main_update_failure_cannot_claim_handoff_or_start_monitoring(execution, monkeypatch, capsys):

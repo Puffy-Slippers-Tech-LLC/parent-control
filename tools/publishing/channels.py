@@ -50,10 +50,10 @@ def deb_status(product, record, p):
     return 'absent', 'no submission for this product version'
 
 
-def check(channel, product, record, p):
+def check(channel, product, record, p, *, retry_rejected=False):
     try:
         state, detail = (deb_status(product, record, p) if channel == 'deb'
-                         else copr.status(product, record))
+                         else copr.status(product, record, retry_rejected=retry_rejected))
         return state, detail
     except (URLError, TimeoutError, ConnectionError) as error:
         # Unknown status is never permission to submit. Do not echo remote
@@ -115,15 +115,15 @@ def announce(product, channel, state, detail, p):
 
 
 def monitor(product, records, p, *, persist=None):
-    """Poll both channels together; a terminal failure cannot hide the other."""
+    """Poll the selected channels independently until each is terminal."""
     deadline = time.monotonic() + p.WAIT_SECONDS
     finished, failures = set(), {}
     previous = {}
     while True:
-        for channel in ACTIVE_CHANNELS:
+        for channel, record in records.items():
             if channel in finished:
                 continue
-            state, detail = check(channel, product, records[channel], p)
+            state, detail = check(channel, product, record, p)
             if state == 'absent':
                 state, detail = 'failed', 'this version has not been submitted'
             if previous.get(channel) != (state, detail):
@@ -134,10 +134,10 @@ def monitor(product, records, p, *, persist=None):
                 if state == 'failed':
                     failures[channel] = detail
                 else:
-                    records[channel]['phase'] = 'published'
+                    record['phase'] = 'published'
             if persist:
                 persist()
-        if len(finished) == len(ACTIVE_CHANNELS):
+        if len(finished) == len(records):
             break
         if time.monotonic() >= deadline:
             raise ValueError('channel publication not confirmed within 24 hours; rerun to monitor without resubmitting')
@@ -175,15 +175,17 @@ def monitor_status(root, p):
     monitor(state['product'], {key: dict(state[key]) for key in ACTIVE_CHANNELS}, p)
 
 
-def submit_rpm(root, directory, product, record, authorization, p, persist, *, expected_revision=None):
+def submit_rpm(root, directory, product, record, authorization, p, persist, *,
+               expected_revision=None, retry_rejected=False):
     revision = pin_source(root, directory, product, p)
     if expected_revision is not None and revision != expected_revision:
-        raise ValueError('COPR and Launchpad must publish the same signed source commit')
-    # Reconcile immediately before the first submission, after local preparation.
-    outcome, detail = check('rpm', product, record, p)
+        raise ValueError('COPR must use the same signed source commit as the recorded release')
+    # Reconcile immediately before submission, after source verification.
+    outcome, detail = check('rpm', product, record, p, retry_rejected=retry_rejected)
     if outcome in ('failed', 'uncertain'):
         persist()
-        raise ValueError(f'COPR pre-check blocked both submissions: {detail}')
+        action = 'retry' if retry_rejected else 'both submissions'
+        raise ValueError(f'COPR pre-check blocked {action}: {detail}')
     if outcome != 'absent':
         announce(product, 'rpm', outcome, detail, p)
         return
@@ -208,12 +210,27 @@ def submit_rpm(root, directory, product, record, authorization, p, persist, *, e
         p.say('COPR submission result uncertain; monitoring without resubmitting', error=True)
 
 
-def run(root, p, *, status=False):
-    if status or p.command('git', 'branch', '--show-current', cwd=root) == 'main':
+def retry_rpm(root, directory, product, record, p, persist):
+    revision = record.get('revision', '')
+    if (record.get('phase') != 'rejected' or record.get('http_status') != 400
+            or record.get('build_id') or not re.fullmatch(r'[0-9a-f]{40}', revision)):
+        raise ValueError('COPR retry requires a recorded HTTP 400 rejection without a build ID')
+    outcome, detail = check('rpm', product, record, p, retry_rejected=True)
+    if outcome in ('failed', 'uncertain'):
+        persist()
+        raise ValueError(f'COPR retry blocked: {detail}')
+    if outcome == 'absent':
+        submit_rpm(root, directory, product, record, copr.authorized_builder(), p, persist,
+                   expected_revision=revision, retry_rejected=True)
+    monitor(product, {'rpm': record}, p, persist=persist)
+
+
+def run(root, p, *, status=False, retry_rejected=False):
+    if status or (not retry_rejected and p.command('git', 'branch', '--show-current', cwd=root) == 'main'):
         return monitor_status(root, p)
     branch = p.publishing_branch(root)
     product = branch.removeprefix('releases/v')
-    with p.locked(root, attach=True, name='channels.lock', product=product) as deb_path:
+    with p.locked(root, attach=not retry_rejected, name='channels.lock', product=product) as deb_path:
         if deb_path is None:
             return monitor_status(root, p)
         history_product, _ = p.history_notes((root / p.HISTORY).read_text())
@@ -228,6 +245,9 @@ def run(root, p, *, status=False):
 
         def persist():
             p.save(path, state)
+
+        if retry_rejected:
+            return retry_rpm(root, path.parent, product, state['rpm'], p, persist)
 
         journal = merge_deb_journal(deb_path, state['deb'], p, product)
         # Only local submission intent can carry the shared gate across an
@@ -306,7 +326,7 @@ def run(root, p, *, status=False):
                 p.say(f'local monitoring handoff incomplete: {error}', error=True)
         monitor_error = None
         try:
-            monitor(product, state, p, persist=persist)
+            monitor(product, {channel: state[channel] for channel in ACTIVE_CHANNELS}, p, persist=persist)
         except ValueError as error:
             monitor_error = error
         # Complete legacy checkout synchronization after DEB publication. A

@@ -412,7 +412,22 @@ def host_main(argv=None):
         if args.expected_uuid is not None and identity(args.expected_uuid) != current:
             raise ValueError('vm-pool: provisioning VM identity changed')
         expected = identity(expected if expected is not None else current)
+
+        def select_registered_domain():
+            # The staged registry entry is only published after provisioning.
+            # Unregistered domains must be identified by the UUID from the caller.
+            configured = next((vm for vm in vm_config.registry().values()
+                               if name.casefold() in vm.selectors), None)
+            if configured is None:
+                if args.expected_uuid is None:
+                    raise ValueError('vm-pool: retirement of an unregistered VM requires its UUID')
+                return
+            if configured.name != name:
+                raise ValueError('vm-pool: retirement requires the canonical VM name')
+            vm_config.require_branch(vm_config.select(name), vm_config.current_branch())
+
         def retire():
+            select_registered_domain()
             connection = libvirt.open(vm_config.URI)
             try:
                 domain = connection.lookupByName(name)
@@ -432,7 +447,7 @@ def host_main(argv=None):
         from types import SimpleNamespace
         from e2e_watch import begin
         from watch_activity import operation
-        vm_config.select(name)
+        select_registered_domain()
         with operation('Retiring completed state for a recreated VM'), checkout(current, compute=False):
             holder = SimpleNamespace(watch=None)
             begin(holder)
@@ -503,8 +518,6 @@ def retire_domain_state(name, expected, *, checkout_uuid=None):
     if not os.path.lexists(directory):
         return
     original = base.private_baseline_directory(directory)
-    configured = vm_config.load(name)
-    vm_config.require_branch(configured, vm_config.current_branch())
     compatibility = base.compatibility_lock(directory)
     descriptor = None
     try:

@@ -126,8 +126,10 @@ Invalid IDs and IDs belonging to another VM are refused before provisioning, lea
 host's availability unchanged. Concurrent newvm calls serialize registry
 updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
-the affected name/path; retrying requires confirmation again for existing domains
-and never adopts an orphaned disk file.
+the affected name/path. Confirming overwrite recreates an existing domain and
+disk with a fresh UUID even when the previous attempt failed before publishing
+its registry entry. An orphaned disk without a domain still requires operator
+inspection before retrying.
 After installing an OS into a blank VM, enable the host if needed and follow the
 normal preparation workflow before scheduling tests. Local prerequisites are
 `python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains

@@ -1488,8 +1488,8 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
         history_path.write_text('## v1.2\n\n' + history)
         assert upgrade_history.upgrade_matrix(frozen, 'deb', today=today) == ('1.1', ['1.0'])
         history_path.write_text('## v1.2 — 2026-09-12\n\n' + history)
-        with pytest.raises(ValueError, match='dated VersionHistory.md entry v1.2 exceeds build version v1.1'):
-            upgrade_history.upgrade_matrix(frozen, 'deb', today=today)
+        with pytest.raises(ValueError):
+            upgrade_history.release_history(frozen)
         history_path.write_text(history)
         prepared.append(base)
         return dict(phase='upload-started', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),

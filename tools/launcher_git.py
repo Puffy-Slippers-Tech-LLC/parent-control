@@ -523,7 +523,7 @@ def closeout_lock(root, run, state):
     return transaction_lock(root, run)
 
 
-def commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None):
+def commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None, published_main=None):
     """Use $commit for launcher close-outs and their journaled recovery."""
     git = git or git_output
     selection = _operation_selection(root, selection)
@@ -537,7 +537,7 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None, selecti
                                  'for explicit Git reconciliation before resuming')
             return retry_git_transport(lambda deadline: _commit_with_skill(
                 root, run, state, paths, message, git=git, retry_deadline=deadline,
-                selection=selection),
+                selection=selection, published_main=published_main),
                 cancelled=lambda: (run / 'cancel').exists())
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         if state.get('task_id'):
@@ -551,7 +551,8 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None, selecti
         raise
 
 
-def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None, selection=None):
+def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None,
+                       selection=None, published_main=None):
     """Keep acceptance in the controller and Git ownership in the commit skill."""
     from launcher_worktrees import commit_skill_targets
     git = git_for_run(git, run, deadline=retry_deadline)
@@ -559,7 +560,11 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
     if not skill.is_file():
         raise ValueError('commit skill is missing: ' + str(skill))
     identity, head = validate_pull_identity(root, state, git=git)
-    targets = commit_skill_targets(root, git=git)
+    publishing = published_main is not None
+    if publishing and (paths or not re.fullmatch(r'[0-9a-f]{40}', published_main)
+                       or git(root, 'merge-base', '--is-ancestor', published_main, head, check=False).returncode):
+        raise ValueError('publishing propagation needs the already pushed main commit and no pending paths')
+    targets = commit_skill_targets(root, git=git, publishing=publishing)
     intent = state.get('commit_intent')
     review = None
     if ((state.get('git_reconciliation', {}).get('ownership_paths')
@@ -572,12 +577,16 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
             launcher.atomic(run / 'checkpoint.json', state)
     if intent is None:
         intent = state['commit_intent'] = dict(
-            engine='skill', session=uuid.uuid4().hex, parent=head, paths=list(paths), message=message,
+            engine='skill', session=uuid.uuid4().hex, parent=published_main or head,
+            paths=list(paths), message=message,
             **identity, targets=targets, ownership_review=review)
+        if publishing:
+            intent['pushed_head'] = published_main
         launcher.atomic(run / 'checkpoint.json', state)
     if (intent['paths'] != list(paths) or intent['message'] != message
             or any(intent[key] != identity[key] for key in identity)
-            or intent['targets'] != targets):
+            or intent['targets'] != targets
+            or (publishing and intent.get('pushed_head') != published_main)):
         raise ValueError('commit skill scope or branch destinations changed; retain the checkpoint')
     sessions = launcher.private_directory(run / 'commit-skill')
     session = launcher.private_directory(sessions / intent['session'])
@@ -588,15 +597,21 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
         result = json.loads(result_path.read_text())
         if result.get('status') == 'complete':
             return _verify_skill_completion(root, run, state, intent, targets, previous,
-                                            previous, git=git)
+                                            previous, git=git, publishing=publishing)
     schema = dict(type='object', additionalProperties=False,
         properties=dict(status=dict(type='string', enum=['complete', 'blocked']),
                         summary=dict(type='string')),
         required=['status', 'summary'])
     (session / 'response.schema.json').write_text(json.dumps(schema))
+    publishing_instructions = (
+        f'Publication has already pushed {published_main} to origin/main. Verify that origin/main '
+        'contains that commit, record it as source_commit and pushed_head, and make no writes to main. '
+        'Merge exactly that commit into each listed destination using detached worktrees and push only '
+        'the listed origin refs. Preserve all active checkouts and release refs.\n'
+        if publishing else '')
     (session / 'prompt.txt').write_text(f"""Use $commit, reading {skill}, to close out this accepted launcher task.
 The user authorized the full skill workflow. Do not start another launcher.
-The controller holds the repository Git transaction lock. Do not acquire it
+{publishing_instructions}The controller holds the repository Git transaction lock. Do not acquire it
 again or invoke private launcher Git helpers. Perform Git operations directly.
 On a transient Git network/service failure, journal progress and return blocked
 with the exact Git diagnostic. The controller owns timed outage retries using
@@ -680,7 +695,8 @@ blocker and completed destinations. Do not modify the controller checkpoint.
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         selected = _operation_selection(root, selection).get()
-        launcher.atomic(session / 'intent.json', dict(intent, agent_selection=selected.record()))
+        launcher.atomic(session / 'intent.json', dict(intent, agent_selection=selected.record(),
+                                                     published_main=published_main))
         command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                    '--commit-skill', str(root), str(session), str(owner)]
         from test_source import descriptors as source_descriptors
@@ -710,10 +726,10 @@ blocker and completed destinations. Do not modify the controller checkpoint.
         raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
     progress = json.loads(receipt.read_text())
     return _verify_skill_completion(root, run, state, intent, targets, progress, previous,
-                                    git=git)
+                                    git=git, publishing=publishing)
 
 
-def _verify_skill_completion(root, run, state, intent, targets, progress, previous, *, git):
+def _verify_skill_completion(root, run, state, intent, targets, progress, previous, *, git, publishing=False):
     """Retry independent verification without replaying a completed skill session."""
     from launcher_worktrees import commit_skill_targets
 
@@ -728,7 +744,7 @@ def _verify_skill_completion(root, run, state, intent, targets, progress, previo
         raise ValueError('commit skill source HEAD no longer contains the pushed commit')
     if git(root, 'merge-base', '--is-ancestor', intent['parent'], commit, check=False).returncode:
         raise ValueError('commit skill pushed HEAD does not preserve the original source history')
-    if commit_skill_targets(root, git=git) != targets:
+    if commit_skill_targets(root, git=git, publishing=publishing) != targets:
         raise ValueError('commit skill destination identities changed during close-out')
     # Pin identity before network verification can fail. This records no
     # completion credit; the caller still requires every remote check to pass.
@@ -765,8 +781,18 @@ if __name__ == '__main__':
     selection = (AgentSelection.from_record(intent['agent_selection'], root=root)
                  if 'agent_selection' in intent else resolve_selection(root))
     model, effort = resolve_profile('commit_helper', selection=selection)
+    shell_environment = ()
+    if intent.get('published_main'):
+        # Publication keeps Git config isolation. Use the already published
+        # development commit's author for any destination merge commits.
+        author = git_output(root, 'show', '-s', '--format=%an%x00%ae', intent['published_main']).stdout
+        name, email = author.rstrip('\n').split('\0')
+        shell_environment = (('GIT_CONFIG_GLOBAL', '/dev/null'), ('GIT_CONFIG_NOSYSTEM', '1'),
+                             ('GIT_AUTHOR_NAME', name), ('GIT_AUTHOR_EMAIL', email),
+                             ('GIT_COMMITTER_NAME', name), ('GIT_COMMITTER_EMAIL', email))
     command = launcher.agent_command(root, model, effort, session,
         schema=session / 'response.schema.json', selection=selection, logical_tier='commit_helper',
+        shell_environment=shell_environment,
         extra_directories=tuple(Path(target['path']) for target in intent['targets'] if target.get('path')))
     command.preflight()
     sys.exit(launcher.supervise(root, session, owner, 'agent', command))

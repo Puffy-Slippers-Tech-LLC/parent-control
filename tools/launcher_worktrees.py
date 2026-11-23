@@ -94,7 +94,7 @@ def transaction_lock(root, run, *, git=git_output):
     print('Git: repository synchronization lock released.', flush=True)
 
 
-def configured_targets(root, *, git=git_output):
+def configured_targets(root, *, git=git_output, remote_only=False):
     path = root / 'config/environment.json'
     if not path.exists():
         return []
@@ -120,7 +120,7 @@ def configured_targets(root, *, git=git_output):
             raise ValueError(f'invalid configured worktree branch: {name}')
         if name == current:
             continue
-        if entry['host'] != source['host']:
+        if remote_only or entry['host'] != source['host']:
             targets.append(dict(branch=name, remote_target=True))
         elif name not in branches or branches[name] != Path(entry['repo_root']).resolve():
             raise ValueError(f'configured same-host branch needs its registered worktree: {name}')
@@ -129,10 +129,17 @@ def configured_targets(root, *, git=git_output):
     return targets
 
 
-def commit_skill_targets(root, *, git=git_output):
+def commit_skill_targets(root, *, git=git_output, publishing=False):
     """Freeze source and destination remote identities for skill verification."""
-    destinations = configured_targets(root, git=git)
+    destinations = configured_targets(root, git=git, remote_only=publishing)
     source = _run(git, root, 'symbolic-ref', '--quiet', '--short', 'HEAD')
+    if publishing:
+        if source != 'main' or _branch_upstream(git, root, source) != ['origin', 'refs/heads/main']:
+            raise ValueError('publishing propagation requires main to track origin/main')
+        names = [source, *(target['branch'] for target in destinations)]
+        if any(name.startswith('releases/') for name in names):
+            raise ValueError('publishing propagation only accepts configured development branches')
+        return [dict(branch=name, remote='origin', ref='refs/heads/' + name) for name in names]
     result = []
     for target in [dict(branch=source), *destinations]:
         if (target.get('path') or target['branch'] == source) and not _branch_upstream(

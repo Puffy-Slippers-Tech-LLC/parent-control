@@ -20,9 +20,10 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
         tmp_path, release_date, expected_version):
     root, copied = tmp_path / 'working', tmp_path / 'copy'
     root.mkdir()
+    notes = '- Next release.' if release_date else '### Bug Fixes'
     for name, content in {
         'data/app.json': '{"version": "1.0"}\n',
-        'docs/VersionHistory.md': f'## v1.1{release_date}\n- Next release.\n\n## v1.0 — 2026-09-10\n- Initial.\n',
+        'docs/VersionHistory.md': f'## v1.1{release_date}\n{notes}\n\n## v1.0 — 2026-09-10\n- Initial.\n',
         'debian/changelog': publish.changelog_entry('1.0+ppa1~ubuntu26.04.1', '- Initial.'),
         'Makefile': ('package-source-files:\n'
                      '\t@printf "%s\\n" Makefile data/app.json debian/changelog tool new-file\n'),
@@ -54,8 +55,10 @@ def test_snapshot_includes_working_changes_and_prepares_history_without_mutating
     assert not (copied / 'tests').exists()
     assert not (copied / 'tools').exists()
     assert json.loads((copied / 'data/app.json').read_text())['version'] == expected_version
-    assert (copied / 'debian/changelog').read_text().startswith(
-        'oh-no-parent-control (1.1+local1~ubuntu26.04.1)')
+    changelog = (copied / 'debian/changelog').read_text()
+    assert changelog.startswith('oh-no-parent-control (1.1+local1~ubuntu26.04.1)')
+    expected_note = 'Next release.' if release_date else 'Start development builds for version 1.1.'
+    assert f'  * {expected_note}\n' in changelog
     if not release_date.endswith('2026-09-11'):
         with pytest.raises(ValueError, match='invalid VersionHistory.md heading'):
             publish.history_entry((root / 'docs/VersionHistory.md').read_text(), '1.1')

@@ -1,7 +1,7 @@
 # Publish an app upgrade
 
-Prepare and test the candidate on `main` before publishing. Add the next product
-entry to [`VersionHistory.md`](VersionHistory.md), then run:
+Prepare and test the candidate on `main` before publishing. Fill the next draft
+in [`VersionHistory.md`](VersionHistory.md), adding the heading if needed, then run:
 
 ```sh
 make updateversion
@@ -198,11 +198,9 @@ channel support does not establish platform qualification.
 
 The publisher highlights the main checkout and asks you to confirm that it is
 clean and development is paused. Keep main paused until the highlighted
-**MAIN UPDATED** message appears. That message means the metadata cherry-pick
-and push have completed, and local main is clean and synchronized with
-`origin/main`. Resume development immediately; Launchpad monitoring and release
-checkout finalization continue independently. No manual fetch, pull,
-cherry-pick or push is needed on main after this handoff.
+**MAIN UPDATED** message appears. The next development version is ready in
+main and the configured branches. Resume development or launch VM tests while
+publication monitoring and release checkout finalization continue.
 
 You may make additional changes in the release checkout after branching from
 main. On `make publish`, the publisher stages and commits all pending tracked
@@ -286,8 +284,9 @@ notes become the Debian/PPA changelog, with Markdown styling removed.
 
 `make updateversion` sets the app version to the newest history version, accepting
 an undated top heading such as `## v1.3 -` for private builds. All older headings
-must be dated; the newest notes must contain a change bullet. Publication requires
-every heading to be dated. Fresh publication performs the same version preparation
+must be dated. An undated draft without a change bullet gets a default development
+entry in the Debian changelog. Publication requires dated headings and a change
+bullet in the latest entry. Fresh publication performs the same version preparation
 and local builds automatically; unchanged interrupted attempts resume without
 rebuilding, and monitoring remains read-only.
 The official Debian version adds
@@ -324,7 +323,9 @@ set the signing passphrase as a literal assignment in the user's private
 Single-quote values containing dollar signs or backticks. The signer parses the
 assignment without executing `.envrc`, sends the value to GnuPG through a private
 pipe, and removes signing secrets from build, test, Git and upload environments.
-Setup/account provisioning is separate from routine publishing.
+The configured checkout and authenticated agent must also be ready for the
+existing [`$commit` workflow](../.agents/skills/commit/SKILL.md), which propagates
+the development commit. Setup/account provisioning is separate from routine publishing.
 
 ## Local publishing tests
 
@@ -425,9 +426,9 @@ and signs the release commit and both version tags. It then:
 2. Atomically pushes the release commit to its recorded `releases/vX.Y` branch
    and the signed tags,
    verifies public access to the tagged source, and uploads only source artifacts.
-3. Automatically cherry-picks the release metadata onto main, pushes main, and
-   updates the local main checkout and its remote tracking ref. The highlighted
-   **MAIN UPDATED** message releases the development pause.
+3. Automatically brings the release metadata to main, builds and commits its
+   next development version, and propagates main to every configured development
+   branch. The highlighted **MAIN UPDATED** message releases the development pause.
 4. Waits for the exact source, successful amd64 build, binary publication, and
    PPA `Packages.gz` index. It downloads the indexed binary and verifies its size
    and SHA-256 before reporting success in green.
@@ -457,37 +458,38 @@ while retaining a separate full test-input identity for acceptance evidence.
 
 ## Bring release metadata back to main
 
-The generated release commit changes `debian/changelog` to the official PPA
-revision. The product version and release notes were already committed on main
-before branching. After the source
-push and upload attempt, the publisher prepares a signed cherry-pick in a
-temporary clone of the confirmed main checkout. It incorporates remote main
-through a fast-forward, pushes the updated main without force, then fast-forwards
-the clean local main checkout and refreshes `origin/main`. Existing committed
-local main work is included in that push. Uncommitted work, an active Git
-operation, a wrong checkout/remote, diverged histories or a cherry-pick conflict
-stop the update. Conflicts remain in the retained temporary checkout; the
-publisher never starts a cherry-pick operation in the active development tree.
+After the source push and upload attempt, the publisher fast-forwards a temporary
+clone of the confirmed main checkout and cherry-picks the signed release metadata.
+It then increments the minor version, for example from `2.0` to `2.1`, and adds an
+empty, undated heading above the dated release. The same version preparation used
+by `make updateversion` updates `data/app.json` and generates a private Debian
+changelog entry. The publisher commits the three files and applies both commits
+to main through a normal push and fast-forward of the clean local checkout. The
+queued builder then builds that exact development revision from main.
 
-The **MAIN UPDATED** message appears only after local main is clean and agrees
-with the fetched remote main. Nothing further is required on main. Its metadata
-records the submitted release baseline, not proof of successful publication.
-The release checkout monitors and finalizes delivery.
-The pause includes source preparation, signing and upload, so it can take
-minutes; it does not include waiting for Launchpad to build or publish binaries.
+The publisher verifies the released tag locally for upgrade discovery and uses
+`$commit` to propagate the development commit to the configured branches on
+`origin` from detached worktrees. The release checkout stays on its release branch.
+Uncommitted main work, an active Git operation, the wrong checkout or remote,
+diverged histories or a cherry-pick conflict stop the main update. Conflicts in
+preparation remain in the retained temporary checkout.
+
+The green **MAIN UPDATED** message appears once the development build and
+propagation finish and local main is clean and agrees with `origin/main`. Main
+can then run VM tests against the new version while the release checkout keeps
+monitoring delivery. The pause covers source preparation, signing, upload,
+the next-version build and branch propagation.
 
 The journal records the main checkout, candidate commit and update phase before
 pushing or fast-forwarding. Interrupted updates reuse that exact candidate and
-recognize an already accepted main push or completed local fast-forward. Once
+recognize an accepted push, local fast-forward or completed propagation. Once
 the main update is recorded complete, publication retries preserve any new main
-development and do not apply the cherry-pick again. If main changes while the
-candidate is being applied, the publisher stops rather than overwriting it; preserve the journal
-and resolve the reported condition before retrying.
+development. If main changes while the candidate is being applied, the publisher
+preserves the work and reports the conflict before unlocking main.
 
-Before preparing the next release, main must contain the preceding release's
-metadata. Add the next newer history entry above it, run `make updateversion`,
-complete private upgrade testing, commit the new release inputs, and create the
-next release branch. If Launchpad rejects a source or a
+Before preparing the next release, fill and date the draft on main, run
+`make updateversion`, complete private upgrade testing, commit the release inputs,
+and create the next release branch. If Launchpad rejects a source or a
 build fails, resolve that failure with a newer product release as described
 below; preserve the submitted version and tags.
 
@@ -499,13 +501,10 @@ checkout. The release's `onpc-publish/vX.Y/state.json` records the checkout iden
 publishing branch, exact source, version, artifacts and phase. Linked worktrees
 use their own Git directories, so their journals and publishing locks are
 independent of main's. Independent clones also own separate journals and locks.
-No development, build, test or repository activity lock is acquired. The main
-pause is your confirmed coordination with the publisher, not an enforced lock.
-Ordinary
-Git operations still take their short-lived Git locks when updating release
-refs or checkout indexes; there is no long-lived lock held on main while
-building, uploading or monitoring. Main is updated only during the confirmed
-handoff and is available for development during monitoring.
+The main pause is your confirmed coordination with the publisher. Git takes its
+ordinary locks when updating refs and indexes, and `$commit` takes the shared
+repository lock during propagation. Main is updated during the confirmed handoff
+and available for development during monitoring.
 
 Use the same branch and checkout to resume a release. The checkout can publish
 later versions while retaining older journals. A different clone has no

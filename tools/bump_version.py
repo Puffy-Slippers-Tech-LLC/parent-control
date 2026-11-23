@@ -29,12 +29,12 @@ def history_notes(text: str, *, allow_draft: bool = False) -> tuple[str, str]:
     headings = list(re.finditer(r'^## (.+)$', text, re.M))
     if len(headings) < 2:
         raise VersionError('VersionHistory.md needs at least two ## vX.Y — YYYY-MM-DD entries')
+    draft = (re.fullmatch(r'v([0-9]+\.[0-9]+)(?: (?:—|-))?', headings[0][1].strip())
+             if allow_draft else None)
     versions = []
     for index, heading in enumerate(headings):
         match = re.fullmatch(r'v([0-9]+\.[0-9]+) (?:—|-) ([0-9]{4}-[0-9]{2}-[0-9]{2})', heading[1])
-        draft = (re.fullmatch(r'v([0-9]+\.[0-9]+)(?: (?:—|-))?', heading[1].strip())
-                 if allow_draft and index == 0 else None)
-        if match is None and draft is None:
+        if match is None and (index != 0 or draft is None):
             raise VersionError('invalid VersionHistory.md heading; expected ## vX.Y — YYYY-MM-DD')
         version = (match or draft)[1]
         versions.append((version, parse_product_version(version)))
@@ -46,11 +46,14 @@ def history_notes(text: str, *, allow_draft: bool = False) -> tuple[str, str]:
     if any(a[1] <= b[1] for a, b in zip(versions, versions[1:])):
         raise VersionError('VersionHistory.md versions must be unique and newest first')
     body = text[headings[0].end():headings[1].start()].strip()
-    if not re.search(r'^[-*] \S', body, re.M):
-        raise VersionError('new version entry needs at least one change bullet')
     if any(ord(char) < 32 and char not in '\n\t' for char in body) or '\x7f' in body:
         raise VersionError('version notes contain control characters')
-    return versions[0][0], body
+    product = versions[0][0]
+    if not re.search(r'^[-*] \S', body, re.M):
+        if draft is None:
+            raise VersionError('new version entry needs at least one change bullet')
+        body = f'- Start development builds for version {product}.'
+    return product, body
 
 
 def format_changelog(version: str, body: str,
@@ -109,6 +112,21 @@ def update_from_history(root: Path, text: str | None = None) -> str:
     replace_text_atomically(metadata, staged_metadata(product))
     print(f'Prepared private product {product} ({private}).')
     return product
+
+
+def start_next_development(root: Path, released: str) -> str:
+    """Start the next minor draft in the publisher's private checkout."""
+    major, minor = parse_product_version(released)
+    version = f'{major}.{minor + 1}'
+    path = root / 'docs/VersionHistory.md'
+    history = path.read_text(encoding='utf-8')
+    if history_notes(history)[0] != released:
+        raise VersionError(f'latest dated entry must be v{released} to start v{version}')
+
+    draft = f'## v{version}\n\n' + history
+    update_from_history(root, draft)
+    replace_text_atomically(path, draft)
+    return version
 
 
 def parse_product_version(value: object) -> tuple[int, int]:

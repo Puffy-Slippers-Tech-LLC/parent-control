@@ -764,7 +764,7 @@ def install_previous(*, original_debdb=False):
     }))
 
 
-def upgrade():
+def upgrade(*, match_activation=False):
     marker = guard()
     enable_diagnostics()
     wait_for_boot()
@@ -783,15 +783,28 @@ def upgrade():
                   baseline_sha256=marker['baseline_sha256'])
     (PAYLOAD / 'before.json').write_text(json.dumps(before))
     from guest_install_recipe import install as install_recipe
-    install_recipe(run, guard, package)
-    verify_package_files(package)
+    expected_reboot = True
+    activation = Path('/usr/share/oh-no-parent-control/package-activation.json')
+    with tempfile.TemporaryDirectory(dir=PAYLOAD / 'private') as directory:
+        old_activation = Path(directory) / activation.name
+        if match_activation and activation.is_file():
+            shutil.copyfile(activation, old_activation)
+        install_recipe(run, guard, package)
+        verify_package_files(package)
+        if match_activation:
+            impacts = run(['/usr/libexec/oh-no-parent-control-package-activation', 'changed-impacts',
+                           '--old', str(old_activation), '--new', str(activation)]).splitlines()
+            expected_reboot = ('reboot' in impacts or
+                               Path('/run/oh-no-parent-control-child-trust-reboot').is_file())
     prelease_gate = verify_upgrade_admission_receipt(boot)
-    require(reboot_requested(),
-            'updated-package-did-not-request-reboot')
+    if expected_reboot:
+        require(reboot_requested(), 'updated-package-did-not-request-reboot')
+    else:
+        require(reboot_cleared(), 'updated-package-requested-unexpected-reboot')
     (PAYLOAD / 'results/update-activation.json').write_text(json.dumps({
         'previous_package_sha256': before['previous_package_sha256'],
         'package_sha256': marker['package_sha256'], 'old_package_reboot_observed': True,
-        'product_reboot_marker_absent_before_update': True, 'update_requested_reboot': True,
+        'product_reboot_marker_absent_before_update': True, 'update_requested_reboot': expected_reboot,
         'same_version_reinstall': same_version,
         'prelease_removal_boot_gate': prelease_gate,
     }, sort_keys=True))
@@ -1345,6 +1358,8 @@ def main(argv=None):
             prepare_activation_greeter()
         elif argv == ['install-previous', '--original-debdb']:
             install_previous(original_debdb=True)
+        elif argv == ['upgrade', '--match-activation']:
+            upgrade(match_activation=True)
         else:
             require(argv in (['guard'], ['before-install'], ['install'],
                              ['install-previous'], ['upgrade'], ['install-setup'],

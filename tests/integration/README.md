@@ -1505,11 +1505,13 @@ the same-version reinstall observation. Neither package is installed on the host
 genuine earlier-release history to that route. The candidate is the latest main
 build. On main the launcher builds the checkout it is running from. Other
 branches use the locally available `origin/main` or `main` Git revision.
-The runner parses [main's release history](../../docs/VersionHistory.md). An
-undated top entry is the build version and must agree with `data/app.json`.
-Earlier releases with dates from the past two calendar months, including the
-cutoff day, run oldest first. Fedora requires v1.5 or later. When the window is
-empty, each format uses its newest eligible earlier release. Each source gets a
+The runner parses [main's release history](../../docs/VersionHistory.md) and
+takes the build version from `data/app.json`. The undated top entry can describe
+that build or a future draft. A future draft requires a dated entry matching the
+build and does not participate in upgrade selection. Earlier releases with dates
+from the past two calendar months, including the cutoff day, run oldest first.
+Fedora requires v1.5 or later. When the window is empty, each format uses its
+newest eligible earlier release. Each source gets a
 separate attempt and checkpoint identity bound to the target build.
 
 To prepare just one pair, use `tools/run-tests artifacts prepare --for-vm
@@ -1554,9 +1556,12 @@ custom request choices and a real Polkit-approved fixed request for twelve
 additional hours.
 The grant's exact issuance/duration must survive; its remaining wall-clock time
 must decrease across update/reboot, following [grant arithmetic](../../docs/SystemDesign/Screen-Time.md#grant-arithmetic-and-usage-identities).
-Before reboot, policy activation returns the exact reboot-required refusal;
-current distro PAM verification and absence of retired legacy integration
-state/helper replace the removed private admission-receipt assertion. After reboot, public policy/time
+The upgrade marker must agree with the installed package manifests and any
+deferred child trust activation. When a reboot is required, policy activation
+returns the exact reboot-required refusal. Otherwise the broker must already
+serve policy calls. The test verifies current distro PAM and retirement of
+obsolete integration state in both cases. It then reboots to verify persistence.
+After reboot, public policy/time
 queries, session preparation, hard-app denial, approved soft-app execution,
 unrelated-user execution and saved identity/policy preservation must pass.
 The kiosk shell must reach `/usr/sbin/nologin` from the source release's expected

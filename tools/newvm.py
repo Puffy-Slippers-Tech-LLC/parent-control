@@ -163,7 +163,7 @@ def provision(request):
         # A removed domain may still have completed provenance under its name.
         # Retire it before accepting this new lifecycle, then clear installed pins.
         run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
-             '/usr/local/libexec/onpc-test-runner', 'pool-retire', request['name']],
+             '/usr/local/libexec/onpc-test-runner', 'pool-retire', request['name'], request['uuid']],
             cwd=request['checkout'])
         run([str(Path(request['checkout']) / 'setup.sh'), '--test-tools-only'],
             cwd=request['checkout'])

@@ -340,10 +340,10 @@ UUID pins refresh once after the workers finish.
 
 Automatic updates use Ubuntu's scripting interface,
 [`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
-refresh indexes with errors treated as failures, run a noninteractive
-`dist-upgrade` with a bounded package-lock wait, then `apt-get check`. Existing
-locally changed configuration files are retained when no package default resolves
-the choice. This updates packages from configured repositories within the
+refresh indexes with strict error handling and up to three attempts, run a
+noninteractive `dist-upgrade` with a bounded package-lock wait, then `apt-get check`. Existing
+locally changed configuration files are retained when no package default
+resolves the choice. This updates packages from configured repositories within the
 current Ubuntu release. `/run/reboot-required` triggers a full power cycle; the
 second boot verifies the new boot identity and prerequisite package inventory.
 Update, setup or verification failure prevents baseline replacement. App

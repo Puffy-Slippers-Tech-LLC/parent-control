@@ -146,8 +146,20 @@ def update_system(os_id='ubuntu'):
         raise ValueError('baseline:unsupported-os')
     for command in commands:
         print('baseline: updating ' + os_id + ': ' + command[-1], flush=True)
-        subprocess.run(command, check=True, timeout=3600, env=environment,
-                       stdin=subprocess.DEVNULL)
+        # APT does not classify every gateway error (such as HTTP 525) as
+        # retryable. Retry the index refresh with the same strict checks.
+        attempts = 3 if command[-1] == 'update' else 1
+        for attempt in range(1, attempts + 1):
+            try:
+                subprocess.run(command, check=True, timeout=3600, env=environment,
+                               stdin=subprocess.DEVNULL)
+            except subprocess.CalledProcessError as error:
+                if error.returncode != 100 or attempt == attempts:
+                    raise
+                print('baseline: [update:apt-index-retry] retrying Ubuntu index refresh', flush=True)
+                time.sleep(5)
+            else:
+                break
     reconcile_native_packages(os_id)
     prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
         snap_prepared=prepare_vm.vm_config.snap_tests_enabled())

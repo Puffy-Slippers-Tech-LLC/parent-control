@@ -15,7 +15,8 @@ def qualify(journey, guard):
     source = ('import types\ncontrol = types.ModuleType("control")\n'
               f'exec({control!r}, control.__dict__)\nprobe_source = {probe!r}\n' + probe).encode()
     with operation('Engineering-only native disable and rollback observation in the unlocked child session'):
-        raw = journey.transport.call(['/usr/bin/python3', '-I', '-'], input=source, timeout=240)
+        raw = journey.transport.call(['env', 'ONPC_EXPECTED_RUN=' + journey.context.lease.state['run'],
+            '/usr/bin/python3', '-I', '-B', '-'], input=source, timeout=240)
     require(type(raw) is bytes and 0 < len(raw) < 512 * 1024, 'disable-engineering:response-bound')
     value = json.loads(raw)
     require(type(value) is dict and value.get('engineering_only') is True

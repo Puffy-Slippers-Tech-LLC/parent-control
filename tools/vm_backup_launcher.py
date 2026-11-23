@@ -30,7 +30,8 @@ def main(action, argv=None):
         'Restore the baseline, delete baseline/app snapshots, then back up powered-off VMs.' if action == 'backup' else
         'Restore complete VM backups, then run prepare-vm --mode auto.'), allow_abbrev=False)
     parser.add_argument('--vm', default='all', help=(
-        'VM name or ID, comma-separated names/IDs, all-enabled, or all (default; '
+        'VM name/ID, inclusive VM ID range, family name/ID, comma-separated mixture, '
+        'all-enabled, or all (default; '
         'offline VMs/hosts are skipped). Archive copying/restoration is serial; restored VM '
         'preparation uses registry concurrency.'))
     args = vm_config.parse_vm_arguments(parser, argv)

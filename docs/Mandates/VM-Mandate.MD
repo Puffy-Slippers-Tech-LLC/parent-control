@@ -40,7 +40,7 @@ and cleanup.
 
 | Tool | Explicit selector | When omitted | Scheduling |
 | --- | --- | --- | --- |
-| `tools/run-tests`, `tools/fix-tests` | VM name/ID or family name/ID, comma-separated mixture, `all-enabled`, `all` | Enabled queue for VM work | Host compute cap |
+| `tools/run-tests`, `tools/fix-tests` | VM name/ID, VM ID range, or family name/ID, comma-separated mixture, `all-enabled`, `all` | Enabled queue for VM work | Host compute cap |
 | `tools/prepare-vm` | Same queue selectors | `all` online entries, in both modes | Host compute cap; isolated workers |
 | `tools/prepare-appsnapshot` | Same queue selectors | Enabled queue | Host compute cap; isolated workers |
 | `tools/backupvm`, `tools/restorevm` | Same queue selectors | `all` online entries | Archive work is serial; preparation after restore uses host compute admission |
@@ -63,8 +63,8 @@ default uses every host whose `default_host` is the string `"true"` in
 `config/environment.json`. If none are marked, all hosts are eligible. An explicit
 `--vmhost` overrides the defaults. For new VM work, omitted, family and
 `all`/`all-enabled` VM selectors use the shared default. A selection consisting
-solely of exact VM names, IDs or aliases pins those targets. An execution plan
-selects a VM pool when requested through `--vm`. Bare test resume restores the
+solely of exact VM names, IDs, ID ranges or aliases pins those targets. An
+execution plan selects a VM pool when requested through `--vm`. Bare test resume restores the
 saved VM selection. Stop, reload
 and Watch controls use the active run's VM selection. Standalone VM artifact
 preparation uses its explicit VM target. Single-VM tools require `--vm` and
@@ -73,9 +73,15 @@ and empty intersections refuse before VM work. `--vmhost` conflicts with
 `cleanup-e2e --host-only`. Arguments after `--` belong to the invoked command and
 are never interpreted as host or VM filters.
 
-Queue selectors expand each family name or ID to all its eligible VMs. VM IDs/names
-and family IDs/names may be mixed in one comma-separated `--vm` value, forming a union. Duplicate aliases
-and overlapping families execute each VM once, in first-selected order; invalid
+Queue selectors expand each family name or ID to all its eligible VMs. VM IDs,
+VM names, VM ID ranges and family selectors may be mixed in one comma-separated
+`--vm` value. A range such as `301-303` selects registered VM IDs from 301 through
+303 in ascending order, allowing gaps. Range endpoints are decimal integers
+written with digits and a single hyphen, with the lower endpoint first. The
+registry rejects VM names and aliases, family names, and family IDs that use
+this syntax. Hyphens are allowed in names such as `onpc-Ubuntu26.04-301`.
+Range members follow the same eligibility and branch rules as individual VM IDs.
+Overlapping selectors execute each VM once, in first-selected order. Invalid
 selectors fail before work starts. `--vm all` selects every registered family
 in registry order and remains subject to the same host filter as a family list.
 A VM's optional `aliases` array maps former names to that VM's canonical name.

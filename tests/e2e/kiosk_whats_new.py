@@ -113,27 +113,19 @@ class KioskWhatsNewJourney(KioskRequestJourney):
                 '/usr/share/oh-no-parent-control/whats-new-child.toml'],
                 'kiosk-whats-new:installed-source')
             current = json.loads((system.ROOT / 'data/app.json').read_bytes())['version']
+            current_key = version_key(current)
             previous_version = self.previous_version(current)
             previous = version_key(previous_version)
+            child_release = '1.4'
             require(previous in (version_key('1.2'), version_key('1.3'))
-                    and version_key(current) == version_key('2.0'),
+                    and previous < version_key(child_release) < current_key,
                     'kiosk-whats-new:qualification-upgrade-range')
             records = tomllib.loads(source.decode())['records']
-            eligible = sorted((record for record in records if
-                version_key(record['ProductVersion']) == version_key(current) or
-                previous < version_key(record['ProductVersion']) < version_key(current)),
-                key=lambda record: version_key(record['ProductVersion']))
-            require(eligible, 'kiosk-whats-new:no-eligible-content')
-            require([record['ProductVersion'] for record in eligible] == ['1.4'],
+            eligible = [record for record in records
+                        if previous < version_key(record['ProductVersion']) <= current_key]
+            require([record['ProductVersion'] for record in eligible] == [child_release],
                     'kiosk-whats-new:qualification-release')
-            combined = len(eligible) > 1 or version_key(eligible[0]['ProductVersion']) != version_key(current)
-            expected = []
-            for record in eligible:
-                if combined:
-                    if expected:
-                        expected.append('')
-                    expected.append('v' + record['ProductVersion'])
-                expected.extend(source_blocks(record['Content']))
+            expected = ['v' + child_release, *source_blocks(eligible[0]['Content'])]
             value = observed['ui']['whats_new']
             require(value == {'title': "What's New in v" + current, 'blocks': expected},
                     'kiosk-whats-new:displayed-child-content')

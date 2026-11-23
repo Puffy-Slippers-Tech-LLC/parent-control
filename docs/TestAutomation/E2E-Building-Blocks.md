@@ -3077,11 +3077,12 @@ to every route; external-send authorization applies only to optional real sendin
 | FEED18 | C | Activate Stop sending and close once, then independently require actual report closure and its recorded component exit callback. | Reuse the request component preview's real dialog and fake sender under the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation). Installed desktop/GDM return remains with real request-exit owners. Stopping ends pending retries and cannot recall an already accepted request. | pending component assertions; no installed destination credit |
 | TIME05 | A | Read actual local date/time, UTC offset and timezone through bounded `date`/`timedatectl` output over guarded SSH. Do not change them. | `ReadOnlyObservations.local_calendar(boundary_epoch_ns=None)` uses `guest_observations.LOCAL_CALENDAR` and independent Python clock/localtime readback, canonical validation, boot continuity and controller monotonic bracketing within one 180-second deadline. Local text has one-second precision; UTC nanoseconds plus numeric offsets distinguish repeated local hours. Retry only reads crossing midnight, an offset change or the declared UTC boundary. No Shell calendar or Settings page. Natural calendar windows and product countdown assertions remain required. | ready for ordinary-day clock observation on Ubuntu 26.04 through `check_e2e_read_local_calendar_and_timezone`; natural-window scenarios retain separate acceptance |
 
-Case 265 also passed on Fedora 44 in English through the genuine 1.3→2.0
-RPM upgrade. INFO03's content oracle reads the predecessor from the verified
-package input and still requires exactly Child 1.4 content, the unchanged
-75-second request, unchanged saved policy and zero balances. Normal Cancel,
-Parent logout, collection, worker closure and baseline restoration passed.
+Case 265 also passed in English on Fedora 44 with the 1.3→2.0 RPM upgrade and
+on Fedora 45 with the 1.3→2.1 RPM upgrade. INFO03's content oracle reads the
+predecessor from the verified package input and requires exactly Child 1.4
+content, the unchanged 75-second request, unchanged saved policy and zero
+balances. Normal Cancel, Parent logout, collection, worker closure and baseline
+restoration passed.
 Other INFO03 surfaces and upgrade ranges remain unqualified.
 
 ### Reusable journey fragments

@@ -19,19 +19,20 @@ a complete scenario result; the inventory owns readiness.
 
 Case **265**, `E2E-064/kiosk`, composes `kiosk_release_notes.PLAN` /
 `KioskReleaseNotesJourney` and `onpc_kiosk_whats_new::run_case`. Its
-`installed-release-notes-upgrade` prerequisite selects the genuine 1.2→2.0 DEB
-or 1.3→2.0 RPM online snapshot recipe through the existing suite owner. Both package
-archives and the activation recipe are bound before a fresh installed restoration;
-there is no installation, history injection or acknowledgement injection in
-the customer's steps. Ordinary installed cases retain fresh-install preparation.
+`installed-release-notes-upgrade` prerequisite selects the genuine upgrade from
+1.2 (DEB) or 1.3 (RPM) to the current build through the existing online snapshot
+recipe. Both package archives and the activation recipe are bound before a fresh
+installed restoration. There is no installation, history injection or
+acknowledgement injection in the customer's steps. Ordinary installed cases
+retain fresh-install preparation.
 
 Jamie publicly enables Riley with zero daily time. Capture Parent's saved
 time/app policy and zero grant, then enter the station and independently capture
 Riley/Jamie, Custom `1.25` Minutes/75 seconds and soft apps included. Open
 What's New through INFO03. Independently compare its installed-version title
-and meaningful English document blocks with the packaged Child 1.4 record,
-the sole eligible child release in the declared 1.2→2.0 DEB or 1.3→2.0 RPM range.
-Read the predecessor from the verified package input. Use immutable
+and meaningful English document blocks with the packaged Child 1.4 record.
+Require 1.4 to be the sole eligible child release and strictly between the
+verified predecessor and the current build. Use immutable
 packaged inputs as the content oracle; customer acceptance never reads private
 installation history or acknowledgements. Parent-only notes are not an oracle.
 

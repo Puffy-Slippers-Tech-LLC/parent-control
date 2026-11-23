@@ -1348,7 +1348,8 @@ def test_corrected_source_can_replace_only_attempts_without_public_writes(reposi
         raise ValueError('reached fresh preparation')
 
     monkeypatch.setattr(publish, 'prepare', prepare)
-    monkeypatch.setattr(publish, 'confirm_main_update', lambda *args: {'phase': 'pending'})
+    monkeypatch.setattr(publish, 'confirm_main_update', lambda *args: {
+        'checkout': str(repository), 'phase': 'pending'})
     with pytest.raises(ValueError, match='fresh preparation' if replaced else 'inputs differ'):
         publish.publish(repository)
     assert bool(prepared) is replaced
@@ -1580,7 +1581,9 @@ def main_update_candidate(repository, tmp_path, monkeypatch, unsigned_publisher)
 @pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
 @pytest.mark.parametrize('main_advanced', [False, True])
 def test_publish_commits_every_pending_release_change_and_reconciles_main(
-        main_update_candidate, tmp_path, monkeypatch, enlistment, main_advanced):
+        main_update_candidate, tmp_path, monkeypatch, capsys, enlistment, main_advanced):
+    from tools import agent_adapter, launcher_git, launcher_worktrees
+
     target, root, remote, _, _ = main_update_candidate
     if enlistment == 'worktree':
         root = tmp_path / 'linked-release'
@@ -1594,6 +1597,15 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
     git(root, 'add', 'docs/README.md')
     (root / 'docs/README.md').write_text('Final release edit.\n')
     (root / 'new-release-file').write_text('New release content.\n')
+    (root / 'config').mkdir()
+    (root / 'config/environment.json').write_text(json.dumps(dict(families=[{}], branches=[
+        dict(name='main', host='local', repo_root=str(target)),
+        dict(name='worktree', host='local', repo_root=str(root)),
+    ])))
+    git(target, 'push', 'origin', 'HEAD:refs/heads/worktree', 'HEAD:refs/heads/releases/v1.1')
+    git(target, 'fetch', 'origin')
+    git(target, 'branch', '--set-upstream-to=origin/main', 'main')
+    git(target, 'branch', '--track', 'worktree', 'origin/releases/v1.1')
     (root / '.gitignore').write_text('.envrc\n')
     (root / '.envrc').write_text('ignored fixture, never a credential\n')
     release_before = git(root, 'rev-parse', 'HEAD')
@@ -1620,18 +1632,80 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
         frozen = directory / 'source'
         git(root, 'clone', str(root), str(frozen))
         (frozen / 'debian').mkdir(exist_ok=True)
-        (frozen / 'debian/changelog').write_text('Official release metadata.\n')
+        package_version = '1.1+ppa1~ubuntu26.04.1'
+        (frozen / 'debian/changelog').write_text(publish.changelog_entry(package_version, notes))
         git(frozen, 'add', 'debian/changelog')
         git(frozen, 'commit', '-m', 'official release metadata')
+        git(frozen, 'tag', '-a', 'v1.1', '-m', 'fixture release tag')
+        git(frozen, 'push', str(remote), 'HEAD:refs/heads/releases/v1.1', 'refs/tags/v1.1')
         prepared.append(base)
         return dict(phase='upload-started', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),
-                    directory=str(directory), product=product, version='1.1+ppa1~ubuntu26.04.1')
+                    checkout=str(root), branch='releases/v1.1', directory=str(directory),
+                    product=product, version=package_version,
+                    history_sha256=hashlib.sha256(history.encode()).hexdigest())
 
+    build_and_propagate = []
+    original = publish.command
+
+    def command(*args, **kwargs):
+        if Path(args[0]).name == 'build_package.py':
+            candidate = kwargs['cwd']
+            assert candidate == target
+            assert json.loads((candidate / 'data/app.json').read_text())['version'] == '1.2'
+            assert (candidate / publish.HISTORY).read_text() == '## v1.2\n\n' + NOTES
+            assert '  * Start development builds for version 1.2.' in (candidate / 'debian/changelog').read_text()
+            build_and_propagate.append('build')
+            return 'fixture packages built'
+        return original(*args, **kwargs)
+
+    def propagate(checkout, run, checkpoint, paths, message, *, published_main):
+        assert 'You can resume main development.' not in capsys.readouterr().out
+        assert checkout == target and paths == [] and message == 'Start v1.2 development'
+        assert launcher_worktrees.commit_skill_targets(target, publishing=True) == [
+            dict(branch='main', remote='origin', ref='refs/heads/main'),
+            dict(branch='worktree', remote='origin', ref='refs/heads/worktree'),
+        ]
+        git(checkout, 'merge-base', '--is-ancestor', published_main, 'HEAD')
+        assert git(checkout, 'rev-parse', 'v1.1^{}') == git(run.parent / 'source', 'rev-parse', 'HEAD')
+        if main_advanced and 'propagate-error' not in build_and_propagate:
+            peer = tmp_path / 'peer'
+            git(target, 'clone', str(remote), str(peer))
+            git(peer, 'commit', '--allow-empty', '-m', 'Concurrent remote main commit')
+            git(peer, 'push', 'origin', 'main')
+            git(target, 'fetch', 'origin')
+            git(target, 'merge', '--ff-only', 'origin/main')
+            build_and_propagate.append('propagate-error')
+            raise ValueError('development propagation temporarily unavailable')
+        git(target, 'push', 'origin', published_main + ':refs/heads/worktree')
+        build_and_propagate.append('propagate')
+        return published_main
+
+    monkeypatch.setattr(publish, 'command', command)
+    monkeypatch.setattr(agent_adapter, 'resolve_selection', lambda root: SimpleNamespace(
+        adapter=lambda: SimpleNamespace(readiness=lambda root, environment: None)))
+    monkeypatch.setattr(launcher_git, 'commit_push_propagate', propagate)
     monkeypatch.setattr(publish, 'prepare', prepare)
-    # Exercise the actual main metadata update/push with only local Git.
-    monkeypatch.setattr(publish, 'execute', publish.update_main_checkout)
+    # Exercise the actual main update and handoff with only local Git.
+    monkeypatch.setattr(publish, 'execute', lambda *args: publish.resume_delivery(*args, confirmed=True))
+    if main_advanced:
+        with pytest.raises(ValueError, match='development propagation temporarily unavailable'):
+            publish.publish(root)
+        assert 'You can resume main development.' not in capsys.readouterr().out
+        git(target, 'remote', 'set-url', '--push', 'origin', str(tmp_path / 'wrong-destination'))
+        with pytest.raises(ValueError, match='origin fetch and push URLs'):
+            publish.publish(root)
+        assert 'You can resume main development.' not in capsys.readouterr().out
+        git(target, 'config', '--unset', 'remote.origin.pushurl')
     publish.publish(root)
     assert len(prepared) == 1
+    assert build_and_propagate == (['build', 'propagate-error', 'propagate'] if main_advanced
+                                   else ['build', 'propagate'])
+    assert ('\033[1;32mpublish: MAIN UPDATED: v1.2 development version built and propagated.'
+            in capsys.readouterr().out)
+    assert (root / publish.HISTORY).read_text() == NOTES
+    assert (target / publish.HISTORY).read_text() == '## v1.2\n\n' + NOTES
+    assert git(remote, 'rev-parse', 'releases/v1.1') == git(target, 'rev-parse', 'v1.1^{}')
+    assert git(remote, 'rev-parse', 'worktree') == git(target, 'rev-parse', 'HEAD' + ('^' if main_advanced else ''))
     git(target, 'merge-base', '--is-ancestor', main_before, 'HEAD')
     git(target, 'merge-base', '--is-ancestor', prepared[0], 'HEAD')
     assert git(target, 'rev-parse', 'HEAD') == git(remote, 'rev-parse', 'main')

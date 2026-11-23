@@ -26,10 +26,13 @@ from urllib.request import Request, urlopen
 # Direct execution uses isolated Python; import only this maintained checkout.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.publishing import source as release
-from tools.bump_version import parse_product_version, history_notes, format_changelog, update_from_history
+from tools.bump_version import (
+    format_changelog, history_notes, parse_product_version, start_next_development, update_from_history,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = 'docs/VersionHistory.md'
+VERSION_FILES = (HISTORY, 'data/app.json', 'debian/changelog')
 API = release.API
 SERIES = 'https://api.launchpad.net/1.0/ubuntu/resolute'
 PPA_FILES = f'https://ppa.launchpadcontent.net/{release.OWNER}/{release.PACKAGE}/ubuntu/'
@@ -502,10 +505,9 @@ def confirm_main_update(root, base, update=None):
     main_head(target)
     if command('git', 'remote', 'get-url', 'origin', cwd=target) not in (release.ORIGIN, PUBLIC_GIT):
         raise ValueError('main origin must point to the configured public release repository')
-    highlight(f'PAUSE development in main ({target}). Wait until the cherry-pick completes '
-              'and MAIN UPDATED is displayed before resuming development. '
+    highlight(f'PAUSE development in main ({target}). Wait for MAIN UPDATED before resuming development. '
               'Main will merge all committed release branch changes if needed. '
-              'The update will also push main to origin.')
+              'New releases also prepare and propagate the next development version.')
     try:
         confirmed = input('Main is clean and development is paused. Continue publishing? [y/N] ')
     except EOFError:
@@ -514,6 +516,42 @@ def confirm_main_update(root, base, update=None):
         raise ValueError('publication cancelled before updating main')
     reconcile_release_inputs(root, target, base)
     return dict(update or {'phase': 'pending'}, checkout=str(target))
+
+
+def require_development_origin(target):
+    fetch_url = command('git', 'remote', 'get-url', 'origin', cwd=target)
+    push_urls = command('git', 'remote', 'get-url', '--push', '--all', 'origin', cwd=target).splitlines()
+    allowed = (release.ORIGIN, PUBLIC_GIT)
+    if fetch_url not in allowed or not push_urls or any(url not in allowed for url in push_urls):
+        raise ValueError('main origin fetch and push URLs must point to the configured public release repository')
+
+
+def check_development_propagation(target):
+    if not (target / 'config/environment.json').exists():
+        return
+    from tools.agent_adapter import resolve_selection
+    from tools.launcher_worktrees import commit_skill_targets
+
+    require_development_origin(target)
+    refs = {item['ref'] for item in commit_skill_targets(target, publishing=True)}
+    advertised = command('git', 'ls-remote', '--heads', 'origin', *sorted(refs), cwd=target)
+    missing = refs - {line.split()[1] for line in advertised.splitlines()}
+    if missing:
+        raise ValueError('publishing propagation needs existing origin branches: ' + ', '.join(sorted(missing)))
+    resolve_selection(target).adapter().readiness(target, environment())
+
+
+def propagate_development(target, directory, revision, version):
+    if not (target / 'config/environment.json').exists():
+        return
+    from tools.launcher_git import commit_push_propagate
+
+    require_development_origin(target)
+    run = directory / 'development-propagation'
+    run.mkdir(mode=0o700, exist_ok=True)
+    checkpoint = load_journal(run / 'checkpoint.json') or {}
+    main_head(target)
+    commit_push_propagate(target, run, checkpoint, [], f'Start v{version} development', published_main=revision)
 
 
 def update_main_checkout(root, state, state_path):
@@ -540,6 +578,11 @@ def update_main_checkout(root, state, state_path):
         except ValueError:
             raise ValueError('main metadata cherry-pick failed in the retained temporary checkout; '
                              'main was not changed; inspect release.log and resolve the cause before retrying') from None
+        if 'development' in update:
+            version = start_next_development(candidate, state['product'])
+            command('git', 'add', '--', *VERSION_FILES, cwd=candidate, log=log)
+            command('git', 'commit', '-m', f'Start v{version} development', cwd=candidate, log=log)
+            update['development'] = version
         revision = command('git', 'rev-parse', 'HEAD', cwd=candidate)
         update.update(base=base, revision=revision, directory=str(candidate), phase='ready')
         # Record the exact candidate before touching main. A crash after the
@@ -566,6 +609,21 @@ def update_main_checkout(root, state, state_path):
         if main_head(target) != update['base']:
             raise ValueError('main advanced before its metadata update; preserve the candidate and reconcile main first')
         command('git', 'merge', '--ff-only', '--no-edit', revision, cwd=target, log=log)
+    if update.get('development'):
+        tag = 'refs/tags/v' + state['product']
+        command('git', 'fetch', 'origin', f'{tag}:{tag}', cwd=target, log=log)
+        if command('git', 'rev-parse', tag + '^{}', cwd=target) != state['revision']:
+            raise ValueError('main upgrade source tag differs from the recorded release')
+        if not update.get('development_built'):
+            if main_head(target) != revision:
+                raise ValueError('main advanced before its development build; preserve the recorded candidate')
+            say(f'building v{update["development"]} development packages before unlocking main')
+            command(str(target / 'tools/build_package.py'), cwd=target, log=log, timeout=7200)
+            if main_head(target) != revision:
+                raise ValueError('main changed during its development build; preserve the recorded candidate')
+            update['development_built'] = True
+            save(state_path, state)
+        propagate_development(target, directory, revision, update['development'])
     command('git', 'fetch', 'origin', 'refs/heads/main:refs/remotes/origin/main', cwd=target, log=log)
     main_head(target)
     command('git', 'merge', '--ff-only', '--no-edit', 'FETCH_HEAD', cwd=target, log=log)
@@ -849,8 +907,11 @@ def resume_delivery(root, state, state_path, *, published=False, confirmed=False
             state['main_update'] = confirm_main_update(root, state['base'], state['main_update'])
             save(state_path, state)
         update_main_checkout(root, state, state_path)
-        highlight('MAIN UPDATED: cherry-pick and synchronization with origin/main completed. '
-                  'You can resume main development. Publication monitoring continues.', success=True)
+        development = state['main_update'].get('development')
+        update_note = (f'v{development} development version built and propagated.' if development
+                       else 'cherry-pick and synchronization with origin/main completed.')
+        highlight(f'MAIN UPDATED: {update_note} You can resume main development. '
+                  'Publication monitoring continues.', success=True)
     if published:
         state['phase'] = 'published'
         save(state_path, state)
@@ -984,6 +1045,9 @@ def publish(root=ROOT, *, wait=True, before_upload=None):
         product, notes = history_entry(history, current)
         publishing_branch(root, product)
         main_update = confirm_main_update(root, base)
+        check_development_propagation(Path(main_update['checkout']))
+        # Older retained release journals only reconcile their original metadata.
+        main_update['development'] = None
         directory = Path(tempfile.mkdtemp(prefix='onpc-release-', dir='/tmp'))
         say(f'preparing {current} → {product}; evidence: {directory}')
         state = prepare(root, base, history, current, product, notes, directory)

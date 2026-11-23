@@ -810,6 +810,11 @@ current run and resumes that phase. Remote identity checks and normal push-race
 handling still apply; task acceptance and the completion commit are retained.
 A missing checkout with unfinished merge work or saved active edits refuses
 with a recovery diagnostic rather than adopting or discarding that work.
+A release publisher invokes the same skill from `main` for the exact development
+commit it has already pushed to `origin/main`. It merges that commit through
+detached worktrees into the matching development branches on `origin`. This
+lets a registered worktree host the release branch without switching it or using
+its upstream as a propagation destination. See [the release handoff](Publishing.md#bring-release-metadata-back-to-main).
 If a remote branch advances before push, a non-fast-forward rejection triggers
 a checkpointed refetch and merge in the same detached checkout, followed by a
 normal push. Recovery resumes interrupted merges and preserves both histories.

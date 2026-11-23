@@ -67,8 +67,8 @@
   "vm_configs": {
     "vm_config_general": { "compute_unit": 4, "vm_tags": "general", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/{name}.qcow2", "vm_config_xml": "config/{host}-vm-template.xml", "owning_branch": "" },
     "vm_config_general_u26": { "parent_config": "vm_config_general", "name": "onpc-Ubuntu26.04-{id}", "iso": "ubuntu-26.04.*-desktop-amd64.iso" },
-    "vm_config_general_f44": { "parent_config": "vm_config_general", "name": "onpc-Fedora44-{id}", "iso": "Fedora-Workstation-Live-44-*.x86_64.iso" },
-    "vm_config_general_f45": { "parent_config": "vm_config_general", "name": "onpc-Fedora45-{id}",  "iso": "Fedora-Workstation-Live-45-*.x86_64.iso" },
+    "vm_config_general_f44": { "parent_config": "vm_config_general", "name": "onpc-Fedora44-{id}", "iso": "Fedora-Workstation-Live-44-*.x86_64.iso", "install_iso": "Fedora-Everything-netinst-x86_64-44-*.iso" },
+    "vm_config_general_f45": { "parent_config": "vm_config_general", "name": "onpc-Fedora45-{id}",  "iso": "Fedora-Workstation-Live-45-*.x86_64.iso", "install_iso": "Fedora-Everything-netinst-x86_64-45-*.iso" },
     "vm_config_heavy_u26": { "parent_config": "vm_config_general_u26", "compute_unit": 8, "vm_tags": "heavy" },
     "vm_config_heavy_f44": { "parent_config": "vm_config_general_f44", "compute_unit": 8, "vm_tags": "heavy" },
     "vm_config_heavy_f45": { "parent_config": "vm_config_general_f45", "compute_unit": 8, "vm_tags": "heavy" }

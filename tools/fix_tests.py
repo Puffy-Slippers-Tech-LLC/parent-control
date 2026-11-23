@@ -264,7 +264,6 @@ def run_rounds(root, run, owner, request, *, operation=execute):
                 continue
             elif status < 0 or status == SYNC_STATUS:
                 return status
-            retry = None
             failure = results.failure()
             if failure is None:
                 if status == OBSERVATION_BLOCKED_STATUS:
@@ -287,7 +286,10 @@ def run_rounds(root, run, owner, request, *, operation=execute):
             status = operation(root, run, owner, 'agent', failure)
             if status:
                 return status
-            retry = enclosing_retry(root, failure, record=record)
+            # A case failure can interrupt the enclosing retry. Finish that
+            # operation after repairing the case so its old error is resolved.
+            if not failure.get('case'):
+                retry = enclosing_retry(root, failure, record=record)
     progress(run, rounds, rounds, 'Selected work completed.')
     return 0
 

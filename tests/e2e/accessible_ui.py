@@ -14467,7 +14467,7 @@ class AccessibleUI:
                         'ui:native-files-blocked-window')
                 require(self.native_files_snapshot(role, child=child, active=False) is not None,
                         'ui:native-files-denial-recipient')
-            self.observe_launch_denial(denied, 'native-files-denied')
+            self.observe_launch_denial(denied, 'native-files-denied', retry_incomplete=True)
             return None
         if action in ('policy-activity', 'policy-closed'):
             return self.native_policy_activity(closed=action == 'policy-closed', role=role,

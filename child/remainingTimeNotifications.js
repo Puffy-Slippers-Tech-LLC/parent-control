@@ -20,6 +20,8 @@ export class RemainingTimeNotifications {
         this.preferences = null;
         this.source = null;
         this.current = null;
+        this.lastDelivery = null;
+        this.deliveryGeneration = GLib.uuid_string_random();
         this.closed = false;
         this.pending = false;
         this.delivery = 0;
@@ -118,7 +120,7 @@ export class RemainingTimeNotifications {
         logInfo('child.reminder-trigger', {threshold: reminderSeconds(reminder),
             remaining: this.schedule.previous,
             critical: this.preferences.show_in_fullscreen});
-        if (reminderSeconds(reminder) >= 60 || reminder.text.trim()) {
+        if (this.schedule.previous >= 60 || reminder.text.trim()) {
             this.present(reminder, false);
             return;
         }
@@ -167,10 +169,28 @@ export class RemainingTimeNotifications {
         source.connect('destroy', () => {
             if (this.source === source) this.source = null;
         });
-        this.current = {...banner, reminder, urgency, allowSoftApps, seconds};
+        const current = {...banner, reminder, urgency, allowSoftApps, seconds,
+            id: GLib.uuid_string_random()};
+        this.current = current;
+        // Retain one in-memory presentation so an observer can still see a
+        // five-second banner after it closes. The sequence detects missed or
+        // duplicate deliveries even when more than one occurs between reads.
+        this.lastDelivery = {...this.observeCurrent(Boolean(banner.card.visible)),
+            sequence: (this.lastDelivery?.sequence ?? 0) + 1,
+            monotonic_us: GLib.get_monotonic_time()};
         notification.connect('destroy', () => {
             if (this.current?.notification === notification) this.current = null;
         });
+    }
+
+    observeCurrent(visible) {
+        const current = this.current;
+        if (!current) return null;
+        return {delivery_id: current.id, visible, fullscreen: current.isFullscreen(), seconds: current.seconds,
+            body: visible ? current.notification.body : null,
+            urgency: visible ? current.urgency : null,
+            countdown: visible ? current.countdown() : null,
+            soft_app_text_pending: visible && this.deliveryReminder === current.reminder};
     }
 
     clear() {
@@ -187,6 +207,7 @@ export class RemainingTimeNotifications {
         this.closed = true;
         this.cancellable.cancel();
         this.clear();
+        this.lastDelivery = null;
         this.translations = null;
         this.onError = null;
         this.changed = null;

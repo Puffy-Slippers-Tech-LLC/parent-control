@@ -322,8 +322,9 @@ owned cleanup. Stateful histories and ordinary system area attempts that share
 preparation remain indivisible. A focused independent system area replay
 dispatches its cases separately when several eligible VMs can serve the family.
 Cancellation stops queued work and waits
-for active guests' cleanup. `--vm` accepts a VM name/ID or family name/ID, a comma-separated
-mixture, `all-enabled`, or `all`, with case-insensitive matching. Families expand to eligible members and overlapping
+for active guests' cleanup. `--vm` accepts VM names/IDs, inclusive VM ID ranges,
+family names/IDs, comma-separated mixtures, `all-enabled`, or `all`, with
+case-insensitive matching. Families expand to eligible members and overlapping
 selectors include each VM once. Optional `--vmhost` accepts one host or a comma-separated
 list and intersects the selected VM pool. The
 [shared host selection contract](../docs/Mandates/VM-Mandate.MD#target-selection)

@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HOST_IDENTITY = Path('/usr/local/libexec/onpc-vm-host')
 ALL_SELECTOR = 'all'
 ALL_VM_SELECTORS = {ALL_SELECTOR, 'all-enabled'}
+VM_ID_RANGE = re.compile(r'([0-9]+)-([0-9]+)')
 DEFAULT_HOST_TEST_CONCURRENCY = 4
 MAX_NAME_LENGTH = 63
 VM_FIELDS = frozenset({
@@ -110,6 +111,12 @@ def validate_name(name):
                     for label in name.split('.'))):
         raise ValueError('vm-config:name; use hostname labels without traversal')
     return name
+
+
+def validate_literal_selector(value, field):
+    if isinstance(value, str) and VM_ID_RANGE.fullmatch(value):
+        raise ValueError(f'vm-config: {field} {value!r} is invalid because digits-digits is reserved for VM ID ranges')
+    return value
 
 
 def read_document(path=None, *, validate_agent=True):
@@ -448,7 +455,7 @@ def validate_family(document):
             not {'family', 'package_format', 'fixture_path', 'parent_config', 'vms'} <= set(document) or
             not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
-    for field in ('family', 'id'):
+    for field, label in (('family', 'family name'), ('id', 'family ID')):
         if field not in document:
             continue
         value = document[field]
@@ -456,6 +463,7 @@ def validate_family(document):
                 or ',' in value or any(ord(char) < 32 for char in value)):
             raise ValueError(f'vm-config:family {field} must be a nonempty selector '
                              'without leading hyphens, commas or surrounding whitespace')
+        validate_literal_selector(value, label)
     if document['package_format'] not in ('deb', 'rpm'):
         raise ValueError('vm-config:package_format must explicitly be deb or rpm')
     value = document['fixture_path']
@@ -593,6 +601,12 @@ def execution(name=None, path=None, *, remote=None):
         if value in selectors:
             matches = (vm for vm in families[selectors[value]['family']]
                        if not vm.owning_branch or vm.owning_branch == branch)
+        elif bounds := VM_ID_RANGE.fullmatch(value):
+            lower, upper = map(int, bounds.groups())
+            if lower > upper:
+                raise ValueError(f'vm-config: reversed VM ID range {value}')
+            matches = sorted((vm for vm in configured.values() if lower <= int(vm.id) <= upper),
+                             key=lambda vm: int(vm.id))
         else:
             matches = (resolve(value, configured),)
         for vm in matches:
@@ -647,7 +661,7 @@ def validate_entry(document, family, hosts):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document)):
         raise ValueError('vm-config:fields')
-    name = validate_name(document['name'])
+    name = validate_name(validate_literal_selector(document['name'], 'VM name'))
     host_name = document.get('host')
     if not isinstance(host_name, str) or host_name not in hosts:
         raise ValueError('vm-config:VM host must name a configured host')
@@ -669,6 +683,7 @@ def validate_entry(document, family, hosts):
     aliases = document.get('aliases', [])
     if not isinstance(aliases, list):
         raise ValueError('vm-config:aliases must be an array of VM names')
+    aliases = tuple(validate_name(validate_literal_selector(alias, 'VM alias')) for alias in aliases)
     iso = validate_iso(document['iso']) if 'iso' in document else None
     install_iso = validate_iso(document['install_iso']) if 'install_iso' in document else None
     template = document.get('vm_config_xml')
@@ -679,8 +694,7 @@ def validate_entry(document, family, hosts):
     return VMConfig(name, Path(value), enabled == 'true', selector,
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
                     hosts[host_name], compute_unit(document.get('compute_unit', 1), 'VM compute_unit'),
-                    parse_vm_tags(document.get('vm_tags')),
-                    tuple(validate_name(alias) for alias in aliases), iso=iso,
+                    parse_vm_tags(document.get('vm_tags')), aliases, iso=iso,
                     vm_config_xml=template, install_iso=install_iso)
 
 

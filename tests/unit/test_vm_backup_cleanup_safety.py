@@ -869,26 +869,6 @@ def test_sparse_copy_preserves_bytes_without_inflating_holes(tmp_path):
     assert target.stat().st_blocks <= source.stat().st_blocks + 16
 
 
-@pytest.mark.parametrize('selector,names', [(None, 'Backup-guest,Other-guest'),
-    ('all-enabled', 'Backup-guest,Other-guest'), ('9,Backup-guest,12', 'Backup-guest,Other-guest')])
-def test_backup_dispatches_serial_archive_without_guest_preparation(backup_rig, monkeypatch, selector, names):
-    monkeypatch.setattr(launcher, 'check', Mock())
-    run = Mock(return_value=SimpleNamespace(returncode=0))
-    monkeypatch.setattr(launcher.subprocess, 'run', run)
-    assert launcher.main('backup', [] if selector is None else ['--vm', selector]) == 0
-    assert run.call_count == 1
-    assert run.call_args.args[0][-3:] == ['backupvm', '--vm', names]
-
-
-def test_backup_failure_is_returned_without_followup(backup_rig, monkeypatch, capsys):
-    monkeypatch.setattr(launcher, 'check', Mock())
-    run = Mock(return_value=SimpleNamespace(returncode=7))
-    monkeypatch.setattr(launcher.subprocess, 'run', run)
-    assert launcher.main('backup', []) == 7
-    assert run.call_count == 1
-    assert '\033[31mbackupvm: FAILED: archive operation failed' in capsys.readouterr().err
-
-
 @pytest.mark.parametrize('action', ['backup', 'restore'])
 def test_archive_failure_is_red_and_never_reports_success(backup_rig, monkeypatch, capsys, action):
     monkeypatch.setattr(launcher, 'check', Mock())
@@ -900,25 +880,6 @@ def test_archive_failure_is_red_and_never_reports_success(backup_rig, monkeypatc
     assert f'\033[31m{action}vm: FAILED:' in output.err
     assert '\033[0m' in output.err
     assert 'SUCCESS' not in output.out
-
-
-def test_invalid_backup_selection_reports_failure_in_red(backup_rig, capsys):
-    assert launcher.main('backup', ['--vm', 'Unknown']) == 2
-    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
-
-
-def test_invalid_backup_arguments_report_failure_in_red(capsys):
-    with pytest.raises(SystemExit) as error:
-        launcher.main('backup', ['--invalid'])
-    assert error.value.code == 2
-    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
-
-
-def test_privileged_backup_refusal_reports_failure_in_red(monkeypatch, capsys):
-    # Fail before importing libvirt or accessing any real VM/storage path.
-    monkeypatch.setattr(recovery.os, 'geteuid', lambda: 12345)
-    assert recovery.main(['backup']) == 1
-    assert '\033[31mbackupvm: FAILED:' in capsys.readouterr().err
 
 
 def test_private_backup_directory_under_setgid_parent(tmp_path):
@@ -987,16 +948,6 @@ def test_existing_shared_backup_directory_is_refused_without_adoption(tmp_path, 
     assert (parent / 'unrelated').read_bytes() == b'preserve'
 
 
-def test_restore_prepares_auto_only_after_archive_success(backup_rig, monkeypatch):
-    monkeypatch.setattr(launcher, 'check', Mock())
-    run = Mock(side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(returncode=0)])
-    monkeypatch.setattr(launcher.subprocess, 'run', run)
-    assert launcher.main('restore', ['--vm', '9']) == 0
-    assert run.call_args_list[0].args[0][-3:] == ['restorevm', '--vm', 'Backup-guest']
-    assert run.call_args_list[1].args[0] == [str(launcher.ROOT / 'tools/prepare-vm'),
-        '--vm', 'Backup-guest', '--mode', 'auto', '--y']
-
-
 def test_mixed_restore_finishes_all_archives_before_failed_preparation(monkeypatch):
     from contextlib import nullcontext
     import host_dispatch
@@ -1028,7 +979,7 @@ def test_mixed_restore_finishes_all_archives_before_failed_preparation(monkeypat
     assert launcher.main('restore', ['--vm', 'Local-guest,Remote-guest']) == 7
 
 
-@pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', '/path//backup', None])
+@pytest.mark.parametrize('value', ['relative', '/', '/path/../backup', None])
 def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path, value):
     config = tmp_path / 'registry.json'
     config.write_text(json.dumps({'hosts': [

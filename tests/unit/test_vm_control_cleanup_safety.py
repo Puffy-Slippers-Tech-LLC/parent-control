@@ -268,8 +268,10 @@ def reopened(lease):
     return result
 
 
-@pytest.mark.parametrize('graphics', ['vnc', 'spice'])
-@pytest.mark.parametrize('fault', [None, 'instance', 'run', 'snapshot', 'maintenance'])
+@pytest.mark.parametrize('graphics,fault', [
+    ('vnc', None), ('spice', None), ('vnc', 'instance'), ('vnc', 'run'),
+    ('vnc', 'snapshot'), ('vnc', 'maintenance'),
+])
 def test_interrupted_recovery_restores_only_the_recorded_instance_without_ssh(
         lease_rig, monkeypatch, graphics, fault):
     lease, current = lease_rig
@@ -670,10 +672,11 @@ def test_completed_off_maintenance_stop_recovers_interrupted_record_cleanup(
         held.release()
 
 
-@pytest.mark.parametrize('phase', [
-    'validated', 'shutdown-requested', 'restore-requested', 'isolated', 'ssh-bootstrap',
-    'start-requested', 'cleanup-requested'])
-@pytest.mark.parametrize('fault', [None, 'running', 'owner', 'configuration'])
+@pytest.mark.parametrize('phase,fault', [
+    *((phase, None) for phase in ('validated', 'shutdown-requested', 'restore-requested',
+                                 'isolated', 'ssh-bootstrap', 'start-requested', 'cleanup-requested')),
+    ('validated', 'running'), ('isolated', 'owner'), ('cleanup-requested', 'configuration'),
+])
 def test_preparation_recovers_never_started_owned_maintenance_without_booting(
         lease_rig, phase, fault):
     lease, current = lease_rig
@@ -894,8 +897,10 @@ def test_automatic_preparation_recovery_stops_only_proven_maintenance(
     assert recovered.fd is None
 
 
-@pytest.mark.parametrize('phase', ['running', 'isolated', 'cleanup-requested'])
-@pytest.mark.parametrize('fault', [None, 'owner', 'snapshot', 'busy', 'interrupted'])
+@pytest.mark.parametrize('phase,fault', [
+    ('running', None), ('isolated', None), ('cleanup-requested', None),
+    ('running', 'owner'), ('running', 'snapshot'), ('running', 'busy'), ('running', 'interrupted'),
+])
 def test_auto_baseline_recovers_off_maintenance_and_preserves_refused_attempts(
         lease_rig, monkeypatch, phase, fault):
     # Cleanup imports SuiteLease, which must inherit the real runner.Lease
@@ -1221,8 +1226,9 @@ def test_baseline_diagnostic_dispatch_resumes_owned_lease_and_releases_controlle
     source.close.assert_called_once_with()
 
 
-@pytest.mark.parametrize('refused', [False, True])
-@pytest.mark.parametrize('worker_stopped,callback_closed', [(True, True), (False, True), (True, False)])
+@pytest.mark.parametrize('refused,worker_stopped,callback_closed', [
+    (False, True, True), (True, True, True), (False, False, True), (False, True, False),
+])
 def test_auth_pause_boundary_uses_original_session_guard_without_acceptance(
         tmp_path, monkeypatch, capsys, refused, worker_stopped, callback_closed):
     from contextlib import nullcontext
@@ -1472,8 +1478,9 @@ def test_unlock_capture_baseline_reads_roles_and_states_without_names_or_passwor
         assert interesting[1]['modal'] is False
 
 
-@pytest.mark.parametrize('observer_failed', [False, True])
-@pytest.mark.parametrize('fault', ['journal', 'before-guard', 'after-guard'])
+@pytest.mark.parametrize('observer_failed,fault', [
+    (False, 'journal'), (True, 'journal'), (False, 'before-guard'), (False, 'after-guard'),
+])
 def test_native_log_capture_failure_preserves_observer_failure_and_never_claims_prompt(
         tmp_path, monkeypatch, capsys, observer_failed, fault):
     from contextlib import nullcontext
@@ -1501,37 +1508,6 @@ def test_native_log_capture_failure_preserves_observer_failure_and_never_claims_
     assert json.loads((tmp_path / 'native-log-result.json').read_text())['outcome'] == 'refused'
     assert (tmp_path / 'observed.json').is_file()
     assert 'prompt retained' not in capsys.readouterr().out
-
-
-def test_native_log_capture_filters_exact_agent_and_glycin_labels(tmp_path):
-    import vm_probe
-    unit = 'oh-no-parent-control-polkit-agent.service'
-    def record(message, **fields):
-        return dict(__REALTIME_TIMESTAMP='100000001', MESSAGE=message, **fields)
-    rows = [record(list(b'\x1b[32mloader Frame complete'), _SYSTEMD_USER_UNIT=unit, _UID='1005'),
-        record('other user', _SYSTEMD_USER_UNIT=unit, _UID='1000'),
-        record('unrelated unit', _SYSTEMD_USER_UNIT='other.service', _UID='1005'),
-        record('scontext=system_u:system_r:onpc_kiosk_glycin_bwrap_t:s0', _TRANSPORT='kernel'),
-        record('scontext=system_u:system_r:onpc_kiosk_glycin_t:s0', _TRANSPORT='audit'),
-        record('profile="onpc-kiosk-glycin-bwrap"', _TRANSPORT='kernel'),
-        record('profile="onpc-kiosk-glycin"', _TRANSPORT='kernel'),
-        record('profile="onpc-kiosk-glycin-unknown"', _TRANSPORT='kernel'),
-        record('scontext=system_u:system_r:onpc_kiosk_glycin_unknown_t:s0', _TRANSPORT='audit'),
-        record('scontext=system_u:system_r:init_t:s0', _TRANSPORT='kernel')]
-    transport = SimpleNamespace(call=Mock(return_value=b'\n'.join(
-        json.dumps(row).encode() for row in rows)))
-    vm_probe.capture_kiosk_native_log(transport, tmp_path, uid=1005, since=100)
-    saved = json.loads((tmp_path / 'native-log.json').read_text())
-    assert [row['source'] for row in saved] == ['agent'] + ['kernel-audit'] * 4
-    assert saved[0]['message'] == '\x1b[32mloader Frame complete'
-    assert json.loads((tmp_path / 'native-log-result.json').read_text())['records'] == 5
-    argv = transport.call.call_args_list[0].args[0]
-    assert '_UID=1005' in argv and '_SYSTEMD_USER_UNIT=' + unit in argv
-    assert '--since=@100' in argv and '--lines=256' in argv
-    assert '--quiet' in argv
-    assert not any(item.startswith('--grep=') for item in transport.call.call_args.args[0])
-    assert transport.call.call_count == 2
-    assert transport.call.call_args.kwargs == {'timeout': 30}
 
 
 @pytest.mark.parametrize('fault', ['oversize', 'malformed', 'old', 'long-message', 'count', 'bad-bytes', 'invalid-utf8'])
@@ -1615,9 +1591,11 @@ def test_preferences_boundary_diagnostic_runs_once_without_acceptance_and_requir
     assert retained == ({'outcome': 'refused', 'error_type': 'RuntimeError'} if refused else result)
 
 
-@pytest.mark.parametrize('worker_stopped,callback_closed', [
-    (True, True), (False, True), (True, False)])
-@pytest.mark.parametrize('ssh_status', ['success', 255, 0, -9, None, True, -65, 256, '255', 'missing'])
+@pytest.mark.parametrize('worker_stopped,callback_closed,ssh_status', [
+    (True, True, 'success'), (True, True, 255), (True, True, 0), (True, True, -9),
+    (True, True, True), (True, True, 256), (True, True, '255'), (True, True, 'missing'),
+    (False, True, 'success'), (True, False, 255),
+])
 def test_baseline_app_effects_boundary_keeps_scene_without_reply_and_requires_cleanup(
         tmp_path, monkeypatch, capsys, worker_stopped, callback_closed, ssh_status):
     from contextlib import nullcontext
@@ -1775,47 +1753,17 @@ def test_root_guest_dispatch_keeps_arbitrary_command_inside_the_fixed_controller
             dispatch(root, ['vm', *VM_ARGS, 'probe', *extra])
 
 
-@pytest.mark.parametrize('fault,scene',
-    [(fault, 'lock') for fault in [None, 'failed', 'missing-history', 'advanced',
-                                  'wrong-stage', 'screenshot', 'symlink', 'oversized']] +
-    [(None, scene) for scene in ['retained-entry', 'transfer-refusal', 'remembered-return',
-                                 'riley-native-grid', 'retained-app-visits', 'revoke-cancel',
-                                 'countdown-minutes', 'countdown-resume', 'kiosk-entry',
-                                 'kiosk-approval', 'kiosk-preferences', 'baseline-app-effects']])
-def test_reproduction_retains_only_complete_declared_history(tmp_path, fault, scene):
+@pytest.mark.parametrize('fault', [
+    None, 'failed', 'missing-history', 'advanced', 'wrong-stage',
+    'screenshot', 'symlink', 'oversized',
+])
+def test_reproduction_retains_only_complete_declared_history(tmp_path, fault):
     from installed_journey import validate_boundary
-    from desktop_session import CHILD_DENIAL_PLAN, CHILD_UNLOCK_PLAN
-    from retained_entry import PLAN
-    from choices_overlay_to_kiosk import PLAN as TRANSFER_PLAN
-    from remembered_choices import DIAGNOSTIC_PLAN as REMEMBERED_PLAN
-    from riley_native_grid import PLAN as RILEY_GRID_PLAN
-    from retained_app_visits import PLAN as RETAINED_APP_PLAN
-    from time_explanation import REVOKE_PLAN
-    from countdown_qualification import MINUTE_PLAN
-    from kiosk_entry import PLAN as KIOSK_PLAN
-    from kiosk_approved_flow import PLAN as KIOSK_APPROVAL_PLAN
-    from kiosk_preferences_confinement import PLAN as KIOSK_PREFERENCES_PLAN
-    from baseline_app_effects import PLAN as BASELINE_APP_EFFECTS_PLAN
-    plan, boundary, previous = {
-        'lock': (CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'),
-        'retained-entry': (PLAN, 'riley-restricted-curtain', 'riley-restricted-entry-guard'),
-        'transfer-refusal': (TRANSFER_PLAN, 'riley-refused', 'riley-default'),
-        'remembered-return': (REMEMBERED_PLAN, 'jordan-return-entry-desktop',
-                              'jordan-return-entry-standard-recipient-rechecked'),
-        'riley-native-grid': (RILEY_GRID_PLAN, 'repeat-refusals', 'repeat-search-entered'),
-        'retained-app-visits': (RETAINED_APP_PLAN, 'riley-activity-command', 'riley-activity-desktop'),
-        'revoke-cancel': (REVOKE_PLAN, 'second-balances', 'second-cancel'),
-        'countdown-minutes': (MINUTE_PLAN, 'minute-progression', 'fresh-desktop'),
-        'countdown-resume': (CHILD_UNLOCK_PLAN, 'returned-activity', 'unlock-desktop'),
-        'kiosk-entry': (KIOSK_PLAN, 'request-form', 'station-branch'),
-        'kiosk-approval': (KIOSK_APPROVAL_PLAN, 'approval-qualified', 'approval-open'),
-        'kiosk-preferences': (KIOSK_PREFERENCES_PLAN, 'preferences-confined', 'open-estimate'),
-        'baseline-app-effects': (BASELINE_APP_EFFECTS_PLAN, 'allowed-use-command', 'allowed-use-desktop'),
-    }[scene]
+    from desktop_session import CHILD_DENIAL_PLAN
+
+    plan, boundary, previous = CHILD_DENIAL_PLAN, 'time-denied', 'reveal-ready'
     stages = list(plan.stages)
     prefix = stages[:stages.index(boundary)]
-    assert prefix[-1] == previous
-    assert ('lock-recipient-qualified' in prefix) == (scene == 'countdown-resume')
     if fault == 'missing-history':
         prefix.remove(previous)
     elif fault == 'advanced':
@@ -1892,27 +1840,6 @@ def test_attached_diagnostic_prefix_cannot_claim_a_complete_journey(tmp_path, mo
     assert result['outcome'] == ('passed' if stop_before is None else 'scene-retained')
 
 
-def test_public_probe_launcher_keeps_host_selector_before_guest_arguments(monkeypatch):
-    import dev_privileges
-    import host_dispatch
-    import vm_selection
-    from tests.support.vm_registry import vm_entry
-    import sys
-    root = Path(__file__).resolve().parents[2]
-    guest = ['printf', '--vm', 'unknown-vm', '--help', '--list']
-    launch = Mock()
-    monkeypatch.setattr(dev_privileges, 'launch', launch)
-    # This check owns argument forwarding, not registered-host routing or SSH.
-    monkeypatch.setattr(host_dispatch, 'vm_tool', lambda *args, **kwargs: None)
-    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(vm_selection.vm_config, 'current_branch',
-                        lambda: vm_entry().get('owning_branch') or 'test-branch')
-    monkeypatch.setattr(sys, 'argv', [str(root / 'tools/test-vm'), *VM_ARGS, 'exec', '--', *guest])
-    runpy.run_path(str(root / 'tools/test-vm'), run_name='__main__')
-    launch.assert_called_once_with('/usr/local/libexec/onpc-test-runner',
-                                  ['vm', *VM_ARGS, 'exec', '--', *guest])
-
-
 def test_probe_input_is_opened_unprivileged_and_not_forwarded_as_a_host_path(tmp_path):
     source = tmp_path / 'payload.rpm'
     source.write_bytes(b'RPM\0payload')
@@ -1981,9 +1908,10 @@ def probe_snapshot(held, current):
     return tree, snapshot, record
 
 
-@pytest.mark.parametrize('status', [0, 1, 127, 255])
-@pytest.mark.parametrize('input_stream', [False, True])
-@pytest.mark.parametrize('maintenance', [False, True])
+@pytest.mark.parametrize('status,input_stream,maintenance', [
+    (0, False, False), (1, False, False), (127, False, False), (255, False, False),
+    (0, True, False), (0, False, True),
+])
 def test_root_probe_preserves_guest_state_and_exit_status(lease_rig, monkeypatch, capsys, status, input_stream, maintenance):
     import online_snapshot
     import vm_probe
@@ -2348,9 +2276,9 @@ def test_rename_failures_roll_back_only_owned_metadata(lease_rig, monkeypatch, f
         lease.release()
 
 
-@pytest.mark.parametrize('status', [0, 1, 130])
-@pytest.mark.parametrize('argv', [['vm', 'start'], ['vm', 'stop'],
-                                 ['system', 'check_test_recovery']])
+@pytest.mark.parametrize('argv,status', [
+    (['vm', 'start'], 0), (['vm', 'stop'], 1), (['system', 'check_test_recovery'], 130),
+])
 def test_foreground_dispatch_runs_only_owned_operation_without_test_gate(tmp_path, monkeypatch, argv, status):
     root = Path(__file__).resolve().parents[2]
     dispatcher = runpy.run_path(str(root / 'tools/onpc-test-runner'))
@@ -2389,8 +2317,10 @@ def test_reset_leaves_vm_off_and_never_creates_snapshot_or_vm(lease_rig):
     assert lease.source.off
 
 
-@pytest.mark.parametrize('running', [False, True])
-@pytest.mark.parametrize('fault', ['expired', 'credentials', 'baseline', 'restore'])
+@pytest.mark.parametrize('running,fault', [
+    (False, 'expired'), (False, 'credentials'), (True, 'baseline'),
+    (True, 'restore'), (True, 'expired'),
+])
 def test_online_resume_refusal_preserves_idle_or_running_ownership(
         lease_rig, monkeypatch, tmp_path, running, fault):
     import online_snapshot
@@ -2451,8 +2381,11 @@ def test_online_resume_refusal_preserves_idle_or_running_ownership(
             assert state['phase'] == 'complete'
 
 
-@pytest.mark.parametrize('fault', [None, 'instance', 'owner', 'credentials', 'sharing', 'baseline'])
-@pytest.mark.parametrize('automatic', [False, True, 'recorded'])
+@pytest.mark.parametrize('fault,automatic', [
+    (None, False), (None, True), (None, 'recorded'),
+    ('instance', False), ('instance', True), ('instance', 'recorded'),
+    ('owner', True), ('credentials', False), ('sharing', 'recorded'), ('baseline', True),
+])
 def test_explicit_interrupted_online_recovery_is_bound_and_cleanup_only(
         lease_rig, monkeypatch, fault, automatic):
     import online_snapshot

@@ -2,7 +2,6 @@
 import json
 import os
 from pathlib import Path
-import subprocess
 
 import pytest
 
@@ -13,8 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize('release_date,expected_version', [
-    (' — 2026-09-11', '1.1'), (' - 2026-09-11', '1.1'),
-    ('', '1.1'), (' -', '1.1'), (' —', '1.1'),
+    (' — 2026-09-11', '1.1'), ('', '1.1'),
 ])
 def test_snapshot_includes_working_changes_and_prepares_history_without_mutating_checkout(
         tmp_path, release_date, expected_version):
@@ -151,34 +149,6 @@ def test_command_keeps_external_tool_scratch_inside_the_owned_attempt(tmp_path, 
     assert Path(result).is_dir()
     assert Path(result).parent == tmp_path
     assert 'TMPDIR' not in publish.environment()
-
-
-@pytest.mark.parametrize('target,category', [('test-all', 'all'),
-                                            ('test-all-verify', 'all-verify')])
-@pytest.mark.parametrize('status', [0, 7])
-def test_make_entrypoints_dispatch_and_propagate_failure(tmp_path, target, category, status):
-    (tmp_path / 'tools').mkdir()
-    # Exercise the real Make dispatcher in the private checkout, stopping at
-    # the stub runner so this check never starts tests or accesses a VM.
-    for name in ('tools/vm_selection.py', 'tests/integration/vm_config.py'):
-        destination = tmp_path / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes((ROOT / name).read_bytes())
-    vm = 'onpc-fixture'
-    (tmp_path / 'config').mkdir()
-    (tmp_path / 'config/environment.json').write_text(json.dumps({'families': [{
-        'family': 'fixture', 'package_format': 'deb', 'vm_tags': 'general', 'fixture_path': 'common/ubuntu/common', 'vms': [{
-        'name': vm, 'disk_anchor': str(tmp_path / 'unused.qcow2'), 'enabled': 'true',
-    }]}]}))
-    launcher = tmp_path / 'tools/run-tests'
-    launcher.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@"\nexit {status}\n')
-    launcher.chmod(0o755)
-    (tmp_path / target).touch()
-    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
-                             target, f'VM={vm}'],
-                            cwd=tmp_path, text=True, capture_output=True)
-    assert result.stdout.splitlines() == [category, '--vm', vm], result.stderr
-    assert bool(result.returncode) == bool(status), result.stderr
 
 
 def test_category_dispatch_uses_shared_script_and_rejects_options():

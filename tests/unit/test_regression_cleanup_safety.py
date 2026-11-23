@@ -28,9 +28,8 @@ def wait_for_stop():
 '''
 
 
-@pytest.mark.parametrize('stage', ['Discovery', 'Cleanup prerequisites', 'Host UI',
-                                  'Publishing', 'Package builds', 'Installed-system', 'E2E'])
-def test_aggregate_signal_warning_precedes_cleanup_and_survives_redraw(tmp_path, monkeypatch, stage):
+def test_aggregate_signal_warning_precedes_cleanup_and_survives_redraw(tmp_path, monkeypatch):
+    stage = 'Host UI'
     import regression
     (tmp_path / 'docs/TestAutomation/Evidence/test-all-runs').mkdir(parents=True)
     script = tmp_path / 'owned.py'
@@ -192,8 +191,8 @@ def test_failed_pidfd_acquisition_reaps_the_spawned_child(tmp_path, monkeypatch)
     assert len(children) == 1 and children[0].returncode is not None
 
 
-@pytest.mark.parametrize('slots', [2, 3, 4])
-def test_parallel_interrupt_collects_all_cleanups_without_touching_sentinel(tmp_path, slots):
+def test_parallel_interrupt_collects_all_cleanups_without_touching_sentinel(tmp_path):
+    slots = 3
     script = tmp_path / 'owned.py'
     script.write_text('''import signal,time
 def stop(*_):

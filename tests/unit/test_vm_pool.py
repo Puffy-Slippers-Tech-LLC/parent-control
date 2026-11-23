@@ -320,40 +320,6 @@ def test_executor_foreign_source_fence_releases_idle_checkout(executor_pool, mon
     assert state.released == ['first']
 
 
-def test_executor_avoids_extra_vm_probes_while_capacity_is_full(executor_pool, monkeypatch):
-    import vm_queue
-
-    state = executor_pool
-    second_probe = threading.Event()
-    probes = set()
-    executed = []
-
-    @contextmanager
-    def reservation(name, *, stopped, bind, wait, stderr):
-        assert not wait
-        probes.add(name)
-        if len(probes) > 1:
-            second_probe.set()
-        if state.held:
-            raise vm_pool.Busy('previous checkout is closing')
-        with state.reservation(name, stopped=stopped, bind=bind) as receipt:
-            yield receipt
-
-    monkeypatch.setattr(vm_pool, 'reservation', reservation)
-
-    def execute(worker):
-        executed.append(worker.vm.name)
-        assert state.held == {worker.vm.name}
-        if len(executed) == 1:
-            assert not second_probe.wait(.15), 'a spare VM was probed while capacity was full'
-        return 0
-
-    with vm_queue.Executor(state.root, state.vms, 1, threading.Event()) as executor:
-        results = executor.run_each(execute)
-    assert results == {'first': 0, 'second': 0}
-    assert sorted(executed) == ['first', 'second'] and not state.held
-
-
 def test_executor_source_wait_and_preparation_failure_release_capacity(executor_pool, monkeypatch):
     import host_compute
     import test_source

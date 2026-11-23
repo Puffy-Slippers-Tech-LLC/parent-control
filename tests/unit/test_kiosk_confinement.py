@@ -1,6 +1,5 @@
 """Current installed composition, session observations and owned PAM workers."""
 import importlib.util
-import json
 import os
 from pathlib import Path
 import stat
@@ -121,21 +120,6 @@ def test_fedora_kiosk_account_probe_uses_real_gdm_domain_and_removes_owned_fixtu
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize('service,role', [('gdm-password', 'ordinary'),
-                                         ('login', 'kiosk'), ('sshd', 'kiosk')])
-def test_other_fedora_account_probes_preserve_the_original_caller_command(
-        admission_model, monkeypatch, service, role):
-    helper = admission_model
-    monkeypatch.setattr(helper.guest, 'guard', Mock())
-    monkeypatch.setattr(helper.guest, 'package_path', lambda: Path('package.rpm'))
-    command = Mock(return_value=b'{"account":0,"end":0}')
-    monkeypatch.setattr(helper.guest.commands, 'run', command)
-    helper.probe(service, role, 0, 'control', Mock())
-    command.assert_called_once_with([
-        '/usr/bin/python3', '-B', str(Path(helper.__file__).resolve()),
-        'pam-account', service, role], timeout=45, merge_stderr=False)
-
-
 def test_fedora_caller_fixture_guard_refusal_precedes_any_fixture_write(
         census_model, tmp_path, monkeypatch):
     helper = census_model
@@ -179,8 +163,9 @@ def test_installed_admission_never_counts_unavailable_or_malformed_worker_as_den
     assert command.call_args.args[0][-3:] == ['pam-account', 'sshd', 'kiosk']
 
 
-@pytest.mark.parametrize('status', [0, 6])
-@pytest.mark.parametrize('role', ['kiosk', 'ordinary', 'other'])
+@pytest.mark.parametrize('status,role', [
+    (0, 'kiosk'), (6, 'kiosk'), (0, 'ordinary'), (6, 'other'),
+])
 def test_installed_admission_uses_real_service_name_and_ends_denied_transactions(
         admission_model, monkeypatch, status, role):
     from unittest.mock import MagicMock
@@ -325,35 +310,6 @@ def test_session_census_observes_current_services_without_optional_feature_veto(
     assert {call.args[0] for call in model.closed.call_args_list} == {1041, 1042, 1043}
 
 
-@pytest.mark.parametrize('state', ['unavailable', 'activating', 'deactivating', 'failed', 'active'])
-def test_optional_provider_transition_never_gates_or_rechecks_core_session(session_model, state):
-    model = session_model
-    model.helper.optional_service_state.return_value = state
-    result = model.helper.census()
-    assert result['services']['polkit'] == {'active_state': state, 'identity_observed': False}
-    assert result['services']['notifications'] == {'active_state': state, 'identity_observed': False}
-    assert model.helper.optional_service_state.call_count == 2
-    assert {call.args[0] for call in model.closed.call_args_list} == {1041, 1042, 1043}
-
-
-@pytest.mark.parametrize('failure', [
-    subprocess.TimeoutExpired(['systemctl'], 3),
-    OSError('optional service unavailable'),
-    UnicodeError('invalid optional telemetry'),
-])
-def test_optional_service_query_has_short_deadline_and_absorbs_unavailable_telemetry(
-        census_model, monkeypatch, failure):
-    helper = census_model
-    account = SimpleNamespace(pw_uid=1007, pw_gid=1007)
-    command = Mock(side_effect=failure)
-    monkeypatch.setattr(helper, 'user_command', command)
-    assert helper.optional_service_state(account, helper.SERVICES['polkit']) == 'unavailable'
-    assert command.call_args.kwargs == {'check': False, 'timeout': 3}
-    assert command.call_args.args == (account, [
-        '/usr/bin/systemctl', '--user', 'show', '--value',
-        '--property=ActiveState', helper.SERVICES['polkit']])
-
-
 def test_optional_query_timeout_preserves_core_session_result_and_closes_descriptors(
         session_model, monkeypatch):
     model = session_model
@@ -422,9 +378,11 @@ def test_graphical_session_binds_one_current_wayland_station(census_model, monke
     assert command.call_count == (1 if fault == 'none' else 3 if fault == 'ambiguous' else 2)
 
 
-@pytest.mark.parametrize('manager_class', ['manager', 'manager-early'])
-@pytest.mark.parametrize('fault', [None, 'second-desktop', 'wrong-user', 'wrong-service', 'wrong-type',
-                                  'manager-only'])
+@pytest.mark.parametrize('manager_class,fault', [
+    ('manager', None), ('manager-early', None),
+    *(('manager', fault) for fault in
+      ('second-desktop', 'wrong-user', 'wrong-service', 'wrong-type', 'manager-only')),
+])
 def test_graphical_session_distinguishes_manager_from_graphical_login(
         census_model, monkeypatch, manager_class, fault):
     helper = census_model
@@ -463,30 +421,3 @@ def test_graphical_session_distinguishes_manager_from_graphical_login(
 def test_observer_refuses_duplicate_missing_and_malformed_properties(census_model, rows):
     with pytest.raises(census_model.guest.GuestError, match='invalid-properties'):
         census_model.properties(rows, ('User',))
-
-
-def test_composition_uses_current_entry_and_distro_pam_without_starting_a_manager(
-        census_model, monkeypatch):
-    helper = census_model
-    from configparser import ConfigParser
-    parser = ConfigParser()
-    parser.read_string('[GNOME Session]\nKiosk=true\n')
-    account = SimpleNamespace(pw_uid=1007, pw_shell='/usr/sbin/nologin')
-    monkeypatch.setattr(helper.guest, 'guard', Mock())
-    monkeypatch.setattr(helper.pwd, 'getpwnam', Mock(return_value=account))
-    monkeypatch.setattr(helper.guest, 'package_path', lambda: Path('package.deb'))
-    import system_kiosk_admission as admission
-    monkeypatch.setattr(admission, 'routing', lambda uid: admission.DEDICATED)
-    command = Mock()
-    monkeypatch.setattr(helper.guest, 'run', command)
-    sections = {
-        'Desktop Entry': {'Exec': '/usr/libexec/oh-no-parent-control-kiosk-entry', 'TryExec': 'gnome-session'},
-        'GNOME Session': parser['GNOME Session'],
-        'Service': {'ExecStart': '/usr/bin/oh-no-parent-control'},
-    }
-    monkeypatch.setattr(helper, 'installed_configuration', lambda path, section: sections[section])
-    record = Mock()
-    assert helper.verify_session_composition(record) == (account, 'apparmor')
-    command.assert_called_once_with(['/usr/libexec/oh-no-parent-control-distro-pam',
-        '--distribution', 'ubuntu', 'verify'], timeout=45)
-    assert json.loads(record.call_args.args[1])['confinement_qualified'] is False

@@ -1,6 +1,9 @@
 ## v2.1
 ### Bug Fixes
 
+### Robustness and Reliability Improvements
+- **Parent App:** Background refreshes interrupted by a broker restart show a brief notification and keep the window usable.
+
 ## v2.0 - 2026-11-22
 ### New Features
 - **Fedora Support**: Fedora Workstation 44 and 45 are now officially supported!

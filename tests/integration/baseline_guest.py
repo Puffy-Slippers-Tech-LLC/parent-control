@@ -495,7 +495,7 @@ def prepare_with_snaps(capture, guestfs, password, *, mode, snap_payload, flatpa
             name: hashlib.sha256(data).hexdigest() for name, data in flatpak_payload.items()
             if name != flatpak_assets.MANIFEST}, sort_keys=True).encode())
         label_preparation(g)
-    with operation('Running no-app setup and guest system updates' if mode == 'auto'
+    with operation('Preparing prerequisites and updating guest packages and apps' if mode == 'auto'
                    else 'Running no-app prerequisite setup'):
         print('prepare-vm: Starting the VM; waiting for guest setup and shutdown', flush=True)
         boot_and_wait(capture)

@@ -1,6 +1,7 @@
-"""Noninteractive updates within the installed guest release."""
+"""Noninteractive system and app updates within the installed guest release."""
 
 import os
+import pwd
 import shutil
 import subprocess
 import time
@@ -13,6 +14,7 @@ def update_packages(os_id):
             ['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'],
             ['apt-get', '-o', 'DPkg::Lock::Timeout=300',
              '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold',
+             '-o', 'APT::Get::AutomaticRemove::Kernels=true',
              '-y', 'dist-upgrade'],
             ['apt-get', 'check'],
         )
@@ -37,12 +39,21 @@ def update_packages(os_id):
                 break
 
 
-def update_apps(username):
+def update_guest(os_id, *, username='edgar'):
+    update_packages(os_id)
     if shutil.which('snap'):
+        print('baseline: [update:snap] refreshing installed Snaps', flush=True)
         subprocess.run(['snap', 'wait', 'system', 'seed.loaded'], check=True, timeout=600)
         subprocess.run(['snap', 'refresh'], check=True, timeout=1800)
     if shutil.which('flatpak'):
-        user = ['runuser', '-u', username, '--', 'dbus-run-session', '--']
-        for prefix, scope in (([], '--system'), (user, '--user')):
-            subprocess.run([*prefix, 'flatpak', scope, 'update', '--noninteractive', '-y'],
-                           check=True, timeout=1800)
+        print('baseline: [update:flatpak-system] updating system Flatpaks', flush=True)
+        update = ['update', '--noninteractive', '-y']
+        subprocess.run(['flatpak', '--system', *update], check=True, timeout=1800)
+        try:
+            pwd.getpwnam(username)
+        except KeyError:
+            # Older or manually installed baselines may have a different administrator.
+            return
+        print('baseline: [update:flatpak-user] updating provisioning account Flatpaks', flush=True)
+        subprocess.run(['runuser', '-u', username, '--', 'dbus-run-session', '--',
+                        'flatpak', '--user', *update], check=True, timeout=1800)

@@ -8,7 +8,7 @@ import sys
 import time
 
 import prepare_vm
-from guest_updates import update_packages
+from guest_updates import update_guest
 
 ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
@@ -132,8 +132,8 @@ def prepare_native(os_id='ubuntu'):
 
 
 def update_system(os_id='ubuntu'):
-    """Update packages within the supported guest release using APT or DNF5."""
-    update_packages(os_id)
+    """Update the guest and recheck the baseline's native prerequisites."""
+    update_guest(os_id)
     reconcile_native_packages(os_id)
     prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
         snap_prepared=prepare_vm.vm_config.snap_tests_enabled())

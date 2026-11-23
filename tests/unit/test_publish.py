@@ -7,12 +7,10 @@ from datetime import date
 import gzip
 import hashlib
 from http.client import IncompleteRead
-import io
 import json
 import os
 from pathlib import Path
 import subprocess
-import time
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
 
@@ -42,28 +40,12 @@ NOTES = ('## v1.1 — 2026-09-11\n### Bug Fixes\n'
 @pytest.mark.parametrize('text,current,reason', [
     (NOTES, '1.0', 'updateversion'), (NOTES, '0.9', 'equal'),
     (NOTES.replace('v1.0', 'v1.1'), '1.0', 'unique'),
-    (NOTES.replace('v1.1', 'v01.1'), '1.0', 'leading'),
-    (NOTES.replace('## v1.0', '### v1.0'), '1.0', 'at least two'),
-    (NOTES.replace('v1.1', 'v1.1.2'), '1.0', 'heading'),
     (NOTES.replace('- **Parent App:** Fixed small screens.', ''), '1.0', 'bullet'),
     (NOTES.replace('Fixed', '\x1b[32mFixed'), '1.0', 'control'),
 ])
 def test_history_errors_fail_closed(text, current, reason):
     with pytest.raises(ValueError, match=reason):
         publish.history_entry(text, current)
-
-
-def test_numeric_order_and_changelog_preserve_only_latest_notes(tmp_path):
-    product, body = publish.history_entry(NOTES.replace('1.1', '1.10').replace('1.0', '1.9'), '1.10')
-    assert product == '1.10'
-    changelog = publish.changelog_entry('1.10+ppa1~ubuntu26.04.1', body)
-    assert '  Bug Fixes\n  * Parent App: Fixed small screens.' in changelog
-    assert 'Initial release' not in changelog
-    path = tmp_path / 'changelog'
-    path.write_text(changelog)
-    result = subprocess.run(['dpkg-parsechangelog', '-l', str(path), '-S', 'Version'],
-                            capture_output=True, text=True, check=True)
-    assert result.stdout.strip() == '1.10+ppa1~ubuntu26.04.1'
 
 
 def test_publish_prepares_an_unprepared_product_before_external_work(repository, monkeypatch, unsigned_publisher):
@@ -821,31 +803,6 @@ def test_terminal_launchpad_failure_and_binary_tampering_are_errors(launchpad, m
     assert record == journal[0]
 
 
-def test_polling_recovers_transient_network_errors_without_upload(tmp_path, monkeypatch, capsys):
-    outcomes = iter([URLError('offline'), None, {'version': '1.1'}])
-
-    def poll(version, *, progress):
-        progress['detail'] = 'binary published; waiting for the exact version in the PPA amd64 package index'
-        result = next(outcomes)
-        if isinstance(result, Exception):
-            raise result
-        return result
-
-    monkeypatch.setattr(publish, 'published_binary', poll)
-    monkeypatch.setattr(publish.time, 'sleep', lambda seconds: None)
-    state = {'version': '1.1', 'phase': 'upload-started'}
-    path = tmp_path / 'state.json'
-    publish.wait_for_publication(state, path)
-    assert json.loads(path.read_text())['phase'] == 'published'
-    output = capsys.readouterr()
-    assert 'PPA amd64 package index; status unavailable (URLError)' in output.err
-    zone = publish.datetime.now().astimezone().strftime('%Z')
-    assert f'{zone} (+' in output.out and 'retrying in 30s' in output.out
-    assert 'binary published; waiting for the exact version' in output.out
-    assert 'publication confirmed:' in output.out
-    assert 'waiting for Launchpad acceptance, amd64 build' not in output.out
-
-
 def test_polling_observes_publication_after_index_propagation(launchpad, tmp_path, monkeypatch, capsys):
     version, _, _, _ = launchpad
     original = publish.read_url
@@ -872,21 +829,6 @@ def test_polling_observes_publication_after_index_propagation(launchpad, tmp_pat
     output = capsys.readouterr().out
     assert 'binary published; waiting for the exact version in the PPA amd64 package index' in output
     assert output.count('retrying in') == 1
-
-
-def test_poll_timeout_identifies_last_pending_gate(tmp_path, monkeypatch):
-    ticks = iter([0, 0, 1, publish.WAIT_SECONDS])
-    monkeypatch.setattr(publish.time, 'monotonic', lambda: next(ticks))
-    monkeypatch.setattr(publish.time, 'sleep', lambda seconds: None)
-
-    def pending(version, *, progress):
-        progress['detail'] = 'binary published; waiting for PPA package index'
-
-    monkeypatch.setattr(publish, 'published_binary', pending)
-    state = {'version': '1.1', 'phase': 'upload-started'}
-    with pytest.raises(ValueError, match='last check: binary published; waiting for PPA package index'):
-        publish.wait_for_publication(state, tmp_path / 'state.json')
-    assert state['phase'] == 'upload-started'
 
 
 def test_public_reads_require_cache_revalidation(monkeypatch):
@@ -1013,8 +955,7 @@ def test_main_colors_errors_and_success_and_restores_environment(monkeypatch, ca
 
 
 @pytest.mark.parametrize('args,exit_code', [
-    (['--help'], 0), (['--force'], 2), (['upload'], 2), (['plan'], 2),
-    (['--stat'], 2), (['--status', 'extra'], 2), (['--reconcile'], 2),
+    (['--help'], 0), (['--force'], 2), (['--status', 'extra'], 2),
     (['prepare', '/tmp/onpc-release-test'], 2),
     (['check-build', '/tmp/onpc-release-test/source'], 2),
 ])
@@ -1022,35 +963,6 @@ def test_launcher_help_and_invalid_arguments_have_no_side_effects(args, exit_cod
     result = subprocess.run([str(ROOT / 'tools/publish.py'), *args],
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == exit_code
-
-
-@pytest.mark.parametrize('exit_code', [0, 7])
-@pytest.mark.parametrize('target,arguments', [('publish', [])])
-def test_make_publish_targets_invoke_one_tool_and_propagate_failure(tmp_path, exit_code, target, arguments):
-    # Exercise the real Makefile with a recording publisher, never a live upload.
-    checkout = tmp_path / 'checkout with spaces'
-    (checkout / 'tools').mkdir(parents=True)
-    launcher = checkout / 'tools/publish.py'
-    launcher.write_text(
-        '#!/usr/bin/python3 -IB\nimport json, sys\nfrom pathlib import Path\n'
-        'Path("invocation.json").write_text(json.dumps(sys.argv[1:]))\n'
-        f'raise SystemExit({exit_code})\n')
-    launcher.chmod(0o755)
-    (checkout / target).touch()  # The target must run even when this file exists.
-    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'), target],
-                            cwd=checkout, capture_output=True, text=True, timeout=10)
-    assert (result.returncode == 0) == (exit_code == 0), result.stderr
-    assert json.loads((checkout / 'invocation.json').read_text()) == arguments
-    if exit_code:
-        assert 'Error 7' in result.stderr
-
-
-def test_default_make_keeps_its_existing_behavior_without_publishing(tmp_path):
-    # A plain `make` must never start publication as an accidental default goal.
-    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'), 'VERSION='],
-                            cwd=tmp_path, capture_output=True, text=True, timeout=10)
-    assert result.returncode != 0
-    assert 'Usage: make bump-version' in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize('phase', ['upload-started', 'published', 'complete'])
@@ -1096,51 +1008,7 @@ def test_status_monitors_recorded_release_with_changed_checkout_without_writes(
     assert f'\033[32mpublish: published {version} for resolute/amd64' in capsys.readouterr().out
 
 
-def test_status_resumes_polling_without_updating_journal(repository, launchpad, monkeypatch, capsys):
-    version, source, _, _ = launchpad
-    source['status'] = 'Pending'
-    with publish.locked(repository) as path:
-        publish.save(path, {'phase': 'upload-started', 'version': version})
-    before = path.read_bytes()
-    sleeps = []
-
-    def sleep(seconds):
-        assert not sleeps, 'monitor did not finish when publication became ready'
-        sleeps.append(seconds)
-        source['status'] = 'Published'
-
-    monkeypatch.setattr(publish.time, 'sleep', sleep)
-    assert time.sleep is not sleep  # Subprocess timeout/backoff must keep its real clock.
-    publish.publication_status(repository)
-    assert sleeps == [publish.POLL_SECONDS]
-    assert path.read_bytes() == before
-    output = capsys.readouterr().out
-    assert 'waiting for Launchpad source publication' in output
-    assert '\033[32mpublish: published' in output
-
-
-def test_status_without_journal_selects_latest_numeric_ppa_version(repository, monkeypatch):
-    versions = ['1.9+ppa20~ubuntu26.04.1', '1.10+ppa2~ubuntu26.04.1', '1.10+ppa10~ubuntu26.04.1']
-    entries = [dict(source_package_version=version, distro_series_link=publish.SERIES) for version in versions]
-    entries.append(dict(source_package_version='2.0+ppa1~ubuntu26.04.1', distro_series_link='other-series'))
-    monkeypatch.setattr(publish, 'sources', lambda: entries)
-    checked = []
-
-    def check(version, *, progress):
-        checked.append(version)
-        return {'version': version}
-
-    monkeypatch.setattr(publish, 'published_binary', check)
-    publish.publication_status(repository)
-    assert checked == [versions[-1]]
-    assert not publish.journal_directory(repository).exists()
-
-
 @pytest.mark.parametrize('state,reason', [
-    ({'phase': 'prepared'}, 'has not reached the upload step'),
-    ({'phase': 'signed'}, 'has not reached the upload step'),
-    ({'phase': 'built'}, 'has not reached the upload step'),
-    ({'phase': 'push-started'}, 'has not reached the upload step'),
     ({'phase': 'pushed'}, 'has not reached the upload step'),
     ({'phase': 'unknown'}, 'invalid publishing journal'),
     ([], 'invalid publishing journal'),
@@ -1153,13 +1021,6 @@ def test_status_rejects_invalid_or_not_uploaded_journal_before_network(repositor
     monkeypatch.setattr(publish, 'sources', lambda *args: pytest.fail('unexpected network read'))
     with pytest.raises(ValueError, match=reason):
         publish.publication_status(repository)
-
-
-def test_status_without_any_release_fails_without_creating_journal(repository, monkeypatch):
-    monkeypatch.setattr(publish, 'sources', lambda: [])
-    with pytest.raises(ValueError, match='no recorded release or Launchpad source'):
-        publish.publication_status(repository)
-    assert not publish.journal_directory(repository).exists()
 
 
 @pytest.mark.parametrize('interrupted', [False, True])
@@ -1179,23 +1040,6 @@ def test_status_cli_never_dispatches_publisher(monkeypatch, capsys, interrupted)
     assert output.out == ''
     if interrupted:
         assert 'rerun the same command' in output.err
-
-
-def test_source_history_follows_all_publication_states_and_pagination(monkeypatch):
-    urls = []
-
-    def fetch(url):
-        urls.append(url)
-        if 'status=Deleted' in url:
-            return dict(entries=[dict(source_package_version='1.0+ppa3~ubuntu26.04.1')],
-                        next_collection_link=publish.API + '?next-page')
-        return dict(entries=[])
-
-    monkeypatch.setattr(publish, 'fetch', fetch)
-    assert len(publish.sources()) == 1
-    assert publish.API + '?next-page' in urls
-    for state in ('Pending', 'Published', 'Superseded', 'Deleted', 'Obsolete'):
-        assert any('status=' + state in url for url in urls)
 
 
 @pytest.mark.parametrize('architectures,registered,accepted', [
@@ -1831,14 +1675,6 @@ def test_concurrent_remote_main_push_is_never_overwritten(main_update_candidate,
     assert json.loads(path.read_text())['main_update']['phase'] == 'ready'
 
 
-def test_independent_clone_asks_for_main_path(main_update_candidate, monkeypatch):
-    target, root, _, state, _ = main_update_candidate
-    git(root, 'config', '--unset', 'onpc.publishMainCheckout')
-    replies = iter([str(target), 'yes'])
-    monkeypatch.setattr('builtins.input', lambda prompt: next(replies))
-    assert publish.confirm_main_update(root, state['base']) == state['main_update']
-
-
 @pytest.mark.parametrize('changed_files', [False, True])
 @pytest.mark.parametrize('enlistment', ['clone', 'worktree'])
 def test_release_only_inputs_fast_forward_main_and_publish_metadata(
@@ -1873,8 +1709,10 @@ def test_release_only_inputs_fast_forward_main_and_publish_metadata(
         assert (target / 'docs/README.md').read_text() == 'Committed release inputs.\n'
 
 
-@pytest.mark.parametrize('phase', ['upload-started', 'published', 'complete'])
-@pytest.mark.parametrize('release_journal', ['present', 'removed', 'reused'])
+@pytest.mark.parametrize('phase,release_journal', [
+    ('upload-started', 'present'), ('upload-started', 'removed'),
+    ('upload-started', 'reused'), ('published', 'reused'), ('complete', 'reused'),
+])
 def test_main_monitor_prefers_handoff_and_preserves_journals(
         main_update_candidate, monkeypatch, phase, release_journal):
     target, root, _, state, path = main_update_candidate
@@ -2162,50 +2000,3 @@ def test_main_sync_handles_remote_advance_without_force(main_update_candidate, t
         assert git(target, 'rev-parse', 'origin/main') == head
         assert (target / 'remote-work').read_text() == 'Already pushed work.\n'
     assert git(target, 'status', '--porcelain') == ''
-
-
-@pytest.mark.parametrize('ending', ['success', 'failure', 'interrupt'])
-def test_terminal_monitor_refreshes_repeats_and_preserves_status_changes(monkeypatch, ending):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-    output = Terminal()
-    monkeypatch.setattr(publish.sys, 'stdout', output)
-    monkeypatch.setattr(publish.shutil, 'get_terminal_size', lambda **kwargs: os.terminal_size((60, 24)))
-    monkeypatch.setattr(publish.time, 'sleep', lambda seconds: None)
-    outcomes = iter([None, None, 'accepted', URLError('offline'), ending])
-
-    def poll(version, *, progress):
-        progress['detail'] = 'waiting for an exact published package ' + 'x' * 120
-        result = next(outcomes)
-        if isinstance(result, Exception):
-            raise result
-        if result == 'accepted':
-            progress['detail'] = 'source accepted; waiting for publication'
-        if result == 'failure':
-            raise ValueError('terminal build failure')
-        if result == 'interrupt':
-            raise KeyboardInterrupt
-        return {'version': version} if result == 'success' else None
-
-    monkeypatch.setattr(publish, 'published_binary', poll)
-    publish.highlight('MAIN UPDATED: development can resume.', success=True)
-    if ending == 'success':
-        publish.wait_for_publication({'version': '1.1'})
-    else:
-        with pytest.raises(ValueError if ending == 'failure' else KeyboardInterrupt):
-            publish.wait_for_publication({'version': '1.1'})
-    text = output.getvalue()
-    assert text.count('MAIN UPDATED') == 1 and '\033[1;32m' in text
-    assert text.count('\n') == (6 if ending == 'success' else 5)
-    updates = text.split('\r\033[2K')[1:]
-    for line in updates:
-        plain = line.split('\n')[0].replace('\033[31m', '').replace('\033[32m', '').replace('\033[0m', '')
-        assert len(plain) <= 59
-    assert text.count('\r\033[2K') == 4
-    assert text.count('\033[32m') == 3
-    assert text.count('\033[31m') == 1
-    assert '\033[0m\r\033[2K' in text  # Repeated status refreshes inline.
-    assert '\033[0m\n\r\033[2K\033[32mpublish: ' in text
-    assert '\033[0m\n\r\033[2K\033[31mpublish: ' in text

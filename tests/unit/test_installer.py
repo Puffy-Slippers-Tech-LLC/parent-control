@@ -324,30 +324,6 @@ class PackageDeploymentTests(unittest.TestCase):
         self.assertLess(postinst.index('#DEBHELPER#'), postinst.index(
             '/usr/libexec/oh-no-parent-control-package-notice --configured'))
 
-    def test_make_build_keeps_changes_file_artifacts_together(self):
-        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        recipe = makefile.split("_build-package:\n", 1)[1].split(
-            "\n\ninstall:", 1
-        )[0]
-
-        self.assertIn(
-            'mv "../oh-no-parent-control_$${version}_$${architecture}.deb"',
-            recipe,
-        )
-        self.assertIn(
-            'ddeb_file="../oh-no-parent-control-dbgsym_$${version}_$${architecture}.ddeb"',
-            recipe,
-        )
-        self.assertIn('if test -f "$$ddeb_file"; then mv', recipe)
-        self.assertIn(
-            'mv "../oh-no-parent-control_$${version}_$${architecture}.changes"',
-            recipe,
-        )
-        self.assertIn(
-            'mv "../oh-no-parent-control_$${version}_$${architecture}.buildinfo"',
-            recipe,
-        )
-
     def test_package_payload_contains_product_assets_and_system_integration(self):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         for source in (

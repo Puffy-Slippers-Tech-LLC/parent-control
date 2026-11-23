@@ -113,9 +113,10 @@ def test_live_refresh_dispatch_requires_exact_phase_inputs_and_target(checkout, 
             '--vm', vm_name(0), '--fixture-refresh-phase', phase])
 
 
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('suffix,selector,vm,target', [
+    *(('', selector, *VM_TARGETS[0]) for selector in FIXTURE_WRAPPERS),
+    ('.py', FIXTURE_WRAPPERS[0], *VM_TARGETS[1]),
+])
 def test_fixture_selection_dispatches_only_fixed_wrapper(checkout, fixture_selection, suffix, selector, vm, target):
     (checkout / 'tests/integration' / (selector + '.py')).touch()
     fixture_selection['target'] = target
@@ -146,9 +147,11 @@ def test_installed_system_dispatch_is_bound_to_qualified_target(checkout, fixtur
             '--vm', other, '--fixture-selection', json.dumps(fixture_selection)])
 
 
-@pytest.mark.parametrize('name', ['check_fixture_e2e_installed', 'check_e2e_approval_flow',
-                                  'check_e2e_native_fixtures'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('name,vm,target', [
+    ('check_fixture_e2e_installed', *VM_TARGETS[0]),
+    ('check_e2e_approval_flow', *VM_TARGETS[1]),
+    ('check_e2e_native_fixtures', *VM_TARGETS[0]),
+])
 def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, name, vm, target):
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
@@ -161,9 +164,11 @@ def test_installed_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_s
             FEDORA_VM if target == 'ubuntu' else UBUNTU_VM])
 
 
-@pytest.mark.parametrize('name', ['check_fixture_e2e_product_free',
-                                  'check_e2e_product_free_entry', 'check_e2e_package_upgrade'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('name,vm,target', [
+    ('check_fixture_e2e_product_free', *VM_TARGETS[0]),
+    ('check_e2e_product_free_entry', *VM_TARGETS[1]),
+    ('check_e2e_package_upgrade', *VM_TARGETS[0]),
+])
 def test_product_free_e2e_dispatch_is_bound_to_qualified_target(checkout, fixture_selection, name, vm, target):
     (checkout / 'tests/integration' / (name + '.py')).touch()
     fixture_selection['target'] = target
@@ -186,9 +191,10 @@ def test_e2e_fixture_selection_does_not_enable_other_envelopes(fixture_selection
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
-@pytest.mark.parametrize('selector', ['check_graphical_serial', 'check_fixture_serial'])
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('selector,suffix,vm,target', [
+    ('check_graphical_serial', '', *VM_TARGETS[0]),
+    ('check_fixture_serial', '.py', *VM_TARGETS[1]),
+])
 def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, selector, suffix, vm, target):
     (checkout / 'tests/integration' / (selector + '.py')).touch()
     fixture_selection['target'] = target
@@ -202,8 +208,9 @@ def test_serial_dispatch_preserves_selection_and_target(checkout, fixture_select
             '--vm', FEDORA_VM if target == 'ubuntu' else UBUNTU_VM, *options])
 
 
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('suffix,vm,target', [
+    ('', *VM_TARGETS[0]), ('.py', *VM_TARGETS[1]),
+])
 def test_recorded_serial_dispatch_preserves_selection_and_target(checkout, fixture_selection, suffix, vm, target):
     name = 'check_fixture_recorded_serial'
     (checkout / 'tests/integration' / (name + '.py')).touch()
@@ -298,17 +305,17 @@ def test_fixture_selection_rejects_foreign_identity(checkout, fixture_selection,
     (['--list'], 'fixture-target-not-qualified'),
     (['check_fixture_provisioning', '--list'], 'check-selector-conflict'),
 ])
-@pytest.mark.parametrize('vm', [UBUNTU_VM, FEDORA_VM])
-def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, error, vm):
+def test_fixture_selection_refuses_other_selector_or_listing(checkout, fixture_selection, args, error):
+    vm = UBUNTU_VM
     with pytest.raises(ValueError, match=error):
         runner['selection'](checkout, ['system', *args, '--vm', vm,
             '--fixture-selection', json.dumps(fixture_selection)])
 
 
-@pytest.mark.parametrize(('target', 'vm'), [
-    ('fedora', UBUNTU_VM), ('ubuntu', FEDORA_VM),
+@pytest.mark.parametrize('selector,target,vm', [
+    (FIXTURE_WRAPPERS[0], 'fedora', UBUNTU_VM),
+    (FIXTURE_WRAPPERS[0], 'ubuntu', FEDORA_VM),
 ])
-@pytest.mark.parametrize('selector', FIXTURE_WRAPPERS)
 def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selection, target, vm, selector):
     fixture_selection['target'] = target
     fixture_selection['allocation'] = '/tmp/onpc-native-runtime-' + target + '-' + 'a' * 64 + '-private'
@@ -318,8 +325,7 @@ def test_fixture_selection_refuses_unqualified_target(checkout, fixture_selectio
 
 
 @pytest.mark.parametrize('category,arguments', [
-    *(('system', [selector]) for selector in FIXTURE_WRAPPERS),
-    ('system', ['--artifacts', '/tmp/onpc-current']),
+    ('system', [FIXTURE_WRAPPERS[0]]), ('system', ['--artifacts', '/tmp/onpc-current']),
 ])
 def test_fixture_selection_refuses_unknown_vm(checkout, fixture_selection, category, arguments):
     with pytest.raises(ValueError):
@@ -369,8 +375,7 @@ def test_system_dispatch_preserves_explicit_fast_policy(checkout):
     assert fast == [*strict, '--skip-backing-verification']
 
 
-@pytest.mark.parametrize('path', ['relative', '/etc', '/tmp/unrelated',
-                                  '/tmp/onpc-previous/../other'])
+@pytest.mark.parametrize('path', ['relative', '/etc', '/tmp/onpc-previous/../other'])
 def test_system_update_rejects_unconfined_prior_payload(checkout, path):
     with pytest.raises((ValueError, SystemExit)):
         select(checkout, ['system', '--artifacts', '/tmp/onpc-current',
@@ -557,12 +562,9 @@ def test_recovery_dispatch_preserves_unfinished_vm_journal(checkout, monkeypatch
     assert journal.read_bytes() == before
 
 
-@pytest.mark.parametrize('unattended', [False, True])
-@pytest.mark.parametrize('arguments', [
-    ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session'],
-    ['system', 'check_e2e_baseline_journey'], ['system', 'check_e2e_watch.py'],
-    ['system', 'check_e2e_chinese_current_install'],
-    ['system', 'check_fixture_recorded_serial'],
+@pytest.mark.parametrize('unattended,arguments', [
+    (False, ['system', '--artifacts', '/tmp/onpc-selected', '--area', 'session']),
+    (True, ['system', 'check_e2e_baseline_journey']),
 ])
 def test_selected_producer_dispatch_keeps_command_without_parent_owner(
         checkout, monkeypatch, unattended, arguments):

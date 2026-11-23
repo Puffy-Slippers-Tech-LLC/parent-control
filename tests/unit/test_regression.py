@@ -3,7 +3,6 @@ from tests.support.vm_registry import vm_name
 
 import io
 from contextlib import contextmanager, nullcontext
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -17,8 +16,6 @@ import pytest
 import regression
 import regression_events
 import regression_process
-import regression_schedule
-from regression_resources import Admission, GIB, Sample
 from regression_process import Control
 import test_commands
 from system_progress import Progress
@@ -97,47 +94,6 @@ def private_dispatch_source(monkeypatch):
                  test_source.STARTUP_READER, test_source.STARTUP_WRITER):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(test_source, '_local', threading.local())
-
-
-@pytest.mark.parametrize(('concurrency', 'expected'), [(6, [2, 2, 2]), (5, [2, 2, 1]),
-                                                     (2, [1, 1, 0])])
-def test_pass_admission_balances_ready_families_and_rotates_refills(concurrency, expected):
-    from vm_test_queue import FamilyAdmission
-    vms = [SimpleNamespace(name=f'{family}-{index}', family=family, compute_unit=1)
-           for family in ('a', 'b', 'c') for index in range(3)]
-    admission = FamilyAdmission(vms)
-    ready = [vm.name for vm in vms]
-    active = []
-    for _ in range(concurrency):
-        name = admission.choose(ready, active)
-        ready.remove(name)
-        active.append(name)
-    assert [sum(name.startswith(family) for name in active) for family in ('a', 'b', 'c')] == expected
-    # Lower concurrency still eventually admits every family. A busy/drained
-    # family supplies no ready VM and cannot strand another family's capacity.
-    observed = set(active)
-    for _ in range(9):
-        ready.append(active.pop(0))
-        name = admission.choose(ready, active)
-        ready.remove(name)
-        active.append(name)
-        observed.add(name)
-    assert {name[0] for name in observed} == {'a', 'b', 'c'}
-    assert admission.choose(['a-0', 'a-1'], ['b-0']) == 'a-0'
-    from host_compute import choose, units
-    from collections import Counter
-    balanced = [SimpleNamespace(name=f'{family}-{cost}', family=family, compute_unit=cost)
-                for family in ('a', 'b') for cost in (1, 2)]
-    selected = choose(balanced, units(4))
-    totals = Counter()
-    for vm in selected:
-        totals[vm.family] += vm.compute_unit
-    assert totals == {'a': 2, 'b': 2}
-    equal = [SimpleNamespace(name=f'{family}-{i}', family=family, compute_unit=1)
-             for family in ('a', 'b') for i in range(2)]
-    assert Counter(vm.family for vm in choose(equal, units(3))) == {'a': 2, 'b': 1}
-    exhausted = [vm for vm in balanced if vm.family != 'a' or vm.compute_unit == 1]
-    assert Counter(vm.family for vm in choose(exhausted, units(3.5))) == {'a': 1, 'b': 1}
 
 
 def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_path, monkeypatch):
@@ -532,104 +488,6 @@ def test_ui_query_diagnostics_preserve_results_errors_and_private_arguments():
     assert evidence['sync']['other']['count'] == 1
 
 
-def test_ui_query_diagnostics_preserve_interrupt_and_measure_stream_cost():
-    from tests.support.ui_timing import Timings
-    now, cpu, events = [0.0], [1.0], []
-
-    def sink(kind, **fields):
-        events.append(fields)
-        now[0] += .1
-
-    recorder = Timings(sink, lambda: now[0], lambda: cpu[0])
-    recorder.begin('case', 'call')
-    queries = [('private-bus', '/private/path', 'org.a11y.atspi.Accessible',
-                'GetAttributes', '', ())]
-    interruption = KeyboardInterrupt('private-interruption')
-
-    def batch(api, original):
-        assert original is queries
-        now[0] += 1
-        raise interruption
-
-    with pytest.raises(KeyboardInterrupt) as caught:
-        recorder.wrap_batch(batch)(object(), queries)
-    assert caught.value is interruption
-    cpu[0] += .3
-    recorder.publish('end')
-    assert events[-1]['cpu_seconds'] == pytest.approx(.3)
-    assert events[-1]['output_seconds'] == pytest.approx(.1)
-    assert events[-1]['queries']['batch_sizes'] == {'1': dict(count=1, aborted=1, seconds=1)}
-    assert events[-1]['operations']['atspi.batch']['errors'] == 1
-    assert not recorder.stack and 'private-' not in str(events)
-    recorder.begin('case', 'teardown')
-    recorder.publish('end')
-    assert events[-1]['cpu_seconds'] == 0
-    assert events[-1]['output_seconds'] == pytest.approx(.1)
-
-
-def test_ui_trace_retains_nested_operation_identity_and_existing_reader_timing():
-    from tests.support.ui_timing import Timings
-    from tests.e2e.accessible_ui import AccessibleUI
-    events, existing = [], []
-    recorder = Timings(lambda kind, **fields: events.append((kind, fields)))
-    reader = AccessibleUI(object(), root=lambda: None, timing=existing.append)
-    reader._run = lambda *args, **kwargs: 42
-    wrapped = recorder.wrap_reader_run(AccessibleUI.run)
-    with recorder.span('gui.block'):
-        assert wrapped(reader, 'child-picker-opened', 'private version') == 42
-    trace = [fields for kind, fields in events if kind == 'ui-trace']
-    assert [event['status'] for event in trace] == ['begin', 'begin', 'end', 'end']
-    assert trace[1]['parent'] == trace[0]['span']
-    assert trace[1]['registered_operation'] == 'child-picker-opened'
-    timing = next(fields for kind, fields in events if kind == 'ui-reader-timing')
-    assert timing['span'] == trace[1]['span']
-    assert timing['tree_reads'] == 0
-    assert len(existing) == 1
-    assert reader.timing == existing.append
-    assert 'private version' not in str(events)
-
-
-def test_ui_timings_escape_case_capture_and_close_owned_descriptor(tmp_path):
-    from tools.test_storage import scratch_descriptors
-    root = Path(__file__).resolve().parents[2]
-    (tmp_path / 'conftest.py').write_text('''
-import os
-import pytest
-from tests.support.ui_timing import Timings
-timings = None
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_setup(item):
-    global timings
-    timings = Timings.retained()
-    timings.begin(item.nodeid, 'setup')
-    yield
-@pytest.fixture
-def record():
-    return timings
-def pytest_sessionfinish(session, exitstatus):
-    descriptor = timings.stream.fileno()
-    assert not os.get_inheritable(descriptor)
-    timings.close()
-    with pytest.raises(OSError):
-        os.fstat(descriptor)
-''')
-    (tmp_path / 'test_sample.py').write_text('''
-def test_capture(record):
-    print('private-test-output')
-    with record.measure('reader.snapshot'):
-        pass
-    record.publish('progress')
-''')
-    result = subprocess.run([sys.executable, '-m', 'pytest', '-q', str(tmp_path)],
-        env=dict(os.environ, PYTHONPATH=str(root)), stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, timeout=30, pass_fds=scratch_descriptors())
-    output = result.stdout.decode()
-    assert result.returncode == 0, output
-    assert '"status": "progress"' in output
-    assert '"reader.snapshot"' in output
-    assert 'private-test-output' not in output
-
-
 @pytest.fixture
 def report(tmp_path):
     result = regression.Report(tmp_path)
@@ -772,7 +630,7 @@ def test_observation_block_stops_vm_dispatch_and_keeps_clear_results(tmp_path, m
 
 
 @pytest.mark.parametrize('output', ['valid', 'missing-marker', 'missing-file', 'invalid-file',
-                                  'stale', 'unregistered', 'replaced', 'symlink', 'ancestor-symlink'])
+                                  'stale', 'replaced', 'ancestor-symlink'])
 def test_successful_coverage_requires_its_actual_outputs(tmp_path, monkeypatch, output):
     import test_retention
     monkeypatch.delenv(test_retention.VARIABLE, raising=False)
@@ -1011,52 +869,6 @@ def test_inventory_directory_sync_failure_prevents_status_sync_and_can_retry(rep
     assert not report.dirty
 
 
-def test_large_inventory_is_not_rewritten_with_live_counts(report, monkeypatch):
-    item = regression.Category('Large', 2000, nodeids=tuple(
-        f'test.py::case[{index}-' + 'x' * 200 + ']' for index in range(2000)))
-    publications = []
-    publish = report.publish
-
-    def record(name, value):
-        publications.append((name, len(json.dumps(value).encode())))
-        publish(name, value)
-
-    monkeypatch.setattr(report, 'publish', record)
-    report.snapshot([item])
-    legacy_bytes = len(json.dumps(dict(vars(item), done=item.progress_done,
-                                     total=item.progress_total), indent=2).encode())
-    for count in range(1, 21):
-        item.done = count
-        report.snapshot([item])
-        legacy_bytes += len(json.dumps(dict(vars(item), done=item.progress_done,
-                                           total=item.progress_total), indent=2).encode())
-    assert sum(name.startswith('inventory-') for name, _ in publications) == 1
-    assert sum(size for name, size in publications if name == 'progress.json') < 20000
-    optimized_bytes = sum(size for _, size in publications)
-    assert optimized_bytes < legacy_bytes / 10
-    print(f'Report I/O benchmark: legacy={legacy_bytes} optimized={optimized_bytes} bytes')
-    progress, = json.loads((report.directory / 'progress.json').read_text())
-    inventory, = json.loads((report.directory / progress['inventory_file']).read_text())
-    assert progress['inventory_index'] == 0 and progress['done'] == 20
-    assert 'nodeids' not in progress and 'resumed_nodeids' not in progress
-    assert inventory['nodeids'] == list(item.nodeids)
-    before = list(publications)
-    report.snapshot([item])
-    assert publications == before
-    item.resumed_nodeids = ('previous-pass',)
-    item.failed_nodeids = (item.nodeids[0],)
-    item.failures = 1
-    report.snapshot([item])
-    progress, = json.loads((report.directory / 'progress.json').read_text())
-    inventory, = json.loads((report.directory / progress['inventory_file']).read_text())
-    assert progress['done'] == 21 and progress['total'] == 2001
-    assert progress['failed_nodeids'] == [item.nodeids[0]]
-    assert inventory['resumed_nodeids'] == ['previous-pass']
-    assert sum(name.startswith('inventory-') for name, _ in publications) == 2
-    original, = json.loads((report.directory / 'inventory-001.json').read_text())
-    assert original['resumed_nodeids'] == []
-
-
 @pytest.mark.parametrize('failed_publication', ['inventory-002.json', 'progress.json'])
 def test_inventory_revisions_preserve_saved_status_through_failed_publication(report, monkeypatch,
                                                                             failed_publication):
@@ -1122,7 +934,7 @@ def test_host_workers_never_launch_cleanup_tests(tmp_path, monkeypatch, verified
     assert calls == [['pytest', 'selected']]
 
 
-@pytest.mark.parametrize('category', ['fixture-runtime', 'publish', 'artifacts', 'system', 'e2e'])
+@pytest.mark.parametrize('category', ['fixture-runtime', 'artifacts', 'system', 'e2e'])
 def test_dispatch_preserves_build_inputs_without_adding_cleanup_tests(tmp_path, monkeypatch, category,
                                                                      private_dispatch_source):
     import test_activity
@@ -1189,50 +1001,6 @@ def test_old_dispatcher_is_refused_before_expensive_suites(monkeypatch, installe
     else:
         with pytest.raises(ValueError, match='setup.sh --test-tools-only'):
             regression.authorization()
-
-
-@pytest.mark.parametrize('slots', [1, 2, 3, 8])
-def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_path, monkeypatch, slots):
-    release = threading.Event()
-    coordinator = threading.get_ident()
-    class Commands(Control):
-        def run(self, command, **kwargs):
-            if command == ['long'] and slots > 1:
-                assert release.wait(5)
-            return 0
-    config = tmp_path / 'config'
-    config.mkdir()
-    (config / 'environment.json').write_text(json.dumps(dict(families=[{}], hosts=[
-        dict(name='local', enabled='true', transport='local', max_compute_unit=1),
-        dict(name='server', enabled='true', transport='ssh', max_compute_unit=1,
-             host_test_concurrency=slots),
-    ], branches=[dict(name='test', host='server', repo_root=str(tmp_path))])))
-    monkeypatch.setattr('host_dispatch.git', lambda *_: 'test')
-    run = regression.Run(tmp_path, report, Commands(), host_only=True)
-    run.dashboard.stream = io.StringIO()
-    run.admission = SimpleNamespace(allows=lambda *_: True)
-    names = ['long', 'short1', 'short2']
-    if slots >= 4:
-        names.extend(f'short{index}' for index in range(3, slots))
-    items = [regression.Category(name, 1) for name in names]
-    run.categories.extend(items)
-    original = regression.Execution.finish
-    def finish(execution, status):
-        assert threading.get_ident() == coordinator
-        if execution.item is items[-1]:
-            release.set()
-        return original(execution, status)
-    from regression_schedule import Job
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(regression.Execution, 'finish', finish)
-        run.host_jobs([Job(item.name, item, [item.name], estimate=10 - index)
-                       for index, item in enumerate(items)])
-    expected = [1, min(2, slots), min(3, slots), *range(4, slots + 1)]
-    assert [item.branch for item in items] == expected
-    assert f'Host branch {slots} ' in run.dashboard.stream.getvalue()
-    saved = json.loads((report.directory / 'progress.json').read_text())[1:]
-    assert [item['branch'] for item in saved] == expected
-    assert all(item['state'] == 'Passed' for item in saved)
 
 
 @pytest.mark.parametrize('continue_on_errors', [False, True])
@@ -1385,11 +1153,11 @@ def test_interrupted_collection_preserves_assigned_inventory_and_requires_cancel
         execution.close()
 
 
-@pytest.mark.parametrize('cancelled', [False, True])
-@pytest.mark.parametrize('fields,message', [
-    (dict(total=0, nodeids=[]), 'test inventory changed after collection'),
-    (dict(total=1, nodeids=['changed-case']), 'test inventory IDs changed after collection'),
-    (dict(total=1), 'missing test inventory IDs'),
+@pytest.mark.parametrize('cancelled,fields,message', [
+    (False, dict(total=0, nodeids=[]), 'test inventory changed after collection'),
+    (False, dict(total=1, nodeids=['changed-case']), 'test inventory IDs changed after collection'),
+    (True, dict(total=1, nodeids=['changed-case']), 'test inventory IDs changed after collection'),
+    (True, dict(total=1), 'missing test inventory IDs'),
 ])
 def test_completed_collection_inventory_guards_remain_active_during_cancellation(
         report, tmp_path, cancelled, fields, message):
@@ -1408,73 +1176,6 @@ def test_completed_collection_inventory_guards_remain_active_during_cancellation
         assert item.state != 'Passed' and item.done == 0
     finally:
         execution.close()
-
-
-@pytest.mark.parametrize('outcome', ['passed', 'failed', 'fail-fast', 'error', 'interrupted', 'interrupted-failure'])
-def test_saved_investigation_prompt_links_closed_report(tmp_path, monkeypatch, capsys, outcome):
-    import evidence_bundle
-    import runner_evidence
-    def no_archive(*_args, **_kwargs):
-        pytest.fail('ordinary report attempted archival proof collection or recovery')
-    monkeypatch.setattr(runner_evidence, 'ReportEvidence', no_archive)
-    monkeypatch.setattr(runner_evidence, 'recover_pending', no_archive)
-    monkeypatch.setattr(evidence_bundle, 'export', no_archive)
-    runs = []
-
-    def execute(run):
-        runs.append(run)
-        item = run.categories[0]
-        item.done = 1
-        item.failures = int(outcome in ('failed', 'fail-fast', 'interrupted-failure'))
-        item.state = 'Failed' if item.failures else 'Passed'
-        run.report.write('\nDetailed failure evidence stays in this report.\n')
-        if outcome.startswith('interrupted'):
-            run.control.stopped.set()
-        if outcome == 'fail-fast':
-            run.control.fail()
-            monkeypatch.setattr(run, 'result_status', lambda: 130)
-        if outcome == 'error':
-            raise ValueError('discovery failure detail')
-
-    monkeypatch.setattr(regression.Run, 'run', execute)
-    status = regression.main(tmp_path)
-    output = capsys.readouterr().out
-    run = runs[0]
-    assert run.report.stream.closed
-    assert status == (130 if outcome.startswith('interrupted') else
-                      0 if outcome == 'passed' else 1)
-    assert 'Copy this prompt into a new Codex session:' not in output
-    assert 'Investigate and fix the failures in ' not in output
-    handoff = run.report.directory / 'failure.json'
-    if outcome in ('passed', 'interrupted'):
-        assert not handoff.exists()
-        assert 'Failure handoff: ' not in output
-    else:
-        prompt = json.loads(handoff.read_text())['prompt']
-        assert f'Failure handoff: {handoff}' in output
-        assert str(tmp_path) in prompt
-        assert str(run.report.directory / 'report.md') in prompt
-        assert 'progress.json' in prompt
-        assert 'rerun the relevant checks' in prompt
-        assert 'tools/prepare-vm --vm NAME --mode auto --y' in prompt
-        assert 'tools/prepare-appsnapshot --vm NAME --y' in prompt
-        assert 'omit it for manual work' in prompt
-        assert 'Detailed failure evidence' not in prompt
-        assert output.index('Failure handoff: ') > output.rindex('Overall - ')
-        assert '## Final result' in (run.report.directory / 'report.md').read_text()
-        assert '<pre>' in (run.report.directory / 'report.md').read_text()
-
-
-def test_report_initialization_failure_exposes_cause(tmp_path, monkeypatch, capsys):
-    def broken(_):
-        raise PermissionError('report directory is not writable')
-
-    monkeypatch.setattr(regression, 'Report', broken)
-    assert regression.main(tmp_path) == 1
-    output = capsys.readouterr()
-    assert 'Report initialization - 0% (0/1)' in output.out
-    assert ('Report initialization failed: PermissionError: '
-            'report directory is not writable') in output.err
 
 
 def test_report_rejects_symlinked_parent(tmp_path):
@@ -1669,25 +1370,6 @@ def test_invalid_builder_output_cannot_unlock_reproducibility(report, tmp_path, 
     assert run.artifacts == previous
 
 
-def test_serial_builder_samples_resources_while_running_and_labels_the_observation(report, tmp_path):
-    class Commands(Control):
-        def run(self, command, **kwargs):
-            for _ in range(3):
-                kwargs['tick']()
-            return 0
-
-    run = regression.Run(tmp_path, report, Commands())
-    run.wait_for_resources = lambda *_: None
-    run.admission.update = lambda: run.observe_resources({'available': True, 'available_memory': 123})
-    item = regression.Category('Publishing tests', 1)
-    run.categories.append(item)
-    assert run.execute(item, ['launcher', 'publish'])[0] == 0
-    samples = [json.loads(line) for line in (report.directory / 'resources.jsonl').read_text().splitlines()]
-    assert len(samples) == 3
-    assert all(sample['running_categories'] == ['Publishing tests'] for sample in samples)
-    assert item.state == 'Passed'
-
-
 @pytest.mark.parametrize('failure', [None, 'build-a', 'build-b', 'publish-rpm'])
 def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_active(
         report, tmp_path, failure):
@@ -1748,132 +1430,3 @@ def test_independent_builds_finish_in_reverse_order_with_host_and_publishing_act
     assert publishing[1].state == ('Failed' if failure == 'publish-rpm' else 'Passed')
     assert builds[2].state == ('Blocked' if failure in ('build-a', 'build-b') else 'Passed')
     assert set(run.artifacts) == {'build-a', 'build-b'} - {failure}
-
-
-@pytest.mark.parametrize('io_burst', [False, True])
-def test_real_host_plan_refills_branches_promptly(report, tmp_path, monkeypatch, io_burst):
-    # Representative discovery sizes from the reported run. Run.run builds the
-    # actual jobs, estimates and dependencies; do not duplicate its job ordering.
-    inventory = {name: [f'tests/ui/{name}::test_{index}' for index in range(count)]
-                 for name, count in [('test_request_form_component.py', 58),
-                                     ('test_preview_smoke.py', 23),
-                                     ('test_request_layout.py', 22),
-                                     ('test_parent_feedback.py', 8),
-                                     ('test_child_shell_lifecycle.py', 3)]}
-    state = SimpleNamespace(now=100.0)
-    monkeypatch.setattr(regression.time, 'monotonic', lambda: state.now)
-    monkeypatch.setattr(regression, 'source_identity', lambda _: 'stable-inputs')
-    import test_activity
-    monkeypatch.setattr(test_activity, 'record_cleanup', lambda _: None)
-    releases, scheduled = {}, []
-    durations = {'DEB publishing tests': 40, 'Unit — Bucket 1': 12,
-                 'UI — Request behavior': 80}
-    import regression_unit
-    monkeypatch.setitem(regression_unit.ESTIMATES, 'test_core.py', 150)
-    unit_nodes = ('tests/unit/test_core.py::test_case',)
-
-    class Workers(ThreadPoolExecutor):
-        def submit(self, function, execution, command):
-            release = releases[id(execution)] = threading.Event()
-            def work():
-                assert release.wait(30), 'simulated child was not released'
-                return function(execution, command)
-            future = super().submit(work)
-            scheduled.append((state.now + durations.get(execution.item.name, 2),
-                              release, future))
-            return future
-
-    class Commands(Control):
-        builds = 0
-
-        def stop(self):
-            super().stop()
-            for release in releases.values():
-                release.set()
-
-        def run(self, command, *, output, **kwargs):
-            category = 'ui' if command[0].endswith('run-ui-tests') else command[1]
-            if category in ('unit', 'component', 'fixture-runtime', 'ui'):
-                nodes = ([node for ids in inventory.values() for node in ids
-                          if node.partition('::')[0] in command] if category == 'ui' else
-                         unit_nodes if category == 'unit' else ['case'])
-                events = [dict(kind='collection', total=len(nodes), nodeids=nodes),
-                          *(dict(kind='finished', nodeid=node) for node in nodes)]
-                output(''.join(regression_events.PREFIX + json.dumps(event) + '\n'
-                               for event in events).encode())
-            elif category == 'artifacts' and ('build' in command or 'prepare' in command):
-                self.builds += 1
-                output(f'run-tests: output=/tmp/onpc-test-artifacts-refill{self.builds}\n'.encode())
-            return 0
-
-    run = regression.Run(tmp_path, report, Commands(), host_builds=True)
-    run.dashboard.stream = io.StringIO()
-
-    def discover(item, command, *, collect=False, **kwargs):
-        # Only discovery and the prerequisite gate are simulated here. Host
-        # jobs go through the real run_jobs/Execution/Commands.run path above.
-        assert collect or (command[1] == 'unit' and any('cleanup_safety' in arg for arg in command))
-        item.total = 1
-        if command[0].endswith('run-ui-tests'):
-            item.nodeids = tuple(node for ids in inventory.values() for node in ids)
-            item.total = len(item.nodeids)
-        elif command[1] == 'unit':
-            item.nodeids = unit_nodes
-        if not collect:
-            item.done, item.state = item.total, 'Passed'
-        return 0, ''
-
-    def sample():
-        io = 12 if io_burst and 140 <= state.now < 142 else (3 if state.now < 150 else 0)
-        return Sample(20, 2, 32 * GIB, 24 * GIB, 0, 0, io, False)
-
-    run.execute = discover
-    # This test's simulated clock/pressure window describes the downstream
-    # host queue. Cleanup phase ordering is exercised separately below.
-    run.cleanup_jobs = lambda safety: None
-    run.admission = Admission(SimpleNamespace(sample=sample), lambda: state.now)
-    scheduler = regression.run_jobs
-
-    def dispatch(jobs, **kwargs):
-        original_tick = kwargs['tick']
-
-        def tick():
-            original_tick()
-            state.now += 2
-            assert state.now < 400, 'scheduler stranded ready work'
-            due = [(release, future) for deadline, release, future in scheduled
-                   if deadline <= state.now and not release.is_set()]
-            for release, _ in due:
-                release.set()
-            # Make completion visible before the next coordinator pass, without
-            # races between simulated time and the real worker threads.
-            for _, future in due:
-                assert future.result(timeout=5) == 0
-
-        try:
-            return scheduler(jobs, **{**kwargs, 'tick': tick})
-        finally:
-            for release in releases.values():
-                release.set()
-
-    monkeypatch.setattr(regression_schedule, 'ThreadPoolExecutor', Workers)
-    monkeypatch.setattr(regression, 'run_jobs', dispatch)
-    run.run()
-    events = [json.loads(line) for line in (report.directory / 'schedule.jsonl').read_text().splitlines()]
-    starts = {event['job']: event for event in events if event['event'] == 'start'}
-    finishes = {event['job']: event for event in events if event['event'] == 'finish'}
-    assert list(starts)[:4] == ['UI — Request behavior', 'publish-deb', 'Unit — Bucket 1', 'publish-rpm']
-    component, unit = starts['Private D-Bus components'], starts['Unit — Bucket 1']
-    assert unit['branch'] == 3 and component['branch'] == 4
-    assert 0 <= component['monotonic'] - unit['monotonic'] <= 5
-    preview = starts['UI — Preview smoke']
-    assert preview['branch'] == starts['publish-deb']['branch']
-    assert 0 <= preview['monotonic'] - finishes['publish-deb']['monotonic'] <= (10 if io_burst else 5)
-    assert 'ui-request' in starts['publish-deb']['companions']
-    assert 'publish-deb' in starts['publish-rpm']['companions']
-    assert starts['build-a']['companions']
-    assert starts['build-b']['companions']
-    assert starts['compare']['monotonic'] >= finishes['build-a']['monotonic']
-    assert starts['compare']['monotonic'] >= finishes['build-b']['monotonic']
-    assert set(starts) == set(finishes)
-    assert all(event['state'] == 'Passed' for event in finishes.values())

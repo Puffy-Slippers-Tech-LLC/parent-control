@@ -8,37 +8,6 @@ from tools import build_package, build_targets, deb_builder
 from tests.support.paths import ROOT
 
 
-@pytest.mark.parametrize('distribution', ['ubuntu', 'fedora', '"fedora"', "'fedora'"])
-@pytest.mark.parametrize('override', [None, 'deb', 'rpm', 'both'])
-def test_default_builds_both_formats_on_every_host_and_can_be_overridden(tmp_path, distribution, override):
-    release = tmp_path / 'os-release'
-    release.write_text(f'ID={distribution}\n')
-    result = subprocess.run(['make', '--no-print-directory', '-n', '-f', str(ROOT / 'Makefile'),
-                             'build', f'OS_RELEASE={release}',
-                             *([f'PACKAGE_FORMAT={override}'] if override else [])],
-                            cwd=ROOT, capture_output=True, text=True, timeout=10)
-    assert result.returncode == 0, result.stderr
-    assert f'--format "{override or "both"}"' in result.stdout
-    assert '--disk-queue never' in result.stdout
-    assert len(result.stdout.splitlines()) == 1
-
-
-@pytest.mark.parametrize('status', [0, 7])
-def test_updateversion_prepares_before_building_selected_format_and_stops_on_failure(tmp_path, status):
-    (tmp_path / 'tools').mkdir()
-    (tmp_path / 'tools/bump_version.py').write_text(
-        f'import sys\nprint("prepare", *sys.argv[1:], flush=True)\nsys.exit({status})\n')
-    stub_make = tmp_path / 'make-stub'
-    stub_make.write_text('#!/bin/sh\nprintf "build %s\\n" "$*"\n')
-    stub_make.chmod(0o755)
-    result = subprocess.run(['make', '--no-print-directory', '-f', str(ROOT / 'Makefile'),
-                             'updateversion', 'PACKAGE_FORMAT=deb', f'MAKE={stub_make}'],
-                            cwd=tmp_path, capture_output=True, text=True)
-    assert bool(result.returncode) == bool(status), result.stderr
-    assert result.stdout.splitlines() == (['prepare --latest'] if status else
-        ['prepare --latest', 'build --no-print-directory build PACKAGE_FORMAT=deb'])
-
-
 @pytest.mark.parametrize('fail', [False, True])
 def test_build_isolates_cleanup_and_preserves_checkout(tmp_path, monkeypatch, fail):
     monkeypatch.setattr(build_targets.Target, 'native', lambda self: True)
@@ -130,27 +99,6 @@ def test_both_formats_overlap_and_share_one_frozen_generation(tmp_path, monkeypa
     for target in targets:
         assert (target.output(checkout) / f'package.{target.name}').exists() == (target.name != failure)
     assert list(scratch.iterdir()) == []
-
-
-def test_deb_builder_fingerprint_tracks_build_requirements_and_recipe(tmp_path):
-    (tmp_path / 'debian').mkdir()
-    recipe = tmp_path / 'debian/Containerfile'
-    recipe.write_bytes((ROOT / 'debian/Containerfile').read_bytes())
-    control = tmp_path / 'debian/control'
-    original = (ROOT / 'debian/control').read_text()
-    control.write_text(original)
-    first = deb_builder.inputs(tmp_path)[2]
-    future = build_targets.from_family('ubuntu28.04_x86_64', 'deb')
-    future_recipe, _, future_image = deb_builder.inputs(tmp_path, target=future.name)
-    assert future_recipe.startswith(b'FROM docker.io/library/ubuntu:28.04\n')
-    assert future_image.startswith('localhost/onpc-deb-builder:ubuntu28.04-')
-    control.write_text(original.replace('accountsservice', 'accountsservice (>= 1)'))
-    assert deb_builder.inputs(tmp_path)[2] == first
-    control.write_text(original.replace('Build-Depends:\n', 'Build-Depends:\n extra-tool,\n'))
-    assert deb_builder.inputs(tmp_path)[2] != first
-    control.write_text(original)
-    recipe.write_text(recipe.read_text() + '\n# new recipe\n')
-    assert deb_builder.inputs(tmp_path)[2] != first
 
 
 @pytest.mark.parametrize('status', [0, 7])

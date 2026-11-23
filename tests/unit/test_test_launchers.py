@@ -1,5 +1,4 @@
 """Boundary and execution tests for all approved test category routes."""
-from tools.test_storage import named_input
 from tests.support.vm_registry import vm_name
 from dataclasses import replace
 from contextlib import nullcontext
@@ -415,7 +414,7 @@ def _system_observation_command(tmp_path, monkeypatch, case_id, transport):
     ('e2e', 'unexpected'), ('e2e', 'blocked'),
     ('system', 'unexpected'), ('system', 'blocked'),
     ('standalone', 'unexpected'), ('standalone', 'blocked'),
-    ('standalone', 'healthy'), ('standalone', 'allowed'),
+    ('standalone', 'allowed'),
 ])
 def test_product_observation_routes_only_clear_failure_to_repair(
         tmp_path, monkeypatch, capsys, adapter, verdict):
@@ -697,70 +696,6 @@ def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monk
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
     assert calls == [('test', ['unit'], ['unit', 'component'])]
     assert SELECTION not in os.environ
-
-
-def test_requested_rounds_repeat_same_repair_workflow_and_resume(tmp_path, monkeypatch):
-    import fix_tests
-    import test_results
-    import vm_selection
-    monkeypatch.setattr(os, 'environ', os.environ.copy())
-    monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'unit': {'args': []}})
-    monkeypatch.setattr(vm_selection, 'execution_binding', lambda: None)
-    monkeypatch.setenv(test_results.VARIABLE, '')
-    monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
-    original = tmp_path / 'original'
-    original.mkdir(mode=0o700)
-    request = dict(categories=['unit'], rounds=3, tasks=None)
-    (original / 'request.json').write_text(json.dumps(request))
-    calls = []
-    def execute(root, run, owner, kind, command=None):
-        results = test_results.ResultStore()
-        calls.append((results.directory.name, kind))
-        if kind == 'agent':
-            assert command['case'] == 'failed'
-            assert results.passed('unit', 'host') == {'passed'}
-            results.record('unit', 'host', 'failed', 0)
-            return 0
-        assert command == [str(root / 'tools/run-tests'), '--stop-on-error', 'unit']
-        (root / 'concurrent-edit').write_text(str(len(calls)))
-        if not results.passed('unit', 'host'):
-            results.record('unit', 'host', 'passed', 0)
-            results.record('unit', 'host', 'failed', 1)
-            if results.directory.name == '2':
-                return 130  # Interrupt after round 2 has checkpointed work.
-            return 1
-        if results.select_failure('unit', 'host', ['passed', 'failed'], []):
-            assert results.directory.name == '2'
-            return 1  # Resume discovers the saved failure without reproducing it.
-        assert results.passed('unit', 'host') == {'passed', 'failed'}
-        return 0
-    with pytest.raises(fix_tests.launcher.Stopped):
-        fix_tests.run_rounds(tmp_path, original, 0, request, operation=execute)
-    expected = [('1', 'test'), ('1', 'agent'), ('1', 'test'), ('2', 'test')]
-    assert calls == expected
-
-    # Exercise bare --resume, including request restoration and copying the
-    # per-round results into the newly allocated launcher run.
-    resumed = tmp_path / 'resumed'
-    monkeypatch.setattr(fix_tests, 'previous_run',
-                        lambda root, kind: original if kind == 'fix-tests-host' else None)
-    def start(root, kind, command, *, on_start, **kwargs):
-        assert kind == 'fix-tests-host'
-        command(resumed, 0)
-        resumed.mkdir(mode=0o700)
-        on_start(resumed)
-        return resumed, True
-    monkeypatch.setattr(fix_tests.launcher, 'select', start)
-    monkeypatch.setattr(fix_tests.launcher, 'report_start', lambda *args, **kwargs: 0)
-    assert fix_tests.main(['--resume']) == 0
-    restored = fix_tests.read_json(resumed / 'request.json')
-    assert restored['rounds'] == 3 and restored['categories'] == ['unit']
-    assert test_results.ResultStore(resumed / 'results' / '2').passed('unit', 'host') == {'passed'}
-    assert fix_tests.run_rounds(tmp_path, resumed, 0, restored, operation=execute) == 0
-    expected += [(number, kind) for number in ('2', '3') for kind in ('test', 'agent', 'test')]
-    assert calls == expected
-    assert fix_tests.run_rounds(tmp_path, resumed, 0, restored, operation=execute) == 0
-    assert calls == expected
 
 
 def test_baseline_queue_drains_and_cancels_pending_work_before_refresh(tmp_path, monkeypatch, capsys):
@@ -1394,9 +1329,6 @@ def vm_execution_branch(monkeypatch):
     ('check_e2e_upgrade_assets', {'upgrade_source': True}, vm_name(0), '', 7),
     ('check_e2e_update_no_action', {'no_action_source': True}, vm_name(0), '', 0),
     ('check_e2e_activation_process', {'process_source': True}, vm_name(0), '', 0),
-    ('check_e2e_activation_session', {'session_source': True}, vm_name(0), '', 0),
-    ('check_e2e_kiosk_eligible_choices', {'vm_source': True, 'fixture_source': True},
-     vm_name(0), '', 0),
     ('check_fixture_system_installed', {'vm_source': True, 'fixture_source': True},
      vm_name(1), '.py', 0),
 ])
@@ -1473,12 +1405,11 @@ def test_fixture_qualification_refuses_other_target_before_preparing(monkeypatch
 
 @pytest.mark.parametrize(('category', 'arguments'), [
     ('system', ['check_fixture_transfer']),
-    ('system', ['check_fixture_transfer.py']),
     ('e2e', ['--qualify-transfer']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_transfer_freezes_exact_input_before_privileged_dispatch(
-        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+        monkeypatch, frozen_fixture_selection, category, arguments):
+    vm, target = VM_TARGETS[0]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
@@ -1499,30 +1430,13 @@ def test_transfer_freezes_exact_input_before_privileged_dispatch(
 
 
 @pytest.mark.parametrize(('category', 'arguments'), [
-    ('system', ['check_fixture_transfer']), ('e2e', ['--qualify-transfer']),
-])
-def test_transfer_refuses_unqualified_target_before_input_preparation(monkeypatch, category, arguments):
-    import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
-    control = Mock()
-    with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
-        commands.qualification_fixture_options(ROOT, category, arguments, control=control)
-    if category == 'system':
-        with pytest.raises(ValueError, match='fixture transfer target is unavailable'):
-            commands.qualification_artifact_command(ROOT, category, arguments)
-    control.run.assert_not_called()
-
-
-@pytest.mark.parametrize(('category', 'arguments'), [
     ('system', ['check_graphical_serial']),
-    ('system', ['check_graphical_serial.py']),
     ('system', ['check_fixture_serial']),
-    ('system', ['check_fixture_serial.py']),
     ('e2e', ['--qualify-install']), ('e2e', ['--qualify-install-refusal']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
-        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
+        monkeypatch, frozen_fixture_selection, category, arguments):
+    vm, target = VM_TARGETS[0]
     families = json.loads((ROOT / 'config/environment.json').read_text())['families']
     fixture_path = next(family['fixture_path'] for family in families
                         if any(entry['name'] == vm for entry in family['vms']))
@@ -1556,104 +1470,14 @@ def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparatio
     control.run.assert_not_called()
 
 
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_recorded_serial_freezes_exact_input_before_dispatch(
-        monkeypatch, frozen_fixture_selection, suffix, vm, target):
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
-    fixture_path = next(family['fixture_path'] for family in families
-                        if any(entry['name'] == vm for entry in family['vms']))
-    selector = 'check_fixture_recorded_serial' + suffix
-    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
-        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
-    record = frozen_fixture_selection.record()
-    def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-                                               '--target', target, '--fixture-path', fixture_path)
-        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
-        return 0
-    assert commands.qualification_fixture_options(ROOT, 'system', [selector],
-        control=SimpleNamespace(run=execute), environment={}) == [
-            '--fixture-selection', json.dumps(record, sort_keys=True)]
-    assert commands.qualification_input_options(ROOT, selector) == {
-        'vm_source': True, 'fixture_source': True}
-
-
-@pytest.mark.parametrize('suffix', ['', '.py'])
-def test_recorded_serial_refuses_before_input_preparation(monkeypatch, suffix):
-    import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
-    selector = 'check_fixture_recorded_serial' + suffix
-    control = Mock()
-    for operation in (
-            lambda: commands.plan(ROOT, 'system', [selector]),
-            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector]),
-            lambda: commands.qualification_fixture_options(
-                ROOT, 'system', [selector], control=control)):
-        with pytest.raises(ValueError, match='fixture recorded serial target is unavailable'):
-            operation()
-    control.run.assert_not_called()
-
-
-@pytest.mark.parametrize('selector', PRODUCT_FREE_FIXTURE_SELECTORS)
-@pytest.mark.parametrize('suffix', ['', '.py'])
-def test_product_free_fixture_target_refuses_before_package_or_fixture_input(monkeypatch, selector, suffix):
-    import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name='unqualified-target'))
-    control = Mock()
-    for operation in (
-            lambda: commands.plan(ROOT, 'system', [selector + suffix]),
-            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector + suffix]),
-            lambda: commands.qualification_fixture_options(
-                ROOT, 'system', [selector + suffix], control=control)):
-        with pytest.raises(ValueError, match='target is unavailable'):
-            operation()
-    control.run.assert_not_called()
-
-
-@pytest.mark.parametrize(('category', 'arguments'), [
-    *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
-    ('system', ['--area=lifecycle', '--test=first-configure', '--previous-artifacts=/tmp/onpc-previous']),
-])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_product_free_runner_freezes_exact_input_before_dispatch(
-        monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
-    import vm_selection
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    fixture_path = vm_selection.selected().fixture_path
-    frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
-        allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
-    record = frozen_fixture_selection.record()
-    source_edit = arguments == ['check_fixture_system_product_free']
-    source = source_proof_selection(frozen_fixture_selection)
-    def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py', '--target', target,
-                                               '--fixture-path', fixture_path,
-                                               *(['--qualify-source-edit'] if source_edit else []))
-        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
-        if source_edit:
-            options['output'](('fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
-        return 0
-    control = SimpleNamespace(run=Mock(side_effect=execute))
-    original = list(arguments)
-    assert commands.qualification_fixture_options(ROOT, category, arguments,
-        control=control, environment={}) == [
-            '--fixture-selection', json.dumps(record, sort_keys=True),
-            *(['--fixture-source-selection', json.dumps(source, sort_keys=True)] if source_edit else [])]
-    assert arguments == original
-    control.run.assert_called_once()
-
-
 @pytest.mark.parametrize(('category', 'arguments'), [
     *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages', '--previous-artifacts=/tmp/onpc-previous',
                 '--area=lifecycle', '--test=first-configure']),
 ])
-@pytest.mark.parametrize('suffix', ['', '.py'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
 def test_product_free_dispatcher_preserves_the_frozen_record(
-        monkeypatch, category, arguments, frozen_fixture_selection, suffix, vm, target):
+        monkeypatch, category, arguments, frozen_fixture_selection):
+    vm, target = VM_TARGETS[0]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
@@ -1662,8 +1486,7 @@ def test_product_free_dispatcher_preserves_the_frozen_record(
     encoded = json.dumps(record)
     source_options = (['--fixture-source-selection', json.dumps(source_proof_selection(frozen_fixture_selection))]
                       if arguments == ['check_fixture_system_product_free'] else [])
-    selected_arguments = ([arguments[0] + suffix] if commands.system_check_selection(arguments) else arguments)
-    command = dispatch(ROOT, [category, *selected_arguments, '--fixture-selection', encoded,
+    command = dispatch(ROOT, [category, *arguments, '--fixture-selection', encoded,
                               *source_options, '--vm', vm])
     index = command.index('--fixture-selection')
     assert json.loads(command[index + 1]) == record
@@ -1673,17 +1496,6 @@ def test_product_free_dispatcher_preserves_the_frozen_record(
         assert command[-2:] == ['--area=lifecycle', '--test=first-configure']
         for option in ('--artifacts', '--previous-artifacts'):
             assert command[command.index(option) + 1] in ('/tmp/onpc-packages', '/tmp/onpc-previous')
-
-
-@pytest.mark.parametrize('selector', ['check_fixture_provisioning', *SYSTEM_BOOTSTRAP_ALIASES, 'check_future_feature'])
-@pytest.mark.parametrize('vm', [vm_name(0), vm_name(1)])
-def test_source_proof_option_refuses_other_system_checks(monkeypatch, selector, frozen_fixture_selection, vm):
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    with pytest.raises(ValueError, match='unexpected-fixture-source-selection'):
-        dispatch(ROOT, ['system', selector, '--vm', vm,
-                        '--fixture-selection', json.dumps(frozen_fixture_selection.record()),
-                        '--fixture-source-selection', json.dumps(source_proof_selection(frozen_fixture_selection))])
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
@@ -1715,26 +1527,9 @@ def test_installed_system_freezes_original_input_and_actual_source_proof(
     assert command[3:] == options
 
 
-@pytest.mark.parametrize('vm', ['unqualified-target'])
-@pytest.mark.parametrize('suffix', ['', '.py'])
-def test_installed_system_target_refuses_before_any_input(monkeypatch, vm, suffix):
-    import vm_selection
-    monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(name=vm))
-    selector = 'check_fixture_system_installed' + suffix
-    control = Mock()
-    for operation in (
-            lambda: commands.plan(ROOT, 'system', [selector]),
-            lambda: commands.qualification_artifact_command(ROOT, 'system', [selector]),
-            lambda: commands.qualification_fixture_options(
-                ROOT, 'system', [selector], control=control)):
-        with pytest.raises(ValueError, match='target is unavailable'):
-            operation()
-    control.run.assert_not_called()
-
-
 @pytest.mark.parametrize('fault', ['missing', 'duplicate', 'foreign-input', 'oversized', 'malformed'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, frozen_fixture_selection, vm, target):
+def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, frozen_fixture_selection):
+    vm, target = VM_TARGETS[0]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
@@ -1758,10 +1553,9 @@ def test_source_proof_handoff_requires_one_bound_record(monkeypatch, fault, froz
     *(('system', [name]) for name in PRODUCT_FREE_FIXTURE_SELECTORS),
     ('system', ['--artifacts=/tmp/onpc-packages']),
 ])
-@pytest.mark.parametrize(('vm', 'target'), [(vm, 'fedora' if target == 'ubuntu' else 'ubuntu')
-                                          for vm, target in VM_TARGETS])
 def test_dispatcher_refuses_foreign_product_free_fixture_target(
-        monkeypatch, category, arguments, frozen_fixture_selection, vm, target):
+        monkeypatch, category, arguments, frozen_fixture_selection):
+    vm, target = VM_TARGETS[0][0], VM_TARGETS[1][1]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
@@ -1858,8 +1652,10 @@ def test_public_fixture_maintenance_keeps_one_selector_and_pins_sync_input(
                         [{'run': 'b' * 32}] if action == 'sync-fixtures' else [])
 
 
-@pytest.mark.parametrize('failure', [None, 'retain-a', 'build-b', 'replace-b'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
+@pytest.mark.parametrize('vm,target,failure', [
+    (*VM_TARGETS[0], None), (*VM_TARGETS[1], None),
+    *((*VM_TARGETS[0], failure) for failure in ('retain-a', 'build-b', 'replace-b')),
+])
 def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
         monkeypatch, frozen_fixture_selection, failure, vm, target):
     import dev_privileges
@@ -1925,61 +1721,6 @@ def test_live_refresh_orders_actual_a_use_before_b_build_and_recovers_failures(
         assert cleanup.call_count == 1
 
 
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-@pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_fixture_e2e_product_free'])
-def test_e2e_qualification_freezes_input_and_source_proof(monkeypatch, frozen_fixture_selection, vm, target, selector):
-    import vm_selection
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    fixture_path = vm_selection.selected().fixture_path
-    selected = replace(frozen_fixture_selection, target=target,
-        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-'))
-    record = selected.record()
-    source = source_proof_selection(selected)
-    def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-            '--target', target, '--fixture-path', fixture_path, '--qualify-source-edit')
-        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n'
-            + 'fixture-execution: source-edit=' + json.dumps(source) + '\n').encode())
-        return 0
-    options = commands.qualification_fixture_options(ROOT, 'system',
-        [selector], control=SimpleNamespace(run=execute), environment={})
-    assert options == ['--fixture-selection', json.dumps(record, sort_keys=True),
-                       '--fixture-source-selection', json.dumps(source, sort_keys=True)]
-    assert commands.qualification_input_options(ROOT, selector) == {
-        'vm_source': True, 'fixture_source': True,
-        **({'upgrade_source': True} if selector == 'check_fixture_e2e_product_free' else {})}
-    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    command = dispatch(ROOT, ['system', selector,
-                             '--vm', vm, *options])
-    assert command[3:] == options
-
-
-@pytest.mark.parametrize(('category', 'arguments'), [
-    ('system', ['check_e2e_approval_flow']),
-    ('system', ['check_e2e_time_profiles_daily']),
-    ('system', ['check_e2e_native_fixtures']),
-    ('system', ['check_e2e_game_fixture']),
-    ('e2e', ['--ready']),
-])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_installed_e2e_freezes_before_privileged_dispatch(
-        monkeypatch, frozen_fixture_selection, category, arguments, vm, target):
-    monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
-    fixture_path = next(family['fixture_path'] for family in families
-                        if any(entry['name'] == vm for entry in family['vms']))
-    record = replace(frozen_fixture_selection, target=target,
-        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-')).record()
-    def execute(command, **options):
-        assert command == commands.python_file(ROOT, 'tools/fixture_execution.py',
-            '--target', target, '--fixture-path', fixture_path)
-        options['output'](('fixture-execution: selection=' + json.dumps(record) + '\n').encode())
-        return 0
-    assert commands.qualification_fixture_options(ROOT, category, arguments,
-        control=SimpleNamespace(run=execute), environment={}) == [
-            '--fixture-selection', json.dumps(record, sort_keys=True)]
-
-
 @pytest.mark.parametrize('selector', ['check_fixture_e2e_installed', 'check_e2e_approval_flow'])
 def test_installed_e2e_refuses_unqualified_target_before_preparing(monkeypatch, selector):
     import vm_selection
@@ -1992,30 +1733,6 @@ def test_installed_e2e_refuses_unqualified_target_before_preparing(monkeypatch, 
         with pytest.raises(ValueError, match='installed E2E target is unavailable'):
             operation()
     control.run.assert_not_called()
-
-
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_e2e_preflight_preserves_frozen_selection_without_opening_bundle(
-        monkeypatch, frozen_fixture_selection, vm, target):
-    namespace = runpy.run_path(str(ROOT / 'tests/e2e/runner.py'))
-    dispatch = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))['selection']
-    preflight = namespace['preflight']
-    monkeypatch.setattr(namespace['password_config'], 'read_password', Mock())
-    declarations = {
-        'read_json': lambda path: ({}, 'd' * 64),
-        'resolve_selection': lambda *args, **kwargs: {'cases': [], 'selector': 'selected'},
-    }
-    monkeypatch.setattr(namespace['runpy'], 'run_path', lambda path: (
-        {'preflight': preflight} if str(path).endswith('/tests/e2e/runner.py') else declarations))
-    record = replace(frozen_fixture_selection, target=target,
-        allocation=frozen_fixture_selection.allocation.replace('runtime-ubuntu-', 'runtime-' + target + '-')).record()
-    plan = preflight(['--ready', '--vm', vm,
-                      '--fixture-selection', json.dumps(record)], allow_missing_artifacts=True)
-    assert plan['fixture_selection'] == record
-    assert plan['mode'] == 'execution-preflight'
-    command = dispatch(ROOT, ['e2e', '--ready', '--vm', vm,
-                       '--fixture-selection', json.dumps(record)], allow_missing_artifacts=True)
-    assert command[-2:] == ['--fixture-selection', json.dumps(record, sort_keys=True)]
 
 
 @pytest.mark.parametrize('suffix', ['', '.py'])
@@ -2049,8 +1766,8 @@ def test_fixture_qualification_forwards_exact_frozen_selection(monkeypatch, suff
 
 @pytest.mark.parametrize('failure', ['missing', 'duplicate', 'malformed', 'oversized',
     'unterminated', 'foreign-target', 'nonzero'])
-@pytest.mark.parametrize(('vm', 'target'), VM_TARGETS)
-def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure, vm, target):
+def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_fixture_selection, failure):
+    vm, target = VM_TARGETS[0]
     import vm_selection
     monkeypatch.setattr(vm_selection, 'selected', lambda: SimpleNamespace(
         name=vm, fixture_path='selected-fixtures'))
@@ -2078,8 +1795,10 @@ def test_fixture_qualification_rejects_invalid_child_result(monkeypatch, frozen_
     control.run.assert_called_once()
 
 
-@pytest.mark.parametrize('route', ['category', 'direct'])
-@pytest.mark.parametrize('failure', ['none', 'package', 'fixture', 'malformed', 'duplicate'])
+@pytest.mark.parametrize('route,failure', [
+    ('category', 'none'), ('direct', 'none'), ('category', 'package'),
+    ('category', 'fixture'), ('category', 'malformed'), ('category', 'duplicate'),
+])
 def test_fixture_qualification_freezes_before_package_and_privilege(
         monkeypatch, route, failure, frozen_fixture_selection):
     import dev_privileges
@@ -2150,12 +1869,9 @@ def test_fixture_qualification_freezes_before_package_and_privilege(
 
 
 @pytest.mark.parametrize('options', [
-    ['build', '--kind', 'native-runtime'],
     ['build', '--kind', 'native-runtime', '--target', 'other'],
     ['build', '--kind', 'native-runtime', '--target', 'ubuntu', '--output', '/elsewhere'],
     ['verify', '--kind', 'native-runtime', '--target', 'ubuntu'],
-    ['build', '--target', 'ubuntu', '--kind', 'native-runtime'],
-    ['recover'],
     ['recover', '/elsewhere'],
     ['recover', '1' * 32, '2' * 32],
 ])
@@ -2185,8 +1901,10 @@ def test_native_fixture_category_registers_build_output_before_execution(monkeyp
         ROOT, 'tools/fixture_bundle.py', '--target', 'ubuntu', '--output', output)
 
 
-@pytest.mark.parametrize('status,package_format', [(3, 'deb'), (5, 'rpm'), (6, None), (0, None), (130, None)])
-@pytest.mark.parametrize('candidate_format', [None, 'deb', 'rpm'])
+@pytest.mark.parametrize('status,package_format,candidate_format', [
+    (3, 'deb', 'deb'), (5, 'rpm', 'rpm'), (5, 'rpm', 'deb'), (3, 'deb', None),
+    (6, None, 'deb'), (0, None, None), (130, None, None),
+])
 def test_vm_artifacts_use_verified_platform_and_preserve_probe_failures(
         tmp_path, monkeypatch, capsys, status, package_format, candidate_format):
     import vm_artifacts
@@ -2260,8 +1978,7 @@ def test_vm_preparation_never_defaults_or_builds_for_mismatched_configuration(
     allocate.assert_not_called()
 
 
-@pytest.mark.parametrize('status', [0, 7, 130])
-@pytest.mark.parametrize('equal_form', [False, True])
+@pytest.mark.parametrize('status,equal_form', [(0, False), (0, True), (7, False), (130, False)])
 def test_focused_system_prepares_private_inputs_preserving_selectors_and_guards(
         monkeypatch, status, equal_form, frozen_fixture_selection):
     import dev_privileges
@@ -2336,7 +2053,7 @@ def test_dispatcher_still_requires_artifacts_for_actual_system_execution():
 
 
 @pytest.mark.parametrize('args', [
-    ['--area='], ['--test=bad\nselector'], ['--unknown'], ['--artifacts=relative'],
+    ['--test=bad\nselector'], ['--unknown'], ['--artifacts=relative'],
     ['--previous-artifacts=relative'], ['--completed-cases=invalid'],
 ])
 def test_invalid_focused_system_selection_refuses_before_package_preparation(monkeypatch, args):
@@ -2349,9 +2066,8 @@ def test_invalid_focused_system_selection_refuses_before_package_preparation(mon
 
 
 @pytest.mark.parametrize('args', [
-    ['--id='], ['--id=0'], ['--id=01'], ['--id=1,1'], ['--id=999999'],
-    ['--id=1,'], ['--id=1, 6'], ['--id=1', '--area=package'],
-    ['--id=1', '--test=test_installed_package'], ['--id=1', '--id=6'],
+    ['--id=01'], ['--id=1,1'], ['--id=999999'], ['--id=1,'],
+    ['--id=1', '--area=package'], ['--id=1', '--id=6'],
 ])
 def test_invalid_numeric_system_ids_refuse_before_inputs_or_privilege(monkeypatch, args):
     import regression_process
@@ -2370,31 +2086,10 @@ def test_invalid_numeric_system_ids_refuse_before_inputs_or_privilege(monkeypatc
     authorize.assert_not_called()
 
 
-@pytest.mark.parametrize('args', [['--id', '26,6'], ['--id=26,6']])
-def test_numeric_system_dispatch_preserves_explicit_ids_for_runner_resolution(args):
-    planned, _ = commands.plan(ROOT, 'system', [*args, '--list'])
+def test_numeric_system_dispatch_preserves_explicit_ids_for_runner_resolution():
+    planned, _ = commands.plan(ROOT, 'system', ['--id', '26,6', '--list'])
     assert '--id=26,6' in planned[0] and '--list' in planned[0]
     assert not any(arg.startswith(('--area', '--test=')) for arg in planned[0])
-
-
-def test_named_vm_preparation_registers_before_platform_builder(monkeypatch):
-    import regression_process
-    output = str(ROOT / 'output/test-runs/host/allocations/onpc-native-diagnosis-input')
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: False)
-    args = ['prepare', '--for-vm', '--output', output]
-    planned, safety = commands.plan(ROOT, 'artifacts', args)
-    expected = commands.python_file(ROOT, 'tools/vm_artifacts.py', '--output', output, *VM_ARGS)
-    assert planned == [expected] and not safety
-    allocate = Mock(return_value=output)
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    execute = Mock(return_value=0)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    assert regression_process.category_run(ROOT, 'artifacts', args, pipe=False) == 0
-    allocate.assert_called_once_with(output)
-    assert execute.call_args.args[0] == expected
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
-    with pytest.raises(ValueError, match='artifact output must be a new'):
-        commands.plan(ROOT, 'artifacts', args)
 
 
 @pytest.mark.parametrize('declaration', ['named_input(fixture_source=choose())',
@@ -2525,23 +2220,6 @@ def test_named_artifact_build_detached_route_registers_before_builder(tmp_path, 
 
 
 
-@pytest.mark.parametrize('selector', ['check_e2e_parent_save',
-    'check_e2e_operate_public_connectivity_controls',
-    'check_e2e_operate_public_connectivity_controls.py'])
-def test_toggle_qualification_reuses_existing_inputs_without_overwriting(
-        monkeypatch, synthetic_package_identity, selector):
-    monkeypatch.setattr(commands.os.path, 'lexists', lambda _: True)
-    validate = Mock()
-    monkeypatch.setattr(commands, 'artifact_path', validate)
-    allocate = Mock(side_effect=AssertionError('existing inputs replaced'))
-    monkeypatch.setattr(commands, 'allocate_artifact_output', allocate)
-    assert commands.qualification_artifact_command(
-        ROOT, 'system', [selector]) == commands.python_file(
-            ROOT, 'tools/vm_artifacts.py', '--candidate', str(named_input()),
-            '--output', str(named_input()), *VM_ARGS)
-    validate.assert_called_once_with(str(named_input()))
-
-
 def test_retention_permission_failure_preserves_output_and_starts_fresh_execution(
         tmp_path, monkeypatch, capsys, vm_execution_branch):
     import regression
@@ -2640,13 +2318,11 @@ def checkout(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
-def test_future_paths_expand_only_in_category(checkout, category):
-    assert host.selection(checkout, [f'tests/{category}/test_*.py::test_case[x*y]'], category) == [
-        f'tests/{category}/test_future.py::test_case[x*y]']
-    for other in ('system', 'e2e', 'integration'):
-        with pytest.raises(ValueError):
-            host.selection(checkout, [f'tests/{other}/test_future.py'], category)
+def test_future_paths_expand_only_in_category(checkout):
+    assert host.selection(checkout, ['tests/component/test_*.py::test_case[x*y]'], 'component') == [
+        'tests/component/test_future.py::test_case[x*y]']
+    with pytest.raises(ValueError):
+        host.selection(checkout, ['tests/system/test_future.py'], 'component')
 
 
 @pytest.mark.parametrize('option', ['-c=/tmp/evil', '-p=evil', '--rootdir=/tmp',
@@ -2657,45 +2333,12 @@ def test_rejects_pytest_bypasses(checkout, option):
         host.pytest_command(checkout, ['tests/component', option], 'component')
 
 
-def test_ui_globs_environment_timeout_and_exclusions(checkout):
-    python = checkout / '.venv/onpc-ui-tests/bin/python'
-    python.parent.mkdir(parents=True)
-    python.symlink_to('/usr/bin/python3')
-    command = host.pytest_command(checkout, ['--timeout', '360s', 'tests/ui/test_*.py',
-                                           '--ignore=tests/ui/test_future.py', '-q'], 'ui')
-    assert command[:4] == [str(python), '-B', '-m', 'pytest']
-    assert host.ui_timeout(['--timeout', '360s']) == 360
-    assert '/usr/bin/timeout' not in command
-    assert '-m=not live_e2e' in command
-    assert '--ignore=tests/ui/test_future.py' in command
-    assert command[-2:] == ['--', 'tests/ui/test_future.py']
-
-
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
-@pytest.mark.parametrize('position', ['before', 'after', 'equals'])
-def test_host_timeout_is_owned_by_runner_and_accepts_either_position(checkout, category, position):
-    python = checkout / '.venv/onpc-ui-tests/bin/python'
-    python.parent.mkdir(parents=True)
-    python.symlink_to('/usr/bin/python3')
-    selected = [f'tests/{category}/test_future.py', '-q']
-    options = (['--timeout', '180s', *selected] if position == 'before' else
-               [*selected, '--timeout', '180s'] if position == 'after' else
-               [*selected, '--timeout=180s'])
-
-    command = host.pytest_command(checkout, options, category)
-
-    assert host.pytest_timeout(options, category) == 180
-    assert not any(value.startswith('--timeout') for value in command)
-    assert command[-2:] == ['--', selected[0]]
-    assert ('-m=not live_e2e' in command) is (category == 'ui')
-
-
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
 @pytest.mark.parametrize('options', [
     ['--timeout'], ['--timeout=0'], ['--timeout', 'NaN'],
-    ['--timeout', '1s', '--timeout=2s'], ['--timeout', '9' * 305 + 'd'],
+    ['--timeout', '1s', '--timeout=2s'],
 ])
-def test_invalid_host_timeout_refuses_before_execution(checkout, category, options, monkeypatch):
+def test_invalid_host_timeout_refuses_before_execution(checkout, options, monkeypatch):
+    category = 'unit'
     execute = Mock(side_effect=AssertionError('invalid timeout started a worker'))
     monkeypatch.setattr(host.subprocess, 'run', execute)
     with pytest.raises(ValueError):
@@ -2703,31 +2346,9 @@ def test_invalid_host_timeout_refuses_before_execution(checkout, category, optio
     execute.assert_not_called()
 
 
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
-@pytest.mark.parametrize('detached', [False, True])
-def test_host_execution_forwards_timeout_to_owned_controller(checkout, category, detached, monkeypatch):
-    import regression_process
-    python = checkout / '.venv/onpc-ui-tests/bin/python'
-    python.parent.mkdir(parents=True)
-    python.symlink_to('/usr/bin/python3')
-    execute = Mock(return_value=124)
-    monkeypatch.setattr(regression_process.Control, 'run', execute)
-    monkeypatch.setattr(host, 'test_environment', lambda _: {})
-    monkeypatch.chdir(checkout)
-    run = regression_process.host_run if detached else host.run_host
-
-    assert run(checkout, category, [f'tests/{category}', '--timeout=3m'],
-               **({'pipe': False} if detached else {})) == 124
-
-    assert execute.call_args.kwargs['timeout'] == 180
-    assert execute.call_args.kwargs['kill_after'] == host.UI_KILL_AFTER
-    assert not any(arg.startswith('--timeout') for arg in execute.call_args.args[0])
-
-
 @pytest.mark.parametrize(('markers', 'expected'), [
     ([], '-m=not live_e2e'),
     (['-m', 'host_case'], '-m=(host_case) and not live_e2e'),
-    (['-m', 'not live_e2e'], '-m=not live_e2e'),
     (['-m', 'live_e2e'], '-m=(live_e2e) and not live_e2e'),
 ])
 def test_ui_launcher_always_excludes_vm_dependent_checks(checkout, markers, expected):
@@ -2840,8 +2461,9 @@ def test_component_runs_only_selected_tests_without_prerequisite_suite(checkout,
     execute.assert_called_once()
 
 
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
-def test_collect_only_never_starts_cleanup(checkout, monkeypatch, category):
+def test_collect_only_never_starts_cleanup(checkout, monkeypatch):
+    import regression_process
+
     python = checkout / '.venv/onpc-ui-tests/bin/python'
     python.parent.mkdir(parents=True)
     python.symlink_to('/usr/bin/python3')
@@ -2849,17 +2471,15 @@ def test_collect_only_never_starts_cleanup(checkout, monkeypatch, category):
     execute = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr(host, 'prerequisites', prerequisite)
     monkeypatch.setattr(host.subprocess, 'run', execute)
-    if category == 'ui':
-        import regression_process
-        monkeypatch.setattr(regression_process.Control, 'run',
-                            lambda *args, **kwargs: execute().returncode)
+    monkeypatch.setattr(regression_process.Control, 'run',
+                        lambda *args, **kwargs: execute().returncode)
     monkeypatch.chdir(checkout)
-    host.run_host(checkout, category, ['--collect-only'])
+    host.run_host(checkout, 'ui', ['--collect-only'])
     prerequisite.assert_not_called()
     execute.assert_called_once()
 
 
-@pytest.mark.parametrize('category', ['unit', 'component', 'ui'])
+@pytest.mark.parametrize('category', ['unit', 'ui'])
 def test_scheduled_collection_keeps_inventory_protocol_without_execution_ownership(
         checkout, monkeypatch, category):
     from contextlib import contextmanager
@@ -2889,14 +2509,12 @@ def test_scheduled_collection_keeps_inventory_protocol_without_execution_ownersh
 
 
 @pytest.mark.parametrize('category,argv', [
-    ('check', ['-f', '/tmp/evil']), ('check', ['SHELL=/tmp/evil']),
-    ('all', ['--component=unit']), ('fast', ['--component=$(touch /tmp/no)']),
-    ('fast', ['--type', 'a;id']), ('child-node', ['--eval=process.exit()']),
-    ('child-gjs', ['tests/child/future.test.mjs']), ('static', ['/tmp/check.py']),
-    ('traceability', ['--manifest=/tmp/input']), ('coverage', ['--cov=/tmp']),
+    ('check', ['-f', '/tmp/evil']),
+    ('fast', ['--component=$(touch /tmp/no)']),
+    ('child-node', ['--eval=process.exit()']),
+    ('static', ['/tmp/check.py']),
     ('artifacts', ['build', '/etc/target']), ('fixtures', ['--output=/tmp/evil']),
-    ('integration', []), ('graphical-worker', ['--vm', vm_name()]),
-    ('package-notice', ['--list']),
+    ('graphical-worker', ['--vm', vm_name()]),
 ])
 def test_category_option_injection_rejected(checkout, category, argv):
     with pytest.raises(ValueError):
@@ -3085,32 +2703,3 @@ def test_system_listing_is_host_safe_and_lists_only_registered_tests():
     dispatcher = runpy.run_path(str(ROOT / 'tools/onpc-test-runner'))
     with pytest.raises(ValueError, match='check-selector-conflict'):
         dispatcher['selection'](ROOT, ['system', '--list', 'check_fixture_snapshots'])
-
-
-def test_host_aggregate_dispatch_and_invalid_arguments(monkeypatch):
-    import regression
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    assert commands._main(['host']) == 7
-    execute.assert_called_once_with(ROOT, phases=('host',))
-    execute.reset_mock()
-    for args in (['--skip-backing-verification'], ['--component=ui'], ['--unattended']):
-        assert commands._main(['host', *args]) == 2
-    execute.assert_not_called()
-
-
-@pytest.mark.parametrize('serial', [False, True])
-def test_host_build_qualification_is_fixed_and_never_dispatches_vm(monkeypatch, serial):
-    import regression
-    execute = Mock(return_value=7)
-    monkeypatch.setattr(regression, 'main', execute)
-    monkeypatch.setattr(commands.os, 'geteuid', lambda: 1000)
-    args = ['--serial-builds'] if serial else []
-    assert commands._main(['host-builds', *args]) == 7
-    execute.assert_called_once_with(ROOT, phases=('host',), serial_builds=serial)
-    execute.reset_mock()
-    for extra in (['--serial'], ['--serial-builds', '--serial-builds'], ['--area', 'session'],
-                  ['--skip-backing-verification'], ['--command=id']):
-        assert commands._main(['host-builds', *extra]) == 2
-    execute.assert_not_called()

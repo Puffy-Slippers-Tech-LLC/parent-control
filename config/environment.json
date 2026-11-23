@@ -36,7 +36,7 @@
       "default_host": "false",
       "transport": "local",
       "virt-manager": "/Data/virt-manager",
-      "max_compute_unit": 3,
+      "max_compute_unit": 12,
       "disk_concurrency": 1,
       "backup_root": "/Data/virt-manager/backups/onpc"
     },
@@ -48,7 +48,7 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "max_compute_unit": 10,
+      "max_compute_unit": 40,
       "disk_concurrency": 4,
       "kvm_halt_poll_ns": 25000
     }
@@ -67,7 +67,7 @@
       "family": "ubuntu26.04-x86_64",
       "id": "u26",
       "vm_tags": "general",
-      "compute_unit": 1,
+      "compute_unit": 4,
       "iso": "ubuntu-26.04.*-desktop-amd64.iso",
       "package_format": "deb",
       "fixture_path": "common/ubuntu/common",
@@ -83,14 +83,14 @@
         { "id": "108", "name": "onpc-Ubuntu26.04-108", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-108.qcow2", "owning_branch": "" },
         { "id": "109", "name": "onpc-Ubuntu26.04-109", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-109.qcow2", "owning_branch": "" },
         { "id": "110", "name": "onpc-Ubuntu26.04-110", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-110.qcow2", "owning_branch": "" },
-        { "id": "151", "name": "onpc-Ubuntu26.04-151", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-151.qcow2", "owning_branch": "" }
+        { "id": "151", "name": "onpc-Ubuntu26.04-151", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 8, "disk_anchor": "/Data/virt-manager/onpc-Ubuntu26.04-151.qcow2", "owning_branch": "" }
       ]
     },
     {
       "family": "fedora44-x86_64",
       "id": "f44",
       "vm_tags": "general",
-      "compute_unit": 1,
+      "compute_unit": 4,
       "iso": "Fedora-Workstation-Live-44-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
@@ -106,14 +106,14 @@
         { "id": "208", "name": "onpc-Fedora44-208", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-208.qcow2", "owning_branch": "" },
         { "id": "209", "name": "onpc-Fedora44-209", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-209.qcow2", "owning_branch": "" },
         { "id": "210", "name": "onpc-Fedora44-210", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora44-210.qcow2", "owning_branch": "" },
-        { "id": "251", "name": "onpc-Fedora44-251", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Fedora44-251.qcow2", "owning_branch": "" }
+        { "id": "251", "name": "onpc-Fedora44-251", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 8, "disk_anchor": "/Data/virt-manager/onpc-Fedora44-251.qcow2", "owning_branch": "" }
       ]
     },
     {
       "family": "fedora45-x86_64",
       "id": "f45",
       "vm_tags": "general",
-      "compute_unit": 1,
+      "compute_unit": 4,
       "iso": "Fedora-Workstation-Live-45-*.x86_64.iso",
       "package_format": "rpm",
       "fixture_path": "common/fedora/common",
@@ -129,7 +129,7 @@
         { "id": "308", "name": "onpc-Fedora45-308", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora45-308.qcow2", "owning_branch": "" },
         { "id": "309", "name": "onpc-Fedora45-309", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora45-309.qcow2", "owning_branch": "" },
         { "id": "310", "name": "onpc-Fedora45-310", "enabled": "true", "host": "myserver", "disk_anchor": "/Data/virt-manager/onpc-Fedora45-310.qcow2", "owning_branch": "" },
-        { "id": "351", "name": "onpc-Fedora45-351", "aliases": ["onpc-Fedora45-311"], "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 2, "disk_anchor": "/Data/virt-manager/onpc-Fedora45-351.qcow2", "owning_branch": "" }
+        { "id": "351", "name": "onpc-Fedora45-351", "enabled": "true", "host": "myserver", "vm_tags": "heavy", "compute_unit": 8, "disk_anchor": "/Data/virt-manager/onpc-Fedora45-351.qcow2", "owning_branch": "" }
       ]
     }
   ]

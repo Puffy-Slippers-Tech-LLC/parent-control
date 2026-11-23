@@ -1,16 +1,9 @@
 """Host fixtures read configured identities without duplicating deployed names or IDs."""
 
-import json
-
+import vm_config
 from tests.support.paths import ROOT
 
 
-def vm_entry(index=0, *, fixture_path=None):
-    document = json.loads((ROOT / 'config/environment.json').read_text())
-    return [entry for family in document['families']
-            if fixture_path is None or family['fixture_path'] == fixture_path
-            for entry in family['vms']][index]
-
-
 def vm_name(index=0, *, fixture_path=None):
-    return vm_entry(index, fixture_path=fixture_path)['name']
+    return [vm.name for vm in vm_config.registry(ROOT / 'config/environment.json').values()
+            if fixture_path is None or vm.fixture_path == fixture_path][index]

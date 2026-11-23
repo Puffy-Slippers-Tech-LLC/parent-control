@@ -405,7 +405,7 @@ overlapping entries select each VM once.
 Every selection skips offline VMs/hosts. Each VM group filters the original --vm
 pool by its vm_tags. A ready VM takes the earliest eligible unclaimed work, including
 from a later group while earlier cases finish. Each attempt reserves compute through
-its own cleanup. VMs inherit family vm_tags unless they supply replacement vm_tags.
+its own cleanup. Effective VM tags follow parent_config inheritance and per-VM overrides.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
 E2E also runs selected cases 22 and 30 in GNOME Classic on families prepared for it.

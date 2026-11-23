@@ -1158,9 +1158,11 @@ existing private-input observation path. Pipes, interactive stdin, oversized
 files and changed sizes are refused; ordinary `exec` never reads stdin.
 Rename accepts only a destination label, preserving the UUID and disks. It
 records original metadata before mutation and rolls back checked failures;
-interrupted records remain a refusal gate. After renaming, update `name` in the
-shared config, refresh test tools, and prepare a matching baseline through the
-existing auto-mode route before tests. Domain display names preserve case;
+interrupted records remain a refusal gate. After renaming, set the VM's `name`
+in the shared config. If `disk_anchor` derives from `{name}`, set an explicit
+`disk_anchor` on that VM to preserve its current disk path. Refresh test tools
+and prepare a matching baseline through the existing auto-mode route before
+tests. Domain display names preserve case;
 guest hostname consumers derive the lowercase form from that same config.
 Historical snapshot domain names remain intact. Only exact saved metadata
 attested in the private rename record can use a historical name; libvirt keeps
@@ -1168,7 +1170,7 @@ the current domain name when restoring those snapshots.
 Disk rename accepts no filename or path argument. Its private journal records
 exact original metadata before mutation and gates interrupted transactions.
 Checked failures roll back only the owned image and references. Update that
-entry's `disk_anchor` in `config/environment.json` immediately after success;
+entry's `disk_anchor` override in `config/environment.json` immediately after success;
 the operation does not write checkout configuration as root. Internal snapshots
 are metadata-redefined without restoring or deleting them, retaining their
 current selection. Baseline proof and image bytes remain intact. Previously

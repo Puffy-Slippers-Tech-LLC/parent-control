@@ -370,15 +370,28 @@ def preparation_source_digest(read, files):
             # Host availability, capacity, SSH aliases and archive locations
             # describe the controller, not prepared guest contents.
             document.pop('hosts', None)
+            if files == SCRIPT_FILES:
+                profiles = vm_config.vm_profiles(document)
+                document.pop('vm_configs')
             for family in document.get('families', []):
+                if files == SCRIPT_FILES:
+                    family['vms'] = [vm_config.resolve_vm_entry(entry, family, profiles)
+                                     for entry in family['vms']]
+                    family.pop('parent_config')
                 family.pop('compute_unit', None)
                 # Movable fixture selection belongs to runtime artifact inputs.
                 family.pop('fixture_path', None)
+                if files == SCRIPT_FILES:
+                    family.pop('vm_tags', None)
                 for entry in family['vms']:
                     entry.pop('compute_unit', None)
                     entry.pop('id', None)
                     entry.pop('enabled', None)
                     entry.pop('host', None)
+                    if files == SCRIPT_FILES:
+                        entry.pop('vm_tags', None)
+                        # XML templates only affect provisioning a new blank VM.
+                        entry.pop('vm_config_xml', None)
             contents = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('utf-8')
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(len(contents).to_bytes(8, "big"))

@@ -113,15 +113,14 @@ class ParentClientTests(unittest.TestCase):
         self.assertFalse(management_access_denied(RuntimeError("AccessDenied")))
 
     def test_broker_outage_excludes_authorization_and_product_errors(self):
-        for name in ("org.freedesktop.DBus.Error.NameHasNoOwner",
-                     "org.freedesktop.DBus.Error.ServiceUnknown",
-                     "org.freedesktop.DBus.Error.AccessDenied",
+        unavailable = ("org.freedesktop.DBus.Error.NameHasNoOwner",
+                       "org.freedesktop.DBus.Error.ServiceUnknown",
+                       "org.freedesktop.DBus.Error.NoReply")
+        for name in (*unavailable, "org.freedesktop.DBus.Error.AccessDenied",
                      f"{BUS_NAME}.Error.AccessDenied", f"{BUS_NAME}.Error.Failed"):
             with self.subTest(name=name):
                 error = Gio.DBusError.new_for_dbus_error(name, "private-detail")
-                self.assertEqual(broker_unavailable(error), name in (
-                    "org.freedesktop.DBus.Error.NameHasNoOwner",
-                    "org.freedesktop.DBus.Error.ServiceUnknown"))
+                self.assertEqual(broker_unavailable(error), name in unavailable)
         self.assertFalse(broker_unavailable(RuntimeError("NameHasNoOwner")))
 
     def test_time_status_works_without_accountsservice_authorization(self):

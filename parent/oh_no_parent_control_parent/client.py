@@ -24,11 +24,12 @@ def management_access_denied(error):
 
 
 def broker_unavailable(error):
-    """Recognize a missing broker during its guarded package update pause."""
+    """Recognize a missing broker or one that exits during a call."""
     return (isinstance(error, GLib.Error) and
             Gio.DBusError.get_remote_error(error) in (
                 "org.freedesktop.DBus.Error.NameHasNoOwner",
-                "org.freedesktop.DBus.Error.ServiceUnknown"))
+                "org.freedesktop.DBus.Error.ServiceUnknown",
+                "org.freedesktop.DBus.Error.NoReply"))
 
 
 class BrokerClient:

@@ -217,41 +217,79 @@ def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
 
 def test_public_repair_composes_validation_and_continues_pending(tmp_path, monkeypatch):
     import fix_tests
+    import test_commands
     import test_results
 
     monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'system': {'args': ['selected']}})
     monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
     monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
+    area = dict(category='system', options=['selected'], area=True,
+                case='authorization::last', cases=['authorization::first', 'authorization::last'])
     events = []
     def execute(root, run, owner, kind, command=None):
         results = test_results.ResultStore()
         events.append(kind)
+        if len(events) == 5:
+            assert kind == 'test'
+            assert command == [str(root / 'tools/run-tests'), '--stop-on-error', '--resume',
+                               '--resume-case=authorization::last', '--resume-area-only',
+                               'system', 'selected', '--vm', 'test-vm']
+            results.finish_command('system', ['selected'], family='test-family', work=area)
+            return 0
         if kind == 'test':
             assert command == [str(root / 'tools/run-tests'), '--stop-on-error', 'system', 'selected',
                                '--vm', 'family-id', '--vmhost', 'test-host']
         if events == ['test']:
             results.record('system', 'test-family', 'passed', 0)
-            results.record('system', 'test-family', 'failed', 1, options=['selected'])
+            return 2  # Infrastructure failure without a case or runner failure record.
+        if events == ['test', 'agent']:
+            assert not command['case'] and command['command'][2:] == [
+                'system', 'selected', '--vm', 'family-id', '--vmhost', 'test-host']
+            assert fix_tests.validation_command(command) is None
+            assert 'Validation command' not in (run / 'prompt.txt').read_text()
+            for broad in ([], ['--resume'], ['host'], ['system', '--vm', 'family-id'],
+                          ['unit'], ['unit', 'tests/unit']):
+                with pytest.raises(ValueError, match='repair sessions|repair diagnostics'):
+                    test_commands.validate_repair_scope(ROOT, broad, 'null')
+            with monkeypatch.context() as scope:
+                scope.setenv(test_results.REPAIR_VALIDATION, 'null')
+                scope.setenv(test_results.VARIABLE, str(results.directory))
+                def before_routing(*args, **kwargs):
+                    assert test_results.VARIABLE not in os.environ
+                    raise ValueError('Stop before admission')
+                scope.setattr(test_commands, 'vmhost_request', before_routing)
+                assert test_commands.main(['unit', 'tests/unit/test_test_launchers.py']) == 2
+            return 0
+        if events == ['test', 'agent', 'test']:
+            results.record('system', 'test-family', '', 1, options=['selected'], vm='test-vm', work=area)
+            return 1
+        if len(events) == 4:
+            assert kind == 'agent' and command['work'] == area
+            assert fix_tests.validation_command(command) is None
+            return 0
+        if len(events) == 6:
+            assert not results.complete('system', 'selection', ['selected'])
+            results.record('system', 'test-family', 'failed', 1, options=['selected'], vm='test-vm')
             return 1
         if kind == 'agent':
-            assert events == ['test', 'agent']  # No pre-repair reproduction.
+            assert len(events) == 7
             prompt = (run / 'prompt.txt').read_text()
             assert '--resume-case=failed' in prompt and 'selected' in prompt
-            import test_commands
-            assert fix_tests.validation_command(root, command)[0] == 'tools/run-tests'
-            assert test_commands.execution_arguments(
-                fix_tests.validation_command(root, command)[1:]) == (['system', 'selected'], True)
+            validation = fix_tests.validation_command(command)
+            assert validation == ['tools/run-tests', '--stop-on-error', '--resume', '--resume-case=failed',
+                                  '--resume-case-only', 'system', 'selected', '--vm', 'test-vm']
+            assert test_commands.validate_repair_scope(ROOT, validation[1:], json.dumps(validation[1:]))
             assert results.passed('system', 'test-family') == {'passed'}
             results.record('system', 'test-family', 'failed', 0)
             (root / 'concurrent-edit').write_text('ordinary working changes')
             return 0
-        assert events == ['test', 'agent', 'test']
+        assert len(events) == 8
         assert results.passed('system', 'test-family') == {'passed', 'failed'}
         return 0
 
     request = dict(categories=['system'], rounds=1, tasks=None, vm='family-id', vmhost='test-host')
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert events == ['test', 'agent', 'test']
+    assert events == ['test', 'agent', 'test', 'agent', 'test', 'test', 'agent', 'test']
 
 
 def _fault_observation_input(monkeypatch, verdict):
@@ -552,7 +590,7 @@ def test_product_observation_routes_only_clear_failure_to_repair(
             assert failed and operations == ['test', 'agent'] and outcome['cleanup_complete'] is True
             assert (command['category'], command['case'], command['vm']) == (category, case, vm.name)
             assert expected_diagnostic in command['output_tail']
-            assert fix_tests.validation_command(root, command) == [
+            assert fix_tests.validation_command(command) == [
                 'tools/run-tests', '--stop-on-error', '--resume', '--resume-case=' + case,
                 '--resume-case-only', category, *options, '--vm', vm.name]
             return 23  # Stop at the model boundary after observing the request.
@@ -610,7 +648,7 @@ def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_
     selected.mkdir()
     choices = iter(((incomplete, False), (selected, True)))
     with monkeypatch.context() as scoped:
-        scoped.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
+        scoped.setenv(test_results.REPAIR_VALIDATION, 'null')
         scoped.setenv('ONPC_RUNNER_INVOCATION', '1')
         scoped.setattr(regression_session, 'select', lambda *args, **kwargs: next(choices))
         followed = []

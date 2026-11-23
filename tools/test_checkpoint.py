@@ -269,7 +269,7 @@ class Checkpoint:
 
     def __init__(self, root, selections, *, resume=False, namespace='run-tests', binding=None):
         from test_commands import CATEGORIES, suite_inventory, AGGREGATES, execution_selections
-        from test_results import ResultStore, VARIABLE as RESULTS, REPAIR_QUEUE, same_desktop_profile
+        from test_results import ResultStore, VARIABLE as RESULTS, same_desktop_profile
         from vm_selection import VARIABLE, vm_config
         self.root = root
         self.executed_passes = {}
@@ -305,7 +305,7 @@ class Checkpoint:
             if self.results:
                 passed |= self.results.passed(kind, self.family, options=args)
                 complete = self.results.complete(kind, self.family, args)
-                if (self.family == 'host' and not os.environ.get(REPAIR_QUEUE)
+                if (self.family == 'host'
                         and any(record['category'] == kind and not record['case']
                                 and record.get('options') == args for record in self.results.failures())):
                     # Validate the failed enclosing command, while leaving its

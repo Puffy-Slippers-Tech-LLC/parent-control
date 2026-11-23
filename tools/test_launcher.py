@@ -2,6 +2,7 @@
 """Validated command construction shared by the checkout test launchers."""
 
 import argparse
+import glob
 import json
 import os
 from pathlib import Path
@@ -302,6 +303,18 @@ def pytest_command(root, argv, category):
     return [python, '-B', '-m', 'pytest', '-p', 'no:cacheprovider', *options, '--', *targets]
 
 
+def repair_pytest_scope(root, argv, category):
+    """Limit repair diagnostics to one file, allowing collection on its own."""
+    selectors, options = arguments([arg for arg in argv if not arg.startswith('--ignore=')], category)
+    if '--collect-only' in options:
+        return
+    if len(selectors) == 1:
+        filename = selectors[0].partition('::')[0]
+        if not glob.has_magic(filename) and (root / filename).is_file():
+            return
+    raise ValueError('repair diagnostics require one test file or case')
+
+
 @test_source.protected
 def run_host(root, category, argv):
     command = pytest_command(root, argv, category)
@@ -334,7 +347,12 @@ def main(argv=None, *, category='unit'):
         if reload:
             argv = [arg for arg in argv if arg != '--reload']
         # Validate before creating ownership files or running prerequisites.
-        pytest_command(root, argv[1:] if argv[:1] == ['--unattended'] else argv, category)
+        options = argv[1:] if argv[:1] == ['--unattended'] else argv
+        from test_results import REPAIR_VALIDATION, VARIABLE as REPAIR_RESULTS
+        if REPAIR_VALIDATION in os.environ and argv not in (['--help'], ['-h']):
+            repair_pytest_scope(root, options, category)
+            os.environ.pop(REPAIR_RESULTS, None)
+        pytest_command(root, options, category)
         # Collection is inspection, including through the direct UI wrapper.
         # It must remain available while another launcher owns execution.
         if '--collect-only' in argv:

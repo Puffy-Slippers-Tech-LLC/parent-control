@@ -65,8 +65,8 @@ def test_e2e_subcategory_routes_only_matching_workers(tmp_path, monkeypatch, qua
             ['--resume', '--resume-case=E2E-008/fresh-login', '--resume-case-only', 'e2e', '--subcategory', 'general'],
             workers)
         assert [group['key'] for group in retry] == ['e2e.general']
-        repair = validation_command(root, {'category': 'e2e', 'case': 'E2E-008/fresh-login',
-                                           'options': groups[1]['args'][1:], 'vm': workers[0].name})
+        repair = validation_command({'category': 'e2e', 'case': 'E2E-008/fresh-login',
+                                     'options': groups[1]['args'][1:], 'vm': workers[0].name})
         retry = vm_test_queue.execution_groups(tmp_path, repair[1:-2], [workers[0]])
         assert [group['key'] for group in retry] == ['e2e.general.gnome-classic']
         assert classic_profile(retry[0]['args'])
@@ -154,6 +154,9 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
     ResultStore().record('e2e', 'command', '', 1, options=[])
     assert vm_test_queue.execute_pass(tmp_path, tuple(resumed), control(), execute)['status'] == 0
     assert [record['family'] for record in ResultStore().failures()] == ['command']
+    with monkeypatch.context() as repair:
+        repair.setenv(REPAIR_QUEUE, '1')
+        assert vm_test_queue.execute_pass(tmp_path, tuple(resumed), control(), execute)['status'] == 0
     for family in ('a', 'b'):
         assert observed.count((family, 'first')) == 1
         assert ResultStore().passed('e2e', family) == {'first', 'last'}
@@ -168,7 +171,8 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
     import fix_tests
     from vm_case_queue import arguments
     failure = next(record for record in ResultStore().failures() if record.get('work'))
-    command = fix_tests.validation_command(tmp_path, failure)
+    assert fix_tests.validation_command(failure) is None
+    command = fix_tests.enclosing_retry(tmp_path, failure)
     assert command[2:-2] == arguments(work[0])
     ResultStore().record('e2e', 'b', '', 2, vm='b', options=[], work=work[1])
     with monkeypatch.context() as repair:
@@ -178,7 +182,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
         assert ResultStore().select_failure('e2e', 'b', ['renamed'], ['renamed'], vms=['b']) is None
         current = dict(work[0], options=['current'])
         selected = ResultStore().select_failure('e2e', 'a', ['first', 'last'], ['current'], vms=['a'])
-        assert fix_tests.validation_command(tmp_path, selected)[2:-2] == arguments(current)
+        assert fix_tests.enclosing_retry(tmp_path, selected)[2:-2] == arguments(current)
     ResultStore().record('e2e', 'a', '', 2, vm='a', options=[], work=work[1])
     before = len(observed)
     assert vm_test_queue.execute_pass(tmp_path, tuple(replay), control(), execute)['status'] == 0
@@ -188,7 +192,9 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
     assert all(record['work']['case'] == 'last' for record in failures)
     assert not ResultStore().complete('e2e', 'a', [])
     retry_last = [*plan[:3], ['--resume', '--resume-case=last', '--resume-case-only', 'e2e'], *plan[4:]]
-    assert vm_test_queue.execute_pass(tmp_path, tuple(retry_last), control(), execute)['status'] == 0
+    with monkeypatch.context() as repair:
+        repair.setenv(REPAIR_QUEUE, '1')
+        assert vm_test_queue.execute_pass(tmp_path, tuple(retry_last), control(), execute)['status'] == 0
     assert not [record for record in ResultStore().failures() if record.get('work')]
     # Reload preserves the earlier pass and leaves the interrupted case pending
     # in the repair ledger, even though the worker exited with status 130.

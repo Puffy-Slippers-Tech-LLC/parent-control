@@ -301,7 +301,8 @@ including with `all`; an explicit mismatched name/ID refuses checkout. Detached
 HEAD can use only unrestricted entries. Linked worktrees use their own branch.
 Test and preparation selection follow the
 [VM mandate](../../docs/Mandates/VM-Mandate.MD#authority-and-operation): optional
-`--vm` accepts VM names/IDs, family names/IDs, comma-separated mixtures, `all-enabled`, or `all`.
+`--vm` accepts VM names/IDs, inclusive VM ID ranges, family names/IDs,
+comma-separated mixtures, `all-enabled`, or `all`.
 Every value matches case-insensitively and resolves to canonical configured VM names.
 Family selectors expand to eligible members; the union includes each VM only once.
 Optional `--vmhost` accepts one configured host, a comma-separated list, or

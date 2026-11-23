@@ -185,6 +185,7 @@ export class ChildApplicationUi {
         switch (operation) {
         case 'getValue': return element.getValue();
         case 'getText': return element.getText();
+        case 'getReminderState': return element.getReminderState();
         case 'setValue':
             if (!element.setValue(args.value)) throw new UiError('Failed');
             return null;
@@ -200,7 +201,8 @@ export class ChildApplicationUi {
 
     _metadata(surfaceId, element, values) {
         const operations = ['getElementById', ...['getValue', 'setValue', 'getText',
-            'setText', 'activate'].filter(operation => typeof element[operation] === 'function')];
+            'setText', 'activate', 'getReminderState'].filter(operation =>
+            typeof element[operation] === 'function')];
         const metadata = {id: element.id, surface_id: surfaceId,
             application_id: APPLICATION_UI_NAME, type: element.type,
             parent_id: element.id === surfaceId ? null : surfaceId,

@@ -16,7 +16,6 @@ export class GnomeApplicationUiAdapter {
     constructor(indicator, reminderPreview = null) {
         this._indicator = indicator;
         this._reminderPreview = reminderPreview;
-        this._deliveryIds = new WeakMap();
     }
 
     _state() {
@@ -46,12 +45,6 @@ export class GnomeApplicationUiAdapter {
             (current.card?.visible ?? true);
     }
 
-    _deliveryId(current) {
-        if (!this._deliveryIds.has(current.notification))
-            this._deliveryIds.set(current.notification, GLib.uuid_string_random());
-        return this._deliveryIds.get(current.notification);
-    }
-
     listSurfaces() {
         const state = this._state();
         if (!state.available) return [];
@@ -65,7 +58,7 @@ export class GnomeApplicationUiAdapter {
             modal: false, parent_id: null});
         if (this._indicator._notifications?.current) surfaces.push({
             id: 'child-time-notification', application_id: APPLICATION_ID,
-            delivery_id: this._deliveryId(this._indicator._notifications.current),
+            delivery_id: this._indicator._notifications.current.id,
             type: 'notification', visible: this._notificationVisible(this._indicator._notifications.current),
             enabled: this._notificationVisible(this._indicator._notifications.current), modal: false, parent_id: null});
         return surfaces;
@@ -98,7 +91,6 @@ export class GnomeApplicationUiAdapter {
         if (surfaceId === 'child-time-notification' && state.available) {
             const current = this._indicator._notifications?.current;
             if (!current) return null;
-            const deliveryId = this._deliveryId(current);
             const visible = this._notificationVisible(current);
             const element = (id, type, operations) =>
                 ({id, type, visible, enabled: visible, ...operations});
@@ -108,7 +100,7 @@ export class GnomeApplicationUiAdapter {
                     getValue: () => {
                         if (this._indicator?._notifications?.current?.notification !== current.notification)
                             throw new Error('Notification delivery is no longer current');
-                        return deliveryId;
+                        return current.id;
                     },
                 }),
                 element('child-time-notification-message', 'label', {
@@ -131,7 +123,9 @@ export class GnomeApplicationUiAdapter {
         const element = (id, type, operations, enabled = state.enabled) =>
             ({id, type, visible: state.visible, enabled, ...operations});
         return [
-            element(SURFACE_ID, 'child-panel', {}),
+            element(SURFACE_ID, 'child-panel', {
+                getReminderState: () => this._reminderState(),
+            }),
             element('child-request-button', 'button', {
                 // describeControl updates the native accessibility object.
                 description: indicator._requestButton.get_accessible().get_description(),
@@ -170,6 +164,15 @@ export class GnomeApplicationUiAdapter {
             throw new Error('Remaining time is unavailable');
         // A past deadline represents zero remaining time, including hidden reads.
         return Math.max(0, remaining);
+    }
+
+    _reminderState() {
+        const notifications = this._indicator._notifications;
+        const current = notifications?.current;
+        return {seconds: this._remainingSeconds(), monotonic_us: GLib.get_monotonic_time(),
+            generation: notifications?.deliveryGeneration ?? null,
+            current: notifications?.observeCurrent(Boolean(current && this._notificationVisible(current))) ?? null,
+            last_delivery: notifications?.lastDelivery ?? null};
     }
 
     nativeAllowanceDeadline() {

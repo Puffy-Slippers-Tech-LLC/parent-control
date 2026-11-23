@@ -275,6 +275,7 @@ function createBanner(source, icon, body, urgency, seconds, translations, openPr
     if (!autoClose && deadline !== null && tick())
         timer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, tick);
     return {source, notification, card, dismiss, preferences,
+        isFullscreen: () => Boolean(monitor?.inFullscreen),
         updateRemaining: remaining => {
             if (autoClose || totalSeconds === 0 || !card) return;
             deadline = GLib.get_monotonic_time() + Math.max(0, remaining) * 1000000;

@@ -93,7 +93,7 @@ function harness() {
     const catalog = JSON.parse(readFileSync(new URL(
         '../../common/oh_no_parent_control_ui/diagnostic_catalog.json', import.meta.url), 'utf8'));
     const timers = new Map();
-    let now = 0, serial = 0, preferencesOpened = 0;
+    let now = 0, serial = 0, preferencesOpened = 0, deliverySerial = 0;
     // One pre-existing hold belongs to another Shell feature. Our banners
     // must balance only their own hold, including suppressed/error paths.
     let unredirectHolds = 1;
@@ -155,6 +155,7 @@ function harness() {
             File: {new_for_path: path => path}, Cancellable: class {cancel() { cancelled.push(true); }},
             DBusCallFlags: {NONE: 0}, DBus: {system: {call: (...args) => callbacks.push(args.at(-1))}}},
         GLib: {VariantType: class {}, get_monotonic_time: () => now,
+            uuid_string_random: () => `delivery-${++deliverySerial}`,
             timeout_add: (_priority, _interval, callback) => { timers.set(++serial, callback); return serial; },
             source_remove: id => timers.delete(id), SOURCE_REMOVE: false, SOURCE_CONTINUE: true},
         Clutter: {ActorAlign: {CENTER: 2, START: 1}, Orientation: {VERTICAL: 1}, BinLayout: class {},
@@ -340,10 +341,12 @@ test('default banners follow live time without replacement and custom text stays
         [60, '1 minute left'], [59, '59 seconds left']]) {
         h.notifier.update(seconds, true);
         assert.equal(notification.body, expected);
+        assert.equal(h.notifier.observeCurrent(true).soft_app_text_pending, seconds < 60);
         assert.equal(h.notifier.current.notification, notification);
         assert.equal(h.notifier.current.seconds, seconds);
     }
     h.policyReply(true);
+    assert.equal(h.notifier.observeCurrent(true).soft_app_text_pending, false);
     h.notifier.update(58, true);
     assert.equal(notification.body, '58 seconds left, save your games!');
     h.notifier.refresh();
@@ -362,6 +365,14 @@ test('default banners follow live time without replacement and custom text stays
     literal.notifier.update(59, true);
     assert.equal(literal.notifier.current.notification.body, custom.text);
     assert.equal(literal.callbacks.length, 0);
+
+    const delayed = harness();
+    delayed.notifier.preferences = {show_in_fullscreen: true, reminders: [reminders[2]]};
+    delayed.notifier.update(61, true);
+    delayed.notifier.update(59, true);
+    assert.equal(delayed.notifier.current, null);
+    delayed.policyReply(true);
+    assert.equal(delayed.notifier.lastDelivery.body, '59 seconds left, save your games!');
 });
 
 test('second defaults schedule live ticks and delayed policy replies use the latest balance', () => {
@@ -396,6 +407,7 @@ test('minute banners expire after five seconds and subminute countdowns persist 
         h.notifier.schedule.previous = seconds;
         h.notifier.present(reminders[2], false);
         const current = h.notifier.current;
+        const delivered = h.notifier.lastDelivery;
         assert.equal(current.countdown(), seconds >= 60 ? 5 : seconds);
         h.advance(4900);
         assert.equal(h.notifier.current, current);
@@ -407,6 +419,8 @@ test('minute banners expire after five seconds and subminute countdowns persist 
             current.dismiss();
         }
         assert.equal(h.notifier.current, null);
+        assert.equal(h.notifier.lastDelivery, delivered);
+        assert.equal(delivered.seconds, seconds);
         assert.equal(h.banners.length, 0);
         assert.equal(h.timers.size, 0);
     }
@@ -797,25 +811,31 @@ test('editing a delivered threshold rearms its new time without replaying text-o
 
 test('notification UI adapter exposes actual current text and canonical urgency with lifecycle guards', () => {
     const Main = {sessionMode: {isLocked: false, isGreeter: false}};
-    let deliverySerial = 0;
-    const context = vm.createContext({Main, GLib: {uuid_string_random: () => `delivery-${++deliverySerial}`}});
+    const h = harness();
+    const context = vm.createContext({Main, GLib: h.context.GLib});
     const source = readFileSync(new URL('../../child/gnomeApplicationUiAdapter.js', import.meta.url), 'utf8')
         .replace(/^import[\s\S]*?;\n/gm, '')
         .replace('export class GnomeApplicationUiAdapter', 'globalThis.Adapter = class');
     vm.runInContext(source, context);
-    const h = harness();
     h.notifier.preferences = {show_in_fullscreen: false, reminders};
     h.notifier.update(16, true);
     h.notifier.update(15, true);
     h.policyReply(false);
-    const indicator = {_notifications: h.notifier,
-        container: {visible: true}, _requestButton: {visible: true, reactive: true, get_parent: () => null}};
+    const indicator = {_notifications: h.notifier, _statusLoaded: true, _remainingSeconds: () => 15,
+        container: {visible: true}, _requestButton: {visible: true, reactive: true,
+            get_parent: () => null, get_accessible: () => ({get_description: () => ''})}};
     const preview = {current: h.notifier.current};
     const adapter = new context.Adapter(indicator, preview);
     assert.equal(adapter.listSurfaces().at(-1).id, 'child-time-notification');
     const elements = adapter.elements('child-time-notification');
     const delivery = elements.find(element => element.id === 'child-time-notification');
     const deliveryId = delivery.getValue();
+    const readReminder = () => adapter.elements('child-screen-time-indicator')[0].getReminderState();
+    const initial = readReminder();
+    assert.equal(initial.generation, h.notifier.deliveryGeneration);
+    assert.equal(initial.seconds, 15);
+    assert.equal(initial.current.delivery_id, deliveryId);
+    assert.equal(initial.last_delivery.sequence, 1);
     assert.equal(adapter.listSurfaces().at(-1).delivery_id, deliveryId);
     assert.equal(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
     assert.equal(elements.find(element => element.id === 'child-time-notification-message').getText(),
@@ -841,6 +861,7 @@ test('notification UI adapter exposes actual current text and canonical urgency 
             Main.sessionMode[sessionFlag] = false;
         }
         h.notifier.current.card.visible = false;
+        assert.equal(readReminder().current.body, null);
         assert(!adapter.listSurfaces().find(item => item.id === surface).enabled);
         assert.equal(adapter.listSurfaces().find(item => item.id === 'child-time-notification').delivery_id,
             deliveryId, 'surface identity remains independently readable during suppression');
@@ -850,12 +871,16 @@ test('notification UI adapter exposes actual current text and canonical urgency 
     adapter.elements('child-time-notification').find(
         element => element.id === 'child-time-notification-close').activate();
     assert.equal(adapter.elements('child-time-notification'), null);
+    const closed = readReminder();
+    assert.equal(closed.current, null);
+    assert.equal(closed.last_delivery, initial.last_delivery);
     assert.throws(() => delivery.getValue(), /no longer current/);
     h.notifier.update(19, true);
     h.notifier.update(15, true);
     h.policyReply(false);
     assert.notEqual(adapter.elements('child-time-notification')[0].getValue(), deliveryId);
     assert.notEqual(adapter.listSurfaces().at(-1).delivery_id, deliveryId);
+    assert.equal(readReminder().last_delivery.sequence, 2);
     preview.current = null;
     assert.equal(adapter.elements('child-reminder-preview'), null);
     h.notifier.clear();

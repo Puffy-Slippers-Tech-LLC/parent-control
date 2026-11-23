@@ -47,8 +47,8 @@ Notifications use the product logo, user privacy scope, plain text and transient
 lifetime. A later reminder replaces the previous product notification so an
 undismissed critical banner cannot obstruct later reminders. Default content
 combines shared localized minute/second plurals with `%(time)s left` in all
-supported languages. For thresholds below 60 seconds, the controller queries
-`GetOwnSessionAllowsSoftApps()` before delivery and uses
+supported languages. For default text delivered below 60 seconds, the
+controller queries `GetOwnSessionAllowsSoftApps()` before delivery and uses
 `%(time)s left, save your games!` when soft apps are currently allowed.
 The broker compares the live filter with the saved hard-only and strict filters;
 when these are identical, it uses the remembered choice with an active grant.

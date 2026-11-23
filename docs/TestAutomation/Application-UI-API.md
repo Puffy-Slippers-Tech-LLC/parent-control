@@ -342,6 +342,18 @@ no alternate product input route is provided.
 The shared UI facade binds every `child-time-notification-*` control to this
 surface at the `child-panel` endpoint, independently of panel visibility. Both
 live reminders and previews refuse input during lock and greeter transitions.
+
+The `getReminderState` operation on `child-screen-time-indicator` returns the
+panel's remaining seconds, a guest monotonic timestamp in microseconds, the
+notification controller generation, the current delivery and the most recent
+delivery in one read. The current delivery
+is null after closure. The most recent delivery retains its presentation
+timestamp and increasing sequence for the life of the endpoint so an observer
+can verify a brief warning after it closes. Both identify the delivery by UUID
+and report its visibility, monitor fullscreen state and seconds. Body, urgency and countdown are null
+for hidden banners. A visible body may await the soft-app policy read when a
+running warning crosses below one minute. The endpoint keeps one record in memory.
+
 Natural delivery, content, live balance, urgency, current-delivery identity and
 lock-removal observation are qualified on Ubuntu 26.04 through
 `check_e2e_natural_reminder_observation`; `check_e2e_fullscreen_reminder_visibility`

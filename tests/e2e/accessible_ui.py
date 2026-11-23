@@ -9178,10 +9178,10 @@ class AccessibleUI:
         return self.wait(transition_read, 'natural-expiry-result', prompt_in_predicate=True)
 
     def natural_reminder_wait(self, record, *, fullscreen=None, history=False):
-        """Continuously bind public delivery, live balance and removal at Lock.
+        """Observe timestamped deliveries and live state on one pinned ChildUI endpoint.
 
-        A lost endpoint, replacement or missed sample fails this observation;
-        neither reacquisition nor another warning can supply absence evidence.
+        A delivery remains observable after auto-close. Native lock and game
+        observations still have to establish their independent results.
         """
         if history:
             require(type(record) is dict and set(record) == {
@@ -9235,12 +9235,14 @@ class AccessibleUI:
         session, locked = self.natural_expiry_session()
         require(not locked, 'ui:natural-reminder-locked-entry')
         require(self.application_ui is not None, 'ui:natural-reminder-observer-lost')
-        applications = self.application_ui.applications(
+        clients = self.application_ui.owned_clients(
             owner_pids=self.owner_pids, application_owners=self.application_owners,
             application_ids=(CHILD_PANEL_APPLICATION,))
-        require(len(applications) == 1, 'ui:natural-reminder-observer-lost')
-        application = applications[0]
-        initial = emission = delivery_id = endpoint = closed_delivery_id = None
+        require(len(clients) == 1, 'ui:natural-reminder-observer-lost')
+        client = clients[0]
+        endpoint = [client.pid, client.owner, client.object_path]
+        initial = emission = closed_delivery_id = generation = None
+        sequence = 0
         auto_closes = False
         emissions, visibility = [], None
         previous_end = time.monotonic_ns()
@@ -9250,153 +9252,97 @@ class AccessibleUI:
             started = time.monotonic_ns()
             require(started - previous_end <= 15_000_000_000, 'ui:natural-reminder-observation-gap')
             identity, locked = self.natural_expiry_session()
+            session_observed = time.monotonic_ns()
             require(identity == session, 'ui:natural-reminder-session-changed')
-            self.invalidate_observation()
-            # Keep the original product owner pinned through Lock. An unrelated
-            # desktop app retiring during discovery must not interrupt this
-            # notification observation; the lock provider is read separately.
-            observation = self.read_snapshot(application)
-            panel = self.snapshot_owned_target('child-screen-time-indicator', showing=False,
-                                               observation=observation)
-            require(panel is not None, 'ui:natural-reminder-observer-lost')
-            current_endpoint = [panel.get_process_id(), panel.bus, panel.path]
-            require(endpoint is None or endpoint == current_endpoint, 'ui:natural-reminder-endpoint-changed')
-            endpoint = current_endpoint
-            remaining = self.snapshot_owned_target('child-remaining-time', showing=False,
-                                                   observation=observation)
-            require(remaining is not None, 'ui:natural-reminder-observer-lost')
-            seconds = remaining.getValue()
-            require(type(seconds) is int and 0 <= seconds <= 600, 'ui:natural-reminder-balance')
-            surface = self._reminder_surface(application) if fullscreen is not None else None
-            if fullscreen is False or fullscreen is True and emission is not None:
-                warning = surface
-            else:
-                warning = self.snapshot_owned_target('child-time-notification', showing=False,
-                                                     observation=observation)
-                if fullscreen is True and (surface is None or not surface['visible']):
-                    warning = None  # Wait for the first public presentation at its original deadline.
+            observed = self._reminder_state(client)
+            received = time.monotonic_ns()
+            seconds, warning = observed['seconds'], observed['current']
+            last = observed['last_delivery']
+            observed_ns = observed['monotonic_us'] * 1000
+            require(started <= observed_ns <= received, 'ui:natural-reminder-clock')
+            latest = last['sequence'] if last is not None else 0
             if initial is None:
-                require(not locked and seconds >= (120 if history and len(records) == 2 else 300) and warning is None
-                        and (not history or len(records) != 2 or seconds < 300),
-                        'ui:natural-reminder-arm-margin')
-                initial = {'seconds': seconds, 'read_bounds': [started, time.monotonic_ns()]}
-                deadline = started + (seconds + 15) * 1_000_000_000
+                minimum = 120 if history and len(records) == 2 else 300
+                require(not locked and seconds >= minimum and warning is None
+                        and (minimum != 120 or seconds < 300), 'ui:natural-reminder-arm-margin')
+                initial = {'seconds': seconds, 'read_bounds': [observed_ns, observed_ns]}
+                deadline = observed_ns + (seconds + 15) * 1_000_000_000
+                generation = observed['generation']
+                previous_sample = (observed_ns, seconds)
+                sequence = latest
                 print('natural-reminder:armed seconds=' + str(seconds), file=sys.stderr, flush=True)
-            require(time.monotonic_ns() < deadline, 'ui:natural-reminder-deadline')
+            require((session_observed if locked else received) < deadline,
+                    'ui:natural-reminder-deadline')
+            require(observed['generation'] == generation, 'ui:natural-reminder-observer-lost')
+            require(latest in (sequence, sequence + 1), 'ui:natural-reminder-replaced')
+            if latest != sequence:
+                require(len(emissions) < len(records)
+                        and last['delivery_id'] not in {item['delivery_id'] for item in emissions},
+                        'ui:natural-reminder-replaced')
+                record = records[len(emissions)]
+                threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
+                self._check_reminder_content(last, record, threshold, language, fullscreen)
+                delivery_ns = last['monotonic_us'] * 1000
+                previous_ns, previous_seconds = previous_sample
+                require(previous_ns < delivery_ns <= observed_ns,
+                        'ui:natural-reminder-clock')
+                require(seconds - 2 <= last['seconds'] <= previous_seconds + 2,
+                        'ui:natural-reminder-balance')
+                auto_closes = threshold >= 60 and last['countdown'] is not None and last['countdown'] <= 5
+                emission = {'delivery_id': last['delivery_id'], 'body': last['body'],
+                            'urgency': last['urgency'], 'seconds': last['seconds'],
+                            'panel_seconds': [seconds, previous_seconds],
+                            'read_bounds': [delivery_ns, delivery_ns]}
+                emissions.append(emission)
+                sequence = latest
+                print('natural-reminder:delivered seconds=' + str(last['seconds']), file=sys.stderr, flush=True)
+            previous_sample = (observed_ns, seconds)
+
             if locked:
                 require(len(emissions) == len(records) and warning is None,
                         'ui:natural-reminder-lock-removal')
+                # Date the lock using its native state read. The later lock
+                # surface and game checks verify usability and continuity.
+                require(session_observed - previous_end <= 15_000_000_000,
+                        'ui:natural-reminder-observation-gap')
                 lock = self.natural_expiry('child-natural-expiry-lock-ready')
                 require(lock['session_sha256'] == session and lock['state'] == 'locked',
                         'ui:natural-reminder-session-changed')
-                completed = time.monotonic_ns()
-                require(completed < deadline and completed - previous_end <= 15_000_000_000,
-                        'ui:natural-reminder-observation-gap')
+                if history and fullscreen is not None:
+                    visibility = self._fullscreen_reminder_result(
+                        session, emission, game_application, game_before, fullscreen, history=history)
                 return {'record': binding, 'initial': initial, 'emission': emission,
                         'session_sha256': session, 'endpoint': endpoint, 'lock': lock['lock'],
-                        'lock_read_bounds': [started, completed], 'samples': samples + 1,
-                        'maximum_gap_ns': max(maximum_gap, completed - previous_end),
+                        'lock_read_bounds': [started, session_observed], 'samples': samples + 1,
+                        'maximum_gap_ns': max(maximum_gap, session_observed - previous_end),
                         'activity_actions': actions, 'removed': True,
                         **({'emissions': emissions, 'visibility': visibility} if history else {})}
             if warning is None:
                 require(emission is None or seconds == 0 or auto_closes,
                         'ui:natural-reminder-disappeared')
-                closed_delivery_id = delivery_id
-                threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
-                require(emission is not None or seconds > threshold - 15,
-                        'ui:natural-reminder-delivery-deadline')
-            elif fullscreen is not None and emission is not None:
-                require(warning['delivery_id'] == delivery_id and warning['visible'] is fullscreen,
-                        'ui:fullscreen-reminder-visibility-changed')
+                if emission is not None:
+                    closed_delivery_id = emission['delivery_id']
             else:
-                if fullscreen is False:
-                    require(warning['visible'] is False, 'ui:fullscreen-reminder-not-suppressed')
-                    current_id = warning['delivery_id']
-                else:
-                    require(self.showing(warning), 'ui:natural-reminder-hidden')
-                    current_id = warning.getValue()
-                require(type(current_id) is str and re.fullmatch(
-                    r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', current_id),
-                    'ui:natural-reminder-delivery-identity')
-                require(current_id != closed_delivery_id, 'ui:natural-reminder-reappeared')
-                new_delivery = delivery_id != current_id
-                if new_delivery:
-                    require(len(emissions) < len(records)
-                            and current_id not in {item['delivery_id'] for item in emissions},
-                            'ui:natural-reminder-replaced')
-                    record = records[len(emissions)]
+                require(emission is not None and warning['delivery_id'] == emission['delivery_id'],
+                        'ui:natural-reminder-replaced')
+                require(warning['delivery_id'] != closed_delivery_id, 'ui:natural-reminder-reappeared')
                 threshold = record['value'] * (60 if record['unit'] == 'minute' else 1)
-                if fullscreen is False:
-                    # A suppressed surface exposes its identity and visibility.
-                    # Its hidden text and urgency controls cannot be read.
-                    body = priority = None
-                    live = remaining.getValue()
-                else:
-                    message = self.snapshot_owned_target('child-time-notification-message',
-                                                         observation=observation)
-                    urgency = self.snapshot_owned_target('child-time-notification-urgency',
-                                                         observation=observation)
-                    require(message is not None and urgency is not None, 'ui:natural-reminder-incomplete')
-                    # Text and remaining time change together on countdown ticks.
-                    content = message.ui_element.snapshot()
-                    require(content['visible'] is True, 'ui:natural-reminder-hidden')
-                    body, live = content['text'], content['value']
-                    priority = urgency.getValue()
-                require(type(live) is int and 0 < live <= threshold,
-                        'ui:natural-reminder-trigger')
-                if new_delivery:
-                    auto_closes = False
-                    if threshold >= 60 and live > 5:
-                        # The first sample can already be below a minute. Use
-                        # the banner's own timer to recognize five-second closure.
-                        countdown = self.snapshot_owned_target('child-time-notification-countdown',
-                                                               observation=observation)
-                        require(countdown is not None, 'ui:natural-reminder-incomplete')
-                        segments = countdown.getValue()
-                        require(type(segments) is int and segments >= 0,
-                                'ui:natural-reminder-countdown')
-                        auto_closes = segments <= 5
-                if fullscreen is False:
-                    require(self._reminder_surface(application) == warning, 'ui:natural-reminder-replaced')
-                else:
-                    require(warning.getValue() == current_id, 'ui:natural-reminder-replaced')
-                after = remaining.getValue()
-                if fullscreen is not False:
-                    expected_body = record['text']
-                    if not expected_body:
-                        count = math.ceil(live / 60) if live >= 60 else live
-                        unit = ('Minute' if count == 1 else 'Minuten') if live >= 60 else (
-                            'Sekunde' if count == 1 else 'Sekunden')
-                        if language == 'en':
-                            unit = ('minute' if count == 1 else 'minutes') if live >= 60 else (
-                                'second' if count == 1 else 'seconds')
-                        expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
-                        if live < 60:
-                            expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
-                    require(body == expected_body, 'ui:natural-reminder-content')
-                    require(priority == 'critical', 'ui:natural-reminder-urgency')
-                require(after - 2 <= live <= seconds + 2, 'ui:natural-reminder-balance')
-                delivery_id = current_id
-                if new_delivery:
-                    emission = {'delivery_id': current_id, 'body': body, 'urgency': priority,
-                                'seconds': live, 'panel_seconds': [after, seconds],
-                                'read_bounds': [started, time.monotonic_ns()]}
-                    emissions.append(emission)
-                    print('natural-reminder:delivered seconds=' + str(live), file=sys.stderr, flush=True)
-                    if fullscreen is not None:
-                        result = self._fullscreen_reminder_result(application, session, emission,
-                            game_application, game_before, fullscreen)
-                        if not history:
-                            return {'record': record, 'initial': initial, 'emission': emission,
-                                    'session_sha256': session, 'endpoint': endpoint, **result}
-                        visibility = result
-            if emission is not None and len(emissions) < len(records):
+                self._check_reminder_content(warning, record, threshold, language, fullscreen)
+                require(abs(warning['seconds'] - seconds) <= 2, 'ui:natural-reminder-balance')
+            if not history and fullscreen is not None and emission is not None:
+                visibility = self._fullscreen_reminder_result(
+                    session, emission, game_application, game_before, fullscreen, history=history)
+                return {'record': record, 'initial': initial, 'emission': emission,
+                        'session_sha256': session, 'endpoint': endpoint, **visibility}
+            if len(emissions) < len(records):
                 next_row = records[len(emissions)]
                 next_threshold = next_row['value'] * (60 if next_row['unit'] == 'minute' else 1)
-                require(seconds > next_threshold - 3, 'ui:reminder-history-missing-next-warning')
+                require(seconds > next_threshold - (15 if emission is None else 3),
+                        'ui:natural-reminder-delivery-deadline')
             # Real normal Submit/result work continues well before the short
             # warning interval; no last-second input races the natural lock.
             if fullscreen is None and seconds > 90 and started >= next_activity:
+                self.invalidate_observation()
                 activity = self.natural_expiry('child-natural-expiry-observe')
                 self.expected_natural_expiry_source = activity['source']
                 activity = self.natural_expiry('child-natural-expiry-activity')
@@ -9409,6 +9355,60 @@ class AccessibleUI:
             previous_end = completed
             samples += 1
             time.sleep(1)
+
+    def _reminder_state(self, client):
+        panel = 'child-screen-time-indicator'
+        state = client.call(panel, panel, 'getReminderState')
+        require(type(state) is dict and set(state) == {
+                    'seconds', 'monotonic_us', 'generation', 'current', 'last_delivery'}
+                and type(state['seconds']) is int and 0 <= state['seconds'] <= 600
+                and type(state['monotonic_us']) is int and type(state['generation']) is str
+                and state['generation'], 'ui:natural-reminder-state')
+        fields = {'delivery_id', 'visible', 'fullscreen', 'seconds', 'body', 'urgency', 'countdown',
+                  'soft_app_text_pending'}
+        for key, extra in (('current', set()), ('last_delivery', {'sequence', 'monotonic_us'})):
+            delivery = state[key]
+            if delivery is None:
+                continue
+            require(type(delivery) is dict and set(delivery) == fields | extra
+                    and type(delivery['delivery_id']) is str and re.fullmatch(
+                        r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', delivery['delivery_id'])
+                    and type(delivery['visible']) is bool and type(delivery['fullscreen']) is bool
+                    and type(delivery['seconds']) is int
+                    and type(delivery['soft_app_text_pending']) is bool
+                    and (delivery['countdown'] is None
+                         or type(delivery['countdown']) is int and delivery['countdown'] >= 0)
+                    and (type(delivery['body']) is str and delivery['urgency'] in ('high', 'critical')
+                         if delivery['visible'] else all(delivery[name] is None
+                             for name in ('body', 'urgency', 'countdown')))
+                    and (not extra or not delivery['soft_app_text_pending']
+                         and type(delivery['sequence']) is int and delivery['sequence'] > 0
+                         and type(delivery['monotonic_us']) is int
+                         and delivery['monotonic_us'] <= state['monotonic_us']),
+                    'ui:natural-reminder-delivery')
+        return state
+
+    @staticmethod
+    def _check_reminder_content(delivery, record, threshold, language, fullscreen):
+        live = delivery['seconds']
+        require(0 < live <= threshold, 'ui:natural-reminder-trigger')
+        require(delivery['visible'] is (fullscreen is not False), 'ui:natural-reminder-visibility')
+        require(fullscreen is None or delivery['fullscreen'], 'ui:fullscreen-reminder-game-state')
+        if fullscreen is False:
+            return
+        expected_body = record['text']
+        if not expected_body:
+            count = math.ceil(live / 60) if live >= 60 else live
+            unit = ('Minute' if count == 1 else 'Minuten') if live >= 60 else (
+                'Sekunde' if count == 1 else 'Sekunden')
+            if language == 'en':
+                unit = ('minute' if count == 1 else 'minutes') if live >= 60 else (
+                    'second' if count == 1 else 'seconds')
+            expected_body = (f'Noch {count} {unit}' if language == 'de' else f'{count} {unit} left')
+            if live < 60 and not delivery['soft_app_text_pending']:
+                expected_body += ', speichere deine Spiele!' if language == 'de' else ', save your games!'
+        require(delivery['body'] == expected_body, 'ui:natural-reminder-content')
+        require(delivery['urgency'] == 'critical', 'ui:natural-reminder-urgency')
 
     def _reminder_game_state(self, application, moves, mode):
         """Read only the pinned game's public subtree, including while a banner is hidden."""
@@ -9434,35 +9434,21 @@ class AccessibleUI:
                 'ui:fullscreen-reminder-game-draft')
         return root
 
-    def _reminder_surface(self, application):
-        matches = [value for value in application.client.listSurfaces()
-                   if value['id'] == 'child-time-notification']
-        require(len(matches) <= 1, 'ui:fullscreen-reminder-surface')
-        if not matches:
-            return None
-        value = matches[0]
-        require(value['application_id'] == CHILD_PANEL_APPLICATION
-                and type(value['visible']) is bool and value['enabled'] is value['visible'],
-                'ui:fullscreen-reminder-surface')
-        return value
-
-    def _fullscreen_reminder_result(self, application, session, emission,
-                                    game_application, game_before, enabled):
-        """Compare the same live notification and the already-fullscreen game."""
+    def _fullscreen_reminder_result(self, session, emission, game_application,
+                                    game_before, enabled, *, history):
+        """Compare the original game on either side of the recorded presentation."""
         started = time.monotonic_ns()
         root = self._reminder_game_state(game_application, 2, 'Fullscreen')
         require(root.get_process_id() == game_before['pid']
                 and [root.bus, root.path] == game_before['endpoint'],
                 'ui:fullscreen-reminder-game-replaced')
-        value = self._reminder_surface(application)
-        require(value is not None and value['delivery_id'] == emission['delivery_id']
-                and value['visible'] is enabled, 'ui:fullscreen-reminder-visibility')
-        require(self.natural_expiry_session() == (session, False),
-                'ui:fullscreen-reminder-warning-expired')
+        identity, locked = self.natural_expiry_session()
+        require(identity == session, 'ui:natural-reminder-session-changed')
         completed = time.monotonic_ns()
-        require(completed < emission['read_bounds'][0] + emission['seconds'] * 1_000_000_000,
-                'ui:fullscreen-reminder-warning-expired')
-        return {'fullscreen_enabled': enabled, 'visible': value['visible'],
+        if not history:
+            require(not locked and completed < emission['read_bounds'][0] + emission['seconds'] * 1_000_000_000,
+                    'ui:fullscreen-reminder-warning-expired')
+        return {'fullscreen_enabled': enabled, 'visible': enabled,
                 'visibility_read_bounds': [started, completed],
                 'delivery_id': emission['delivery_id'],
                 'game_before': game_before, 'game_usable_moves': 2}

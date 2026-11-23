@@ -28,7 +28,7 @@ DEFAULT_HOST_TEST_CONCURRENCY = 4
 MAX_NAME_LENGTH = 63
 VM_FIELDS = frozenset({
     'id', 'name', 'host', 'disk_anchor', 'enabled', 'owning_branch',
-    'compute_unit', 'vm_tags', 'aliases', 'iso', 'vm_config_xml',
+    'compute_unit', 'vm_tags', 'aliases', 'iso', 'install_iso', 'vm_config_xml',
 })
 
 
@@ -61,6 +61,7 @@ class VMConfig:
     aliases: tuple[str, ...] = ()
     iso: str | None = None
     vm_config_xml: str | None = None
+    install_iso: str | None = None
 
     def require_build_target(self):
         # Standalone helpers can import vm_config before adding the checkout.
@@ -669,6 +670,7 @@ def validate_entry(document, family, hosts):
     if not isinstance(aliases, list):
         raise ValueError('vm-config:aliases must be an array of VM names')
     iso = validate_iso(document['iso']) if 'iso' in document else None
+    install_iso = validate_iso(document['install_iso']) if 'install_iso' in document else None
     template = document.get('vm_config_xml')
     if 'vm_config_xml' in document and (
             not isinstance(template, str) or any(ord(char) < 32 for char in template) or
@@ -678,7 +680,8 @@ def validate_entry(document, family, hosts):
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
                     hosts[host_name], compute_unit(document.get('compute_unit', 1), 'VM compute_unit'),
                     parse_vm_tags(document.get('vm_tags')),
-                    tuple(validate_name(alias) for alias in aliases), iso=iso, vm_config_xml=template)
+                    tuple(validate_name(alias) for alias in aliases), iso=iso,
+                    vm_config_xml=template, install_iso=install_iso)
 
 
 def load(name=None, path=None, *, local=None):

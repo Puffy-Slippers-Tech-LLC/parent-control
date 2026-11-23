@@ -7,9 +7,51 @@ another baseline, download a new image, or create a replacement domain.
 
 ## Shared VM configuration
 
-### Creating a blank VM
+### Unattended VM provisioning
 
 Run `tools/newvm --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+from the checkout root. Full provisioning requires an enabled VM profile and
+host. It uses `install_iso` when the resolved profile defines it, otherwise
+`iso`. Ubuntu uses its Desktop ISO with Autoinstall. Fedora uses the
+release-matched Everything netinstall ISO with Kickstart to install Workstation.
+Place one matching ISO in the selected host's existing `ISO` directory. The
+Fedora installer fetches packages from the selected release's repositories.
+Install media can be reused across VMs. The launcher neither downloads media nor
+changes the original ISO file.
+
+The installer uses wired DHCP, the lowercase resolved name as the guest
+hostname, and `America/Los_Angeles`. It creates the administrator `edgar` with
+the display name Puffy Slippers Tech LLC and the selected VM host's
+`TEST_ACCOUNT_PASSWORD` from its private `~/.onpc-config/.envrc`. Ubuntu skips
+the installer refresh and opts into third-party drivers. Fedora enables the
+Workstation third-party repository set.
+
+After confirmed installer shutdown, the launcher ejects the installation media
+and boots from the new disk. That boot updates native packages using the package
+update code shared by auto preparation, and refreshes installed Snaps and
+system and per-user Flatpaks where available. It verifies the installed release,
+sets and checks GNOME's welcome-dialog preference before desktop login, and
+shuts down. It then runs [manual preparation](#reusable-preparation-ownership)
+to capture the baseline and current app snapshot and leaves the guest off.
+This preparation is part of the explicit full-provisioning request.
+
+Full provisioning also needs `xorriso`, `openssl` and the existing
+noninteractive test-pool and preparation grants on the selected VM host.
+`./setup.sh --vm-host-only` installs its host prerequisites. Installation and
+the first update boot use the registered VM's compute reservation and the
+host disk queue. The writable developer share is detached during those boots.
+Both boots use one-time libvirt configuration, so an interrupted install cannot
+leave the unattended installer armed for the next start.
+A failed install or update preserves the registered VM, disk, and any referenced
+provisioning files for inspection. QEMU opens the per-VM boot files and private
+serial log directly from a staging directory beside the VM disk. A failed
+preparation after successful
+updates can use the ordinary manual preparation recovery route. The launcher
+reports the affected VM and does not automatically erase or reinstall it.
+
+### Creating a blank VM
+
+Run `tools/newvm --blank --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
 from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
 already exist in `config/environment.json`. `--vmconfig` selects a profile from
@@ -21,9 +63,11 @@ offline VM rather than scheduling tests. SSH hosts use
 their configured alias and port with noninteractive SSH; no remote validation
 is implied by the presence of a template.
 
+Blank mode uses `iso` even when `install_iso` is configured. The following
+hardware, replacement and registration rules apply to both modes.
 Each host's absolute `virt-manager` directory must already exist. Its
 `ISO` subdirectory must contain exactly one regular, nonsymlink file matching
-the new VM's resolved `iso` filename pattern. Zero or multiple matches fail explicitly;
+the selected ISO filename pattern. Zero or multiple matches fail explicitly;
 the program does not guess a newest image or download one.
 
 The VM's resolved `vm_config_xml` path is relative to the checkout and supplies
@@ -71,7 +115,7 @@ Creation uses the installed development helper; refresh it on the selected
 host with `./setup.sh --test-tools-only`. SSH creation also requires a configured
 branch checkout on that host so the helper can resolve its trusted sources.
 
-Creation leaves the VM powered off. Supply a unique positive decimal ID such as
+Blank creation leaves the VM powered off. Supply a unique positive decimal ID such as
 `201`. The selected profile resolves the VM name, for example `onpc-Fedora44-201`,
 and supplies settings such as `enabled`. The registry stores VM IDs as JSON
 integers. The registry row contains only `id`
@@ -84,7 +128,7 @@ updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
 the affected name/path; retrying requires confirmation again for existing domains
 and never adopts an orphaned disk file.
-After manual OS installation, enable the host if needed and follow the
+After installing an OS into a blank VM, enable the host if needed and follow the
 normal preparation workflow before scheduling tests. Local prerequisites are
 `python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains
 and write the VM directory. SSH targets need the same tools/permissions plus

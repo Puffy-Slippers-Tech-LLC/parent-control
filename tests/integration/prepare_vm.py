@@ -79,6 +79,7 @@ SCRIPT_FILES = tuple(path for path in LEGACY_SCRIPT_FILES
                          'tests/integration/baseline_fixtures.py', 'tests/fixtures/native_trust.py',
                          'tests/fixtures/native_assets.py')) + (
     'tests/integration/baseline_guest.py', 'tests/integration/prepare_baseline.py',
+    'tests/integration/guest_updates.py',
     'tools/build_targets.py',
     'tests/__init__.py', 'tests/fixtures/__init__.py',
     'tests/fixtures/baseline_environment.py', 'tests/fixtures/snap_assets.py',
@@ -390,8 +391,9 @@ def preparation_source_digest(read, files):
                     entry.pop('host', None)
                     if files == SCRIPT_FILES:
                         entry.pop('vm_tags', None)
-                        # XML templates only affect provisioning a new blank VM.
+                        # Hardware templates and unattended media only affect new VMs.
                         entry.pop('vm_config_xml', None)
+                        entry.pop('install_iso', None)
             contents = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('utf-8')
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(len(contents).to_bytes(8, "big"))

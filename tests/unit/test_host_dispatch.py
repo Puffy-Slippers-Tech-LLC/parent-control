@@ -41,9 +41,10 @@ def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, 
         # Deliberately invert these legacy labels. Identity decides locality.
         transport='local' if index == 1 else 'ssh', ssh_port=2200 + index)
         for index, name in enumerate(names)], branches=branches,
-        families=[dict(family='ubuntu26.04-x86_64', package_format='deb', vm_tags='general',
+        vm_configs={'test': dict(vm_tags='general')},
+        families=[dict(family='ubuntu26.04-x86_64', package_format='deb', parent_config='test',
             fixture_path='common/ubuntu/common', vms=[dict(name='Guest-' + str(index),
-                id=str(index + 1), enabled='true', host=names[index],
+                id=index + 1, enabled='true', host=names[index],
                 disk_anchor=str(tmp_path / ('guest-' + str(index) + '.qcow2')))
                 for index in range(3)])])
     branch_by_root = {Path(item['repo_root']): item['name'] for item in branches}
@@ -159,9 +160,9 @@ def test_source_transfer_uses_controller_working_bytes_without_touching_host_che
     (controller / 'config').mkdir()
     document = dict(agent='codex', hosts=[dict(name='fixture-host', transport='local',
         enabled='true', max_compute_unit=1)], branches=[dict(name='controller',
-        host='fixture-host', repo_root=str(controller))], families=[dict(
-        family='ubuntu26.04-x86_64', package_format='deb', vm_tags='general',
-        fixture_path='common/ubuntu/common', vms=[dict(name='Fixture-Guest', id='1',
+        host='fixture-host', repo_root=str(controller))], vm_configs={'test': dict(vm_tags='general')},
+        families=[dict(family='ubuntu26.04-x86_64', package_format='deb', parent_config='test',
+        fixture_path='common/ubuntu/common', vms=[dict(name='Fixture-Guest', id=1,
         enabled='true', host='fixture-host', disk_anchor=str(tmp_path / 'guest.qcow2'))])])
     (controller / 'config/environment.json').write_text(json.dumps(document))
     allocator_marker = tmp_path / 'allocator-loaded'

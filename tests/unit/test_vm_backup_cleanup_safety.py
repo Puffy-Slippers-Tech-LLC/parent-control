@@ -202,9 +202,10 @@ def backup_rig(rig, tmp_path, monkeypatch):
          'backup_root': str(tmp_path / 'backups')},
         {'name': 'future', 'transport': 'ssh', 'enabled': 'false', 'max_compute_unit': 6,
          'backup_root': '/remote/backups'}],
-        'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb', 'vm_tags': 'general',
+        'vm_configs': {'test': {'vm_tags': 'general'}},
+        'families': [{'family': 'ubuntu26.04-x86_64', 'package_format': 'deb', 'parent_config': 'test',
                       'fixture_path': 'common/ubuntu/common',
-        'vms': [{'id': '9', 'name': 'Backup-guest', 'host': 'local',
+        'vms': [{'id': 9, 'name': 'Backup-guest', 'host': 'local',
                  'disk_anchor': str(rig.anchor), 'enabled': 'true'},
                 {'id': 12, 'name': 'Other-guest', 'host': 'local',
                  'disk_anchor': str(tmp_path / 'other.qcow2'), 'enabled': 'true'},
@@ -984,9 +985,9 @@ def test_backup_root_validation_is_shared_with_other_registry_consumers(tmp_path
     config = tmp_path / 'registry.json'
     config.write_text(json.dumps({'hosts': [
         {'name': 'local', 'transport': 'local', 'enabled': 'true', 'max_compute_unit': 2,
-         'backup_root': value}], 'families': [
-        {'family': 'fixture', 'package_format': 'deb', 'vm_tags': 'general', 'fixture_path': 'common/ubuntu/common',
-         'vms': [{'name': 'Guest', 'host': 'local', 'disk_anchor': '/disk'}]}]}))
+         'backup_root': value}], 'vm_configs': {'test': {'vm_tags': 'general'}}, 'families': [
+        {'family': 'fixture', 'package_format': 'deb', 'parent_config': 'test', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'id': 1, 'name': 'Guest', 'host': 'local', 'disk_anchor': '/disk'}]}]}))
     with pytest.raises(ValueError, match='backup_root'):
         vm_config.registry(config)
 
@@ -1000,9 +1001,9 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     root = tmp_path / 'checkout'
     (root / 'config').mkdir(parents=True)
     config = root / 'config/environment.json'
-    document = {'families': [
-        {'family': 'fixture', 'package_format': 'deb', 'vm_tags': 'general', 'fixture_path': 'common/ubuntu/common',
-         'vms': [{'name': 'Guest', 'disk_anchor': '/disk'}]}]}
+    document = {'vm_configs': {'test': {'vm_tags': 'general', 'host': 'local'}}, 'families': [
+        {'family': 'fixture', 'package_format': 'deb', 'parent_config': 'test', 'fixture_path': 'common/ubuntu/common',
+         'vms': [{'id': 1, 'name': 'Guest', 'disk_anchor': '/disk'}]}]}
     config.write_text(json.dumps(document))
     assert vm_config.registry(config)['Guest'].name == 'Guest'
     with pytest.raises(ValueError, match='backup_root is required'):
@@ -1062,13 +1063,21 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     document['branches'] = [dict(name='main', host='local', repo_root=str(root), unknown=True)]
     document['launchers'] = [dict(name='execute-plan', default_branch='main', unknown=True)]
     document['families'][0]['unknown'] = True
-    document['families'][0]['vms'][0].update(host='local', unknown=True)
+    document['families'][0]['vms'][0].update(host='{host_alias}', host_alias='local',
+                                           unknown={'example': '{unused}'})
     config.write_text(json.dumps(document))
     assert resolve_selection(root).name == 'codex'
     assert vm_config.registry(config)['Guest'].name == 'Guest'
+    entry = document['families'][0]['vms'][0]
+    for invalid in ('1', True, 0, 10**63):
+        entry['id'] = invalid
+        config.write_text(json.dumps(document))
+        with pytest.raises(ValueError, match='vm-config:id'):
+            vm_config.registry(config)
+    entry['id'] = 1
     # Scheduling metadata is validated before any privileged VM admission.
     document['hosts'][0]['max_compute_unit'] = 1.5
-    document['families'][0]['compute_unit'] = 0.5
+    document['vm_configs']['test']['compute_unit'] = 0.5
     config.write_text(json.dumps(document))
     vm = vm_config.registry(config)['Guest']
     assert vm.host.max_compute_unit == 1.5 and vm.compute_unit == 0.5

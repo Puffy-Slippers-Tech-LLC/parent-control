@@ -25,6 +25,11 @@ HOST_IDENTITY = Path('/usr/local/libexec/onpc-vm-host')
 ALL_SELECTOR = 'all'
 ALL_VM_SELECTORS = {ALL_SELECTOR, 'all-enabled'}
 DEFAULT_HOST_TEST_CONCURRENCY = 4
+MAX_NAME_LENGTH = 63
+VM_FIELDS = frozenset({
+    'id', 'name', 'host', 'disk_anchor', 'enabled', 'owning_branch',
+    'compute_unit', 'vm_tags', 'aliases', 'iso', 'vm_config_xml',
+})
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,8 @@ class VMConfig:
     compute_unit: float = 1
     vm_tags: frozenset[str] = frozenset()
     aliases: tuple[str, ...] = ()
+    iso: str | None = None
+    vm_config_xml: str | None = None
 
     def require_build_target(self):
         # Standalone helpers can import vm_config before adding the checkout.
@@ -97,7 +104,7 @@ def unique_keys(pairs):
 
 def validate_name(name):
     # Preserve the libvirt display name's case; hostname consumers normalize it.
-    if (not isinstance(name, str) or not name or len(name) > 63 or
+    if (not isinstance(name, str) or not name or len(name) > MAX_NAME_LENGTH or
             not all(re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?', label)
                     for label in name.split('.'))):
         raise ValueError('vm-config:name; use hostname labels without traversal')
@@ -360,19 +367,86 @@ def fixture_targets(path=None):
     return targets
 
 
+def profile_properties(profiles, name):
+    if not isinstance(name, str) or name not in profiles:
+        raise ValueError(f'vm-config:unknown parent_config {name!r}')
+    return profiles[name]
+
+
+def vm_profiles(document):
+    """Flatten profile properties while retaining templates for concrete VMs."""
+    profiles = document.get('vm_configs')
+    if not isinstance(profiles, dict):
+        raise ValueError('vm-config:vm_configs must be an object')
+    merged, visiting = {}, set()
+
+    def inherit(name):
+        profile = profile_properties(profiles, name)
+        if name in visiting:
+            raise ValueError(f'vm-config:parent_config cycle at {name!r}')
+        if name not in merged:
+            if not isinstance(profile, dict):
+                raise ValueError(f'vm-config:profile {name!r} must be an object')
+            visiting.add(name)
+            own = dict(profile)
+            parent = inherit(own.pop('parent_config')) if 'parent_config' in own else {}
+            merged[name] = {**parent, **own}
+            visiting.remove(name)
+        return merged[name]
+
+    for name in profiles:
+        inherit(name)
+    return merged
+
+
+def resolve_vm_entry(entry, family, profiles):
+    """Apply the VM's overrides before interpolating any property references."""
+    if not isinstance(entry, dict):
+        raise ValueError('vm-config:fields')
+    parent = profile_properties(profiles, entry.get('parent_config', family['parent_config']))
+    properties = {**parent, **entry}
+    properties.pop('parent_config', None)
+    resolved, visiting = {}, set()
+
+    def replace(match):
+        key = match[1]
+        if key not in properties:
+            raise ValueError(f'vm-config:unresolved placeholder {{{key}}}')
+        if type(properties[key]) not in (str, int, float, bool):
+            raise ValueError(f'vm-config:placeholder {{{key}}} must reference a scalar property')
+        return str(resolve(key))
+
+    def expand(value):
+        if isinstance(value, str):
+            return re.sub(r'\{([a-zA-Z_][a-zA-Z_0-9]*)\}', replace, value)
+        if isinstance(value, list):
+            return [expand(item) for item in value]
+        return value
+
+    def resolve(key):
+        if key in visiting:
+            raise ValueError(f'vm-config:placeholder cycle at {{{key}}}')
+        if key not in resolved:
+            visiting.add(key)
+            resolved[key] = expand(properties[key])
+            visiting.remove(key)
+        return resolved[key]
+
+    return {key: resolve(key) for key in properties if key in VM_FIELDS}
+
+
+def validate_iso(pattern):
+    if (not isinstance(pattern, str) or not pattern.endswith('.iso') or
+            '/' in pattern or '\\' in pattern or any(ord(char) < 32 for char in pattern)):
+        raise ValueError('vm-config:iso must be an ISO filename pattern without directories')
+    return pattern
+
+
 def validate_family(document):
     if (not isinstance(document, dict) or
-            not {'family', 'package_format', 'fixture_path', 'vm_tags', 'vms'} <= set(document) or
+            not {'family', 'package_format', 'fixture_path', 'parent_config', 'vms'} <= set(document) or
             not isinstance(document['vms'], list)):
         raise ValueError('vm-config:family fields')
-    parse_vm_tags(document['vm_tags'])
-    compute_unit(document.get('compute_unit', 1), 'family compute_unit')
-    if 'iso' in document:
-        pattern = document['iso']
-        if (not isinstance(pattern, str) or not pattern.endswith('.iso') or
-                '/' in pattern or '\\' in pattern or
-                any(ord(char) < 32 for char in pattern)):
-            raise ValueError('vm-config:iso must be an ISO filename pattern without directories')
     for field in ('family', 'id'):
         if field not in document:
             continue
@@ -432,6 +506,7 @@ def configuration(path=None):
 def parse_configuration(document):
     """Validate VM identities together in the shared selector namespace."""
     hosts = host_registry(document)
+    profiles = vm_profiles(document)
     result = {}
     anchors = set()
     ids = set()
@@ -439,6 +514,7 @@ def parse_configuration(document):
     family_ids = set()
     for family in document['families']:
         validate_family(family)
+        profile_properties(profiles, family['parent_config'])
         if family['family'] in families:
             raise ValueError('vm-config:duplicate-family')
         families.add(family['family'])
@@ -447,16 +523,16 @@ def parse_configuration(document):
                 raise ValueError('vm-config:duplicate-family-id')
             family_ids.add(family['id'])
         for entry in family['vms']:
-            configured = validate_entry(entry, family, hosts, explicit_hosts='hosts' in document)
+            entry = resolve_vm_entry(entry, family, profiles)
+            configured = validate_entry(entry, family, hosts)
             anchor = (configured.host.name, configured.disk_anchor)
             if configured.name in result or anchor in anchors:
                 raise ValueError('vm-config:duplicate-vm-or-disk')
             result[configured.name] = configured
             anchors.add(anchor)
-            if configured.id is not None:
-                if configured.id in ids:
-                    raise ValueError('vm-config:duplicate-id')
-                ids.add(configured.id)
+            if configured.id in ids:
+                raise ValueError('vm-config:duplicate-id')
+            ids.add(configured.id)
     selectors = [value.casefold() for value in (*families, *family_ids)]
     selectors.extend(selector for vm in result.values() for selector in vm.selectors)
     if len(selectors) != len(set(selectors)):
@@ -566,13 +642,12 @@ def require_branch(vm, branch):
                          f'current branch is {branch!r}')
 
 
-def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
+def validate_entry(document, family, hosts):
     if (not isinstance(document, dict) or
             not {'name', 'disk_anchor'} <= set(document)):
         raise ValueError('vm-config:fields')
     name = validate_name(document['name'])
-    hosts = {'local': HostConfig()} if hosts is None else hosts
-    host_name = document.get('host', None if explicit_hosts else 'local')
+    host_name = document.get('host')
     if not isinstance(host_name, str) or host_name not in hosts:
         raise ValueError('vm-config:VM host must name a configured host')
     value = document['disk_anchor']
@@ -585,20 +660,25 @@ def validate_entry(document, family, hosts=None, *, explicit_hosts=False):
             or any(char.isspace() or ord(char) < 32 for char in owning_branch)):
         raise ValueError('vm-config:owning_branch must be an empty string or a branch name')
     identifier = document.get('id')
-    if 'id' in document:
-        if type(identifier) is int:
-            identifier = str(identifier)
-        if not isinstance(identifier, str) or not re.fullmatch(r'[1-9][0-9]*', identifier):
-            raise ValueError('vm-config:id must be a positive decimal integer or string')
+    if type(identifier) is not int or identifier <= 0:
+        raise ValueError('vm-config:id must be a positive integer')
+    selector = str(identifier)
+    if len(selector) > MAX_NAME_LENGTH:
+        raise ValueError(f'vm-config:id must have at most {MAX_NAME_LENGTH} digits')
     aliases = document.get('aliases', [])
     if not isinstance(aliases, list):
         raise ValueError('vm-config:aliases must be an array of VM names')
-    return VMConfig(name, Path(value), enabled == 'true', identifier,
+    iso = validate_iso(document['iso']) if 'iso' in document else None
+    template = document.get('vm_config_xml')
+    if 'vm_config_xml' in document and (
+            not isinstance(template, str) or any(ord(char) < 32 for char in template) or
+            any(part in {'', '.', '..'} for part in template.split('/'))):
+        raise ValueError('vm-config:vm_config_xml must be a relative path without traversal')
+    return VMConfig(name, Path(value), enabled == 'true', selector,
                     family['package_format'], family['family'], family['fixture_path'], owning_branch,
-                    hosts[host_name], compute_unit(document.get('compute_unit', family.get('compute_unit', 1)),
-                                                  'VM compute_unit'),
-                    parse_vm_tags(document.get('vm_tags', family['vm_tags'])),
-                    tuple(validate_name(alias) for alias in aliases))
+                    hosts[host_name], compute_unit(document.get('compute_unit', 1), 'VM compute_unit'),
+                    parse_vm_tags(document.get('vm_tags')),
+                    tuple(validate_name(alias) for alias in aliases), iso=iso, vm_config_xml=template)
 
 
 def load(name=None, path=None, *, local=None):

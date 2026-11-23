@@ -309,7 +309,7 @@ VM tests default to enabled VMs on the configured default hosts in
 The [family configuration](integration/Environment.md#shared-vm-configuration)
 defines equivalent workers sharing package format and a fixture directory.
 Each host's positive numeric `max_compute_unit` limits reserved guest compute.
-VM costs inherit family `compute_unit` unless overridden; both accept decimals.
+VM costs use the effective `compute_unit` from the VM's configuration. Both accept decimals.
 The [capacity authority](../docs/Mandates/VM-Mandate.MD#target-selection) guards
 each VM checkout and charges compute through that attempt's cleanup. Every
 selected case runs once per eligible family and test variant.
@@ -334,8 +334,9 @@ or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
 `run-tests` expands categories into ordered subcategories. That order gives
 dispatch priority. The original `--vm` selection is an allowed superset. Test inventory
-owns `vm_tags` inheritance; VM configuration owns required family `vm_tags` and
-optional replacing VM overrides. The runner filters each group by exact tag
+owns category and subcategory `vm_tags` inheritance. The
+[VM configuration](integration/Environment.md#shared-vm-configuration) defines
+each VM's effective tags. The runner filters each group by exact tag
 membership before shared capacity admission. No matching VM for a required family
 is an unschedulable selection, never a skip or a pass. The scheduler manages
 capacity, leases and workers without knowing test membership or tag inheritance.

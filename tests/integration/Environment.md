@@ -9,12 +9,13 @@ another baseline, download a new image, or create a replacement domain.
 
 ### Creating a blank VM
 
-Run `tools/newvm --name NAME --family FAMILY [--vmhost HOST]` from the checkout root.
+Run `tools/newvm --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
-already exist in `config/environment.json`. Omitting `--vmhost` uses the shared
-default when it identifies exactly one host. Specify a host when several hosts
-are eligible by default. FAMILY accepts a family name or ID,
-case-insensitively (for example, `u2604` selects `ubuntu26.04-x86_64` with the
+already exist in `config/environment.json`. `--vmconfig` selects a profile from
+`vm_configs`. Omitting it uses the family's `parent_config`. `--vmhost` overrides
+the host inherited from that profile. FAMILY accepts a family name or ID,
+case-insensitively (for example, `u26` selects `ubuntu26.04-x86_64` with the
 current registry). Provisioning may target a disabled host, since it creates an
 offline VM rather than scheduling tests. SSH hosts use
 their configured alias and port with noninteractive SSH; no remote validation
@@ -22,10 +23,11 @@ is implied by the presence of a template.
 
 Each host's absolute `virt-manager` directory must already exist. Its
 `ISO` subdirectory must contain exactly one regular, nonsymlink file matching
-the family's `iso` filename pattern. Zero or multiple matches fail explicitly;
+the new VM's resolved `iso` filename pattern. Zero or multiple matches fail explicitly;
 the program does not guess a newest image or download one.
 
-`config/HOST-vm-template.xml` supplies the hardware and
+The VM's resolved `vm_config_xml` path is relative to the checkout and supplies
+the hardware.
 `metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
 80 GiB). Both supplied templates use 4.5 GiB RAM, Q35 BIOS,
 unrestricted host CPU placement, virtio graphics without 3D,
@@ -45,12 +47,13 @@ host share contents or ownership. Neither migrates old share records.
 Maintained guest modules and attempt inputs are staged
 privately through their existing owners, independently of developer shares.
 
-The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
+The new disk uses the resolved `disk_anchor`. The selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
 fresh network MAC addresses. An existing registry name prompts in red to confirm
-replacement, defaulting to No (including end-of-input). Confirmation assigns its
-name-derived numeric ID and replaces the entry in the selected family only after successful
-provisioning. If the name also exists in libvirt, a separate red confirmation
+replacement, defaulting to No (including end-of-input). Confirmation replaces
+the entry in the selected family only after successful provisioning. The ID
+and resolved name must identify the same existing entry. If the name also exists
+in libvirt, a separate red confirmation
 warns that overwriting recreates a blank VM and erases all data on its disk.
 Both prompts default to No, including end-of-input.
 Overwrite requires the same powered-off domain under the host's shared VM
@@ -68,10 +71,14 @@ Creation uses the installed development helper; refresh it on the selected
 host with `./setup.sh --test-tools-only`. SSH creation also requires a configured
 branch checkout on that host so the helper can resolve its trusted sources.
 
-Creation defines but never starts the VM. Successful creation appends it to the
-selected family with `enabled: "true"` and a unique positive decimal ID parsed
-from the name's final hyphen-separated section (`onpc-Fedora44-201` gives `201`).
-Invalid or duplicate IDs are refused before provisioning, leaving the
+Creation leaves the VM powered off. Supply a unique positive decimal ID such as
+`201`. The selected profile resolves the VM name, for example `onpc-Fedora44-201`,
+and supplies settings such as `enabled`. The registry stores VM IDs as JSON
+integers. The registry row contains only `id`
+when it uses the family profile and inherited host. It includes `parent_config`
+for a different `--vmconfig` and `host` for a host override. Each family's rows
+are ordered by numeric ID. Each profile in `vm_configs` is written on one line.
+Invalid IDs and IDs belonging to another VM are refused before provisioning, leaving the
 host's availability unchanged. Concurrent newvm calls serialize registry
 updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
@@ -195,21 +202,34 @@ paths use the executing host. Legacy registries without
 `hosts` retain their implicit local host and top-level concurrency/backup
 settings; do not mix the two layouts.
 
-Its `families` array groups equivalent VMs. Each family declares positive finite
-numeric `compute_unit` (legacy entries default to 1). Each VM may optionally
-override `compute_unit`; omission inherits the family value. Both host capacity
-and VM cost accept decimals, using exact decimal arithmetic for admission.
+Its `families` array groups equivalent VMs. Each VM's effective `compute_unit`
+is a positive finite number. Host capacity and VM cost accept decimals, using
+exact decimal arithmetic for admission.
 Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` or `BUILD_TARGET_ARCHITECTURE` form
 (for example `fedora45-x86_64` or `ubuntu26.10_x86_64`), an explicit
 `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
 first VM is created. An optional string `id` is a short family selector alias:
-`U2604` for `ubuntu26.04-x86_64`, `F44` for `fedora44-x86_64`, and `F45` for
-`fedora45-x86_64`. Every family also requires `vm_tags`, a nonempty
-comma-separated string of unique tag tokens (currently `"general"`). A VM may
-declare `vm_tags` to replace its family's set; omission inherits it.
-Tags route tests and do not change guest baseline identity.
+`u26` for `ubuntu26.04-x86_64`, `f44` for `fedora44-x86_64`, and `f45` for
+`fedora45-x86_64`.
+
+`vm_configs` defines reusable VM settings. A profile's `parent_config` names
+another profile whose properties it inherits. Each property defined by the
+child replaces the same property from its parent. A family supplies the
+default `parent_config` for its VMs. A VM can choose a different profile and
+override any inherited VM property. The family's package and fixture settings
+apply to all its VMs.
+
+The registry expands `{property}` placeholders after applying all overrides.
+For example, `{id}` fills the VM name, the resulting `{name}` fills the disk
+path, and a per-VM `host` fills `{host}` in the XML path. A profile may leave
+placeholders for concrete VMs to fill. Custom properties can supply placeholder
+values and are expanded when a VM setting references them. Unknown parent references,
+inheritance cycles, and missing or cyclic placeholders on a concrete VM fail validation.
+Each VM's effective `vm_tags` is a nonempty comma-separated string of unique
+tag tokens such as `"general"` or `"heavy"`. Tags route tests and do not change
+guest baseline identity.
 Infrastructure derives the build target and architecture from `family` and
 verifies that the actual guest release matches. Ubuntu release numbers select
 DEB builders and Fedora release numbers select RPM builders on `x86_64`.
@@ -225,8 +245,9 @@ VM names, VM IDs, family names and family IDs must be unique across all four kin
 of selector, ignoring case, even when an ID and name belong to the same VM or family.
 Family selectors cannot start with a hyphen or contain commas or surrounding whitespace;
 VM names and family IDs/names cannot be `all` or `all-enabled` in any case.
-Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
-`disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup
+Each VM has a globally unique `name` and positive integer selector `id` of up to
+63 digits, an absolute base QCOW2 `disk_anchor`, and `enabled` as the string
+`"true"` or `"false"`. IDs are lookup
 and ordering values; they encode no family, package or fixture behavior.
 The optional per-VM `owning_branch` string reserves checkout for that exact Git branch;
 omitting it or using `""` permits any branch. Queue selectors skip mismatches,

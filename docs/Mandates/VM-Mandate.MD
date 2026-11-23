@@ -203,19 +203,24 @@ see [the preparation contract](../Approval-Tools.md#one-time-setup).
 
 ### Owned maintenance and execution
 
-Explicit blank-VM provisioning uses
-[`tools/newvm`](../../tools/newvm) and the
-[creation contract](../../tests/integration/Environment.md#creating-a-blank-vm).
-It defines a fresh powered-off VM and registers it enabled, without booting
-or creating snapshots. Explicit red confirmation may replace an existing registry
+[`tools/newvm`](../../tools/newvm) supports
+[unattended desktop installation and preparation](../../tests/integration/Environment.md#unattended-vm-provisioning)
+and [blank creation](../../tests/integration/Environment.md#creating-a-blank-vm).
+Both define a fresh powered-off VM and register it with the selected profile's
+`enabled` setting. Blank creation leaves the guest off and creates no snapshots.
+Explicit red confirmation may replace an existing registry
 entry and, separately, recreate a powered-off libvirt VM and erase its disk under
 the creation contract's layout, reference and recorded-state guards. Replacement
 holds the host's shared UUID checkout through the finite operation; the fixed
 `pool-provision` helper grants only that checkout, with no guest execution or
-lifecycle authority. This provisioning route may target a disabled host or VM;
-it is separate from registered maintenance and requires no running-guest display
-observation. Subsequent guest work uses
-the normal selection, observation and ownership rules below.
+lifecycle authority. Blank creation may target a disabled host or VM.
+Unattended installation requires an online registered VM and takes its standard
+UUID checkout and host compute reservation before booting. The host disk slot
+covers installation and the guest's one-shot system and app update boot, which
+uses the update routine shared with auto baseline preparation. Successful unattended
+boots require their guest completion witness and an observed clean power-off.
+The disk slot is released before entering the existing manual preparation route
+under the same VM checkout. These stages require no GUI input.
 
 Operate the selected, individually pinned VM only through maintained
 preparation/execution routes and `tools/test-vm` for maintenance. Do not bypass
@@ -595,7 +600,7 @@ the existing case or unfinished brief, linked here.
   Keep first-run, repeat, update and interrupted-retry behavior safe. Existing
   coverage follows the [test scope mandate](Test-Scope-Mandate.md) at the shared
   dangerous reconciliation boundary.
-  Auto mode still applies available system updates and replaces snapshots as
+  Auto mode still applies available system and app updates and replaces snapshots as
   documented; idempotence never weakens the lease, provenance or product-free gate.
 - `./setup.sh` is the sole public VM-host setup entry point. Modes must be
   retryable, preserve unrelated configuration and fail on missing prerequisites.

@@ -1468,9 +1468,7 @@ def test_transfer_freezes_exact_input_before_privileged_dispatch(
         monkeypatch, frozen_fixture_selection, category, arguments):
     vm, target = VM_TARGETS[0]
     monkeypatch.setenv('ONPC_TEST_VM', vm)
-    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
-    fixture_path = next(family['fixture_path'] for family in families
-                        if any(entry['name'] == vm for entry in family['vms']))
+    fixture_path = f'common/{target}/common'
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()
@@ -1494,9 +1492,7 @@ def test_transfer_freezes_exact_input_before_privileged_dispatch(
 def test_serial_freezes_exact_input_and_refuses_unknown_target_before_preparation(
         monkeypatch, frozen_fixture_selection, category, arguments):
     vm, target = VM_TARGETS[0]
-    families = json.loads((ROOT / 'config/environment.json').read_text())['families']
-    fixture_path = next(family['fixture_path'] for family in families
-                        if any(entry['name'] == vm for entry in family['vms']))
+    fixture_path = f'common/{target}/common'
     frozen_fixture_selection = replace(frozen_fixture_selection, target=target,
         allocation=frozen_fixture_selection.allocation.replace('ubuntu', target))
     record = frozen_fixture_selection.record()

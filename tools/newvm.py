@@ -1,4 +1,4 @@
-"""Blank VM provisioning. The same finite worker runs locally or over SSH."""
+"""Provision and prepare a desktop VM, or create a powered-off blank VM."""
 import argparse
 import fcntl
 import base64
@@ -70,7 +70,14 @@ def provision(request):
     iso = matches[0]
     if not iso.is_file() or iso.is_symlink():
         raise ValueError(f'ISO must be a regular file, not a symlink: {iso}')
-    disk = root / (request['name'] + '.qcow2')
+    if install := request.get('install'):
+        from newvm_install import boot_options, check_host, check_media_layout
+        check_host()
+        boot_options(iso, *install)
+        check_media_layout(ET.fromstring(request['xml']))
+    disk = Path(request['disk'])
+    if not disk.parent.is_dir() or disk.parent.is_symlink():
+        raise ValueError(f'Disk directory must already exist and not be a symlink: {disk.parent}')
     # Check every domain, including inactive ones, before reserving any storage.
     names = virsh('list', '--all', '--name').splitlines()
     existing = None
@@ -178,7 +185,7 @@ def format_environment(document):
     """Keep registry rows and agent presets on one line, as in the source config."""
     def render(value, path=()):
         if isinstance(value, dict):
-            compact = (path == ('agents', 'tools') or path[-1:] == ('defaults',))
+            compact = (path in (('agents', 'tools'), ('vm_configs',)) or path[-1:] == ('defaults',))
             if path[-1:] == ('capacity_fallbacks',) and value:
                 return '{ ' + json.dumps(value)[1:-1] + ' }'
             rows = []
@@ -199,7 +206,52 @@ def format_environment(document):
     return render(document) + '\n'
 
 
-def create(name, host_name, family_name, *, root=ROOT):
+def run_remote(root, host, args, *, output=None):
+    from remote_sources import RemoteVM
+    from regression_process import Control
+    import test_launcher
+
+    with Control().installed() as control:
+        status = RemoteVM(root, host=host).run(control,
+            ['/usr/bin/python3', '-IBu', str(root / 'tools/newvm'), *args],
+            env=test_launcher.environment(root), output=output,
+            stderr_output=lambda data: sys.stderr.buffer.write(data), wait_on_cancel=True)
+    if status:
+        raise ValueError(f'newvm: operation failed on {host.name} (status {status})')
+
+
+def install_and_prepare(root, vm, identifier):
+    from dev_privileges import check
+    from host_disk import operation
+    import newvm_install
+    import test_activity
+    import test_source
+    from test_storage import scratch_descriptors
+    from vm_pool import arguments, reservation
+
+    if vm_config.select(vm.name) != vm:
+        raise ValueError('VM registry entry changed before unattended installation')
+    check(newvm_install.SETUP)
+    with reservation(vm.name) as receipt, test_activity.activity(root, named_vm=True):
+        if receipt.split(':', 1)[0] != identifier:
+            raise ValueError('VM UUID changed before unattended installation')
+        with operation('Installing and updating the guest OS'):
+            newvm_install.install(vm, identifier)
+        print(f'newvm: preparing the baseline and current app snapshot for {vm.name}', flush=True)
+        with test_source.reader(root):
+            result = subprocess.run(
+                ['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd', newvm_install.SETUP,
+                 *arguments(), 'prepare-vm', '--mode', 'manual', '--y', '--vm', vm.name],
+                cwd=root, pass_fds=scratch_descriptors(), check=False,
+                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})
+        if result.returncode:
+            raise ValueError(f'Manual preparation failed (status {result.returncode})')
+
+
+def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, root=ROOT):
+    if len(vm_id) > vm_config.MAX_NAME_LENGTH or not re.fullmatch(r'[1-9][0-9]*', vm_id):
+        raise ValueError(f'VM ID must be a positive decimal integer of at most '
+                         f'{vm_config.MAX_NAME_LENGTH} digits')
     config = root / 'config/environment.json'
     # A directory lock remains stable across atomic registry replacements.
     descriptor = os.open(config.parent, os.O_RDONLY | os.O_DIRECTORY)
@@ -211,34 +263,59 @@ def create(name, host_name, family_name, *, root=ROOT):
             raise ValueError('configure provisioning hosts in config/environment.json')
         owner = tool_host(root, document)
         hosts = vm_config.host_registry(document)
-        if host_name is None:
-            defaults = vm_config.default_vmhost(document) or ','.join(hosts)
-            if ',' in defaults:
-                raise ValueError('choose one host with --vmhost when more than one host is eligible by default')
-            host_name = defaults
-        registered = vm_config.registry(config)
-        vm_config.validate_name(name)
-        vm_config.validate_name(host_name)
-        vm_id = name.rsplit('-', 1)[-1]
-        if not re.fullmatch(r'[1-9][0-9]*', vm_id):
-            raise ValueError('VM name must end with a positive decimal ID, e.g. onpc-Fedora44-201')
-        existing = registered.get(name)
-        if any(vm.id == vm_id and vm.name != name for vm in registered.values()):
-            raise ValueError(f'VM ID already registered: {vm_id}')
-        if existing is None and any(vm.id == name for vm in registered.values()):
-            raise ValueError(f'VM ID already registered: {name}')
-        if existing is not None:
-            vm_config.require_branch(existing, vm_config.current_branch())
-        host = next((h for h in document['hosts'] if h['name'] == host_name), None)
+        registered = vm_config.parse_configuration(document)[1]
         family = vm_config.family_selectors(document).get(family_name.casefold())
-        if host is None:
-            raise ValueError(f'Unknown host: {host_name}')
         if family is None:
             raise ValueError(f'Unknown family: {family_name}')
         family_name = family['family']
-        if 'virt-manager' not in host or 'iso' not in family:
-            raise ValueError('Host requires virt-manager and family requires iso configuration')
-        template = root / 'config' / (host_name + '-vm-template.xml')
+        profiles = vm_config.vm_profiles(document)
+        entry = dict(id=int(vm_id))
+        default_profile = family['parent_config']
+        if profile_name is not None and profile_name != default_profile:
+            entry['parent_config'] = profile_name
+        if host_name is not None:
+            entry['host'] = vm_config.validate_name(host_name)
+        effective = vm_config.resolve_vm_entry(entry, family, profiles)
+        if 'host' in entry:
+            inherited = {key: value for key, value in entry.items() if key != 'host'}
+            try:
+                if vm_config.resolve_vm_entry(inherited, family, profiles) == effective:
+                    entry = inherited
+            except ValueError:
+                pass  # The explicit host can satisfy another property's template.
+        if 'name' not in effective:
+            raise ValueError('The selected VM profile must supply a name')
+        vm = vm_config.validate_entry(effective, family, hosts)
+        name, host_name = vm.name, vm.host.name
+        existing = registered.get(name)
+        if any(vm.id == vm_id and vm.name != name for vm in registered.values()):
+            raise ValueError(f'VM ID already registered: {vm_id}')
+        if existing is not None:
+            if existing.id != vm_id:
+                raise ValueError(f'VM name already registered with a different ID: {name}')
+            vm_config.require_branch(existing, vm_config.current_branch())
+        host = next(h for h in document['hosts'] if h['name'] == host_name)
+        if 'virt-manager' not in host:
+            raise ValueError('Host requires virt-manager configuration')
+        if vm.owning_branch:
+            vm_config.require_branch(vm, vm_config.current_branch())
+        enabled = 'true' if vm.enabled else 'false'
+        iso = vm.iso if blank else vm.install_iso or vm.iso
+        if iso is None or vm.vm_config_xml is None:
+            raise ValueError('VM profile needs an ISO pattern and vm_config_xml')
+        target = None
+        if not blank:
+            from vm_pool import binding
+
+            if binding() is not None:
+                raise ValueError('Check in the existing VM reservation before provisioning')
+            vm_config.require_online(vm)
+            target = vm.require_build_target()
+            if vm.compute_unit > vm.host.max_compute_unit:
+                raise ValueError('VM compute cost exceeds the selected host capacity')
+        template = (root / vm.vm_config_xml).resolve()
+        if not template.is_relative_to(root.resolve()):
+            raise ValueError('VM XML template must be inside the checkout')
         domain = ET.fromstring(template.read_text())
         capacity = domain.find('./metadata/{urn:onpc:newvm}disk')
         size = capacity.get('size-gib', '') if capacity is not None else ''
@@ -258,8 +335,10 @@ def create(name, host_name, family_name, *, root=ROOT):
         for interface in domain.findall('./devices/interface'):
             for mac in interface.findall('mac'):
                 interface.remove(mac)  # libvirt allocates a fresh address
-        request = dict(name=name, root=host['virt-manager'], iso=family['iso'],
+        request = dict(name=name, root=host['virt-manager'], iso=iso, disk=str(vm.disk_anchor),
                        xml=ET.tostring(domain, encoding='unicode'), uuid=identifier, size=size)
+        if target is not None:
+            request['install'] = [target.distribution, target.version]
         request['checkout'] = (str(root) if host_name == owner.name else next(
             (b['repo_root'] for b in document.get('branches', []) if b['host'] == host_name), ''))
         if not request['checkout']:
@@ -267,12 +346,13 @@ def create(name, host_name, family_name, *, root=ROOT):
         if existing is not None:
             confirm(f'VM {name} is already registered on {existing.host.name} '
                     f'in family {existing.family}. Overwrite its registry entry with '
-                    f'host {host_name}, family {family_name}, ID {vm_id}, enabled=true?')
-            for group in document['families']:
-                group['vms'] = [vm for vm in group['vms'] if vm['name'] != name]
-        entry = dict(id=vm_id, name=name, enabled='true', host=host_name,
-                     disk_anchor=str(Path(host['virt-manager']) / (name + '.qcow2')), owning_branch='')
+                    f'host {host_name}, family {family_name}, ID {vm_id}, enabled={enabled}?')
+            group = vm_config.family_selectors(document)[existing.family.casefold()]
+            group['vms'] = [row for row in group['vms']
+                            if vm_config.resolve_vm_entry(row, group, profiles)['name'] != name]
         family['vms'].append(entry)
+        for group in document['families']:
+            group['vms'].sort(key=lambda row: vm_config.resolve_vm_entry(row, group, profiles)['id'])
         updated = format_environment(document).encode()
         # Reserve registry staging before any external mutation.
         fd, staging = tempfile.mkstemp(prefix='.environment-', suffix='.json', dir=config.parent)
@@ -283,27 +363,17 @@ def create(name, host_name, family_name, *, root=ROOT):
                 os.fsync(stream.fileno())
             os.chmod(staging, config.stat().st_mode & 0o777)
             vm_config.registry(Path(staging))
-            print(f'newvm: creating {name} on {host_name}; powered off, registry enabled', flush=True)
+            print(f'newvm: creating {name} on {host_name} (registry enabled={enabled})', flush=True)
             def execute():
                 if host_name == owner.name:
                     return provision(request)
-                from remote_sources import RemoteVM
-                from regression_process import Control
-                import test_launcher
                 output = bytearray()
                 def collect(data):
                     if len(output) + len(data) > 65536:
                         raise ValueError('newvm: oversized provisioning response')
                     output.extend(data)
                 encoded = base64.b64encode(json.dumps(request).encode()).decode('ascii')
-                with Control().installed() as control:
-                    status = RemoteVM(root, host=hosts[host_name]).run(control,
-                        ['/usr/bin/python3', '-IBu', str(root / 'tools/newvm'),
-                         '--provision-worker', encoded],
-                        env=test_launcher.environment(root), output=collect,
-                        stderr_output=lambda data: sys.stderr.buffer.write(data), wait_on_cancel=True)
-                if status:
-                    raise ValueError('SSH creation failed; inspect remote resources before retrying')
+                run_remote(root, hosts[host_name], ['--provision-worker', encoded], output=collect)
                 return json.loads(output)
             result = execute()
             if 'existing_uuid' in result:
@@ -312,21 +382,43 @@ def create(name, host_name, family_name, *, root=ROOT):
                 request['overwrite_uuid'] = result['existing_uuid']
                 result = execute()
             print(f'newvm: domain {name} ({identifier}) and disk {result["disk"]} created; '
-                  'publishing enabled registry entry', flush=True)
+                  'publishing registry entry', flush=True)
             if config.read_bytes() != original:
                 raise ValueError('Registry changed during creation; VM/disk preserved; register manually')
             os.replace(staging, config)
             print(f'Created {name}: disk={result["disk"]}, ISO={result["iso"]}, '
-                  f'UUID={result["uuid"]}; enabled=true')
-            return result
+                  f'UUID={result["uuid"]}; enabled={enabled}')
         finally:
             if os.path.exists(staging):
                 os.unlink(staging)
     finally:
         os.close(descriptor)
 
+    if not blank:
+        try:
+            if host_name == owner.name:
+                install_and_prepare(root, vm, identifier)
+            else:
+                run_remote(root, vm.host, ['--install-worker', vm.name, identifier])
+        except BaseException:
+            print(f'newvm: provisioning incomplete for {name} ({identifier}) on {host_name}; '
+                  'the registered VM and disk were preserved', file=sys.stderr, flush=True)
+            raise
+    return result
+
 
 def main():
+    try:
+        return dispatch()
+    except KeyboardInterrupt:
+        print('newvm: interrupted', file=sys.stderr)
+        return 130
+    except (OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:
+        print(f'newvm: {error}', file=sys.stderr)
+        return 1
+
+
+def dispatch():
     if len(sys.argv) == 3 and sys.argv[1] == '--provision-worker':
         if vm_config.remote_origin() is None:
             raise ValueError('newvm: transferred source worker only')
@@ -334,18 +426,29 @@ def main():
         request['checkout'] = str(ROOT)
         print(json.dumps(provision(request)), flush=True)
         return 0
+    if len(sys.argv) == 4 and sys.argv[1] == '--install-worker':
+        from vm_pool import identity
+
+        if vm_config.remote_origin() is None:
+            raise ValueError('newvm: transferred source worker only')
+        vm = vm_config.load(sys.argv[2])
+        if vm.host.name != tool_host(ROOT).name:
+            raise ValueError('newvm: selected VM belongs to another host')
+        install_and_prepare(ROOT, vm, identity(sys.argv[3]))
+        return 0
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--name', required=True)
-    parser.add_argument(vm_config.VMHOST_OPTION, metavar='HOST', help=(
-        'Existing host name in config/environment.json. Omit when there is one default host, '
-        'or one configured host and no default is marked.'))
+    parser.add_argument('--id', required=True, metavar='ID',
+                        help='Positive decimal VM ID used to resolve the VM name from its profile')
+    parser.add_argument(vm_config.VMHOST_OPTION, metavar='HOST',
+                        help='Override the host inherited from the VM profile')
+    parser.add_argument('--vmconfig', metavar='PROFILE',
+                        help='Select a VM profile in place of the family default')
     parser.add_argument('--family', required=True,
                         help='Existing family name or ID in config/environment.json (case-insensitive)')
+    parser.add_argument('--blank', action='store_true',
+                        help='Create a powered-off blank VM with the configured ISO inserted')
     args = parser.parse_args()
-    try:
-        create(args.name, args.vmhost, args.family)
-        print(f'\033[32mnewvm: SUCCESS: {args.name} created; powered off, enabled=true\033[0m', flush=True)
-        return 0
-    except (OSError, ValueError, ET.ParseError, subprocess.SubprocessError) as error:
-        print(f'newvm: {error}', file=sys.stderr)
-        return 1
+    create(args.id, args.vmhost, args.family, profile_name=args.vmconfig, blank=args.blank)
+    action = 'created' if args.blank else 'installed and prepared'
+    print(f'\033[32mnewvm: SUCCESS: VM {args.id} {action}; powered off\033[0m', flush=True)
+    return 0

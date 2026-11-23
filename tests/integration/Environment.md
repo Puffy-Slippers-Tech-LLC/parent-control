@@ -7,25 +7,71 @@ another baseline, download a new image, or create a replacement domain.
 
 ## Shared VM configuration
 
+### Unattended VM provisioning
+
+Run `tools/newvm --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+from the checkout root. Full provisioning requires an enabled VM profile and
+host. It uses `install_iso` when the resolved profile defines it, otherwise
+`iso`. Ubuntu uses its Desktop ISO with Autoinstall. Fedora uses the
+release-matched Everything netinstall ISO with Kickstart to install Workstation.
+Place one matching ISO in the selected host's existing `ISO` directory. The
+Fedora installer fetches packages from the selected release's repositories.
+Install media can be reused across VMs. The launcher neither downloads media nor
+changes the original ISO file.
+
+The installer uses wired DHCP, the lowercase resolved name as the guest
+hostname, and `America/Los_Angeles`. It creates the administrator `edgar` with
+the display name Puffy Slippers Tech LLC and the selected VM host's
+`TEST_ACCOUNT_PASSWORD` from its private `~/.onpc-config/.envrc`. Ubuntu skips
+the installer refresh and opts into third-party drivers. Fedora enables the
+Workstation third-party repository set.
+
+After confirmed installer shutdown, the launcher ejects the installation media
+and boots from the new disk. That boot uses the same update routine as auto
+preparation for native packages, installed Snaps, system Flatpaks and Flatpaks
+installed by the provisioning account. It verifies the installed release,
+sets and checks GNOME's welcome-dialog preference before desktop login, and
+shuts down. It then runs [manual preparation](#reusable-preparation-ownership)
+to capture the baseline and current app snapshot and leaves the guest off.
+This preparation is part of the explicit full-provisioning request.
+
+Full provisioning also needs `xorriso`, `openssl` and the existing
+noninteractive test-pool and preparation grants on the selected VM host.
+`./setup.sh --vm-host-only` installs its host prerequisites. Installation and
+the first update boot use the registered VM's compute reservation and the
+host disk queue. The writable developer share is detached during those boots.
+Both boots use one-time libvirt configuration, so an interrupted install cannot
+leave the unattended installer armed for the next start.
+A failed install or update preserves the registered VM, disk, and any referenced
+provisioning files for inspection. QEMU opens the per-VM boot files and private
+serial log directly from a staging directory beside the VM disk. A failed
+preparation after successful
+updates can use the ordinary manual preparation recovery route. The launcher
+reports the affected VM and does not automatically erase or reinstall it.
+
 ### Creating a blank VM
 
-Run `tools/newvm --name NAME --family FAMILY [--vmhost HOST]` from the checkout root.
+Run `tools/newvm --blank --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+from the checkout root.
 This is a plain program; it invokes no coding agents. HOST and FAMILY must
-already exist in `config/environment.json`. Omitting `--vmhost` uses the shared
-default when it identifies exactly one host. Specify a host when several hosts
-are eligible by default. FAMILY accepts a family name or ID,
-case-insensitively (for example, `u2604` selects `ubuntu26.04-x86_64` with the
+already exist in `config/environment.json`. `--vmconfig` selects a profile from
+`vm_configs`. Omitting it uses the family's `parent_config`. `--vmhost` overrides
+the host inherited from that profile. FAMILY accepts a family name or ID,
+case-insensitively (for example, `u26` selects `ubuntu26.04-x86_64` with the
 current registry). Provisioning may target a disabled host, since it creates an
 offline VM rather than scheduling tests. SSH hosts use
 their configured alias and port with noninteractive SSH; no remote validation
 is implied by the presence of a template.
 
+Blank mode uses `iso` even when `install_iso` is configured. The following
+hardware, replacement and registration rules apply to both modes.
 Each host's absolute `virt-manager` directory must already exist. Its
 `ISO` subdirectory must contain exactly one regular, nonsymlink file matching
-the family's `iso` filename pattern. Zero or multiple matches fail explicitly;
+the selected ISO filename pattern. Zero or multiple matches fail explicitly;
 the program does not guess a newest image or download one.
 
-`config/HOST-vm-template.xml` supplies the hardware and
+The VM's resolved `vm_config_xml` path is relative to the checkout and supplies
+the hardware.
 `metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
 80 GiB). Both supplied templates use 4.5 GiB RAM, Q35 BIOS,
 unrestricted host CPU placement, virtio graphics without 3D,
@@ -45,12 +91,13 @@ host share contents or ownership. Neither migrates old share records.
 Maintained guest modules and attempt inputs are staged
 privately through their existing owners, independently of developer shares.
 
-The new disk is `HOST.virt-manager/NAME.qcow2`; the selected ISO is attached
+The new disk uses the resolved `disk_anchor`. The selected ISO is attached
 with CD-ROM-first boot. The program assigns a fresh UUID and libvirt assigns
 fresh network MAC addresses. An existing registry name prompts in red to confirm
-replacement, defaulting to No (including end-of-input). Confirmation assigns its
-name-derived numeric ID and replaces the entry in the selected family only after successful
-provisioning. If the name also exists in libvirt, a separate red confirmation
+replacement, defaulting to No (including end-of-input). Confirmation replaces
+the entry in the selected family only after successful provisioning. The ID
+and resolved name must identify the same existing entry. If the name also exists
+in libvirt, a separate red confirmation
 warns that overwriting recreates a blank VM and erases all data on its disk.
 Both prompts default to No, including end-of-input.
 Overwrite requires the same powered-off domain under the host's shared VM
@@ -68,16 +115,20 @@ Creation uses the installed development helper; refresh it on the selected
 host with `./setup.sh --test-tools-only`. SSH creation also requires a configured
 branch checkout on that host so the helper can resolve its trusted sources.
 
-Creation defines but never starts the VM. Successful creation appends it to the
-selected family with `enabled: "true"` and a unique positive decimal ID parsed
-from the name's final hyphen-separated section (`onpc-Fedora44-201` gives `201`).
-Invalid or duplicate IDs are refused before provisioning, leaving the
+Blank creation leaves the VM powered off. Supply a unique positive decimal ID such as
+`201`. The selected profile resolves the VM name, for example `onpc-Fedora44-201`,
+and supplies settings such as `enabled`. The registry stores VM IDs as JSON
+integers. The registry row contains only `id`
+when it uses the family profile and inherited host. It includes `parent_config`
+for a different `--vmconfig` and `host` for a host override. Each family's rows
+are ordered by numeric ID. Each profile in `vm_configs` is written on one line.
+Invalid IDs and IDs belonging to another VM are refused before provisioning, leaving the
 host's availability unchanged. Concurrent newvm calls serialize registry
 updates; an unrelated editor's intervening changes are refused. A partial
 external failure preserves the disk/domain for operator inspection and reports
 the affected name/path; retrying requires confirmation again for existing domains
 and never adopts an orphaned disk file.
-After manual OS installation, enable the host if needed and follow the
+After installing an OS into a blank VM, enable the host if needed and follow the
 normal preparation workflow before scheduling tests. Local prerequisites are
 `python3`, `qemu-img`, `virsh`, and permission to define system-libvirt domains
 and write the VM directory. SSH targets need the same tools/permissions plus
@@ -195,21 +246,34 @@ paths use the executing host. Legacy registries without
 `hosts` retain their implicit local host and top-level concurrency/backup
 settings; do not mix the two layouts.
 
-Its `families` array groups equivalent VMs. Each family declares positive finite
-numeric `compute_unit` (legacy entries default to 1). Each VM may optionally
-override `compute_unit`; omission inherits the family value. Both host capacity
-and VM cost accept decimals, using exact decimal arithmetic for admission.
+Its `families` array groups equivalent VMs. Each VM's effective `compute_unit`
+is a positive finite number. Host capacity and VM cost accept decimals, using
+exact decimal arithmetic for admission.
 Each family has a
 `family` value in `BUILD_TARGET-ARCHITECTURE` or `BUILD_TARGET_ARCHITECTURE` form
 (for example `fedora45-x86_64` or `ubuntu26.10_x86_64`), an explicit
 `package_format` (`deb` or `rpm`), a `fixture_path`
 relative to `tests/fixtures`, and a `vms` array, which may be empty before the
 first VM is created. An optional string `id` is a short family selector alias:
-`U2604` for `ubuntu26.04-x86_64`, `F44` for `fedora44-x86_64`, and `F45` for
-`fedora45-x86_64`. Every family also requires `vm_tags`, a nonempty
-comma-separated string of unique tag tokens (currently `"general"`). A VM may
-declare `vm_tags` to replace its family's set; omission inherits it.
-Tags route tests and do not change guest baseline identity.
+`u26` for `ubuntu26.04-x86_64`, `f44` for `fedora44-x86_64`, and `f45` for
+`fedora45-x86_64`.
+
+`vm_configs` defines reusable VM settings. A profile's `parent_config` names
+another profile whose properties it inherits. Each property defined by the
+child replaces the same property from its parent. A family supplies the
+default `parent_config` for its VMs. A VM can choose a different profile and
+override any inherited VM property. The family's package and fixture settings
+apply to all its VMs.
+
+The registry expands `{property}` placeholders after applying all overrides.
+For example, `{id}` fills the VM name, the resulting `{name}` fills the disk
+path, and a per-VM `host` fills `{host}` in the XML path. A profile may leave
+placeholders for concrete VMs to fill. Custom properties can supply placeholder
+values and are expanded when a VM setting references them. Unknown parent references,
+inheritance cycles, and missing or cyclic placeholders on a concrete VM fail validation.
+Each VM's effective `vm_tags` is a nonempty comma-separated string of unique
+tag tokens such as `"general"` or `"heavy"`. Tags route tests and do not change
+guest baseline identity.
 Infrastructure derives the build target and architecture from `family` and
 verifies that the actual guest release matches. Ubuntu release numbers select
 DEB builders and Fedora release numbers select RPM builders on `x86_64`.
@@ -225,8 +289,9 @@ VM names, VM IDs, family names and family IDs must be unique across all four kin
 of selector, ignoring case, even when an ID and name belong to the same VM or family.
 Family selectors cannot start with a hyphen or contain commas or surrounding whitespace;
 VM names and family IDs/names cannot be `all` or `all-enabled` in any case.
-Each VM has a globally unique `name` and selector `id`, an absolute base QCOW2
-`disk_anchor`, and `enabled` as the string `"true"` or `"false"`. IDs are lookup
+Each VM has a globally unique `name` and positive integer selector `id` of up to
+63 digits, an absolute base QCOW2 `disk_anchor`, and `enabled` as the string
+`"true"` or `"false"`. IDs are lookup
 and ordering values; they encode no family, package or fixture behavior.
 The optional per-VM `owning_branch` string reserves checkout for that exact Git branch;
 omitting it or using `""` permits any branch. Queue selectors skip mismatches,
@@ -316,7 +381,8 @@ after adding support for this flag. This standing authorization does not
 bypass any VM, ownership, lease or validation check.
 
 - `tools/prepare-vm --vm NAME --mode auto` requires an existing accepted baseline,
-  restores it, boots, runs no-app prerequisites, and updates Ubuntu packages.
+  restores it, boots, runs no-app prerequisites, and updates native packages
+  and installed apps using the same routine as unattended provisioning.
   If a reboot is required, a second controlled boot verifies a changed boot ID
   before shutdown. The old baseline is replaced only after successful guest
   preparation and independent offline inspection.
@@ -341,10 +407,14 @@ UUID pins refresh once after the workers finish.
 Automatic updates use Ubuntu's scripting interface,
 [`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
 refresh indexes with strict error handling and up to three attempts, run a
-noninteractive `dist-upgrade` with a bounded package-lock wait, then `apt-get check`. Existing
+noninteractive `dist-upgrade` with a bounded package-lock wait and kernel-only
+autoremove, then `apt-get check`. APT retains its normal kernel protections. Existing
 locally changed configuration files are retained when no package default
 resolves the choice. This updates packages from configured repositories within the
-current Ubuntu release. `/run/reboot-required` triggers a full power cycle; the
+current Ubuntu release. Fedora uses DNF5 within the current release. When
+installed, Snap and Flatpak are refreshed before capture. Flatpak updates
+cover the system installation and the `edgar` provisioning account when present.
+`/run/reboot-required` triggers a full power cycle on Ubuntu; the
 second boot verifies the new boot identity and prerequisite package inventory.
 Update, setup or verification failure prevents baseline replacement. App
 snapshots already deleted after confirmation remain deleted if later work fails.

@@ -31,7 +31,7 @@ if [[ $setup_platform == fedora ]]; then
     if [[ ${1-} == --vm-host-only ]]; then
         dnf -y install libvirt-daemon-kvm libvirt-client qemu-kvm qemu-img \
             guestfs-tools python3-libvirt python3-libguestfs os-autoinst \
-            perl-Feature-Compat-Try util-linux iproute ffmpeg-free
+            perl-Feature-Compat-Try util-linux iproute ffmpeg-free xorriso openssl
         exit 0
     fi
     # Dogtail's input layer needs GTK 3 and Fedora's separate Ponytail client,
@@ -117,7 +117,7 @@ if [[ "${1-}" == '--vm-host-only' ]]; then
         apparmor libvirt-daemon-system libvirt-clients qemu-system-x86 \
         qemu-system-modules-opengl qemu-utils libguestfs-tools \
         python3-libvirt python3-guestfs os-autoinst libfeature-compat-try-perl \
-        util-linux iproute2 ffmpeg
+        util-linux iproute2 ffmpeg xorriso openssl
     exit 0
 fi
 if ! command -v add-apt-repository >/dev/null 2>&1; then

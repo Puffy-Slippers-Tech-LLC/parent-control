@@ -13,7 +13,7 @@ MODE_STEPS = {
         APP_SNAPSHOT_STEP,
         'Restore onpc_baseline and boot the VM.',
         'Run the no-app prerequisite setup.',
-        'Perform guest system updates (APT on Ubuntu, DNF5 on Fedora) and reboot if required.',
+        'Update guest packages, installed Snaps and Flatpaks, and reboot if required.',
         'Shut down the VM and validate preparation.',
         'Replace the old onpc_baseline with a new onpc_baseline snapshot.',
     ),

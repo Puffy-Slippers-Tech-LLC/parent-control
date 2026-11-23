@@ -8,6 +8,7 @@ import sys
 import time
 
 import prepare_vm
+from guest_updates import update_guest
 
 ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
@@ -131,35 +132,8 @@ def prepare_native(os_id='ubuntu'):
 
 
 def update_system(os_id='ubuntu'):
-    """Update packages within the supported guest release using APT or DNF5."""
-    environment = {**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'NEEDRESTART_MODE': 'a'}
-    commands = (
-        ['apt-get', '-o', 'APT::Update::Error-Mode=any', 'update'],
-        ['apt-get', '-o', 'DPkg::Lock::Timeout=300',
-         '-o', 'Dpkg::Options::=--force-confdef', '-o', 'Dpkg::Options::=--force-confold',
-         '-y', 'dist-upgrade'],
-        ['apt-get', 'check'],
-    )
-    if os_id == 'fedora':
-        commands = (['dnf5', '--refresh', '-y', 'upgrade'], ['dnf5', 'check'])
-    elif os_id != 'ubuntu':
-        raise ValueError('baseline:unsupported-os')
-    for command in commands:
-        print('baseline: updating ' + os_id + ': ' + command[-1], flush=True)
-        # APT does not classify every gateway error (such as HTTP 525) as
-        # retryable. Retry the index refresh with the same strict checks.
-        attempts = 3 if command[-1] == 'update' else 1
-        for attempt in range(1, attempts + 1):
-            try:
-                subprocess.run(command, check=True, timeout=3600, env=environment,
-                               stdin=subprocess.DEVNULL)
-            except subprocess.CalledProcessError as error:
-                if error.returncode != 100 or attempt == attempts:
-                    raise
-                print('baseline: [update:apt-index-retry] retrying Ubuntu index refresh', flush=True)
-                time.sleep(5)
-            else:
-                break
+    """Update the guest and recheck the baseline's native prerequisites."""
+    update_guest(os_id)
     reconcile_native_packages(os_id)
     prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
         snap_prepared=prepare_vm.vm_config.snap_tests_enabled())

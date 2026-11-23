@@ -424,7 +424,6 @@ def test_provisioning_retires_only_completed_private_vm_state(pool, tmp_path, mo
     directory = state_root / 'vm'
     directory.mkdir(mode=0o700)
     monkeypatch.setattr(vm_config, 'STATE_ROOT', state_root)
-    monkeypatch.setattr(vm_config, 'load', lambda name: SimpleNamespace(owning_branch=''))
     phase = directory / 'phase.json'
     phase.write_text(json.dumps({'phase': 'finalized', 'source': {'layout': {
         'uuid': B if invalid == 'foreign-uuid' else A}}}))
@@ -437,19 +436,35 @@ def test_provisioning_retires_only_completed_private_vm_state(pool, tmp_path, mo
     if invalid == 'symlink':
         (directory / 'unexpected').symlink_to(unrelated, target_is_directory=True)
     original = phase.read_bytes()
-    with vm_pool.checkout(A):
-        if invalid:
+    if invalid:
+        with vm_pool.checkout(A):
             with pytest.raises(baseline.CaptureError):
                 vm_pool.retire_domain_state('vm', A)
-            assert phase.read_bytes() == original
-            assert not list(state_root.glob('.retired-newvm-*'))
-        else:
-            vm_pool.retire_domain_state('vm', A)
-            assert not directory.exists()
-            retired, = state_root.glob('.retired-newvm-vm-*')
-            assert (retired / 'phase.json').read_bytes() == original
-            # Retrying after retirement neither adopts nor touches another VM.
-            vm_pool.retire_domain_state('vm', A)
+        assert phase.read_bytes() == original
+        assert not list(state_root.glob('.retired-newvm-*'))
+    else:
+        # The registry still excludes the VM when creation finds stale state.
+        monkeypatch.setattr(vm_config, 'registry', lambda: {})
+
+        class MissingDomain(Exception):
+            def get_error_code(self):
+                return 42
+
+        def lookup_old(identifier):
+            assert identifier == A
+            raise MissingDomain
+
+        domain = SimpleNamespace(UUIDString=lambda: B, isActive=lambda: False)
+        connection = SimpleNamespace(lookupByName={'vm': domain}.__getitem__,
+                                     lookupByUUIDString=lookup_old, close=lambda: None)
+        monkeypatch.setitem(sys.modules, 'libvirt', SimpleNamespace(
+            open=lambda uri: connection, libvirtError=MissingDomain, VIR_ERR_NO_DOMAIN=42))
+        command = ['--retire-domain-state', 'vm', '--expected-uuid', B]
+        assert vm_pool.host_main(command) == 0
+        assert not directory.exists()
+        retired, = state_root.glob('.retired-newvm-vm-*')
+        assert (retired / 'phase.json').read_bytes() == original
+        assert vm_pool.host_main(command) == 0
     assert unrelated.is_dir()
 
 

@@ -2179,7 +2179,7 @@ Variant: surface: kiosk
 **Steps:**
 
 - Jamie enables Riley with zero daily time. Record saved policy, enter the station and independently capture Riley's 75-second request for Jamie with soft apps included.
-- Open What's New and independently read the packaged Child 1.4 content offered for the verified installed upgrade to 2.0.
+- Open What's New and independently read the packaged Child 1.4 content and the installed-version title.
 - Close normally and require the same usable request. Cancel to sign-in, return to Parent to confirm unchanged policy and zero time, then log out normally.
 
 ### Scenario 266

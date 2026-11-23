@@ -3,6 +3,7 @@
 All network, signing, upload and clean-build operations are replaced with local
 fixtures. Nothing in this suite can publish a real release.
 """
+from datetime import date
 import gzip
 import hashlib
 from http.client import IncompleteRead
@@ -17,7 +18,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from tools import publish
+from tools import publish, upgrade_history
 from tools.publish import update_version
 from tools.publishing import channels
 from tests.support.paths import ROOT
@@ -1621,6 +1622,7 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
     monkeypatch.setattr(publish.tempfile, 'mkdtemp', lambda **options:
                         mkdtemp(prefix=options['prefix'], dir=tmp_path))
     prepared = []
+    today = date(2026, 9, 12)
 
     def prepare(checkout, base, history, current, product, notes, directory):
         assert checkout == root and current == product == '1.1'
@@ -1638,6 +1640,13 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
         git(frozen, 'commit', '-m', 'official release metadata')
         git(frozen, 'tag', '-a', 'v1.1', '-m', 'fixture release tag')
         git(frozen, 'push', str(remote), 'HEAD:refs/heads/releases/v1.1', 'refs/tags/v1.1')
+        history_path = frozen / publish.HISTORY
+        history_path.write_text('## v1.2\n\n' + history)
+        assert upgrade_history.upgrade_matrix(frozen, 'deb', today=today) == ('1.1', ['1.0'])
+        history_path.write_text('## v1.2 — 2026-09-12\n\n' + history)
+        with pytest.raises(ValueError, match='dated VersionHistory.md entry v1.2 exceeds build version v1.1'):
+            upgrade_history.upgrade_matrix(frozen, 'deb', today=today)
+        history_path.write_text(history)
         prepared.append(base)
         return dict(phase='upload-started', base=base, revision=git(frozen, 'rev-parse', 'HEAD'),
                     checkout=str(root), branch='releases/v1.1', directory=str(directory),
@@ -1654,6 +1663,7 @@ def test_publish_commits_every_pending_release_change_and_reconciles_main(
             assert json.loads((candidate / 'data/app.json').read_text())['version'] == '1.2'
             assert (candidate / publish.HISTORY).read_text() == '## v1.2\n\n' + NOTES
             assert '  * Start development builds for version 1.2.' in (candidate / 'debian/changelog').read_text()
+            assert upgrade_history.upgrade_matrix(candidate, 'deb', today=today) == ('1.2', ['1.0', '1.1'])
             build_and_propagate.append('build')
             return 'fixture packages built'
         return original(*args, **kwargs)

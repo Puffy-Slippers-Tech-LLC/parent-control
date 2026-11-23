@@ -1,7 +1,7 @@
 """One guarded, real earlier-package policy history; no package installation here.
 
 The runner calls prepare after the old package's boot, verify_updated after
-native update, and verify_reboot after the candidate's required reboot.
+native update, and verify_reboot after rebooting with the candidate installed.
 Checkpoints belong to the runner's existing attempt-private payload allocation.
 """
 
@@ -256,22 +256,31 @@ def prepare(record):
 def verify_updated(record):
     marker = guest.guard()
     state = load_state(marker)
-    guest.require(boot() == state['boot'] and guest.reboot_requested(),
-                  'previous-upgrade:update-boot-boundary')
+    guest.require(boot() == state['boot'], 'previous-upgrade:update-boot-boundary')
+    activation = json.loads((guest.PAYLOAD / 'results/update-activation.json').read_text())
+    requested = activation['update_requested_reboot']
+    guest.require(activation['package_sha256'] == marker['package_sha256'] and type(requested) is bool,
+                  'previous-upgrade:activation-evidence')
     guest.verify_package_files()
     guest.require(guest.package_identity(guest.package_path(), installed=True) != state['old_version'],
                   'previous-upgrade:package-version-unchanged')
-    rules = guest.execution_rule_state()
-    guest.verify_reboot_gate()
     retirement = guest.verify_upgrade_admission_receipt(boot())
     guest.require(retirement == 'legacy-integration-retired-current-pam-verified',
                   'previous-upgrade:integration-transition-not-observed')
-    guest.require(guest.execution_rule_state() == rules,
-                  'previous-upgrade:diagnostics-changed-rules')
+    if requested:
+        guest.require(guest.reboot_requested(), 'previous-upgrade:update-reboot-marker-lost')
+        rules = guest.execution_rule_state()
+        guest.verify_reboot_gate()
+        guest.require(guest.execution_rule_state() == rules,
+                      'previous-upgrade:diagnostics-changed-rules')
+    else:
+        guest.require(guest.reboot_cleared(), 'previous-upgrade:update-reboot-marker-unexpected')
+        guest.activate_broker(restart=False)
     remaining = verify_preserved(state, record)
     record('onpc.previous-upgrade.remaining.updated', remaining)
     record('onpc.previous-upgrade.updated',
-           'diagnostics-only; policy-and-identity-preserved; grant-expiry-unchanged')
+           ('diagnostics-only' if requested else 'public-broker-operational') +
+           '; policy-and-identity-preserved; grant-expiry-unchanged')
     record('onpc.previous-upgrade.admission', retirement)
 
 

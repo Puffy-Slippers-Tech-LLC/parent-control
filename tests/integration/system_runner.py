@@ -2911,7 +2911,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 and (not previous_policy or install_phases)):
             log('stage:package-install')
             with ledger.measure('install', operation='upgrade' if has_previous else 'install'):
-                vm.call(guest_command(run, 'upgrade' if has_previous else 'install'), timeout=2400)
+                upgrade_options = ('--match-activation',) if previous_policy else ()
+                vm.call(guest_command(run, 'upgrade' if has_previous else 'install', *upgrade_options),
+                        timeout=2400)
         if install_phases:
             phase = install_phases[0]
             # Observe fresh installation before deliberate account metadata

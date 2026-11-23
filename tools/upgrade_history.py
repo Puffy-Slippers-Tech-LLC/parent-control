@@ -42,12 +42,14 @@ def main_input(root, path, revision):
 
 
 def release_history(root, *, revision=None):
-    """Return the build version and dated predecessors in descending order."""
+    """Return the configured build version and its dated predecessors."""
     current = json.loads(main_input(root, 'data/app.json', revision))['version']
     current_key = version_key(current)
     text = main_input(root, 'docs/VersionHistory.md', revision)
     rows = re.findall(r'^## (.+)$', text, re.MULTILINE)
     previous = []
+    draft_key = None
+    dated_current = False
     last = None
     for index, row in enumerate(rows):
         heading = re.fullmatch(rf'v({VERSION_PATTERN}) (?:—|-) (\d{{4}}-\d{{2}}-\d{{2}})', row.strip())
@@ -57,15 +59,22 @@ def release_history(root, *, revision=None):
         version = (heading or draft)[1]
         released = date.fromisoformat(heading[2]) if heading else None
         key = version_key(version)
-        if (last is not None and key >= last) or key > current_key:
-            raise ValueError('docs/VersionHistory.md versions must be newest first and at most the build version')
-        if released is None and key != current_key:
-            raise ValueError('undated VersionHistory.md entry must match data/app.json')
-        if released is not None and key < current_key:
+        if last is not None and key >= last:
+            raise ValueError('docs/VersionHistory.md versions must be unique and newest first')
+        if released is None:
+            draft_key = key
+        elif key > current_key:
+            raise ValueError(f'dated VersionHistory.md entry v{version} exceeds build version v{current}')
+        elif key == current_key:
+            dated_current = True
+        else:
             previous.append((version, released))
         last = key
     if not rows:
         raise ValueError('docs/VersionHistory.md contains no release headings')
+    if draft_key is not None and (
+            draft_key < current_key or (draft_key > current_key and not dated_current)):
+        raise ValueError(f'VersionHistory.md needs a draft or dated entry for build version v{current}')
     return current, previous
 
 

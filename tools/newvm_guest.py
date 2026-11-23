@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from guest_updates import update_apps, update_packages
+from guest_updates import update_guest
 
 SERVICE = 'onpc-newvm-first-boot.service'
 USER = 'edgar'
@@ -36,8 +36,7 @@ def main(distribution, version, hostname, attempt):
 
     if distribution == 'fedora':
         run('fedora-third-party', 'enable')
-    update_packages(distribution)
-    update_apps(USER)
+    update_guest(distribution, username=USER)
     if release() != (distribution, version):
         raise ValueError('The installed OS release changed during updates')
 

@@ -69,7 +69,7 @@ def first_boot(distribution, version, hostname, identifier):
 Description=Update the newly provisioned VM
 Wants=network-online.target
 After=network-online.target
-Before=display-manager.service
+Before=display-manager.service apt-daily.service apt-daily-upgrade.service
 
 [Service]
 Type=oneshot

@@ -27,9 +27,9 @@ the installer refresh and opts into third-party drivers. Fedora enables the
 Workstation third-party repository set.
 
 After confirmed installer shutdown, the launcher ejects the installation media
-and boots from the new disk. That boot updates native packages using the package
-update code shared by auto preparation, and refreshes installed Snaps and
-system and per-user Flatpaks where available. It verifies the installed release,
+and boots from the new disk. That boot uses the same update routine as auto
+preparation for native packages, installed Snaps, system Flatpaks and Flatpaks
+installed by the provisioning account. It verifies the installed release,
 sets and checks GNOME's welcome-dialog preference before desktop login, and
 shuts down. It then runs [manual preparation](#reusable-preparation-ownership)
 to capture the baseline and current app snapshot and leaves the guest off.
@@ -381,7 +381,8 @@ after adding support for this flag. This standing authorization does not
 bypass any VM, ownership, lease or validation check.
 
 - `tools/prepare-vm --vm NAME --mode auto` requires an existing accepted baseline,
-  restores it, boots, runs no-app prerequisites, and updates Ubuntu packages.
+  restores it, boots, runs no-app prerequisites, and updates native packages
+  and installed apps using the same routine as unattended provisioning.
   If a reboot is required, a second controlled boot verifies a changed boot ID
   before shutdown. The old baseline is replaced only after successful guest
   preparation and independent offline inspection.
@@ -406,10 +407,14 @@ UUID pins refresh once after the workers finish.
 Automatic updates use Ubuntu's scripting interface,
 [`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
 refresh indexes with strict error handling and up to three attempts, run a
-noninteractive `dist-upgrade` with a bounded package-lock wait, then `apt-get check`. Existing
+noninteractive `dist-upgrade` with a bounded package-lock wait and kernel-only
+autoremove, then `apt-get check`. APT retains its normal kernel protections. Existing
 locally changed configuration files are retained when no package default
 resolves the choice. This updates packages from configured repositories within the
-current Ubuntu release. `/run/reboot-required` triggers a full power cycle; the
+current Ubuntu release. Fedora uses DNF5 within the current release. When
+installed, Snap and Flatpak are refreshed before capture. Flatpak updates
+cover the system installation and the `edgar` provisioning account when present.
+`/run/reboot-required` triggers a full power cycle on Ubuntu; the
 second boot verifies the new boot identity and prerequisite package inventory.
 Update, setup or verification failure prevents baseline replacement. App
 snapshots already deleted after confirmation remain deleted if later work fails.

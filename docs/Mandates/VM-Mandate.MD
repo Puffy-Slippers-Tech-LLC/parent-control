@@ -216,7 +216,8 @@ holds the host's shared UUID checkout through the finite operation; the fixed
 lifecycle authority. Blank creation may target a disabled host or VM.
 Unattended installation requires an online registered VM and takes its standard
 UUID checkout and host compute reservation before booting. The host disk slot
-covers installation and the guest's one-shot update boot. Successful unattended
+covers installation and the guest's one-shot system and app update boot, which
+uses the update routine shared with auto baseline preparation. Successful unattended
 boots require their guest completion witness and an observed clean power-off.
 The disk slot is released before entering the existing manual preparation route
 under the same VM checkout. These stages require no GUI input.
@@ -599,7 +600,7 @@ the existing case or unfinished brief, linked here.
   Keep first-run, repeat, update and interrupted-retry behavior safe. Existing
   coverage follows the [test scope mandate](Test-Scope-Mandate.md) at the shared
   dangerous reconciliation boundary.
-  Auto mode still applies available system updates and replaces snapshots as
+  Auto mode still applies available system and app updates and replaces snapshots as
   documented; idempotence never weakens the lease, provenance or product-free gate.
 - `./setup.sh` is the sole public VM-host setup entry point. Modes must be
   retryable, preserve unrelated configuration and fail on missing prerequisites.

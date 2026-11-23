@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HOST_IDENTITY = Path('/usr/local/libexec/onpc-vm-host')
 ALL_SELECTOR = 'all'
 ALL_VM_SELECTORS = {ALL_SELECTOR, 'all-enabled'}
+DEFAULT_HOST_TEST_CONCURRENCY = 4
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class HostConfig:
     ssh_port: int | None = None
     disk_concurrency: int = 1
     default_host: bool = False
+    host_test_concurrency: int = DEFAULT_HOST_TEST_CONCURRENCY
 
 
 @dataclass(frozen=True)
@@ -205,6 +207,9 @@ def host_registry(document):
         disk_concurrency = entry.get('disk_concurrency', 1)
         if type(disk_concurrency) is not int or disk_concurrency < 1:
             raise ValueError('vm-config:host disk_concurrency must be a positive integer')
+        host_test_concurrency = entry.get('host_test_concurrency', DEFAULT_HOST_TEST_CONCURRENCY)
+        if type(host_test_concurrency) is not int or host_test_concurrency < 1:
+            raise ValueError('vm-config:host host_test_concurrency must be a positive integer')
         transport = entry['transport']
         port = entry.get('ssh_port')
         if transport not in ('local', 'ssh'):
@@ -215,7 +220,8 @@ def host_registry(document):
         if 'virt-manager' in entry:
             absolute_path(entry['virt-manager'], 'virt-manager')
         hosts[name] = HostConfig(name, entry['enabled'] == 'true', transport, compute, root, port,
-                                 disk_concurrency, default_host == 'true')
+                                 disk_concurrency, default_host == 'true',
+                                 host_test_concurrency=host_test_concurrency)
     if sum(host.transport == 'local' for host in hosts.values()) > 1:
         raise ValueError('vm-config:only one local host is allowed')
     return hosts

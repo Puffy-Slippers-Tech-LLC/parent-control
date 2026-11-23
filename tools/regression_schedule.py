@@ -11,8 +11,11 @@ import math
 import queue
 from typing import Callable
 
-from regression_resources import Admission, HOST_WORKERS
+from regression_resources import Admission
 import launcher_reload
+
+
+WAITING_FOR_BRANCH = 'waiting for a free host branch'
 
 
 @dataclass
@@ -53,7 +56,8 @@ def ordered_jobs(jobs):
     return sorted(jobs, key=lambda job: -score(job))
 
 
-def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambda *_: None,
+def run_jobs(jobs, *, control, begin, run_command, max_workers,
+             admission=None, waiting=lambda *_: None,
              tick=lambda: None, complete=lambda *_: None, blocked=lambda *_: None):
     admission = admission or Admission()
     pending = ordered_jobs(jobs)
@@ -75,7 +79,7 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
             messages.put((execution, data))
         return run_command(command, output)
 
-    with ThreadPoolExecutor(max_workers=HOST_WORKERS, thread_name_prefix='onpc-category') as workers:
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='onpc-category') as workers:
         try:
             while pending or active:
                 if hasattr(admission, 'update'):
@@ -96,8 +100,8 @@ def run_jobs(jobs, *, control, begin, run_command, admission=None, waiting=lambd
                     if not all(outcomes.get(key) is True for key in job.requires):
                         wait_for(job, 'waiting for required host jobs')
                         continue
-                    if len(active) >= HOST_WORKERS:
-                        wait_for(job, f'{HOST_WORKERS} host categories already running')
+                    if len(active) >= max_workers:
+                        wait_for(job, WAITING_FOR_BRANCH)
                         continue
                     if not admission.allows(job.kind, [entry[0].kind for entry in active.values()]):
                         wait_for(job, admission.reason)

@@ -14,19 +14,21 @@ import sys
 import time
 import uuid
 
+from host_dispatch import tool_host
 from regression_events import PREFIX, completed_cases
 from launcher_progress import format_duration
 from regression_process import Control
 from vm_controller_progress import publishing as controller_progress
 import test_launcher as host
-from regression_schedule import Job, run_jobs
+from regression_schedule import Job, WAITING_FOR_BRANCH, run_jobs
 from regression_inputs import identity as source_identity
-from regression_resources import Admission, HOST_WORKERS, PRESSURE_RECOVERY_SECONDS, vm_demand
+from regression_resources import Admission, PRESSURE_RECOVERY_SECONDS, vm_demand
 from regression_ui import buckets as ui_buckets
 from regression_unit import buckets as unit_buckets
 from regression_cleanup import buckets as cleanup_buckets
 from test_progress import percentage
 from test_results import OBSERVATION_BLOCKED_STATUS
+from vm_selection import vm_config
 
 
 CATEGORY_NAMES = {
@@ -167,7 +169,7 @@ class Dashboard:
 
     def category(self, item, now, *, show_counts=True):
         total = '?' if item.progress_total is None else str(item.progress_total)
-        routine = (f'{HOST_WORKERS} host categories already running', 'waiting for required host jobs')
+        routine = (WAITING_FOR_BRANCH, 'waiting for required host jobs')
         reason = '' if item.wait_reason in routine else item.wait_reason
         if item.state == 'Pending':
             if item.wait_reason:
@@ -193,11 +195,12 @@ class Dashboard:
         lines = []
         phase_elapsed = getattr(self, phase + '_elapsed')
         phase_started = getattr(self, phase + '_started')
-        for branch in range(1, HOST_WORKERS + 1):
-            assigned = sorted((item for item in items if item.branch == branch),
-                              key=lambda item: item.launch_order)
-            if not assigned:
-                continue
+        by_branch = {}
+        for item in items:
+            if item.branch is not None:
+                by_branch.setdefault(item.branch, []).append(item)
+        for branch, assigned in sorted(by_branch.items()):
+            assigned.sort(key=lambda item: item.launch_order)
             if lines:
                 lines.append('│')
             active = any(item.state == 'Running' for item in assigned)
@@ -980,6 +983,9 @@ class Run:
             ('host',) if host_only or host_builds else ('host', 'system', 'e2e'))
         self.serial_builds = serial_builds
         self.includes_vm = any(kind in self.phases for kind in ('system', 'e2e'))
+        self.host_workers = (tool_host(root).host_test_concurrency
+                             if (root / 'config/environment.json').exists()
+                             else vm_config.DEFAULT_HOST_TEST_CONCURRENCY)
         self.verification_mode = ('not applicable; host-only run' if not self.includes_vm else
                                   'metadata-only; image contents are not scanned')
         self.report.write('\nScope: ' + (scope or ('complete regression' if
@@ -988,6 +994,7 @@ class Run:
             self.report.write('\nBuild scheduling: ' + ('after host join (serial comparison)' if serial_builds else
                               'qualified host companions') + '\n')
         self.report.write('\nVM backing verification: ' + self.verification_mode + '\n')
+        self.report.write(f'\nHost test concurrency limit: {self.host_workers}\n')
         self.categories = [Category('Discovery and prerequisites', 1, count_overall=False)]
         self.dashboard = Dashboard(self.categories)
         self.dashboard.controller_category = (self.phases[0], 1, len(self.phases))
@@ -1325,7 +1332,7 @@ class Run:
             # Do not evaluate deferred commands again just to label evidence.
             job.item.retry_category = job.item.retry_category or job.kind
             occupied = {other.item.branch for other in jobs if other.item.state == 'Running'}
-            job.item.branch = next(branch for branch in range(1, HOST_WORKERS + 1)
+            job.item.branch = next(branch for branch in range(1, self.host_workers + 1)
                                    if branch not in occupied)
             job.item.launch_order = self.sequence + 1
             job.item.waiting += time.monotonic() - queued
@@ -1376,7 +1383,7 @@ class Run:
                     tick()
                     self.control.stopped.wait(.1)
             maximum = run_jobs(jobs, control=self.control, begin=begin, run_command=command,
-                               admission=self.admission, waiting=waiting,
+                               max_workers=self.host_workers, admission=self.admission, waiting=waiting,
                                tick=tick, complete=self.complete_host, blocked=blocked)
         finally:
             for job, original in original_commands:
@@ -1431,8 +1438,8 @@ class Run:
             # One worker recollects the original selection and reverses it once.
             return [Job(kind, inventory, self.command(kind, *args),
                         events=True)] if inventory.nodeids else []
-        buckets = {'ui': ui_buckets, 'unit': unit_buckets}[kind](
-            (*inventory.nodeids, *inventory.resumed_nodeids))
+        nodeids = (*inventory.nodeids, *inventory.resumed_nodeids)
+        buckets = ui_buckets(nodeids) if kind == 'ui' else unit_buckets(nodeids, self.host_workers)
         retained = set(inventory.resumed_nodeids)
         items = []
         for bucket in buckets:
@@ -1579,7 +1586,7 @@ class Run:
         self.vm_tests(system, graphical, ready)
 
     def cleanup_jobs(self, safety):
-        buckets = cleanup_buckets(safety.nodeids)
+        buckets = cleanup_buckets(safety.nodeids, self.host_workers)
         items = [Category(bucket.name, len(bucket.nodeids), nodeids=bucket.nodeids,
                           host=True, phase='cleanup', retry_category='unit') for bucket in buckets]
         position = self.categories.index(safety)

@@ -17,7 +17,6 @@ from xml.etree import ElementTree
 from regression_ui import KINDS as UI_KINDS
 
 GIB = 1024 ** 3
-HOST_WORKERS = 4
 HOST_MEMORY_RESERVE = 2 * GIB
 ACTIVE_MEMORY_GROWTH = GIB
 ACTIVE_MEMORY_GROWTH_POOL = 2 * GIB
@@ -327,9 +326,6 @@ class Admission:
 
     def allows(self, candidate, active):
         self.update()
-        if len(active) >= HOST_WORKERS:
-            self.reason = f'{HOST_WORKERS} host categories already running'
-            return False
         if any(not compatible(candidate, name) for name in active):
             self.reason = ('exclusive work waits for all host branches to finish'
                            if candidate in ('unit-exclusive', 'ui-exclusive', 'cleanup-exclusive')

@@ -149,7 +149,6 @@ unit overlap remains safe, with no cleanup or UI inventory membership.
 
 from pathlib import PurePosixPath
 from regression_cleanup import ESTIMATES as CLEANUP_ESTIMATES, work_units
-from regression_resources import HOST_WORKERS
 from regression_ui import Bucket
 
 
@@ -269,7 +268,7 @@ ESTIMATES = {
 }
 
 
-def buckets(nodeids):
+def buckets(nodeids, max_workers):
     if not nodeids or len(set(nodeids)) != len(nodeids):
         raise ValueError('Unit inventory is empty or contains duplicate test IDs')
     files = {}
@@ -294,13 +293,12 @@ def buckets(nodeids):
             modules.extend(work_units(path, ids, bucket.kind, bucket.estimate))
         else:
             exclusive.append(bucket)
-    groups = [[] for _ in range(min(HOST_WORKERS, len(modules)))]
+    groups = [[] for _ in range(min(max_workers, len(modules)))]
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):
         index = min(range(len(groups)), key=lambda index: estimates[index])
-        # Queue short batches rather than pinning the entire inventory to four
-        # workers. A free worker can then take the next batch when estimates
-        # differ from actual runtimes. An oversized module keeps its fixtures.
+        # Queue short batches so free workers can pick up more work when
+        # estimates differ from actual runtimes. Keep oversized modules intact.
         if groups[index] and estimates[index] + module.estimate > TARGET_BATCH_SECONDS:
             index = len(groups)
             groups.append([])

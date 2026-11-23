@@ -45,9 +45,9 @@ class CategorySpec:
 # implemented leaves automatically join both all and fix-tests; aliases,
 # diagnostics and pending commands never become extra test coverage.
 CATEGORIES = {
-    'unit': CategorySpec('selected unit, property, contract and harness tests in up to four reviewed module buckets'),
+    'unit': CategorySpec('selected unit, property, contract and harness tests in balanced module batches'),
     'component': CategorySpec('private-D-Bus pytest; quoted test_*.py patterns'),
-    'ui': CategorySpec('selected GTK and nested-Shell tests in up to four qualified UI branches; no other host suites'),
+    'ui': CategorySpec('selected GTK and nested-Shell tests in qualified UI buckets; no other host suites'),
     'child-node': CategorySpec('tests/child/**/*.test.mjs or *.test.js'),
     'child-gjs': CategorySpec('tests/child/**/*_test.js'),
     'static': CategorySpec('shell, gjs, or all (default)'),
@@ -72,7 +72,7 @@ CATEGORIES = {
     'fast': CategorySpec('reserved for the make test-fast target', leaf=False, implemented=False, scope='vm'),
     'all': CategorySpec('complete established regression (default with no arguments); metadata-only VM backing verification; --continue-on-errors disables stop on first error', leaf=False),
     'all-verify': CategorySpec('compatibility alias for all; metadata-only VM verification; --continue-on-errors disables stop on first error', leaf=False),
-    'host': CategorySpec('all host tests, publishing and two reproducibility builds in four branches; no VM; host + vm = all', leaf=False),
+    'host': CategorySpec('all host tests, publishing and two reproducibility builds; no VM; host + vm = all', leaf=False),
     'vm': CategorySpec('all VM tests: system and e2e; no host suites; host + vm = all', leaf=False, scope='vm'),
     'host-builds': CategorySpec('compatibility alias for host; optional --serial-builds for scheduling comparison', leaf=False),
 }
@@ -427,8 +427,9 @@ Inspection
                    failure, preserving parallel scheduling and owned cleanup
 
 Complete categories (combine in any order; execute host, system, e2e)
-  host         all host/dev-machine work in four balanced branches, including
-               publishing, two package builds and reproducibility; no VM
+  host         all host/dev-machine work, including publishing, two package
+               builds and reproducibility; no VM. The executing host's
+               host_test_concurrency sets the branch limit (default 4).
   system       installed-system VM tests, sequential
   e2e          ready GUI-driven VM scenarios, sequential
   vm           all VM work: system + e2e; no host suites
@@ -516,7 +517,7 @@ UI-only validation (same UI buckets and resource limits as host)
 
   Runs only selected UI tests; serial owned cleanup precedes parallel work.
   Cleanup never launches regression tests or package builds.
-  Compatible UI buckets use up to four branches. Unknown modules stay exclusive.
+  Compatible UI buckets use the configured host branch limit. Unknown modules stay exclusive.
   File/case selectors, -k, -m and --ignore retain the exact selected inventory.
   Default execution timeout is 1800s per bucket; explicit --timeout is preserved.
   -x/--exitfirst or positive --maxfail keeps one serial UI invocation.
@@ -528,7 +529,7 @@ Unit-only validation (same unit buckets and resource limits as host)
   tools/run-tests unit 'tests/unit/test_test_launchers.py' --timeout 180s
   tools/run-tests unit 'tests/unit/test_regression*.py' -q
 
-  Balances selected modules across up to four branches; fixtures stay together.
+  Balances selected modules across the configured host branches; fixtures stay together.
   Unknown modules stay exclusive; reviewed fixture builds use artifact limits.
   Preserves exact file/case selectors, -k, -m and scoped ignores.
   Adds no other suites, package stages, or cleanup prerequisite inventory.

@@ -210,12 +210,6 @@ finally:
     sentinel = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
     sentinel_fd = os.pidfd_open(sentinel.pid)
 
-    class Capacity:
-        reason = 'worker capacity reached'
-
-        def allows(self, candidate, active):
-            return len(active) < slots
-
     class Execution:
         def __init__(self, job):
             self.name = job.kind
@@ -242,7 +236,8 @@ finally:
 
     try:
         run_jobs([Job(str(i), None, [sys.executable, str(script)]) for i in range(slots + 1)],
-                 control=control, begin=Execution, run_command=command, admission=Capacity())
+                 control=control, begin=Execution, run_command=command, max_workers=slots,
+                 admission=SimpleNamespace(allows=lambda *_: True))
         assert ready == cleaned == ended == {str(i) for i in range(slots)}
         assert sentinel.poll() is None
     finally:
@@ -432,8 +427,8 @@ def test_build_chain_cancellation_drains_companion_and_never_starts_successor(tm
                 requires=(keys[index - 1],) if index else ()) for index, key in enumerate(keys)]
     jobs.append(Job('companion', None, [sys.executable, str(script), 'companion', boundary],
                     key='companion', estimate=100))
-    run_jobs(jobs, control=control, begin=Execution,
-             admission=SimpleNamespace(reason='capacity', allows=lambda _, active: len(active) < 2),
+    run_jobs(jobs, control=control, begin=Execution, max_workers=2,
+             admission=SimpleNamespace(allows=lambda *_: True),
              run_command=lambda argv, output: control.run(argv, cwd=tmp_path, env=os.environ.copy(),
                                                          output=output, cooperative=True))
     assert set(started) == cleaned == {'companion', *keys[:keys.index(boundary) + 1]}

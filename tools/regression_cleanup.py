@@ -26,7 +26,6 @@ process-local capacity/domain doubles; they add no live VM or cleanup owner.
 
 from pathlib import PurePosixPath
 from regression_ui import Bucket
-from regression_resources import HOST_WORKERS
 
 
 REVIEWED = frozenset("""
@@ -57,7 +56,7 @@ def work_units(path, ids, kind, estimate):
     return [Bucket(path, (path,), tuple(ids), kind, estimate)]
 
 
-def buckets(nodeids):
+def buckets(nodeids, max_workers):
     if not nodeids or len(set(nodeids)) != len(nodeids):
         raise ValueError('cleanup inventory is empty or contains duplicate test IDs')
     files = {}
@@ -82,7 +81,7 @@ def buckets(nodeids):
         else:
             modules.extend(work_units(path, ids, 'cleanup',
                                       ESTIMATES.get(filename, .3 + len(ids) * .02)))
-    groups = [[] for _ in range(min(HOST_WORKERS, len(modules)))]
+    groups = [[] for _ in range(min(max_workers, len(modules)))]
     estimates = [0.0] * len(groups)
     for module in sorted(modules, key=lambda item: (-item.estimate, item.name)):
         index = min(range(len(groups)), key=lambda index: estimates[index])

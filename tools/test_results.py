@@ -12,6 +12,7 @@ import tempfile
 
 VARIABLE = 'ONPC_TEST_RESULT_DIRECTORY'
 REPAIR_QUEUE = 'ONPC_TEST_REPAIR_QUEUE'
+REPAIR_VALIDATION = 'ONPC_TEST_REPAIR_VALIDATION'
 PENDING_STATUS = 76
 OBSERVATION_BLOCKED_STATUS = 79
 UNRECORDED_STATUSES = (130, 75, PENDING_STATUS, OBSERVATION_BLOCKED_STATUS)
@@ -110,8 +111,12 @@ class ResultStore:
         """Discovery may return a selected known failure without reproducing it."""
         if not os.environ.get(REPAIR_QUEUE):
             return None
-        for record in self.failures():
+        # Discovery errors are retried by discovery itself. Prefer specific
+        # case failures over an older failure of their enclosing operation.
+        for record in sorted(self.failures(), key=lambda item: not item['case']):
             saved = record.get('work')
+            if not record['case'] and not (isinstance(saved, dict) and saved.get('case')):
+                continue
             if (not record['case'] and isinstance(saved, dict) and record['status'] == 1
                     and str(record.get('output_tail', '')).endswith(
                         '\nVM reload could not confirm a successful or cleanly interrupted attempt.')):

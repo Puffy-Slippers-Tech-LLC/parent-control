@@ -511,10 +511,10 @@ Only completed cases without a reported failure are retained as passes. Failed
 cases, interrupted cases and queued work run again; parallel workers retain
 their independent completions. Pytest passes commit after teardown. An abrupt
 owner/machine failure can lose unflushed progress, leaving those cases pending.
-Clear terminal case results survive independent cleanup failures. Invocation-local repair validation
-uses the current selectors. Newly discovered cases are pending; removed cases
-receive no completion credit. Malformed optional progress is ignored rather than
-becoming a repair or startup refusal.
+Clear terminal case results survive independent cleanup failures. Invocation-local
+repair validation uses the failed case and its current selectors. Newly discovered
+cases are pending. Removed cases receive no completion credit. Malformed optional
+progress is ignored.
 
 Preparation, ownership recovery and validated package inputs still run. System
 upgrade and removal/repair lifecycle cases replay their state-changing predecessors when
@@ -551,20 +551,24 @@ after owned cleanup. An explicit resume retries the pending case. A verified
 unexpected fault or another independent failure still follows normal repair,
 even when the same attempt also has incomplete observation.
 
-One fresh native goal session owns investigation, edits, diagnostics and
-validation of the failed operation. It activates the actual simplicity goal;
-plain prompt text is not goal activation. The session runs the exact case using
-the current selectors and the failing VM when it remains in the allowed pool,
-otherwise another eligible VM of its family, through ordinary booking. The runner
-supplies required lifecycle predecessors and invocation-local execution state.
-The session continues its own work until validation succeeds. The launcher
+One fresh native goal session owns investigation, edits, diagnostics and scoped
+validation. It activates the actual simplicity goal. When a failure identifies a
+case, the session validates that case with its current selectors and, for VM
+cases, one eligible VM from the failing family. The runner supplies required
+lifecycle predecessors. For infrastructure failures without a case, the session
+uses the smallest host check that exercises the failing boundary, such as
+collection, input validation or a focused unit check. The original runner
+command is diagnostic context. Repair sessions must never run full suites,
+multi-case VM selections, or nested repair launchers. The session continues
+until its scoped validation succeeds. The launcher
 does not submit corrective turns, interpret intermediate JSON statuses, escalate
 models, count repair conversations or recover old threads. Native automatic
 goal continuation belongs to the session runtime.
 
-For an enclosing failure in an independent system area, the validation command
-keeps its case selectors and uses the eligible workers from that family in the
-original pool. The runner finishes the same area operation after every selected
+For an enclosing failure in an independent system area, the outer launcher
+retries that area after the repair session. It keeps the area's selectors and
+uses the eligible workers from that family in the original pool. The runner
+finishes the same area operation after every selected
 case has passed and its worker has finished cleanup. Older case passes keep
 their round credit while validation executes the full area again. A single
 eligible VM can run the area together and share preparation.
@@ -588,9 +592,9 @@ authorization remain in effect. Core product backend edits retain the
 
 Only ordinary terminal runner results establish case completion. Agent prose,
 a successful process with no case result, source fingerprints, report archives
-and Git journals are not substitute proof. Invocation-local validation records
-its results in the current round's result store; it does not replace the outer
-scheduler's aggregate checkpoint. After the session ends, ordinary discovery
+and Git journals are not substitute proof. The assigned case writes its result to
+the current round's result store. Focused diagnostics use their own results.
+After the session ends, ordinary discovery
 selects a remaining clear failure without rerunning it, or runs pending work.
 Removed and unselected cases cannot send the launcher into an old repair.
 A missing or inactive goal is not a launcher failure and supplies no test pass.
@@ -634,7 +638,8 @@ An immediate `--resume` starts execution using remembered results:
 | Readable terminal result | Action |
 | --- | --- |
 | Pass | Keep it complete. |
-| Failure | Start repair directly, without reproduction first. |
+| Failure with a case or a selected enclosing VM attempt | Start repair directly, without reproduction first. |
+| Infrastructure failure without a case or an enclosing attempt | Continue normal dispatch and send any current failure to repair. |
 | Missing, partial, interrupted or unreadable | Schedule as pending. |
 
 The latest clear result within a requested round wins; an incomplete later

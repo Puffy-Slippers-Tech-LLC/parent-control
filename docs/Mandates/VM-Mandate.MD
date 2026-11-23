@@ -149,8 +149,8 @@ overlap on a case identity within a group and family;
 failed or interrupted attempts retain their live owner until joined cleanup.
 Historical claims are discarded; incomplete attempts return to pending.
 Stateful histories and ordinary system area attempts remain indivisible for
-scheduling. Focused validation of an independent system area can dispatch its
-cases across eligible workers in the same family through the
+scheduling. The repair launcher can retry an independent system area's cases
+across eligible workers in the same family through the
 [repair contract](../../tests/README.md#scripted-repair-loop). Guest steps
 may be interrupted for repair, reload or cancellation.
 Each VM runs one attempt at a time, retaining its own lease and journals.
@@ -183,8 +183,9 @@ eligible work closes without running a case. Reservation release follows joined
 owned cleanup. On the first failed case, the repair
 launcher stops admission, cancels and joins companions, and releases normal
 bookings. Clear terminal results remain; incomplete attempts return to pending.
-One goal session validates the failure through ordinary booking and lifecycle
-prerequisites using the [repair contract](../../tests/README.md#scripted-repair-loop).
+One goal session can validate the identified case through ordinary booking and
+lifecycle prerequisites. Enclosing operations return to the launcher under the
+[repair contract](../../tests/README.md#scripted-repair-loop).
 There are no repair source fences, impact
 holds, borrowed writer leases or retained repair tickets. The
 [repair contract](../../tests/README.md#scripted-repair-loop) owns that flow and

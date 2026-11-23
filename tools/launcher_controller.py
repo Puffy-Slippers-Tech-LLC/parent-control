@@ -232,6 +232,11 @@ def dispatch(entry):
         else:
             arguments.append('--stop' if token == '--kill' and name in ('run-tests', 'fix-tests') else token)
 
+    from test_results import REPAIR_VALIDATION
+    if REPAIR_VALIDATION in os.environ and name in (*_TEST_LAUNCHERS, 'fix-tests'):
+        if selected is not None or (name == 'fix-tests' and arguments not in (['--help'], ['-h'])):
+            raise ValueError('repair sessions use focused checks in the current checkout')
+
     # Exec preserves PID. A legacy destination can ignore this marker without
     # letting its later child commands accidentally inherit a pinned route.
     forwarded = json.loads(os.environ.pop(DESTINATION, 'null'))

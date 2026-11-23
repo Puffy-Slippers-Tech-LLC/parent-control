@@ -118,7 +118,7 @@ def select(root, argv, *, reload=False, watch=None, implicit_default=False, resu
 
 def _select(root, argv, *, reload=False, watch=None, implicit_default=False, resume_request=None):
     from test_commands import host_only_request, includes_host_request, is_inspection, validate
-    from test_results import REPAIR_QUEUE, VARIABLE
+    from test_results import REPAIR_QUEUE, REPAIR_VALIDATION, VARIABLE
     # Inspection never attaches, waits for locks, or consumes an unread result.
     if is_inspection(argv):
         return None, False
@@ -156,7 +156,7 @@ def _select(root, argv, *, reload=False, watch=None, implicit_default=False, res
         if reload and not active:
             test_source.restart_execution()
         if active:
-            if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
+            if (os.environ.get(VARIABLE) or REPAIR_VALIDATION in os.environ) and '--stop' not in argv and not reload:
                 # Repair needs its requested execution, never another caller's
                 # result. The caller waits outside this startup gate.
                 return run, False
@@ -427,8 +427,8 @@ def main(root, argv, *, reload=False, reset=False, watch=None, implicit_default=
         from launcher_queue import Receipt
         if isinstance(run, Receipt):
             return run.report('run-tests', sys.stdout)
-        from test_results import VARIABLE
-        if os.environ.get(VARIABLE) and '--stop' not in argv and not reload:
+        from test_results import REPAIR_VALIDATION, VARIABLE
+        if (os.environ.get(VARIABLE) or REPAIR_VALIDATION in os.environ) and '--stop' not in argv and not reload:
             from launcher_reload import STATUS as RELOAD_STATUS, unaccepted
             supervisor = repair_supervisor()
             while run is not None and not started:

@@ -460,6 +460,8 @@ def execute_pass(root, plan, control, execute, *, host=None,
                 return value
 
         for group in groups:
+            if group.focused:
+                continue  # An explicit retry executes instead of returning its saved failure.
             for family, items in group.families.items():
                 if failed.is_set():
                     break

@@ -1582,6 +1582,32 @@ def is_inspection(argv):
     return any(flag in argv for flag in INSPECTION_FLAGS)
 
 
+def validate_repair_scope(root, argv, allowed):
+    """Return whether this bounded run is the assigned case for the round."""
+    if argv == json.loads(allowed):
+        return True
+    if argv in HELP_ARGV or argv == ['--list']:
+        return False
+    from vm_selection import vm_config
+    args, selector = vm_config.extract_selector(argv)
+    if args:
+        category, *options = expand_subcategory(args)
+        if category in ('system', 'e2e') and '--list' in options:
+            return False  # The installed dispatcher validates listing options.
+        if selector is None and category in ('unit', 'component', 'ui'):
+            host.repair_pytest_scope(root, options, category)
+            return False
+        if selector is None and category in ('child-node', 'child-gjs'):
+            if len(options) == 1 and (root / options[0]).is_file():
+                validate_one(root, args)
+                return False
+        if selector is None and category in ('source', 'backend', 'static', 'traceability'):
+            validate_one(root, args)
+            return False
+    raise ValueError('repair sessions may only run their assigned case or a focused host check; '
+                     'the outer launcher owns suite execution')
+
+
 def vmhost_request(argv, vmhost, *, use_defaults):
     from detached_launcher import WORKFLOW_DIRECTORY
     from launcher_controller import public_arguments
@@ -1607,8 +1633,12 @@ def vmhost_request(argv, vmhost, *, use_defaults):
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     import watch_control
+    from test_results import REPAIR_VALIDATION, VARIABLE as REPAIR_RESULTS
     from vm_selection import vm_config
     try:
+        if REPAIR_VALIDATION in os.environ:
+            if not validate_repair_scope(Path(__file__).resolve().parents[1], argv, os.environ[REPAIR_VALIDATION]):
+                os.environ.pop(REPAIR_RESULTS, None)
         argv, vmhost = vm_config.extract_vmhost(argv)
         argv, watch = watch_control.parse(argv)
     except ValueError as error:

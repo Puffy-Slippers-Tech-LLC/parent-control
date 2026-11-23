@@ -112,7 +112,7 @@ tools/run-tests host system e2e --vm NAME
 fixture runtime, source/traceability, static, child Node/GJS, backend checks,
 publishing checks, graphical-worker and applicable package-notice checks, two fresh package
 builds and reproducibility comparison.
-It uses the complete aggregate's existing four-branch scheduling and stops at
+It uses the complete aggregate's host scheduling and stops at
 **Join host branches**, without VM discovery, authorization or execution.
 If unfinished prior work requires VM recovery, `host` refuses and preserves the
 evidence rather than touching the VM.
@@ -144,7 +144,7 @@ to `host` merely to accelerate a large suite. Direct unit/UI launchers remain
 appropriate for narrow iteration or diagnosis.
 
 `tools/run-tests ui` collects only its selected UI inventory, then runs the existing
-[UI buckets](../tools/regression_ui.py) through the same four-branch scheduler
+[UI buckets](../tools/regression_ui.py) through the same host scheduler
 as `host`. The shared job builder in [regression.py](../tools/regression.py)
 serves both routes; [selected execution](../tools/regression_selection.py) adds
 no unrelated unit coverage, package builds or VM work. Other selected categories
@@ -229,8 +229,8 @@ before input. External-provider complete observations and input guards are uncha
 
 `tools/run-tests unit` collects only the selected unit inventory and balances
 reviewed modules into queued batches targeting 90 estimated seconds, running
-across up to four branches. Free branches take the next batch; the number and
-contents of batches follow the selection rather than a fixed distribution.
+with up to the configured number of host branches. Free branches take the next
+batch, and the number and contents of batches follow the selection.
 An individual module can exceed the target, and estimates are ordering hints,
 not execution deadlines. The [unit buckets](../tools/regression_unit.py)
 are shared with `host`; each module and its fixtures stay in one worker. Workers
@@ -855,7 +855,7 @@ Runs started before reconnect support
 cannot be adopted; their existing checkout lock still prevents duplicate launches.
 Refresh an older installed dispatcher with `./setup.sh --test-tools-only` before
 using the new fast mode. Neither aggregate accepts suite selectors. Supervising workflows show
-colored category progress with branches for the four host workers, a join before
+colored category progress with branches for host workers, a join before
 the exclusive VM stages, and overall wall time. Publishing, build A, build B and
 comparison appear individually under the host branch that runs them. Branch assignment reflects
 actual launches; work waiting for capacity or headroom stays unassigned. All
@@ -928,8 +928,13 @@ transaction advances, with the same error propagation and recovery ordering.
 The `unpaced_journals` fixture is reserved for qualifying the pacer itself;
 ordinary durability and fault-injection tests keep real, paced syncs.
 
-The aggregate uses at most four host workers, subject to compatibility and CPU,
-memory and swap admission. Host-wide I/O pressure is recorded but does not gate
+The aggregate and focused host schedules use the executing host's
+`host_test_concurrency` in [config/environment.json](../config/environment.json)
+as their branch limit, including runs launched by `fix-tests`. The value is
+a positive integer and defaults to four. The scheduler prioritizes jobs by
+estimated duration and prerequisites, and free branches take the next
+admissible job. Compatibility and CPU, memory and swap admission can reduce
+overlap. Host-wide I/O pressure is recorded but does not gate
 ordinary host tests, including cleanup and UI buckets: background disk traffic
 must not strand otherwise available branches. Publishing, artifact builds, VM
 launches and host work overlapping builds retain their I/O admission limits and

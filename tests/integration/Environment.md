@@ -93,7 +93,10 @@ Its tracked `hosts` array declares each host's unique `name`, `transport`
 (`local` or `ssh`), string `enabled`, positive finite numeric `max_compute_unit`, and optional
 positive integer `disk_concurrency` (default 1) for the shared
 [host disk queue](../../docs/Mandates/VM-Mandate.MD#host-disk-queue), plus optional
-absolute `backup_root` (required for backup/restore). Each VM's `host` names one
+absolute `backup_root` (required for backup/restore). The optional positive integer
+`host_test_concurrency` (default 4) sets the
+[host test branch limit](../README.md#host-test-parallelism-review).
+Each VM's `host` names one
 of these entries. Only one host may use `local` transport. Disk paths and backup
 paths belong to the named host; disk anchors must be unique within that host.
 Host or VM `enabled: "false"` means offline: all queue selections, including

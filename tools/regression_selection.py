@@ -113,7 +113,7 @@ class SelectedRun(Run):
             '--collect-only' not in args)
 
     def run_cleanup(self, safety):
-        """Collect and run the one shared cleanup gate through its four buckets."""
+        """Collect and run the one shared cleanup gate through balanced buckets."""
         status, _ = self.execute(safety, self.command(
             'unit', 'tests/unit/test_*cleanup_safety.py',
             'tests/unit/test_graphical_lease.py', '--collect-only', '-q'),

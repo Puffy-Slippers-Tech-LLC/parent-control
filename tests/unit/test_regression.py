@@ -1191,8 +1191,8 @@ def test_old_dispatcher_is_refused_before_expensive_suites(monkeypatch, installe
             regression.authorization()
 
 
-@pytest.mark.parametrize('slots', [1, 2, 3, 4])
-def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_path, slots):
+@pytest.mark.parametrize('slots', [1, 2, 3, 8])
+def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_path, monkeypatch, slots):
     release = threading.Event()
     coordinator = threading.get_ident()
     class Commands(Control):
@@ -1200,10 +1200,17 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
             if command == ['long'] and slots > 1:
                 assert release.wait(5)
             return 0
-    run = regression.Run(tmp_path, report, Commands())
+    config = tmp_path / 'config'
+    config.mkdir()
+    (config / 'environment.json').write_text(json.dumps(dict(families=[{}], hosts=[
+        dict(name='local', enabled='true', transport='local', max_compute_unit=1),
+        dict(name='server', enabled='true', transport='ssh', max_compute_unit=1,
+             host_test_concurrency=slots),
+    ], branches=[dict(name='test', host='server', repo_root=str(tmp_path))])))
+    monkeypatch.setattr('host_dispatch.git', lambda *_: 'test')
+    run = regression.Run(tmp_path, report, Commands(), host_only=True)
     run.dashboard.stream = io.StringIO()
-    run.admission = SimpleNamespace(reason='at capacity',
-        allows=lambda kind, active: len(active) < slots)
+    run.admission = SimpleNamespace(allows=lambda *_: True)
     names = ['long', 'short1', 'short2']
     if slots >= 4:
         names.extend(f'short{index}' for index in range(3, slots))
@@ -1220,9 +1227,9 @@ def test_live_branch_assignment_matches_actual_overlap_and_is_saved(report, tmp_
         patch.setattr(regression.Execution, 'finish', finish)
         run.host_jobs([Job(item.name, item, [item.name], estimate=10 - index)
                        for index, item in enumerate(items)])
-    expected = {1: [1, 1, 1], 2: [1, 2, 2], 3: [1, 2, 3],
-                4: [1, 2, 3, 4]}[slots]
+    expected = [1, min(2, slots), min(3, slots), *range(4, slots + 1)]
     assert [item.branch for item in items] == expected
+    assert f'Host branch {slots} ' in run.dashboard.stream.getvalue()
     saved = json.loads((report.directory / 'progress.json').read_text())[1:]
     assert [item['branch'] for item in saved] == expected
     assert all(item['state'] == 'Passed' for item in saved)

@@ -236,6 +236,9 @@ def dispatch(entry):
     if REPAIR_VALIDATION in os.environ and name in (*_TEST_LAUNCHERS, 'fix-tests'):
         if selected is not None or (name == 'fix-tests' and arguments not in (['--help'], ['-h'])):
             raise ValueError('repair sessions use focused checks in the current checkout')
+        if any(arg.partition('=')[0] in ('--stop', '--reload', '--reset', '--queue-cancel', '--start-fresh')
+               for arg in arguments):
+            raise ValueError('repair sessions cannot change launcher state')
 
     # Exec preserves PID. A legacy destination can ignore this marker without
     # letting its later child commands accidentally inherit a pinned route.

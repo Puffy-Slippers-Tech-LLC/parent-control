@@ -217,23 +217,31 @@ def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
 
 def test_public_repair_composes_validation_and_continues_pending(tmp_path, monkeypatch):
     import fix_tests
+    import launcher_controller
     import test_commands
     import test_results
+    import test_source
 
     monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'system': {'args': ['selected']}})
     monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))
     monkeypatch.setenv(test_results.REPAIR_QUEUE, '1')
     area = dict(category='system', options=['selected'], area=True,
                 case='authorization::last', cases=['authorization::first', 'authorization::last'])
+    failed_case = area['cases'][0]
     events = []
     def execute(root, run, owner, kind, command=None):
         results = test_results.ResultStore()
         events.append(kind)
-        if len(events) == 5:
+        if len(events) in (5, 7):
             assert kind == 'test'
             assert command == [str(root / 'tools/run-tests'), '--stop-on-error', '--resume',
                                '--resume-case=authorization::last', '--resume-area-only',
                                'system', 'selected', '--vm', 'test-vm']
+            assert not results.complete('system', 'selection', ['selected'])
+            if len(events) == 5:
+                results.record('system', 'test-family', failed_case, 1, options=['selected'], vm='test-vm')
+                return 1
+            assert failed_case in results.passed('system', 'test-family')
             results.finish_command('system', ['selected'], family='test-family', work=area)
             return 0
         if kind == 'test':
@@ -254,6 +262,16 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
             with monkeypatch.context() as scope:
                 scope.setenv(test_results.REPAIR_VALIDATION, 'null')
                 scope.setenv(test_results.VARIABLE, str(results.directory))
+                scope.setattr(test_source, 'admission', lambda *args: nullcontext())
+                scope.setattr(launcher_controller, '_entry', lambda *args, **kwargs:
+                              pytest.fail('A repair control reached launcher admission'))
+                for args in (['tools/run-unit-tests', '--reload', 'tests/unit/test_test_launchers.py'],
+                             ['tools/run-unit-tests', 'tests/unit/test_test_launchers.py', '--', '--reload'],
+                             ['tools/run-tests', '--queue-cancel', 'ticket']):
+                    scope.setattr(sys, 'argv', args)
+                    with pytest.raises(ValueError, match='repair sessions cannot change launcher state'):
+                        launcher_controller.dispatch(None)
+
                 def before_routing(*args, **kwargs):
                     assert test_results.VARIABLE not in os.environ
                     raise ValueError('Stop before admission')
@@ -267,29 +285,25 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
             assert kind == 'agent' and command['work'] == area
             assert fix_tests.validation_command(command) is None
             return 0
-        if len(events) == 6:
-            assert not results.complete('system', 'selection', ['selected'])
-            results.record('system', 'test-family', 'failed', 1, options=['selected'], vm='test-vm')
-            return 1
         if kind == 'agent':
-            assert len(events) == 7
+            assert len(events) == 6 and command['case'] == failed_case
             prompt = (run / 'prompt.txt').read_text()
-            assert '--resume-case=failed' in prompt and 'selected' in prompt
+            assert f'--resume-case={failed_case}' in prompt and 'selected' in prompt
             validation = fix_tests.validation_command(command)
-            assert validation == ['tools/run-tests', '--stop-on-error', '--resume', '--resume-case=failed',
+            assert validation == ['tools/run-tests', '--stop-on-error', '--resume', f'--resume-case={failed_case}',
                                   '--resume-case-only', 'system', 'selected', '--vm', 'test-vm']
             assert test_commands.validate_repair_scope(ROOT, validation[1:], json.dumps(validation[1:]))
             assert results.passed('system', 'test-family') == {'passed'}
-            results.record('system', 'test-family', 'failed', 0)
+            results.record('system', 'test-family', failed_case, 0)
             (root / 'concurrent-edit').write_text('ordinary working changes')
             return 0
         assert len(events) == 8
-        assert results.passed('system', 'test-family') == {'passed', 'failed'}
+        assert results.passed('system', 'test-family') == {'passed', failed_case}
         return 0
 
     request = dict(categories=['system'], rounds=1, tasks=None, vm='family-id', vmhost='test-host')
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert events == ['test', 'agent', 'test', 'agent', 'test', 'test', 'agent', 'test']
+    assert events == ['test', 'agent', 'test', 'agent', 'test', 'agent', 'test', 'test']
 
 
 def _fault_observation_input(monkeypatch, verdict):
@@ -663,6 +677,7 @@ def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_
     results = test_results.ResultStore()
     results.record('unit', 'host', 'passed', 0)
     results.record('unit', 'host', 'failed', 1)
+    discovery_failure = results.record('unit', 'command', '', 2, detail='old collection error')
     (results.path / 'partial.json').write_text('{"case":')
     (tmp_path / 'progress.json').write_text('{"completed_categories":[{}]}')
     (tmp_path / 'checkpoint.json').write_text('{"pending":"abandoned transaction"}')
@@ -675,18 +690,22 @@ def test_public_repair_resume_keeps_clear_results_and_ignores_partial_state(tmp_
             assert results.passed('unit', 'host') == {'passed'}
             if events.count('agent') == 2:
                 results.record('unit', 'host', 'failed', 0)
-        elif results.select_failure('unit', 'host', ['passed', 'failed'], []):
+        elif failure := results.select_failure('unit', 'host', ['passed', 'failed'], []):
+            assert failure['case'] == 'failed'
             return 1  # Discovery chooses the failure without running its body.
         elif events.count('test') == 3:
             from vm_test_queue import PENDING_STATUS
-            # An incomplete invocation is pending, not a new repair session.
-            assert not results.failures()
+            # Retain the command diagnostic until the selection finishes.
+            assert results.failures() == [discovery_failure]
             return PENDING_STATUS
+        else:
+            results.finish_command('unit', [])
         return 0
     request = dict(categories=['unit'], rounds=1, tasks=None)
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
     assert events == ['test', 'agent', 'test', 'agent', 'test', 'test']
     assert results.passed('unit', 'host') == {'passed', 'failed'}
+    assert results.complete('unit', 'command', []) and not results.failures()
 
 
 def test_logical_task_admission_survives_resume_and_limit_changes(tmp_path, monkeypatch):

@@ -4,6 +4,7 @@ The parent process runs the installed production broker and adapters. Its one
 owned child observes public native estimates and lock signals as Riley. No
 product state or synthetic grant from this probe earns customer credit.
 """
+from contextlib import contextmanager, redirect_stdout
 import json
 import logging
 import os
@@ -15,6 +16,34 @@ import sys
 import time
 
 diagnostic = {}
+
+
+@contextmanager
+def hold_service_transaction(child, parent):
+    from system_assertions import accepted, call
+    from system_caller import PersistentCaller, TextAgent
+    from system_guest import BUS
+
+    other_parent = pwd.getpwnam(control.ACCOUNTS['second-parent']).pw_uid
+    # A qualified, unanswered challenge holds the real service's policy lock.
+    # The service can still answer deadline queries from the live extension.
+    with PersistentCaller(child) as caller, TextAgent(caller) as agent:
+        caller.send({'kind': 'call', 'method': 'RequestOwnAccess', 'signature': '(uub)',
+                     'args': (parent, 300, False), 'timeout_ms': 240000})
+        try:
+            agent.prompt(parent, other_parent)
+            busy = call(child, 'GetOwnSessionAllowsSoftApps')
+            control.require(busy.get('error') == BUS + '.Error.Busy',
+                            'engineering-service-transaction-not-held')
+            yield
+            readable, _, _ = select.select([caller.child.stdout], [], [], 0)
+            control.require(not readable and not caller.pending,
+                            'engineering-service-transaction-ended-early')
+        finally:
+            agent.close()
+            reply = accepted(caller.receive(timeout=15))
+            control.require(reply[1] in ('denied', 'cancelled') and reply[2] == 0,
+                            'engineering-service-request-not-cancelled')
 
 
 def observer():
@@ -201,6 +230,11 @@ def qualify():
                 if props['User'] == str(account.pw_uid) and control.local_graphical(props)]
     control.require(len(sessions) == 1 and sessions[0][1]['Active'] == 'yes'
                     and sessions[0][1]['LockedHint'] == 'no', 'engineering-unlocked-child-required')
+    with hold_service_transaction(account.pw_uid, administrator.pw_uid):
+        return exercise_transitions(account, administrator)
+
+
+def exercise_transitions(account, administrator):
     sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
     from gi.repository import Gio
     from oh_no_parent_control.core import Broker, BackendFailure, blocked_targets
@@ -478,7 +512,10 @@ if sys.argv[1:] == ['observe']:
     observer()
 else:
     try:
-        print(json.dumps(qualify(), sort_keys=True))
+        sys.path.insert(0, '/var/tmp/onpc-system-input')
+        with redirect_stdout(sys.stderr):
+            result = qualify()
+        print(json.dumps(result, sort_keys=True))
     except BaseException:
         print(json.dumps({'engineering_failure': diagnostic}, sort_keys=True), file=sys.stderr, flush=True)
         raise

@@ -2264,7 +2264,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                         or kiosk_no_child or kiosk_no_approver or repeated_operations or challenges or app_restart or allowance_boundaries or kiosk_valid_duration or real_interval):
                     installed_setup.stage(directory, staged, result['inputs_sha256'],
                         **({'bundle': installed_setup.inputs(ROOT, product_failure_signal=True)}
-                           if kiosk_feedback_confinement else {}),
+                           if kiosk_feedback_confinement or active_grant_disable == 'engineering' else {}),
                         **({'package_only': True} if parent_setup or fixture_selection is not None
                             or kiosk_entry == 'update-reentry' or kiosk_whats_new else {}),
                         **({'upgrade': True} if kiosk_entry == 'update-reentry' or kiosk_whats_new else {}))

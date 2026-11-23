@@ -562,7 +562,7 @@ class ParentWindowTests(unittest.TestCase):
         window._users_loaded_once = True
         window._user_discovery_error_reported = False
         error = Gio.DBusError.new_for_dbus_error(
-            "org.freedesktop.DBus.Error.NameHasNoOwner", "private-detail")
+            "org.freedesktop.DBus.Error.NoReply", "private-detail")
         for _ in range(3):
             ParentWindow._users_failed(window, error)
             ParentWindow._policy_warnings_failed(window, 1001, error)

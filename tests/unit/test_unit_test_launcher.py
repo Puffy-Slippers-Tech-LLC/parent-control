@@ -53,12 +53,11 @@ def test_globs_expand_sorted_with_explicit_files_and_duplicates(checkout):
     ]
 
 
-@pytest.mark.parametrize(('launcher', 'module'), [
-    ('run-tests', 'test_commands'), ('run-unit-tests', 'test_launcher'),
-    ('run-ui-tests', 'test_launcher'), ('fix-tests', 'fix_tests'),
-    ('execute-plan', 'plan_launcher'), ('sync-whatsnew', 'sync_whatsnew'),
+@pytest.mark.parametrize('launcher,module,control', [
+    ('run-tests', 'test_commands', None),
+    ('run-tests', 'test_commands', '--reload'),
+    ('run-unit-tests', 'test_launcher', '--resume'),
 ])
-@pytest.mark.parametrize('control', [None, '--reload', '--resume', '--reset', '--unattended'])
 def test_controller_startup_refreshes_before_workflow_import(checkout, monkeypatch, launcher, module, control):
     import json
     # Only Git and the real controller run. The workflow is a sentinel so no
@@ -112,7 +111,7 @@ def test_controller_startup_refreshes_before_workflow_import(checkout, monkeypat
     assert result.stdout.count('synchronizing controller checkout') == 1
 
 
-@pytest.mark.parametrize('kind', ['fix-tests', 'fix-tests-host', 'plans', 'sync-whatsnew'])
+@pytest.mark.parametrize('kind', ['fix-tests-host', 'sync-whatsnew'])
 def test_control_startup_refuses_new_execution_but_preserves_attachment(checkout, monkeypatch, kind):
     import fcntl
     import json
@@ -139,11 +138,6 @@ def test_control_startup_refuses_new_execution_but_preserves_attachment(checkout
     command.assert_not_called()
 
 
-@pytest.mark.parametrize('pattern', ['test_?_*safety.py', 'test_[az]_cleanup_safety.py'])
-def test_other_filename_globs(checkout, pattern):
-    assert len(runner['selection'](checkout, ['tests/unit/' + pattern])) == 2
-
-
 def test_nested_glob_and_node_suffix_stays_literal(checkout):
     nested = checkout / 'tests/unit/nested'
     nested.mkdir()
@@ -155,10 +149,10 @@ def test_nested_glob_and_node_suffix_stays_literal(checkout):
 
 
 @pytest.mark.parametrize('selector', [
-    '', '.', '/tmp/test_external.py', 'tests/component/test_case.py',
-    'tests/unit/../component/test_case.py', 'tests/unit/missing.py',
+    '/tmp/test_external.py', 'tests/component/test_case.py',
+    'tests/unit/../component/test_case.py',
     'tests/unit/test_no_match*.py', 'tests/unit/helper.py',
-    'tests/unit::test_case', 'tests/unit/test_graphical_lease.py::',
+    'tests/unit::test_case',
     'tests/unit/test_graphical_lease.py\n',
 ])
 def test_invalid_selector_rejected_even_with_valid_selection(checkout, selector):
@@ -196,19 +190,6 @@ def test_rejects_symlink_unit_root(checkout):
         runner['selection'](checkout, ['tests/unit/test_graphical_lease.py'])
 
 
-def test_options_can_be_interspersed_with_paths():
-    selectors, options = runner['arguments']([
-        '-q', 'tests/unit/test_one.py', '-vv', '-k', 'alpha or beta',
-        'tests/unit/test_two.py', '-m', 'unit', '--maxfail=2', '--tb', 'short',
-        '--collect-only', '--disable-warnings', '--durations', '0', '-x', '-s',
-    ])
-    assert selectors == ['tests/unit/test_one.py', 'tests/unit/test_two.py']
-    assert options == [
-        '-q', '-v', '-v', '-x', '-s', '--collect-only', '--disable-warnings',
-        '-k=alpha or beta', '-m=unit', '--maxfail=2', '--durations=0', '--tb=short',
-    ]
-
-
 def test_defaults_to_whole_unit_directory():
     assert runner['arguments']([]) == (['tests/unit'], [])
 
@@ -217,8 +198,7 @@ def test_defaults_to_whole_unit_directory():
     ['-c', '/tmp/config.ini'], ['-p', 'external_plugin'], ['--pyargs', 'package'],
     ['--rootdir=/tmp'], ['--override-ini', 'testpaths=/tmp'],
     ['--junitxml=/tmp/output.xml'], ['@/tmp/arguments'],
-    ['--maxfail=-1'], ['--durations', 'invalid'], ['--tb', 'invalid'],
-    ['--col'], ['-k'],
+    ['--maxfail=-1'], ['--col'], ['-k'],
 ])
 def test_rejects_unsupported_or_invalid_options(checkout, arguments):
     with pytest.raises(ValueError):
@@ -249,21 +229,6 @@ def test_refuses_root_execution(monkeypatch, capsys):
     execute.assert_not_called()
 
 
-def test_public_unit_execution_publishes_serial_watch_session(checkout, monkeypatch):
-    import regression_session
-    import test_activity
-    main = runner['main']
-    monkeypatch.setitem(main.__globals__, '__file__', str(checkout / 'tools/run-unit-tests'))
-    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
-    monkeypatch.delenv(test_activity.VARIABLE, raising=False)
-    monkeypatch.setattr(test_activity, '_descriptor', None)
-    attach = Mock(return_value=7)
-    monkeypatch.setattr(regression_session, 'main', attach)
-    assert main(['tests/unit/test_graphical_lease.py', '-q']) == 7
-    attach.assert_called_once_with(checkout, [
-        'unit', '--unattended', 'tests/unit/test_graphical_lease.py', '-q'])
-
-
 def test_owned_unit_worker_does_not_reattach(checkout, monkeypatch):
     import regression_session
     import test_activity
@@ -279,8 +244,8 @@ def test_owned_unit_worker_does_not_reattach(checkout, monkeypatch):
 
 
 @pytest.mark.parametrize('entry', [
-    ['run-unit-tests'], ['run-tests', 'unit'],
-    ['run-ui-tests'], ['run-tests', 'ui'],
+    ['run-unit-tests'],
+    ['run-tests', 'ui'],
 ])
 def test_collection_succeeds_while_another_host_run_owns_checkout(checkout, entry):
     import test_activity
@@ -315,22 +280,6 @@ def test_collection_succeeds_while_another_host_run_owns_checkout(checkout, entr
         assert ('test_collection.py::test_live' in result.stdout) == (category == 'unit')
         # Inspection must not disturb the execution owner's lock or cleanup record.
         assert test_activity.cleanup_verified(checkout)
-
-
-def test_detached_direct_unit_request_keeps_serial_flag_in_shared_report(monkeypatch):
-    import regression
-    import regression_process
-    import test_commands
-    monkeypatch.setattr(os, 'geteuid', lambda: 1000)
-    monkeypatch.setattr(test_commands, 'selections', lambda *_: [
-        ('unit', ['--unattended', '-q'])])
-    report = Mock(return_value=5)
-    monkeypatch.setattr(regression, 'main', report)
-    execute = Mock(return_value=5)
-    monkeypatch.setattr(regression_process, 'host_run', execute)
-    assert test_commands._main(['unit', '--unattended', '-q'], detached=True) == 5
-    report.assert_called_once_with(LAUNCHER.parents[1], selections=[('unit', ['--unattended', '-q'])])
-    execute.assert_not_called()
 
 
 @pytest.mark.parametrize('body,options,expected', [

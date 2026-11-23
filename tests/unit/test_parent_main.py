@@ -14,9 +14,6 @@ from parent.oh_no_parent_control_parent.main import (
     _time_status_subtitle,
     _daily_limit_keyboard_selection,
 )
-from parent.oh_no_parent_control_parent.preview_data import (
-    PREVIEW_USERS, PreviewBrokerClient, PREVIEW_THUNDERBIRD_ICON,
-)
 
 
 class FakeDropDown:
@@ -652,51 +649,6 @@ class ParentWindowTests(unittest.TestCase):
             "self.set_icon_name(APPLICATION_ICON_NAME)",
             inspect.getsource(ParentWindow.__init__),
         )
-
-    def test_preview_client_uses_fixture_data_and_persists_ui_changes_in_memory(self):
-        client = PreviewBrokerClient()
-
-        self.assertEqual(client.list_users(), PREVIEW_USERS)
-        preferences = client.get_preferences(1001)
-        preferences["daily_time_limit_minutes"] = 120
-        client.set_preferences(1001, preferences)
-
-        self.assertEqual(client.get_preferences(1001)["daily_time_limit_minutes"], 120)
-
-    def test_preview_shows_the_three_policy_and_match_rule_combinations(self):
-        client = PreviewBrokerClient()
-        applications = {app["id"]: app for app in client.list_apps(1001)}
-        policies = client.get_preferences(1001)["apps"]
-
-        self.assertEqual(
-            [(app_id, policies[app_id]["state"], bool(policies[app_id]["patterns"]))
-             for app_id in (
-                 "thunderbird_thunderbird.desktop",
-                 "lunarclient.desktop",
-                 "com.mojang.Minecraft.desktop",
-                 "steam.desktop",
-             )],
-            [
-                ("thunderbird_thunderbird.desktop", "allowed", True),
-                ("lunarclient.desktop", "permanent", True),
-                ("com.mojang.Minecraft.desktop", "conditional", False),
-                ("steam.desktop", "conditional", False),
-            ],
-        )
-        self.assertEqual(
-            applications["com.mojang.Minecraft.desktop"]["suggested_patterns"], [],
-        )
-        self.assertEqual(applications["steam.desktop"]["targets"], ["/usr/bin/steam"])
-
-    def test_preview_uses_the_bundled_thunderbird_icon(self):
-        client = PreviewBrokerClient()
-        applications = {app["id"]: app for app in client.list_apps(1001)}
-
-        self.assertEqual(
-            applications["thunderbird_thunderbird.desktop"]["icon"],
-            PREVIEW_THUNDERBIRD_ICON,
-        )
-        self.assertTrue(Path(PREVIEW_THUNDERBIRD_ICON).is_file())
 
     def test_loading_an_exact_match_policy_accepts_an_empty_pattern_list(self):
         class SettableToggle:

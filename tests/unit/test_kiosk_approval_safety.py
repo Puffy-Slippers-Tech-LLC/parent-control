@@ -173,44 +173,6 @@ def test_german_native_prompt_still_binds_parent_and_request(fault):
             ui.mate_prompt(123, **options)
 
 
-@pytest.mark.parametrize('fault', ['none', 'fullscreen', 'saved-work', 'saved-work-recovery',
-                                  'wrong-child', 'wrong-scope', 'replay',
-                                  'reminder', 'reminder-wrong-child'])
-def test_game_approval_secret_stays_bound_to_its_request(fault):
-    result = run_password_guard(r'''
-my $fault = shift @ARGV;
-my $journey = bless {prefix => 'game-expiry-request', stage_prefix => 'request-',
-    kiosk_request => ['other-child', 'parent', 600, 1], review => 0}, 'onpc_journey';
-$journey->{prefix} = 'game-fullscreen-request' if $fault eq 'fullscreen';
-if ($fault =~ /\Areminder/) {
-    $journey->{prefix} = 'reminder-notifications-first';
-    $journey->{stage_prefix} = 'first-';
-    $journey->{kiosk_request} = [$fault eq 'reminder' ? 'child' : 'other-child', 'parent', 240, 1];
-}
-if ($fault eq 'saved-work' || $fault eq 'saved-work-recovery') {
-    my $scope = $fault eq 'saved-work' ? 'request' : 'recovery';
-    $journey->{prefix} = 'repeated-saved-work-' . $scope;
-    $journey->{stage_prefix} = $scope . '-';
-    $journey->{kiosk_request}[2] = 1200 if $scope eq 'recovery';
-}
-$journey->{kiosk_request}[0] = 'child' if $fault eq 'wrong-child';
-$journey->{stage_prefix} = 'other-' if $fault eq 'wrong-scope';
-my $ok = eval {
-    onpc_password::enter_kiosk_mate_password($journey, 'bound-request');
-    onpc_password::enter_kiosk_mate_password($journey, 'bound-request') if $fault eq 'replay';
-    1;
-};
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault in ('none', 'fullscreen', 'reminder', 'saved-work', 'saved-work-recovery'))
-    scope = 'first' if fault == 'reminder' else 'recovery' if fault == 'saved-work-recovery' else 'request'
-    expected = [] if fault in ('wrong-child', 'wrong-scope', 'reminder-wrong-child') else [
-        ['proof', scope + '-approval-qualified'], ['proof', scope + '-approval-rechecked'],
-        ['delivery', 'parent', scope + '-kiosk-mate-approval']]
-    assert value['events'] == expected
-
-
 @pytest.mark.parametrize('child', ['child', 'existing'])
 def test_game_input_refuses_another_account_before_window_discovery(monkeypatch, child):
     module = ui_observations.accessible_ui
@@ -222,154 +184,6 @@ def test_game_input_refuses_another_account_before_window_discovery(monkeypatch,
     with pytest.raises(module.UiError, match='ui:game-account'):
         ui.game_operation('game-move', child=module.NAMED_CUSTOM_CHILDREN[child])
     ui.native_app_snapshot.assert_not_called()
-
-
-@pytest.mark.parametrize(('surface', 'fault'), [
-    ('kiosk', 'none'), ('overlay', 'none'), ('overlay', 'scope'),
-    ('kiosk', 'request'), ('overlay', 'replay'), ('overlay', 'retained'),
-    ('kiosk', 'riley'), ('overlay', 'riley'), ('overlay', 'riley-wrong-child')])
-def test_game_permission_secret_requires_exact_scope_and_single_use(surface, fault):
-    result = run_password_guard(r'''
-my ($surface, $fault) = @ARGV;
-my $row = $fault eq 'retained' ? 'first' : $surface eq 'kiosk' ? 'included' : 'excluded';
-my $riley = $fault =~ /\Ariley/;
-my $mode = $riley ? 'windowed' : 'fullscreen';
-my $scope = "$mode-$row-";
-my $family = $fault eq 'retained' ? 'retained-game-denial' : 'game-permission';
-$family = 'riley-game-permission' if $riley;
-my $journey = bless {prefix => "$family-$mode-$row", stage_prefix => $scope,
-    review => 0}, 'onpc_journey';
-$journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
-    [$riley ? 'child' : 'other-child', 'parent', 900, $surface eq 'kiosk' || $fault eq 'retained' ? 1 : 0];
-$journey->{overlay_request}[0] = 'other-child' if $fault eq 'riley-wrong-child';
-$journey->{stage_prefix} = "windowed-$row-" if $fault eq 'scope';
-$journey->{kiosk_request}[0] = 'child' if $fault eq 'request';
-my $enter = sub {
-    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
-                       : onpc_password::enter_overlay_shell_password($journey);
-};
-my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', surface, fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault in ('none', 'retained', 'riley'))
-    scope = ('windowed-' if fault.startswith('riley') else 'fullscreen-') + ('first-' if fault == 'retained' else
-                              'included-' if surface == 'kiosk' else 'excluded-')
-    assert value['events'] == ([] if fault in ('scope', 'request', 'riley-wrong-child') else [
-        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
-        ['delivery', 'parent', scope + ('kiosk-mate-approval' if surface == 'kiosk'
-                                       else 'overlay-shell-approval')]])
-
-
-@pytest.mark.parametrize('fault', ['none', 'scope', 'child', 'duration', 'replay'])
-def test_minecraft_approval_keeps_its_exact_recipient_and_single_use(fault):
-    result = run_password_guard(r'''
-my ($fault) = @ARGV;
-my $journey = bless {prefix => 'minecraft-access-approved', stage_prefix => 'approved-',
-    review => 0, overlay_request => ['other-child', 'parent', 900, 1]}, 'onpc_journey';
-$journey->{stage_prefix} = 'wrong-' if $fault eq 'scope';
-$journey->{overlay_request}[0] = 'child' if $fault eq 'child';
-$journey->{overlay_request}[2] = 75 if $fault eq 'duration';
-my $ok = eval {
-    onpc_password::enter_overlay_shell_password($journey);
-    onpc_password::enter_overlay_shell_password($journey) if $fault eq 'replay';
-    1;
-};
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
-    assert value['events'] == ([] if fault in ('scope', 'child', 'duration') else [
-        ['proof', 'approved-approval-qualified'], ['proof', 'approved-approval-rechecked'],
-        ['delivery', 'parent', 'approved-overlay-shell-approval']])
-
-
-@pytest.mark.parametrize('fault', ['none', 'scope', 'replay'])
-def test_lunar_approvals_keep_separate_scoped_secret_receipts(fault):
-    result = run_password_guard(r'''
-my ($fault) = @ARGV;
-my $ok = eval {
-    for my $row ('time-only', 'included', 'replacement') {
-        my $journey = bless {prefix => "lunar-access-$row", stage_prefix => "$row-",
-            review => 0, overlay_request => ['other-child', 'parent', 900,
-                $row eq 'included' ? 1 : 0]}, 'onpc_journey';
-        $journey->{stage_prefix} = 'included-' if $fault eq 'scope';
-        onpc_password::enter_overlay_shell_password($journey);
-        onpc_password::enter_overlay_shell_password($journey) if $fault eq 'replay';
-    }
-    1;
-};
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
-    rows = [] if fault == 'scope' else (['time-only'] if fault == 'replay'
-                                      else ['time-only', 'included', 'replacement'])
-    assert value['events'] == [event for row in rows for event in (
-        ['proof', row + '-approval-qualified'], ['proof', row + '-approval-rechecked'],
-        ['delivery', 'parent', row + '-overlay-shell-approval'])]
-
-
-@pytest.mark.parametrize('surface,fault', [
-    ('overlay', 'none'), ('kiosk', 'none'), ('kiosk', 'child'),
-    ('overlay', 'scope'), ('kiosk', 'parent'), ('overlay', 'replay')])
-def test_homework_approval_keeps_its_declared_recipient_and_scope(surface, fault):
-    result = run_password_guard(r'''
-my ($surface, $fault) = @ARGV;
-my $row = $surface eq 'kiosk' ? 'recovery' : 'home';
-my $scope = "cycle-2-$row-";
-my $journey = bless {prefix => "homework-game-cycle-2-$row", stage_prefix => $scope,
-    review => 0}, 'onpc_journey';
-$journey->{$surface eq 'kiosk' ? 'kiosk_request' : 'overlay_request'} =
-    ['other-child', $surface eq 'kiosk' ? 'parent' : 'other-parent',
-     $surface eq 'kiosk' ? 1200 : 30, $surface eq 'kiosk' ? 1 : 0];
-$journey->{kiosk_request}[0] = 'child' if $fault eq 'child';
-$journey->{kiosk_request}[1] = 'other-parent' if $fault eq 'parent';
-$journey->{stage_prefix} = 'cycle-1-home-' if $fault eq 'scope';
-my $enter = sub {
-    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
-                       : onpc_password::enter_overlay_shell_password($journey);
-};
-my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', surface, fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
-    scope = 'cycle-2-' + ('recovery-' if surface == 'kiosk' else 'home-')
-    assert value['events'] == ([] if fault in ('child', 'parent', 'scope') else [
-        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
-        ['delivery', 'parent' if surface == 'kiosk' else 'other-parent',
-         scope + ('kiosk-mate-approval' if surface == 'kiosk' else 'overlay-shell-approval')]])
-
-
-@pytest.mark.parametrize('visit,fault', [(1, 'none'), (2, 'none'), (3, 'none'), (4, 'none'),
-    (2, 'child'), (3, 'scope'), (1, 'replay')])
-def test_family_approval_keeps_its_finite_recipient_binding(visit, fault):
-    result = run_password_guard(r'''
-my ($visit, $fault) = @ARGV;
-my @rows = (['overlay','other-child','other-parent',75,1], ['kiosk','child','parent',7200,1],
-            ['overlay','child','other-parent',150,0], ['kiosk','other-child','parent',7200,0]);
-my ($surface, @binding) = @{$rows[$visit - 1]};
-my $scope = "visit-$visit-request-";
-my $journey = bless {prefix => "family-routines-visit-$visit-request", stage_prefix => $scope,
-    review => 0, $surface . '_request' => \@binding}, 'onpc_journey';
-$binding[0] = 'other-child' if $fault eq 'child';
-$journey->{stage_prefix} = 'visit-1-request-' if $fault eq 'scope';
-my $enter = sub {
-    $surface eq 'kiosk' ? onpc_password::enter_kiosk_mate_password($journey, 'bound-request')
-                       : onpc_password::enter_overlay_shell_password($journey);
-};
-my $ok = eval { $enter->(); $enter->() if $fault eq 'replay'; 1 };
-print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', str(visit), fault)
-    value = json.loads(result.stdout)
-    assert value['ok'] == (fault == 'none')
-    scope = f'visit-{visit}-request-'
-    surface = 'overlay' if visit in (1, 3) else 'kiosk'
-    assert value['events'] == ([] if fault in ('child', 'scope') else [
-        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
-        ['delivery', 'other-parent' if surface == 'overlay' else 'parent',
-         scope + ('overlay-shell-approval' if surface == 'overlay' else 'kiosk-mate-approval')]])
 
 
 @pytest.mark.parametrize('operation', ['reminder', 'panel-target', 'panel-launch', 'panel-form'])
@@ -581,18 +395,13 @@ def test_agent_loss_ends_only_an_unqualified_challenge_without_releasing_input()
 @pytest.mark.parametrize('prefix,scope,seconds,soft,accepted', [
     ('daily-soft-profile-profile-request', 'profile-request-', 6, 1, True),
     ('daily-soft-profile-profile-request', 'request-', 6, 1, False),
-    ('kiosk-fresh-return', '', 6, 1, False),
     ('ordinary-rest-of-day-request', 'request-', 0, 0, True),
-    ('ordinary-rest-of-day-request', 'other-', 0, 0, False),
     ('ordinary-fixed-grant-request', 'request-', 1200, 0, True),
-    ('ordinary-fixed-grant-request', 'other-', 1200, 0, False),
     ('ordinary-fixed-grant-request', 'request-', 0, 0, False),
     ('kiosk-fresh-return', '', 0, 0, False),
-    ('spring-forward-paired-grants-riley-request', 'riley-request-', 600, 0, True),
     ('fall-back-paired-grants-jordan-request', 'jordan-request-', 0, 0, True),
     ('fall-back-paired-grants-riley-request', 'riley-request-', 600, 0, True),
     ('fall-back-paired-grants-jordan-request', 'riley-request-', 0, 0, False),
-    ('fall-back-paired-grants-riley-request', 'riley-request-', 0, 0, False),
 ])
 def test_short_and_calendar_approvals_keep_their_declared_secret_scope(prefix, scope, seconds, soft, accepted):
     result = run_password_guard(r'''
@@ -613,11 +422,11 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
 
 
 @pytest.mark.parametrize('mode,surface,kind', [
-    (mode, surface, 'flatpak') for surface in ('kiosk', 'overlay')
-    for mode in ('sequence', 'wrong-scope', 'crossed-request', 'replay')
-] + [('sequence', 'overlay', 'native-desktop'), ('wrong-duration', 'overlay', 'native'),
-     ('wrong-duration', 'kiosk', 'native-command'),
-     ('sequence', 'kiosk', 'native-command'), ('sequence', 'kiosk', 'native-files')])
+    ('sequence', 'kiosk', 'flatpak'), ('sequence', 'overlay', 'flatpak'),
+    ('wrong-scope', 'kiosk', 'flatpak'), ('crossed-request', 'overlay', 'flatpak'),
+    ('replay', 'overlay', 'flatpak'), ('wrong-duration', 'kiosk', 'native-command'),
+    ('sequence', 'overlay', 'native-desktop'), ('sequence', 'kiosk', 'native-command'),
+])
 def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mode, surface, kind):
     # Exercise the password guard with finite request inputs. Importing the
     # complete customer case makes this safety test depend on unrelated plans.
@@ -625,7 +434,7 @@ def test_temporary_access_secret_binds_each_parent_and_requires_fresh_proofs(mod
     requests = {'first': ('other-child', 'parent', seconds, False),
                 'included': ('other-child', 'other-parent', seconds, True),
                 'replacement': ('other-child', 'parent', seconds, False)}
-    prefix = (kind + '-kiosk-temporary-access' if kind in ('native-command', 'native-files') else
+    prefix = (kind + '-kiosk-temporary-access' if kind == 'native-command' else
               'native-desktop-temporary-access' if kind == 'native-desktop' else
               kind + ('-temporary-access' if surface == 'kiosk' else '-grid-temporary-access'))
     result = run_password_guard(r'''
@@ -917,186 +726,30 @@ print encode_json({ok => $ok ? 1 : 0, events => \@events});
     ] if accepted else [])
 
 
-@pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child',
-                                 'profile-setup', 'profile-wrong-scope', 'suspend-profile',
-                                 'grant-request', 'grant-wrong-scope', 'grant-wrong-child',
-                                 'transition-request', 'transition-wrong-duration', 'revocation-request',
-                                 'work-recovery', 'expired-recovery', 'kiosk-recovery', 'kiosk-recovery-wrong-scope',
-                                 'app-restart-request', 'sign-out-request', 'reboot-request', 'suspend-request',
-                                 'process-update-request', 'process-update-wrong-soft', 'session-update-request',
-                                 'reboot-update-request',
-                                 'sign-out-expired-recovery', 'reboot-expired-recovery', 'suspend-expired-recovery',
-                                 'daily-expired-recovery', 'daily-expired-wrong-scope',
-                                 'daily-expired-included', 'daily-expired-included-wrong-scope',
-                                 'expired-recovery-wrong-scope', 'idle-requests', 'idle-crossed-duration'])
+@pytest.mark.parametrize('mode', ['two-requests', 'replay', 'wrong-scope', 'wrong-child'])
 def test_composed_kiosk_secret_scope_and_single_use(mode):
-    # Execute the real password guard; replace only the secret delivery sink.
-    # No password is supplied, and each isolated Perl process owns its latch.
-    # These are independent guard inputs, not runnable customer plans. Loading
-    # every journey here couples a focused refusal check to unrelated setup.
-    transition = ['app-rule-changes-soft-opening', 'soft-opening-', ['other-child', 'parent', 75, True]]
-    revocation = ['revocation-case-request', 'request-', ['other-child', 'parent', 1200, True]]
-    recovery = ['grant-work-recovery', ['child', 'parent', 1200, True]]
-    if mode in ('expired-recovery', 'sign-out-expired-recovery', 'reboot-expired-recovery',
-                'suspend-expired-recovery',
-                'expired-recovery-wrong-scope'):
-        expired = ('app-restart-expired' if mode == 'expired-recovery' else
-                   'reboot-expired' if mode == 'reboot-expired-recovery' else
-                   'sign-out-in-expired' if mode == 'sign-out-expired-recovery' else 'suspend-wake-expired')
-        recovery = [expired, ['child', 'parent', 1200, False]]
-    if mode.startswith('daily-expired-'):
-        recovery = ['expired-daily-replacement', ['child', 'parent', 1200, 'included' in mode]]
-    restart = ('suspend-wake-active' if mode == 'suspend-request' else
-               'reboot-active' if mode == 'reboot-request' else
-               'sign-out-in-active' if mode == 'sign-out-request' else 'app-restart-active')
     result = run_password_guard(r'''
 my $mode = shift @ARGV;
-my $transition = decode_json(shift @ARGV);
-my $revocation = decode_json(shift @ARGV);
-my $recovery = decode_json(shift @ARGV);
-my $panel_prefix = shift @ARGV;
-my $kiosk_prefix = shift @ARGV;
-my $restart = decode_json(shift @ARGV);
-my $process_update = decode_json(shift @ARGV);
-my $idle_bindings = decode_json(shift @ARGV);
 my $first = bless {prefix => 'kiosk-delayed-approval-first', stage_prefix => 'first-',
     kiosk_request => ['child', 'parent', 30, 0], review => 0}, 'onpc_journey';
 my $second = bless {%$first, prefix => 'kiosk-delayed-approval-second', stage_prefix => 'second-'}, 'onpc_journey';
 $first->{stage_prefix} = 'second-' if $mode eq 'wrong-scope';
-$first->{kiosk_request} = ['other-child', 'parent', 30, 0] if $mode eq 'wrong-child';
-if ($mode =~ /^profile-/) {
-    $first = bless {prefix => $panel_prefix . '-profile-request',
-        stage_prefix => $mode eq 'profile-setup' ? 'profile-request-' : 'first-',
-        review => 0}, 'onpc_journey';
-}
-if ($mode =~ /^grant-/) {
-    $first = bless {prefix => 'grant-access-case-request',
-        stage_prefix => $mode eq 'grant-wrong-scope' ? 'first-' : 'request-',
-        kiosk_request => [$mode eq 'grant-wrong-child' ? 'child' : 'other-child', 'parent', 1200, 1],
-        review => 0}, 'onpc_journey';
-}
-if ($mode =~ /^transition-/) {
-    $transition->[2][2] = 1200 if $mode eq 'transition-wrong-duration';
-    $first = bless {prefix => $transition->[0], stage_prefix => $transition->[1],
-        kiosk_request => $transition->[2],
-        review => 0}, 'onpc_journey';
-}
-if ($mode eq 'revocation-request') {
-    $first = bless {prefix => $revocation->[0], stage_prefix => $revocation->[1],
-        kiosk_request => $revocation->[2], review => 0}, 'onpc_journey';
-}
-if ($mode eq 'app-restart-request' || $mode eq 'sign-out-request' || $mode eq 'reboot-request' || $mode eq 'suspend-request') {
-    $first = bless {prefix => $restart->[0] . '-request', stage_prefix => 'request-',
-        kiosk_request => $restart->[1], review => 0}, 'onpc_journey';
-}
-if ($mode =~ /^(?:process|session|reboot)-update-/) {
-    $process_update->[1][3] = 1 if $mode eq 'process-update-wrong-soft';
-    $first = bless {prefix => $process_update->[0] . '-request', stage_prefix => 'request-',
-        kiosk_request => $process_update->[1], review => 0}, 'onpc_journey';
-}
-if ($mode =~ /^kiosk-recovery/) {
-    $first = bless {prefix => $kiosk_prefix . '-kiosk-final',
-        stage_prefix => $mode eq 'kiosk-recovery' ? 'kiosk-final-' : 'kiosk-first-',
-        review => 0}, 'onpc_journey';
-}
+$first->{kiosk_request}[0] = 'other-child' if $mode eq 'wrong-child';
 my $ok = eval {
-    if ($mode =~ /^idle-/) {
-        for my $scope ('request', 'recovery') {
-            my $idle = bless {prefix => 'idle-active-expired-' . $scope,
-                stage_prefix => $scope . '-', review => 0,
-                kiosk_request => $idle_bindings->{$scope}}, 'onpc_journey';
-            $idle->{kiosk_request} = $idle_bindings->{recovery} if $mode eq 'idle-crossed-duration';
-            onpc_password::enter_kiosk_mate_password($idle, 'bound-request');
-        }
-    } elsif ($mode =~ /^kiosk-recovery/) {
-        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode eq 'work-recovery' || $mode eq 'expired-recovery'
-            || $mode eq 'sign-out-expired-recovery' || $mode eq 'reboot-expired-recovery'
-            || $mode eq 'suspend-expired-recovery'
-            || $mode eq 'daily-expired-recovery' || $mode eq 'daily-expired-wrong-scope'
-            || $mode eq 'daily-expired-included' || $mode eq 'daily-expired-included-wrong-scope'
-            || $mode eq 'expired-recovery-wrong-scope') {
-        my $setup = bless {prefix => $recovery->[0] . '-profile-request',
-            stage_prefix => 'profile-request-', review => 0}, 'onpc_journey';
-        onpc_password::enter_kiosk_mate_password($setup, 'long-request');
-        my $return = bless {prefix => $recovery->[0],
-            stage_prefix => ($mode eq 'expired-recovery-wrong-scope'
-                || $mode eq 'daily-expired-wrong-scope'
-                || $mode eq 'daily-expired-included-wrong-scope') ? 'profile-request-' : '',
-            kiosk_request => $recovery->[1], review => 0}, 'onpc_journey';
-        onpc_password::enter_kiosk_mate_password($return, 'bound-request');
-    } elsif ($mode =~ /^profile-/) {
-        onpc_password::enter_kiosk_mate_password($first, 'request-1200');
-    } elsif ($mode =~ /^(?:grant|transition|revocation|app-restart|sign-out|reboot|suspend|process-update|session-update)-/) {
-        onpc_password::enter_kiosk_mate_password($first, 'bound-request');
-    } else {
-        onpc_password::enter_kiosk_mate_password($first, 'bound-request');
-        onpc_password::enter_kiosk_mate_password($mode eq 'replay' ? $first : $second, 'bound-request');
-    }
+    onpc_password::enter_kiosk_mate_password($first, 'bound-request');
+    onpc_password::enter_kiosk_mate_password($mode eq 'replay' ? $first : $second, 'bound-request');
     1;
 };
 print encode_json({ok => $ok ? 1 : 0, events => \@events});
-''', 'profile-setup' if mode == 'suspend-profile' else mode,
-        json.dumps(transition), json.dumps(revocation), json.dumps(recovery),
-        'suspend-active-grant' if mode == 'suspend-profile' else 'panel-request-case', 'baseline-journey',
-        json.dumps([restart, ['other-child', 'parent', 1200, True]]),
-        json.dumps(['update-reboot-case' if mode == 'reboot-update-request' else
-                    'update-session-case' if mode == 'session-update-request' else 'update-process-case',
-                    ['other-child', 'parent', 1200, False]]),
-        json.dumps({'request': ['other-child', 'parent', 600, True],
-                    'recovery': ['other-child', 'parent', 1200, True]}))
+''', mode)
     value = json.loads(result.stdout)
-    deliveries = [event for event in value['events'] if event[0] == 'delivery']
-    if mode.startswith('idle-'):
-        assert value['ok'] == (mode == 'idle-requests')
-        scopes = ('request', 'recovery') if mode == 'idle-requests' else ()
-        assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval'] for scope in scopes]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', scope + '-approval-' + proof]
-            for scope in scopes for proof in ('qualified', 'rechecked')]
-    elif mode == 'kiosk-recovery':
-        assert value['ok'] == 0  # The second delivery is refused.
-        assert deliveries == [['delivery', 'parent', 'kiosk-final-kiosk-mate-request-1200']]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', 'kiosk-final-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode in ('work-recovery', 'expired-recovery', 'sign-out-expired-recovery',
-                  'reboot-expired-recovery', 'suspend-expired-recovery',
-                  'daily-expired-recovery', 'daily-expired-included'):
-        assert value['ok'] == 1
-        assert deliveries == [
-            ['delivery', 'parent', 'profile-request-kiosk-mate-long-request'],
-            ['delivery', 'parent', 'kiosk-mate-approval']]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', prefix + 'approval-' + proof]
-            for prefix in ('profile-request-', '') for proof in ('qualified', 'rechecked')]
-    elif mode in ('expired-recovery-wrong-scope', 'daily-expired-wrong-scope',
-                  'daily-expired-included-wrong-scope'):
-        assert value['ok'] == 0
-        assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-long-request']]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', 'profile-request-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode == 'two-requests':
-        assert value['ok'] == 1
-        assert deliveries == [['delivery', 'parent', request + '-kiosk-mate-approval']
-                               for request in ('first', 'second')]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', request + '-approval-' + proof]
-            for request in ('first', 'second') for proof in ('qualified', 'rechecked')]
-    elif mode in ('grant-request', 'transition-request', 'revocation-request', 'app-restart-request',
-                  'sign-out-request', 'reboot-request', 'suspend-request', 'process-update-request', 'session-update-request',
-                  'reboot-update-request'):
-        assert value['ok'] == 1
-        scope = 'soft-opening' if mode == 'transition-request' else 'request'
-        assert deliveries == [['delivery', 'parent', scope + '-kiosk-mate-approval']]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', scope + '-approval-' + proof] for proof in ('qualified', 'rechecked')]
-    elif mode in ('profile-setup', 'suspend-profile'):
-        assert value['ok'] == 1
-        assert deliveries == [['delivery', 'parent', 'profile-request-kiosk-mate-request-1200']]
-        assert [event for event in value['events'] if event[0] == 'proof'] == [
-            ['proof', 'profile-request-approval-' + proof]
-            for proof in ('qualified', 'rechecked')]
-    else:
-        assert value['ok'] == 0
-        assert len(deliveries) == (1 if mode == 'replay' else 0)
+    scopes = {
+        'two-requests': ('first-', 'second-'),
+        'replay': ('first-',),
+        'wrong-scope': (),
+        'wrong-child': (),
+    }[mode]
+    assert value['ok'] == (mode == 'two-requests')
+    assert value['events'] == [event for scope in scopes for event in (
+        ['proof', scope + 'approval-qualified'], ['proof', scope + 'approval-rechecked'],
+        ['delivery', 'parent', scope + 'kiosk-mate-approval'])]

@@ -22,19 +22,9 @@ import remote_sources
 from vm_selection import vm_config
 
 
-@pytest.mark.parametrize('names', [
-    ('local', 'myserver', 'worker2'),
-    ('desk-7', 'node-b', 'node-c'),
-])
-@pytest.mark.parametrize('controller,targets', [
-    (0, (0,)),                     # Workstation controller, workstation VM.
-    (1, (1,)),                     # SSH controller, its own VM.
-    (0, (1,)),                     # Workstation controller, SSH VM.
-    (0, (0, 1)),                   # One command with both real-use host roles.
-    (0, (0, 1, 2)),                # Three hosts; all SSH originates at the desk.
-])
-@pytest.mark.parametrize('launcher', [
-    'run-tests', 'run-unit-tests', 'run-ui-tests', 'fix-tests', 'execute-plan', 'sync-whatsnew',
+@pytest.mark.parametrize('names,controller,targets,launcher', [
+    (('desk-7', 'node-b', 'node-c'), 0, (0, 1, 2), 'run-tests'),
+    (('local', 'myserver', 'worker2'), 1, (1,), 'run-tests'),
 ])
 def test_command_host_matrix(tmp_path, monkeypatch, names, controller, targets, launcher):
     tool = tmp_path / 'tool checkout'

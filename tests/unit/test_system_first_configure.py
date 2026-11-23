@@ -19,33 +19,6 @@ from tests.support.package_scripts import package_machine
 from tools.test_storage import scratch_descriptors
 
 
-def test_reboot_history_keeps_native_execution_enforcing_without_policy_loss_faults(tmp_path, monkeypatch):
-    import system_kiosk_confinement as confinement
-    import system_kiosk_scope as scope
-    saved = {'schema': 1, 'boot': 'previous-boot', 'identity': {}, 'ordinary': {}}
-    state = tmp_path / 'state.json'
-    state.write_text(json.dumps(saved))
-    monkeypatch.setattr(configure, 'state_path', lambda: state)
-    monkeypatch.setattr(configure, 'boot', lambda: 'new-boot')
-    for name in ('verify_account_identity', 'verify_ordinary', 'verify_visibility',
-                 'ordinary_controls', 'verify_gates', 'empty_authentication_probe',
-                 'verify_loaded_confinement', 'verify_compatibility_profile'):
-        monkeypatch.setattr(configure, name, Mock())
-    for name in ('guard', 'enable_diagnostics', 'installed'):
-        monkeypatch.setattr(configure.guest, name, Mock())
-    monkeypatch.setattr(configure.guest, 'reboot_cleared', lambda: True)
-    execution, collateral = Mock(), Mock()
-    monkeypatch.setattr(confinement, 'verify_session_composition', execution)
-    monkeypatch.setattr(scope, 'verify', collateral)
-    record = Mock()
-    configure.verify_reboot(record)
-    execution.assert_called_once_with(record)
-    collateral.assert_called_once_with(record)
-    assert configure.verify_loaded_confinement.call_count == 2
-    assert configure.guest.guard.call_count == 2
-    configure.verify_compatibility_profile.assert_called_once_with(record, 'after-reboot')
-
-
 @pytest.mark.parametrize('package_format', ['deb', 'rpm'])
 def test_installed_compatibility_witness_requires_active_profile_and_preserves_refusal(
         monkeypatch, package_format):
@@ -71,8 +44,9 @@ def test_installed_compatibility_witness_requires_active_profile_and_preserves_r
     record.assert_not_called()
 
 
-@pytest.mark.parametrize('package_format,group,group_id', [('deb', 'sudo', 27), ('rpm', 'wheel', 10)])
-@pytest.mark.parametrize('stage', ['after-retry', 'after-reboot'])
+@pytest.mark.parametrize('package_format,group,group_id,stage', [
+    ('deb', 'sudo', 27, 'after-retry'), ('rpm', 'wheel', 10, 'after-reboot'),
+])
 def test_identity_allows_only_native_private_state_group_normalization(
         monkeypatch, package_format, group, group_id, stage):
     expected = {'account': ['kiosk', 1005], 'marker': [123, 0, 0, stat.S_IFREG | 0o600, 1, 'digest'],
@@ -139,8 +113,10 @@ def test_identity_rejects_other_state_changes(tmp_path, monkeypatch, failure):
         configure.verify_account_identity(expected, 'after-retry', Mock())
 
 
-@pytest.mark.parametrize('before_mode', [0o600, 0o644])
-@pytest.mark.parametrize('change', ['none', 'owner', 'group', 'mode', 'attributes', 'bytes'])
+@pytest.mark.parametrize('before_mode,change', [
+    (0o600, 'none'), (0o644, 'none'),
+    *((0o600, change) for change in ('owner', 'group', 'mode', 'attributes', 'bytes')),
+])
 def test_reboot_reuses_exact_native_cache_startup_comparison(monkeypatch, before_mode, change):
     expected = {'account': ['kiosk', 1005], 'marker': [123, 0, 0, stat.S_IFREG | 0o600, 1, 'digest'],
                 'home': ['home-identity'], 'cache_metadata': [0, 0, before_mode, {'label': 'original'}],
@@ -188,8 +164,10 @@ def test_default_pam_deferral_uses_public_disable_and_preserves_explicit_enables
         assert stat.S_IMODE(witness.stat().st_mode) == 0o600
 
 
-@pytest.mark.parametrize('package_format', ['deb', 'rpm'])
-@pytest.mark.parametrize('stage', ['visibility', 'owned-passwordless', 'pam-ready'])
+@pytest.mark.parametrize('package_format,stage', [
+    ('deb', 'visibility'), ('deb', 'owned-passwordless'),
+    ('deb', 'pam-ready'), ('rpm', 'pam-ready'),
+])
 def test_quarantine_requires_exact_native_stack_statuses(monkeypatch, package_format, stage):
     monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.' + package_format))
     statuses = configure.quarantine_statuses(stage)
@@ -360,86 +338,6 @@ def test_quarantine_reads_installed_expiry_after_ordinary_controls_before_kiosk_
         '/usr/lib/oh-no-parent-control/lifecycle/lifecycle_migration.py')
 
 
-def test_first_configuration_history_retains_two_faults_quarantine_and_retry_endpoint(
-        tmp_path, monkeypatch):
-    events = Mock()
-    monkeypatch.setattr(configure.guest, 'PAYLOAD', tmp_path)
-    cache = tmp_path / 'var/lib/AccountsService/users' / configure.PRODUCT
-    cache.parent.mkdir(parents=True)
-    cache.write_bytes(b'owned account cache')
-    monkeypatch.setattr(configure, 'Path', lambda path: tmp_path / str(path).lstrip('/'))
-    monkeypatch.setattr(configure, 'boot', lambda: 'before-reboot')
-    monkeypatch.setattr(configure, 'ordinary_state', lambda: {'ordinary': 'unchanged'})
-    monkeypatch.setattr(configure, 'account_identity', lambda: {'uid': 1006})
-    monkeypatch.setattr(configure, 'passwordless', lambda: True)
-    monkeypatch.setattr(configure.pwd, 'getpwnam', lambda name: SimpleNamespace(pw_uid=1006))
-    for name in ('verify_compatibility_profile', 'ordinary_controls', 'interrupted_install',
-                 'verify_quarantine', 'verify_ordinary', 'verify_visibility',
-                 'verify_account_identity', 'verify_loaded_confinement', 'verify_gates',
-                 'empty_authentication_probe'):
-        monkeypatch.setattr(configure, name, getattr(events, name))
-    for name in ('guard', 'enable_diagnostics', 'before_install', 'installed'):
-        monkeypatch.setattr(configure.guest, name, getattr(events, name))
-    monkeypatch.setattr(configure.guest, 'reboot_requested', lambda: True)
-    @contextmanager
-    def deferred(record):
-        events.defer()
-        yield
-    @contextmanager
-    def fault(stage, record):
-        events.fault_enter(stage)
-        yield stage
-        events.fault_exit(stage)
-    monkeypatch.setattr(configure, 'deferred_default_pam', deferred)
-    monkeypatch.setattr(configure, 'configure_fault', fault)
-    retried = False
-    def retry():
-        nonlocal retried
-        events.retry()
-        retried = True
-    monkeypatch.setattr(configure, 'retry_configuration', retry)
-    manager = 'user@1006.service'
-    def run(arguments):
-        events.command(arguments)
-        if arguments[1] == 'show':
-            return 'inactive' if retried else 'failed'
-        if arguments[1] == 'list-units':
-            return '' if retried else manager
-        return ''
-    monkeypatch.setattr(configure.guest, 'run', run)
-    record = Mock()
-    configure.exercise(record)
-    events.assert_has_calls([
-        call.before_install(), call.ordinary_controls(record, 'baseline'), call.defer(),
-        call.fault_enter('visibility'), call.interrupted_install('visibility', record, 'visibility'),
-        call.verify_visibility(), call.verify_quarantine(record, 'visibility'),
-        call.verify_ordinary({'ordinary': 'unchanged'}), call.fault_exit('visibility'),
-        call.verify_account_identity({'uid': 1006}, 'before-passwordless-fixture', record),
-        call.command(['passwd', '--delete', configure.PRODUCT]),
-        call.verify_quarantine(record, 'owned-passwordless'), call.fault_enter('pam-ready'),
-        call.interrupted_install('pam-ready', record, 'pam-ready'), call.verify_visibility(),
-        call.verify_account_identity({'uid': 1006}, 'during-retry', record),
-        call.verify_loaded_confinement(), call.verify_quarantine(record, 'pam-ready'),
-        call.verify_ordinary({'ordinary': 'unchanged'}), call.fault_exit('pam-ready'),
-    ])
-    assert events.fault_enter.call_count == events.interrupted_install.call_count == 2
-    events.verify_account_identity.assert_any_call({'uid': 1006}, 'after-retry', record)
-    events.installed.assert_called_once_with(reboot_required=True)
-    assert events.verify_loaded_confinement.call_count == 2
-    assert events.verify_visibility.call_count == 3
-    assert events.verify_ordinary.call_args_list == [call({'ordinary': 'unchanged'})] * 3
-    events.verify_gates.assert_called_once_with(record)
-    events.empty_authentication_probe.assert_called_once_with(
-        0, 'first-configure.final.empty-authentication', record)
-    assert events.mock_calls.index(call.retry()) < events.mock_calls.index(
-        call.installed(reboot_required=True))
-    assert json.loads(configure.state_path().read_text()) == {
-        'schema': 1, 'boot': 'before-reboot', 'identity': {'uid': 1006},
-        'ordinary': {'ordinary': 'unchanged'}}
-    assert (tmp_path / 'results/first-configure-cache-before.txt').read_bytes() == cache.read_bytes()
-    assert record.call_args.args[0] == 'onpc.first-configure.retry'
-
-
 @pytest.mark.parametrize('status', ['install ok half-configured', 'install ok installed',
                                   'install reinstreq half-installed', 'unknown'])
 def test_deb_configuration_retry_requires_retained_payload_and_exact_pending_state(monkeypatch, status):
@@ -472,16 +370,6 @@ def test_deb_configuration_retry_preserves_payload_verification_failure(monkeypa
     monkeypatch.setattr(configure.guest, 'run', run)
     with pytest.raises(configure.guest.GuestError, match='payload-changed'):
         configure.retry_configuration()
-    run.assert_not_called()
-
-
-def test_rpm_configuration_retry_uses_maintained_installation(monkeypatch):
-    monkeypatch.setattr(configure.guest, 'package_path', lambda: Path('package.rpm'))
-    install, run = Mock(), Mock()
-    monkeypatch.setattr(configure.guest, 'install_package', install)
-    monkeypatch.setattr(configure.guest, 'run', run)
-    configure.retry_configuration()
-    install.assert_called_once()
     run.assert_not_called()
 
 

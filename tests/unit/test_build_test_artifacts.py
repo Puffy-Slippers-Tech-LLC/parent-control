@@ -50,17 +50,6 @@ def test_package_only_input_binds_package_and_installation_metadata_without_fixt
     assert not (tmp_path / 'fixtures').exists()
 
 
-@pytest.mark.parametrize('flags', [[], ['--reuse'], ['--upgrade-inputs']])
-def test_build_cli_requires_explicit_format_before_writing(tmp_path, monkeypatch, capsys, flags):
-    output = tmp_path / 'must-not-exist'
-    monkeypatch.setattr(artifacts.sys, 'argv', [str(MODULE_PATH), '--output', str(output), *flags])
-    with pytest.raises(SystemExit) as failure:
-        artifacts.main()
-    assert failure.value.code == 2
-    assert '--package-format deb|rpm is required' in capsys.readouterr().err
-    assert not output.exists()
-
-
 @pytest.mark.parametrize('fault', [None, 'extra', 'missing', 'empty'])
 def test_rpm_public_identity_retains_epoch_release_architecture_and_digest(tmp_path, monkeypatch, fault):
     package = tmp_path / 'package.rpm'

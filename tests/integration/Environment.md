@@ -74,9 +74,14 @@ the selected ISO filename pattern. Zero or multiple matches fail explicitly;
 the program does not guess a newest image or download one.
 
 The VM's resolved `vm_config_xml` path is relative to the checkout and supplies
-the hardware.
+the hardware template. `tools/newvm` generates the domain XML in memory and
+sets `<memory>` and `<currentMemory>` from the effective `compute_unit`, using
+1 GiB per unit and rounding to the nearest KiB. General profiles get 4.5 GiB and
+heavy profiles get 9 GiB. The source template stays unchanged. Templates with
+guest NUMA cells or memory hotplug settings are refused before provisioning
+because those settings can override or conflict with the profile's RAM size.
 `metadata/newvm:disk/@size-gib` supplies the sparse QCOW2 capacity (currently
-80 GiB). Both supplied templates use 4.5 GiB RAM, Q35 BIOS,
+80 GiB). Both supplied templates use Q35 BIOS,
 unrestricted host CPU placement, virtio graphics without 3D,
 sound and a guest-agent channel. The local template uses 6 vCPUs (3 cores,
 2 threads per core); the myserver template uses 4 vCPUs (4 cores, 1 thread per

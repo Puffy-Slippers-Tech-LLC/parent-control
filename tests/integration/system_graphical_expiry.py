@@ -1116,7 +1116,7 @@ def verify_lock_completion(record):
     record('onpc.expiry.lock-replies',
            'real-shell-requests; native-completion-before-held-reply; '
            'public-native-action-gate-restored-before-forwarding; '
-           'independent-timely-lock-and-protected-input; delayed-ack-after-input; '
+           'independent-timely-lock-before-delayed-ack; both-protected-input-challenges; '
            'missing-reply-client-failure; original-child-work; same-peer-input-and-work; '
            'normal-facade-restored-with-same-native-owner; no-lock-retry-owner')
 
@@ -1266,7 +1266,7 @@ if __name__ == '__main__':
                 'stall-ready', 'stall-natural-arm', 'stall-peer-arm', 'stall-inject',
                 'stall-natural-recovery', 'stall-peer-recovery', 'stall-complete', 'stall-cleanup',
                 'timer-ready', 'timer-arm', 'timer-inject', 'timer-recovery', 'timer-complete', 'timer-cleanup',
-                'reply-ready', 'reply-delayed-arm', 'reply-delayed-recovery',
+                'reply-ready', 'reply-delayed-arm', 'reply-delayed-release', 'reply-delayed-recovery',
                 'reply-missing-arm', 'reply-missing-wait', 'reply-missing-recovery', 'reply-complete',
                 'retry-ready', 'retry-renew-arm', 'retry-renew', 'retry-renew-available', 'retry-renew-check',
                 'retry-arm', 'retry-recovery', 'retry-complete',

@@ -177,7 +177,7 @@ def _system_history_command(transport, command, *, timeout=None):
     if command in ('host-complete', 'revoke-complete', 'approval-complete', 'policy-complete',
                    'replacement-complete', 'crash-complete', 'stop-complete',
                    'stall-complete', 'stall-cleanup', 'timer-complete', 'timer-cleanup',
-                   'reply-complete', 'reply-missing-wait', 'retry-complete',
+                   'reply-complete', 'reply-delayed-release', 'reply-missing-wait', 'retry-complete',
                    'retry-renew', 'retry-renew-available', 'retry-renew-check',
                    'outage-revoke', 'outage-complete'):
         require(value == {'completed': True}, 'expiry:history-incomplete')
@@ -730,7 +730,13 @@ class LockCompletionJourney(BrokerStopJourney):
 
     @staticmethod
     def natural_lock(journey, guard):
-        return journey.crossing(journey, guard, 'reply-delayed-arm')
+        result = journey.crossing(journey, guard, 'reply-delayed-arm')
+        # Release once the original session's public lock surface is observed.
+        # The separate input challenge can outlast the client's reply window.
+        require(result['session_sha256'] == journey.original_session,
+                'expiry:original-session-changed')
+        _system_history_command(journey.transport, 'reply-delayed-release')
+        return result
 
     @staticmethod
     def second_lock(journey, guard):

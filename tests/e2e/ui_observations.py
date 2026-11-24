@@ -101,7 +101,6 @@ RESPONSE_BYTE_LIMITS = {
     **{operation: 8192 for operation in accessible_ui.CHINESE_LANGUAGE_OPERATIONS},
     **{operation: 8192 for operation in accessible_ui.INITIAL_KIOSK_OPERATIONS},
     **{operation: 32768 for operation in accessible_ui.CATALOGUE_ROW_OPERATIONS},
-    'feedback-collection-events': 8192,
     'parent-checked-events': 8192,
     'parent-save-events': 8192,
     'parent-custom-events': 8192,
@@ -961,18 +960,11 @@ class UiObservations:
         self.natural_expiry_deadline_ns = deadline_ns
 
     def observe_accessibility_input(self, operation, terminal, mode='checked', *, worker_input=None, child=None):
-        """Prepare the owned input once, then independently observe its result.
-
-        Save acceptance reads the settled API value. Collection diagnostics
-        retain independent bounded reads of their public controls.
-        """
+        """Prepare the owned input once, then independently observe its result."""
         custom = mode == 'custom-save'
-        collection = mode == 'collection'
         require(child is None or (custom and child in accessible_ui.NAMED_CUSTOM_CHILDREN),
                 'ui:custom-child-binding')
-        require((collection and operation == 'feedback-collection-open' and terminal is True
-                 and worker_input is None) or
-                (custom and operation == 'parent-custom-trace-focus' and terminal == 6
+        require((custom and operation == 'parent-custom-trace-focus' and terminal == 6
                  and worker_input is None) or
                 (operation == 'parent-toggle-enabled' and terminal is True and
                  mode in ('checked', 'save') and worker_input is None),
@@ -986,8 +978,7 @@ class UiObservations:
         self.accessibility_trace = trace
         try:
             with watch_activity.operation('Preparing one declared Parent input and reading its result'):
-                result = self._observe('feedback-collection-events' if collection else
-                                       'parent-custom-events' if custom else 'parent-save-events' if mode == 'save'
+                result = self._observe('parent-custom-events' if custom else 'parent-save-events' if mode == 'save'
                                        else 'parent-checked-events', **({'child': child} if child else {}))
             require(trace['ready'] and trace['input'] and
                     self._trace_clock() - trace['started'] < 60, 'ui:trace-incomplete')
@@ -1003,9 +994,7 @@ class UiObservations:
                         'terminal': terminal, 'saved': saved}
             for index, sample in enumerate(value['samples'], 1):
                 self.trace_sink(token, index, sample)
-            return {'operation': ('feedback-collection-trace' if collection else
-                                  'parent-custom-save-trace' if custom else 'parent-save-trace' if mode == 'save'
-                                  else 'accessibility-input-trace'), 'outcome': 'passed',
+            return {'operation': 'accessibility-input-trace', 'outcome': 'passed',
                     'interface': 'ApplicationUI', 'token': token, 'terminal': terminal,
                     'samples': value['samples']}
         except BaseException:
@@ -1243,8 +1232,7 @@ class UiObservations:
             # Up to 25 real minutes, original lock allowance, three minutes
             # for delayed reply delivery, then transport margin; worker: 1800s.
             timeout = 1710
-        event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
-                                    'feedback-collection-events')
+        event_trace = operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events')
         if (self.system_prompt is None and not form_diagnostics and not event_trace
                 and self.accessibility_trace is None):
             if operation in ('desktop', 'standard-desktop', 'gdm-station-list'):
@@ -1909,12 +1897,10 @@ class UiObservations:
             trace = self.accessibility_trace
             require(operation in ('parent-checked-events', 'parent-save-events', 'parent-custom-events',
                                   'parent-saved-result', 'parent-custom-saved-result',
-                                  'feedback-collection-events',
                                   trace['operation']),
                     'ui:trace-intervening-operation')
             binding = [self.boot_guard or '', trace['token'] if operation ==
-                       ('feedback-collection-events' if trace['mode'] == 'collection' else
-                        'parent-custom-events' if trace['mode'] == 'custom-save' else
+                       ('parent-custom-events' if trace['mode'] == 'custom-save' else
                         'parent-save-events' if trace['mode'] == 'save'
                         else 'parent-checked-events') else
                        ('save:' if trace['mode'] == 'save' else '') + trace['source']]
@@ -2708,8 +2694,7 @@ class UiObservations:
                         and value['saved'] is True and
                         (type(value['minutes']) is int and value['minutes'] == 6 if custom
                          else value['enabled'] is True), 'ui:save-result')
-            elif operation in ('parent-checked-events',
-                             'feedback-collection-events'):
+            elif operation == 'parent-checked-events':
                 require(type(value) is dict and set(value) == {
                     'token', 'source', 'terminal', 'samples'} and
                     type(value['token']) is str and re.fullmatch(r'[0-9a-f]{32}', value['token']) and
@@ -2720,23 +2705,11 @@ class UiObservations:
                 for sample in value['samples']:
                     require(type(sample) is dict and type(sample.get('elapsed_ms')) is int and
                             previous <= sample['elapsed_ms'] < 60000, 'ui:trace-sample')
-                    if operation == 'feedback-collection-events':
-                        require(set(sample) == {'elapsed_ms', 'collecting', 'download'} and
-                                type(sample['collecting']) is bool and type(sample['download']) is bool,
-                                'ui:trace-sample')
-                    elif operation == 'parent-checked-events':
-                        require(set(sample) == {'elapsed_ms', 'checked', 'source'} and
-                                type(sample['checked']) is bool and sample['source'] == 'application-ui',
-                                'ui:trace-sample')
+                    require(set(sample) == {'elapsed_ms', 'checked', 'source'} and
+                            type(sample['checked']) is bool and sample['source'] == 'application-ui',
+                            'ui:trace-sample')
                     previous = sample['elapsed_ms']
-                if operation == 'feedback-collection-events':
-                    require(value['samples'][-1]['collecting'] is False
-                            and value['samples'][-1]['download'] is True,
-                            'ui:collection-not-ready')
-                elif operation == 'parent-checked-events':
-                    require(value['samples'][-1]['checked'] is True, 'ui:trace-terminal')
-            elif operation == 'feedback-collection-open':
-                require(value == {'opened': True}, 'ui:collection-open')
+                require(value['samples'][-1]['checked'] is True, 'ui:trace-terminal')
             elif operation == 'parent-custom-trace-focus':
                 require(value == {'applied': True}, 'ui:trace-input')
             elif operation == 'parent-custom-trace-disabled-refused':

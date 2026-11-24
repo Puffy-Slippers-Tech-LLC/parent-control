@@ -341,10 +341,11 @@ def preparation_digest(checkout: Path = CHECKOUT, *, os_id=None, legacy=False) -
     snapshot = sys.modules.get('tools.vm_source_snapshot')
     if snapshot is not None:
         checkout = snapshot.source_path(checkout)
-    return preparation_source_digest(lambda relative: (checkout / relative).read_bytes(), files)
+    return preparation_source_digest(lambda relative: (checkout / relative).read_bytes(), files,
+                                     vm_name=None if legacy else os.environ.get(vm_config.VARIABLE))
 
 
-def preparation_source_digest(read, files):
+def preparation_source_digest(read, files, *, vm_name=None):
     """Hash either a host checkout or the exact retained legacy guest sources."""
     digest = hashlib.sha256()
     for relative in files:
@@ -378,6 +379,8 @@ def preparation_source_digest(read, files):
                 if files == SCRIPT_FILES:
                     family['vms'] = [vm_config.resolve_vm_entry(entry, family, profiles)
                                      for entry in family['vms']]
+                    if vm_name is not None:
+                        family['vms'] = [entry for entry in family['vms'] if entry['name'] == vm_name]
                     family.pop('parent_config')
                 family.pop('compute_unit', None)
                 # Movable fixture selection belongs to runtime artifact inputs.
@@ -394,6 +397,10 @@ def preparation_source_digest(read, files):
                         # Hardware templates and unattended media only affect new VMs.
                         entry.pop('vm_config_xml', None)
                         entry.pop('install_iso', None)
+            if vm_name is not None:
+                document['families'] = [family for family in document['families'] if family['vms']]
+                if len(document['families']) != 1 or len(document['families'][0]['vms']) != 1:
+                    raise PreparationError('guard:checkout', 'preparation VM is missing or ambiguous')
             contents = json.dumps(document, sort_keys=True, separators=(',', ':')).encode('utf-8')
         digest.update(relative.encode("utf-8") + b"\0")
         digest.update(len(contents).to_bytes(8, "big"))

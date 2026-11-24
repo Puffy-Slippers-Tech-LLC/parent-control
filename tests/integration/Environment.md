@@ -29,18 +29,21 @@ Workstation third-party repository set.
 After confirmed installer shutdown, the launcher ejects the installation media
 and boots from the new disk. That boot uses the same update routine as auto
 preparation for native packages, installed Snaps, system Flatpaks and Flatpaks
-installed by the provisioning account. It verifies the installed release,
-sets and checks GNOME's welcome-dialog preference before desktop login, and
-shuts down. It then runs [manual preparation](#reusable-preparation-ownership)
-to capture the baseline and current app snapshot and leaves the guest off.
+installed by the provisioning account. Ubuntu then boots again and removes
+unused kernels after the upgraded kernel can take effect. The final update
+boot verifies the installed release, sets and checks GNOME's welcome-dialog
+preference before desktop login, and shuts down. The launcher then runs
+[manual preparation](#reusable-preparation-ownership)
+to capture the baseline and current app snapshot, then refreshes the test tool
+UUID pins and leaves the guest off.
 This preparation is part of the explicit full-provisioning request.
 
 Full provisioning also needs `xorriso`, `openssl` and the existing
 noninteractive test-pool and preparation grants on the selected VM host.
 `./setup.sh --vm-host-only` installs its host prerequisites. Installation and
-the first update boot use the registered VM's compute reservation and the
+the update boots use the registered VM's compute reservation and the
 host disk queue. The writable developer share is detached during those boots.
-Both boots use one-time libvirt configuration, so an interrupted install cannot
+These boots use one-time libvirt configuration, so an interrupted install cannot
 leave the unattended installer armed for the next start.
 A failed install or update preserves the registered VM, disk, and any referenced
 provisioning files for inspection. QEMU opens the per-VM boot files and private
@@ -98,12 +101,15 @@ replacement, defaulting to No (including end-of-input). Confirmation replaces
 the entry in the selected family only after successful provisioning. The ID
 and resolved name must identify the same existing entry. If the name also exists
 in libvirt, a separate red confirmation
-warns that overwriting recreates a blank VM and erases all data on its disk.
+warns that overwriting recreates a blank VM and erases all data and internal
+snapshots on its disk.
 Both prompts default to No, including end-of-input.
 Overwrite requires the same powered-off domain under the host's shared VM
-checkout, one regular disk at the requested destination, no NVRAM, snapshots
-and no other domain referencing the disk
-directly or through a backing chain. Unexpected layouts and unconfirmed existing
+checkout, one regular disk at the requested destination, no NVRAM, and no other
+domain referencing the disk directly or through a backing chain. The shared
+snapshot helper verifies that snapshots belong to that VM and disk before
+removing their metadata with the old domain. External snapshot storage is refused.
+Unexpected layouts and unconfirmed existing
 disk files are refused, as are names colliding with another VM's ID.
 Completed test/baseline state is retired under the current VM checkout before
 overwrite. Creation also retires stale completed state left by an already removed
@@ -410,15 +416,17 @@ UUID pins refresh once after the workers finish.
 Automatic updates use Ubuntu's scripting interface,
 [`apt-get`](https://manpages.ubuntu.com/manpages/resolute/man8/apt-get.8.html):
 refresh indexes with strict error handling and up to three attempts, run a
-noninteractive `dist-upgrade` with a bounded package-lock wait and kernel-only
-autoremove, then `apt-get check`. APT retains its normal kernel protections. Existing
+noninteractive `dist-upgrade` with a bounded package-lock wait, then
+`apt-get check`. Existing
 locally changed configuration files are retained when no package default
 resolves the choice. This updates packages from configured repositories within the
 current Ubuntu release. Fedora uses DNF5 within the current release. When
 installed, Snap and Flatpak are refreshed before capture. Flatpak updates
 cover the system installation and the `edgar` provisioning account when present.
-`/run/reboot-required` triggers a full power cycle on Ubuntu; the
-second boot verifies the new boot identity and prerequisite package inventory.
+`/run/reboot-required` triggers a full power cycle on Ubuntu. Kernel-only
+autoremove runs after that reboot when required and after the upgrade
+otherwise. APT retains its normal kernel protections. The second boot
+verifies the new boot identity and prerequisite package inventory.
 Update, setup or verification failure prevents baseline replacement. App
 snapshots already deleted after confirmation remain deleted if later work fails.
 Every confirmed invocation repeats its selected workflow, even if the previous
@@ -471,8 +479,9 @@ changed disk chain after manual maintenance on that same VM. Each name has an
 exclusive controller lease, so different VMs may prepare in parallel. A shared
 compatibility lease excludes older controllers that still own the state root
 exclusively. Finish tests and stop maintenance on the same VM before preparation.
-Guest identity and snapshot isolation configuration, and loader sources, are included
-in the preparation digest. Changing them requires matching guest preparation
+The preparation digest includes the selected VM's identity and snapshot
+isolation configuration, and the loader sources. Adding another VM to the
+registry leaves the selected VM's digest intact. Changes to those inputs require matching guest preparation
 before a new baseline can be accepted. Host capacity, family/VM compute costs, per-VM `enabled`
 flags, selector IDs and movable `fixture_path` selections are excluded: changing scheduling does not invalidate
 prepared baselines or derived app snapshots.

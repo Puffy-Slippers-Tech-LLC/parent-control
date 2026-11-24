@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / 'tests/integration'))
 sys.path.insert(0, str(ROOT / 'tools'))
 import vm_config
 import prepare_baseline as base
+from vm_snapshots import read_internal_snapshot
 from watch_activity import operation
 
 JOURNAL = 'restore-vms.json'
@@ -228,18 +229,11 @@ def snapshot_order(snapshots):
 def validate_snapshots(snapshots, vm, identity, paths):
     snapshot_order(snapshots)
     for item in snapshots:
-        require(isinstance(item['xml'], str) and '<!' not in item['xml'], 'snapshot-xml')
-        root = ET.fromstring(item['xml'])
-        require(root.tag == 'domainsnapshot' and root.findtext('name') == item['name'], 'snapshot-name')
-        memory = root.find('memory')
-        require(memory is None or memory.get('snapshot') in ('no', 'internal'), 'external-snapshot-memory')
-        for disk in root.findall('disks/disk'):
-            require(disk.get('snapshot') in ('no', 'internal'), 'external-snapshot-disk')
+        root = read_internal_snapshot(item['xml'], item['name'], identity, require)
         for domain in root.findall('domain') + root.findall('inactiveDomain'):
             # Historical display names are attested by the preserved rename
             # records during final baseline verification.
             domain = ET.fromstring(ET.tostring(domain))
-            require(domain.findtext('uuid') == identity, 'snapshot-uuid')
             domain.find('name').text = vm.name
             layout = base.domain_layout(ET.tostring(domain, encoding='unicode'), identity)
             require(layout['disk'] in paths, 'snapshot-disk-outside-chain')

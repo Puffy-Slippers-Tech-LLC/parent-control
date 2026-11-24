@@ -265,20 +265,34 @@ def journal(guest, state):
     return rows
 
 
-def station_sessions(guest, uid):
-    result = []
+def station_session_ids(guest, uid):
+    sessions = []
     for line in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager']).splitlines():
         fields = line.split()
         require(len(fields) >= 2 and re.fullmatch(r'[A-Za-z0-9_-]+', fields[0]), 'session-row')
-        if fields[1] != str(uid):
+        if fields[1] == str(uid):
+            sessions.append(fields[0])
+    return sessions
+
+
+def station_sessions(guest, uid):
+    from owned_commands import CommandError
+
+    result = []
+    for session in station_session_ids(guest, uid):
+        try:
+            raw = guest.run(['loginctl', 'show-session', session, '--no-pager',
+                '-p', 'User', '-p', 'Service', '-p', 'Type', '-p', 'Class', '-p', 'State',
+                '-p', 'Seat', '-p', 'Active'])
+        except CommandError as error:
+            # A session can disappear between listing it and reading its properties.
+            if str(error) != 'command:failed:loginctl' or session in station_session_ids(guest, uid):
+                raise
             continue
-        raw = guest.run(['loginctl', 'show-session', fields[0], '--no-pager',
-            '-p', 'User', '-p', 'Service', '-p', 'Type', '-p', 'Class', '-p', 'State',
-            '-p', 'Seat', '-p', 'Active'])
         props = dict(row.split('=', 1) for row in raw.splitlines())
         if props['Class'] in ('manager', 'manager-early') and props['Service'] == 'systemd-user':
             continue
-        result.append((fields[0], props))
+        result.append((session, props))
     require(len(result) <= 1, 'ambiguous-station-session')
     return result
 

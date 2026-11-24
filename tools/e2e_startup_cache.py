@@ -241,6 +241,60 @@ def qualified_cleanup(root, run):
         return status
 
 
+def prepare_fixtures(root, output, build):
+    """Reuse a verified fixture tree independently of its product package."""
+    from artifact_inputs import fixture_inputs
+    from test_storage import directory
+
+    if test_retention.token() is None:
+        build()
+        return
+    allocations = directory('allocations')
+    if not output.is_relative_to(allocations):
+        build()
+        return
+    relative = output.relative_to(allocations)
+    test_retention.private((allocations / relative.parts[0]).stat())
+
+    try:
+        inputs = fixture_inputs(root)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'test-artifacts: fixture reuse unavailable: {error}', flush=True)
+        build()
+        return
+    identity = digest(inputs)
+    name = 'artifact-fixtures'
+    with receipt(root, name, lock=name + '.lock') as (record, save):
+        if (record or {}).get('identity') == identity:
+            with tempfile.TemporaryDirectory(prefix='.fixtures-', dir=output.parent) as temporary:
+                staged = Path(temporary) / 'fixtures'
+                try:
+                    retained = Path(record['path'])
+                    if (retained.is_absolute() or '..' in retained.parts or len(retained.parts) < 2
+                            or retained.name != 'fixtures'):
+                        raise ValueError('invalid retained fixture path')
+                    source = allocations / retained
+                    if source.resolve(strict=True) != source:
+                        raise ValueError('retained fixture path changed')
+                    test_retention.private((allocations / retained.parts[0]).stat())
+                    shutil.copytree(source, staged, symlinks=True)
+                    if tree_digest(staged) != record['payload']:
+                        raise ValueError('retained fixture payload changed')
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass  # Ordinary retention can rotate the cached allocation.
+                else:
+                    if fixture_inputs(root) != inputs:
+                        raise ValueError('startup cache: fixture inputs changed during copy; retry preparation')
+                    staged.rename(output)
+                    save({'identity': identity, 'path': str(relative), 'payload': record['payload']})
+                    print('test-artifacts: reused verified fixture bundle', flush=True)
+                    return
+        build()
+        if fixture_inputs(root) != inputs:
+            raise ValueError('startup cache: fixture build inputs changed; retry preparation')
+        save({'identity': identity, 'path': str(relative), 'payload': tree_digest(output)})
+
+
 def prepare_artifacts(builder, output, target):
     """Build on a miss; never publish partial output or reuse unchecked metadata."""
     from artifact_inputs import capture
@@ -309,7 +363,8 @@ def prepare_artifacts(builder, output, target):
             print('run-tests: verified artifact bundle reused; content identity=' + before, flush=True)
         else:
             builder.build(output, package_format=target.package_format, build_target=target.name,
-                          architecture=target.architecture, reuse=reuse, container_image=container_image)
+                          architecture=target.architecture, reuse=reuse, container_image=container_image,
+                          cache_fixtures=True)
             for part, path in reuse.items():
                 if tree_digest(output / part) != tree_digest(path):
                     raise ValueError('startup cache: payload changed during copy')

@@ -599,9 +599,12 @@ input stop without fallback shortcut or relaunch. GTK top-level
 Parent/feedback retain owned IDs. The Text Editor provider uses
 `license_viewer_snapshot`'s sole owned window/`view` ID and bounded GPL
 content; launch its installed LICENSE by shared command, never title.
-Launch/readiness/metadata/close absence/final window use complete-tree bounded
-read-only waits. Submit launch/close once; an incomplete shutdown tree cannot
-prove absence, and a missing viewer must refuse reactivation without relaunch.
+The post-shortcut wait resolves the destination once per observation and uses
+that window for the activation check and result. Only pending activation polls.
+The viewer's completeness and prompt checks share the desktop observation, so
+they do not sweep unrelated nodes again after traversal. Launch and Close each
+submit once. A complete observation must prove the viewer is absent, and a
+missing viewer must refuse reactivation without relaunch.
 Qualified supporting tuples: Ubuntu Text Editor `50.1-0ubuntu0.1` and
 Fedora `0:50.1-1.fc44`, `en_US.UTF-8`, `[["xkb", "us"]]`.
 Arbitrary switcher order, extra apps and other viewers remain unqualified.

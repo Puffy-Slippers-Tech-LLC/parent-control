@@ -1,7 +1,8 @@
 """Execute only in the guarded VM via make check-system, never on the host."""
 
-import os
 from functools import cache
+import json
+import os
 
 import pytest
 
@@ -18,10 +19,16 @@ def require_isolated_guest():
 
 
 @pytest.fixture(scope='module')
-def installed_readiness():
+def installed_readiness(record_testsuite_property):
     # Each pytest invocation handles one phase. Guarded test bodies share only
     # the unchanged readiness observation, not the kiosk's mutations or results.
-    return cache(guest.installed)
+    @cache
+    def check(*, reboot_required):
+        outcomes = guest.installed(reboot_required=reboot_required, package_boot=not reboot_required)
+        record_testsuite_property('onpc.installed.initial-service-state',
+                                  json.dumps(outcomes, sort_keys=True))
+
+    return check
 
 
 def test_installed_package(installed_readiness):

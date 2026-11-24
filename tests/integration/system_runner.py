@@ -2939,11 +2939,16 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             ledger.pass_outcome('collection')
         if reboot_phases:
             phase = reboot_phases[0]
+            observe_package_boot = any(item.area == 'package' and item.case_id in
+                                       (*PACKAGE_READINESS_CASES, KIOSK_ACTIVATION_CASE)
+                                       for item in phase_executions(selection, phase))
             owner = phase_owner(phase, KIOSK_ACTIVATION_CASE) if any(
                 item.case_id == KIOSK_ACTIVATION_CASE for item in phase_executions(selection, phase)
             ) else phase_owner(phase)
             log('stage:reboot-requested')
             with ledger.measure('reboot', operation=phase):
+                if observe_package_boot:
+                    vm.call(guest_command(run, 'hold-baseline-display-gate'), timeout=180)
                 if current_build:
                     history.start(owner)
                 vm.reboot()
@@ -2954,12 +2959,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     history.start(owner, at_boot=True)
 
             def after_rebooted():
-                with ledger.measure('test', operation='kiosk-activation-' + phase):
-                    run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+                if owner.case_id == KIOSK_ACTIVATION_CASE:
+                    with ledger.measure('test', operation='kiosk-activation-' + phase):
+                        run_kiosk_activation(vm, lease, directory, selection, phase, ledger)
+                vm.call(guest_command(run, 'restore-baseline-display-gate'), timeout=180)
 
             log('stage:pytest-' + phase)
             with ledger.measure('test', operation='pytest-' + phase):
-                if owner.case_id == KIOSK_ACTIVATION_CASE:
+                if observe_package_boot:
                     run_phase(phase, after=after_rebooted, owner=owner)
                 else:
                     run_phase(phase)

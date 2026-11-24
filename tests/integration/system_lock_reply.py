@@ -274,12 +274,29 @@ def history(command, value, path, accounts):
     # Load the installed package through its existing scoped loader before
     # reusing the structured-event decoder in a fresh command process.
     installed_manager()
+
+    def new_events():
+        before = value['lock_log_before']
+        return [row for row in BrokerEvents.read('child')
+                if row['event'] in ('child.locked', 'child.lock-failed') and row not in before]
+
+    if command == 'reply-delayed-release':
+        guest.require(value['grants'] == 1 and not value.get('reply_ack_observed'),
+                      'expiry:lock-reply-release-order')
+        wait_for(lambda: any(row['event'] == 'native-complete' and row['mode'] == 'delayed'
+                             for row in records()), 'expiry:lock-reply-native-call-not-completed',
+                 timeout=10)
+        guest.require(not new_events(), 'expiry:lock-reply-completed-before-release')
+        control('release')
+        wait_for(lambda: any(row['event'] == 'child.locked' for row in new_events()),
+                 'expiry:lock-reply-ack-not-observed', timeout=15)
+        value['reply_ack_observed'] = True
+        path.write_text(json.dumps(value))
+        return {'completed': True}
     if command == 'reply-missing-wait':
         guest.require(value['grants'] == 3 and not value.get('reply_timeout_observed'),
                       'expiry:lock-reply-timeout-order')
-        wait_for(lambda: any(row['event'] == 'child.lock-failed'
-                            and row not in value['lock_log_before']
-                            for row in BrokerEvents.read('child')),
+        wait_for(lambda: any(row['event'] == 'child.lock-failed' for row in new_events()),
                  'expiry:lock-reply-timeout-not-observed', timeout=40)
         value['reply_timeout_observed'] = True
         path.write_text(json.dumps(value))
@@ -317,15 +334,9 @@ def history(command, value, path, accounts):
                       'expiry:lock-reply-original-expiry-not-reached')
         guest.require(account_property(child, LIMITS, 'ActiveExtension') == value['reply_grant'],
                       'expiry:lock-reply-original-grant-changed')
-        def new_events():
-            before = value['lock_log_before']
-            return [row for row in BrokerEvents.read('child')
-                    if row['event'] in ('child.locked', 'child.lock-failed') and row not in before]
         if mode == 'delayed':
-            guest.require(not new_events(), 'expiry:lock-reply-completed-before-release')
-            control('release')
-            wait_for(lambda: any(row['event'] == 'child.locked' for row in new_events()),
-                     'expiry:lock-reply-ack-not-observed', timeout=15)
+            guest.require(value.get('reply_ack_observed') is True,
+                          'expiry:lock-reply-ack-not-observed')
         else:
             guest.require(value.get('reply_timeout_observed') is True
                           and any(row['event'] == 'child.lock-failed' for row in new_events()),

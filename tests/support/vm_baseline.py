@@ -11,17 +11,21 @@ import prepare_vm as guest
 from tests.support.paths import ROOT
 
 UUID = "f95890e1-88e7-4779-8ae3-53fdcc34330a"
-SCRIPT_DIGEST = guest.preparation_digest(ROOT)
+
+
+def local_preparation_digest(checkout=ROOT):
+    # The simulated domains are registered in private test configuration.
+    # Keep their source identity independent of the real checkout's VM names.
+    return guest.preparation_source_digest(
+        lambda relative: (checkout / relative).read_bytes(), guest.SCRIPT_FILES)
+
+
+SCRIPT_DIGEST = local_preparation_digest()
 
 
 def use_local_preparation_source(monkeypatch):
     """Hash real fixture sources without reading the pinned development checkout."""
-    original = guest.preparation_digest
-
-    def preparation_digest(checkout=ROOT):
-        return original(checkout)
-
-    monkeypatch.setattr(guest, "preparation_digest", preparation_digest)
+    monkeypatch.setattr(guest, "preparation_digest", local_preparation_digest)
 
 
 @pytest.fixture

@@ -298,7 +298,12 @@ def install(vm, identifier):
         eject(boot)
         seed.unlink()
         print(f'newvm: booting {vm.name} from disk and applying updates', flush=True)
-        boot_and_wait(identifier, boot, log, 'ONPC-NEWVM-UPDATED ' + identifier, 'First-boot updates')
+        if target.distribution == 'ubuntu':
+            boot_and_wait(identifier, boot, log, 'ONPC-NEWVM-UPDATES-APPLIED ' + identifier,
+                          'First-boot updates')
+            print(f'newvm: booting {vm.name} again to clean up unused kernels', flush=True)
+        boot_and_wait(identifier, boot, log, 'ONPC-NEWVM-UPDATED ' + identifier,
+                      'Kernel cleanup' if target.distribution == 'ubuntu' else 'First-boot updates')
         actual = ET.fromstring(virsh('dumpxml', identifier, '--inactive'))
         if actual.find('./devices/disk[@device="cdrom"]/source') is not None:
             raise ValueError('Installer media is still attached after provisioning')

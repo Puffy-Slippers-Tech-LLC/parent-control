@@ -8,7 +8,7 @@ import sys
 import time
 
 import prepare_vm
-from guest_updates import update_guest
+from guest_updates import cleanup_ubuntu_kernels, update_guest
 
 ROOT = Path('/var/lib/onpc-baseline-preparation')
 BOOT_ID = Path('/proc/sys/kernel/random/boot_id')
@@ -167,6 +167,8 @@ def main(argv=None):
         if not previous or previous == BOOT_ID.read_text().strip():
             return 1
         os_id, _ = prepare_vm.release_identity(prepare_vm._read_os_release(Path('/etc/os-release')))
+        if os_id == 'ubuntu':
+            cleanup_ubuntu_kernels()
         prepare_vm.guest_tools.verify_installed(os_id, runner=prepare_vm.Runner(), root=Path('/'),
             snap_prepared=prepare_vm.vm_config.snap_tests_enabled())
         (root / 'reboot-required').unlink()
@@ -200,6 +202,7 @@ def main(argv=None):
             if os_id == 'fedora' or Path('/run/reboot-required').exists():
                 (root / 'reboot-required').write_text(BOOT_ID.read_text())
                 return 0
+            cleanup_ubuntu_kernels()
         else:
             reconcile_native_packages(os_id)
         (root / 'success').write_text('success\n')

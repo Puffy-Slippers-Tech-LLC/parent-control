@@ -39,6 +39,7 @@ def provision(request):
     import sys
     import xml.etree.ElementTree as ET
     from test_storage import scratch_descriptors
+    from vm_snapshots import replacement_snapshots, undefine_for_replacement
 
     def run(args, **kwargs):
         kwargs['pass_fds'] = tuple(dict.fromkeys((*kwargs.get('pass_fds', ()),
@@ -89,12 +90,16 @@ def provision(request):
             raise ValueError('Existing VM identity changed; run newvm again')
         if request['name'] in virsh('list', '--name').splitlines():
             raise ValueError('Existing VM must be powered off before overwrite')
-        sources = existing.findall('./devices/disk[@device="disk"]/source')
-        if (len(sources) != 1 or sources[0].get('file') != str(disk) or
+        disks = existing.findall('./devices/disk[@device="disk"]')
+        if (len(disks) != 1 or disks[0].get('type') != 'file' or disks[0].find('source') is None or
+                disks[0].find('source').get('file') != str(disk) or
+                disks[0].find('backingStore/source') is not None or
+                disks[0].find('target') is None or not disks[0].find('target').get('dev') or
+                disks[0].find('driver') is None or disks[0].find('driver').get('type') != 'qcow2' or
                 existing.find('./os/nvram') is not None):
-            raise ValueError('Overwrite requires one disk at the requested destination and no NVRAM')
-        if virsh('snapshot-list', request['name'], '--name').strip():
-            raise ValueError('Existing VM has snapshots; remove them through the maintained workflow first')
+            raise ValueError('Overwrite requires one standalone QCOW2 disk at the requested destination and no NVRAM')
+        target = disks[0].find('target').get('dev')
+        snapshots = replacement_snapshots(virsh, request['overwrite_uuid'], disk, target)
     def check_references():
         for name in filter(None, virsh('list', '--all', '--name').splitlines()):
             if existing is not None and name == request['name']:
@@ -137,18 +142,24 @@ def provision(request):
                 raise ValueError('VM definition changed while waiting for checkout; run newvm again')
             if request['name'] in virsh('list', '--name').splitlines():
                 raise ValueError('Existing VM is active; overwrite refused')
-            if virsh('snapshot-list', request['name'], '--name').strip():
-                raise ValueError('Existing VM acquired snapshots while waiting; overwrite refused')
             check_references()
             descriptor = os.open(disk, os.O_RDWR | os.O_NOFOLLOW)
             info = os.fstat(descriptor)
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                 raise ValueError('Overwrite requires a regular disk file with one hard link')
+            image = json.loads(run(['qemu-img', 'info', '--output=json', '-f', 'qcow2',
+                                    f'/proc/self/fd/{descriptor}'], pass_fds=(descriptor,)))
+            specific = image.get('format-specific', {}).get('data', {})
+            if (image.get('backing-filename') or image.get('encrypted') or
+                    any(specific.get(key) for key in ('data-file', 'encrypt', 'corrupt'))):
+                raise ValueError('Overwrite requires a standalone QCOW2 disk without external data')
+            if replacement_snapshots(virsh, request['overwrite_uuid'], disk, target) != snapshots:
+                raise ValueError('Existing VM snapshots changed while waiting; overwrite refused')
             run(['/usr/bin/pkexec', '--disable-internal-agent', '--keep-cwd',
                  '/usr/local/libexec/onpc-test-runner',
                  '--vm-checkout=' + json.loads(receipt)['checkout'],
                  'pool-retire', request['name'], request['overwrite_uuid']], cwd=request['checkout'])
-            virsh('undefine', request['name'])
+            undefine_for_replacement(virsh, request['overwrite_uuid'], disk, target, snapshots)
         else:
             if request.get('overwrite_uuid'):
                 raise ValueError('Confirmed VM disappeared; run newvm again')
@@ -244,8 +255,13 @@ def install_and_prepare(root, vm, identifier):
                  *arguments(), 'prepare-vm', '--mode', 'manual', '--y', '--vm', vm.name],
                 cwd=root, pass_fds=scratch_descriptors(), check=False,
                 env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'})
+            if result.returncode:
+                raise ValueError(f'Manual preparation failed (status {result.returncode})')
+    with test_source.reader(root):
+        result = subprocess.run([str(root / 'setup.sh'), '--test-tools-only'], cwd=root,
+                                pass_fds=scratch_descriptors(), check=False)
         if result.returncode:
-            raise ValueError(f'Manual preparation failed (status {result.returncode})')
+            raise ValueError(f'Test tool refresh failed (status {result.returncode})')
 
 
 def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, root=ROOT):
@@ -378,7 +394,7 @@ def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, roo
             result = execute()
             if 'existing_uuid' in result:
                 confirm(f'VM {name} already exists in libvirt on {host_name}. '
-                        f'Overwrite it and ERASE ALL DATA on {result["disk"]}?')
+                        f'Overwrite it and ERASE ITS SNAPSHOTS AND ALL DATA on {result["disk"]}?')
                 request['overwrite_uuid'] = result['existing_uuid']
                 result = execute()
             print(f'newvm: domain {name} ({identifier}) and disk {result["disk"]} created; '

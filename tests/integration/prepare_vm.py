@@ -99,6 +99,7 @@ SNAPSHOT_SOURCE_SYMBOLS = {
         '_write_text', '_set_reproducible_times'),
     'tests/integration/baseline_fixtures.py': (
         'RECORD', 'PURPOSE', 'CLEAN_PURPOSE', 'RETIRE_RECORD', 'environment_files', '_clean_declaration',
+        '_prior_environment_files',
         'movable_files', '_present', '_retirement_plan', 'reconcile_clean', 'verify_clean',
         'require', 'accounts', 'directory', 'regular', 'write_record',
         'native_trust_provenance', 'verify_foreign_trust', 'preflight_backend', 'reconcile_backend',
@@ -1135,14 +1136,6 @@ def main(password=None) -> int:
                 target = runner.run(['systemctl', 'get-default']).stdout.strip()
             if target != 'graphical.target':
                 raise PreparationError('verify:graphical-target', 'Fedora test VMs require a graphical boot')
-            # GNOME Software requests a system Flatpak OCI summary at startup
-            # even with automatic updates disabled. Inactive sessions can get
-            # an authentication prompt. Prevent service activation in test VMs.
-            user_units = ['systemctl', '--user', '--global']
-            service = 'gnome-software.service'
-            runner.run([*user_units, 'mask', service])
-            if runner.run([*user_units, 'is-enabled', service], check=False).stdout.strip() != 'masked':
-                raise PreparationError('verify:software-updates', 'GNOME Software service remains unmasked')
         snap_prepared = vm_config.snap_tests_enabled()
         if snap_prepared:
             from baseline_snaps import reconcile as reconcile_snaps

@@ -333,6 +333,11 @@ def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, roo
         if not template.is_relative_to(root.resolve()):
             raise ValueError('VM XML template must be inside the checkout')
         domain = ET.fromstring(template.read_text())
+        if (domain.find('./cpu/numa/cell') is not None or
+                domain.find('maxMemory') is not None or
+                domain.find('./devices/memory') is not None):
+            raise ValueError('VM RAM sizing from compute_unit requires a template without '
+                             'guest NUMA cells or memory hotplug settings')
         capacity = domain.find('./metadata/{urn:onpc:newvm}disk')
         size = capacity.get('size-gib', '') if capacity is not None else ''
         if not size.isdecimal() or not 1 <= int(size) <= 65536:
@@ -348,6 +353,17 @@ def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, roo
         identifier = str(uuid.uuid4())
         domain.find('name').text = name
         ET.SubElement(domain, 'uuid').text = identifier
+        memory_kib = vm.compute_unit * 1024 ** 2
+        # Libvirt's XML parser caps RAM below 2**63 bytes.
+        if not 1 <= memory_kib < 2 ** 53:
+            raise ValueError('VM compute_unit yields a RAM size outside libvirt XML limits')
+        memory_value = str(round(memory_kib))
+        for tag in ('memory', 'currentMemory'):
+            memory = domain.find(tag)
+            if memory is None:
+                memory = ET.SubElement(domain, tag)
+            memory.set('unit', 'KiB')
+            memory.text = memory_value
         for interface in domain.findall('./devices/interface'):
             for mac in interface.findall('mac'):
                 interface.remove(mac)  # libvirt allocates a fresh address

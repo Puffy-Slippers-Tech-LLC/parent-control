@@ -5626,12 +5626,13 @@ must refuse.
 [`UpdateNoActionJourney`](../../tests/e2e/update_no_action.py) implement the
 LIFE04/LIFE05 none binding, qualified on Fedora 44 by
 `check_e2e_update_no_action`.
-[`build_no_action`](../../tools/build_test_artifacts.py) builds the same exact
-current RPM source generation with the supported packaging Releases `0.1.dev`
-and `0.2.dev`, recording both release inputs, source identities and package
-digests. The DEB profile retains unmodified commits
-`6efaef6e8adf0288ae0aa0462f53e6f69ce959e8` (1.5) and
-`a0171bcd9b3d48a0fd1f409028f96316398b4009` (2.0).
+[`build_no_action`](../../tools/build_test_artifacts.py) builds both packages
+from one current source generation. RPM uses packaging Releases `0.1.dev` and
+`0.2.dev`. DEB appends `~activation1` to the private predecessor's changelog
+version and keeps the changelog date and product files identical. The verifier
+reconstructs the predecessor's source identity. New DEB attempts use their own
+named input so a saved historical build cannot shadow the version-only pair.
+The pinned historical 1.5 and 2.0 DEB pair remains readable for verification.
 Verification requires strictly increasing native versions and compares the
 shipped activation manifests with the unchanged product classifier. Any
 actionable impact refuses before input. Equal source digests are allowed only
@@ -5646,9 +5647,11 @@ allowance and the same boot/session. No update restart or engineering policy
 matrix is added; complete lifecycle cases remain separate.
 
 The historical RPM pair is rejected because five native binaries carry changed
-build metadata and collectively require reboot. The current packaging repair
-keeps unchanged native bytes stable instead of adding a second activation hash
-format. The finite release-only RPM pair passes that unchanged comparison.
+build metadata and collectively require reboot. On current Ubuntu builders, the
+historical DEB pair ships package-version ELF notes and rewrites the launcher
+image metadata to different changelog dates. The current packaging rules and
+the equal changelog date keep the new DEB pair's activation payload stable.
+Both profiles retain the same shipped-manifest comparison.
 The clean installed journey passed the real update, exact success line with no
 restart notice, unchanged boot, and the same usable Parent endpoint/PID with
 Riley's saved 30-minute allowance. Collection, worker shutdown, owned cleanup,

@@ -43,6 +43,7 @@ NATIVE_RUNTIME_SOURCES = (
 PACKAGE_TOOLS = ('make', 'cc', 'dpkg-buildpackage', 'dpkg-deb', 'dpkg-architecture',
                  'glib-compile-schemas', 'git')
 FIXTURE_TOOLS = ('cc', 'flatpak', 'snap', 'mksquashfs', 'ldd', 'dpkg-deb', 'rpmbuild')
+BUILD_PATH = '/usr/sbin:/usr/bin:/sbin:/bin'
 
 
 def dependency_names(value):
@@ -107,7 +108,7 @@ def tool_packages(paths):
     return packages
 
 
-def runtime_inputs(root):
+def runtime_inputs(root, *, parts=('package', 'fixtures')):
     """Capture managed build dependencies and executable Python/tool bytes.
 
     Builders run without site initialization. Neither pytest/GTK test imports,
@@ -115,10 +116,11 @@ def runtime_inputs(root):
     Dependency closure uses installed Debian records, including virtual providers.
     """
     from e2e_startup_cache import digest, file_digest
-    control = Parser().parsestr((root / 'debian/control').read_text().split('\n\n')[0])
     package_roots = {'build-essential', 'python3', 'git'}
-    for field in ('Build-Depends', 'Build-Depends-Arch', 'Build-Depends-Indep'):
-        package_roots.update(dependency_names(control.get(field, '')))
+    if 'package' in parts:
+        control = Parser().parsestr((root / 'debian/control').read_text().split('\n\n')[0])
+        for field in ('Build-Depends', 'Build-Depends-Arch', 'Build-Depends-Indep'):
+            package_roots.update(dependency_names(control.get(field, '')))
     fixture_roots = {'build-essential', 'python3', 'python3-gi', 'python3-cairo',
                      'gir1.2-gtk-4.0', 'libgirepository-2.0-0', 'flatpak', 'snapd',
                      'squashfs-tools', 'fonts-dejavu-core', 'xkb-data', 'libc-bin'}
@@ -137,7 +139,10 @@ def runtime_inputs(root):
     result = {}
     for name, roots, commands in (('package', package_roots, PACKAGE_TOOLS),
                                    ('fixtures', fixture_roots, FIXTURE_TOOLS)):
-        commands = {command: shutil.which(command) for command in commands}
+        if name not in parts:
+            continue
+        path = BUILD_PATH if name == 'fixtures' else None
+        commands = {command: shutil.which(command, path=path) for command in commands}
         binaries = {name: [path, file_digest(Path(path).resolve())] if path else None
                     for name, path in commands.items()}
         result[name] = dict(common, packages=digest(package_records(
@@ -150,6 +155,20 @@ def runtime_inputs(root):
         ['directory', stat.S_IMODE(path.stat().st_mode)] if path.is_dir()
         else file_digest(path.resolve())] for name, path in runtime_sources().items()})
     return result
+
+
+def fixture_inputs(root, *, runtime=None, shared=None):
+    if runtime is None:
+        runtime = runtime_inputs(root, parts=('fixtures',))['fixtures']
+    if shared is None:
+        shared = builder_inputs(root)
+    return {'source': source_files(root, FIXTURE_SOURCES, imports=FIXTURE_IMPORTS),
+            'shared': shared, **runtime}
+
+
+def builder_inputs(root):
+    return source_files(root, ('tools/build_test_artifacts.py', 'tools/artifact_inputs.py'),
+                        imports=('tools/artifact_inputs.py',))
 
 
 def rpm_container_inputs(root, target, *, container_image=None):
@@ -170,8 +189,7 @@ def capture(builder, target, *, container_image=None):
     metadata = builder._target_metadata(
         builder._metadata(paths, builder.package_inputs.digest(root, paths)), root, target)
     runtime = runtime_inputs(root)
-    shared = source_files(root, ('tools/build_test_artifacts.py', 'tools/artifact_inputs.py'),
-                          imports=('tools/artifact_inputs.py',))
+    shared = builder_inputs(root)
     backend = (('tools/build_rpm.py', 'tools/rpm_builder.py') if target.package_format == 'rpm'
                else ('tools/deb_builder.py',))
     inputs = {
@@ -180,8 +198,7 @@ def capture(builder, target, *, container_image=None):
                                                    'tools/build_targets.py', *backend),
                                             imports=('tools/package_inputs.py', *backend)),
                     'shared': shared, **runtime['package']},
-        'fixtures': {'source': source_files(root, FIXTURE_SOURCES, imports=FIXTURE_IMPORTS),
-                     'shared': shared, **runtime['fixtures']},
+        'fixtures': fixture_inputs(root, runtime=runtime['fixtures'], shared=shared),
     }
     if target.package_format == 'rpm':
         inputs['package']['container'] = rpm_container_inputs(root, target, container_image=container_image)

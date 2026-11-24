@@ -26,6 +26,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from artifact_inputs import BUILD_PATH
 from tools import package_inputs, build_targets, upgrade_history
 
 
@@ -54,8 +55,7 @@ PREVIOUS_RELEASES = {
 RPM_PRIOR_TARGET = 'fedora44'
 RPM_PRIOR_INSTALLER = 'fedora-workstation'
 RPM_PRIOR_OS_CHECK = '[ "$ID" != fedora ] || [ "$VARIANT_ID" != workstation ]'
-# A real, unmodified version-only update. The adjacent source commits change
-# app metadata, changelog and release notes, not running-service payloads.
+# Legacy no-action inputs remain readable for verification.
 NO_ACTION_REVISIONS = {
     'previous': '6efaef6e8adf0288ae0aa0462f53e6f69ce959e8',
     'current': 'a0171bcd9b3d48a0fd1f409028f96316398b4009',
@@ -65,6 +65,7 @@ NO_ACTION_VERSIONS = {
     'rpm': ('0:1.5-0.1.dev.fc44', '0:2.0-0.1.dev.fc44'),
 }
 NO_ACTION_RPM_RELEASES = {'previous': '0.1.dev', 'current': '0.2.dev'}
+DEB_ACTIVATION_SUFFIX = '~activation1'
 # Finite process profile: retain today's packaging and payload, with
 # only the actual pre-55a2c1ea broker module in the older package. No invented
 # product logic or activation manifest is written by the fixture builder.
@@ -220,7 +221,7 @@ def _metadata(source_paths: list[Path], source_digest: str) -> dict[str, Any]:
 
 
 def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None,
-          build_target=None, architecture='x86_64', container_image=None) -> Path:
+          build_target=None, architecture='x86_64', container_image=None, cache_fixtures=False) -> Path:
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     source_paths = package_inputs.paths(REPOSITORY)
@@ -228,7 +229,7 @@ def build(output: Path, *, package_format, reuse: dict[str, Path] | None = None,
     metadata = _metadata(source_paths, source_digest)
     return _build(output, REPOSITORY, source_paths, source_digest, metadata,
                   reuse=reuse, package_format=package_format, build_target=build_target,
-                  architecture=architecture, container_image=container_image)
+                  architecture=architecture, container_image=container_image, cache_fixtures=cache_fixtures)
 
 
 def _target_metadata(metadata, source_root, target, rpm_release='0.1.dev'):
@@ -243,7 +244,8 @@ def _target_metadata(metadata, source_root, target, rpm_release='0.1.dev'):
 
 
 def _build(output, source_root, source_paths, source_digest, metadata, *, package_format, reuse=None,
-           rpm_release='0.1.dev', build_target=None, architecture='x86_64', container_image=None):
+           rpm_release='0.1.dev', build_target=None, architecture='x86_64', container_image=None,
+           cache_fixtures=False):
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
     target = build_targets.get(build_target or ('fedora44' if package_format == 'rpm' else 'ubuntu26.04'),
@@ -259,7 +261,7 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
         # cannot affect either artifacts or their reuse identity.
         home = temporary / 'home'
         home.mkdir()
-        environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8",
+        environment = {"PATH": BUILD_PATH, "LANG": "C.UTF-8",
                        "HOME": str(home), "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1",
                        "SOURCE_DATE_EPOCH": str(metadata["build_inputs"]["source_date_epoch"]),
                                     "DEB_BUILD_OPTIONS": metadata["build_inputs"]["deb_build_options"]}
@@ -312,8 +314,15 @@ def _build(output, source_root, source_paths, source_digest, metadata, *, packag
         else:
             # Fixture contents are independent of the product commit timestamp.
             fixture_environment = environment | {'SOURCE_DATE_EPOCH': '0'}
-            _run([sys.executable, '-I', '-S', '-B', str(FIXTURE_BUILDER), "--output", str(fixture_output)],
-                 cwd=REPOSITORY, environment=fixture_environment)
+            def build_fixtures():
+                _run([sys.executable, '-I', '-S', '-B', str(FIXTURE_BUILDER), '--output', str(fixture_output)],
+                     cwd=REPOSITORY, environment=fixture_environment)
+
+            if cache_fixtures:
+                from e2e_startup_cache import prepare_fixtures
+                prepare_fixtures(REPOSITORY, fixture_output, build_fixtures)
+            else:
+                build_fixtures()
         manifest = {"schema_version": SCHEMA_VERSION, **metadata, "artifacts": {
             "package": {"path": f"package/{destination.name}", "sha256": _sha256(destination)},
             "fixtures": {"path": "fixtures", "digest_manifest": "fixtures/SHA256SUMS.json", "sha256": _fixture_digest(fixture_output)},
@@ -412,33 +421,9 @@ def historical_identity(root, revision):
 
 
 def build_no_action(output, *, package_format, build_target=None, architecture='x86_64'):
-    """Build genuine increasing packages without rewriting product sources."""
-    output = _require_empty_output(output)
-    if package_format == 'rpm':
-        # Release is a public packaging input, separate from the product version.
-        # Both packages bind one exact source generation; only that input varies.
-        selected = package_inputs.paths(REPOSITORY)
-        digest = package_inputs.digest(REPOSITORY, selected)
-        for label, release in NO_ACTION_RPM_RELEASES.items():
-            metadata = _metadata(selected, digest)
-            metadata['source']['rpm_release'] = release
-            _build(output / label, REPOSITORY, selected, digest, metadata,
-                   package_format=package_format, rpm_release=release,
-                   build_target=build_target, architecture=architecture,
-                   reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
-        verify_upgrade(output)
-        return
-    for label, revision in NO_ACTION_REVISIONS.items():
-        with historical_source(revision) as root:
-            source = historical_identity(root, revision)
-            selected = package_inputs.paths(root)
-            metadata = _metadata(selected, source['digest_sha256'])
-            metadata['source'] = source
-            metadata['build_inputs']['source_date_epoch'] = int(_run(
-                ['git', 'show', '-s', '--format=%ct', revision], cwd=REPOSITORY).stdout.strip())
-            _build(output / label, root, selected, source['digest_sha256'], metadata,
-                   package_format=package_format, build_target=build_target, architecture=architecture)
-    verify_upgrade(output)
+    """Build increasing native packages from the same product payload."""
+    build_activation(output, package_format=package_format, profile='none',
+                     build_target=build_target, architecture=architecture)
 
 
 @contextmanager
@@ -463,16 +448,20 @@ def reboot_source(*, repository=None, package_format='rpm'):
 
 
 @contextmanager
-def activation_source(baseline, module, *, repository=None, package_format='rpm'):
+def activation_source(baseline=None, module=None, *, repository=None, package_format='rpm'):
     repository = REPOSITORY if repository is None else repository
+    if baseline is None and package_format == 'rpm':
+        yield repository
+        return
     from tools.test_storage import scratch_directory
     with tempfile.TemporaryDirectory(prefix='onpc-process-source-', dir=scratch_directory()) as name:
         root = Path(name)
         _copy_source(package_inputs.paths(repository), root, root=repository)
-        with historical_source(baseline, repository=repository) as old:
-            shutil.copy2(old / module, root / module)
-        if (root / module).read_bytes() == (repository / module).read_bytes():
-            raise ArtifactError('activation profile requires changed payload')
+        if baseline is not None:
+            with historical_source(baseline, repository=repository) as old:
+                shutil.copy2(old / module, root / module)
+            if (root / module).read_bytes() == (repository / module).read_bytes():
+                raise ArtifactError('activation profile requires changed payload')
         if package_format == 'deb':
             # Debian takes its version from the changelog, rather than a
             # separate RPM Release input. Give only the private predecessor a
@@ -481,8 +470,16 @@ def activation_source(baseline, module, *, repository=None, package_format='rpm'
             version = _run(['dpkg-parsechangelog', '-l' + str(changelog),
                             '-S', 'Version']).stdout.strip()
             changelog.write_text(changelog.read_text().replace(
-                '(' + version + ')', '(' + version + '~activation1)', 1))
+                '(' + version + ')', '(' + version + DEB_ACTIVATION_SUFFIX + ')', 1))
         yield root
+
+
+ACTIVATION_INPUTS = {
+    'none': (activation_source, 'deb_version_suffix', DEB_ACTIVATION_SUFFIX),
+    'process': (process_source, 'process_baseline', PROCESS_BASELINE),
+    'session': (session_source, 'session_baseline', SESSION_BASELINE),
+    'reboot': (reboot_source, 'reboot_baseline', REBOOT_BASELINE),
+}
 
 
 def build_process(output, *, package_format):
@@ -496,9 +493,7 @@ def build_session(output, *, package_format):
 def build_activation(output, *, package_format, profile, build_target=None, architecture='x86_64'):
     if package_format not in ('deb', 'rpm'):
         raise ArtifactError('unsupported package format')
-    source, baseline = {'process': (process_source, PROCESS_BASELINE),
-                        'session': (session_source, SESSION_BASELINE),
-                        'reboot': (reboot_source, REBOOT_BASELINE)}[profile]
+    source, marker, value = ACTIVATION_INPUTS[profile]
     output = _require_empty_output(output)
     for label, release in NO_ACTION_RPM_RELEASES.items():
         with source(package_format=package_format) if label == 'previous' else nullcontext(REPOSITORY) as root:
@@ -507,11 +502,11 @@ def build_activation(output, *, package_format, profile, build_target=None, arch
             metadata = _metadata(selected, digest)
             if package_format == 'rpm':
                 metadata['source']['rpm_release'] = release
-            if label == 'previous':
-                metadata['source'][profile + '_baseline'] = baseline
+            if label == 'previous' and (profile != 'none' or package_format == 'deb'):
+                metadata['source'][marker] = value
             _build(output / label, root, selected, digest, metadata,
                    package_format=package_format, rpm_release=release,
-                   build_target=build_target, architecture=architecture,
+                   build_target=build_target, architecture=architecture, cache_fixtures=True,
                    reuse={'fixtures': output / 'previous' / 'fixtures'} if label == 'current' else None)
     verify_upgrade(output)
 
@@ -617,7 +612,7 @@ def build_upgrade(output, *, package_format, build_target=None, architecture='x8
         prepare_current(builder, current, root, target, metadata,
                         lambda container_image=None: _build(current, root, paths,
                             metadata['source']['digest_sha256'], metadata,
-                            container_image=container_image, **target_options))
+                            container_image=container_image, cache_fixtures=True, **target_options))
     with released_source(package_format=package_format, **({'release': release} if upgrade_from else {})) as root:
         source = release_identity(root, release, named=bool(upgrade_from))
         previous = output / 'previous'
@@ -736,35 +731,32 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     process = 'process_baseline' in previous['source']
     session = 'session_baseline' in previous['source']
     reboot = 'reboot_baseline' in previous['source']
+    deb_no_action = package_format == 'deb' and 'deb_version_suffix' in previous['source']
     activation_profile = process or session or reboot
     rpm_no_action = (package_format == 'rpm' and 'rpm_release' in previous['source']
                      and not activation_profile)
-    no_action = historical_no_action or rpm_no_action
+    no_action = historical_no_action or rpm_no_action or deb_no_action
     release_name = previous['source'].get('release_name')
     if release_name is not None and (no_action or activation_profile):
         raise ArtifactError('ambiguous upgrade test source')
     main = upgrade_history.main_revision(repository) if release_name is not None else None
     release_version = release['version']
     prior_fedora44_only = True
-    if activation_profile:
-        if sum((process, session, reboot)) != 1:
+    if activation_profile or deb_no_action:
+        if historical_no_action or sum((process, session, reboot, deb_no_action)) != 1:
             raise ArtifactError('ambiguous activation profile')
-        profile = 'reboot' if reboot else 'session' if session else 'process'
-        baseline, source = {'reboot': (REBOOT_BASELINE, reboot_source),
-                            'session': (SESSION_BASELINE, session_source),
-                            'process': (PROCESS_BASELINE, process_source)}[profile]
-        if previous['source'].get(profile + '_baseline') != baseline:
-            raise ArtifactError('activation baseline mismatch')
+        profile = 'reboot' if reboot else 'session' if session else 'process' if process else 'none'
+        source, marker, value = ACTIVATION_INPUTS[profile]
         with source(repository=repository, package_format=package_format) as root:
             selected_previous = package_inputs.paths(root)
             expected_previous = {**current['source'],
                 'digest_sha256': package_inputs.digest(root, selected_previous),
                 'file_count': len(selected_previous),
-                profile + '_baseline': baseline}
+                marker: value}
             if package_format == 'rpm':
                 expected_previous['rpm_release'] = NO_ACTION_RPM_RELEASES['previous']
             if previous['source'] != expected_previous:
-                raise ArtifactError('process source identity mismatch')
+                raise ArtifactError('activation source identity mismatch')
         if package_format == 'rpm' and current['source'].get('rpm_release') != NO_ACTION_RPM_RELEASES['current']:
             raise ArtifactError('process RPM release input mismatch')
     elif rpm_no_action:
@@ -838,8 +830,8 @@ def verify_upgrade(output, *, staged=False, repository=None, package_only=False)
     if rpm_no_action or (activation_profile and package_format == 'rpm'):
         old_version = f"0:{current_version}-{NO_ACTION_RPM_RELEASES['previous']}{target.dist}"
         expected = f"0:{current_version}-{NO_ACTION_RPM_RELEASES['current']}{target.dist}"
-    elif activation_profile:
-        old_version = expected + '~activation1'
+    elif activation_profile or deb_no_action:
+        old_version = expected + DEB_ACTIVATION_SUFFIX
     elif historical_no_action:
         old_version, expected = NO_ACTION_VERSIONS[package_format]
     if package_format == 'deb':
@@ -1012,7 +1004,7 @@ def main() -> int:
                         help='build pinned genuine prior-release/current inputs for the selected format')
     parser.add_argument('--upgrade-from', help='dated earlier product release tag for --upgrade-inputs')
     parser.add_argument('--no-action-inputs', action='store_true',
-                        help='build the reviewed release-only RPM or authentic 1.5/2.0 DEB update')
+                        help='build the finite version-only update with no activation')
     parser.add_argument('--process-inputs', action='store_true',
                         help='build the finite older-broker/current process update')
     parser.add_argument('--session-inputs', action='store_true',
@@ -1086,7 +1078,7 @@ def main() -> int:
                              and shutil.which('podman') is not None)
             if not native_ubuntu or (target.package_format == 'rpm' and not container_rpm):
                 build(arguments.output, package_format=target.package_format,
-                      build_target=target.name, architecture=target.architecture)
+                      build_target=target.name, architecture=target.architecture, cache_fixtures=True)
                 return 0
             # Import by the same tools path used by the maintained launchers.
             from e2e_startup_cache import prepare_artifacts

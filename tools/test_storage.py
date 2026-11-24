@@ -276,6 +276,8 @@ def named_input(*, package_source=False, fixture_source=False, upgrade_source=Fa
     else:
         from vm_selection import selected
     vm = selected(required=vm_source)
+    if no_action_source and (vm is None or vm.require_package_format() == 'deb'):
+        prefix += 'deb-version-only-'
     if vm is not None:
         prefix += vm.name + '-'
     base = storage_base() / ('host/allocations/' + prefix + identity)

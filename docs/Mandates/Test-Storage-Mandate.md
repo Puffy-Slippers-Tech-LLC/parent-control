@@ -137,6 +137,14 @@ when frozen source contents and qualified build inputs match. Other builders
 share builds within each frozen queue pass. Each worker verifies its copy before
 installation.
 
+Automatic artifact preparation also reuses the complete host-built fixture tree
+across matching package targets and upgrade inputs. One locked receipt per
+storage checkout binds fixture sources and host build inputs to the digest of a
+tree in an ordinary retained allocation, including the Flatpak delivery files.
+Each consumer copies and verifies the tree in its own allocation. An expired or
+changed copy is rebuilt from the current inputs. Explicit artifact builds and
+reproducibility checks still build fresh fixtures.
+
 ## Prohibited storage choices
 
 - Test producers must not choose `/tmp`, `/var/tmp`, a caller-supplied `TMPDIR`

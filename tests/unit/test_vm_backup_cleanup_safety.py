@@ -1626,7 +1626,7 @@ def test_scoped_setup_dispatcher_accepts_only_registered_queue(action, backup_ri
     assert [vm.name for vm in vm_config.execution('all')[1]] == ['Backup-guest']
 
 
-def test_preparation_proof_uses_captured_sources_and_ignores_backup_root(tmp_path, monkeypatch):
+def test_preparation_proof_uses_captured_sources_and_selected_vm(tmp_path, monkeypatch):
     import prepare_vm as guest
     from tools import test_storage, vm_source_snapshot
 
@@ -1634,14 +1634,27 @@ def test_preparation_proof_uses_captured_sources_and_ignores_backup_root(tmp_pat
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((ROOT / relative).read_bytes())
-    before = guest.preparation_digest(tmp_path)
     config = tmp_path / 'config/environment.json'
     document = json.loads(config.read_text())
+    family = document['families'][0]
+    profiles = vm_config.vm_profiles(document)
+    selected = vm_config.resolve_vm_entry(family['vms'][0], family, profiles)['name']
+    monkeypatch.setenv(vm_config.VARIABLE, selected)
+    before = guest.preparation_digest(tmp_path)
     document['hosts'][0]['backup_root'] = '/replacement-drive/backups'
     document['hosts'][0]['max_compute_unit'] = 1
     document['hosts'][1]['enabled'] = 'true'
+    family['vms'].append({'id': 4567})
+    document['families'][-1]['vms'].append({'id': 4568})
     config.write_text(json.dumps(document))
     assert guest.preparation_digest(tmp_path) == before
+
+    entry = family['vms'][0]
+    family['vms'][0] = {**entry, 'disk_anchor': '/replacement-drive/selected.qcow2'}
+    config.write_text(json.dumps(document))
+    assert guest.preparation_digest(tmp_path) != before
+    family['vms'][0] = entry
+    config.write_text(json.dumps(document))
 
     monkeypatch.setattr(test_storage, 'scratch_directory', lambda: tmp_path)
     dependencies = tmp_path / 'tests/integration/guest_test_dependencies.py'

@@ -132,8 +132,16 @@ def repair_prompt(failure, *, record=False):
         'Runner result directory: ' + os.environ.get('ONPC_TEST_RESULT_DIRECTORY', '') + '\n'
         'Read the ordinary runner\'s actual outcome before completing the goal; '
         'a successful edit or a proposed validation command is not validation.\n\n'
-        'Complete the goal after the repair and validation finish. Return a short plain '
-        'account of the change and validation.\n')
+        'A passing rerun alone does not establish the cause of the original failure. '
+        'Use the original failure evidence and scoped diagnostics to investigate it. '
+        'Make a correction only when the evidence supports it. Complete the goal after '
+        'the investigation and scoped validation finish. In the final plain-text summary, '
+        'identify the failed operation and report its diagnosis, any correction and the '
+        'latest runner verdict. If the failed operation passed on rerun and the cause is '
+        'still unknown, say "Passed on rerun; cause undetermined." If only a supporting '
+        'diagnostic ran, name its scope and state that the failed operation still needs a '
+        'rerun. If a cause was identified, explain what evidence supports it and '
+        'whether a correction was validated.\n')
 
 
 def supervise(root, run, owner, kind, payload):

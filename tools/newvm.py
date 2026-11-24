@@ -264,7 +264,24 @@ def install_and_prepare(root, vm, identifier):
             raise ValueError(f'Test tool refresh failed (status {result.returncode})')
 
 
-def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, root=ROOT):
+def profile_family(document, profile_name):
+    profiles = document['vm_configs']
+    if profile_name not in profiles:
+        raise ValueError(f'Unknown VM profile: {profile_name}')
+    # The registry validator has already checked the inheritance chain for cycles.
+    ancestor = profile_name
+    while ancestor is not None:
+        families = [family for family in document['families'] if family['parent_config'] == ancestor]
+        if len(families) == 1:
+            return families[0]
+        if families:
+            names = ', '.join(family['family'] for family in families)
+            raise ValueError(f'VM profile {profile_name} matches multiple families: {names}')
+        ancestor = profiles[ancestor].get('parent_config')
+    raise ValueError(f'VM profile {profile_name} does not match a configured family')
+
+
+def create(vm_id, host_name, profile_name, *, blank=False, root=ROOT):
     if len(vm_id) > vm_config.MAX_NAME_LENGTH or not re.fullmatch(r'[1-9][0-9]*', vm_id):
         raise ValueError(f'VM ID must be a positive decimal integer of at most '
                          f'{vm_config.MAX_NAME_LENGTH} digits')
@@ -280,14 +297,11 @@ def create(vm_id, host_name, family_name, *, profile_name=None, blank=False, roo
         owner = tool_host(root, document)
         hosts = vm_config.host_registry(document)
         registered = vm_config.parse_configuration(document)[1]
-        family = vm_config.family_selectors(document).get(family_name.casefold())
-        if family is None:
-            raise ValueError(f'Unknown family: {family_name}')
+        family = profile_family(document, profile_name)
         family_name = family['family']
         profiles = vm_config.vm_profiles(document)
         entry = dict(id=int(vm_id))
-        default_profile = family['parent_config']
-        if profile_name is not None and profile_name != default_profile:
+        if profile_name != family['parent_config']:
             entry['parent_config'] = profile_name
         if host_name is not None:
             entry['host'] = vm_config.validate_name(host_name)
@@ -473,14 +487,12 @@ def dispatch():
                         help='Positive decimal VM ID used to resolve the VM name from its profile')
     parser.add_argument(vm_config.VMHOST_OPTION, metavar='HOST',
                         help='Override the host inherited from the VM profile')
-    parser.add_argument('--vmconfig', metavar='PROFILE',
-                        help='Select a VM profile in place of the family default')
-    parser.add_argument('--family', required=True,
-                        help='Existing family name or ID in config/environment.json (case-insensitive)')
+    parser.add_argument('--vmconfig', required=True, metavar='PROFILE',
+                        help='VM profile in config/environment.json that determines the VM family')
     parser.add_argument('--blank', action='store_true',
                         help='Create a powered-off blank VM with the configured ISO inserted')
     args = parser.parse_args()
-    create(args.id, args.vmhost, args.family, profile_name=args.vmconfig, blank=args.blank)
+    create(args.id, args.vmhost, args.vmconfig, blank=args.blank)
     action = 'created' if args.blank else 'installed and prepared'
     print(f'\033[32mnewvm: SUCCESS: VM {args.id} {action}; powered off\033[0m', flush=True)
     return 0

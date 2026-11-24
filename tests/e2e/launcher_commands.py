@@ -23,7 +23,9 @@ def flatpak_running(app, account, require):
     rows = [line.split('\t') for line in raw.decode().splitlines()]
     require(all(len(row) == 3 for row in rows), 'launcher:inventory')
     matches = [row for row in rows if row[1] == app]
-    require(len(matches) <= 1, 'launcher:ambiguous-instance')
+    # Reacquire an ambiguous inventory within the existing read deadline.
+    # This snapshot cannot prove absence or authorize a stop.
+    require(len(matches) <= 1, 'ui:incomplete-tree')
     if not matches:
         return None
     instance, _, pid = matches[0]

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import io
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -287,6 +288,36 @@ finally:
             with cancellation_cleanup(), guest_step():
                 signal.raise_signal(signal.SIGINT)  # Cleanup cannot be interrupted again.
         deferred()
+
+        @cancellable
+        def appliance_launch():
+            from system_runner import Lease, baseline
+
+            appliance = Mock()
+            guestfs = SimpleNamespace(GuestFS=lambda **kwargs: appliance)
+            disk = tmp_path / 'disk.qcow2'
+            lease = Mock()
+            lease.capture.state = {'source': {'layout': {'disk': str(disk)}}, 'script_digest': 'unused'}
+            lease.inspect.side_effect = lambda *args: baseline.inspect_guest(guestfs, *args)
+            launch_error = RuntimeError('synthetic appliance launch error')
+            appliance.launch.side_effect = launch_error
+            with pytest.raises(RuntimeError) as caught:
+                Lease.prepare(lease)
+            assert caught.value is launch_error
+            appliance.close.assert_called_once_with()
+            appliance.close.reset_mock()
+
+            def stopped_launch():
+                signal.raise_signal(signal.SIGINT)
+                raise launch_error
+
+            appliance.launch.side_effect = stopped_launch
+            with pytest.raises(KeyboardInterrupt):
+                Lease.prepare(lease)
+            appliance.close.assert_called_once_with()
+            appliance.inspect_os.assert_not_called()
+            lease.source.connection.defineXML.assert_not_called()
+        appliance_launch()
 
         @cancellable
         def failed_cleanup():

@@ -462,7 +462,8 @@ Watch preferences. Closing Watch leaves those workers' last applied settings int
 With **View** off, image areas show **View disabled**. With global **SSH** off,
 VM command output is hidden and each tile's SSH switch is disabled. A tile that
 was on stays on; enabling global SSH restores its saved visibility preference.
-The active case's title, description and latest step remain visible.
+Active VM workers keep their tiles even when both switches are off. The active
+case's title, description and latest step appear as the controller publishes them.
 Launcher progress, sessions, errors and controls remain available. Recording
 guards and unavailable sources can refuse application to a launcher. Saves recheck
 the exact live owner and retain the recording guard; a missing runtime file is

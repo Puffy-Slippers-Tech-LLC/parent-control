@@ -96,9 +96,9 @@ def verify_flatpaks(g):
 
 def environment_files(identities, os_id='ubuntu'):
     from tests.fixtures.baseline_environment import (
-        desktop_settings_files, automatic_update_files, native_policy_files)
+        desktop_settings_files, automatic_update_files, native_policy_files, software_policy_files)
     return (desktop_settings_files(identities) | automatic_update_files(os_id)
-            | native_policy_files(os_id))
+            | native_policy_files(os_id) | software_policy_files(os_id))
 
 
 def _clean_declaration(g):
@@ -397,14 +397,27 @@ def _retirement_plan(g, script_digest, *, publish=True):
     return plan
 
 
+def _prior_environment_files(declaration):
+    from tests.fixtures.baseline_environment import FEDORA_FLATPAK_METADATA_RULE, NATIVE_POLICY_FILES
+    previous = set(declaration) - {FEDORA_FLATPAK_METADATA_RULE}
+    return previous, previous - set(NATIVE_POLICY_FILES)
+
+
 def reconcile_clean(g, script_digest=None):
     """Environment reconciliation and resumable exact legacy retirement."""
-    from tests.fixtures.baseline_environment import NATIVE_POLICY_FILES
+    from tests.fixtures.baseline_environment import FEDORA_FLATPAK_METADATA_RULE, FEDORA_SOFTWARE_MASK
     identities, declaration = _clean_declaration(g)
     previous = None
     if _present(g, RECORD):
         regular(g, RECORD, 0, 0, 0o600)
         previous = json.loads(g.read_file(RECORD))
+    old_software_mask = FEDORA_FLATPAK_METADATA_RULE in declaration and _present(g, FEDORA_SOFTWARE_MASK)
+    if old_software_mask:
+        directory(g, str(Path(FEDORA_SOFTWARE_MASK).parent))
+        info = g.lstatns(FEDORA_SOFTWARE_MASK)
+        require(previous is not None and stat.S_ISLNK(info['st_mode'])
+                and info['st_uid'] == info['st_gid'] == 0 and info['st_nlink'] == 1
+                and g.readlink(FEDORA_SOFTWARE_MASK) == '/dev/null', 'software-unit-collision')
     if previous and previous.get('purpose') == PURPOSE:
         plan = _retirement_plan(g, script_digest)
         removed = False
@@ -419,8 +432,7 @@ def reconcile_clean(g, script_digest=None):
     else:
         require(previous is None or (type(previous) is dict and set(previous) == {'purpose', 'files', 'pending'}
                 and previous['purpose'] == CLEAN_PURPOSE and previous['pending'] is None
-                and set(previous['files']) in (
-                    set(declaration), set(declaration) - set(NATIVE_POLICY_FILES))),
+                and set(previous['files']) in (set(declaration), *_prior_environment_files(declaration))),
                 'environment-record')
         require(not any(_present(g, path) for path in
                         (*movable_files(g), TRUST_RECORD, TRUST_FILE, TRUST_PENDING)),
@@ -477,26 +489,29 @@ def reconcile_clean(g, script_digest=None):
         g.sync()
         g.mv(temporary, path)
         g.sync()
+    if old_software_mask:
+        g.rm(FEDORA_SOFTWARE_MASK)
+        g.sync()
     verify_clean(g, compiled=False)
     return declaration
 
 
-def verify_clean(g, *, compiled=True, allow_prior_native_policy=False):
+def verify_clean(g, *, compiled=True, allow_prior_environment=False):
     """Read-only proof of persistent settings and complete movable absence."""
-    from tests.fixtures.baseline_environment import NATIVE_POLICY_FILES
+    from tests.fixtures.baseline_environment import FEDORA_FLATPAK_METADATA_RULE, FEDORA_SOFTWARE_MASK
     identities, declaration = _clean_declaration(g)
     regular(g, RECORD, 0, 0, 0o600)
     record = json.loads(g.read_file(RECORD))
-    # Owned restoration must still inspect a captured baseline from before
-    # this gate existed. New execution/capture keeps the exact current set.
-    if (allow_prior_native_policy and type(record) is dict and
+    # Owned restoration can inspect prior captures. New execution and capture
+    # require the exact current environment.
+    if (allow_prior_environment and type(record) is dict and
             type(record.get('files')) is dict and
-            set(record['files']) == set(declaration) - set(NATIVE_POLICY_FILES)):
-        require(not any(_present(g, path) for name in NATIVE_POLICY_FILES
+            set(record['files']) in _prior_environment_files(declaration)):
+        missing = declaration.keys() - record['files'].keys()
+        require(not any(_present(g, path) for name in missing
                         for path in (name, name + '.onpc-baseline-new')),
                 'environment-collision')
-        declaration = {name: spec for name, spec in declaration.items()
-                       if name not in NATIVE_POLICY_FILES}
+        declaration = {name: spec for name, spec in declaration.items() if name not in missing}
     require(type(record) is dict and set(record) == {'purpose', 'files', 'pending'}
             and record['purpose'] == CLEAN_PURPOSE and record['pending'] is None
             and set(record['files']) == set(declaration), 'environment-record')
@@ -508,6 +523,8 @@ def verify_clean(g, *, compiled=True, allow_prior_native_policy=False):
         directory(g, str(Path(path).parent), account.pw_uid, account.pw_gid)
         regular(g, path, account.pw_uid, account.pw_gid, mode)
         require(g.read_file(path) == data, 'environment-substituted')
+    if FEDORA_FLATPAK_METADATA_RULE in declaration:
+        require(not _present(g, FEDORA_SOFTWARE_MASK), 'software-unit-collision')
     require(not any(_present(g, path) for path in
                     (*movable_files(g), TRUST_RECORD, TRUST_FILE, TRUST_PENDING,
                      *(path + '.onpc-baseline-new' for path in declaration),

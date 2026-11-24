@@ -69,11 +69,15 @@ External provider surfaces use [public_atspi.py](public_atspi.py) on the public
 accessibility D-Bus. Their snapshot reuse ends before input, retry, client reset
 or the outer operation's return; partial trees never seed observations.
 Each provider traversal requests fresh bulk structural facts with `Cache.GetItems`;
-unsupported or legacy caches use live queries. Children always use counted live
-enumeration: GTK can retain a hidden cache object at the same index as an
+unsupported or legacy caches use live queries. Provider children use counted
+live enumeration: GTK can retain a hidden cache object at the same index as an
 unrealized replacement, or report zero children before a popup's controls enter
-the cache. Neither apparently complete slots nor cached zero counts establish
-the current edges.
+the cache. The desktop registry supplies its full application list in one call.
+The reader checks that list against current unique owners on the same bus, so
+a stale registration for a departed provider cannot interrupt the scan. If an
+enumerated top-level app loses its unique owner during traversal, discard that
+read and reacquire the desktop once. Failed reads of live or embedded providers
+still make the observation incomplete.
 Fresh identity and child queries for up to 32 already discovered nodes are
 pipelined through Gio's public asynchronous D-Bus API, with at most 64 calls
 outstanding. A private main context drains the replies without dispatching
@@ -95,6 +99,10 @@ fixtures close their private reader connection at teardown.
 Passing an existing public-bus facade to another reader preserves that facade
 and its node identities; it must not create a second connection when a scoped
 node is shared between the host and installed-reader interfaces.
+
+Native fixture Close resolves the button on the same owned window and snapshot
+used to check prompts and verify the submitted draft. The worker invokes that
+button once, and the following journey step independently observes closure.
 
 An empty provider tree after a desktop/greeter handoff can come from a closed
 accessibility-bus connection. Inspect the existing query error and connection

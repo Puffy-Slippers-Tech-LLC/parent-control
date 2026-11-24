@@ -13,6 +13,7 @@ from weakref import WeakValueDictionary
 
 
 PREFIX = 'org.a11y.atspi.'
+REGISTRY = 'org.a11y.atspi.Registry'
 ROOT = '/org/a11y/atspi/accessible/root'
 NULL = '/org/a11y/atspi/null'
 LIMIT = 6000
@@ -37,7 +38,7 @@ class IncompleteTree(RuntimeError):
 
 
 class ProviderDisappeared(IncompleteTree):
-    """A desktop provider left both the bus and the public registry mid-read."""
+    """A top-level provider lost its unique bus owner during a desktop read."""
 
 
 class PublicAtspi:
@@ -112,6 +113,7 @@ class PublicAtspi:
             error.add_note('public-atspi-query:' + interface + ':' + method +
                            (':' + args[1] if method == 'Get' else '') +
                            (':root' if path == ROOT else ':object'))
+            self.check_provider_departure(bus, error)
             raise
         return value[0] if len(value) == 1 else value
 
@@ -369,6 +371,29 @@ class PublicAtspi:
         error.add_note('public-atspi-cache-source:' + source)
         error.add_note('public-atspi-cache-process:' + state)
 
+    def check_provider_departure(self, bus, error):
+        # Only a top-level provider can be removed from a desktop read. An
+        # embedded provider or a live provider's failed object read still
+        # makes the snapshot incomplete, as can a lost bus connection.
+        if (self._records is None or not bus.startswith(':')
+                or (bus, ROOT) not in self._children.get((REGISTRY, ROOT), ())):
+            return
+        from gi.repository import Gio
+        if Gio.DBusError.get_remote_error(error) not in (
+                'org.freedesktop.DBus.Error.ServiceUnknown',
+                'org.freedesktop.DBus.Error.NameHasNoOwner'):
+            return
+        self.cache_process_notes(bus, error)
+        try:
+            owner = self.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                              'org.freedesktop.DBus', 'NameHasOwner', 's', (bus,))
+        except Exception:
+            owner = None  # A failed liveness probe cannot establish departure.
+        status = 'missing' if owner is False else 'present' if owner is True else 'unavailable'
+        error.add_note('public-atspi-cache-owner:' + status)
+        if owner is False:
+            raise ProviderDisappeared('public-atspi:incomplete-tree') from error
+
     @contextmanager
     def snapshot(self):
         previous = self._records, self._children, self._prepared, self._names, self._states
@@ -455,6 +480,9 @@ class PublicAtspi:
                     time.sleep(.001)
             if interrupted is not None:
                 raise interrupted
+            for (bus, *_), value in zip(queries, results):
+                if isinstance(value, GLib.Error):
+                    self.check_provider_departure(bus, value)
         finally:
             cancellable.cancel()
             context.pop_thread_default()
@@ -591,29 +619,6 @@ class PublicAtspi:
                 items = self.call(node.bus, '/org/a11y/atspi/cache', PREFIX + 'Cache', 'GetItems')
             except Exception as error:
                 from gi.repository import Gio, GLib
-                if isinstance(error, GLib.Error) and Gio.DBusError.get_remote_error(error) in (
-                        'org.freedesktop.DBus.Error.ServiceUnknown',
-                        'org.freedesktop.DBus.Error.NameHasNoOwner'):
-                    self.cache_process_notes(node.bus, error)
-                    # Only a fully departed provider allows a new desktop
-                    # snapshot. The current snapshot always fails as a whole.
-                    provider = {}
-                    for label, query, present in (
-                            ('owner', ('org.freedesktop.DBus', '/org/freedesktop/DBus',
-                                       'org.freedesktop.DBus', 'NameHasOwner', 's', (node.bus,)),
-                             lambda value: value is True),
-                            ('registry', ('org.a11y.atspi.Registry', ROOT,
-                                          PREFIX + 'Accessible', 'GetChildren'),
-                             lambda value: any(ref[0] == node.bus for ref in value))):
-                        status = 'unavailable'
-                        try:
-                            status = 'present' if present(self.call(*query)) else 'missing'
-                        except Exception:
-                            pass
-                        provider[label] = status
-                        error.add_note('public-atspi-cache-' + label + ':' + status)
-                    if provider == {'owner': 'missing', 'registry': 'missing'}:
-                        raise ProviderDisappeared('public-atspi:incomplete-tree') from error
                 if not isinstance(error, GLib.Error) or Gio.DBusError.get_remote_error(error) not in (
                         'org.freedesktop.DBus.Error.UnknownMethod',
                         'org.freedesktop.DBus.Error.UnknownInterface',
@@ -739,8 +744,19 @@ class BusNode:
         key = (self.bus, self.path)
         if key in self.api._children:
             return self.api._children[key]
-        count = self.property('ChildCount')
-        children = self.validate_children(count, self.call('Accessible', 'GetChildren'))
+        if key == (REGISTRY, ROOT):
+            # The registry list can change between two requests. GetChildren
+            # supplies the whole list at once. In a desktop snapshot, the bus
+            # daemon can also distinguish stale registrations from live apps.
+            references = self.call('Accessible', 'GetChildren')
+            children = self.validate_children(len(references), references)
+            if self.api._records is not None:
+                owners = set(self.api.call('org.freedesktop.DBus', '/org/freedesktop/DBus',
+                                           'org.freedesktop.DBus', 'ListNames'))
+                children = tuple(ref for ref in children if ref[0] in owners)
+        else:
+            count = self.property('ChildCount')
+            children = self.validate_children(count, self.call('Accessible', 'GetChildren'))
         if self.api._records is not None:
             self.api._children[key] = children
         return children

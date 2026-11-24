@@ -2437,11 +2437,13 @@ class AccessibleUI:
                         tuple(self.nodes(current, strict=True, protected_ids=protected_ids,
                                          protect_text=protect_text, defer_names=defer_names))
                     except UiError as error:
-                        if attempt or root is not None or not isinstance(
-                                error.__cause__, ProviderDisappeared):
+                        if attempt or not isinstance(error.__cause__, ProviderDisappeared):
+                            raise
+                        if root is not None and root != self.api.get_desktop(0):
                             raise
                         # The failed read invalidated all cached observations.
                         # Reacquire the desktop once with the same read policy.
+                        root = None
                         continue
                     protection, nodes, edges, facts, identities = self._observation_cache[-1]
                 selected = nodes if current == nodes[0] else self.snapshot_scope(nodes, edges, current)
@@ -14418,8 +14420,7 @@ class AccessibleUI:
         if action == 'submit':
             return self.native_app_submit(**arguments)
         if action == 'close':
-            self.native_app_snapshot('ONPC fixture draft', **arguments)
-            self.activate_id('onpc-fixture-native-' + instance + '-close')
+            self.native_app_close(**arguments)
             return None
         return self.wait(lambda: self.native_app_snapshot(
             'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
@@ -14608,7 +14609,7 @@ class AccessibleUI:
 
     def native_app_snapshot(self, submitted, *, pending=False, with_window=False,
                             instance='primary', role=None, child=CHILD, implicit_instance=False, kind='native', moves=0,
-                            work_text=None):
+                            work_text=None, close_target=False):
         """APP02/03: public owned window and finite independent activity projection."""
         work_values = {CHILD: 'riley', EXISTING_CHILD: 'jordan'}
         require(work_text is None or kind == 'native' and instance == 'primary' and role == 'A'
@@ -14654,10 +14655,9 @@ class AccessibleUI:
             else:
                 require_active_launch_session()
         scope = 'onpc-fixture-' + kind + '-' + instance
-        observation = None
         diagnostic = getattr(self, 'native_open_diagnostic', None)
+        observation = self.read_snapshot() if close_target or diagnostic is not None else None
         if diagnostic is not None:
-            observation = self.read_snapshot()
             nodes, _snapshot, identities, _facts = observation
             # Fixed IDs and counts from the predicate's actual complete read,
             # never names, draft values or a second diagnostic tree traversal.
@@ -14698,8 +14698,8 @@ class AccessibleUI:
             if error.name != 'fixture_ui':
                 raise
             from tests.e2e.fixture_ui import FixtureUI
-        fixture = (FixtureUI(self, kind, instance, require=require) if role is not None
-                   else FixtureUI(self, 'native', require=require))
+        fixture = FixtureUI(self, kind, instance, require=require, window=root,
+                            observation=observation if close_target else None)
         require(fixture.text('status') == 'Ready', 'ui:native-status')
         value = fixture.snapshot()
         expected = {'draft': work_text or 'ONPC fixture draft', 'submitted': submitted,
@@ -14709,6 +14709,8 @@ class AccessibleUI:
         if pending and value != expected:
             return None
         require(value == expected, 'ui:native-activity')
+        if close_target:
+            return fixture.target('close', showing=False)
         if with_window:
             # Public accessible identity distinguishes replacement windows even
             # when they expose identical fixture text and the same public ID.
@@ -15053,6 +15055,14 @@ class AccessibleUI:
                   prompt_in_predicate=True)
         self.activate_id('onpc-fixture-' + kind + '-' + instance + '-submit')
 
+    def native_app_close(self, **arguments):
+        """Verify the draft and find Close on the same window before one action."""
+        require(not self.input_uncertain, 'ui:uncertain-input')
+        target = self.wait(lambda: self.native_app_snapshot(
+            'ONPC fixture draft', close_target=True, **arguments),
+            'native-close-ready', prompt_in_predicate=True)
+        self._invoke_target(target)
+
     def native_window_operation(self, operation):
         """Same S executable, distinct public windows; no replacement can prove retention."""
         require(os.getuid() == os.geteuid() == pwd.getpwnam(
@@ -15071,9 +15081,7 @@ class AccessibleUI:
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                 pending=True, with_window=action == 'activity', **arguments),
                 'native-window-' + action, prompt_in_predicate=True)
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        self.native_app_snapshot('ONPC fixture draft', **arguments)
-        self.activate_id('onpc-fixture-native-' + instance + '-close')
+        self.native_app_close(**arguments)
 
     def work_document_operation(self, operation):
         """FILE08/09: fixed child document, public edit/Save and usable reopen."""
@@ -15217,11 +15225,7 @@ class AccessibleUI:
             return self.wait(lambda: self.native_app_snapshot(
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                 pending=True, instance=instance, role=role, child=child), 'native-' + action)
-        require(not self.input_uncertain, 'ui:uncertain-input')
-        self.wait(lambda: self.native_app_snapshot(
-            'ONPC fixture draft', instance=instance, role=role, child=child),
-            'native-close-ready', prompt_in_predicate=True)
-        self.activate_id('onpc-fixture-native-' + instance + '-close')
+        self.native_app_close(instance=instance, role=role, child=child)
 
     def native_grid_blocked(self, product, *, instance='primary', child=EXISTING_CHILD, role=None):
         """Qualify a visible grid recipient or prove the declared command denial."""
@@ -15406,9 +15410,7 @@ class AccessibleUI:
             else:
                 raise UiError('ui:native-refusal-missing')
         elif operation == 'native-close':
-            self.wait(lambda: self.native_app_snapshot('ONPC fixture draft'),
-                      'native-close-ready', prompt_in_predicate=True)
-            self.activate_id('onpc-fixture-native-primary-close')
+            self.native_app_close()
 
     def search_absence(self, product, *, stable_seconds):
         """A positive query witness plus fresh, complete absence reads.

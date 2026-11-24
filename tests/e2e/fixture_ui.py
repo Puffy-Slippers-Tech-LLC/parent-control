@@ -7,7 +7,7 @@ Installed consumers must launch the declared package/route themselves.
 import re
 
 class FixtureUI:
-    def __init__(self, ui, kind, instance='primary', *, require=None):
+    def __init__(self, ui, kind, instance='primary', *, require=None, window=None, observation=None):
         if require is None:
             from tests.e2e.accessible_ui import require
         self.require = require
@@ -16,11 +16,17 @@ class FixtureUI:
                      or kind in ('native', 'flatpak') and instance in ('hard', 'soft')), 'ui:fixture-binding')
         self.ui = ui
         self.scope = f'onpc-fixture-{kind}-{instance}'
+        self.window = window
+        self.observation = observation
 
-    def target(self, control):
-        self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'fullscreen', 'save', 'saved'),
-                'ui:fixture-control')
-        return self.ui.id_target(self.target_id(control))
+    def target(self, control, *, showing=True):
+        identity = self.target_id(control)
+        if self.observation is None:
+            return self.ui.id_target(identity, showing=showing)
+        node = self.ui.snapshot_owned_target(identity, root=self.window, showing=showing,
+                                             observation=self.observation)
+        self.require(node is not None, 'ui:fixture-control-unavailable')
+        return node
 
     def target_id(self, control):
         self.require(control in ('status', 'draft', 'edit', 'submit', 'submitted', 'score', 'move', 'close', 'mode', 'fullscreen', 'save', 'saved'),

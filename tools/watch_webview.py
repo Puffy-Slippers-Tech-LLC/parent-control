@@ -898,7 +898,7 @@ class Viewer:
                 memory=self.vm_memory.setdefault((root, name), VMMemory()).chart(meta),
                 status=activity_text(activity, case) or operation or
                     ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
-                     CONNECTED if meta.get('lease_locked') else WAITING),
+                     CONNECTED if locked else WAITING),
                 activity=(activity or {}).get('text', ''))
             view['status'] = re.sub(r' - (\([^()]+\))$', r' \1',
                                    re.sub(r'\bsnapshot "([^"]+)"', r'snapshot \1', view['status']))

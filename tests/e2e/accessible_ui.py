@@ -2562,16 +2562,18 @@ class AccessibleUI:
                         facts[node] = product_facts()
                     else:
                         states = getattr(node, 'snapshot_state_set', node.get_state_set)()
+                        defunct = states.contains(self.api.StateType.DEFUNCT)
                         showing = (states.contains(self.api.StateType.SHOWING)
                                    and states.contains(self.api.StateType.VISIBLE)
-                                   and not states.contains(self.api.StateType.DEFUNCT))
+                                   and not defunct)
                         modal = states.contains(self.api.StateType.MODAL)
                         if defer_names:
                             facts[node] = ObservationFacts(identity=identity, role=role,
                                 showing=showing, modal=modal, read_name=node.get_name)
                         else:
                             facts[node] = {'identity': identity, 'role': role, 'showing': showing,
-                                'modal': modal, 'name': getattr(node, 'snapshot_name', node.get_name)()}
+                                'modal': modal, 'defunct': defunct,
+                                'name': getattr(node, 'snapshot_name', node.get_name)()}
                 yield node
                 if diagnostic is not None:
                     diagnostic.check()
@@ -6094,6 +6096,10 @@ class AccessibleUI:
             require(root is content and window is not None
                     and (not require_active or self.has_state(window, self.api.StateType.ACTIVE)),
                     'ui:document-owner')
+        return self.license_document_matches(root, maximum)
+
+    def license_document_matches(self, root, maximum):
+        """Read the bounded GPL projection from an already qualified document."""
         require(root.get_role_name() in ('text', 'document text') and self.showing(root),
                 'ui:document-surface')
         text = root.get_text_iface()
@@ -6137,14 +6143,13 @@ class AccessibleUI:
         a document by its title, contents, position or geometry. Other handlers,
         multiple windows/documents and prompts cannot authorize reading/closing.
         """
-        desktop = self.api.get_desktop(0)
-        require(desktop is not None, 'ui:incomplete-tree')
-        snapshot, facts = {}, {}
-        nodes = list(self.nodes(desktop, strict=True, snapshot=snapshot, facts=facts))
-        require(nodes and not any(self.has_state(node, self.api.StateType.DEFUNCT)
-                                  for node in nodes), 'ui:incomplete-tree')
+        nodes, snapshot, _identities, facts = self.read_snapshot()
+        # Validate completeness using this traversal's facts. A second live
+        # state sweep can query an unrelated provider after it has disappeared.
+        require(nodes and not any(facts[node].get('defunct', False) for node in nodes),
+                'ui:incomplete-tree')
         self.handle_system_prompt(observation=(nodes, snapshot, facts))
-        owners = [node for node in snapshot[desktop]
+        owners = [node for node in snapshot[nodes[0]]
                   if facts[node]['role'] == 'application'
                   and (facts[node]['identity'] == 'org.gnome.TextEditor'
                        or (not facts[node]['identity'] and facts[node]['name'].casefold()
@@ -6180,8 +6185,11 @@ class AccessibleUI:
         if binding == 'viewer':
             root, content, _ = self.license_viewer_snapshot()
             require(root is not None and content is not None, 'ui:switch-absent')
-            require(self.read_document(content, 'gpl-heading', maximum=1024, require_active=False),
-                    'ui:switch-document')
+            if self.provider_contracts['document-viewer']['application_id']:
+                require(self.read_document(content, 'gpl-heading', maximum=1024,
+                                           require_active=False), 'ui:switch-document')
+            else:
+                require(self.license_document_matches(content, 1024), 'ui:switch-document')
         else:
             root = self.snapshot_owned_target(
                 'parent-window' if binding == 'parent' else 'feedback-dialog',
@@ -6208,10 +6216,14 @@ class AccessibleUI:
         # authorizes the worker's subsequent single shortcut.
         return self.wait(ready, 'switch-ready', prompt_in_predicate=True)
 
-    def window_switch_proof(self, binding, *, active=True, projection='synthetic-first'):
+    def window_switch_proof(self, binding, *, active=True, awaiting_activation=False,
+                            projection='synthetic-first'):
         root = self.existing_window(binding)
-        if binding == 'viewer':
-            require(self.has_state(root, self.api.StateType.ACTIVE) is active, 'ui:switch-active')
+        if awaiting_activation:
+            if not self.surface_available(root):
+                return None
+        elif binding == 'viewer':
+            require(self.surface_available(root) is active, 'ui:switch-active')
         # Product scopes bind to the public API owner; the external viewer has
         # its provider identity. Foreground focus is not a product API state.
         pid, bus, path = root.get_process_id(), root.bus, root.path
@@ -6276,14 +6288,11 @@ class AccessibleUI:
             # the full owned-window proof before releasing the next action.
             return self.wait(lambda: self.window_switch_proof(binding, projection=projection),
                              'switch-proof', prompt_in_predicate=True)
-        def active_proof():
-            if self.existing_window_active(binding) is None:
-                return None
-            return self.window_switch_proof(binding, projection=projection)
-
-        # The final proof can also encounter a retiring desktop provider.
-        # Retry the complete read after the shortcut without repeating input.
-        return self.wait(active_proof, 'switch-active', prompt_in_predicate=True)
+        # Resolve the destination once per observation and use that window for
+        # both activation and result evidence. Only pending activation polls.
+        return self.wait(lambda: self.window_switch_proof(
+            binding, awaiting_activation=True, projection=projection),
+            'switch-active', prompt_in_predicate=True, retry_incomplete=False)
 
     def retained_parent_operation(self, operation, *, child=CHILD):
         """FLOW01 existing window only; record the untouched child/page first."""

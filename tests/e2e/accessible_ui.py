@@ -15295,7 +15295,9 @@ class AccessibleUI:
                 'No submitted draft' if action == 'opened' else 'ONPC fixture draft',
                 pending=True, instance=instance, role=role, child=child), 'native-' + action)
         require(not self.input_uncertain, 'ui:uncertain-input')
-        self.native_app_snapshot('ONPC fixture draft', instance=instance, role=role, child=child)
+        self.wait(lambda: self.native_app_snapshot(
+            'ONPC fixture draft', instance=instance, role=role, child=child),
+            'native-close-ready', prompt_in_predicate=True)
         self.activate_id('onpc-fixture-native-' + instance + '-close')
 
     def native_grid_blocked(self, product, *, instance='primary', child=EXISTING_CHILD, role=None):

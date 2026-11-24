@@ -604,6 +604,11 @@ Removed and unselected cases cannot send the launcher into an old repair.
 A missing or inactive goal is not a launcher failure and supplies no test pass.
 A clear validated pass stands without
 further source comparison, completion audits or acceptance transactions.
+The repair session's final summary identifies the failed operation, explains
+any diagnosed cause and correction, and reports the latest runner verdict.
+If the failed operation passes on rerun and the cause remains unknown, the
+summary says so and the runner retains the pass as the current result. A passing
+supporting diagnostic reports only its own scope.
 Whole-selection completion applies only to its actual selectors; a smaller
 diagnostic run cannot complete broader work. Successful execution of a selection
 supersedes its earlier failure before case discovery.

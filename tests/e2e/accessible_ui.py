@@ -5700,7 +5700,8 @@ class AccessibleUI:
                           'checked': False}, sort_keys=True), flush=True)
         current = self.wait_feedback_collection()
         self.invalidate_observation()
-        self.feedback_snapshot(states=True)
+        self.wait(lambda: self.feedback_snapshot(states=True), 'feedback-collection-state',
+                  prompt_in_predicate=True)
         elapsed = int((time.monotonic() - started) * 1000)
         require(elapsed < 60000, 'ui:collection-not-ready')
         return {'token': token, 'source': source, 'terminal': True,

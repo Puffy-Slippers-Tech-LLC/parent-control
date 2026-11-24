@@ -1042,8 +1042,18 @@ class Lease:
         self.save('restore-requested')
         self.mutated = True
         self.restore()
-        require(self.inspect(Path(self.capture.state['source']['layout']['disk']),
-                             self.capture.state['script_digest']) == self.capture.state['guest'], 'baseline:guest-changed')
+        check_cancellation()
+        try:
+            guest = self.inspect(Path(self.capture.state['source']['layout']['disk']),
+                                 self.capture.state['script_digest'])
+        except RuntimeError as error:
+            # libguestfs can surface an interrupted inspection as a plain
+            # RuntimeError. Keep typed guard and validation errors intact.
+            if type(error) is RuntimeError:
+                check_cancellation()
+            raise
+        require(guest == self.capture.state['guest'], 'baseline:guest-changed')
+        check_cancellation()
         self.source.connection.defineXML(self.test_xml)
         self.view.run = self.state['run']
         self.guard(off=True)

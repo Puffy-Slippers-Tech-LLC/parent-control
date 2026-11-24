@@ -25,6 +25,7 @@ def exercise(transport, lease, variant):
                    'fault-qualification:preferences-not-ready')
     if variant == 'log-only':
         fault = engineering('broker-log-only')
+        fault.pop('fault_allowance')
         system.require(fault['operation_observed'] and fault['backend_occurrences'] == 0
                        and fault['restored'], 'fault-qualification:log-only-witness')
         return {'fault': fault}
@@ -32,9 +33,10 @@ def exercise(transport, lease, variant):
     observer = transport.product_failures
     system.require(observer is not None, 'fault-qualification:observer-missing')
     if variant == 'expired-allowance':
-        with observer.allow('broker', 'backend'):
-            allowed = engineering('broker-backend')
+        allowed = engineering('broker-backend')
+        observer.add_allowance('broker', 'backend', *allowed.pop('fault_allowance'))
         fault = engineering('broker-backend')
+        fault.pop('fault_allowance')
         system.require(all(item['backend_occurrences'] == 1 and item['restored']
                            for item in (allowed, fault)),
                        'fault-qualification:repeated-fault-witness')

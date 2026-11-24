@@ -578,6 +578,8 @@ def fault_recorded_broker(invocation, record, *, stop=False,
 
 def crash_history(command, history, path, accounts):
     """Two finite outages, each retaining its original grant and deadline."""
+    from product_failure_journal import action_time
+
     child = accounts['child']
     sequence = ('crash-natural-arm', 'crash-inject', 'crash-natural-recovery',
                 'crash-peer-arm', 'crash-inject', 'crash-peer-recovery', 'crash-complete')
@@ -593,6 +595,7 @@ def crash_history(command, history, path, accounts):
                       'expiry:crash-insufficient-headroom')
         # Prevent live clients from ending the declared outage through ordinary
         # D-Bus activation. This is an owned fault, never a supervision change.
+        fault_time = action_time()
         history['mask'] = guest.runtime_service_mask(guest.BROKER, category='expiry:crash')
         path.write_text(json.dumps(history))
         def record(identity):
@@ -601,7 +604,7 @@ def crash_history(command, history, path, accounts):
         fault_recorded_broker(history['broker_invocation'], record)
         guest.require(time.time() < history['original_expiry'], 'expiry:crash-after-expiry')
         history.setdefault('crashes', []).append(history['crash_identity'])
-        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+        result = {'remaining_seconds': history['original_expiry'] - time.time(), 'fault_time': fault_time}
     elif command.endswith('-recovery'):
         mask_identity = tuple(history['mask'])
         guest.runtime_service_mask(guest.BROKER, category='expiry:crash', identity=mask_identity)
@@ -624,12 +627,13 @@ def crash_history(command, history, path, accounts):
                           == history['child_state']
                       and time.monotonic() < recovered_by,
                       'expiry:crash-recovery-time-or-state')
+        fault_time = action_time()
         history['broker_invocation'] = invocation
         history.setdefault('recoveries', []).append({'zero_balance': True, 'grant_unchanged': True})
         # Only after proving recovery did not restore expired time, declare the
         # normal recovery grant needed for authenticated original-work readback.
         deadline = grant(child, 1200)
-        result = {'remaining_seconds': deadline - time.time()}
+        result = {'remaining_seconds': deadline - time.time(), 'fault_time': fault_time}
     else:
         guest.require(len(history.get('crashes', [])) == 2
                       and len(history.get('recoveries', [])) == 2,
@@ -643,6 +647,8 @@ def crash_history(command, history, path, accounts):
 
 def stop_history(command, history, path, accounts):
     """One grant-only outage with a fixed, outage-inclusive recovery deadline."""
+    from product_failure_journal import action_time
+
     child = accounts['child']
     sequence = ('stop-arm', 'stop-inject', 'stop-recovery', 'stop-complete')
     index = history['grants']
@@ -657,6 +663,7 @@ def stop_history(command, history, path, accounts):
     elif command == 'stop-inject':
         guest.require(history['original_expiry'] - time.time() >= 120,
                       'expiry:stop-insufficient-headroom')
+        fault_time = action_time()
         history['mask'] = guest.runtime_service_mask(guest.BROKER, category='expiry:stop')
         path.write_text(json.dumps(history))
         def record(identity):
@@ -666,7 +673,7 @@ def stop_history(command, history, path, accounts):
         history['service_start'] = guest.run(['systemctl', 'show', guest.BROKER,
                                               '--property=ExecMainStartTimestampMonotonic', '--value'])
         guest.require(time.time() < history['original_expiry'], 'expiry:stop-after-expiry')
-        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+        result = {'remaining_seconds': history['original_expiry'] - time.time(), 'fault_time': fault_time}
     elif command == 'stop-recovery':
         mask_identity = tuple(history['mask'])
         guest.runtime_service_mask(guest.BROKER, category='expiry:stop', identity=mask_identity)
@@ -691,9 +698,10 @@ def stop_history(command, history, path, accounts):
                       and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
                           == history['child_state']
                       and time.monotonic() < history['recover_by'], 'expiry:stop-recovery-time-or-state')
+        fault_time = action_time()
         history['recovered'] = True
         deadline = grant(child, 1200)
-        result = {'remaining_seconds': deadline - time.time()}
+        result = {'remaining_seconds': deadline - time.time(), 'fault_time': fault_time}
     else:
         guest.require(history.get('recovered') is True and 'stop_identity' in history,
                       'expiry:stop-history-incomplete')
@@ -706,6 +714,7 @@ def stop_history(command, history, path, accounts):
 
 def stall_history(command, history, path, accounts):
     """Pause and resume only the same broker across each original expiry."""
+    from product_failure_journal import action_time
     from system_kiosk_confinement import process_identity
     child = accounts['child']
     if command == 'stall-cleanup':
@@ -733,10 +742,11 @@ def stall_history(command, history, path, accounts):
             history['stall_identity'] = identity
             history['stalled'] = True
             path.write_text(json.dumps(history))
+        fault_time = action_time()
         fault_recorded_broker(history['broker_invocation'], record, process_signal=signal.SIGSTOP)
         guest.require(time.time() < history['original_expiry'], 'expiry:stall-after-expiry')
         history.setdefault('stalls', []).append(history['stall_identity'])
-        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+        result = {'remaining_seconds': history['original_expiry'] - time.time(), 'fault_time': fault_time}
     elif command.endswith('-recovery'):
         identity = history['stall_identity']
         process = Path('/proc') / str(identity['pid'])
@@ -756,9 +766,10 @@ def stall_history(command, history, path, accounts):
                       and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
                           == history['child_state']
                       and time.monotonic() < history['recover_by'], 'expiry:stall-recovery-time-or-state')
+        fault_time = action_time()
         history.setdefault('recoveries', []).append({'zero_balance': True, 'grant_unchanged': True})
         deadline = grant(child, 1200)
-        result = {'remaining_seconds': deadline - time.time()}
+        result = {'remaining_seconds': deadline - time.time(), 'fault_time': fault_time}
     else:
         guest.require(len(history.get('stalls', [])) == 2 and len(history.get('recoveries', [])) == 2
                       and history.get('stalled') is False, 'expiry:stall-history-incomplete')
@@ -801,6 +812,7 @@ def timer_identity():
 
 def timer_history(command, history, path, accounts):
     """Replace one real timer owner across expiry; never replay expired time."""
+    from product_failure_journal import action_time
     from system_kiosk_confinement import exited, user_command
     child = accounts['child']
     if command == 'timer-cleanup':
@@ -830,6 +842,7 @@ def timer_history(command, history, path, accounts):
         try:
             guest.require(timer_identity() == old and not exited(descriptor),
                           'expiry:timer-replaced-before-fault')
+            fault_time = action_time()
             history['timer_mask'] = guest.runtime_service_mask(TIMER_UNIT, category='expiry:timer')
             path.write_text(json.dumps(history))
             guest.require(timer_identity() == old and not exited(descriptor),
@@ -839,7 +852,7 @@ def timer_history(command, history, path, accounts):
         finally:
             os.close(descriptor)
         guest.require(time.time() < history['original_expiry'], 'expiry:timer-fault-after-expiry')
-        result = {'remaining_seconds': history['original_expiry'] - time.time()}
+        result = {'remaining_seconds': history['original_expiry'] - time.time(), 'fault_time': fault_time}
     elif command == 'timer-recovery':
         mask = tuple(history['timer_mask'])
         guest.runtime_service_mask(TIMER_UNIT, category='expiry:timer', identity=mask)
@@ -874,10 +887,11 @@ def timer_history(command, history, path, accounts):
                       and hashlib.sha256(repr(account_state(child)).encode()).hexdigest()
                           == history['child_state'] and timer_identity() == new
                       and time.monotonic() < history['recover_by'], 'expiry:timer-reconstruction')
+        fault_time = action_time()
         history['new_timer'] = new
         history['recovered'] = True
         deadline = grant(child, 1200)
-        result = {'remaining_seconds': deadline - time.time()}
+        result = {'remaining_seconds': deadline - time.time(), 'fault_time': fault_time}
     else:
         guest.require(history.get('recovered') is True and history.get('timer_mask') is None,
                       'expiry:timer-history-incomplete')

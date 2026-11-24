@@ -1942,6 +1942,9 @@ class UiObservations:
         require(isinstance(raw, bytes) and 0 < len(raw) <=
                 RESPONSE_BYTE_LIMITS.get(operation, 2048), 'ui:response-size')
         result = json.loads(raw)
+        fault_action_time = (result.pop('fault_action_time', None)
+                             if operation in accessible_ui.FAULT_ALLOWANCE_END_OPERATIONS
+                             and isinstance(result, dict) else None)
         if operation in accessible_ui.RESTART_OPERATIONS and operation.endswith('-reboot'):
             surface = accessible_ui.RESTART_OPERATIONS[operation][0]
             require(type(result) is dict and set(result) == {'surface', 'status', 'boot_sha256'}
@@ -3478,6 +3481,7 @@ class UiObservations:
             self.binding_reminder_source = None
         self.last_operation = operation
         self.last_child = child or 'child'
+        self.fault_action_time = fault_action_time
         if operation == 'kiosk-approver-baseline':
             self.approver_uids = tuple(result.pop('approver_uids'))
             result['approver_present'] = True

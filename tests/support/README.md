@@ -100,11 +100,16 @@ Watch off. Raw journal rows remain in the guest.
 
 The runner attributes events across account changes by the journal's process
 and service identities. Cases specify exact component and category allowances
-between guest boundaries around deliberate faults. Allowances expire even if
-the operation fails. The case's own assertions establish fault and recovery.
+around deliberate faults. Guest actions and guarded UI result checks supply
+the guest monotonic cutoff before returning, so delivery of the reply adds
+no time to an allowance. Guest pytest closes local allowance scopes when they
+unwind. The case's own assertions establish fault and recovery.
 
-When observation remains incomplete after bounded read recovery and every other
-check passes, report the affected case and a bounded observation diagnostic.
+Issue each journal fence once and wait within one deadline for that exact
+record. Only a successful query with the record still pending continues the
+wait. Keep the first boundary or read failure even if later coverage through
+reboot supplies additional evidence. When observation is incomplete and every
+other check passes, report the affected case and a bounded observation diagnostic.
 Use an observation-specific outcome in structured controller output.
 After owned cleanup succeeds, stop dispatch and return
 `OBSERVATION_BLOCKED_STATUS` from [test_results.py](../../tools/test_results.py).

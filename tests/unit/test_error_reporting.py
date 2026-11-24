@@ -118,7 +118,7 @@ def test_product_failure_invalid_required_row_does_not_hide_valid_row(product_fa
         assert 'private category text' not in '\n'.join(result.diagnostics)
 
 
-def test_product_failure_partial_read_retains_only_verified_faults(product_failure_span):
+def test_product_failure_partial_read_retains_only_verified_faults(product_failure_span, monkeypatch):
     start, end, read = product_failure_span
     faults = [_product_fault(start, occurred) for occurred in range(130, 150)]
     assert read(trailing=(b'{unreadable row',))['complete']
@@ -144,6 +144,20 @@ def test_product_failure_partial_read_retains_only_verified_faults(product_failu
     result = journal.evaluate_failures(observation, start=start, end=end)
     assert not result.complete and result.unexpected == (journal.Event('broker', 'backend', 130, 'broker'),)
     assert 'private' not in '\n'.join(result.diagnostics)
+
+    capture = Mock(side_effect=journal.EvidenceUnavailable('journal boundary confirmation timed out'))
+    monkeypatch.setattr(journal, 'capture_boundary', capture)
+    result = journal.evaluate_failures(read(faults[0], stderr=b'later query failure'),
+                                       start=start, end=end)
+    capture.assert_called_once_with()
+    assert result.reason == 'journal boundary confirmation timed out'
+    assert result.unexpected == (journal.Event('broker', 'backend', 130, 'broker'),)
+
+    capture.reset_mock()
+    monkeypatch.setattr(journal, '_closed_span', Mock(side_effect=OSError('later span failure')))
+    result = journal.evaluate_failures(read(), start=start, end=end)
+    capture.assert_called_once_with()
+    assert result.reason == 'journal boundary confirmation timed out'
 
 
 def test_product_failure_read_binds_evidence_to_owned_boot_and_case(product_failure_span, monkeypatch):

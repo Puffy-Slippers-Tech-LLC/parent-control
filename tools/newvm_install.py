@@ -199,6 +199,8 @@ def configure_install(boot, stage, seed, options):
 
 def boot_and_wait(identifier, xml, log, witness, phase):
     deadline = time.monotonic() + BOOT_TIMEOUT
+    # Anaconda's console can put cursor controls immediately before the marker.
+    marker = re.compile(rb'(?:\x1b\[[0-?]*[ -/]*[@-~])*' + re.escape(witness.encode('ascii')))
     # Start the inactive persistent domain with one-time XML. A later ordinary
     # start must never inherit the unattended installer or its answer media.
     virsh('create', '/dev/stdin', '--validate', input=ET.tostring(xml, encoding='unicode'))
@@ -209,7 +211,7 @@ def boot_and_wait(identifier, xml, log, witness, phase):
                 raise ValueError(f'{phase}: unexpected power-off reason: {state}')
             with log.open('rb') as stream:
                 stream.seek(max(0, os.fstat(stream.fileno()).st_size - 131072))
-                if witness.encode('ascii') not in stream.read().splitlines():
+                if not any(marker.fullmatch(line) for line in stream.read().splitlines()):
                     raise ValueError(f'{phase}: guest shut down without confirming success')
             return
         time.sleep(min(5, max(0, deadline - time.monotonic())))

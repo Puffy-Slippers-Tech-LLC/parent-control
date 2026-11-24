@@ -1127,6 +1127,14 @@ def main(password=None) -> int:
         digest = preparation_digest()
         prepare_test_dependencies(runner=runner, os_id=guest.os_id)
         if guest.os_id == 'fedora':
+            # Unattended installs can leave Workstation configured for a text boot.
+            # The graphical target pulls in GDM and its policy readiness gate.
+            target = runner.run(['systemctl', 'get-default']).stdout.strip()
+            if target == 'multi-user.target':
+                runner.run(['systemctl', 'set-default', 'graphical.target'])
+                target = runner.run(['systemctl', 'get-default']).stdout.strip()
+            if target != 'graphical.target':
+                raise PreparationError('verify:graphical-target', 'Fedora test VMs require a graphical boot')
             # GNOME Software requests a system Flatpak OCI summary at startup
             # even with automatic updates disabled. Inactive sessions can get
             # an authentication prompt. Prevent service activation in test VMs.

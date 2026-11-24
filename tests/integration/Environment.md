@@ -516,6 +516,7 @@ still require shared environment preparation before use.
 | Input | Owner and lifetime |
 | --- | --- |
 | Fixed accounts, guest dependencies, welcome/idle settings | Baseline account/tool reconciliation |
+| Fedora graphical boot | Baseline preparation changes `multi-user.target` to `graphical.target` and verifies the result so boot pulls in GDM and its policy readiness gate. Other defaults require operator resolution. |
 | Fedora GNOME Classic | Baseline package reconciliation supplies `gnome-classic-session`. The [automatic E2E coverage](../e2e/README.md#gnome-classic-coverage) owns per-attempt child routing. |
 | Fedora terminal shortcut | `prepare_vm.configure_terminal_shortcut` gives each fixed test account a permanent Ctrl+Alt+T custom binding to `/usr/bin/ptyxis --new-window`, with readback; other custom bindings are preserved. The shared guest dependency inventory supplies Ptyxis. Ubuntu retains its existing shortcut. Qualification only exercises the prepared binding and never configures it. |
 | Stable fixture folder names across desktop-language changes | `baseline_environment.desktop_settings_files`: per-fixture `Hidden=true` XDG autostart override and empty regular systemd user-unit mask for the optional GTK folder renamer; the baseline reconciler owns placement and read-only verification |

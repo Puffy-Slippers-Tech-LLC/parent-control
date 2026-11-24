@@ -516,6 +516,15 @@ def entry_identity(current, uid, mode):
     return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
+def entry_snapshot(current):
+    """Compare desktops and foreground greeters across entry observations."""
+    # GDM can retire an inactive greeter while the desktop remains foreground.
+    # Native lock state is checked separately by entry_identity.
+    return {key: {field: value for field, value in item.items() if field != 'LockedHint'}
+            for key, item in current.items()
+            if local_graphical(item) and (item['Class'] != 'greeter' or item['Active'] == 'yes')}
+
+
 def gdm_denial_guest(role, boot, attempt):
     """Read the PAM decision and verify the child did not gain desktop access."""
     require(role in ('child', 'standard') and os.geteuid() == 0, 'gdm-denial-account')
@@ -707,21 +716,12 @@ def execute(binding, *, diagnostic=False, station_receipt=None):
         else:
             identity = entry_identity(current, account.pw_uid, mode)
         confirmed = sessions()
-        # Entry is bound to local graphical sessions, not background user
-        # managers left over from an earlier greeter. Those can finish exiting
-        # while the retained desktop and current greeter remain unchanged.
-        # Keep graphical session properties on both reads. LockedHint is
-        # diagnostic; recheck the target's native lock state independently.
-        graphical_before = {key: {field: value for field, value in item.items() if field != 'LockedHint'}
-                            for key, item in current.items() if local_graphical(item)}
-        graphical_after = {key: {field: value for field, value in item.items() if field != 'LockedHint'}
-                           for key, item in confirmed.items() if local_graphical(item)}
-        if graphical_after != graphical_before:
+        if entry_snapshot(confirmed) != entry_snapshot(current):
             # Private engineering evidence: public session IDs/properties only,
-            # never names, passwords or product state. Preserve the refusal.
+            # never names, passwords or product state.
             print('session-entry-observation: ' + json.dumps(
                 {'before': current, 'after': confirmed}, sort_keys=True), file=sys.stderr)
-        require(graphical_after == graphical_before, 'source-changed')
+            raise SessionError('session:source-changed')
         require(entry_identity(confirmed, account.pw_uid,
                 'same' if mode == 'refusals' else mode) == identity, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',

@@ -921,7 +921,7 @@ TOGGLE_OPERATIONS = {
 }
 OPERATIONS |= frozenset(TOGGLE_OPERATIONS)
 ACCESSIBILITY_TRACE_OPERATIONS = frozenset((
-    'feedback-collection-events', 'feedback-collection-open', 'feedback-collection-refused',
+    'feedback-collection-refused',
     'parent-checked-events', 'parent-save-events', 'parent-trace-wrong-child-refused',
     'parent-trace-wrong-surface-refused',
     'parent-custom-events', 'parent-custom-trace-focus', 'parent-custom-saved-result',
@@ -4879,7 +4879,7 @@ class AccessibleUI:
                 'include_logs': value['include_logs']}
 
     def feedback_snapshot(self, projection='initial-empty', *, states=False, attachments=False,
-                          attachment_state=None, language=None):
+                          attachment_state=None, language=None, opening_observation=None):
         """FEED03: compare a declared synthetic draft, never project arbitrary text.
 
         One complete public snapshot supplies ownership, the exact attachment
@@ -4896,15 +4896,20 @@ class AccessibleUI:
             require(not states and not attachments and attachment_state is None,
                     'ui:attachment-profile')
             attachment_state = (CHANGED_ATTACHMENT, ('', '1 file attachment ready.'), False)
-        edges, identities, facts = {}, {}, {}
-        nodes = list(self.nodes(strict=True, snapshot=edges, identities=identities, facts=facts))
-        observation = (nodes, edges, identities, facts)
+        opening = opening_observation is not None
+        observation = opening_observation if opening else self.read_snapshot()
+        nodes, edges, identities, _facts = observation
         root = self.snapshot_owned_target('feedback-dialog', observation=observation,
-                                          check_prompt=True)
-        require(root is not None and self.surface_available(root),
-                'ui:feedback-entry')
+                                          showing=False, check_prompt=not opening)
+        require(root is not None and (root.metadata['visible'] if opening else
+                                      self.surface_available(root)), 'ui:feedback-entry')
+        if opening:
+            require(root.surface_metadata['parent_id'] == 'parent-window', 'ui:wrong-surface-owner')
+            collection = self.feedback_collection_state(root, observation)
+            if collection['collecting']:
+                return None
         scoped = self.snapshot_scope(nodes, edges, root)
-        require(all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
+        require(opening or all(not self.has_state(node, self.api.StateType.DEFUNCT) for node in scoped),
                 'ui:feedback-stale')
         # GTK implementation IDs such as "box" and "title" are reusable
         # inside compound widgets. Only the feedback namespace is our public
@@ -5049,12 +5054,13 @@ class AccessibleUI:
                              else '[unrecognized name]')
             error.add_note(f'Expected logs row: {expected_logs_name!r}; observed: {observed_name!r}')
             raise error
-        for identity in ('feedback-collection-status', 'feedback-retry-logs',
-                         'feedback-send-without-logs'):
-            node = self.snapshot_owned_target(identity, root=root, showing=False,
-                                              observation=observation)
-            require(node is None or not self.has_state(node, self.api.StateType.VISIBLE),
-                    'ui:feedback-collection')
+        if not opening:
+            for identity in ('feedback-collection-status', 'feedback-retry-logs',
+                             'feedback-send-without-logs'):
+                node = self.snapshot_owned_target(identity, root=root, showing=False,
+                                                  observation=observation)
+                require(node is None or not self.has_state(node, self.api.StateType.VISIBLE),
+                        'ui:feedback-collection')
         status = self.snapshot_owned_target('feedback-status', root=root, showing=False,
                                             observation=observation)
         status_text = (status.get_name() if status is not None
@@ -5065,6 +5071,9 @@ class AccessibleUI:
                 'ui:feedback-validation')
         for identity in ('feedback-close', 'feedback-send', 'feedback-add-files',
                          'feedback-download-logs', 'feedback-toggle-logs'):
+            if opening and include_logs and identity == 'feedback-download-logs':
+                require(collection['download'], 'ui:feedback-download-not-ready')
+                continue
             if not include_logs and identity == 'feedback-download-logs':
                 node = self.snapshot_owned_target(identity, root=root, showing=False,
                                                   observation=observation)
@@ -5092,7 +5101,8 @@ class AccessibleUI:
         if projection in ('formatted', 'formatted-file'):
             result['formats'] = self.basic_feedback_formatting()
         if language is not None:
-            result['presentation'] = self.parent_dialog_presentation('feedback', language)
+            result['presentation'] = self.parent_dialog_presentation(
+                'feedback', language, scope=(root, observation) if opening else None)
         return result
 
     def basic_feedback_formatting(self):
@@ -5551,161 +5561,74 @@ class AccessibleUI:
     def open_feedback(self, projection='initial-empty', *, language=None):
         """FEED01: ordinary Parent entry, with an independently observed result."""
         require(projection in FEEDBACK_PROJECTIONS, 'ui:feedback-projection')
-        self.activate_id('parent-feedback-button')
-        self.id_target('feedback-editor-input', sensitive=True)
+        target = self.wait(self.feedback_open_target, 'feedback-open-target', prompt_in_predicate=True)
+        application = target.get_application()
+        self._invoke_target(target)
+
         def ready():
-            try:
-                return self.feedback_snapshot(projection, language=language)
-            except UiError as error:
-                if str(error) in ('ui:feedback-collection', 'ui:feedback-target'):
-                    return None
-                raise
-        return self.wait(ready, 'feedback-ready')
+            return self.feedback_snapshot(projection, language=language,
+                                          opening_observation=self.feedback_app_snapshot(application))
 
-    def feedback_collection_source(self):
-        """Pin the owned management entry before the dialog exists."""
-        import hashlib
-        # The desktop scan is required for the prompt guard, but an external
-        # provider may retire between enumeration and its cache read. Discard
-        # that incomplete observation and reacquire under the existing deadline.
-        # Only reads repeat; source checks and the later Open input stay outside.
-        observation = self.wait(self.read_snapshot, 'feedback-collection-entry',
-                                prompt_in_predicate=True)
-        root = self.snapshot_owned_target('parent-window', observation=observation, check_prompt=True)
-        require(root is not None, 'ui:collection-entry')
-        require(self.snapshot_owned_target('feedback-dialog', observation=observation,
-                                          showing=False) is None, 'ui:collection-entry')
-        button = self.snapshot_owned_target('parent-feedback-button', root=root,
-                                            observation=observation)
-        require(button is not None and self.has_state(button, self.api.StateType.SENSITIVE)
-                and root.bus == button.bus and root.bus.startswith(':'), 'ui:collection-entry')
-        self.collection_owner = (root.bus, root.path)
-        nodes, _edges, identities, _facts = observation
-        self.collection_application = self.snapshot_matches(
-            PARENT_APPLICATION, nodes, showing=False, identities=identities)
-        require(self.collection_application is not None
-                and self.collection_application.bus == root.bus, 'ui:collection-entry')
-        return hashlib.sha256(json.dumps([(n.bus, n.path) for n in (root, button)]).encode()).hexdigest()
+        # The guarded click is complete. Only the read of its owned result
+        # repeats, without consulting unrelated desktop providers.
+        return self.wait(ready, 'feedback-ready', prompt_in_predicate=True)
 
-    def feedback_collection_sample(self):
-        """Read only ID-owned collection and Download public state."""
-        # Refresh the pinned API application inventory without unrelated desktop
-        # traversal. Entry/input and final verification retain prompt guards.
-        self.invalidate_observation()
-        observation = self.read_snapshot(self.collection_application)
-        parent = self.snapshot_owned_target('parent-window', observation=observation,
-                                            check_prompt=False)
-        require(parent is not None and (parent.bus, parent.path) == self.collection_owner,
-                'ui:trace-source-changed')
-        root = self.snapshot_owned_target('feedback-dialog', observation=observation,
-                                          check_prompt=False, showing=False)
-        if root is None:
-            return None
-        require(root.bus == self.collection_owner[0], 'ui:trace-source-changed')
-        require(not self.has_state(root, self.api.StateType.DEFUNCT), 'ui:feedback-stale')
-        row = self.snapshot_owned_target('feedback-collection-status', root=root,
-                                         observation=observation, showing=False)
-        download = self.snapshot_owned_target('feedback-download-logs', root=root,
-                                              observation=observation, showing=False)
-        require(all(not self.has_state(node, self.api.StateType.DEFUNCT)
-                    for node in (row, download) if node is not None), 'ui:feedback-stale')
-        collecting = row is not None and self.has_state(row, self.api.StateType.VISIBLE)
-        if collecting:
-            if row.get_name() != 'Collecting diagnostic information...':
-                return None
-        # Collection hides the attachment subtree containing Download. Its
-        # absence in this complete owned surface is observed unavailability,
-        # not a missing sample or an inferred sensitive-state transition.
-        # Before either control appears there is no collection sample yet.
-        if download is None and not collecting:
-            return None
-        return {'collecting': bool(collecting), 'download': bool(
-            download is not None and
-            self.has_state(download, self.api.StateType.VISIBLE) and
-            self.has_state(download, self.api.StateType.SENSITIVE))}
-
-    def feedback_collection_pins(self):
-        """Bind both dynamic controls to one complete, owned public surface."""
-        self.invalidate_observation()
-        observation = self.read_snapshot(self.collection_application)
-        parent = self.snapshot_owned_target('parent-window', observation=observation,
-                                            check_prompt=False)
-        require(parent is not None and (parent.bus, parent.path) == self.collection_owner,
-                'ui:trace-source-changed')
+    def feedback_open_target(self):
+        """Resolve Open and its prompt guard in the same pre-input observation."""
+        observation = self.read_snapshot()
+        button = self.snapshot_owned_target('parent-feedback-button', observation=observation,
+                                            showing=False, check_prompt=True)
         dialog = self.snapshot_owned_target('feedback-dialog', observation=observation,
-                                            check_prompt=False, showing=False)
-        require(dialog is not None and dialog.bus == parent.bus, 'ui:collection-event-owner')
-        row = self.snapshot_owned_target('feedback-collection-status', root=dialog,
-                                         observation=observation, showing=False)
-        download = self.snapshot_owned_target('feedback-download-logs', root=dialog,
-                                              observation=observation, showing=False)
-        # These controls are exposed at different points in collection. Keep
-        # their identities when present without requiring both in every tree.
-        return {'dialog': dialog.path,
-                'row': row.path if row is not None else None,
-                'download': download.path if download is not None else None}
+                                            showing=False)
+        require(dialog is None or not dialog.metadata['visible'], 'ui:feedback-already-open')
+        return button
+
+    def feedback_app_snapshot(self, application):
+        """Reacquire only the original Parent endpoint during a feedback wait."""
+        try:
+            return self.read_snapshot(application)
+        except UiError as error:
+            if getattr(error.__cause__, 'code', None) == 'OwnerChanged':
+                raise UiError('ui:feedback-owner-changed') from error
+            raise
+
+    def feedback_collection_state(self, root, observation):
+        """Read native collection controls together from one UI inventory revision."""
+        def control(identity):
+            node = self.snapshot_owned_target(identity, root=root, observation=observation,
+                                              showing=False)
+            return node.metadata if node is not None else {}
+
+        require(not control('feedback-retry-logs').get('visible')
+                and not control('feedback-send-without-logs').get('visible'),
+                'ui:feedback-collection-failed')
+        download = control('feedback-download-logs')
+        return {'collecting': bool(control('feedback-collection-status').get('visible')),
+                'download': bool(download.get('visible') and download.get('enabled'))}
 
     def wait_feedback_collection(self):
         """FEED09: wait for observed ready diagnostics, without requiring a transient.
 
-        This Parent feedback block uses the shared predicate wait, including its
-        prompt, fresh-read and deadline guards. Time alone never satisfies it.
+        Guard the entry once, then refresh only the pinned Parent inventory.
         """
-        pinned = False
+        parent = None
 
         def ready():
-            nonlocal pinned
-            if not pinned:
-                # Opening feedback publishes its WebView before its document
-                # is ready. The initial complete read belongs under the same
-                # deadline as subsequent samples. Pin once after that read;
-                # retries must never adopt a replacement application owner.
-                observation = self.read_snapshot()
-                parent = self.snapshot_owned_target('parent-window', observation=observation,
-                                                    check_prompt=True)
+            nonlocal parent
+            if parent is None:
+                parent = self.snapshot_owned_target('parent-window', check_prompt=True)
                 require(parent is not None, 'ui:collection-entry')
-                nodes, _edges, identities, _facts = observation
-                application = self.snapshot_matches(PARENT_APPLICATION, nodes, showing=False,
-                                                     identities=identities)
-                require(application is not None and application.bus == parent.bus,
-                        'ui:collection-entry')
-                self.collection_owner = (parent.bus, parent.path)
-                self.collection_application = application
-                pinned = True
-            value = self.feedback_collection_sample()
+            observation = self.feedback_app_snapshot(parent.get_application())
+            require(self.snapshot_owned_target('parent-window', observation=observation,
+                                               showing=False) == parent, 'ui:feedback-owner-changed')
+            root = self.snapshot_owned_target('feedback-dialog', observation=observation,
+                                              showing=False)
+            if root is None or not root.metadata['visible']:
+                return None
+            value = self.feedback_collection_state(root, observation)
             return value if value == {'collecting': False, 'download': True} else None
 
-        return self.wait(ready, 'feedback-collection-ready')
-
-    def feedback_collection_events(self, operation):
-        """Open once under the existing input guard and wait for ready diagnostics."""
-        if operation == 'feedback-collection-refused':
-            self.feedback_snapshot(states=True)
-            try:
-                self.feedback_collection_source()
-            except UiError as error:
-                require(str(error) == 'ui:collection-entry', 'ui:collection-refusal')
-                return {'refusal': 'wrong-surface'}
-            raise UiError('ui:collection-refusal-missing')
-        source = self.feedback_collection_source()
-        if operation == 'feedback-collection-open':
-            require(source == self.trace_request, 'ui:trace-source-changed')
-            self.open_feedback()
-            return {'opened': True}
-        token = self.trace_request
-        require(type(token) is str and re.fullmatch(r'[0-9a-f]{32}', token), 'ui:trace-token')
-        started = time.monotonic()
-        print(json.dumps({'event': 'accessibility-trace-ready', 'token': token,
-                          'source': source, 'boot_sha256': self.trace_boot,
-                          'checked': False}, sort_keys=True), flush=True)
-        current = self.wait_feedback_collection()
-        self.invalidate_observation()
-        self.wait(lambda: self.feedback_snapshot(states=True), 'feedback-collection-state',
-                  prompt_in_predicate=True)
-        elapsed = int((time.monotonic() - started) * 1000)
-        require(elapsed < 60000, 'ui:collection-not-ready')
-        return {'token': token, 'source': source, 'terminal': True,
-                'samples': [{'elapsed_ms': elapsed, **current}]}
+        return self.wait(ready, 'feedback-collection-ready', prompt_in_predicate=True)
 
     def feedback_read_operation(self, operation):
         require(operation in FEEDBACK_READ_OPERATIONS, 'ui:feedback-operation')
@@ -5883,10 +5806,10 @@ class AccessibleUI:
                 'ui:dialog-stale')
         return root, observation
 
-    def parent_dialog_presentation(self, surface, language):
+    def parent_dialog_presentation(self, surface, language, *, scope=None):
         """Dialog-owned translated text, independently of LANG01."""
         require(language in ('en', 'he'), 'ui:dialog-binding')
-        root, observation = self.parent_dialog_scope(surface)
+        root, observation = self.parent_dialog_scope(surface) if scope is None else scope
         nodes, edges, _identities, _facts = observation
         labels = {}
         for identity, expected in PARENT_DIALOG_TEXT[language].items():
@@ -16420,8 +16343,15 @@ class AccessibleUI:
                 else:
                     raise UiError('ui:trace-wrong-entry-accepted')
         elif operation in ACCESSIBILITY_TRACE_OPERATIONS:
-            if operation.startswith('feedback-collection-'):
-                result['trace'] = self.feedback_collection_events(operation)
+            if operation == 'feedback-collection-refused':
+                try:
+                    self.wait(self.feedback_open_target, 'feedback-open-target',
+                              prompt_in_predicate=True)
+                except UiError as error:
+                    require(str(error) == 'ui:feedback-already-open', 'ui:collection-refusal')
+                    result['trace'] = {'refusal': 'wrong-surface'}
+                else:
+                    raise UiError('ui:collection-refusal-missing')
             elif operation == 'parent-custom-trace-focus':
                 result['trace'] = self.custom_trace_focus(child)
             elif operation in ('parent-saved-result', 'parent-custom-saved-result'):
@@ -17778,7 +17708,7 @@ def main():
         'switch-parent-before', 'attachment-remaining', 'chooser-accept',
         'denied-export-save-chooser-open', 'standard-parent-unavailable',
         'native-grid-refusals', 'overlay-native-grid-refusals',
-        'feedback-collection-events', 'feedback-collection-open')
+        'feedback-open', 'feedback-reopen')
     read_started = time.monotonic_ns()
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)

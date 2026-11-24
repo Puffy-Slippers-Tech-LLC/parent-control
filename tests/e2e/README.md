@@ -462,7 +462,8 @@ this cache. Each Fedora target has its own receipt and lock. The RPM key also
 includes the Podman binary, exact builder image ID, and RPM builder sources.
 Preparation uses the selected image by ID throughout. A tag update changes
 the image selected by the next preparation.
-Native and mock-backed RPM builds use the ordinary fresh builder.
+Native and mock-backed RPM packages use the ordinary fresh builder and can
+still reuse a verified fixture tree.
 Cleanup code, retention code, scenario/test edits, fixture prose, unrelated
 `tools/` bytecode, desktop settings, boot identity, installed test helpers and
 unrelated installed packages do not invalidate artifacts. Build processes use
@@ -474,8 +475,11 @@ A package-only change reuses fixtures; a fixture-only change reuses the package.
 Every hit hashes the complete stored
 payload, including manifests and volatile Flatpak containers, checks its metadata,
 copies it into the current run's private allocation and verifies that copy.
-Inputs are captured again before publishing the result; concurrent changes refuse
-the preparation. A missing or altered retained bundle rebuilds both components.
+Inputs are captured again before publishing the result. Concurrent changes refuse
+the preparation. When the retained bundle is missing or altered, its package is
+rebuilt and a separate verified fixture copy can still be reused. That fixture
+receipt also serves automatic upgrade and activation inputs with matching
+fixture sources and host build inputs.
 The log identifies each reused/rebuilt component, changed input groups and lookup
 time. A post-build input refusal retains the changed groups' before/after values
 and expected/actual manifest metadata in the launcher log, while leaving the

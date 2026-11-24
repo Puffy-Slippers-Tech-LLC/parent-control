@@ -514,10 +514,12 @@ class Native:
                 self.command(['/usr/sbin/restorecon', '-F', '--', TRUST])
             self.command([self.cli, '--update'])
             # The sole update is asynchronous. Observe its daemon's completion
-            # after the pre-update cursor before opening LMDB, without resending
-            # the mutation or retrying a failed database command.
+            # after the pre-update cursor without resending the mutation.
             self._event('Updated', identity, after=cursor)
-            self.verify_database(request)
+            # Ubuntu publishes no fixture rules here. The independent readback
+            # verifies live trust before the runtime witness and readiness.
+            if self.target['os'] == 'fedora':
+                self.verify_database(request)
         for path, data in rules.items():
             if previous is None:
                 f.write(path, data, gid=self.gid, mode=0o644)

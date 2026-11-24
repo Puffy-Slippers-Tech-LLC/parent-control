@@ -6276,9 +6276,14 @@ class AccessibleUI:
             # the full owned-window proof before releasing the next action.
             return self.wait(lambda: self.window_switch_proof(binding, projection=projection),
                              'switch-proof', prompt_in_predicate=True)
-        self.wait(lambda: self.existing_window_active(binding), 'switch-active',
-                  prompt_in_predicate=True)
-        return self.window_switch_proof(binding, projection=projection)
+        def active_proof():
+            if self.existing_window_active(binding) is None:
+                return None
+            return self.window_switch_proof(binding, projection=projection)
+
+        # The final proof can also encounter a retiring desktop provider.
+        # Retry the complete read after the shortcut without repeating input.
+        return self.wait(active_proof, 'switch-active', prompt_in_predicate=True)
 
     def retained_parent_operation(self, operation, *, child=CHILD):
         """FLOW01 existing window only; record the untouched child/page first."""

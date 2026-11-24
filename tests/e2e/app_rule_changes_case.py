@@ -259,6 +259,10 @@ class AppRuleChangesJourney(RetainedDesktopJourney, NativePolicyJourney, KioskRe
                     and value['daily']['seconds'] - value['daily']['precision_seconds'] >= 900,
                     'app-transitions:soft-opening-daily-margin')
             observed.setdefault('comparison', {})['soft_opening_daily_margin'] = True
+        if stage in ('allowance-configured', 'soft-opening-balance'):
+            # Keep the checked balances. The raw guest clock is only used by
+            # the live observer and can contain coincidental credential digits.
+            del observed['ui']['time_explanation']['observed_monotonic_ns']
 
 
 def execute(recorder, context, *, plan, binding):

@@ -108,7 +108,10 @@ interpreter or Shell process has the same source metadata.
 
 The guest reader opens and closes a span with journal-confirmed markers, then
 allows one second for pending writes and confirms a final marker from the same
-boot. It scans through that final marker and tests the producer's occurrence
+boot. Each marker is submitted once. Successful queries can wait for that
+marker within a single deadline. A send, confirmation or read failure leaves
+the observation incomplete with its first available category. The reader scans
+through the final marker and tests the producer's occurrence
 time against the half-open span. A fault sent after the closing marker still
 belongs to that span if it occurred before the close. A complete result, even
 with zero events, requires valid records and all three markers within the read
@@ -124,7 +127,7 @@ An allowance covers a component and a specific recognized category during an
 action window with an inclusive start and exclusive end. Unfamiliar categories
 and the `unexpected` catch-all remain faults under every allowance. The case's
 assertions establish the intended fault and recovery, and the allowance ends
-before recovery checks. A verified unexpected fault or independent case failure
+at its guest action cutoff. A verified unexpected fault or independent case failure
 retains its failed verdict when the observation is incomplete. Incomplete
 observation alone blocks the case pending a new observation.
 

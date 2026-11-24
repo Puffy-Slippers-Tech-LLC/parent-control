@@ -267,6 +267,7 @@ def serve():
 
 def history(command, value, path, accounts):
     import system_guest as guest
+    from product_failure_journal import action_time
     from system_graphical_expiry import LIMITS, account_property, grant, wait_for, installed_manager
     from system_extension_monitor import BrokerEvents
 
@@ -298,9 +299,10 @@ def history(command, value, path, accounts):
                       'expiry:lock-reply-timeout-order')
         wait_for(lambda: any(row['event'] == 'child.lock-failed' for row in new_events()),
                  'expiry:lock-reply-timeout-not-observed', timeout=40)
+        fault_time = action_time()
         value['reply_timeout_observed'] = True
         path.write_text(json.dumps(value))
-        return {'completed': True}
+        return {'completed': True, 'fault_time': fault_time}
     sequence = ('reply-delayed-arm', 'reply-delayed-recovery',
                 'reply-missing-arm', 'reply-missing-recovery', 'reply-complete')
     index = value['grants']
@@ -309,10 +311,13 @@ def history(command, value, path, accounts):
         mode = 'delayed' if index == 0 else 'missing'
         value['lock_log_before'] = [row for row in BrokerEvents.read('child')
                                     if row['event'] in ('child.locked', 'child.lock-failed')]
+        fault_time = action_time() if mode == 'missing' else None
         control(mode)
         value['reply_expiry'] = grant(child, 180)
         value['reply_grant'] = account_property(child, LIMITS, 'ActiveExtension')
         result = {'remaining_seconds': value['reply_expiry'] - time.time()}
+        if fault_time is not None:
+            result['fault_time'] = fault_time
     elif command.endswith('-recovery'):
         mode = 'delayed' if index == 1 else 'missing'
         rows = records()
@@ -418,6 +423,7 @@ def retry_history(command, value, path, accounts):
 def outage_history(command, value, path, accounts):
     """Characterize unavailable locking, without accepting absent protection."""
     import system_guest as guest
+    from product_failure_journal import action_time
     from system_graphical_expiry import LIMITS, account_property, grant
     from system_assertions import accepted, call
 
@@ -427,10 +433,11 @@ def outage_history(command, value, path, accounts):
     index = value['grants']
     guest.require(index < len(sequence) and command == sequence[index], 'expiry:lock-outage-order')
     if command == 'outage-arm':
+        fault_time = action_time()
         control('outage')
         value['outage_expiry'] = grant(child, 180)
         value['outage_grant'] = account_property(child, LIMITS, 'ActiveExtension')
-        result = {'remaining_seconds': value['outage_expiry'] - time.time()}
+        result = {'remaining_seconds': value['outage_expiry'] - time.time(), 'fault_time': fault_time}
     elif command in ('outage-revoke', 'outage-restore'):
         rows = records()
         paused = [row for row in rows if row['event'] == 'native-action-paused'
@@ -462,7 +469,8 @@ def outage_history(command, value, path, accounts):
             value['outage_protection'] = 'unsupported-input-remained-usable'
             value['outage_recovery_expiry'] = grant(child, 1200)
             control('available')
-            result = {'remaining_seconds': value['outage_recovery_expiry'] - time.time()}
+            result = {'remaining_seconds': value['outage_recovery_expiry'] - time.time(),
+                      'fault_time': action_time()}
     elif command == 'outage-recovery':
         guest.require(value.get('outage_protection') == 'unsupported-input-remained-usable',
                       'expiry:lock-outage-characterization-missing')

@@ -18,63 +18,65 @@ def allow_product_fault(component, category):
     if _active_case is None:
         yield
         return
-    from product_failure_journal import Allowance
+    from product_failure_journal import Allowance, action_time, decode_action_time
 
     case = _active_case
-    start = case.boundary()
+    start_boot, start = decode_action_time(case.capture(action_time, 'action opening'))
     try:
         yield
     finally:
-        end = case.boundary()
-        if start is not None and end is not None:
-            if start.boot_id == end.boot_id:
-                case.allowances.append(Allowance(component, category, start.monotonic_usec,
-                                                 end.monotonic_usec))
-            else:
-                case.incomplete = True
+        end_boot, end = decode_action_time(case.capture(action_time, 'action closing'))
+        if start is None or end is None:
+            case.reason = case.reason or 'guest fault window unavailable'
+        elif start_boot != end_boot or start > end:
+            case.reason = case.reason or 'guest fault window changed'
+        elif start < end:
+            case.allowances.append(Allowance(component, category, start, end))
 
 
 class CaseObservation:
     def __init__(self):
-        self.incomplete = False
+        self.reason = ''
         self.allowances = []
         self.failed = False
-        self.start = self.boundary()
+        self.start = self.boundary('opening journal')
 
-    def boundary(self):
+    def boundary(self, role):
         from product_failure_journal import capture_boundary
 
-        for _ in range(2):
-            try:
-                return capture_boundary()
-            except (OSError, ValueError):
-                pass
-        self.incomplete = True
+        return self.capture(capture_boundary, role)
+
+    def capture(self, capture, role):
+        from product_failure_journal import EvidenceUnavailable, evidence_reason
+
+        try:
+            return capture()
+        except EvidenceUnavailable as error:
+            reason = evidence_reason(str(error), 'guest journal evidence unavailable')
+        except (OSError, ValueError):
+            reason = 'guest journal evidence unavailable'
+        self.reason = self.reason or f'{role} boundary unavailable ({reason})'
         return None
 
     def finish(self):
-        from product_failure_journal import FailureEvaluation, evaluate_failures, read_failures
+        from product_failure_journal import (
+            EvidenceUnavailable, FailureEvaluation, evaluate_failures, evidence_reason, read_failures,
+        )
 
-        end = self.boundary()
-        result = FailureEvaluation(False, (), 'guest journal boundary unavailable', 0)
-        if self.start is not None and end is not None:
-            unexpected = []
-            for _ in range(2):
-                try:
-                    observed = read_failures(self.start, end)
-                    result = evaluate_failures(observed, start=self.start, end=end,
-                                               allowances=self.allowances)
-                except (OSError, ValueError, KeyError):
-                    continue
-                unexpected.extend(result.unexpected)
-                if result.complete:
-                    break
-            result = FailureEvaluation(result.complete, tuple(dict.fromkeys(unexpected)),
-                                       result.reason, result.unattributed)
-        if self.incomplete and result.complete:
-            return FailureEvaluation(False, result.unexpected, 'guest fault window unavailable',
-                                     result.unattributed)
-        return result
+        if self.start is None:
+            return FailureEvaluation(False, (), self.reason, 0)
+        end = self.boundary('closing journal')
+        if end is None:
+            return FailureEvaluation(False, (), self.reason, 0)
+        try:
+            observed = read_failures(self.start, end)
+        except EvidenceUnavailable as error:
+            reason = evidence_reason(str(error), 'guest journal evidence unavailable')
+            return FailureEvaluation(False, (), self.reason or reason, 0)
+        except (OSError, ValueError, KeyError):
+            return FailureEvaluation(False, (), self.reason or 'guest journal evidence unavailable', 0)
+        result = evaluate_failures(observed, start=self.start, end=end, allowances=self.allowances)
+        return replace(result, complete=False, reason=self.reason) if self.reason else result
 
 
 @pytest.hookimpl(wrapper=True)
@@ -114,7 +116,8 @@ def pytest_runtest_makereport(item, call):
             json.dump({'nodeid': item.nodeid, **asdict(result),
                        'diagnostics': result.diagnostics}, stream)
     except OSError:
-        result = replace(result, complete=False, reason='guest fault observation could not be saved')
+        result = replace(result, complete=False,
+                         reason=result.reason or 'guest fault observation could not be saved')
     disposition = result.disposition(case_failed=case.failed)
     emit('product-observation', nodeid=item.nodeid, outcome=disposition,
          complete=result.complete, unexpected=len(result.unexpected))

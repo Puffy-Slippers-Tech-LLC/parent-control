@@ -306,18 +306,20 @@ def _fault_observation_input(monkeypatch, verdict):
     from product_failure_observation import FailureObservation
     from tests.support.product_failure_journal import BOOT_ORIGIN
 
-    times = count(10, 10)
+    times = count(10, 30)
+    reads = count()
     occurred = 25 if verdict == 'allowed' else 15
     events = ([dict(component='broker', category='backend', source='broker', monotonic_usec=occurred)]
               if verdict in ('unexpected', 'allowed') else [])
-    complete = verdict != 'blocked'
-
     def read(self, mode, *args):
         if mode != 'read':
             timestamp = next(times)
             return dict(boot_id='a' * 32, monotonic_usec=timestamp, cursor=str(timestamp),
                         token=BOOT_ORIGIN if mode == 'boot-origin' else f'{timestamp:032x}')
         start, end = map(json.loads, args)
+        # A second sweep would appear healthy. A failed first sweep must
+        # block the verdict before the controller can request another one.
+        complete = next(reads) != 0 or verdict != 'blocked'
         return dict(span=[start['boot_id'], start['token'], start['monotonic_usec'],
                           end['token'], end['monotonic_usec']],
                     complete=complete, reason='' if complete else 'journal query unavailable',
@@ -334,8 +336,10 @@ def _standalone_observation_command(case, transport, verdict):
         with observe_check(case):
             transport_ready(transport)
             if verdict == 'allowed':
-                with transport.product_failures.allow('broker', 'backend'):
-                    pass
+                transport.product_failures.add_allowance(
+                    'broker', 'backend', {'boot_id': 'a' * 32, 'monotonic_usec': 20},
+                    {'boot_id': 'a' * 32, 'monotonic_usec': 30},
+                )
             raise SystemExit(0)
     except SystemExit as error:
         return error.code

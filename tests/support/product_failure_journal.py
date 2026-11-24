@@ -110,6 +110,10 @@ class _Reason(StrEnum):
     OCCURRENCE = "invalid failure occurrence time"
     MALFORMED = "journal evidence unavailable or malformed"
     ALLOWANCE = "product fault allowance outside the case span"
+    BOOT_ID = "invalid boot identity"
+    FENCE_SEND = "journal boundary send failed"
+    FENCE_TIMEOUT = "journal boundary confirmation timed out"
+    FENCE_PROVENANCE = "invalid journal boundary provenance"
 
 
 _READER_REASONS = frozenset(_Reason)
@@ -152,10 +156,17 @@ class EvidenceUnavailable(ValueError):
     """The observed span cannot support a complete result."""
 
 
+def evidence_reason(detail, fallback):
+    return detail if isinstance(detail, str) and detail in _READER_REASONS else fallback
+
+
 def _boot():
-    boot = BOOT_ID.read_text(encoding="ascii").strip().replace("-", "")
+    try:
+        boot = BOOT_ID.read_text(encoding="ascii").strip().replace("-", "")
+    except (OSError, UnicodeError) as error:
+        raise EvidenceUnavailable(_Reason.BOOT_ID) from error
     if not re.fullmatch(r"[0-9a-f]{32}", boot):
-        raise EvidenceUnavailable("invalid boot identity")
+        raise EvidenceUnavailable(_Reason.BOOT_ID)
     return boot
 
 
@@ -168,6 +179,20 @@ def _usec(record, field):
 
 def _valid_usec(value):
     return type(value) is int and 0 < value <= MAX_USEC
+
+
+def action_time():
+    """Date an action in its own guest, independently of journal delivery."""
+    occurred = time.monotonic_ns() // 1000
+    return {"boot_id": _boot(), "monotonic_usec": occurred}
+
+
+def decode_action_time(value):
+    if (isinstance(value, dict) and value.keys() == {"boot_id", "monotonic_usec"}
+            and isinstance(value["boot_id"], str) and re.fullmatch(r"[0-9a-f]{32}", value["boot_id"])
+            and _valid_usec(value["monotonic_usec"])):
+        return value["boot_id"], value["monotonic_usec"]
+    return None, None
 
 
 def _valid_span(start, end):
@@ -191,7 +216,7 @@ def _send(**fields):
         journal.sendto(payload.encode("ascii"), JOURNAL_SOCKET)
 
 
-def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=MAX_ROWS):
+def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=MAX_ROWS, timeout=3):
     # Read forward from the cursor. journalctl caps the row count and its JSON
     # output bounds individual fields. A clipped span cannot contain its seal.
     command = [
@@ -203,7 +228,7 @@ def _records(boot, *matches, cursor=None, awaiting_marker=False, limit=MAX_ROWS)
     reason = ""
     try:
         result = subprocess.run([*command, *matches], stdin=subprocess.DEVNULL,
-                                capture_output=True, timeout=3,
+                                capture_output=True, timeout=timeout,
                                 env={**os.environ, "LC_ALL": "C"})
         stdout, stderr = result.stdout, result.stderr
         empty = result.returncode == 1 and not stdout and not stderr
@@ -233,26 +258,37 @@ def capture_boundary():
         raise EvidenceUnavailable(_Reason.AUTHORIZATION)
     boot = _boot()
     token = secrets.token_hex(16)
-    _send(MESSAGE="Oh No! Parent Control test boundary", **{FENCE: token})
     deadline = time.monotonic() + 4
-    while time.monotonic() < deadline:
+    try:
+        _send(MESSAGE="Oh No! Parent Control test boundary", **{FENCE: token})
+    except OSError as error:
+        raise EvidenceUnavailable(_Reason.FENCE_SEND) from error
+    while (remaining := deadline - time.monotonic()) > 0:
         records, reason = _records(boot, "_TRANSPORT=journal", "_UID=0", f"{FENCE}={token}",
-                                   awaiting_marker=True)
+                                   awaiting_marker=True, timeout=min(3, remaining))
         if reason:
             raise EvidenceUnavailable(reason)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
         if records:
             if any(record is None for record in records):
                 raise EvidenceUnavailable(_Reason.OUTPUT)
             if len(records) != 1:
-                raise EvidenceUnavailable("test boundary provenance changed")
+                raise EvidenceUnavailable(_Reason.FENCE_PROVENANCE)
             record = records[0]
             cursor = record.get("__CURSOR")
             if (record.get("_PID") != str(os.getpid()) or record.get("_BOOT_ID") != boot
+                    or record.get(FENCE) != token or record.get("_UID") != "0"
+                    or record.get("_TRANSPORT") != "journal"
                     or not isinstance(cursor, str) or not cursor):
-                raise EvidenceUnavailable("test boundary provenance changed")
-            return Boundary(boot, _usec(record, "__MONOTONIC_TIMESTAMP"), cursor, token)
-        time.sleep(0.05)
-    raise EvidenceUnavailable("test boundary did not reach the journal")
+                raise EvidenceUnavailable(_Reason.FENCE_PROVENANCE)
+            occurred = _usec(record, "__MONOTONIC_TIMESTAMP")
+            if not _valid_usec(occurred):
+                raise EvidenceUnavailable(_Reason.TIME)
+            return Boundary(boot, occurred, cursor, token)
+        time.sleep(min(0.05, remaining))
+    raise EvidenceUnavailable(_Reason.FENCE_TIMEOUT)
 
 
 def capture_boot_origin():
@@ -507,6 +543,7 @@ def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None
         else ("_UID=" + child_uid, "_EXE=/usr/bin/gnome-shell"),
         ("_UID=0", "_COMM=systemd-journal"),
     )
+    records, reason = [], ""
     try:
         if departed:
             records, reason = _departed_span(start, end, *groups)
@@ -514,13 +551,18 @@ def read_failures(start, end, *, parent_uid=None, child_uid=None, kiosk_uid=None
             time.sleep(SETTLE_SECONDS)
             try:
                 settle = capture_boundary()
-            except (OSError, ValueError):
+            except EvidenceUnavailable as error:
+                reason = evidence_reason(str(error), _Reason.CLOSE)
                 settle = None
-            records, reason = _closed_span(start, end, settle, *groups)
+            except OSError:
+                reason = _Reason.CLOSE
+                settle = None
+            records, span_reason = _closed_span(start, end, settle, *groups)
+            reason = reason or span_reason
     except EvidenceUnavailable as error:
-        records, reason = [], str(error)
+        reason = reason or str(error)
     except (OSError, ValueError, KeyError, TypeError):
-        records, reason = [], _Reason.MALFORMED
+        reason = reason or _Reason.MALFORMED
     events, unattributed = [], 0
     for record in records:
         try:
@@ -552,7 +594,7 @@ def evaluate_failures(observation, *, start, end, allowances=(), departed=False)
     reason = ""
     if observation.get("complete") is not True or observation.get("reason") != "":
         detail = observation.get("reason")
-        reason = detail if isinstance(detail, str) and detail in _READER_REASONS else _Reason.MALFORMED
+        reason = evidence_reason(detail, _Reason.MALFORMED)
     unattributed = observation.get("unattributed")
     if type(unattributed) is not int or unattributed < 0:
         reason = reason or _Reason.MALFORMED
@@ -611,6 +653,15 @@ def main():
     # The qualification stages this reader alongside other guest-only support.
     sys.path[:0] = ["/usr/lib/oh-no-parent-control/broker", "/usr/lib/oh-no-parent-control"]
     match sys.argv[1:]:
+        case ["boundary" | "boot-origin" as mode, "report"]:
+            try:
+                capture = capture_boundary if mode == "boundary" else capture_boot_origin
+                result = asdict(capture())
+            except EvidenceUnavailable as error:
+                result = {"reason": evidence_reason(str(error), _Reason.MALFORMED)}
+            except OSError:
+                result = {"reason": _Reason.QUERY}
+            print(json.dumps(result))
         case ["boundary"]:
             print(json.dumps(asdict(capture_boundary())))
         case ["boot-origin"]:

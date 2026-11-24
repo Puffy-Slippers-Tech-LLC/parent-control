@@ -60,6 +60,8 @@ def read_record(marker):
 
 
 def begin():
+    from product_failure_journal import action_time
+
     marker = guest.guard()
     guest.require(not MASK.exists() and not MASK.is_symlink(), 'kiosk-feedback:mask-exists')
     original = service()
@@ -74,6 +76,7 @@ def begin():
     value = {'run': marker['run'], 'boot': BOOT.read_text(),
              'invocation': original['InvocationID'], 'mask': None, 'state': 'prepared'}
     write_record(value, create=True)
+    fault_time = action_time()
     identity = guest.runtime_service_mask(guest.BROKER, category='kiosk-feedback')
     value.update(mask=list(identity), state='masked')
     write_record(value)
@@ -86,10 +89,12 @@ def begin():
                   'kiosk-feedback:broker-not-stopped')
     value['state'] = 'stopped'
     write_record(value)
-    return {'broker_unavailable': True, 'runtime_mask_owned': True}
+    return {'broker_unavailable': True, 'runtime_mask_owned': True, 'fault_time': fault_time}
 
 
 def restore():
+    from product_failure_journal import action_time
+
     marker = guest.guard()
     if not RECORD.exists() and not RECORD.is_symlink():
         guest.require(not MASK.exists() and not MASK.is_symlink() and
@@ -125,9 +130,10 @@ def restore():
                   re.fullmatch(r'[0-9a-f]{32}', current['InvocationID']) and
                   current['InvocationID'] != '0' * 32,
                   'kiosk-feedback:recovery-not-active')
+    fault_time = action_time()
     value['state'] = 'restored'
     write_record(value)
-    return {'broker_restored': True}
+    return {'broker_restored': True, 'fault_time': fault_time}
 
 
 def feedback_census():
@@ -229,6 +235,7 @@ def outage_failures(start):
 
 
 def broker_failures(probe='combined'):
+    from product_failure_journal import action_time
     from system_assertions import accepted, account_property, call
 
     guest.guard()
@@ -271,6 +278,7 @@ def broker_failures(probe='combined'):
                       'kiosk-feedback:signal-preference-changed')
         # Append one byte to the pinned fixture inode. A partial write cannot
         # introduce a second byte, and cleanup never truncates a replacement.
+        allowance_start = action_time()
         try:
             guest.require(os.pwrite(fd, b'[', len(contents)) == 1,
                           'kiosk-feedback:signal-preference-injection')
@@ -306,6 +314,7 @@ def broker_failures(probe='combined'):
                           mutated in (contents, contents + b'['),
                           'kiosk-feedback:signal-preference-cleanup-ownership')
             os.ftruncate(fd, len(contents))
+            allowance_end = action_time()
             os.utime(fd, ns=(original.st_atime_ns, original.st_mtime_ns))
             os.fsync(fd)
     finally:
@@ -319,7 +328,8 @@ def broker_failures(probe='combined'):
                   ('broker', 'backend', 'broker')}
         guest.require(len(stamps) == 1, 'kiosk-feedback:broker-backend-signal-missing')
     return {'backend_occurrences': len(stamps), 'operation_observed': probe != 'backend',
-            'restored': True, 'fault_start': json.loads(fault_start), 'fault_end': json.loads(end)}
+            'restored': True, 'fault_start': json.loads(fault_start), 'fault_end': json.loads(end),
+            'fault_allowance': [allowance_start, allowance_end]}
 
 
 def seed_preferences(uids=None):

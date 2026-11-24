@@ -1,7 +1,6 @@
 """One attempt-owned missing fixture home; no product policy substitution."""
 import json
 import ast
-from contextlib import nullcontext
 from io import BytesIO
 import os
 from pathlib import Path
@@ -20,6 +19,7 @@ def require(value, code):
 def guest_operation(action, token, receipt):
     sys.path.insert(0, '/var/tmp/onpc-system-input')
     import system_guest as guest
+    from product_failure_journal import action_time
     from gi.repository import Gio, GLib
     marker = guest.guard()
     guest.enable_diagnostics()
@@ -154,6 +154,7 @@ def guest_operation(action, token, receipt):
                 'extension_activation_restored': True}
 
     require(action == 'startup', 'action')
+    start = action_time()
     guest.run(['systemctl', 'start', guest.BROKER])
     require(guest.run(['systemctl', 'is-active', guest.BROKER]) == 'active', 'isolated-startup')
     require(account.pw_uid in {row[0] for row in call('ListManagedUsers')[0]}, 'hidden-child')
@@ -174,10 +175,12 @@ def guest_operation(action, token, receipt):
                 'unexpected-toggle-error')
     else:
         raise RuntimeError('child-isolation:integration-dependent-toggle-succeeded')
+    end = action_time()
     require(preferences() == receipt['policy'] and enforcement() == receipt['live'], 'refusal-policy-changed')
     return {'broker_ready': True, 'unavailable_child_listed': True,
             'integration_toggle_refused': True, 'authoritative_policy_preserved': True,
-            'native_enforcement_preserved': True, 'original_sanitized_cause_preserved': True}
+            'native_enforcement_preserved': True, 'original_sanitized_cause_preserved': True,
+            'fault_allowance': [start, end]}
 
 
 class ChildIsolationFault:
@@ -208,8 +211,11 @@ class ChildIsolationFault:
         observation = self.journey.transport.product_failures
         # The isolated startup proof explicitly calls SetParentControl and
         # verifies its BackendFailure while the fixture home is unavailable.
-        with (observation.allow('broker', 'backend') if observation is not None else nullcontext()):
-            return self.call('startup')
+        result = self.call('startup')
+        allowance = result.pop('fault_allowance')
+        if observation is not None:
+            observation.add_allowance('broker', 'backend', *allowance)
+        return result
 
     def restore(self):
         if self.receipt is not None and not self.restored:

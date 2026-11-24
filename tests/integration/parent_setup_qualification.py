@@ -558,7 +558,8 @@ class ChildIsolationQualification(KioskEntryQualification):
                     opening, surface = (
                         ('unavailable-approval-rechecked', 'kiosk') if stage == 'unavailable-approval-refused'
                         else ('unavailable-parent-desktop', 'parent'))
-                    start, end = starts.pop(opening), observation.boundary()
+                    start = starts.pop(opening)
+                    end = getattr(journey.ui, 'fault_action_time', None)
                     for role in ('broker', surface):
                         observation.add_allowance(role, 'backend', start, end)
             if stage == 'setup-greeter':

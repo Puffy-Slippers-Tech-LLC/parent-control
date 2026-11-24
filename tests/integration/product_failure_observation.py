@@ -1,6 +1,5 @@
 """Observe one case's current product through its already owned VM transport."""
 
-from contextlib import contextmanager
 from dataclasses import asdict
 import json
 from pathlib import Path
@@ -15,6 +14,15 @@ from watch_activity import observed
 
 READER = Path(journal.__file__)
 RUN_READER = "import sys; exec(compile(sys.stdin.buffer.read(), '<product-fault-reader>', 'exec'))"
+CALL_ERRORS = (CommandError, OSError, subprocess.SubprocessError, TypeError, ValueError)
+
+
+def _call_failure(error):
+    if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
+        return 'guest journal command timed out'
+    if isinstance(error, (CommandError, OSError, subprocess.SubprocessError)):
+        return 'guest journal command failed'
+    return 'invalid guest journal reply'
 
 
 class FailureObservation:
@@ -57,10 +65,14 @@ class FailureObservation:
         finally:
             commands.last_returncode = status
 
-    def _boundary(self, mode):
-        for _ in range(2):
-            try:
-                boundary = journal.Boundary(**self._call(mode))
+    def _boundary(self, mode, role):
+        reason = 'invalid guest journal boundary reply'
+        try:
+            reply = self._call(mode, 'report')
+            if isinstance(reply, dict) and reply.keys() == {'reason'}:
+                reason = journal.evidence_reason(reply['reason'], reason)
+            else:
+                boundary = journal.Boundary(**reply)
                 token_valid = (boundary.token == journal.BOOT_ORIGIN if mode == 'boot-origin'
                                else re.fullmatch(r'[0-9a-f]{32}', boundary.token))
                 if (re.fullmatch(r'[0-9a-f]{32}', boundary.boot_id)
@@ -68,18 +80,16 @@ class FailureObservation:
                         and isinstance(boundary.cursor, str) and boundary.cursor
                         and token_valid):
                     return boundary
-            except (CommandError, OSError, subprocess.SubprocessError, TypeError, ValueError):
-                pass
+        except CALL_ERRORS as error:
+            reason = _call_failure(error)
+        self._reason = self._reason or f'{role} boundary unavailable ({reason})'
         return None
 
     def boundary(self):
         """Fence an exact case action in the guest's occurrence order."""
         if not self._open:
             raise ValueError('no active product fault interval')
-        marker = self._boundary('boundary')
-        if marker is None:
-            self._reason = self._reason or 'action boundary unavailable'
-        return marker
+        return self._boundary('boundary', 'action')
 
     def start(self, *, at_boot=False):
         if self._finished:
@@ -91,32 +101,26 @@ class FailureObservation:
             self._awaiting_boot = False
             self._departing_span = None
         self._open = True
-        self._start = self._boundary('boot-origin' if at_boot else 'boundary')
-        if self._start is None:
-            self._reason = self._reason or 'opening journal boundary unavailable'
-            # Keep any faults observable after the first viable fence.
-            if at_boot:
-                self._start = self._boundary('boundary')
+        self._start = self._boundary('boot-origin' if at_boot else 'boundary', 'opening journal')
+        if self._start is None and at_boot:
+            # A separate partial span can still establish unexpected faults.
+            self._start = self._boundary('boundary', 'partial journal opening')
 
     def add_allowance(self, component, category, start, end):
-        if start is None or end is None:
-            self._reason = self._reason or 'action boundary unavailable'
-        elif not self._open or self._start is None or start.boot_id != end.boot_id or (
-                start.boot_id != self._start.boot_id):
-            self._reason = self._reason or 'fault allowance crossed an observation boundary'
-        else:
-            self._allowances.append(journal.Allowance(
-                component, category, start.monotonic_usec, end.monotonic_usec,
-            ))
+        def edge(value):
+            if isinstance(value, journal.Boundary):
+                return value.boot_id, value.monotonic_usec
+            return journal.decode_action_time(value)
 
-    @contextmanager
-    def allow(self, component, category):
-        start = self.boundary()
-        try:
-            yield
-        finally:
-            with cancellation_cleanup():
-                self.add_allowance(component, category, start, self.boundary())
+        opening_boot, opening = edge(start)
+        closing_boot, closing = edge(end)
+        if opening is None or closing is None:
+            self._reason = self._reason or 'action boundary unavailable'
+        elif (not self._open or self._start is None or opening_boot != closing_boot
+              or opening_boot != self._start.boot_id or opening > closing):
+            self._reason = self._reason or 'fault allowance crossed an observation boundary'
+        elif opening < closing:
+            self._allowances.append(journal.Allowance(component, category, opening, closing))
 
     def checkpoint(self):
         """Seal and read this boot before any action can lose its evidence."""
@@ -132,29 +136,23 @@ class FailureObservation:
         self._open = False
         if start is None:
             return
-        end = self._boundary('boundary')
+        end = self._boundary('boundary', 'closing journal')
         if end is None:
-            self._reason = self._reason or 'closing journal boundary unavailable'
             return
         return start, end, allowances
 
     def _read(self, start, end, allowances, *, departed=False):
         start_json, end_json = (json.dumps(asdict(marker)) for marker in (start, end))
         mode = 'read-departed' if departed else 'read'
-        partial_events = []
-        for _ in range(2):
-            try:
-                observation = self._call(mode, start_json, end_json)
-            except (CommandError, OSError, subprocess.SubprocessError, TypeError, ValueError):
-                observation = None
+        try:
+            observation = self._call(mode, start_json, end_json)
+        except CALL_ERRORS as error:
+            result = journal.FailureEvaluation(False, (), _call_failure(error), 0)
+        else:
             result = journal.evaluate_failures(observation, start=start, end=end,
                                                allowances=allowances, departed=departed)
-            partial_events.extend(result.unexpected)
-            if result.complete:
-                break
-        return journal.FailureEvaluation(
-            result.complete, tuple(dict.fromkeys(partial_events)), result.reason, result.unattributed,
-        )
+        self._reason = self._reason or result.reason
+        return result
 
     def before_reboot(self):
         if self._open:
@@ -172,7 +170,7 @@ class FailureObservation:
                 events = tuple(sorted(dict.fromkeys(before.unexpected + departed.unexpected),
                                       key=lambda event: event.monotonic_usec))
                 self._results[-1] = journal.FailureEvaluation(
-                    departed.complete, events, departed.reason,
+                    before.complete and departed.complete, events, before.reason or departed.reason,
                     max(before.unattributed, departed.unattributed),
                 )
                 self._departing_span = None

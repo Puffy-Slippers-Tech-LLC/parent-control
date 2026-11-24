@@ -1335,6 +1335,7 @@ JORDAN_MATE_REQUEST = dict(child='existing-fixture-child', approver='fixture-par
                           duration_seconds=75, allow_soft=True)
 MATE_APPROVAL_OPERATIONS |= frozenset(JORDAN_MATE_ORDER)
 JORDAN_MATE_REFUSAL = 'jordan-mate-submit-unavailable'
+FAULT_ALLOWANCE_END_OPERATIONS = frozenset({JORDAN_MATE_REFUSAL, 'feedback-close-ready'})
 MATE_APPROVAL_OPERATIONS |= frozenset({JORDAN_MATE_REFUSAL})
 CHINESE_MATE_ORDER = tuple('chinese-mate-' + suffix for suffix in
                            ('open', 'qualified', 'rechecked', 'submit-success'))
@@ -17728,6 +17729,10 @@ def main():
     read_started = time.monotonic_ns()
     try:
         result = ui.run(sys.argv[1], sys.argv[2], child=child)
+        if sys.argv[1] in FAULT_ALLOWANCE_END_OPERATIONS:
+            occurred = time.monotonic_ns() // 1000
+            fault_boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip().replace('-', '')
+            result['fault_action_time'] = {'boot_id': fault_boot, 'monotonic_usec': occurred}
         if sys.argv[1] == 'second-parent-desktop':
             require_active_launch_session(unlocked=True)
         if management_parent is not None:

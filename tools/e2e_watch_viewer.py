@@ -611,7 +611,7 @@ def panel(feed=None, *, vm_name=None, identity_prefix='e2e-watch'):
             self.step.set_label(step or description)
             self.status.set_label(activity_text(activity, meta.get('progress')) or operation or
                 ('VM running · Waiting for the next operation' if meta.get('state') == 'live' else
-                 CONNECTED if meta.get('lease_locked') else WAITING))
+                 CONNECTED if self.locked else WAITING))
 
         def close(self):
             self.feed.close()

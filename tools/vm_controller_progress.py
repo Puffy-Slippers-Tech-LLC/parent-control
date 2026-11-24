@@ -121,15 +121,19 @@ def progress(root, name, current, *, reader, show_operation=True):
                                                         item.get('selection_args') or ())
                         if current:
                             break
-            if not show_operation:
-                return current
-            pending = next((item for item in categories if item.get('wait_reason')), None)
+            # The live report keeps the VM visible between case publications,
+            # even when both optional feeds are off.
+            pending = (next((item for item in categories if item.get('wait_reason')), None)
+                       if show_operation else None)
             if current and pending is None:
                 return current
-            operation = pending['wait_reason'] if pending else 'Preparing tests or collecting controller results'
             fallback = dict(current or dict(current=1, total=1, case_id='controller',
                 title='VM controller', step=''))
-            fallback.update(operation=operation)
+            if show_operation:
+                fallback['operation'] = (pending['wait_reason'] if pending else
+                                         'Preparing tests or collecting controller results')
+            else:
+                fallback['operation'] = ''
             fallback.pop('operation_started_ns', None)
             description = fallback.pop('description', '')
             return dict(json.loads(progress_packet(fallback)), description=description)

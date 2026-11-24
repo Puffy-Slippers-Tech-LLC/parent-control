@@ -23,27 +23,29 @@ def flatpak_running(app, account, require):
     rows = [line.split('\t') for line in raw.decode().splitlines()]
     require(all(len(row) == 3 for row in rows), 'launcher:inventory')
     matches = [row for row in rows if row[1] == app]
-    # Reacquire an ambiguous inventory within the existing read deadline.
-    # This snapshot cannot prove absence or authorize a stop.
-    require(len(matches) <= 1, 'ui:incomplete-tree')
-    if not matches:
-        return None
-    instance, _, pid = matches[0]
-    require(re.fullmatch(r'[0-9]+', instance) and re.fullmatch(r'[1-9][0-9]*', pid),
-            'launcher:flatpak-identity')
-    process = Path('/proc') / pid
-    try:
-        before = (process / 'stat').read_text().rpartition(') ')[2].split()
-        require(process.stat().st_uid == account.pw_uid, 'launcher:owner')
-        after = (process / 'stat').read_text().rpartition(') ')[2].split()
-        require(before[0] != 'Z' and after[0] != 'Z', 'ui:incomplete-tree')
+    identity = None
+    for instance, _, pid in matches:
+        require(re.fullmatch(r'[0-9]+', instance) and re.fullmatch(r'[1-9][0-9]*', pid),
+                'launcher:flatpak-identity')
+        process = Path('/proc') / pid
+        try:
+            before = (process / 'stat').read_text().rpartition(') ')[2].split()
+            require(process.stat().st_uid == account.pw_uid, 'launcher:owner')
+            after = (process / 'stat').read_text().rpartition(') ')[2].split()
+        except (FileNotFoundError, ProcessLookupError):
+            # Flatpak can list an instance after its wrapper exits.
+            continue
         require(before[19] == after[19], 'launcher:owner-changed')
-    except (FileNotFoundError, ProcessLookupError):
-        # Flatpak can retire the wrapper before removing its public instance
-        # entry. Reacquire the inventory; this partial read proves no absence.
-        require(False, 'ui:incomplete-tree')
-    return {'launcher': 'flatpak', 'app': app,
-            'identity': [instance, int(pid), before[19]]}
+        if before[0] in ('Z', 'X') or after[0] in ('Z', 'X'):
+            continue
+        if identity is not None:
+            require(False, f'launcher:ambiguous-instance:{identity[0]}/{identity[1]},{instance}/{pid}')
+        identity = [instance, int(pid), before[19]]
+    if identity is not None:
+        return {'launcher': 'flatpak', 'app': app, 'identity': identity}
+    # Only an inventory with no matching rows establishes absence.
+    require(not matches, 'ui:incomplete-tree')
+    return None
 
 
 def appimage_running(account, require):

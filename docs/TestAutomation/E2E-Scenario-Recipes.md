@@ -1737,6 +1737,10 @@ same Parent window before switching to sign-in for approval.
 
 Bindings: restore = none / unlock / fresh-login / allowance-edit / toggle / app-save / revoke.
 
+Use [pre-test daytime clock preparation](#pre-test-clock-preparation) before
+fixture account sign-in so the native midnight cutoff cannot shorten the
+countdown used to compare daily time with the original grant.
+
 1. FLOW18(daily-dominant,soft exception) → FLOW08(allowed) → APP04; prepare Jordan's other-child activity with FLOW14 before FLOW18 for Riley.
 2. Use the last public grant interval and TIME03 elapsed time to cross its latest possible expiry while the child remains active and TIME01 still shows positive daily access. APP03(soft); then perform exactly the restoration table's block sequence. Do not visit Parent to learn that G reached zero.
 3. On the resulting child desktop, APP02(expected existing apps) → FLOW08(new hard/soft launches), **then** FLOW09(Jordan,other-child). A Parent read is permitted inside a restoring action that already calls P, or after all child-result checks. There is no implicit extra unlock before those checks.

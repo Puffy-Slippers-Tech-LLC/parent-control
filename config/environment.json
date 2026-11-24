@@ -52,7 +52,7 @@
       "max_compute_unit": 40,
       "host_test_concurrency": 8,
       "disk_concurrency": 4,
-      "kvm_halt_poll_ns": 25000
+      "kvm_halt_poll_ns": 0
     }
   ],
   "branches": [

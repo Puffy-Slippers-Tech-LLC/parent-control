@@ -236,7 +236,8 @@ a conflicting server assignment requires administrator repair. Existing servers
 must run `./setup.sh --server` once after receiving this implementation.
 
 An optional `kvm_halt_poll_ns` on the assigned host sets its KVM polling cap
-in nanoseconds during `./setup.sh --server`. `myserver` uses 25,000 ns (25 µs).
+in nanoseconds during `./setup.sh --server`. `myserver` uses `0` to disable
+host KVM halt polling and avoid spinning on idle guest vCPUs.
 Setup records the cap in `/etc/modprobe.d/oh-no-parent-control-kvm.conf` for
 future module loads and applies it live through
 `/sys/module/kvm/parameters/halt_poll_ns` when KVM is loaded. Setup checks the

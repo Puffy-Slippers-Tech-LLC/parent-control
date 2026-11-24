@@ -25,6 +25,9 @@ MARKER = Path('/etc/onpc-system-test.json')
 BASELINE = Path('/etc/oh-no-parent-control-test-baseline.json')
 BUS = 'com.puffyslippers.OhNoParentControl1'
 BROKER = 'oh-no-parent-control-broker.service'
+DISPLAY = 'display-manager.service'
+POLICY = 'fapolicyd.service'
+FEDORA_POLICY_READY = 'oh-no-parent-control-execution-policy-ready.service'
 EXPIRY_DIAGNOSTICS = Path('/var/lib/onpc-test-graphical-expiry')
 KIOSK_CONFINEMENT_STATE = Path('/var/lib/oh-no-parent-control/kiosk-confinement.json')
 commands = Commands()
@@ -239,8 +242,7 @@ def verify_package():
         # normal activation after reboot, without restarting a service.
         started = time.monotonic()
         try:
-            run(['busctl', '--system', '--quiet', 'call', BUS,
-                 '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+            verify_installed_broker(reboot_required=False)
         except CommandError:
             try:
                 broker_setup_failure_diagnostic(time.monotonic() - started)
@@ -248,7 +250,7 @@ def verify_package():
                 # An unavailable diagnostic must not replace the failed check.
                 pass
             raise
-        for unit in (BROKER, 'oh-no-parent-control-execution-policy-ready.service'):
+        for unit in (BROKER, FEDORA_POLICY_READY):
             require(run(['systemctl', 'is-active', unit]) == 'active', 'service-ready')
 
 
@@ -834,7 +836,7 @@ def installed_group(path):
     return grp.getgrnam(groups.get(str(path), 'root')).gr_gid
 
 
-def activate_broker(*, reboot_required=False, restart=True):
+def activate_broker(*, restart=True):
     # The static Type=dbus broker starts on demand. Use the explicitly allowed
     # public product interface, not an introspection interface its bus policy
     # does not expose. Suppress account labels returned by the read-only method.
@@ -843,22 +845,20 @@ def activate_broker(*, reboot_required=False, restart=True):
     run(['busctl', '--system', 'call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
          'org.freedesktop.DBus', 'StartServiceByName', 'su', BUS, '0'])
     require(run(['systemctl', 'is-active', BROKER]) == 'active', 'dbus-activation')
-    if reboot_required:
-        verify_reboot_gate()
-        return
     run(['busctl', '--system', '--quiet', 'call', BUS,
          '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
 
 
-def verify_reboot_gate():
+def verify_reboot_gate(*, auto_start=True):
     # Check the protocol error name, not translated command stderr or a generic
     # failure. A transport failure or successful policy call must fail this check.
     from gi.repository import Gio, GLib
     connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    flags = Gio.DBusCallFlags.NONE if auto_start else Gio.DBusCallFlags.NO_AUTO_START
     try:
         connection.call_sync(BUS, '/com/puffyslippers/OhNoParentControl1', BUS,
             'ListManagedUsers', None, GLib.VariantType.new('(a(uss))'),
-            Gio.DBusCallFlags.NONE, 30000, None)
+            flags, 30000, None)
     except GLib.Error as error:
         require(Gio.DBusError.get_remote_error(error) == BUS + '.Error.RebootRequired',
                 'broker-reboot-error')
@@ -879,8 +879,91 @@ def wait_for_boot():
     print(f'onpc-system: stage=boot-readiness outcome=complete state={state}', flush=True)
 
 
-def installed(*, reboot_required=False):
+def unit_properties(unit, *names):
+    return parse_properties(run(['systemctl', 'show', unit, '--no-pager',
+                                 '--property=' + ','.join(names)], timeout=10),
+                            names, category='startup:unit-observation')
+
+
+def service_outcome(unit):
+    # Only systemd states, exit codes and boot-relative times leave the guest.
+    result = unit_properties(unit, 'ActiveState', 'Result', 'ExecMainStatus', 'NRestarts',
+                             'ExecMainStartTimestampMonotonic', 'ActiveEnterTimestampMonotonic')
+    print(json.dumps({'event': 'installed-service-outcome', 'unit': unit, **result},
+                     sort_keys=True), file=sys.stderr, flush=True)
+    return result
+
+
+def verify_installed_broker(*, reboot_required):
+    first = state = service_outcome(BROKER)
+    auto_start = (state['ActiveState'] == 'inactive'
+                  and (reboot_required or state['ExecMainStartTimestampMonotonic'] == '0'))
+    if state['ActiveState'] == 'activating':
+        deadline = time.monotonic() + 180
+        while unit_properties(BROKER, 'ActiveState')['ActiveState'] == 'activating':
+            require(time.monotonic() < deadline, 'broker-startup-did-not-settle')
+            time.sleep(1)
+        state = service_outcome(BROKER)
+    # The static broker may be idle on a fresh boot, or configuration may
+    # have deferred activation for a pending reboot. Give it one public call.
+    require(state['Result'] == 'success' and (state['ActiveState'] == 'active' or auto_start),
+            'broker-original-startup')
+    if reboot_required:
+        verify_reboot_gate(auto_start=auto_start)
+    else:
+        run(['busctl', '--system', '--quiet', '--auto-start=' + ('yes' if auto_start else 'no'),
+             'call', BUS, '/com/puffyslippers/OhNoParentControl1', BUS, 'ListManagedUsers'])
+    return first
+
+
+def set_baseline_display_gate(*, enabled):
+    """Move the exact baseline override out of systemd's load path for one boot."""
+    from baseline_environment import NATIVE_POLICY_FILES, native_policy_files
+
+    guard()
+    path = Path(NATIVE_POLICY_FILES[0])
+    held = path.with_suffix('.onpc-package-boot')
+    source, destination = (held, path) if enabled else (path, held)
+    require(not os.path.lexists(destination), 'startup:baseline-display-gate-collision')
+    try:
+        info = source.lstat()
+    except FileNotFoundError:
+        raise GuestError('startup:baseline-display-gate-missing') from None
+    os_id = 'fedora' if package_path().suffix == '.rpm' else 'ubuntu'
+    data, mode, _ = native_policy_files(os_id)[str(path)]
+    require(source.resolve(strict=True) == source and stat.S_ISREG(info.st_mode)
+            and info.st_uid == info.st_gid == 0 and info.st_nlink == 1
+            and stat.S_IMODE(info.st_mode) == mode and source.read_bytes() == data,
+            'startup:foreign-baseline-display-gate')
+    # The next boot loads the packaged units. Leave the running GDM alone.
+    source.rename(destination)
+
+
+def verify_package_boot(*, fedora):
+    """Observe the package's login gate before a broker call or greeter renewal."""
+    from baseline_environment import NATIVE_POLICY_FILES
+
+    gate = FEDORA_POLICY_READY if fedora else POLICY
+    units = (POLICY, gate, DISPLAY) if fedora else (POLICY, DISPLAY)
+    states = {unit: service_outcome(unit) for unit in units}
+    dependencies = unit_properties(DISPLAY, 'DropInPaths', 'Requires', 'After')
+    require(NATIVE_POLICY_FILES[0] not in dependencies['DropInPaths'].split(),
+            'startup:baseline-display-gate-loaded')
+    require(gate in dependencies['Requires'].split() and gate in dependencies['After'].split(),
+            'startup:missing-packaged-display-ordering')
+    require(all(state['ActiveState'] == 'active' and state['Result'] == 'success'
+                and state['NRestarts'] == '0' for state in states.values()), 'startup:first-boot-services')
+    policy_ready = int(states[POLICY]['ActiveEnterTimestampMonotonic'])
+    gate_ready = int(states[gate]['ActiveEnterTimestampMonotonic'])
+    display_started = int(states[DISPLAY]['ExecMainStartTimestampMonotonic'])
+    require(0 < policy_ready <= gate_ready <= display_started, 'startup:display-before-policy')
+    return states
+
+
+def installed(*, reboot_required=False, package_boot=False):
     wait_for_boot()
+    fedora = package_path().suffix == '.rpm'
+    outcomes = verify_package_boot(fedora=fedora) if package_boot else {}
     verify_package_files()
     expectations = json.loads((PAYLOAD / 'installed-files.json').read_text())
     for entry in expectations:
@@ -899,10 +982,10 @@ def installed(*, reboot_required=False):
     private = Path('/etc/oh-no-parent-control/config.json').stat()
     require(private.st_uid == 0 and stat.S_IMODE(private.st_mode) == 0o600, 'configuration-permissions')
     rules_before = execution_rule_state() if reboot_required else None
-    activate_broker(reboot_required=reboot_required)
-    units = [BROKER, 'accounts-daemon.service', 'fapolicyd.service', 'display-manager.service']
-    if package_path().suffix == '.rpm':
-        units.append('oh-no-parent-control-execution-policy-ready.service')
+    outcomes[BROKER] = verify_installed_broker(reboot_required=reboot_required)
+    units = [BROKER, 'accounts-daemon.service', POLICY, DISPLAY]
+    if fedora:
+        units.append(FEDORA_POLICY_READY)
     # systemctl emits one state per requested unit. Keep every readiness
     # assertion while paying for a single process/system-bus connection.
     require(run(['systemctl', 'is-active', *units]).splitlines() == ['active'] * len(units),
@@ -924,6 +1007,7 @@ def installed(*, reboot_required=False):
         rules = Path('/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
         require(rules.is_file() and rules.stat().st_uid == 0, 'generated-execution-rules')
     require(bool(run(['fapolicyd-cli', '--list'])), 'loaded-execution-rules')
+    return outcomes
 
 
 def execution_rule_state():
@@ -946,7 +1030,7 @@ def activation_state(phase):
     require(phase in ('installed', 'rebooted'), 'kiosk-activation:phase')
     if phase == 'installed':
         require(reboot_requested(), 'kiosk-activation:reboot-not-requested')
-        verify_reboot_gate()
+        verify_installed_broker(reboot_required=True)
     else:
         require(reboot_cleared(), 'kiosk-activation:reboot-request-retained')
     return {'phase': phase, 'boot_sha256': sha(Path('/proc/sys/kernel/random/boot_id')),
@@ -960,6 +1044,9 @@ def prepare_activation_greeter():
     boot nor the reboot request; the caller checks activation state around it.
     """
     guard()
+    original = service_outcome(DISPLAY)
+    require(original['ActiveState'] == 'active' and original['Result'] == 'success',
+            'kiosk-activation:original-greeter-unhealthy')
     sessions = run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'])
     for line in sessions.splitlines():
         session = line.split()[0]
@@ -971,8 +1058,8 @@ def prepare_activation_greeter():
         require(values.get('Class') == 'greeter' or
                 values.get('Type') not in ('wayland', 'x11'),
                 'kiosk-activation:personal-session-active')
-    run(['systemctl', 'restart', 'display-manager.service'], timeout=120)
-    require(run(['systemctl', 'is-active', 'display-manager.service']) == 'active',
+    run(['systemctl', 'restart', DISPLAY], timeout=120)
+    require(run(['systemctl', 'is-active', DISPLAY]) == 'active',
             'kiosk-activation:greeter-inactive')
 
 
@@ -1155,7 +1242,8 @@ def collect(marker, outcome):
 
     result = Commands().run(['journalctl', '--no-pager', '--utc', '-b', '-u', BROKER,
                              '-u', 'onpc-test-graphical-expiry-broker.service',
-                             '-u', 'fapolicyd.service', '-u', 'accounts-daemon.service',
+                             '-u', POLICY, '-u', 'gdm.service', '-u', FEDORA_POLICY_READY,
+                             '-u', 'accounts-daemon.service',
                              '-u', 'slapd.service', '-u', 'sssd.service'],
                             timeout=60, check=False, merge_stderr=False)
     (output / 'service-journal.txt').write_text(redacted(result.decode(errors='replace')))
@@ -1356,6 +1444,8 @@ def main(argv=None):
             print(json.dumps(activation_state(argv[1]), sort_keys=True))
         elif argv == ['prepare-activation-greeter']:
             prepare_activation_greeter()
+        elif argv in (['hold-baseline-display-gate'], ['restore-baseline-display-gate']):
+            set_baseline_display_gate(enabled=argv[0] == 'restore-baseline-display-gate')
         elif argv == ['install-previous', '--original-debdb']:
             install_previous(original_debdb=True)
         elif argv == ['upgrade', '--match-activation']:

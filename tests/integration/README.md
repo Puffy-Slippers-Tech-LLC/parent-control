@@ -1091,7 +1091,8 @@ selectable, but is omitted as a selected case whenever system 5 is selected.
 Its prerequisite executions omit kiosk mutations and graphical activation, and
 reconstructing a dependent history cannot pull in selected system-5 behavior.
 The family queue therefore schedules one installation history while retaining
-each dependent history's readiness.
+each dependent history's readiness. See the
+[installed-package reboot observation](#installed-package-reboot-observation).
 
 `removal::test_aborted_cleanup_rollback_retry` is the focused aborted-cleanup
 rollback and owned-retry history. List it with
@@ -1742,6 +1743,24 @@ APT install the exact package. The runner waits for systemd boot completion
 before service assertions; SSH alone is insufficient. A degraded boot does not
 skip the service assertions. Readiness waits never retry installation or a
 failed test assertion.
+
+## Installed-package reboot observation
+
+Systems 1 and 5 boot the installed package with the baseline GDM readiness
+drop-in held aside in the disposable guest. Before any post-reboot broker call
+or graphical test action, the guest records the native policy service and GDM
+outcomes, checks the effective package dependencies and compares their
+monotonic timestamps. Fedora also checks its separate readiness unit. The
+assertion rejects failed services and automatic restarts. The runner puts the
+drop-in back for later boots in the same history. Failed attempts use normal
+snapshot cleanup.
+
+Shared installed readiness observes the existing broker state before the
+`ListManagedUsers` call. The public read may activate an idle static broker
+once. An already active broker is queried without auto-start, and a failed
+broker fails the check. The pre-reboot phase requires `RebootRequired` and
+verifies that the call leaves the execution rules intact. The package cases
+retain the initial service states in their JUnit report.
 
 ## Reusable implementation contracts
 

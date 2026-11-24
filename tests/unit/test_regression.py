@@ -171,8 +171,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
     import fix_tests
     from vm_case_queue import arguments
     failure = next(record for record in ResultStore().failures() if record.get('work'))
-    assert fix_tests.validation_command(failure) is None
-    command = fix_tests.enclosing_retry(tmp_path, failure)
+    command = fix_tests.validation_command(failure)
     assert command[2:-2] == arguments(work[0])
     ResultStore().record('e2e', 'b', '', 2, vm='b', options=[], work=work[1])
     with monkeypatch.context() as repair:
@@ -182,7 +181,7 @@ def test_execute_pass_claims_fifo_once_per_family_and_resumes_clear_results(tmp_
         assert ResultStore().select_failure('e2e', 'b', ['renamed'], ['renamed'], vms=['b']) is None
         current = dict(work[0], options=['current'])
         selected = ResultStore().select_failure('e2e', 'a', ['first', 'last'], ['current'], vms=['a'])
-        assert fix_tests.enclosing_retry(tmp_path, selected)[2:-2] == arguments(current)
+        assert fix_tests.validation_command(selected)[2:-2] == arguments(current)
     ResultStore().record('e2e', 'a', '', 2, vm='a', options=[], work=work[1])
     before = len(observed)
     assert vm_test_queue.execute_pass(tmp_path, tuple(replay), control(), execute)['status'] == 0

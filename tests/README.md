@@ -557,23 +557,25 @@ One fresh native goal session owns investigation, edits, diagnostics and scoped
 validation. It activates the actual simplicity goal. When a failure identifies a
 case, the session validates that case with its current selectors and, for VM
 cases, one eligible VM from the failing family. The runner supplies required
-lifecycle predecessors. For infrastructure failures without a case, the session
-uses the smallest host check that exercises the failing boundary, such as
+lifecycle predecessors. When a failure identifies an enclosing VM operation, the
+session validates that operation with its current selectors. For infrastructure
+failures without a selected operation, the session uses the smallest host check
+that exercises the failing boundary, such as
 collection, input validation or a focused unit check. The original runner
-command is diagnostic context. Repair sessions must never run full suites,
-multi-case VM selections, or nested repair launchers. The session continues
-until its scoped validation succeeds. The launcher
+command is diagnostic context. VM validation uses the exact command assigned to
+the session. Full suites and nested repair launchers are outside that scope.
+The session fixes failures found during validation and keeps its goal active
+until the assigned command passes and cleanup finishes. The launcher
 does not submit corrective turns, interpret intermediate JSON statuses, escalate
 models, count repair conversations or recover old threads. Native automatic
 goal continuation belongs to the session runtime.
 
-For an enclosing failure in an independent system area, the outer launcher
-retries that area after the repair session. It keeps the area's selectors and
-uses the eligible workers from that family in the original pool. The runner
-finishes the same area operation after every selected
-case has passed and its worker has finished cleanup. Older case passes keep
-their round credit while validation executes the full area again. A single
-eligible VM can run the area together and share preparation.
+For an enclosing failure in an independent system area, the scoped validation
+keeps the area's selectors and uses the eligible workers from that family in
+the original pool. Older case passes keep their round credit while validation
+executes the full area again. A single eligible VM can run the area together
+and share preparation. Watch keeps the launcher's original case count during
+the repair session.
 
 Repair model and effort come from
 `agents.tools.fix-tests` in
@@ -594,8 +596,8 @@ authorization remain in effect. Core product backend edits retain the
 
 Only ordinary terminal runner results establish case completion. Agent prose,
 a successful process with no case result, source fingerprints, report archives
-and Git journals are not substitute proof. The assigned case writes its result to
-the current round's result store. Focused diagnostics use their own results.
+and Git journals are not substitute proof. The assigned validation writes its
+results to the current round's result store. Focused diagnostics use their own results.
 After the session ends, ordinary discovery
 selects a remaining clear failure without rerunning it, or runs pending work.
 Removed and unselected cases cannot send the launcher into an old repair.

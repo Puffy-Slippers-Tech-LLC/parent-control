@@ -4,6 +4,8 @@ NATIVE_POLICY_FILES = (
     '/etc/systemd/system/display-manager.service.d/onpc-test-native-policy.conf',
     '/usr/local/libexec/onpc-test-native-policy-ready',
 )
+FEDORA_FLATPAK_METADATA_RULE = '/etc/polkit-1/rules.d/00-onpc-test-flatpak-metadata.rules'
+FEDORA_SOFTWARE_MASK = '/etc/systemd/user/gnome-software.service'
 
 
 def native_policy_files(os_id):
@@ -52,3 +54,17 @@ def automatic_update_files(os_id):
     return {'/etc/systemd/system/' + unit: (b'', 0o644, 'system') for unit in (
         'apt-daily.timer', 'apt-daily.service',
         'apt-daily-upgrade.timer', 'apt-daily-upgrade.service')}
+
+
+def software_policy_files(os_id):
+    """Suppress Flatpak OCI metadata prompts from inactive Fedora desktops."""
+    if os_id != 'fedora':
+        return {}
+    rule = b'''polkit.addRule(function(action, subject) {
+    if (action.id === "org.freedesktop.Flatpak.metadata-update" &&
+        subject.local && !subject.active) {
+        return polkit.Result.NO;
+    }
+});
+'''
+    return {FEDORA_FLATPAK_METADATA_RULE: (rule, 0o644, 'system')}

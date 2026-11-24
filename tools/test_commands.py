@@ -1584,7 +1584,7 @@ def is_inspection(argv):
 
 
 def validate_repair_scope(root, argv, allowed):
-    """Return whether this bounded run is the assigned case for the round."""
+    """Return whether this run is the repair session's assigned validation."""
     if argv == json.loads(allowed):
         return True
     if argv in HELP_ARGV or argv == ['--list']:
@@ -1605,7 +1605,7 @@ def validate_repair_scope(root, argv, allowed):
         if selector is None and category in ('source', 'backend', 'static', 'traceability'):
             validate_one(root, args)
             return False
-    raise ValueError('repair sessions may only run their assigned case or a focused host check; '
+    raise ValueError('repair sessions may only run their assigned validation or a focused host check; '
                      'the outer launcher owns suite execution')
 
 

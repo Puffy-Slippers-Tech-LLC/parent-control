@@ -232,18 +232,6 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
     def execute(root, run, owner, kind, command=None):
         results = test_results.ResultStore()
         events.append(kind)
-        if len(events) in (5, 7):
-            assert kind == 'test'
-            assert command == [str(root / 'tools/run-tests'), '--stop-on-error', '--resume',
-                               '--resume-case=authorization::last', '--resume-area-only',
-                               'system', 'selected', '--vm', 'test-vm']
-            assert not results.complete('system', 'selection', ['selected'])
-            if len(events) == 5:
-                results.record('system', 'test-family', failed_case, 1, options=['selected'], vm='test-vm')
-                return 1
-            assert failed_case in results.passed('system', 'test-family')
-            results.finish_command('system', ['selected'], family='test-family', work=area)
-            return 0
         if kind == 'test':
             assert command == [str(root / 'tools/run-tests'), '--stop-on-error', 'system', 'selected',
                                '--vm', 'family-id', '--vmhost', 'test-host']
@@ -279,31 +267,37 @@ def test_public_repair_composes_validation_and_continues_pending(tmp_path, monke
                 assert test_commands.main(['unit', 'tests/unit/test_test_launchers.py']) == 2
             return 0
         if events == ['test', 'agent', 'test']:
-            results.record('system', 'test-family', '', 1, options=['selected'], vm='test-vm', work=area)
+            results.record('system', 'test-family', '', 1, options=['selected'], vm='test-vm',
+                           work=area, validation_vms=['test-vm', 'spare-vm'])
             return 1
         if len(events) == 4:
             assert kind == 'agent' and command['work'] == area
-            assert fix_tests.validation_command(command) is None
-            return 0
-        if kind == 'agent':
-            assert len(events) == 6 and command['case'] == failed_case
-            prompt = (run / 'prompt.txt').read_text()
-            assert f'--resume-case={failed_case}' in prompt and 'selected' in prompt
             validation = fix_tests.validation_command(command)
-            assert validation == ['tools/run-tests', '--stop-on-error', '--resume', f'--resume-case={failed_case}',
-                                  '--resume-case-only', 'system', 'selected', '--vm', 'test-vm']
-            assert test_commands.validate_repair_scope(ROOT, validation[1:], json.dumps(validation[1:]))
+            assert validation == ['tools/run-tests', '--stop-on-error', '--resume',
+                                  '--resume-case=authorization::last', '--resume-area-only',
+                                  'system', 'selected', '--vm', 'test-vm,spare-vm']
+            prompt = (run / 'prompt.txt').read_text()
+            assert ' '.join(validation) in prompt
+            allowed = json.dumps(validation[1:])
+            assert test_commands.validate_repair_scope(ROOT, validation[1:], allowed)
+            with pytest.raises(ValueError, match='assigned validation'):
+                test_commands.validate_repair_scope(ROOT, validation[1:-1] + ['family-id'], allowed)
             assert results.passed('system', 'test-family') == {'passed'}
-            results.record('system', 'test-family', failed_case, 0)
+            assert not results.complete('system', 'selection', ['selected'])
+            results.record('system', 'test-family', failed_case, 1, options=['selected'], vm='test-vm')
             (root / 'concurrent-edit').write_text('ordinary working changes')
+            for case in area['cases']:
+                results.record('system', 'test-family', case, 0, options=['selected'], vm='test-vm')
+            results.finish_command('system', ['selected'], family='test-family', work=area)
             return 0
-        assert len(events) == 8
-        assert results.passed('system', 'test-family') == {'passed', failed_case}
+        assert events == ['test', 'agent', 'test', 'agent', 'test']
+        assert results.passed('system', 'test-family') == {'passed', *area['cases']}
+        assert not any(record.get('work') == area for record in results.failures())
         return 0
 
     request = dict(categories=['system'], rounds=1, tasks=None, vm='family-id', vmhost='test-host')
     assert fix_tests.run_rounds(tmp_path, tmp_path, 0, request, operation=execute) == 0
-    assert events == ['test', 'agent', 'test', 'agent', 'test', 'agent', 'test', 'test']
+    assert events == ['test', 'agent', 'test', 'agent', 'test']
 
 
 def _fault_observation_input(monkeypatch, verdict):

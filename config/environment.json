@@ -49,7 +49,7 @@
       "virt-manager": "/Data/virt-manager",
       "ssh_port": 22,
       "backup_root": "/Data/virt-manager/backups/onpc",
-      "max_compute_unit": 45,
+      "max_compute_unit": 40.5,
       "host_test_concurrency": 8,
       "disk_concurrency": 4,
       "kvm_halt_poll_ns": 0

@@ -70,6 +70,22 @@ class PublicAtspi:
     def __getattr__(self, name):
         return getattr(self.native, name)
 
+    @staticmethod
+    def _connect(address):
+        from gi.repository import Gio, GLib
+        try:
+            connection = Gio.DBusConnection.new_for_address_sync(
+                address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
+                Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
+        except GLib.Error as error:
+            if error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CONNECTION_REFUSED):
+                # A published socket can precede its listener during startup.
+                # Keep this distinct from failures on an established bus.
+                error.public_atspi_starting = True
+            raise
+        connection.set_exit_on_close(False)
+        return connection
+
     def call(self, bus, path, interface, method, signature='', args=()):
         if self._call_override is not None:
             return self._call_override(bus, path, interface, method, signature, args)
@@ -83,26 +99,25 @@ class PublicAtspi:
                 session_address = os.environ.get('DBUS_SESSION_BUS_ADDRESS')
                 if not session_address:
                     raise ValueError('public-atspi:session-address')
-                session = Gio.DBusConnection.new_for_address_sync(
-                    session_address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
-                    Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
-                session.set_exit_on_close(False)
+                session = self._connect(session_address)
                 try:
                     address = session.call_sync(
                         'org.a11y.Bus', '/org/a11y/bus', 'org.a11y.Bus', 'GetAddress',
                         None, GLib.VariantType.new('(s)'), Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
                 finally:
                     session.close_sync(None)
-            self._connection = Gio.DBusConnection.new_for_address_sync(
-                address, Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
-                Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, None, None)
-            self._connection.set_exit_on_close(False)
+            self._connection = self._connect(address)
         try:
             value = self._connection.call_sync(
                 bus, path, interface, method,
                 GLib.Variant('(' + signature + ')', args) if signature else None,
                 None, Gio.DBusCallFlags.NONE, 2000, None).unpack()
         except GLib.Error as error:
+            if (self._registry_owner is None and bus == 'org.freedesktop.DBus'
+                    and method == 'GetNameOwner' and args == ('org.a11y.atspi.Registry',)
+                    and error.matches(Gio.dbus_error_quark(), Gio.DBusError.NAME_HAS_NO_OWNER)):
+                # A new accessibility bus can precede its registry owner.
+                error.public_atspi_starting = True
             if self._connection.is_closed():
                 # A service/session handoff can retire this bus connection.
                 # Discard its identities before the caller's next fresh read.

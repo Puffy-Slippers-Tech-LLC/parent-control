@@ -86,6 +86,8 @@ OPERATIONS = frozenset({
 # Only observations without focus, navigation or credential input may be
 # restarted under a newly bound greeter account after a GDM replacement.
 GREETER_RETURN_READS = frozenset({'gdm-returned', 'gdm-station-returned'})
+GREETER_RETURN_HANDOFF = 75
+GREETER_RETURN_PENDING = 76
 STANDARD_OPERATIONS = frozenset({
     'standard-desktop', 'fresh-standard-desktop', 'standard-system-prompt', 'standard-app-grid', 'standard-search-focused', 'standard-search-entered', 'standard-parent-unavailable',
     'keyring-cancel-standard',
@@ -1833,6 +1835,10 @@ class UiError(RuntimeError):
     pass
 
 
+class _SingleReadPending(UiError):
+    """A read completed without finding a ready destination."""
+
+
 class _AppRowVisibilityPending(UiError):
     """A live owned row control became hidden before its containing row."""
 
@@ -3095,7 +3101,7 @@ class AccessibleUI:
                     value = predicate()
                 outcome = 'pending'
             except self.query_errors:
-                if not retry_incomplete:
+                if deadline is None or not retry_incomplete:
                     raise
                 # UI objects can disappear during search/animation. Retry only
                 # the read, never replay an action whose effect is uncertain.
@@ -3105,7 +3111,7 @@ class AccessibleUI:
                     self.kiosk_diagnostic.query_errors += 1
                     self.kiosk_diagnostic.emit(status='query-error')
             except UiError as error:
-                if not retry_incomplete or str(error) not in (
+                if deadline is None or not retry_incomplete or str(error) not in (
                         'ui:incomplete-tree', 'ui:stale-picker', 'ui:stale-request-form',
                         'ui:gdm-stale-tree', 'ui:station-stale-tree', 'ui:language-stale',
                         'ui:system-prompt-observation-failed'):
@@ -3149,6 +3155,8 @@ class AccessibleUI:
             time.sleep(min(.2, remaining))
         if checkpoint is not None:
             checkpoint('timeout', attempt)
+        if deadline is None:
+            raise _SingleReadPending('ui:timeout:' + code)
         if incomplete is not None and str(incomplete) in (
                 'ui:stale-picker', 'ui:stale-request-form', 'ui:gdm-stale-tree',
                 'ui:station-stale-tree', 'ui:language-stale',
@@ -16895,7 +16903,8 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
     while True:
         found = []
         scan = []
-        for session in sessions():
+        listed = sessions()
+        for session in listed:
             try:
                 raw = call('show-session', session, '-p', 'Class', '-p', 'Active',
                            '-p', 'Remote', '-p', 'Type', '-p', 'Seat', '-p', 'User')
@@ -16907,7 +16916,6 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
                 if session in sessions():
                     raise
                 print('ui:greeter-session-disappeared', file=sys.stderr, flush=True)
-                found = []
                 break
             props = dict(line.split('=', 1) for line in raw.splitlines())
             # Only fixed OS states leave the guest; no IDs, UIDs or account names.
@@ -16933,9 +16941,14 @@ def greeter_account(*, station_branch=False, station_required=False, timeout=Non
                     found.append((session, uid) if identity else uid)
         else:
             last_scan = scan  # Never retain a partial inventory as complete evidence.
-        require(len(found) <= 1, 'ui:greeter-identity')
         remaining = deadline - time.monotonic()
         check_deadline(remaining)
+        if len(scan) != len(listed):
+            # A different session may have disappeared. An incomplete scan
+            # cannot establish that the bound greeter vanished.
+            time.sleep(min(.2, remaining))
+            continue
+        require(len(found) <= 1, 'ui:greeter-identity')
         if found and not (station_required and found[0][1] != 'station'):
             if station_branch:
                 return pwd.getpwuid(found[0][0]), found[0][1]
@@ -17483,11 +17496,12 @@ def greeter_return_binding(deadline):
     _session, uid = selected
     runtime = Path('/run/user') / str(uid)
     try:
-        directory, bus = runtime.lstat(), (runtime / 'bus').lstat()
+        directory = runtime.lstat()
+        require(stat.S_ISDIR(directory.st_mode) and directory.st_uid == uid,
+                'ui:runtime-owner')
+        bus = (runtime / 'bus').lstat()
     except FileNotFoundError:
         return None
-    require(stat.S_ISDIR(directory.st_mode) and directory.st_uid == uid,
-            'ui:runtime-owner')
     require(stat.S_ISSOCK(bus.st_mode) and bus.st_uid == uid,
             'ui:session-bus')
     return (*selected, directory.st_dev, directory.st_ino, bus.st_dev, bus.st_ino)
@@ -17505,37 +17519,64 @@ def wait_for_greeter_return(program):
     # Preserve the existing 300s identity + 20s socket + 45s UI allowance,
     # while making every discovery/read consume the same finite budget.
     deadline = time.monotonic() + 365
-    last = None
+    reported_statuses = set()
+    first_transition_reported = False
     while time.monotonic() < deadline:
         binding = greeter_return_binding(deadline)
         if binding is not None:
             source = ('GREETER_RETURN_BINDING = ' + repr(binding) + '\n' + program)
             try:
-                last = subprocess.run(['/usr/bin/python3', '-I', '-', *sys.argv[1:]],
+                worker = subprocess.run(['/usr/bin/python3', '-I', '-', *sys.argv[1:]],
                     input=source.encode(), capture_output=True,
                     timeout=max(.001, deadline - time.monotonic()))
             except subprocess.TimeoutExpired as error:
                 if error.stderr:
                     sys.stderr.buffer.write(error.stderr)
                 break
-            if time.monotonic() >= deadline:
-                break
-            current = greeter_return_binding(deadline)
-            if time.monotonic() >= deadline:
-                break
-            if current == binding and last.returncode not in (0, 75):
-                sys.stderr.buffer.write(last.stderr)
-                raise SystemExit(last.returncode)
-            if last.returncode == 0 and current == binding:
-                require(0 < len(last.stdout) <= 2048, 'ui:response-size')
-                sys.stderr.buffer.write(last.stderr)
-                sys.stdout.buffer.write(last.stdout)
+            status = worker.returncode
+            terminal = status not in (0, GREETER_RETURN_HANDOFF, GREETER_RETURN_PENDING)
+            reported = bool(status and (terminal or status not in reported_statuses))
+            if reported:
+                print(json.dumps({'event': 'ui-greeter-worker-result', 'status': status},
+                                 sort_keys=True), file=sys.stderr, flush=True)
+                sys.stderr.buffer.write(worker.stderr)
+                sys.stderr.buffer.flush()
+                reported_statuses.add(status)
+            if status == 0 and not 0 < len(worker.stdout) <= 2048:
+                sys.stderr.buffer.write(worker.stderr)
+                raise UiError('ui:response-size')
+            current = binding
+            try:
+                if time.monotonic() < deadline:
+                    current = greeter_return_binding(deadline)
+            except Exception as error:
+                if not terminal and status != GREETER_RETURN_HANDOFF:
+                    raise
+                # A failed recheck cannot establish a handoff or replace the
+                # first terminal observer result.
+                report_adapter_failure(error)
+            changed = current != binding
+            if changed and not first_transition_reported:
+                transition = ('unavailable' if current is None else
+                              'session' if current[:2] != binding[:2] else
+                              'runtime' if current[2:4] != binding[2:4] else 'session-bus')
+                print(json.dumps({'event': 'ui-greeter-binding-transition',
+                                  'change': transition, 'worker_status': status},
+                                 sort_keys=True), file=sys.stderr, flush=True)
+                first_transition_reported = True
+            if terminal:
+                raise SystemExit(status)
+            if status == GREETER_RETURN_HANDOFF and not changed:
+                if not reported:
+                    sys.stderr.buffer.write(worker.stderr)
+                raise SystemExit(1)
+            if status == 0 and not changed and time.monotonic() < deadline:
+                sys.stderr.buffer.write(worker.stderr)
+                sys.stdout.buffer.write(worker.stdout)
                 return
         remaining = deadline - time.monotonic()
         if remaining > 0:
             time.sleep(min(.2, remaining))
-    if last is not None:
-        sys.stderr.buffer.write(last.stderr)
     raise UiError('ui:timeout:greeter-return')
 
 
@@ -17612,7 +17653,10 @@ def main():
                 sys.argv[1] in GDM_STATION_DESKTOP_OPERATIONS else None)
         greeter, kiosk = branch_owner == 'greeter', branch_owner == 'station'
     elif 'GREETER_RETURN_BINDING' in globals():
-        account = pwd.getpwuid(GREETER_RETURN_BINDING[1])
+        try:
+            account = pwd.getpwuid(GREETER_RETURN_BINDING[1])
+        except KeyError as error:
+            raise UiError('ui:greeter-account-missing') from error
     else:
         account = greeter_account(timeout=120 if sys.argv[1] in GDM_SESSION_OPERATIONS else None) if greeter else pwd.getpwnam(
             'oh-no-parent-control' if kiosk else
@@ -17957,6 +18001,9 @@ def adapter_failure_diagnostic(error):
     try:
         from gi.repository import Gio, GLib
         query_error = getattr(error, 'public_query_error', error)
+        if isinstance(error, UiError) and str(error) == 'ui:incomplete-tree':
+            while not isinstance(query_error, GLib.Error) and query_error.__cause__ is not None:
+                query_error = query_error.__cause__
         if isinstance(query_error, GLib.Error):
             kind = 'other-query-error'
             for code, label in (
@@ -17977,6 +18024,8 @@ def adapter_failure_diagnostic(error):
                 for code, label in (
                         (Gio.IOErrorEnum.TIMED_OUT, 'timeout'),
                         (Gio.IOErrorEnum.CLOSED, 'connection-closed'),
+                        (Gio.IOErrorEnum.CONNECTION_CLOSED, 'connection-closed'),
+                        (Gio.IOErrorEnum.CONNECTION_REFUSED, 'connection-refused'),
                         (Gio.IOErrorEnum.CANCELLED, 'cancelled')):
                     if query_error.matches(Gio.io_error_quark(), code):
                         kind = label
@@ -17988,25 +18037,42 @@ def adapter_failure_diagnostic(error):
     return diagnostic
 
 
+def report_adapter_failure(error):
+    """Retain the guarded refusal and its private, bounded diagnostics."""
+    diagnostic = adapter_failure_diagnostic(error)
+    print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+    print(str(error) if isinstance(error, UiError) else 'ui:adapter-failed:' + type(error).__name__,
+          file=sys.stderr, flush=True)
+    return diagnostic
+
+
+def greeter_return_worker_status(error, query_kind):
+    if (isinstance(error, _SingleReadPending)
+            or getattr(error, 'public_atspi_starting', False)):
+        return GREETER_RETURN_PENDING
+    # The supervisor must independently observe a changed binding even for a
+    # failure consistent with losing the session, bus or provider object.
+    if isinstance(error, UiError) and str(error) in (
+            'ui:greeter-binding-changed', 'ui:greeter-account-missing',
+            'ui:timeout:runtime', 'ui:timeout:session-bus', 'ui:gdm-stale-tree'):
+        return GREETER_RETURN_HANDOFF
+    if (not isinstance(error, UiError) or str(error) in (
+            'ui:incomplete-tree', 'ui:system-prompt-observation-failed')) and query_kind in (
+            'unknown-object', 'owner-missing', 'service-missing', 'disconnected',
+            'connection-closed', 'connection-refused'):
+        return GREETER_RETURN_HANDOFF
+    return 1
+
+
 if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        exit_code = 1
-        if 'GREETER_RETURN_BINDING' in globals() and sys.argv[1] in GREETER_RETURN_READS:
-            from gi.repository import GLib
-            if (isinstance(error, GLib.Error) or isinstance(error, UiError) and (
-                    str(error).startswith('ui:timeout:') or str(error) in (
-                        'ui:greeter-binding-changed', 'ui:incomplete-tree', 'ui:gdm-stale-tree'))):
-                # This child performs no input. Discard all of its identities;
-                # a fresh process must requalify the current greeter and tree.
-                exit_code = 75
         # No raw UI tree, account names, document contents or D-Bus errors.
         # Guarded UI refusals can wrap public query failures. Preserve their
         # fixed query notes and call sites too; the refusal alone loses the
         # evidence needed to distinguish an unavailable reader from a prompt.
-        print(json.dumps(adapter_failure_diagnostic(error), sort_keys=True),
-              file=sys.stderr, flush=True)
-        print(str(error) if isinstance(error, UiError) else 'ui:adapter-failed:' + type(error).__name__,
-              file=sys.stderr, flush=True)
-        raise SystemExit(exit_code)
+        diagnostic = report_adapter_failure(error)
+        if 'GREETER_RETURN_BINDING' in globals() and sys.argv[1] in GREETER_RETURN_READS:
+            raise SystemExit(greeter_return_worker_status(error, diagnostic.get('query_failure_kind')))
+        raise SystemExit(1)

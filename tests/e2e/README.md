@@ -2237,6 +2237,15 @@ controller observations and never reuse the initial account list as proof of
 return. The real serial route retains its separate recipient, output, logout,
 continuity and cleanup proofs.
 
+The read-only return observer shares one deadline across discovery and readiness.
+Startup can remain pending while the bus socket has no listener, the new
+accessibility bus has no registry owner, or a complete read finds the greeter
+is still loading. A failure consistent with losing the bound greeter may be
+retried only after a fresh public binding check observes its disappearance or
+replacement. Terminal failures stop the return even if the binding changed.
+Private command stderr retains the first pending observation, first failed
+worker result and first observed binding change without session IDs.
+
 Legacy `onpc_gdm::wait_list`, `select_parent`, `dismiss_prompt`,
 `return_from_serial` and `return_after_reboot` refuse before image/input access.
 Keep their refusal tests and retained pixel-asset checks; neither is an alternate

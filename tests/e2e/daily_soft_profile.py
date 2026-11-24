@@ -7,6 +7,7 @@ from copy import deepcopy
 import time
 
 from accessible_ui import MATCH_APPS, MATCH_RULES, NAMED_CHILD_OPERATIONS, countdown_seconds
+from calendar_fixture import preset_ordinary_daytime
 from countdown import CountdownSample, check_countdown_balance
 from installed_journey import JourneyPlan
 from journey_blocks import (desktop_entry, desktop_return, grant_only_time_profile,
@@ -74,7 +75,8 @@ PLAN = JourneyPlan(
                    for role, access in (('a', 'allowed'), ('h', 'permanent'), ('s', 'conditional'))},
     activity_checks={'soft-preserved': ('soft-capture', 'same')},
     activity_entries={'returned-child-entry-guard': 'soft-capture'},
-    stage_actions={'desktop': 'native-verify', 'away-balance': 'real-interval'},
+    stage_actions={'setup-detached': 'daytime-window', 'desktop': 'native-verify',
+                   'away-balance': 'real-interval'},
     assertions_after={'positive-child-witness': 'daily-dominant-original-soft-exception'},
 )
 
@@ -82,15 +84,30 @@ PLAN = JourneyPlan(
 class DailySoftProfileJourney(AppPolicyJourney):
     """Use actual public reserves; refuse an infeasible return without top-ups."""
     def __init__(self, context, progress, plan=PLAN, *, actions=None):
-        super().__init__(context, progress, plan, actions=actions if actions is not None else {
-            **fixture_actions(include_refusal=False, profile='activity'),
-            'real-interval': self.wait_away})
+        if actions is None:
+            actions = {**fixture_actions(include_refusal=False, profile='activity'),
+                       'real-interval': self.wait_away}
+        super().__init__(context, progress, plan,
+                         actions={**actions, 'daytime-window': self.prepare_daytime})
         self.parent_window = None
         self.away_balance = None
         self.away_read_bounds = None
         self.return_balance = None
         self.return_boot = None
         self.away_wait = None
+
+    @staticmethod
+    def prepare_daytime(journey, guard):
+        preset = preset_ordinary_daytime(journey, guard)
+        clock = journey.vm.local_calendar()
+        elapsed_ns = clock['epoch_ns'] - preset['target_epoch_ns']
+        # Noon on the verified ordinary day leaves twelve hours to midnight.
+        # Keep an hour for the full expiry journey and its ten-minute allowance.
+        remaining = (12 * 3600 * 10**9 - elapsed_ns) // 10**9
+        require(clock['timezone'] == preset['timezone'] and elapsed_ns >= 0
+                and remaining >= 3600, 'flow18:midnight-margin')
+        guard()
+        return {'seconds_before_midnight': remaining}
 
     def check_settings(self, stage, observed):
         super().check_settings(stage, observed)

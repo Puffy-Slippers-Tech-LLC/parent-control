@@ -9,7 +9,7 @@ another baseline, download a new image, or create a replacement domain.
 
 ### Unattended VM provisioning
 
-Run `tools/newvm --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+Run `tools/newvm --id ID --vmconfig PROFILE [--vmhost HOST]`
 from the checkout root. Full provisioning requires an enabled VM profile and
 host. It uses `install_iso` when the resolved profile defines it, otherwise
 `iso`. Ubuntu uses its Desktop ISO with Autoinstall. Fedora uses the
@@ -54,15 +54,16 @@ reports the affected VM and does not automatically erase or reinstall it.
 
 ### Creating a blank VM
 
-Run `tools/newvm --blank --id ID --family FAMILY [--vmhost HOST] [--vmconfig PROFILE]`
+Run `tools/newvm --blank --id ID --vmconfig PROFILE [--vmhost HOST]`
 from the checkout root.
-This is a plain program; it invokes no coding agents. HOST and FAMILY must
-already exist in `config/environment.json`. `--vmconfig` selects a profile from
-`vm_configs`. Omitting it uses the family's `parent_config`. `--vmhost` overrides
-the host inherited from that profile. FAMILY accepts a family name or ID,
-case-insensitively (for example, `u26` selects `ubuntu26.04-x86_64` with the
-current registry). Provisioning may target a disabled host, since it creates an
-offline VM rather than scheduling tests. SSH hosts use
+This is a plain program; it invokes no coding agents. Both modes require
+`--vmconfig` to name a profile in `config/environment.json`. The launcher uses
+the family whose `parent_config` matches that profile or its closest matching
+ancestor. For example, `vm_config_heavy_u26` inherits from
+`vm_config_general_u26` and selects `ubuntu26.04-x86_64`. The launcher refuses
+profiles with no matching family or multiple families at the closest match.
+`--vmhost` overrides the profile's inherited host with a configured host.
+Blank creation may target a disabled host. SSH hosts use
 their configured alias and port with noninteractive SSH; no remote validation
 is implied by the presence of a template.
 

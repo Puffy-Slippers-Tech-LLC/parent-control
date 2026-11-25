@@ -149,8 +149,9 @@ availability changes, without requesting new execution capacity. This exception
 permits only the existing recovery path and grants no new guest execution.
 
 Each test group has one pending case queue per eligible family. A single
-dispatcher chooses the earliest eligible unclaimed work for each ready VM. Cases
-from later groups can start while earlier assignments finish. Claims cannot
+dispatcher chooses the highest-priority eligible unclaimed work for each ready VM
+under the [VM dispatch contract](../../tests/README.md#vm-dispatch-and-upstream-sync).
+Cases from later groups can start while earlier assignments finish. Claims cannot
 overlap on a case identity within a group and family;
 failed or interrupted attempts retain their live owner until joined cleanup.
 Historical claims are discarded; incomplete attempts return to pending.

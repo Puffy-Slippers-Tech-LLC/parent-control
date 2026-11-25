@@ -333,9 +333,9 @@ All queues omit VMs reserved for another Git branch through the optional
 per-VM `owning_branch` field; explicit mismatched names/IDs refuse checkout. An omitted
 or empty `owning_branch` permits any branch. See the
 [branch selection contract](../docs/Mandates/VM-Mandate.MD#target-selection).
-`run-tests` expands categories into ordered subcategories. That order gives
-dispatch priority. The original `--vm` selection is an allowed superset. Test inventory
-owns category and subcategory `vm_tags` inheritance. The
+`run-tests` expands categories into ordered subcategories. The original `--vm`
+selection is an allowed superset. Test inventory owns category and subcategory
+`vm_tags` inheritance. The
 [VM configuration](integration/Environment.md#shared-vm-configuration) defines
 each VM's effective tags. The runner filters each group by exact tag
 membership before shared capacity admission. No matching VM for a required family
@@ -354,8 +354,13 @@ The VM registry owns the available machines and their tags.
 
 One `execute_pass` coordinator dispatches across the existing per-group family
 queues and checkpoints. Repeated selectors for the same category/subcategory
-share case credit. A ready VM claims the earliest eligible unclaimed item and
-can take work from a later group while earlier attempts execute or clean up.
+share case credit. Ready VMs claim eligible work longest first across the selected
+groups. For each case, both launchers use the latest completed
+[timing record](#vm-watch-recordings) available in the current checkout, across VMs.
+An indivisible attempt uses the sum of its distinct timed cases and retains its
+internal execution order. Untimed work follows timed work. Equal timings and
+untimed work retain group and inventory order. A selection with no timing history
+uses the ordinary inventory order throughout.
 The live queue shows a VM once it starts an assigned attempt.
 For equally ranked candidates, admission prefers the family using less compute
 and rotates ties. Every included family keeps its complete selection while its
@@ -384,7 +389,7 @@ session after failed execution has joined, under the
 | --- | --- |
 | `tests/integration/vm_config.py` | Validate VM registry and resolve inherited VM tags. |
 | `tools/test_commands.py` and the category inventory | Declare categories, subcategories, test tags and case membership. |
-| `tools/vm_test_queue.py` (`run-tests` engine) | Route work by group, select the earliest eligible work for each VM and record ordinary case results. |
+| `tools/vm_test_queue.py` (`run-tests` engine) | Route work by group, prioritize eligible VM work and record ordinary case results. |
 | `tools/host_compute.py` and `tools/vm_queue.py` | Admit supplied candidates under capacity policy, dispatch workers and join owned cleanup; no test-tag rules. |
 | `tools/fix_tests.py` | Pass the requested selection through, run one goal session per failure and own explicitly requested rounds. |
 
@@ -453,8 +458,9 @@ conflicts with `--continue-on-errors`.
 `tools/run-tests --reverse` runs cases within each category in reverse order.
 Pytest runs serially to preserve that order; JavaScript reverses file order and
 runs files serially. VM workers claim independent cases and lifecycle histories
-backwards, preserving required phases within each history. Category order and
-preparation dependencies remain unchanged. `tools/fix-tests --reverse` forwards
+in reverse inventory order with runtime priority disabled, preserving required
+phases within each history. Category order and preparation dependencies remain
+unchanged. `tools/fix-tests --reverse` forwards
 the option to every test invocation. Bare `--resume` on either launcher restores
 the saved selection and options, including `--reverse`.
 
@@ -535,7 +541,7 @@ or compatibility mode for the removed repair-ticket and source-fence formats.
 ### Scripted repair loop
 
 Run [`tools/fix-tests`](../tools/fix-tests) with the same categories and selectors
-as `run-tests`. It uses the ordinary allocation, group priority, family
+as `run-tests`. It uses the ordinary allocation, runtime priority, family
 queues, VM booking, host compute and disk concurrency mechanisms.
 To scope a category run to one distro, select its family, for example
 `tools/fix-tests vm --vm f45`. The runner resolves the current family members

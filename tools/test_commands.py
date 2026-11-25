@@ -372,7 +372,7 @@ starts the controller and prints the run directory.
 Select a configured VM pool without --vm. Use the original --vm NAME for
 controls targeting a narrowed run. Help, listing and collection are immediate.
 --reverse reverses cases within each category (JS: file order). Pytest and JS
-files run serially; VM workers claim cases backwards, retaining lifecycle
+files run serially. VM workers use reverse inventory order and retain lifecycle
 prerequisites. Category/preparation order is unchanged. Bare --resume restores it.
 Bare --resume restores the previous selection and options. Explicit selections
 use current arguments and inventory, retaining readable completed case results.
@@ -404,9 +404,11 @@ comma-separated mixtures, all-enabled, or all. Matching is case-insensitive.
 Ranges select registered IDs within the bounds and allow gaps. Families expand
 to their eligible VMs. Overlapping entries select each VM once.
 Every selection skips offline VMs/hosts. Each VM group filters the original --vm
-pool by its vm_tags. A ready VM takes the earliest eligible unclaimed work, including
-from a later group while earlier cases finish. Each attempt reserves compute through
-its own cleanup. Effective VM tags follow parent_config inheritance and per-VM overrides.
+pool by its vm_tags. Ready VMs take eligible work longest first across selected
+groups using each case's latest completed timing from this checkout. Equal timings
+and cases without history follow inventory order, with untimed work after timed
+work. Each attempt reserves compute through its own cleanup. Effective VM tags
+follow parent_config inheritance and per-VM overrides.
 Missing category tags default to general; subcategory tags override their parent.
 E2E has --subcategory general (vm_tags general) and e2e-heavy (vm_tags heavy).
 E2E also runs selected cases 22 and 30 in GNOME Classic on families prepared for it.
@@ -427,12 +429,12 @@ Inspection
   --stop-on-error  leading option: cancel selected work at the first reported
                    failure, preserving parallel scheduling and owned cleanup
 
-Complete categories (combine in any order; execute host, system, e2e)
+Complete categories (combine in any order; host runs before VM work)
   host         all host/dev-machine work, including publishing, two package
                builds and reproducibility; no VM. The executing host's
                host_test_concurrency sets the branch limit (default 4).
-  system       installed-system VM tests, sequential
-  e2e          ready GUI-driven VM scenarios, sequential
+  system       installed-system VM tests
+  e2e          ready GUI-driven VM scenarios
   vm           all VM work: system + e2e; no host suites
 
   all = host + vm
@@ -466,7 +468,6 @@ Complete categories (combine in any order; execute host, system, e2e)
   Focused system --area AREA --test CASE also prepares inputs per VM when
   --artifacts is omitted. Each family must declare package_format (deb or rpm) in
   config/environment.json; there is no default. Host compute capacity still applies.
-  After host and e2e, system remains.
   Separate host and vm runs may execute in parallel, with independent locks,
   sessions and cancellation. Combined host/VM runs reserve both scopes.
 

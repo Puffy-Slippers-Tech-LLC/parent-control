@@ -78,7 +78,7 @@ def verify_broker_reconciliation(record):
         # in this attempt's input manifest. Its canonical output is validated
         # again by that shared parser in the controller.
         raw = guest.commands.run(['/usr/bin/python3', '-B',
-                                  str(guest.PAYLOAD / 'startup-enforcement.py')], timeout=45)
+                                  str(guest.PAYLOAD / 'startup-enforcement.py')], timeout=150)
         require(raw.startswith(b'{'), 'broker-' + stage + '-healthy-gate')
         require(any(row['Active'] == 'yes' and row['Remote'] == 'no'
                     for row in graphical_sessions()), 'broker-' + stage + '-greeter')

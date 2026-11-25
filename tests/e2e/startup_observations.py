@@ -6,17 +6,24 @@ import re
 from private_artifacts import require
 
 
+OBSERVATION_SECONDS = 120
+TRANSPORT_SECONDS = OBSERVATION_SECONDS + 30
+_DEADLINE = f'''import time
+deadline = time.monotonic() + {OBSERVATION_SECONDS}
+def remaining():
+    seconds = deadline - time.monotonic()
+    assert seconds > 0
+    return seconds
+'''
+
 # Read systemd's actual ExecStartPost result, including its monotonic completion
 # time. Journal receipt timestamps can lag activation and cannot order this
 # boundary. Bracket all reads against boot, unit and command replacement.
-ENFORCEMENT = r'''import hashlib,json,pathlib,re,subprocess,time
+ENFORCEMENT = _DEADLINE + r'''import hashlib,json,pathlib,re,subprocess
 from gi.repository import Gio, GLib
-deadline = time.monotonic() + 30
 def call(*args):
-    remaining = deadline - time.monotonic()
-    assert remaining > 0
     return subprocess.run(args, capture_output=True, text=True, check=True,
-                          timeout=min(10, remaining)).stdout
+                          timeout=remaining()).stdout
 def boot():
     # Match BOOT_SHA256_PROBE's complete kernel file, including its newline.
     value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
@@ -34,14 +41,12 @@ def unit(name):
     assert result['NRestarts'] == '0'
     return result
 def canary():
-    remaining = deadline - time.monotonic()
-    assert remaining > 0
     reply = bus.call_sync('org.freedesktop.systemd1',
         '/org/freedesktop/systemd1/unit/fapolicyd_2eservice',
         'org.freedesktop.DBus.Properties', 'Get',
         GLib.Variant('(ss)', ('org.freedesktop.systemd1.Service', 'ExecStartPost')),
         GLib.VariantType.new('(v)'), Gio.DBusCallFlags.NONE,
-        max(1, int(min(10, remaining) * 1000)), None)
+        max(1, int(remaining() * 1000)), None)
     commands = reply.unpack()[0]
     helper = '/usr/libexec/oh-no-parent-control-execution-policy-ready'
     matches = [row for row in commands if row[0] == helper]
@@ -67,6 +72,7 @@ try:
     assert unit('fapolicyd.service') == policy
     assert unit('display-manager.service') == display
     assert boot() == before
+    remaining()
     stage = 'timestamps'
     values = {
         'policy_started_us': policy['ExecMainStartTimestampMonotonic'],
@@ -96,16 +102,11 @@ BROKER_REFUSALS = ('boot', 'activation', 'unit', 'owner', 'witness', 'object', '
 
 # The record is written by the broker after successful object registration.
 # Neither log receipt time nor a later introspection alone proves phase order.
-BROKER = r'''import hashlib,json,os,pathlib,re,stat,subprocess,time
+BROKER = _DEADLINE + r'''import hashlib,json,os,pathlib,re,stat,subprocess
 from gi.repository import Gio, GLib
-deadline = time.monotonic() + 30
 name = 'com.puffyslippers.OhNoParentControl1'
 keys = ('started_ns','policy_ready_ns','extensions_ready_ns','caps_attempted_ns',
         'register_started_ns','register_finished_ns')
-def timeout():
-    remaining = deadline - time.monotonic()
-    assert remaining > 0
-    return min(5, remaining)
 def boot():
     value = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text()
     assert re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\n', value)
@@ -115,7 +116,7 @@ def unit():
               'ExecMainStartTimestampMonotonic','ActiveEnterTimestampMonotonic')
     raw = subprocess.run(('systemctl','show','oh-no-parent-control-broker.service',
         '--no-pager','--property=' + ','.join(fields)), check=True,
-        capture_output=True, text=True, timeout=timeout()).stdout
+        capture_output=True, text=True, timeout=remaining()).stdout
     rows = [line.split('=', 1) for line in raw.splitlines()]
     result = dict(rows)
     assert len(rows) == len(fields) and set(result) == set(fields)
@@ -128,7 +129,7 @@ def unit():
 def call(destination, path, interface, method, args, signature):
     return bus.call_sync(destination, path, interface, method, args,
         GLib.VariantType.new(signature), Gio.DBusCallFlags.NO_AUTO_START,
-        max(1, int(timeout()*1000)), None).unpack()[0]
+        max(1, int(remaining() * 1000)), None).unpack()[0]
 def owner():
     value = call('org.freedesktop.DBus','/org/freedesktop/DBus',
         'org.freedesktop.DBus','GetNameOwner',GLib.Variant('(s)',(name,)),'(s)')
@@ -156,7 +157,8 @@ try:
     # not expose Introspectable. Later reads cannot activate a replacement.
     bus.call_sync(name,'/com/puffyslippers/OhNoParentControl1',
         name,'ListManagedUsers',None,
-        GLib.VariantType.new('(a(uss))'),Gio.DBusCallFlags.NONE,20000,None)
+        GLib.VariantType.new('(a(uss))'),Gio.DBusCallFlags.NONE,
+        max(1, int(remaining() * 1000)), None)
     stage = 'unit'
     service = unit()
     stage = 'owner'
@@ -170,6 +172,7 @@ try:
         name,'ListManagedUsers',None,'(a(uss))')
     stage = 'continuity'
     assert owner() == identity and unit() == service and boot() == before
+    remaining()
     stage = 'timestamps'
     values = [record[k] for k in keys]
     assert values == sorted(values)

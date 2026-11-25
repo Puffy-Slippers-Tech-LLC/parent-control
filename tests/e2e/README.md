@@ -81,7 +81,9 @@ still make the observation incomplete.
 Fresh identity and child queries for up to 32 already discovered nodes are
 pipelined through Gio's public asynchronous D-Bus API, with at most 64 calls
 outstanding. A private main context drains the replies without dispatching
-application callbacks. Breadth-first discovery batches independent branches;
+application callbacks. Read-only calls and batches use the enclosing observation
+deadline when available, including the time spent obtaining the bus address.
+Breadth-first discovery batches independent branches;
 the consumer's traversal order stays unchanged. The same exclusion predicate gates both
 batched and ordinary child reads; password and protected text descendants are
 never prefetched. Incomplete counts, null/duplicate children and read failures
@@ -138,8 +140,9 @@ records the elapsed time and node count for this path.
 and logout operations through the attempt's guarded SSH transport. It validates
 the sole active local fixture session and owned user bus before input, submits
 the selected command once, and independently reads the destination through logind.
-Post-submit logind scans and any native ScreenSaver read share one monotonic
-deadline. A destination must be confirmed before that deadline to pass.
+Submission, post-submit logind scans and any native ScreenSaver read share one
+monotonic deadline, with SSH time reserved beyond it for delivery. A destination
+must be confirmed before that deadline to pass.
 Switching locks first and invokes GDM's public API through the desktop user's
 service manager; logout invokes `gnome-session-quit --logout --no-prompt`.
 The `return-greeter` binding instead requires an already locked active fixture

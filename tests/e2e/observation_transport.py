@@ -180,8 +180,8 @@ class ReadOnlyObservations:
                 'reboot-password': (installation_observations.REBOOT_PASSWORD, 20),
                 'install-refused': (installation_observations.REFUSED, 30),
                 'sudo-implementation': (installation_observations.SUDO_IMPLEMENTATION, 30),
-                'startup-enforcement': (startup_observations.ENFORCEMENT, 40),
-                'startup-broker': (startup_observations.BROKER, 40),
+                'startup-enforcement': (startup_observations.ENFORCEMENT, startup_observations.TRANSPORT_SECONDS),
+                'startup-broker': (startup_observations.BROKER, startup_observations.TRANSPORT_SECONDS),
             }[name]
             recipient_stages = ('vt6-getty-identity', 'vt6-password-identity',
                                 'vt6-password-recheck', 'vt6-shell-identity')

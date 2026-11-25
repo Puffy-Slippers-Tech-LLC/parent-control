@@ -78,7 +78,9 @@ def prepare_request_backdrop(transport):
     static = vm_config.read_document(validate_agent=False).get('e2e_static_request_backdrop', False)
     require(type(static) is bool, 'e2e:invalid-request-backdrop-setting')
     mode = 'static' if static else 'animated'
-    transport.call(['/usr/bin/python3', '-I', '-c', REQUEST_BACKDROP, mode], timeout=30)
+    # The setup write can wait on guest filesystem I/O even after SSH is ready.
+    with timed_stage('setup-request-backdrop'):
+        transport.call(['/usr/bin/python3', '-I', '-c', REQUEST_BACKDROP, mode])
     print(f'e2e:request-backdrop={mode}', file=sys.stderr, flush=True)
 
 

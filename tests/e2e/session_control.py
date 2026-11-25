@@ -79,16 +79,27 @@ class SessionError(RuntimeError):
     pass
 
 
+class ObservationTimeout(SessionError):
+    pass
+
+
 def require(value, code):
     if not value:
         raise SessionError('session:' + code)
 
 
-def call(argv, *, deadline=None):
-    timeout = 15 if deadline is None else min(15, deadline - time.monotonic())
-    require(timeout > 0, 'observation-timeout')
-    return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
-                          text=True, check=True, timeout=timeout).stdout
+def call(argv, *, deadline=None, timeout=15, **options):
+    if deadline is not None:
+        timeout = min(timeout, deadline - time.monotonic())
+        if timeout <= 0:
+            raise ObservationTimeout('session:observation-timeout')
+    try:
+        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                              text=True, check=True, timeout=timeout, **options).stdout
+    except subprocess.TimeoutExpired:
+        if deadline is not None and time.monotonic() >= deadline:
+            raise ObservationTimeout('session:observation-timeout') from None
+        raise
 
 
 def package_format():
@@ -181,7 +192,7 @@ def sessions(*, diagnostic=None, deadline=None):
     Compare complete scans, including ownership and lock state, rather than
     filtering away an unexpected session. Stable ambiguity still reaches the
     caller's refusal checks. Only observations repeat, never session input.
-    An optional monotonic deadline bounds every command in a diagnostic scan.
+    An optional monotonic deadline bounds every command in the scan batch.
     """
     options = {} if deadline is None else {'deadline': deadline}
     previous = session_scan(**options)
@@ -253,7 +264,7 @@ def environment(account):
             'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(runtime / 'bus')}
 
 
-def screen_saver_active(uid):
+def screen_saver_active(uid, *, deadline=None):
     """Fresh native lock classification, never a protected-surface input proof.
 
     Initial GNOME locks can leave logind's LockedHint unset. Query only the
@@ -268,11 +279,10 @@ def screen_saver_active(uid):
     identity = ({'user': uid, 'group': account.pw_gid,
                  'extra_groups': os.getgrouplist(account.pw_name, account.pw_gid)}
                 if caller == 0 else {})
-    result = subprocess.run([
+    result = call([
         '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
         '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.GetActive'],
-        stdin=subprocess.DEVNULL, capture_output=True, text=True, check=True,
-        timeout=10, env=env, **identity).stdout.strip()
+        deadline=deadline, timeout=10, env=env, **identity).strip()
     require(result in ('(true,)', '(false,)'), 'lock-state')
     return result == '(true,)'
 
@@ -306,7 +316,7 @@ def submit(action):
               'raise SystemExit(0 if Gdm.goto_login_session_sync(None) else 1)'])
 
 
-def destination(current, source, uid, action):
+def destination(current, source, uid, action, *, deadline=None):
     """Independent system readback; product results are observed by the caller."""
     original = current.get(source)
     if original is not None:
@@ -315,7 +325,7 @@ def destination(current, source, uid, action):
     if action == 'lock':
         require(original is not None, 'source-lost')
         return (original['Active'] == 'yes' and source_identity(current, uid) == source
-                and screen_saver_active(uid))
+                and screen_saver_active(uid, deadline=deadline))
     active = [props for props in current.values()
               if local_graphical(props) and props['Active'] == 'yes']
     require(len(active) <= 1, 'ambiguous-destination')
@@ -326,7 +336,7 @@ def destination(current, source, uid, action):
         if not greeter or original['Active'] != 'no':
             return False
         try:
-            return locked_entry_source(current, uid)[0] == source
+            return locked_entry_source(current, uid, deadline=deadline)[0] == source
         except SessionError as error:
             if str(error) != 'session:entry-locked':
                 raise
@@ -417,23 +427,23 @@ def prepare_continuous_activity():
     return seconds
 
 
-def locked_entry_source(current, uid):
+def locked_entry_source(current, uid, *, deadline=None):
     """One retained locked target, entered from the sole active greeter."""
     active = [item for item in current.values()
               if local_graphical(item) and item['Active'] == 'yes']
     require(len(active) == 1 and active[0]['Class'] == 'greeter', 'entry-greeter')
     require(active[0].get('State') != 'opening', 'entry-opening')
-    return locked_target(current, uid)
+    return locked_target(current, uid, deadline=deadline)
 
 
-def locked_target(current, uid):
+def locked_target(current, uid, *, deadline=None):
     """Identify one inactive protected desktop without changing its state."""
     owned = [(key, item) for key, item in current.items() if local_graphical(item)
              and item['User'] == str(uid) and item['Class'] in ('user', 'user-early')]
     require(len(owned) == 1, 'entry-target')
     identity, target = owned[0]
     require(target.get('State') != 'opening', 'entry-opening')
-    require(target['Active'] == 'no' and screen_saver_active(uid), 'entry-locked')
+    require(target['Active'] == 'no' and screen_saver_active(uid, deadline=deadline), 'entry-locked')
     return identity, target
 
 
@@ -848,28 +858,34 @@ def execute(binding, *, diagnostic=False, station_receipt=None):
             'observer_uid': os.geteuid()}), file=sys.stderr)
     submit(action)
     deadline = time.monotonic() + (LOGOUT_WAIT_SECONDS if action == 'logout' else 45)
-    while True:
+    while time.monotonic() < deadline:
+        matched = False
         try:
             current = sessions(diagnostic=logout_trace if diagnostic else
-                               'after-submit' if switch_diagnostic else None)
+                               'after-submit' if switch_diagnostic else None, deadline=deadline)
+            matched = (time.monotonic() < deadline
+                       and destination(current, source, account.pw_uid, action, deadline=deadline))
+        except ObservationTimeout:
+            break
         except SessionError as error:
             if str(error) != 'session:unstable-observation':
                 raise
             # Greeter creation, its user manager and the seat switch can
             # change every scan in one batch. Keep observing within the
             # existing deadline; never interpret a torn scan or repeat input.
-        else:
-            if destination(current, source, account.pw_uid, action):
-                break
-        if diagnostic and time.monotonic() >= deadline:
-            print('session-logout-deadline: ' + json.dumps({
-                'monotonic_ns': time.monotonic_ns(), 'source': source,
-                'scans': last_scans}, sort_keys=True), file=sys.stderr)
-        require(time.monotonic() < deadline, 'destination-timeout')
-        time.sleep(.2)
-    return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
-            'source_retained': action != 'logout',
-            'destination': 'locked' if action == 'lock' else 'greeter'}
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        if matched:
+            return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
+                    'source_retained': action != 'logout',
+                    'destination': 'locked' if action == 'lock' else 'greeter'}
+        time.sleep(min(.2, remaining))
+    if diagnostic:
+        print('session-logout-deadline: ' + json.dumps({
+            'monotonic_ns': time.monotonic_ns(), 'source': source,
+            'scans': last_scans}, sort_keys=True), file=sys.stderr)
+    raise SessionError('session:destination-timeout')
 
 
 def observe(transport, binding, *, diagnostic=False, station_receipt=None):

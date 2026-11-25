@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+from functools import cache
 
 
 def case_inventory(root, category, options, *, vm=None, pass_fds=()):
@@ -81,6 +82,38 @@ def work_items(category, options, cases, *, upgrade=None, area_retry=False):
         groups.setdefault(key, []).append(case)
     result = [item(selected, area=key[0] == 'area') for key, selected in groups.items()]
     return result[::-1] if reverse else result
+
+
+def runtime_priority(root):
+    from vm_recording import E2E_QUALIFICATIONS, case_identity
+    from vm_run_times import latest_case_seconds
+
+    seconds = {} if os.environ.get('ONPC_TEST_REVERSE') == '1' else latest_case_seconds(root)
+    if not seconds:
+        return lambda work: 0
+
+    @cache
+    def rank(category, cases):
+        durations = {}
+        for case in cases:
+            try:
+                identity = case_identity(root, category, dict(nodeid=case))
+            except (OSError, ValueError):
+                continue
+            if identity and (key := (category, identity[0])) in seconds:
+                durations[key] = seconds[key]
+        # Lifecycle phases may share one measurement. Count each timed case once.
+        return -sum(durations.values()) if durations else 1
+
+    def priority(work):
+        category = work['category']
+        upgrade = work.get('upgrade', '')
+        cases = [case.removesuffix(upgrade) for case in work['cases']]
+        if not cases and category == 'e2e':
+            cases = [option for option in work['options'] if option in E2E_QUALIFICATIONS]
+        return rank(category, tuple(cases))
+
+    return priority
 
 
 def work_key(work):

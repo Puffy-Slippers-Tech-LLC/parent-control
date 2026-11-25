@@ -30,7 +30,7 @@ from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import Executor
 from vm_pool import reservation
 import launcher_reload
-from vm_case_queue import case_inventory, work_items, arguments, replay_case
+from vm_case_queue import case_inventory, work_items, arguments, replay_case, runtime_priority
 
 if __name__ == '__main__':
     _source_imports.__exit__(None, None, None)
@@ -197,7 +197,7 @@ class GroupHistory:
 class PassGroup:
     """One existing checkpoint and argument scope in a shared dispatch pass."""
 
-    def __init__(self, root, stack, scope, plan, progress, results, history):
+    def __init__(self, root, stack, scope, plan, progress, results, history, priority):
         from test_checkpoint import PassCheckpoint
         _, vms, host_args, self.args, self.selection, self.families = plan
         self.targets = {vm.name: vm.family for vm in vms}
@@ -219,6 +219,7 @@ class PassGroup:
             self.families = {family: self.partition_area(family, items, reverse=reverse)
                              if workers[family] > 1 or reverse else items
                              for family, items in self.families.items()}
+        self.families = {family: sorted(items, key=priority) for family, items in self.families.items()}
         self.checkpoint = stack.enter_context(PassCheckpoint(root, [['_host', host_args], ['_guest', self.args]],
             self.targets, self.families, resume='--resume' in (*host_args, *self.args), scope=scope))
         if self.replay:
@@ -292,9 +293,12 @@ def execute_pass(root, plan, control, execute, *, host=None,
     host_completed = []
     histories = {} if histories is None else histories
     plans = group_plans or ({checkpoint_scope: (plan, progress)} if vms else {})
+    work_priority = runtime_priority(root) if plans else None
     with ExitStack() as stack:
-        groups = [PassGroup(root, stack, scope, group, report, result_store, histories.setdefault(scope, GroupHistory()))
+        groups = [PassGroup(root, stack, scope, group, report, result_store,
+                            histories.setdefault(scope, GroupHistory()), work_priority)
                   for scope, (group, report) in plans.items()]
+        group_order = {group.scope: order for order, group in enumerate(groups)}
         for group in groups:
             group.publish_counts()
 
@@ -317,10 +321,14 @@ def execute_pass(root, plan, control, execute, *, host=None,
                     result_store.record(category, 'host', '', value['status'], options=options,
                                         output_tail=value.get('output_tail', ''), handoffs=value.get('handoffs', []))
 
+        def priority(candidate):
+            group, work = candidate
+            return work_priority(work), group_order[group.scope]
+
         def available(vm):
-            for group in groups:
-                if vm.name in group.targets and (work := group.next_work(vm.family)) is not None:
-                    return group, work
+            return min(((group, work) for group in groups if vm.name in group.targets
+                        and (work := group.next_work(vm.family)) is not None),
+                       key=priority, default=None)
 
         def accepting():
             return not (failed.is_set() or observation_blocked.is_set() or control.stopped.is_set())
@@ -334,14 +342,13 @@ def execute_pass(root, plan, control, execute, *, host=None,
                 ready = {name: item for name in candidates
                          if (item := available(targets[name])) is not None}
                 if ready and accepting():
-                    first = min(priority[group.scope] for group, _ in ready.values())
-                    chosen = admission.choose([name for name, (group, _) in ready.items()
-                                               if priority[group.scope] == first], active)
+                    first = min(map(priority, ready.values()))
+                    chosen = admission.choose([name for name, item in ready.items()
+                                               if priority(item) == first], active)
                     probing[chosen] = ready[chosen]
                     return chosen
 
         targets = {vm.name: vm for vm in vms}
-        priority = {group.scope: order for order, group in enumerate(groups)}
 
         def record_operation_failure(group, vm, work, value):
             work = group.split_areas.get(vm.family, work)

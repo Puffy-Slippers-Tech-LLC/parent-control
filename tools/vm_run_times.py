@@ -15,11 +15,13 @@ import uuid
 
 if __package__:
     from . import test_storage, test_retention
+    from .recording_storage import case_identity as valid_case_id
     from .vm_recording import case_identity
     from .vm_selection import selected
 else:
     import test_storage
     import test_retention
+    from recording_storage import case_identity as valid_case_id
     from vm_recording import case_identity
     from vm_selection import selected
 
@@ -232,8 +234,8 @@ def delete(root, record):
             os.fsync(fd)
 
 
-def load(root):
-    """Read only logged cases; optional recordings retain their existing owner."""
+def load(root, *, per_vm=True):
+    """Read the latest timings per case, with per-VM recordings for Watch."""
     remote_roots = {path.name: path for path in test_storage.remote_operation_roots(root)}
     directories = list(_state_directories((root, *remote_roots.values())))
     if not directories:
@@ -250,10 +252,14 @@ def load(root):
     for storage_root, directory in directories:
         default = storage_root.name if storage_root != root else None
         for row in _load(root, directory, unbound, titles, catalogue):
-            key = row['category'], row['id'], row['vm']
-            recording_keys[key].update(_recording_keys(row, default))
+            key = row['category'], row['id']
+            if per_vm:
+                key += (row['vm'],)
+                recording_keys[key].update(_recording_keys(row, default))
             if key not in latest or row['completed_at'] > latest[key]['completed_at']:
                 latest[key] = row
+    if not per_vm:
+        return list(latest.values())
     recording_roots = {None: (root, None)}
     if remote_roots:
         from host_dispatch import tool_host
@@ -271,9 +277,16 @@ def load(root):
     return sorted(latest.values(), key=lambda row: (-row['seconds'], row['title'], row['vm']))
 
 
-def _load(root, directory, unbound, titles, catalogue):
-    from tools.recording_storage import case_identity
+def latest_case_seconds(root):
+    """Take each case's newest completed measurement across VMs in this checkout."""
+    try:
+        rows = load(root, per_vm=False)
+    except (OSError, ValueError):
+        return {}  # Timing history is optional for dispatch.
+    return {(row['category'], row['id']): row['seconds'] for row in rows}
 
+
+def _load(root, directory, unbound, titles, catalogue):
     fd = test_retention.directory(directory)
     try:
         test_retention.private(os.fstat(fd))
@@ -286,7 +299,7 @@ def _load(root, directory, unbound, titles, catalogue):
                     continue
                 revision = record.get('execution_revision', 1)
                 if (record['category'] not in ('system', 'e2e')
-                        or not case_identity(record['id'])
+                        or not valid_case_id(record['id'])
                         or type(revision) is not int or revision < 1
                         or not isinstance(record['seconds'], (float, int))
                         or not math.isfinite(record['seconds']) or record['seconds'] < 0
@@ -317,7 +330,7 @@ def _load(root, directory, unbound, titles, catalogue):
                     continue
                 record['case_link'] = case_link
                 yield describe_case(record, catalogue)
-            except (OSError, ValueError, KeyError, TypeError):
+            except (OSError, ValueError, KeyError, TypeError, OverflowError):
                 continue
     finally:
         os.close(fd)

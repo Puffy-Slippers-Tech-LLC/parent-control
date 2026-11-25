@@ -398,7 +398,8 @@ def main(argv=None):
     parser.add_argument('--stop', '--kill', action='store_true', help='cooperatively cancel running cases or repair')
     parser.add_argument('--reset', action='store_true', help='start without previous results')
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
-    parser.add_argument('--reverse', action='store_true')
+    parser.add_argument('--reverse', action='store_true',
+                        help='use reverse inventory order within each category')
     parser.add_argument('--record', action='store_true', help='record VM watch video; requires both Watch options on (default: off)')
     parser.add_argument('--model', help='repair model override (profile: agents.tools.fix-tests in config/environment.json)')
     parser.add_argument('--effort', choices=('low', 'medium', 'high', 'xhigh', 'max'),

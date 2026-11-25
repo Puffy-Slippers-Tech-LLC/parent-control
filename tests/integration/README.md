@@ -627,10 +627,10 @@ before consuming it.
 ## Aggregate scheduling
 
 Ordinary and repair VM work use the single
-[pass coordinator](../README.md#all-established-regressions): one ordered FIFO
-per selected family across categories, with indivisible histories, area attempts
-and standalone checks. Ready equivalent VMs take one item on demand. Admission
-balances available families and rotates ties; occupied families retain their full
+[pass coordinator](../README.md#vm-dispatch-and-upstream-sync). Ready equivalent
+VMs take eligible work in dispatch order, including indivisible histories, area
+attempts and standalone checks. For equally ranked work, admission balances
+available families and rotates ties. Occupied families retain their full
 coverage. Only the coordinator accepts attempt evidence after teardown and owned
 cleanup. [Resume and recovery](../README.md#resuming-test-execution) preserve
 original-VM uncertain ownership and independent family passing credit. Repair

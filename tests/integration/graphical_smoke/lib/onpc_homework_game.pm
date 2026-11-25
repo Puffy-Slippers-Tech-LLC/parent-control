@@ -187,8 +187,8 @@ sub run {
         onpc_gdm::return_from_time_denial($journey, map { "$root-entry-$_" }
             qw(denied-return-ready denied-return-state denied-returned));
         approval($journey, "$root-visit", 'kiosk', $first, EXPIRY_GRANT_SECONDS, $cycle == 1 ? 1 : 0);
-        work($journey, "$root-visit-reopened", qw(open opened submit submitted capture)) if $fresh;
-        work($journey, "$root-visit-work", qw(capture resubmit submitted));
+        work($journey, "$root-visit-work", $fresh
+            ? qw(open opened submit submitted capture) : qw(capture resubmit submitted));
         if ($cycle == 1) {
             onpc_app_rows::game_usable_app($journey->scope("$root-visit-game"), $mode);
             $journey->seen("$root-visit-game-capture");
@@ -218,8 +218,10 @@ sub run {
         entry($journey, "$root-revoked", 'other-child', !$fresh, 'time-denied');
         onpc_gdm::return_from_time_denial($journey, map { "$root-revoked-$_" }
             qw(denied-return-ready denied-return-state denied-returned));
-        riley_visit($journey, "$root-riley");
-        leave($journey, "$root-riley");
+        if ($cycle == 1) {
+            riley_visit($journey, "$root-riley");
+            leave($journey, "$root-riley");
+        }
     }
     parent_return($journey, 'final-parent');
     my $reopen = $journey->scope('reopen');

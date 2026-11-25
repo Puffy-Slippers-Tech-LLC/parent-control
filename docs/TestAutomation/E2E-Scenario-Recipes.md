@@ -2240,8 +2240,8 @@ qualification history.
  REQUEST03 compares shared fields with that child's latest choices on either
  form, and the parent selector with this surface's own remembered parent.
 3. P → LIFE01(Parent) → PARENT02(Jordan) → PARENT03/PARENT09/PARENT12 reads
- enabled/zero allowance/zero grant and the original W/S/H choices. Visit
- Riley with FLOW09. Only now end the attempt.
+ enabled/zero allowance/zero grant and the original W/S/H choices. Make the
+ second cycle's FLOW09 visit to Riley here, then end the attempt.
 
 | Cycle row | Exact composition / finite input | Required result before the next row |
 | --- | --- | --- |
@@ -2252,7 +2252,7 @@ qualification history.
 | 5 Grant-only game break | request-entry(second) → FLOW20(0.5,include) → FLOW08(S usable) → APP04; P → PARENT06(60×cycle+1) → PARENT08/PARENT09 → PARENT06(0) → PARENT08/PARENT09 → C. | Both enabled allowance edits preserve the original grant deadline; D becomes zero. Existing retained S stays open, new S/H launches are denied. Check this before another approval. |
 | 6 Turn limits off, then on | P → UI17(off) → PARENT08 → C → TIME01(absent) → FLOW08(H/S denied); P → UI17(on) → PARENT08/PARENT09 → C(time denial). | Off removes time restriction but preserves app blocks. On with saved zero clears all old grant time; correct credentials alone cannot enter. No hidden-app claim behind the lock. |
 | 7 Short approved visit to natural exhaustion | With W file, game route/mode and TIME04 observer ready, G → FLOW20(kiosk,8 minutes,include in cycle 1; exclude in cycle 2) → FILE08/APP04(W) → FLOW08(S expected) → APP03 → TIME04 → DESK08(time denial). | Require at least 300 seconds on child entry for the work/game checks. Actual activity ends in a natural lock at this original deadline. A retained work window is still not inspected behind that lock. |
-| 8 Recover, then finish this cycle | G → FLOW20(kiosk,20 minutes,opposite soft choice to row 7,retained unlock) → APP04(W captured in row 7) → APP03; APP02(S closed) when row 7 left S open and replacement excludes it; FLOW08(S expected,H denied). Then leave-child → P → PARENT17/PARENT18(confirm) → PARENT09 → C(time denial) → G → FLOW09(Riley). | Both variants retain their row-7 work through this natural lock. Replacement permission has the declared game result; unused positive grant is explicitly revoked to leave D=G=0. Riley's same activity works. No grant is carried into the next cycle and no recovery-expiry wait is added. |
+| 8 Recover, then finish this cycle | G → FLOW20(kiosk,20 minutes,opposite soft choice to row 7,retained unlock) → APP04(W captured in row 7) → APP03; APP02(S closed) when row 7 left S open and replacement excludes it; FLOW08(S expected,H denied). Then leave-child → P → PARENT17/PARENT18(confirm) → PARENT09 → C(time denial) → G. Visit Riley with FLOW09 after cycle 1 and after the final Parent read in cycle 2. | Both variants retain their row-7 work through this natural lock. Replacement permission has the declared game result; unused positive grant is explicitly revoked to leave D=G=0. Riley's same activity works. No grant is carried into the next cycle and no recovery-expiry wait is added. |
 
 At **each departure from Jordan to another account/station**, retained uses
 DESK03 and fresh uses DESK04 while access is positive. The latter case therefore

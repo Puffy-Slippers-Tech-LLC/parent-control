@@ -135,7 +135,7 @@ def _run_attempts(suite, directory, selection, manifest, selected_inputs_sha256,
             snapshot_history.start(owner, at_boot=at_boot)
 
         try:
-            with lease:
+            with lease, lease.repair_failure():
                 with ledger.measure('preparation', operation='snapshot-readiness'):
                     if lease.__dict__.get('_fixture_provision_state') is not None:
                         from tools.fixture_provision import reset_after_restore

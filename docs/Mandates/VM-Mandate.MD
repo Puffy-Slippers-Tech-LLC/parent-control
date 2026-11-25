@@ -288,7 +288,10 @@ repairing checkout's source. The SSH request has a 60-second deadline.
 The owner serializes probes using separate command state and guarded SSH; returns
 bounded counters with run, domain-instance and boot identity. It publishes the
 result through shared Watch. The memory sample has instantaneous memory, swap,
-page-fault, OOM and memory-pressure counters. The CPU sample measures a fixed
+page-fault, OOM and memory-pressure counters. It includes up to twenty current-boot
+timestamps each for kernel OOM kills and systemd-oomd journal events. An empty list
+means no matching entries were found, while null means the journal query was
+unavailable. The sample excludes raw journal messages. The CPU sample measures a fixed
 three-second interval of guest CPU ticks, CPU pressure and swap traffic. It lists
 up to twelve kernel process names by CPU ticks, using processes present at both
 ends of the interval with the same PID and start time. Aggregate ticks include

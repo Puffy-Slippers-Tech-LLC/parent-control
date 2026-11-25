@@ -925,6 +925,7 @@ class Lease:
         self.shutdown_request = None
         self.product_log_capture = None
         self.live_probe = None
+        self.repair_nodeid = None
 
     def set_probe_transport(self, transport):
         """Offer fixed diagnostics without granting a second VM checkout."""
@@ -944,6 +945,34 @@ class Lease:
         if probe is not None:
             probe.close()
             self.live_probe = None
+
+    @contextmanager
+    def repair_failure(self, nodeid=''):
+        from tools import repair_hold
+        from owned_commands import cancellation_requested
+
+        if os.environ.get(repair_hold.VARIABLE) != '1':
+            yield
+            return
+        self.repair_nodeid = nodeid
+        try:
+            yield
+        except Exception as error:
+            if not isinstance(error, ProductObservationBlocked) and not cancellation_requested():
+                from tools.regression_events import write_event
+                try:
+                    if self.state['phase'] == 'running' and not self.view.snapshot()[1]:
+                        write_event(sys.stdout, 'vm-repair-hold', nodeid=nodeid, active=True)
+                        try:
+                            while not cancellation_requested():
+                                time.sleep(.1)
+                        finally:
+                            write_event(sys.stdout, 'vm-repair-hold', nodeid=nodeid, active=False)
+                except (Exception, KeyboardInterrupt):
+                    pass  # Hold telemetry cannot replace the failed case.
+            raise
+        finally:
+            self.repair_nodeid = None
 
     def save(self, phase):
         if self.capture.vm_ownership is not None:

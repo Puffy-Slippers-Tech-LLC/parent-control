@@ -129,6 +129,7 @@ class Executor:
         self._host_active = {vm.host.name: 0 for vm in self.vms}
         self._probes = {host: threading.Lock() for host in self._host_active}
         self._closing = threading.Event()
+        self.aborting = threading.Event()
         self._pool = None
         self._futures = []
         self._needed = lambda vm: True
@@ -282,7 +283,8 @@ class Executor:
                 completed(name, results[name])
         return results
 
-    def run_ready(self, execute, *, choose, needed, completed=None, stop_on_error=True):
+    def run_ready(self, execute, *, choose, needed, completed=None, stop_on_error=True,
+                  quiesced=None):
         """Dispatch admitted work and join every worker before releasing control.
 
         A failure closes admission immediately. Each reservation, source lease
@@ -377,6 +379,8 @@ class Executor:
             if value is None:
                 retry_after[name] = time.monotonic() + .25
                 return True
+            if quiesced is not None and stop_on_error and value['status']:
+                self._closing.set()  # Elect a terminal failure before saving its result.
             if completed is not None:
                 try:
                     replacement = completed(vm, dict(value))
@@ -403,6 +407,8 @@ class Executor:
                     self._closing.set()
                 while receive(0):
                     pass
+                if quiesced is not None and self._closing.is_set() and len(booked) == 1:
+                    quiesced(next(iter(booked)))
                 candidates = [vm for vm in self.vms if vm.name not in booked
                               and not self._closing.is_set() and needed(vm)]
                 if not candidates and not booked:
@@ -424,6 +430,7 @@ class Executor:
                 receive(.1)
         finally:
             self._closing.set()
+            self.aborting.set()
             while booked:
                 receive()
         return results

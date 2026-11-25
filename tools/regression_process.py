@@ -598,6 +598,9 @@ def category_run(root, category, argv, *, pipe=True):
                 check(command[1])
                 command = [command[0], '--disable-internal-agent', '--keep-cwd', command[1],
                            '--unattended', *command[2:]]
+                from repair_hold import FLAG, VARIABLE as REPAIR_HOLD
+                if preserve_exit and os.environ.get(REPAIR_HOLD) == '1' and '--list' not in argv:
+                    command.insert(5, FLAG)
                 if (category in ('system', 'e2e')
                         and not (category == 'system' and test_commands.system_check_selection(argv))
                         and test_retention.token() is not None):

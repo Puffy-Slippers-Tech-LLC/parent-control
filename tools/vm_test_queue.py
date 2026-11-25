@@ -26,6 +26,7 @@ from test_progress import OverallProgress, case_counts, overall_line, recorded_c
 import test_retention
 from test_results import OBSERVATION_BLOCKED_STATUS, PENDING_STATUS
 from regression_process import Control, FRAME_PREFIX
+import repair_hold
 from vm_selection import BATCH, VARIABLE, WORKER, vm_config
 from vm_queue import Executor
 from vm_pool import reservation
@@ -277,9 +278,17 @@ class PassGroup:
         return 0
 
 
+def operation_scope(group, vm, work):
+    work = group.split_areas.get(vm.family, work)
+    scope = dict(options=work['options'], work=work)
+    if work['area']:
+        scope['validation_vms'] = [name for name, family in group.targets.items() if family == vm.family]
+    return scope
+
+
 def execute_pass(root, plan, control, execute, *, host=None,
                  checkpoint_scope='ordinary', continue_on_errors=False, sources=None,
-                 progress=None, histories=None, group_plans=None):
+                 progress=None, histories=None, group_plans=None, quiesced=None):
     """Run current pending work, stop on failure and join all normal bookings."""
     from test_results import ResultStore
     from test_commands import selections
@@ -351,15 +360,10 @@ def execute_pass(root, plan, control, execute, *, host=None,
         targets = {vm.name: vm for vm in vms}
 
         def record_operation_failure(group, vm, work, value):
-            work = group.split_areas.get(vm.family, work)
-            context = {}
-            if work['area']:
-                context['validation_vms'] = [name for name, family in group.targets.items()
-                                             if family == vm.family]
             result_store.record(work['category'], vm.family, '', value['status'],
-                vm=vm.name, options=work['options'], work=work,
+                vm=vm.name, **operation_scope(group, vm, work),
                 output_tail=value.get('traceback', value.get('output_tail', '')),
-                handoffs=value.get('handoffs', []), **context)
+                handoffs=value.get('handoffs', []))
 
         def attempt(worker):
             vm = worker.vm
@@ -486,7 +490,8 @@ def execute_pass(root, plan, control, execute, *, host=None,
         if vms and not failed.is_set() and not control.stopped.is_set():
             with Executor(root, vms, snapshot['concurrency'], control.stopped, sources=sources) as executor:
                 results.update(executor.run_ready(attempt, choose=choose, needed=needed,
-                    completed=completed, **({'stop_on_error': False} if continue_on_errors else {})))
+                    completed=completed, **({'stop_on_error': False} if continue_on_errors else {}),
+                    **({'quiesced': quiesced} if quiesced is not None else {})))
         blocked = observation_blocked.is_set()
         group_statuses = {group.scope: group.status() for group in groups}
         unfinished = any(status in (PENDING_STATUS, OBSERVATION_BLOCKED_STATUS) for status in group_statuses.values())
@@ -891,6 +896,38 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
             # A batch-owned allocation would conflict with that VM's old claim
             # after an interrupted input was removed and recreated.
             output_lock = threading.Lock()
+            from test_results import REPAIR_QUEUE, ResultStore
+            reload_request = launcher_reload.current
+            repair_run = (reload_request.supervisor if reload_request is not None
+                          and os.environ.get(REPAIR_QUEUE) == '1' and not continue_on_errors else None)
+            repair_session = reload_request.run if repair_run is not None else None
+            repair_lock = threading.Lock()
+            first_failure = None
+            hold_active = False
+            hold_ready = False
+            hold_publication_failed = False
+
+            def publish_hold(*, ready):
+                nonlocal hold_ready, hold_publication_failed
+                from detached_launcher import atomic
+                failure = dict(first_failure, output=str(repair_session / 'output'))
+                try:
+                    atomic(repair_run / repair_hold.RECORD,
+                           dict(session=str(repair_session), failure=failure, ready=ready))
+                except OSError as error:
+                    hold_publication_failed = True
+                    print(f'VM repair hold could not be published: {error}', flush=True)
+                else:
+                    hold_ready = ready
+
+            def quiesced(name):
+                with repair_lock:
+                    if (hold_active and not (hold_ready or hold_publication_failed)
+                            and first_failure['vm'] == name and not control.stopped.is_set()
+                            and not launcher_reload.pending()
+                            and not (repair_session / repair_hold.RELEASE).exists()):
+                        publish_hold(ready=True)
+
             # VMs join the dashboard when they start an assigned attempt.
             frames = {}
             group_names = {}
@@ -919,8 +956,9 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                     if hasattr(sys.stdout, 'controller'):
                         sys.stdout.controller('test-group', case_summary)
 
-            def execute_worker(worker, assignment, inherited, args):
+            def execute_worker(worker, assignment, inherited, group):
                 vm, receipt = worker.vm, worker.receipt
+                args = group.args
                 from vm_pool import remote
                 route = remote()
                 detached = sources is not None
@@ -957,11 +995,45 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                     worker_args.append(work['case'])
                 if '--stop-on-error' in args:
                     worker_args.insert(0, '--stop-on-error')
+                if repair_run is not None:
+                    worker_args.insert(0, repair_hold.FLAG)
                 command = ['/usr/bin/python3', '-IBu', str(Path(__file__).resolve()),
                            '--execute-reload' if reloading else '--execute', vm.name, *worker_args]
                 pending = b''
                 handoffs = []
                 ready = False
+
+                def failure_event(case, *, holding=None):
+                    nonlocal first_failure, hold_active
+                    case = case + work.get('upgrade', '') if case else ''
+                    if case not in work['cases']:
+                        if holding is None:
+                            return
+                        case = ''  # A prerequisite or enclosing operation failed.
+                    with repair_lock:
+                        if holding is False:
+                            if first_failure is not None and first_failure['vm'] == vm.name:
+                                hold_active = False
+                            return
+                        if not case and first_failure is None:
+                            record = dict(category=work['category'], family=vm.family, case='', status=1,
+                                          vm=vm.name, **operation_scope(group, vm, work))
+                        elif case:
+                            record = ResultStore().record(work['category'], vm.family, case, 1,
+                                vm=vm.name, options=work['options'])
+                        else:
+                            record = None
+                        if repair_run is not None:
+                            if first_failure is None and not worker.interrupt.is_set():
+                                first_failure = record
+                                worker.interrupt.set()  # Close admission and stop siblings.
+                            if (holding and not hold_active and first_failure is not None
+                                    and first_failure['vm'] == vm.name):
+                                hold_active = True
+                                publish_hold(ready=False)  # Release is available before siblings join.
+                        elif not continue_on_errors:
+                            control.stop()
+
                 with (directory / (vm.name + '.log')).open('ab') as log:
                     os.fchmod(log.fileno(), 0o600)
                     log.seek(0, os.SEEK_END)
@@ -974,19 +1046,17 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                         while b'\n' in pending:
                             line, pending = pending.split(b'\n', 1)
                             value = line.decode('utf-8', errors='replace')
-                            if value.startswith('Runner case failed: '):
+                            if ready and value.startswith('Runner case failed: '):
                                 try:
                                     failure = json.loads(value.removeprefix('Runner case failed: '))
-                                    case = failure.get('case', '') + work.get('upgrade', '')
-                                    if (failure.get('category') == work['category']
-                                            and case in work['cases']):
-                                        from test_results import ResultStore
-                                        ResultStore().record(work['category'], vm.family, case, 1,
-                                            vm=vm.name, options=work['options'])
-                                        if not continue_on_errors:
-                                            control.stop()
-                                except (TypeError, ValueError):
+                                    if failure.get('category') == work['category']:
+                                        failure_event(failure.get('case', ''))
+                                except (AttributeError, TypeError, ValueError):
                                     pass
+                            if ready and repair_run is not None and value.startswith(repair_hold.EVENT):
+                                event = json.loads(value.removeprefix(repair_hold.EVENT))
+                                if isinstance(event.get('nodeid'), str) and type(event.get('active')) is bool:
+                                    failure_event(event['nodeid'], holding=event['active'])
                             if value == CHECKPOINT_READY + attempt:
                                 ready = True
                                 continue
@@ -1007,8 +1077,13 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                         nonlocal spawned
                         spawned = True
                     def interrupt():
+                        with repair_lock:
+                            first = first_failure is not None and first_failure['vm'] == vm.name
+                            release = first and hold_active and (hold_publication_failed
+                                or (repair_session / repair_hold.RELEASE).exists())
                         if (control.stopped.is_set() or launcher_reload.pending()
-                                or worker.interrupt.is_set()):
+                                or worker.executor.aborting.is_set()
+                                or (worker.interrupt.is_set() and not first) or release):
                             attempt_control.stop()
                     interrupt()
                     refused_start = attempt_control.stopped.is_set()
@@ -1088,7 +1163,7 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                     frames[vm.name] = ['Starting worker']
                     publish_frames()
                 try:
-                    result = execute_worker(worker, assignment, inherited, group.args)
+                    result = execute_worker(worker, assignment, inherited, group)
                 except (ValueError, OSError) as error:
                     if isinstance(error, test_source.SourceBusy):
                         raise
@@ -1121,7 +1196,8 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
                                        checkpoint_scope=checkpoint_scope,
                                        continue_on_errors=continue_on_errors, sources=sources, histories=histories,
                                        progress=partial(progress, overall_counts) if vms else None,
-                                       group_plans=group_plans)
+                                       group_plans=group_plans,
+                                       **({'quiesced': quiesced} if repair_run is not None else {}))
             except Exception as error:
                 from detached_launcher import Stopped, record_exception
                 if not isinstance(error, (launcher_reload.ReloadRequested, Stopped)):
@@ -1238,6 +1314,10 @@ def _worker(argv, finished, *, cleanup_only=False):
     mode, name, *args = argv
     if mode not in ('--execute', '--execute-reload'):
         raise ValueError('private VM queue entry only')
+    if args[:1] == [repair_hold.FLAG]:
+        args = args[1:]
+        if not cleanup_only:
+            os.environ[repair_hold.VARIABLE] = '1'
     vm_config.select(name)
     os.environ.pop(BATCH, None)
     os.environ[WORKER] = '1'

@@ -317,7 +317,7 @@ def attempt(plan, case, *, root=ROOT, expected_inputs=None, progress=None, suite
                     ledger=ledger, graphics_type='vnc')
             else:
                 source, guestfs, lease = suite.acquire(ledger)
-        with lease:
+        with lease, lease.repair_failure(case['case_id']):
             try:
                 with ledger.measure('preparation', operation='snapshot-readiness'):
                     if suite is None:

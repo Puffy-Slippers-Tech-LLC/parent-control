@@ -770,7 +770,7 @@ class RemoteVM:
     def run(self, control, command, *, env, output=None, cooperative=False, cwd=None,
             timeout=None, kill_after=30.0, cancel_signal=2, owned_group=False,
             started=None, stderr_output=None, stdin_file=None, wait_on_cancel=False,
-            mode='operation', **options):
+            preserve_exit=False, mode='operation', **options):
         from detached_launcher import Stopped
         pending = b''
         prefix = None
@@ -823,6 +823,8 @@ class RemoteVM:
                          wait_on_cancel=wait_on_cancel or (
                              command[0] == '/usr/bin/pkexec' and not cooperative
                              and timeout is None and not owned_group))
+        if preserve_exit:
+            execution['preserve_exit'] = True
         try:
             with capsule(self.root, self.host, command, env, cooperative=cooperative, mode=mode,
                          execution=execution, cwd=cwd, stdin_file=stdin_file,
@@ -831,7 +833,8 @@ class RemoteVM:
                 prefix = b'\0' + (RESULT + request['receipt'] + ' ').encode()
                 status = control.run(ssh, cwd=self.root, env=ssh_environment(env), output=emit,
                                      cooperative=True, input_stream=payload,
-                                     stderr_output=stderr_output, **options)
+                                     stderr_output=stderr_output,
+                                     **({'preserve_exit': True} if preserve_exit else {}), **options)
         except Stopped:
             return 130
         if pending:

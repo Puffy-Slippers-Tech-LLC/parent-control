@@ -1637,9 +1637,11 @@ def main(argv=None):
     import watch_control
     from test_results import REPAIR_VALIDATION, VARIABLE as REPAIR_RESULTS
     from vm_selection import vm_config
+    assigned = False
     try:
         if REPAIR_VALIDATION in os.environ:
-            if not validate_repair_scope(Path(__file__).resolve().parents[1], argv, os.environ[REPAIR_VALIDATION]):
+            assigned = validate_repair_scope(Path(__file__).resolve().parents[1], argv, os.environ[REPAIR_VALIDATION])
+            if not assigned:
                 os.environ.pop(REPAIR_RESULTS, None)
         argv, vmhost = vm_config.extract_vmhost(argv)
         argv, watch = watch_control.parse(argv)
@@ -1690,6 +1692,17 @@ def main(argv=None):
         return _main(vm_config.filter_vm_hosts(argv, use_defaults=True) if implicit_default else argv)
     try:
         root = Path(__file__).resolve().parents[1]
+        if assigned and not host_only_request(argv):
+            from detached_launcher import WORKFLOW_DIRECTORY
+            import repair_hold
+            import test_source
+            if workflow := os.environ.get(WORKFLOW_DIRECTORY):
+                repair_run = Path(workflow)
+                if hold := repair_hold.read(repair_run):
+                    test_source.finish_admission()
+                    repair_hold.release(root, hold, join=True)
+                    if (repair_run / 'cancel').exists():
+                        return 130
         if test_activity.descriptors() or test_activity.VARIABLE in os.environ:
             if reset:
                 raise ValueError('--reset requires an independent public invocation')

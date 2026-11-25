@@ -105,6 +105,7 @@ class Adapter:
         self.display = None
         self.serial = None
         self.maintenance = maintenance
+        self.before_restore = None
 
     @property
     def observer(self):
@@ -193,6 +194,8 @@ class Adapter:
                 self.lease.guard(off=True)
                 self.events.append('poweroff')
             else:
+                if self.before_restore is not None:
+                    self.before_restore()
                 self.lease.stop_by_restore()
                 self.close_observer()
                 self.phase = 'stopped'

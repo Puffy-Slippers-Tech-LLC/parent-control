@@ -159,7 +159,7 @@ def observer(selection, manifest, result, previous, *, mode):
 def run_history(suite, directory, assets, selection, observe, mode, *, result, previous):
     """Actual Suite online branch and KioskEntry's separate offline attachment."""
     lease = suite.lease
-    with lease:
+    with lease, lease.repair_failure('check_fixture_e2e_installed'):
         if lease.__dict__.get('_fixture_provision_state') is not None:
             fixture_provision.reset_after_restore(lease)
         suite.snapshot_mode = mode

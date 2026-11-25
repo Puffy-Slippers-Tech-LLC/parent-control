@@ -14,7 +14,7 @@ import stat
 import struct
 import sys
 import time
-from tools.vm_source_snapshot import source_path
+from tools.vm_source_snapshot import input_file, source_path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests/integration'))
@@ -252,6 +252,22 @@ def run_distribution(directory, lease, ledger, *, expected_inputs, observe, vali
               'backend_exit_status': None, 'backend_failure_artifact': None,
               'lifecycle': [], 'shutdown_verified': False, 'scene_retained': False,
               'worker_stopped': False, 'callback_closed': False}
+    if getattr(lease, 'repair_nodeid', None) is not None and not running_attachment:
+        def preserve_failed_scene():
+            # generalhw can request shutdown before its parent process exits.
+            # A reported failure belongs to the outer case's hold and cleanup.
+            if os.path.lexists(directory / 'base_state.json'):
+                result['backend_failure_artifact'] = True
+                require(False, 'e2e:backend-failure-artifact')
+            try:
+                with input_file(directory / 'testresults/result-smoke.json') as (stream, _):
+                    module = json.loads(stream.read(1024 * 1024))
+            except (OSError, ValueError):
+                return  # A missing/partial report has no terminal verdict yet.
+            if isinstance(module, dict) and module.get('result') in ('fail', 'softfail'):
+                result['failed_module_status'] = module['result']
+                require(False, 'smoke:module-not-passed')
+        adapter.before_restore = preserve_failed_scene
     # Credentials may come only from completed, same-lease provisioning. The
     # credential qualification performs GDM input; all raw output stays private.
     if credentials is not None:

@@ -1428,7 +1428,12 @@ The finite `check_e2e_active_grant_disable` selector uses
 existing baseline `native`, `activity`, `baseline-child` preparation. Run each
 declared target separately. Its engineering attempt observes native estimates,
 lock events and timer identity through disable, live-grant/unrestricted rollback
-and a failed preparation readback. A separately restored public attempt obtains
+and a failed preparation readback. Each native account write is held for an
+entry and end-of-window estimate read. A `Busy` reply at a required checkpoint
+or after a payloadless estimate-change notification leaves a coverage gap and
+prevents engineering qualification. Periodic reads supplement these checks.
+Lock and timer-owner observations continue independently through restoration.
+A separately restored public attempt obtains
 a genuine 600-second approval with zero daily time, disables controls through
 Parent, independently reloads saved settings/app rules and resumes retained
 child activity. Fault injection contributes only engineering evidence.

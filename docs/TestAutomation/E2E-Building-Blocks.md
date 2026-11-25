@@ -4877,13 +4877,14 @@ command lifecycle. Flatpak status comes from its complete public `flatpak ps`
 inventory, including the stable app ID and instance ID; setup uses `flatpak info`
 to verify the current system deployment and exported command. No game release,
 renderer or Flatpak tool version is fixed. Check the liveness, UID and start time
-of each matching wrapper. An exited wrapper can remain listed alongside a live
-one. Two verified live wrappers fail with both instance IDs and PIDs. An
-inventory containing only exited matches requires a fresh read with no matching
-rows to establish absence. Ubuntu's original AppImage is identified through
-its exact AppImageLauncher bypass parent, original argument vector, owned mounted
-executable and both process start times. These OS observations establish the
-requested command-running result, not game usability or GUI presentation.
+of each matching wrapper. Flatpak instance metadata distinguishes the ordinary
+launcher from secondary sandboxes with the same app ID. Two verified live
+ordinary instances fail with both instance IDs and PIDs. Exited wrappers and
+secondary sandboxes still count as matching rows when proving absence, which
+requires a fresh inventory with no matching rows. Ubuntu's original AppImage is
+identified through its exact AppImageLauncher bypass parent, original argument
+vector, owned mounted executable and both process start times. These OS observations
+establish whether the command launched a running instance.
 The positive Allowed controls must run before denials can earn acceptance.
 
 Stop only the independently observed same-user instance: `flatpak kill INSTANCE`

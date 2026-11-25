@@ -2597,9 +2597,9 @@ def observe_extension_login(vm, lease, directory, ledger, fixture_context, fixtu
 
 def verify_enforcement_recovery(vm, directory):
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
-    from startup_observations import ENFORCEMENT, parse_enforcement
+    from startup_observations import ENFORCEMENT, TRANSPORT_SECONDS, parse_enforcement
 
-    observed = parse_enforcement(vm.call(['/usr/bin/python3', '-c', ENFORCEMENT], timeout=45))
+    observed = parse_enforcement(vm.call(['/usr/bin/python3', '-c', ENFORCEMENT], timeout=TRANSPORT_SECONDS))
     fault = json.loads(vm.call(['cat', PAYLOAD + '/results/enforcement-startup.json']))
     require(observed['boot_sha256'] == fault['boot_sha256'] and
             observed['policy_started_us'] > fault['refused_us'],
@@ -2609,11 +2609,11 @@ def verify_enforcement_recovery(vm, directory):
 
 def verify_broker_startup_recovery(vm, directory):
     sys.path.insert(0, str(ROOT / 'tests/e2e'))
-    from startup_observations import BROKER, parse_broker, parse_enforcement
+    from startup_observations import BROKER, TRANSPORT_SECONDS, parse_broker, parse_enforcement
 
     fault = json.loads(vm.call(['cat', PAYLOAD + '/results/broker-startup.json']))
     gates = {key: parse_enforcement(fault[key].encode()) for key in ('before', 'during', 'after')}
-    recovered = parse_broker(vm.call(['/usr/bin/python3', '-c', BROKER], timeout=45))
+    recovered = parse_broker(vm.call(['/usr/bin/python3', '-c', BROKER], timeout=TRANSPORT_SECONDS))
     require(gates['before'] == gates['during'] == gates['after'] and
             recovered['boot_sha256'] == gates['before']['boot_sha256'] and
             recovered['started_ns'] > fault['refused_ns'] and

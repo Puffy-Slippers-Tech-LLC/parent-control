@@ -11,6 +11,9 @@ import re
 import sys
 
 
+LAUNCH_OBSERVATION_SECONDS = 180
+
+
 def require(value, code):
     if not value:
         raise RuntimeError('public-desktop:' + code)
@@ -23,7 +26,8 @@ def _remote(transport, lease, operation, *arguments):
         lease.guard()
         raw = transport.call(['env', 'ONPC_EXPECTED_RUN=' + lease.state['run'],
             'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B', '-I', '-',
-            operation, *arguments], input=Path(__file__).read_bytes(), timeout=120)
+            operation, *arguments], input=Path(__file__).read_bytes(),
+            timeout=LAUNCH_OBSERVATION_SECONDS + 60 if operation == 'observe' else 120)
         lease.guard()
     require(type(raw) is bytes and 0 < len(raw) <= 32768, 'response-bound')
     result = json.loads(raw)
@@ -50,7 +54,7 @@ def restore_routing(transport, lease, original, observed):
 def observe(transport, lease, binding='standard'):
     """Observe Jordan or the station in the caller's current owned VM run.
 
-    The 120-second stage returns selected desktop-file Exec separately from the
+    The stage returns selected desktop-file Exec separately from the
     running GNOME manager and compositor argv. It grants no desktop usability or
     confinement credit; the caller supplies the independent public UI result.
     """
@@ -87,18 +91,24 @@ def guest_observe(binding, username):
     require(account.pw_uid > 0, 'account-uid')
     boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     saved_routing = routing(account.pw_uid)
-    deadline = time.monotonic() + 105
+    deadline = time.monotonic() + LAUNCH_OBSERVATION_SECONDS
+
+    def remaining():
+        seconds = deadline - time.monotonic()
+        require(seconds > 0, 'session-start-timeout')
+        return seconds
 
     def sessions():
         names = ('User', 'Type', 'Class', 'Service', 'State', 'Seat', 'Active', 'Desktop')
         found = []
-        for row in guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'], timeout=15).splitlines():
+        rows = guest.run(['loginctl', 'list-sessions', '--no-legend', '--no-pager'], timeout=remaining())
+        for row in rows.splitlines():
             fields = row.split()
             if len(fields) < 2 or fields[1] != str(account.pw_uid):
                 continue
             require(re.fullmatch(r'[A-Za-z0-9_-]{1,64}', fields[0]), 'session-id')
             value = properties(guest.run(['loginctl', 'show-session', fields[0], '--no-pager',
-                *['--property=' + name for name in names]], timeout=15), names)
+                *['--property=' + name for name in names]], timeout=remaining()), names)
             if (value['Class'] in ('manager', 'manager-early')
                     and value['Service'] == 'systemd-user' and value['Type'] == 'unspecified'):
                 continue
@@ -116,14 +126,14 @@ def guest_observe(binding, username):
     def units(pattern):
         raw = user_command(account, ['/usr/bin/systemctl', '--user', 'list-units',
             '--type=service', '--state=active', '--plain', '--no-legend', '--no-pager',
-            pattern], timeout=15).decode()
+            pattern], timeout=remaining()).decode()
         result = [row.split()[0] for row in raw.splitlines() if row.strip()]
         require(len(result) <= 8 and all(re.fullmatch(r'[A-Za-z0-9@_.\\:-]{1,200}', unit)
                 for unit in result), 'service-list')
         return result
 
     def process(unit, expected_names):
-        service = user_unit(account, unit)
+        service = user_unit(account, unit, timeout=remaining())
         require(service['ActiveState'] == 'active' and service['MainPID'].isdecimal()
                 and int(service['MainPID']) > 1
                 and re.fullmatch(r'[0-9a-f]{32}', service['InvocationID'])
@@ -164,9 +174,8 @@ def guest_observe(binding, username):
             require(len(managers) <= 1 and len(compositor_units) <= 1, 'ambiguous-session-services')
             if managers and compositor_units:
                 break
-        require(time.monotonic() < deadline, 'session-start-timeout')
         guest.guard()
-        time.sleep(.25)
+        time.sleep(min(.25, remaining()))
     require(len(managers) == 1, 'ambiguous-or-missing-manager')
     manager, manager_state = process(managers[0], {'gnome-session-service', 'gnome-session-binary'})
     require(len(compositor_units) == 1, 'ambiguous-or-missing-compositor')
@@ -205,6 +214,7 @@ def guest_observe(binding, username):
             == file_identity and desktop.read_bytes() == contents
             and Path('/proc/sys/kernel/random/boot_id').read_text().strip() == boot
             and guest.guard() == marker, 'observation-changed')
+    remaining()
     return {'scope': 'selected-launch-identity-only', 'public_result_qualified': False,
             'run': marker['run'], 'boot': boot, 'binding': binding, 'uid': account.pw_uid,
             'saved_routing': list(saved_routing),

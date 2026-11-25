@@ -3091,7 +3091,8 @@ class AccessibleUI:
             try:
                 if self.kiosk_diagnostic is not None:
                     self.kiosk_diagnostic.emit('prompt-check')
-                with self.observation():
+                read_until = getattr(self.api, 'read_until', None)
+                with (read_until(deadline) if read_until is not None else nullcontext()), self.observation():
                     if not prompt_in_predicate:
                         if checkpoint is not None:
                             checkpoint('prompt', attempt)

@@ -162,10 +162,10 @@ def graphical_session(account):
     return session, value
 
 
-def user_unit(account, unit):
+def user_unit(account, unit, *, timeout=45):
     names = ('ActiveState', 'InvocationID', 'MainPID', 'ControlGroup')
     return properties(user_command(account, ['/usr/bin/systemctl', '--user', 'show',
-        '--property=' + ','.join(names), unit], check=False).decode(), names)
+        '--property=' + ','.join(names), unit], check=False, timeout=timeout).decode(), names)
 
 
 def session_target_state(account):

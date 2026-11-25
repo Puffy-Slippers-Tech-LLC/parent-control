@@ -8,6 +8,7 @@ It never observes or changes private product state.
 import json
 import grp
 import hashlib
+import math
 import os
 from pathlib import Path
 import pwd
@@ -67,6 +68,10 @@ for _role in ACCOUNTS:
         BINDINGS[_role + '-entry-' + _mode] = (_role, 'entry-' + _mode)
         LABELS['entry-' + _mode] = 'Verifying the declared desktop entry ' + _mode
 LOGOUT_COMMAND = ['/usr/bin/gnome-session-quit', '--logout', '--no-prompt']
+TRANSITION_WAIT_SECONDS = 180
+TRANSITION_ACTIONS = frozenset(('switch-user', 'lock', 'return-greeter', 'prepare-greeter',
+                               'enter-locked', 'enter-locked-from-parent',
+                               'overview-open', 'overview-close'))
 # GNOME can wait over a minute for a session client to finish. Leave room for
 # that shutdown and a slow guest; this polls the result without repeating input.
 LOGOUT_WAIT_SECONDS = 240
@@ -90,16 +95,19 @@ def require(value, code):
 
 def call(argv, *, deadline=None, timeout=15, **options):
     if deadline is not None:
-        timeout = min(timeout, deadline - time.monotonic())
+        timeout = deadline - time.monotonic()
         if timeout <= 0:
             raise ObservationTimeout('session:observation-timeout')
     try:
-        return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
-                              text=True, check=True, timeout=timeout, **options).stdout
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                                text=True, check=True, timeout=timeout, **options)
     except subprocess.TimeoutExpired:
-        if deadline is not None and time.monotonic() >= deadline:
+        if deadline is not None:
             raise ObservationTimeout('session:observation-timeout') from None
         raise
+    if deadline is not None and time.monotonic() >= deadline:
+        raise ObservationTimeout('session:observation-timeout')
+    return result.stdout
 
 
 def package_format():
@@ -279,19 +287,28 @@ def screen_saver_active(uid, *, deadline=None):
     identity = ({'user': uid, 'group': account.pw_gid,
                  'extra_groups': os.getgrouplist(account.pw_name, account.pw_gid)}
                 if caller == 0 else {})
-    result = call([
-        '/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
-        '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.GetActive'],
+    result = session_bus_call('org.gnome.ScreenSaver', '/org/gnome/ScreenSaver',
+        'org.gnome.ScreenSaver.GetActive',
         deadline=deadline, timeout=10, env=env, **identity).strip()
     require(result in ('(true,)', '(false,)'), 'lock-state')
     return result == '(true,)'
 
 
-def submit(action):
+def session_bus_call(service, path, method, *args, deadline=None, **options):
+    command = ['/usr/bin/gdbus', 'call', '--session', '--dest', service,
+               '--object-path', path, '--method', method]
+    if deadline is not None:
+        # gdbus has its own default reply timeout. Let the subprocess enforce
+        # the shared deadline instead of letting the CLI abandon it first.
+        command += ['--timeout', str(max(1, math.ceil(deadline - time.monotonic())))]
+    return call([*command, *args], deadline=deadline, **options)
+
+
+def submit(action, *, deadline):
     """One selected route. Failure is uncertain input; there is no fallback."""
     require(action in LABELS, 'action')
     if action == 'logout':
-        call(LOGOUT_COMMAND)
+        call(LOGOUT_COMMAND, deadline=deadline)
         return
     # Resolve the switching dependency before the first mutation.
     if action in ('switch-user', 'return-greeter'):
@@ -302,8 +319,8 @@ def submit(action):
     # A lock/denial result must be observed before return-greeter. Preserve
     # that already locked session; no unlock, extra Lock or Shell navigation.
     if action != 'return-greeter':
-        call(['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
-              '--object-path', '/org/gnome/ScreenSaver', '--method', 'org.gnome.ScreenSaver.Lock'])
+        session_bus_call('org.gnome.ScreenSaver', '/org/gnome/ScreenSaver',
+                         'org.gnome.ScreenSaver.Lock', deadline=deadline)
     if action in ('switch-user', 'return-greeter'):
         # GDM resolves the calling process's seat. An SSH process belongs to a
         # remote session even after setuid; the desktop user's service manager
@@ -313,7 +330,7 @@ def submit(action):
               '--pipe', '--service-type=exec', '/usr/bin/python3', '-I', '-c',
               'import gi; gi.require_version("Gdm", "1.0"); '
               'from gi.repository import Gdm; '
-              'raise SystemExit(0 if Gdm.goto_login_session_sync(None) else 1)'])
+              'raise SystemExit(0 if Gdm.goto_login_session_sync(None) else 1)'], deadline=deadline)
 
 
 def destination(current, source, uid, action, *, deadline=None):
@@ -473,17 +490,17 @@ def enter_locked(account, *, from_parent=False):
         confirmed_source, confirmed_target = locked_entry_source(confirmed, account.pw_uid)
     require(confirmed_source == source and all(confirmed_target[key] == target[key]
             for key in target if key != 'LockedHint'), 'source-changed')
-    call(['/usr/bin/loginctl', 'activate', source])
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + TRANSITION_WAIT_SECONDS
+    call(['/usr/bin/loginctl', 'activate', source], deadline=deadline)
     while True:
-        current = sessions()
+        current = sessions(deadline=deadline)
         original = current.get(source)
         require(original is not None and all(original[key] == target[key]
                 for key in ('User', 'Remote', 'Class', 'Type', 'Seat')), 'entry-replaced')
         owned = [key for key, item in current.items() if local_graphical(item)
                  and item['User'] == str(account.pw_uid) and item['Class'] in ('user', 'user-early')]
         require(owned == [source], 'entry-target')
-        require(original.get('State') != 'opening' and screen_saver_active(account.pw_uid),
+        require(original.get('State') != 'opening' and screen_saver_active(account.pw_uid, deadline=deadline),
                 'entry-locked')
         for key, item in before.items():
             if key != source and local_graphical(item) and item['Class'] in ('user', 'user-early'):
@@ -492,17 +509,18 @@ def enter_locked(account, *, from_parent=False):
                         'entry-other-session-changed')
                 if key in peer_locks:
                     peer_uid, was_locked = peer_locks[key]
-                    require(screen_saver_active(peer_uid) == was_locked,
+                    require(screen_saver_active(peer_uid, deadline=deadline) == was_locked,
                             'entry-other-session-changed')
                 else:
                     require(current[key]['LockedHint'] == item['LockedHint'],
                             'entry-other-session-changed')
         active = [key for key, item in current.items() if local_graphical(item) and item['Active'] == 'yes']
         require(len(active) <= 1, 'ambiguous-destination')
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'destination-timeout')
         if active == [source]:
             return {'source_retained': True, 'destination': 'locked'}
-        require(time.monotonic() < deadline, 'destination-timeout')
-        time.sleep(.2)
+        time.sleep(min(.2, remaining))
 
 
 def entry_identity(current, uid, mode):
@@ -561,7 +579,7 @@ def gdm_denial_guest(role, boot, attempt):
 
     require(gdm_denial_receipt(attempt) and attempt['since_us'] <= time.monotonic_ns() // 1000,
             'gdm-denial-receipt')
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + TRANSITION_WAIT_SECONDS
     while time.monotonic() < deadline:
         raw = call(['/usr/bin/journalctl', '-b', '--no-pager', '-n', '2', '--output=json',
                     '--output-fields=MESSAGE', '_TRANSPORT=syslog', '_UID=0',
@@ -577,7 +595,7 @@ def gdm_denial_guest(role, boot, attempt):
             require(hashlib.sha256(boot_file.read_bytes()).hexdigest() == boot, 'gdm-denial-boot')
             return {'operation': GDM_DENIAL_OPERATION, 'outcome': 'passed',
                     'interface': 'system session', 'reason': 'time-limit', 'desktop_access': False}
-        time.sleep(.2)
+        time.sleep(min(.2, max(0, deadline - time.monotonic())))
     raise SessionError('session:gdm-denial-unobserved')
 
 
@@ -596,7 +614,8 @@ def observe_gdm_denial(transport, role, boot, attempt=None):
     label = 'Preparing the GDM denial observation' if attempt is None else 'Checking GDM and PAM for time denial'
     with watch_activity.operation(label):
         raw = transport.call(['/usr/bin/python3', '-I', '-', GDM_DENIAL_OPERATION, role, boot,
-                              json.dumps(attempt)], input=Path(__file__).read_bytes(), timeout=75)
+                              json.dumps(attempt)], input=Path(__file__).read_bytes(),
+                             timeout=TRANSITION_WAIT_SECONDS + 60)
     require(type(raw) is bytes and 0 < len(raw) <= 512, 'gdm-denial-response')
     result = json.loads(raw)
     require(gdm_denial_receipt(result) if attempt is None else result == {
@@ -819,23 +838,23 @@ def execute(binding, *, diagnostic=False, station_receipt=None):
         account.pw_uid, locked=locked) == source, 'source-changed')
     if action in ('overview-open', 'overview-close'):
         active = action == 'overview-open'
-        command = ['/usr/bin/gdbus', 'call', '--session', '--dest', 'org.gnome.Shell',
-                   '--object-path', '/org/gnome/Shell',
-                   '--method', 'org.freedesktop.DBus.Properties.']
+        shell = 'org.gnome.Shell', '/org/gnome/Shell'
+        properties = 'org.freedesktop.DBus.Properties.'
+        deadline = time.monotonic() + TRANSITION_WAIT_SECONDS
         # One supported Shell action, under the already verified child account.
         # Never toggle blindly or retry a submission after an uncertain reply.
-        call([*command[:-1], command[-1] + 'Set', 'org.gnome.Shell',
-              'OverviewActive', '<true>' if active else '<false>'])
-        deadline = time.monotonic() + 45
+        session_bus_call(*shell, properties + 'Set', 'org.gnome.Shell',
+                         'OverviewActive', '<true>' if active else '<false>', deadline=deadline)
         while True:
-            observed = call([*command[:-1], command[-1] + 'Get',
-                             'org.gnome.Shell', 'OverviewActive'])
+            observed = session_bus_call(*shell, properties + 'Get', 'org.gnome.Shell',
+                                        'OverviewActive', deadline=deadline)
             require(observed.strip() in ('(<true>,)', '(<false>,)'), 'overview-state')
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, 'overview-timeout')
             if (observed.strip() == '(<true>,)') == active:
                 break
-            require(time.monotonic() < deadline, 'overview-timeout')
-            time.sleep(.2)
-        require(source_session(sessions(), account.pw_uid) == source, 'source-changed')
+            time.sleep(min(.2, remaining))
+        require(source_session(sessions(deadline=deadline), account.pw_uid) == source, 'source-changed')
         return {'operation': binding, 'outcome': 'passed', 'interface': 'system session',
                 'overview': active}
     if action == 'continuous-activity':
@@ -856,8 +875,8 @@ def execute(binding, *, diagnostic=False, station_receipt=None):
         print('session-logout-submit: ' + json.dumps({
             'monotonic_ns': time.monotonic_ns(), 'source': source,
             'observer_uid': os.geteuid()}), file=sys.stderr)
-    submit(action)
-    deadline = time.monotonic() + (LOGOUT_WAIT_SECONDS if action == 'logout' else 45)
+    deadline = time.monotonic() + (LOGOUT_WAIT_SECONDS if action == 'logout' else TRANSITION_WAIT_SECONDS)
+    submit(action, deadline=deadline)
     while time.monotonic() < deadline:
         matched = False
         try:
@@ -905,9 +924,10 @@ def observe(transport, binding, *, diagnostic=False, station_receipt=None):
         arguments = ['--diagnostic'] if diagnostic else []
     with watch_activity.operation(LABELS[action] + ' [' + role + ']'):
         environment = ['env', 'ONPC_EXPECTED_RUN=' + transport.config['run']] if classic or selection else []
+        timeout = (LOGOUT_WAIT_SECONDS + 60 if action == 'logout' else
+                   TRANSITION_WAIT_SECONDS + 60 if action in TRANSITION_ACTIONS else 90)
         raw = transport.call([*environment, '/usr/bin/python3', '-I', '-', binding, *arguments],
-                             input=Path(__file__).read_bytes(),
-                             timeout=LOGOUT_WAIT_SECONDS + 60 if action == 'logout' else 90)
+                             input=Path(__file__).read_bytes(), timeout=timeout)
     require(type(raw) is bytes and 0 < len(raw) <= 1024, 'response-bound')
     result = json.loads(raw)
     if selection:

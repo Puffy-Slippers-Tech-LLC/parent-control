@@ -17,6 +17,7 @@ REGISTRY = 'org.a11y.atspi.Registry'
 ROOT = '/org/a11y/atspi/accessible/root'
 NULL = '/org/a11y/atspi/null'
 LIMIT = 6000
+UNSCOPED_READ_SECONDS = 30
 
 # Finite diagnostic labels only; never retain executable paths or process text.
 PROVIDER_EXECUTABLES = {
@@ -60,6 +61,7 @@ class PublicAtspi:
         self._names = None
         self._states = None
         self._generation = 0
+        self._read_deadline = None
         self.provider_diagnostics = False
         self._provider_processes = {}
         self.Action = BusNode
@@ -69,6 +71,27 @@ class PublicAtspi:
 
     def __getattr__(self, name):
         return getattr(self.native, name)
+
+    @contextmanager
+    def read_until(self, deadline):
+        previous = self._read_deadline
+        if deadline is not None:
+            self._read_deadline = deadline if previous is None else min(previous, deadline)
+        try:
+            yield
+        finally:
+            self._read_deadline = previous
+
+    def read_deadline(self):
+        return (self._read_deadline if self._read_deadline is not None
+                else time.monotonic() + UNSCOPED_READ_SECONDS)
+
+    @staticmethod
+    def remaining_read_ms(deadline):
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining < 1:
+            raise IncompleteTree('public-atspi:read-timeout')
+        return remaining
 
     @staticmethod
     def _connect(address):
@@ -90,6 +113,7 @@ class PublicAtspi:
         if self._call_override is not None:
             return self._call_override(bus, path, interface, method, signature, args)
         from gi.repository import Gio, GLib
+        deadline = self.read_deadline() if method.startswith(('Get', 'Is')) else None
         if self._connection is None:
             # Gio.bus_get_sync caches a process-wide connection even after a
             # preview switches to its private session. Connect explicitly to
@@ -103,7 +127,8 @@ class PublicAtspi:
                 try:
                     address = session.call_sync(
                         'org.a11y.Bus', '/org/a11y/bus', 'org.a11y.Bus', 'GetAddress',
-                        None, GLib.VariantType.new('(s)'), Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
+                        None, GLib.VariantType.new('(s)'), Gio.DBusCallFlags.NONE,
+                        5000 if deadline is None else self.remaining_read_ms(deadline), None).unpack()[0]
                 finally:
                     session.close_sync(None)
             self._connection = self._connect(address)
@@ -111,7 +136,8 @@ class PublicAtspi:
             value = self._connection.call_sync(
                 bus, path, interface, method,
                 GLib.Variant('(' + signature + ')', args) if signature else None,
-                None, Gio.DBusCallFlags.NONE, 2000, None).unpack()
+                None, Gio.DBusCallFlags.NONE,
+                2000 if deadline is None else self.remaining_read_ms(deadline), None).unpack()
         except GLib.Error as error:
             if (self._registry_owner is None and bus == 'org.freedesktop.DBus'
                     and method == 'GetNameOwner' and args == ('org.a11y.atspi.Registry',)
@@ -453,7 +479,7 @@ class PublicAtspi:
         results = [None] * len(queries)
         remaining = len(queries)
         cancellable = Gio.Cancellable.new()
-        deadline = time.monotonic() + 3
+        deadline = self.read_deadline()
         interrupted = None
 
         def finished(connection, result, index):
@@ -477,7 +503,8 @@ class PublicAtspi:
                     self._connection.call(
                         bus, path, interface, method,
                         GLib.Variant('(' + signature + ')', args) if signature else None,
-                        None, Gio.DBusCallFlags.NONE, 2000, cancellable, finished, index)
+                        None, Gio.DBusCallFlags.NONE, self.remaining_read_ms(deadline),
+                        cancellable, finished, index)
                 except Exception as error:
                     results[index] = error
                     remaining -= 1

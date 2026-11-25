@@ -898,8 +898,10 @@ def _run_workers(root, plan, *, reloading=False, checkpoint_scope='ordinary',
             output_lock = threading.Lock()
             from test_results import REPAIR_QUEUE, ResultStore
             reload_request = launcher_reload.current
-            repair_run = (reload_request.supervisor if reload_request is not None
-                          and os.environ.get(REPAIR_QUEUE) == '1' and not continue_on_errors else None)
+            repair_run = reload_request.supervisor if reload_request is not None else None
+            if (repair_run is None or os.environ.get(REPAIR_QUEUE) != '1'
+                    or continue_on_errors or not repair_hold.requested(repair_run)):
+                repair_run = None
             repair_session = reload_request.run if repair_run is not None else None
             repair_lock = threading.Lock()
             first_failure = None
@@ -1314,10 +1316,9 @@ def _worker(argv, finished, *, cleanup_only=False):
     mode, name, *args = argv
     if mode not in ('--execute', '--execute-reload'):
         raise ValueError('private VM queue entry only')
-    if args[:1] == [repair_hold.FLAG]:
+    hold = args[:1] == [repair_hold.FLAG]
+    if hold:
         args = args[1:]
-        if not cleanup_only:
-            os.environ[repair_hold.VARIABLE] = '1'
     vm_config.select(name)
     os.environ.pop(BATCH, None)
     os.environ[WORKER] = '1'
@@ -1388,7 +1389,15 @@ def _worker(argv, finished, *, cleanup_only=False):
             area = '--resume-area-only' in args
             # Family admission already applies the caller's explicit replay.
             checkpoint.retry(groups[0][0], replay[0], area=area, clear_pass=not (work and area))
-        status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
+        # The repair hold belongs to the test attempt. Startup and cancellation
+        # recovery must always use the ordinary recovery command.
+        if hold:
+            os.environ[repair_hold.VARIABLE] = '1'
+        try:
+            status = _main([*args, '--vm', name], detached=True, checkpoint=checkpoint)
+        finally:
+            if hold:
+                os.environ.pop(repair_hold.VARIABLE, None)
         if work:
             # An inherited pass is never evidence that this attempt executed it.
             # The report owns case teardown; main returns through retained-output

@@ -29,6 +29,7 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch,
     import launcher_reload
     import prepare_appsnapshot
     import regression_process
+    import repair_hold
     import test_activity
     import test_checkpoint
     import test_recovery
@@ -94,11 +95,17 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch,
         monkeypatch.setenv(vm_test_queue.FAMILY_WORK, str(request))
         monkeypatch.setattr(vm_test_queue, 'reservation', lambda *args, **kwargs: nullcontext())
         recoveries = []
-        monkeypatch.setattr(test_recovery, 'cleanup',
-                            lambda root: recoveries.append(control.stopped.is_set()) or 0)
+
+        def recover(root):
+            assert repair_hold.VARIABLE not in os.environ
+            recoveries.append(control.stopped.is_set())
+            return 0
+
+        monkeypatch.setattr(test_recovery, 'cleanup', recover)
 
         def cancelled_attempt(args, *, detached, checkpoint):
             assert interruption == 'missing-cleanup-receipt'
+            assert os.environ[repair_hold.VARIABLE] == '1'
             control.stopped.set()
             checkpoint.queue_finalized = True
             checkpoint.queue_vm_started = True
@@ -110,7 +117,8 @@ def test_vm_snapshot_pass_survives_later_checkout_changes(tmp_path, monkeypatch,
         monkeypatch.setattr(commands, '_main', cancelled_attempt)
         if interruption == 'startup':
             control.stopped.set()
-        assert vm_test_queue.worker(['--execute', 'one', 'system', 'check_snapshot']) == 130
+        assert vm_test_queue.worker(
+            ['--execute', 'one', repair_hold.FLAG, 'system', 'check_snapshot']) == 130
         evidence = test_checkpoint.Checkpoint.worker_result(tmp_path, 'one')
         assert recoveries == [False] * (1 if interruption == 'startup' else 2)
         assert evidence['cleanup'] and evidence['interrupted']
@@ -218,9 +226,27 @@ def test_plain_goal_session_waits_for_native_completion(tmp_path, monkeypatch):
 def test_public_repair_composes_validation_and_continues_pending(tmp_path, monkeypatch):
     import fix_tests
     import launcher_controller
+    import repair_hold
     import test_commands
     import test_results
     import test_source
+    import vm_selection
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(fix_tests, 'prepare_request', lambda *args, **kwargs: None)
+        scoped.setattr(vm_selection, 'execution_binding', lambda: None)
+        scoped.setattr(fix_tests.launcher, 'report_start', lambda *args, **kwargs: 0)
+
+        def start(root, kind, command, *, on_start, **options):
+            assert kind == 'fix-tests'
+            on_start(tmp_path)
+            return tmp_path, True
+
+        scoped.setattr(fix_tests.launcher, 'select', start)
+        assert fix_tests.main(['vm', '--vm', 'u26']) == 0
+        assert not repair_hold.requested(tmp_path)
+        assert fix_tests.main(['vm', '--vm', 'u26', '--keep-failed-vm']) == 0
+        assert repair_hold.requested(tmp_path)
 
     monkeypatch.setattr(fix_tests, 'repair_inventory', lambda *args: {'system': {'args': ['selected']}})
     monkeypatch.setenv(test_results.VARIABLE, str(tmp_path / 'results' / '1'))

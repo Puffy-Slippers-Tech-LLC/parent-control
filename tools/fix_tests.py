@@ -450,6 +450,8 @@ def main(argv=None):
                         help='restore omitted options and keep clear results when starting immediately. '
                              'Queued runs restore options and start from the beginning.')
     parser.add_argument('--stop', '--kill', action='store_true', help='cooperatively cancel running cases or repair')
+    parser.add_argument('--keep-failed-vm', action='store_true',
+                        help='keep a failed VM alive for automatic repair diagnostics')
     parser.add_argument('--release', action='store_true', help='release the failed VM and wait for cleanup')
     parser.add_argument('--reset', action='store_true', help='start without previous results')
     parser.add_argument('--reload', action='store_true', help='refresh execution at the next boundary')
@@ -482,7 +484,7 @@ def main(argv=None):
         categories = saved.get('categories', [])
     if args.reverse and '--reverse' not in categories:
         categories.append('--reverse')
-    request = dict(categories=categories, record=args.record)
+    request = dict(categories=categories, record=args.record, keep_failed_vm=args.keep_failed_vm)
     watch = {name: getattr(args, 'watch_' + name) == 'on' for name in ('ssh', 'view')
              if getattr(args, 'watch_' + name) is not None}
     if watch:

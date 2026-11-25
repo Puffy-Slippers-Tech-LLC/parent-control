@@ -11,6 +11,14 @@ RECORD = 'repair-hold.json'
 RELEASE = 'repair-release'
 
 
+def requested(run):
+    try:
+        request = json.loads((run / 'request.json').read_text())
+    except FileNotFoundError:
+        return False
+    return isinstance(request, dict) and request.get('keep_failed_vm') is True
+
+
 def read(repair_run):
     try:
         record = json.loads((repair_run / RECORD).read_text())

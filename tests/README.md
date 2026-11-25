@@ -549,9 +549,10 @@ and routes each category by its required VM tag. The repair launcher passes
 the requested selectors to the runner on each dispatch.
 
 On the first failure, stop dispatch and join the other executions through normal
-cleanup and booking release. When the failed case still owns a running guest,
-its VM owner holds the guest under the existing lease. The repair session
-starts after the other bookings close. Start with
+cleanup and booking release. By default, the failed VM also finishes cleanup
+before repair starts. Use `--keep-failed-vm` to retain a running guest under its
+existing lease for diagnosis. The repair session then starts after the other
+bookings close. Start with
 `tools/test-vm --vm NAME probe memory` to read guest memory pressure, swap and
 OOM evidence through that owner. Use `tools/fix-tests --release` with the same
 controller branch to end the hold and wait for cleanup. Assigned validation

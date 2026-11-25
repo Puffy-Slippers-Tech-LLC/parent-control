@@ -288,7 +288,7 @@ class Transport:
                                       selection=selection, diagnostic_stdout=diagnostic_stdout,
                                       transition=transition)
                 except subprocess.TimeoutExpired as error:
-                    if (check and timeout == 30 and input is None
+                    if (check and input is None
                             and tuple(argv) == ('/usr/bin/python3', '-c', BOOT_SHA256_PROBE)
                             and error.cmd == [*ssh(self.config, attempts=attempts, transition=transition),
                                               remote(self.config, argv)]):

@@ -7657,21 +7657,27 @@ class AccessibleUI:
         print('ui:parent-page=activated', file=sys.stderr, flush=True)
         if page == 'Screen Limits':
             return self.selected_child(child)
-        # Reacquire once after the page transition. Local target roots can be
-        # shared within this invocation; scanning the entire installed catalogue
-        # again for every filter needlessly exhausts the observation deadline.
-        root = self.parent()
+        # Catalogue construction changes the paginated inventory. Read the
+        # named controls from the same pinned Parent surface while it settles.
+        from common.oh_no_parent_control_ui.application_ui_client import UIClientError, UIElement
 
-        def search_ready():
-            search = self.snapshot_owned_target('parent-app-search', root=root,
-                                                check_prompt=True)
-            return search is not None and self.has_state(search, self.api.StateType.SENSITIVE)
+        def apps_ready():
+            try:
+                search = UIElement(root.client, root.surface_id, 'parent-app-search').snapshot()
+                if search['visible'] is not True or search['enabled'] is not True:
+                    return False
+                for identity in ('parent-filter-access-rule', 'parent-filter-match-rule'):
+                    if not UIElement(root.client, root.surface_id, identity).visible:
+                        return False
+            except UIClientError as error:
+                if error.code not in ('Unavailable', 'Timeout', 'Transport') or error.uncertain:
+                    raise
+                raise UiError('ui:incomplete-tree') from error
+            nodes, edges, _, facts = self.external_desktop_snapshot()
+            self.handle_system_prompt(observation=(nodes, edges, facts))
+            return True
 
-        # Parent exposes the search control before the catalogue is ready.
-        self.wait(search_ready, 'parent-app-search-ready', prompt_in_predicate=True)
-        print('ui:parent-page=search-ready', file=sys.stderr, flush=True)
-        self.reveal_id('parent-filter-access-rule', root=root)
-        self.reveal_id('parent-filter-match-rule', root=root)
+        self.wait(apps_ready, 'parent-app-limits-ready', prompt_in_predicate=True)
         print('ui:parent-page=filters-ready', file=sys.stderr, flush=True)
 
     def app_rows(self, child, *, maximum=256, expected_ids=None, include_names=False,

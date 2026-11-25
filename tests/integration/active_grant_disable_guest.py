@@ -64,6 +64,7 @@ def observer():
     started = time.monotonic()
     timer = 'org.freedesktop.MalcontentTimer1'
     timer_path = '/org/freedesktop/MalcontentTimer1'
+    estimate_busy = timer + '.Child.Error.Busy'
 
     def call(bus, name, path, interface, method, arguments=None, *, timeout=2000):
         nonlocal last_call
@@ -100,35 +101,31 @@ def observer():
         GLib.Variant('(s)', ('login-session',)), None, Gio.DBusCallFlags.NONE, 5000, None)
     pinned = identity()
 
-    def sample(label):
-        deadline = time.monotonic() + 2
-        for attempt in range(6):
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise RuntimeError('disable-observer:estimate-deadline')
-            try:
-                observed, estimates = call(system, timer, timer_path, timer + '.Child',
-                    'GetEstimatedTimes', GLib.Variant('(s)', ('login-session',)),
-                    timeout=max(1, min(2000, int(remaining * 1000))))
-                break
-            except GLib.Error as error:
-                if (Gio.DBusError.get_remote_error(error) != timer + '.Child.Error.Busy'
-                        or attempt == 5 or time.monotonic() >= deadline):
-                    raise
-                emit('busy-estimate-read', label=label, attempt=attempt + 1)
-                time.sleep(min(.05 * 2 ** attempt, .4,
-                               max(0, deadline - time.monotonic())))
-        if set(estimates) not in (set(), {''}):
-            raise RuntimeError('disable-observer:unexpected-estimate-map')
-        estimate = estimates.get('')
+    def sample(label, *, required=True):
+        observed = estimate = None
+        try:
+            observed, estimates = call(system, timer, timer_path, timer + '.Child',
+                'GetEstimatedTimes', GLib.Variant('(s)', ('login-session',)))
+        except GLib.Error as error:
+            if Gio.DBusError.get_remote_error(error) != estimate_busy:
+                raise
+            # A later reply cannot fill the gap at a marker or payloadless
+            # notification. A periodic poll supplements those required reads.
+            emit('estimate-gap', label=label, required=required, remote_error=estimate_busy)
+        else:
+            if set(estimates) not in (set(), {''}):
+                raise RuntimeError('disable-observer:unexpected-estimate-map')
+            estimate = estimates.get('')
         locked = call(session, 'org.gnome.ScreenSaver', '/org/gnome/ScreenSaver',
                       'org.gnome.ScreenSaver', 'GetActive')[0]
+        timer_identity = identity()
         # The native boolean means "limit reached", and no entry means
         # unrestricted time, rather than an unavailable or exhausted estimate.
-        emit('sample', label=label, timer_identity=identity(),
-             estimate=list(estimate) if estimate is not None else None,
-             estimate_observed=observed, screensaver_active=locked)
-        if (identity() != pinned or locked or estimate is not None
+        if observed is not None:
+            emit('sample', label=label, timer_identity=timer_identity,
+                 estimate=list(estimate) if estimate is not None else None,
+                 estimate_observed=observed, screensaver_active=locked)
+        if (timer_identity != pinned or locked or estimate is not None
                 and (estimate[0] or estimate[2] <= observed)):
             raise RuntimeError('disable-observer:lock-exhaustion-or-timer-replaced')
 
@@ -165,7 +162,7 @@ def observer():
 
     def tick():
         try:
-            sample('periodic')
+            sample('periodic', required=False)
             return True
         except Exception as error:
             fail(error)
@@ -372,6 +369,10 @@ def exercise_transitions(account, administrator):
             line, pending = pending.split(b'\n', 1)
             event = json.loads(line)
             events.append(event)
+            if event['event'] == 'estimate-gap' and event['required']:
+                # Preserve the first missing sample through all later reads
+                # and let the lock and owner observers run through restoration.
+                diagnostic.setdefault('required_estimate_gap', event)
             control.require(event['event'] != 'failure' and len(events) <= 4096,
                             'engineering-observer-failed')
             if event['event'] == expected and (label is None or event.get('label') == label):
@@ -403,6 +404,7 @@ def exercise_transitions(account, administrator):
 
     try:
         receive('ready')
+        control.require('required_estimate_gap' not in diagnostic, 'engineering-required-estimate-busy')
         broker.set_parent_control(administrator.pw_uid, uid, False, 0)
         disabled = snapshot()
         diagnostic['disabled_native_state'] = disabled
@@ -502,6 +504,7 @@ def exercise_transitions(account, administrator):
                             and not any(event['event'] == 'failure' for event in events),
                             'engineering-observer-result')
         control.require(restored, 'engineering-original-state-not-restored')
+    control.require('required_estimate_gap' not in diagnostic, 'engineering-required-estimate-busy')
     return {'engineering_only': True, 'checks': checks, 'events': events,
             'original_native_state': original, 'original_state_restored': restored,
             'observer_joined': True, 'native_write_observation_ms': 1000,

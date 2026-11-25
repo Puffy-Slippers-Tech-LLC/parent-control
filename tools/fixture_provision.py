@@ -316,8 +316,9 @@ class Provisioner:
     def _boot(self):
         self._guard()
         try:
-            raw = self.transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE],
-                                      timeout=30, attempts=1)
+            # SSH session accounting can wait on guest filesystem writeback.
+            # Use the normal transport budget for this setup read.
+            raw = self.transport.call(['/usr/bin/python3', '-c', BOOT_SHA256_PROBE], attempts=1)
         except subprocess.TimeoutExpired as error:
             self._diagnose_ssh_failure(error)
             raise

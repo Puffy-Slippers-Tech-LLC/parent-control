@@ -227,11 +227,12 @@ def build_plan(*, fresh=False):
             **entry(root + '-denied', 'other-child', not fresh, expected='time-denied'),
             **prefixed_stages(root + '-entry', rejected_gdm_return()),
             **approval(root + '-visit', 'kiosk', first_parent, EXPIRY_GRANT_SECONDS, cycle == 1, work_capture)})
+        visit_work = root + '-visit-work'
         if fresh:
-            screens.update(reopen_work(root + '-visit-reopened', resumed, work_capture))
-            work_capture = root + '-visit-reopened-capture'
-        screens.update({**work(root + '-visit-work', ('capture', 'resubmit', 'submitted'), resumed, capture=work_capture),
-            **(prefixed_stages(root + '-visit-game', {**game_usable_app(level=1, mode=mode), 'capture': 'ui:game-policy-activity'}) if cycle == 1 else
+            screens.update(reopen_work(visit_work, resumed, work_capture))
+        else:
+            screens.update(work(visit_work, ('capture', 'resubmit', 'submitted'), resumed, capture=work_capture))
+        screens.update({**(prefixed_stages(root + '-visit-game', {**game_usable_app(level=1, mode=mode), 'capture': 'ui:game-policy-activity'}) if cycle == 1 else
                {root + '-visit-game-denied': 'ui:game-fullscreen-command-blocked'}),
             root + '-natural-expiry': 'ui:work-jordan-activity', root + '-lock-input-ready': 'ui:child-natural-expiry-lock-ready',
             root + '-lock-result': 'ui:child-natural-expiry-lock-result', root + '-curtain': 'ui:child-lock-curtain',
@@ -248,7 +249,9 @@ def build_plan(*, fresh=False):
                (('open', 'open'), ('warning', 'warning'), ('confirm', 'confirm'))},
             root + '-revoked-settings': 'ui:existing-returned', root + '-revoked-balance': 'ui:time-explanation-refresh-read',
             **leave(root + '-revoke-parent', 'parent'), **entry(root + '-revoked', 'other-child', not fresh, expected='time-denied'),
-            **prefixed_stages(root + '-revoked', rejected_gdm_return()), **riley_visit(root + '-riley'), **leave(root + '-riley', 'child')})
+            **prefixed_stages(root + '-revoked', rejected_gdm_return())})
+        if cycle == 1:
+            screens.update({**riley_visit(root + '-riley'), **leave(root + '-riley', 'child')})
         texts[root + '-natural-expiry'] = (resumed, resumed)
         entries[root + '-natural-expiry'] = root + '-visit-work-capture'
         activities[root + '-natural-expiry'] = (root + '-visit-work-capture', 'same')

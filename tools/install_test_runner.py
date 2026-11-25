@@ -370,7 +370,7 @@ def main():
     host = setup_host(root, document, headless=headless)
     if host is None:
         raise ValueError('VM host identity is missing; run ./setup.sh --server from its registered checkout')
-    poll_ns = configured_kvm_halt_poll(document, host) if headless else None
+    poll_ns = configured_kvm_halt_poll(document, host)
     _, registry = vm_config.parse_configuration(document)
     identity = {name: pinned_vm_uuid(vm.baseline_directory)
                 for name, vm in registry.items() if vm.host.name == host}

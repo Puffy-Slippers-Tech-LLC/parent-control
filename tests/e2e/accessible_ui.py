@@ -18048,14 +18048,17 @@ def report_adapter_failure(error):
 
 
 def greeter_return_worker_status(error, query_kind):
+    # A defunct object invalidates the snapshot even on the same greeter bus.
+    # The supervisor can request a fresh read without requiring a handoff.
     if (isinstance(error, _SingleReadPending)
-            or getattr(error, 'public_atspi_starting', False)):
+            or getattr(error, 'public_atspi_starting', False)
+            or isinstance(error, UiError) and str(error) == 'ui:gdm-stale-tree'):
         return GREETER_RETURN_PENDING
     # The supervisor must independently observe a changed binding even for a
     # failure consistent with losing the session, bus or provider object.
     if isinstance(error, UiError) and str(error) in (
             'ui:greeter-binding-changed', 'ui:greeter-account-missing',
-            'ui:timeout:runtime', 'ui:timeout:session-bus', 'ui:gdm-stale-tree'):
+            'ui:timeout:runtime', 'ui:timeout:session-bus'):
         return GREETER_RETURN_HANDOFF
     if (not isinstance(error, UiError) or str(error) in (
             'ui:incomplete-tree', 'ui:system-prompt-observation-failed')) and query_kind in (

@@ -138,6 +138,8 @@ records the elapsed time and node count for this path.
 and logout operations through the attempt's guarded SSH transport. It validates
 the sole active local fixture session and owned user bus before input, submits
 the selected command once, and independently reads the destination through logind.
+Post-submit logind scans and any native ScreenSaver read share one monotonic
+deadline. A destination must be confirmed before that deadline to pass.
 Switching locks first and invokes GDM's public API through the desktop user's
 service manager; logout invokes `gnome-session-quit --logout --no-prompt`.
 The `return-greeter` binding instead requires an already locked active fixture

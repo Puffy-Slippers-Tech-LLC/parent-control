@@ -1429,10 +1429,13 @@ existing baseline `native`, `activity`, `baseline-child` preparation. Run each
 declared target separately. Its engineering attempt observes native estimates,
 lock events and timer identity through disable, live-grant/unrestricted rollback
 and a failed preparation readback. Each native account write is held for an
-entry and end-of-window estimate read. A `Busy` reply at a required checkpoint
-or after a payloadless estimate-change notification leaves a coverage gap and
-prevents engineering qualification. Periodic reads supplement these checks.
-Lock and timer-owner observations continue independently through restoration.
+entry and end-of-window estimate read. Required reads, including reads triggered
+by payloadless notifications, wait asynchronously and retry the exact native
+`Busy` reply against the single five-minute engineering observation deadline.
+The controller holds each state until those reads finish. An unresolved read or
+a read that crosses another controlled native write prevents qualification.
+Periodic reads supplement these checks, and lock and timer-owner signals remain
+active while estimates are pending and through restoration.
 A separately restored public attempt obtains
 a genuine 600-second approval with zero daily time, disables controls through
 Parent, independently reloads saved settings/app rules and resumes retained

@@ -1,4 +1,5 @@
 """Command-only lifecycle and policy checks for the supplied real launchers."""
+from configparser import ConfigParser
 import errno
 import os
 from pathlib import Path
@@ -31,12 +32,27 @@ def flatpak_running(app, account, require):
         try:
             before = (process / 'stat').read_text().rpartition(') ')[2].split()
             require(process.stat().st_uid == account.pw_uid, 'launcher:owner')
-            after = (process / 'stat').read_text().rpartition(') ')[2].split()
         except (FileNotFoundError, ProcessLookupError):
             # Flatpak can list an instance after its wrapper exits.
             continue
+        if before[0] in ('Z', 'X'):
+            continue
+        # An application can start a secondary sandbox with the same app ID.
+        # Its wrapper cannot stand in for the ordinary launcher command.
+        info = Path(f'/run/user/{account.pw_uid}/.flatpak') / instance / 'info'
+        metadata = ConfigParser(interpolation=None, delimiters=('=',))
+        require(metadata.read(info, encoding='utf-8'), 'ui:incomplete-tree')
+        require(metadata.get('Application', 'name', fallback=None) == app
+                and metadata.get('Instance', 'instance-id', fallback=None) == instance,
+                'launcher:flatpak-metadata')
+        sandbox = metadata.get('Instance', 'sandbox', fallback='false')
+        require(sandbox in ('true', 'false'), 'launcher:flatpak-metadata')
+        try:
+            after = (process / 'stat').read_text().rpartition(') ')[2].split()
+        except (FileNotFoundError, ProcessLookupError):
+            continue
         require(before[19] == after[19], 'launcher:owner-changed')
-        if before[0] in ('Z', 'X') or after[0] in ('Z', 'X'):
+        if after[0] in ('Z', 'X') or sandbox == 'true':
             continue
         if identity is not None:
             require(False, f'launcher:ambiguous-instance:{identity[0]}/{identity[1]},{instance}/{pid}')

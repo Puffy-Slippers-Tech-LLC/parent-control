@@ -19,7 +19,7 @@ _pending_startup = None
 _public_invocation = None
 _QUEUE_CONTROLS = ('--queue-list', '--queue-cancel')
 _CONTROLS = ('--help', '-h', '--list', '--check', '--collect-only', '--stop',
-             '--cancel-stop', '--add-session', '--reload', '--reset',
+             '--cancel-stop', '--add-session', '--reload', '--reset', '--release',
              '--reconcile', '--review-ownership', *_QUEUE_CONTROLS)
 _NO_NEW_JOB = tuple(flag for flag in _CONTROLS if flag not in ('--reload', '--reset'))
 _TEST_LAUNCHERS = ('run-tests', 'run-unit-tests', 'run-ui-tests')
@@ -234,7 +234,7 @@ def dispatch(entry):
 
     from test_results import REPAIR_VALIDATION
     if REPAIR_VALIDATION in os.environ and name in (*_TEST_LAUNCHERS, 'fix-tests'):
-        if selected is not None or (name == 'fix-tests' and arguments not in (['--help'], ['-h'])):
+        if selected is not None or (name == 'fix-tests' and arguments not in (['--help'], ['-h'], ['--release'])):
             raise ValueError('repair sessions use focused checks in the current checkout')
         if any(arg.partition('=')[0] in ('--stop', '--reload', '--reset', '--queue-cancel', '--start-fresh')
                for arg in arguments):
@@ -258,7 +258,7 @@ def dispatch(entry):
         synced = forwarded.get('synced', False)
         if pinned_branch is not None:
             _local_checkout(root, pinned_branch)
-    elif (name in _TEST_LAUNCHERS and selected is None
+    elif ((name in _TEST_LAUNCHERS or name == 'fix-tests' and arguments == ['--release']) and selected is None
           and (os.environ.get('ONPC_LAUNCHER_CONTROLLER_ROOT') == str(root)
                or os.environ.get('ONPC_RUNNER_INVOCATION')
                or os.environ.get('ONPC_TEST_RESULT_DIRECTORY'))):

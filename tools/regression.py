@@ -660,6 +660,7 @@ class Execution:
         self.command_recorded = False
         self.output_tail = ''
         self.output_error_summary = ''
+        self.vm_hold_failed = False
         self.recording_case = None
         self.recording_failed = False
         from vm_run_times import Tracker
@@ -747,6 +748,11 @@ class Execution:
                     self.output_tail = (self.output_tail + '\n' + text)[-8000:]
         if line.startswith(PREFIX):
             event = json.loads(line[len(PREFIX):])
+            if event['kind'] == 'vm-repair-hold':
+                from repair_hold import EVENT
+                self.vm_hold_failed |= event['active'] is True
+                print(EVENT + json.dumps(event), flush=True)
+                return
             if event['kind'] == 'vm-cleanup':
                 self.vm_cleanup_failed |= event.get('passed') is not True
                 if self.run.checkpoint is not None:
@@ -872,7 +878,7 @@ class Execution:
                                  if self.units is not None else item.total or 1)
                     if status:
                         item.failures += item.done - before
-                item.state = ('Failed' if self.fixture_failed or item.failures else
+                item.state = ('Failed' if self.fixture_failed or item.failures or self.vm_hold_failed and status else
                               OBSERVATION_BLOCKED if observation_blocked else
                               'Interrupted' if run.control.stopped.is_set() else
                               'Failed' if status or item.failures else

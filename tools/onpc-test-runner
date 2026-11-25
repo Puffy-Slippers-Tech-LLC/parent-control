@@ -652,6 +652,11 @@ def _run(root, argv, caller):
         # This fixed mode accepts the same validated selections. Stdin is a
         # cancellation channel, never a command or privileged path source.
         argv = argv[1:]
+        hold = argv[:1] == ['--repair-hold']
+        if hold:
+            argv = argv[1:]
+            if argv[:1] not in (['system'], ['e2e']) or vm_pool.binding() is None:
+                raise ValueError('test-runner:repair-hold-requires-a-VM-booking')
         if argv[:1] == ['appsnapshot'] and vm_pool.binding() is None:
             raise ValueError('source lease: preparation requires its public launcher VM reservation')
         command = selection(root, argv)
@@ -668,6 +673,8 @@ def _run(root, argv, caller):
                        'HOME': caller.pw_dir, 'PYTHONDONTWRITEBYTECODE': '1',
                        'PYTHONUNBUFFERED': '1'}
         environment[vm_config.VARIABLE] = configured.name
+        if hold:
+            environment['ONPC_TEST_REPAIR_HOLD'] = '1'
         if vm_pool.VARIABLE in os.environ:
             environment[vm_pool.VARIABLE] = os.environ[vm_pool.VARIABLE]
         from host_compute import TOKENS
@@ -693,7 +700,8 @@ def _run(root, argv, caller):
             with context:
                 if not child_owner:
                     environment.update(test_retention.environment())
-                return control.run(command, cwd=root, env=environment)
+                return control.run(command, cwd=root, env=environment,
+                                   **({'preserve_exit': True} if hold else {}))
     if argv[:1] == ['appsnapshot'] and vm_pool.binding() is None:
         raise ValueError('source lease: preparation requires its public launcher VM reservation')
     command = selection(root, argv)

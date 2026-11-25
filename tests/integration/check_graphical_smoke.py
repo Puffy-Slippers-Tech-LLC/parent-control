@@ -2933,7 +2933,7 @@ def main(*, assets=None, provision_credentials=False, serial=False, install=Fals
                             'fixtures:e2e-installed-branch-not-qualified')
                     qualification.fixture_selection = fixture_selection
                 lease.finalize = qualification.finalize
-                with lease:
+                with lease, lease.repair_failure('check_graphical_smoke'):
                     result['baseline_sha256'] = lease.state['baseline_sha256']
                     qualification.execute(lease, guestfs)
         except (Exception, KeyboardInterrupt) as error:

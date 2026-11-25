@@ -138,7 +138,8 @@ def environment(root, *, scratch=True):
                'DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS',
                'XDG_RUNTIME_DIR', 'XDG_SESSION_TYPE', 'XDG_CURRENT_DESKTOP',
                'PYTEST_DISABLE_PLUGIN_AUTOLOAD', 'ONPC_TEST_REVERSE',
-               'ONPC_TEST_RESULT_DIRECTORY', 'ONPC_TEST_REPAIR_QUEUE', SOURCE_CAPTURE, SOURCE_DIGEST)
+               'ONPC_TEST_RESULT_DIRECTORY', 'ONPC_TEST_REPAIR_QUEUE', 'ONPC_TEST_REPAIR_HOLD',
+               SOURCE_CAPTURE, SOURCE_DIGEST)
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     # Detached host controllers still dispatch VM work through the caller's
     # SSH agent. Never forward this local socket to a guest or remote worker.
@@ -191,6 +192,7 @@ def test_environment(root):
     result.pop(SOURCE_DIGEST, None)
     result.pop('ONPC_TEST_RESULT_DIRECTORY', None)
     result.pop('ONPC_TEST_REPAIR_QUEUE', None)
+    result.pop('ONPC_TEST_REPAIR_HOLD', None)
     result.pop('SSH_AUTH_SOCK', None)
     from vm_recording import VARIABLE as RECORDING_CONTROL
     result.pop(RECORDING_CONTROL, None)

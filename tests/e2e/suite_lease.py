@@ -175,6 +175,7 @@ class SuiteLease(system.Lease):
     @system.observed('Stopping the VM and restoring its snapshot')
     def stop(self):
         """Revert directly; never wait for ACPI or destroy a discovered guest."""
+        self.close_probe()
         self.guard()
         if self._restored:
             self.guard(off=True)

@@ -1114,6 +1114,9 @@ the requester to the active owner's fixed read-only probe endpoint without
 acquiring another checkout. See the [VM mandate](Mandates/VM-Mandate.MD#owned-maintenance-and-execution)
 for the diagnostic bounds and lifecycle contract. This does not enable arbitrary
 guest commands during tests.
+The [repair loop](../tests/README.md#scripted-repair-loop) can retain a failed VM
+under its runner's existing booking during repair. Refresh the installed test dispatcher
+with `./setup.sh --test-tools-only` on each executing VM host for this mode.
 The default command deadline is 120 seconds; `--timeout` accepts 1–86400 seconds.
 This is finite command execution, without an interactive terminal.
 The probe authenticates as guest root independently of the foreground desktop

@@ -548,10 +548,20 @@ To scope a category run to one distro, select its family, for example
 and routes each category by its required VM tag. The repair launcher passes
 the requested selectors to the runner on each dispatch.
 
-On the first failure, stop dispatch and cancel and join running executions.
-Release their normal bookings before starting repair. Keep every clear terminal
-pass or failure. Interrupted or incomplete executions return to pending without
-repair tickets, triage, cleanup-evidence qualification or a pre-repair recheck.
+On the first failure, stop dispatch and join the other executions through normal
+cleanup and booking release. When the failed case still owns a running guest,
+its VM owner holds the guest under the existing lease. The repair session
+starts after the other bookings close. Start with
+`tools/test-vm --vm NAME probe memory` to read guest memory pressure, swap and
+OOM evidence through that owner. Use `tools/fix-tests --release` with the same
+controller branch to end the hold and wait for cleanup. Assigned validation
+ends the hold and joins the test owner before starting. The launcher also
+releases the guest when the repair session ends, and stop or reload follows
+the same cleanup. If the guest transport is unavailable, the
+probe reports that separately. A VM failure without a live owner follows
+the ordinary joined repair path. Keep every clear terminal pass or failure.
+Interrupted or incomplete executions return to pending without repair tickets,
+triage, cleanup-evidence qualification or a pre-repair recheck.
 
 If required product fault observation remains incomplete after bounded recovery,
 the affected case stays pending. The invocation reports the blocker and ends

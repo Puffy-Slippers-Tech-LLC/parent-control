@@ -14,8 +14,25 @@ import threading
 
 PROBES = ('memory', 'cpu')
 TOP_PROCESSES = 12
+JOURNAL_LIMIT = 20
+MEMORY_EVENTS = 'memory-events'
 
-MEMORY_PROGRAM = '''import hashlib,json,pathlib,time
+MEMORY_PROGRAM = '''import hashlib,json,pathlib,subprocess,time
+
+def events(*filters):
+    try:
+        result = subprocess.run(['/usr/bin/journalctl', '--boot', '--quiet', '--no-pager',
+            '--lines=20', '--output=json', '--output-fields=__MONOTONIC_TIMESTAMP', *filters],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2)
+        if result.stderr or result.returncode not in (0, 1):
+            return None
+        if result.returncode == 1 and result.stdout:
+            return None
+        return [int(json.loads(line)['__MONOTONIC_TIMESTAMP'])
+                for line in result.stdout.splitlines()]
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError):
+        return None
+
 p=pathlib.Path
 boot=hashlib.sha256(p('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
 m={s[0].rstrip(':'):int(s[1]) for line in p('/proc/meminfo').read_text().splitlines()
@@ -26,11 +43,17 @@ pressure={}
 for line in p('/proc/pressure/memory').read_text().splitlines():
     parts=line.split()
     pressure[parts[0]]=dict(item.split('=') for item in parts[1:])
-assert boot==hashlib.sha256(p('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
-print(json.dumps({'boot_sha256':boot,'sample_monotonic_ns':time.monotonic_ns(),
+sample = {'boot_sha256':boot,'sample_monotonic_ns':time.monotonic_ns(),
  'meminfo_kib':{k:m[k] for k in keys},
  'vmstat':{k:int(v[k]) for k in ('pswpin','pswpout','pgmajfault','oom_kill')},
- 'pressure_total_us':{k:int(pressure[k]['total']) for k in ('some','full')}}))
+ 'pressure_total_us':{k:int(pressure[k]['total']) for k in ('some','full')}}
+if journal:
+    sample['oom_events_monotonic_us'] = {
+        'kernel_kills': events('--dmesg', '--grep=[Oo]ut of memory: Killed process [0-9]+'),
+        'systemd_oomd': events('_SYSTEMD_UNIT=systemd-oomd.service',
+                               '--grep=[Kk]illed |[Mm]emory pressure|[Ss]wap usage')}
+assert boot==hashlib.sha256(p('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
+print(json.dumps(sample))
 '''
 
 CPU_PROGRAM = '''import collections,hashlib,json,os,pathlib,re,time
@@ -96,6 +119,14 @@ def validate(sample, probe='memory'):
     cpu_counters = {'interval_ns', 'ticks_per_second', 'total_ticks', 'busy_ticks',
                     'pressure_some_us', 'matched_process_ticks'}
     fields = memory_fields if probe == 'memory' else cpu_counters | {'swap_pages', 'processes'}
+    if probe == 'memory' and isinstance(sample, dict) and 'oom_events_monotonic_us' in sample:
+        fields.add('oom_events_monotonic_us')
+        events = sample['oom_events_monotonic_us']
+        if (type(events) is not dict or set(events) != {'kernel_kills', 'systemd_oomd'}
+                or any(entries is not None and (type(entries) is not list
+                       or len(entries) > JOURNAL_LIMIT or not all(map(counter, entries)))
+                       for entries in events.values())):
+            raise ValueError('vm-probe:invalid-oom-events')
     if (type(sample) is not dict or set(sample) != {
             'boot_sha256', 'sample_monotonic_ns', *fields}
             or not isinstance(sample['boot_sha256'], str)
@@ -186,7 +217,9 @@ class Server:
                     if peer_uid(peer) != 0:
                         continue
                     raw = peer.recv(256)
-                    probe = next((name for name in PROBES if raw == f'{name}:{self.uid}'.encode('ascii')), None)
+                    journal = raw == f'{MEMORY_EVENTS}:{self.uid}'.encode('ascii')
+                    probe = ('memory' if journal else next((name for name in PROBES
+                             if raw == f'{name}:{self.uid}'.encode('ascii')), None))
                     if self.stop.is_set() or probe is None:
                         continue
                     with operation(f'Probing guest {probe} during the active run', priority=3):
@@ -197,9 +230,9 @@ class Server:
                                 size += len(data)
                                 if size > 4096:
                                     raise ValueError('vm-probe:oversized-sample')
-                            program = MEMORY_PROGRAM if probe == 'memory' else CPU_PROGRAM
+                            program = f'journal = {journal}\n' + MEMORY_PROGRAM if probe == 'memory' else CPU_PROGRAM
                             sample = validate(json.loads(self.transport.call(
-                                ['/usr/bin/python3', '-I', '-c', program], timeout=10,
+                                ['/usr/bin/python3', '-I', '-c', program], timeout=15 if journal else 10,
                                 on_stream=bound)), probe)
                             self.transport.guard(self.config)
                             result = dict(probe=probe, domain_uuid=self.config['domain_uuid'],
@@ -231,14 +264,18 @@ def request(vm, uid, probe='memory'):
         raise ValueError('vm-probe:authenticated-helper-required')
     if probe not in PROBES:
         raise ValueError('vm-probe:unsupported-probe')
-    try:
+    def exchange(name):
         with socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET) as peer:
             peer.settimeout(70)
             peer.connect(address(vm))
             if peer_uid(peer) != 0:
                 raise ValueError('vm-probe:untrusted-owner')
-            peer.send(f'{probe}:{uid}'.encode('ascii'))
-            raw = peer.recv(8193)
+            peer.send(f'{name}:{uid}'.encode('ascii'))
+            return peer.recv(8193)
+
+    try:
+        # An owner started before this change can still return the counters.
+        raw = (exchange(MEMORY_EVENTS) or exchange(probe)) if probe == 'memory' else exchange(probe)
         if len(raw) > 8192:
             raise ValueError('vm-probe:oversized-reply')
         result = json.loads(raw)

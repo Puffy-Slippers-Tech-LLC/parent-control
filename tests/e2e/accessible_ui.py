@@ -18005,10 +18005,12 @@ def adapter_failure_diagnostic(error):
     # Distinguish disappearing objects from transport/provider failures without
     # retaining the error message, bus name, object path or other UI values.
     # This is evidence only: the original exception and refusal stay unchanged.
+    application_ui_failure = diagnostic.get('application_ui_failure', {})
+    owner_check_failed = application_ui_failure.get('code') == 'OwnerChanged'
     try:
         from gi.repository import Gio, GLib
         query_error = getattr(error, 'public_query_error', error)
-        if isinstance(error, UiError) and str(error) == 'ui:incomplete-tree':
+        if owner_check_failed or (isinstance(error, UiError) and str(error) == 'ui:incomplete-tree'):
             while not isinstance(query_error, GLib.Error) and query_error.__cause__ is not None:
                 query_error = query_error.__cause__
         if isinstance(query_error, GLib.Error):
@@ -18037,7 +18039,12 @@ def adapter_failure_diagnostic(error):
                     if query_error.matches(Gio.io_error_quark(), code):
                         kind = label
                         break
-            diagnostic['query_failure_kind'] = kind
+            if owner_check_failed:
+                application_ui_failure['owner_check'] = kind
+            else:
+                diagnostic['query_failure_kind'] = kind
+        elif owner_check_failed:
+            application_ui_failure['owner_check'] = 'owner-mismatch'
     except Exception:
         # Diagnostic availability must never replace the original failure.
         pass

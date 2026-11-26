@@ -831,9 +831,11 @@ class RemoteVM:
                          separate_stderr=stderr_output is not None, sources=self.sources,
                          stopped=control.stopped.is_set) as (ssh, payload, request):
                 prefix = b'\0' + (RESULT + request['receipt'] + ' ').encode()
+                # ssh relays stdout and stderr as separate channel packets.
+                # Sharing one local pipe splices stderr into large frames.
                 status = control.run(ssh, cwd=self.root, env=ssh_environment(env), output=emit,
                                      cooperative=True, input_stream=payload,
-                                     stderr_output=stderr_output,
+                                     stderr_output=stderr_output if stderr_output is not None else output,
                                      **({'preserve_exit': True} if preserve_exit else {}), **options)
         except Stopped:
             return 130

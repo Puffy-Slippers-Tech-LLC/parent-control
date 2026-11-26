@@ -1627,9 +1627,8 @@ the [kiosk fresh-child binding](#explicit-kiosk-choices-and-fresh-child-return-q
 is qualified separately. This qualification registers no complete scenario.
 
 The delayed-approval case results below are historical only. By developer
-decision, E2E-048 cases 223/224/225/227/228/230 belong to the separate
-[failed-save issue](../Failed_Save.md), with no executable bindings or E2E
-regression obligation. Shared operation qualifications remain reusable;
+decision, E2E-048 cases 223/224/225/227/228/230 were removed from E2E
+execution, with no executable bindings or E2E regression obligation. Shared operation qualifications remain reusable;
 historical case references must not recreate the removed family or its probes.
 
 Case **223** separately passed the complete delayed daily-only overlay history
@@ -1707,8 +1706,7 @@ off. The unchanged fresh-child bindings above remain qualified without replay.
 Together these qualify all four kiosk entry/destination bindings, with no
 additional choice matrix, expiry wait or complete-scenario registration.
 
-The following E2E-048 kiosk results are historical only under the
-[failed-save scope boundary](../Failed_Save.md).
+The following E2E-048 kiosk results are historical only.
 They are not runnable cases, required regressions or pending E2E work.
 
 Complete daily-only kiosk case **224** passed on Ubuntu 26.04, through `kiosk_delayed_approval.PLAN` /

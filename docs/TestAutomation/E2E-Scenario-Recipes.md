@@ -2089,8 +2089,8 @@ change, public-error trigger or real service prerequisite is required.
 ### E2E-048
 
 Removed from E2E execution and regression selection by developer decision on
-2026-11-09. The six former scenarios, finite inputs and outstanding save-failure
-investigation now belong to [Failed usage saves](../Failed_Save.md).
+2026-11-09. The six former scenarios and their save-failure investigation
+are no longer maintained.
 This anchor preserves historical references; it schedules no journey and
 creates no prerequisite for another case.
 

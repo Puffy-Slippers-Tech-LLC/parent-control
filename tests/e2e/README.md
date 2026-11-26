@@ -1965,8 +1965,8 @@ read bracket. `probe-revoke-balances` uses the same maintained reader on that
 Parent scene. Inspect the grant and session with guarded `exec`, then finish
 with `tools/test-vm stop`; neither route supplies acceptance credit.
 
-The following delayed-approval diagnostic routes are retained only for the
-separate [failed-save issue](../../docs/Failed_Save.md). They are outside normal
+The following delayed-approval diagnostic routes are retained only for a
+separately requested failed-save investigation. They are outside normal
 E2E execution, regression selection and launcher handoffs. Do not run them or
 resume their former probes without an explicit request for that investigation.
 Cases 223/224/225/227/228/230 have no executable inventory bindings.

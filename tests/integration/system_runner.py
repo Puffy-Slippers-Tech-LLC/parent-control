@@ -57,6 +57,8 @@ ENFORCEMENT_STARTUP_CASE = 'test_enforcement_startup_failure_recovery'
 ENFORCEMENT_STARTUP_PHASE = 'enforcement-startup'
 BROKER_STARTUP_CASE = 'test_broker_policy_startup_failure_recovery'
 BROKER_STARTUP_PHASE = 'broker-startup'
+USAGE_CHECKPOINT_CASE = 'test_active_usage_checkpoint_retry'
+USAGE_CHECKPOINT_PHASE = 'usage-checkpoint'
 
 
 @dataclass(frozen=True)
@@ -116,7 +118,8 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', 'extension', 'extension-login', 'startup',
+               'authorization', 'enforcement', 'session', 'extension', 'extension-login',
+               USAGE_CHECKPOINT_PHASE, 'startup',
                ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE)
 AREA_SOURCES = {
     'package': ROOT / 'tests/system/test_install_smoke.py',
@@ -199,6 +202,7 @@ PHASE_DEPENDENCIES = {
     'session': (),
     'extension': (),
     'extension-login': (),
+    USAGE_CHECKPOINT_PHASE: (),
     'startup': (),
     ENFORCEMENT_STARTUP_PHASE: (),
     BROKER_STARTUP_PHASE: (),
@@ -240,6 +244,8 @@ PHASE_PREREQUISITES = {
     'session': ('retained-app-snapshot',),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
     'extension-login': ('retained-app-snapshot', 'fresh-gdm-login-and-retained-unlock'),
+    USAGE_CHECKPOINT_PHASE: ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot',
+                             'owned-malcontent-checkpoint-gate'),
     'startup': ('retained-app-snapshot', 'offline-startup-fault-and-real-reboot'),
 }
 require = baseline.require
@@ -483,6 +489,8 @@ def collect_area_cases(area, *, invoke=None):
 def case_phases(area, case_id):
     if area == 'extension' and case_id == EXTENSION_LOGIN_CASE:
         return ('extension-login',)
+    if area == 'extension' and case_id == USAGE_CHECKPOINT_CASE:
+        return (USAGE_CHECKPOINT_PHASE,)
     if area == 'removal':
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
@@ -1908,6 +1916,19 @@ def stage_selected_inputs(selection, destination):
         },
         'files': files,
     }
+    if USAGE_CHECKPOINT_PHASE in selection.phases:
+        from guest_inputs import read
+
+        source = 'tests/integration/usage_checkpoint_gate.c'
+        code = read(ROOT, source)
+        gate = destination / 'usage_checkpoint_gate.so'
+        require(not gate.exists(), 'selection:duplicate-input-target')
+        Commands().run(['/usr/bin/cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                        '-O2', '-fPIC', '-shared', '-x', 'c', '-', '-o', str(gate)],
+                       input=code, timeout=60)
+        identity['generated_files'] = {gate.name: {
+            'sha256': baseline.digest(gate), 'sources': {source: hashlib.sha256(code).hexdigest()},
+        }}
     if any(item.case_id == 'test_child_extension_monitor_native_recovery'
            for item in selection.executions):
         sys.path.insert(0, str(ROOT / 'tests/e2e'))
@@ -1917,11 +1938,11 @@ def stage_selected_inputs(selection, destination):
         adapter = destination / 'accessible_ui.py'
         require(not adapter.exists(), 'selection:duplicate-input-target')
         adapter.write_text(guest_ui_program())
-        identity['generated_files'] = {'accessible_ui.py': {
+        identity.setdefault('generated_files', {})['accessible_ui.py'] = {
             'sha256': baseline.digest(adapter),
             'sources': {path: baseline.digest(ROOT / path) for path in (
                 'tests/e2e/accessible_ui.py', *UI_PROGRAM_SOURCES.values())},
-        }}
+        }
     if any(item.area == 'package' and item.case_id == KIOSK_ACTIVATION_CASE and not item.prerequisite
            for item in selection.executions):
         identity['host_files'] = kiosk_activation_host_inputs()
@@ -3015,7 +3036,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                          if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
                       *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
-                      'startup', ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
+                      USAGE_CHECKPOINT_PHASE, 'startup', ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
             if phase not in selection.phases:
                 continue
             if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],
@@ -3080,10 +3101,11 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                                 for item in selection.executions),
                         lock_outage=any(item.case_id == LOCK_OUTAGE_CASE
                                                 for item in selection.executions))
-            if phase == 'extension':
+            if phase in ('extension', USAGE_CHECKPOINT_PHASE):
                 if current_build:
                     history.start(phase_owner(phase))
-                prepare_reboot('system_extension_monitor.py', 'extension-monitor')
+                prepare_reboot('system_extension_monitor.py',
+                               'extension-monitor' if phase == 'extension' else phase)
             if phase == 'extension-login':
                 if current_build:
                     history.start(phase_owner(phase, EXTENSION_LOGIN_CASE))

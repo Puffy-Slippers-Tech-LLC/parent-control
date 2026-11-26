@@ -535,11 +535,26 @@ guards against clock corrections beyond the API's one-second precision. Such
 corrections suspend active checkpoints until the clocks agree again or a new
 active interval begins; Shell owns that boundary. Previously checkpointed use
 is never remapped onto a different wall-clock interval. Inactive time is excluded.
-Unchanged/decreasing deadlines and checkpoint echoes require
-no write, and failed active writes do not schedule periodic retries.
-Activity/limit changes cancel obsolete reads before a write;
-shutdown cancels pending work and removes the controller's signals and timer.
-Disabling limits discards coalesced work before any later active enable.
+Unchanged/decreasing deadlines and checkpoint echoes require no write.
+The timer client keeps each observed positive-duration interval pending in
+memory from selection until acknowledgement or clock retirement. A failed or
+locally cancelled write therefore keeps its intervals: the daemon may still
+have committed a write whose reply timed out, and resubmitting the same spans
+is idempotent. The same applies when a small clock rollback keeps an endpoint
+in the future until the retry window ends or is interrupted. Only
+`Child.Error.Busy` is retried within a refresh, with bounded backoff that
+releases the shared timer queue between attempts; other failures follow the
+boundary failure handling below. The next refresh includes pending intervals
+alongside new observations, and an acknowledgement clears only the submitted
+intervals. A same-second resume refresh can still send its one-shot write and
+stays outside recovery batches.
+
+The timer client checks the wall and monotonic clock relationship from both the
+interval's observed start and its capture. A discontinuity retires affected
+pending intervals because GNOME can save the same activity with corrected
+timestamps. This can also happen after suspend because monotonic time pauses
+during sleep. Disabling limits or shutting down clears pending and coalesced
+work. Shutdown also removes the controller's signals and timer.
 Cancellation prevents obsolete dispatch; it cannot retract an already dispatched
 D-Bus write. That write still contains only completed history or observed use.
 The workaround remains asynchronous and cannot guarantee cache refresh during
@@ -547,14 +562,15 @@ timer-service unavailability or make native deadline evaluation atomic with resu
 Transient inactive failures back off and open the existing child error reporter
 after three consecutive failures while continuing recovery. A transient
 `QueryUsage` or `RecordUsage` boundary failure with a finite positive native
-deadline retains that countdown, records `child.resume-refresh-deferred`, and
-waits for the next inactivity transition
-without opening a reporter or replaying usage late. Repeated active failures at
-the same operation stage open one report from the third occurrence, without
-retrying a usage write during active use. Healthy idle refreshes do not erase
-this resume-only failure evidence; a complete successful active refresh or limit
-lifecycle change resets it. Ordinary countdown reads retry and report exhausted
-failures independently, but do not establish that usage query/replay is healthy.
+deadline retains that countdown. When an observed checkpoint exhausts its
+Busy retries, the same boundary failure handling applies. The controller
+records `child.resume-refresh-deferred` and relies on the next normal refresh
+without opening a reporter for that occurrence. Repeated active failures at
+the same operation stage open one report from the third occurrence. Healthy
+idle refreshes do not erase this resume-only failure evidence. A complete
+successful active refresh or limit lifecycle change resets it. Ordinary
+countdown reads retry and report exhausted failures independently, but do not
+establish that usage query/replay is healthy.
 Permanent resume refresh failures, exhausted estimate reads, and failures
 without a finite native deadline use the existing child error reporter
 immediately. Only the daemon's exact `Child.Error.Busy` and

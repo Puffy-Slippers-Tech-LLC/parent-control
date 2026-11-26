@@ -71,9 +71,7 @@ def preset_ordinary_daytime(journey, guard):
 
 
 def _preset_ordinary(journey, guard, program, prefixes):
-    import json
     from private_artifacts import require
-    import watch_activity
 
     require(journey.plan.prefix in prefixes
             and [step['stage'] for step in journey.steps] == ['ready']
@@ -81,10 +79,19 @@ def _preset_ordinary(journey, guard, program, prefixes):
             and journey.transport.lease is journey.context.lease,
             'calendar-fixture:entry')
     guard()
-    with watch_activity.operation('Preparing the test clock before parent or child actions'):
-        raw = journey.transport.call(['/usr/bin/python3', '-I', '-c', program],
-                                     timeout=120)
+    value = prepare_ordinary_clock(journey.transport, program)
     guard()
+    return value
+
+
+def prepare_ordinary_clock(transport, program=ORDINARY_DAYTIME):
+    """Set and verify the clock on an owned guest before starting a history."""
+    import json
+    from private_artifacts import require
+    import watch_activity
+
+    with watch_activity.operation('Preparing the test clock before parent or child actions'):
+        raw = transport.call(['/usr/bin/python3', '-I', '-c', program], timeout=120)
     value = json.loads(raw)
     require(value['ntp_enabled'] is False
             and value['before_epoch_ns'] < value['target_epoch_ns']

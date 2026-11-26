@@ -2862,19 +2862,29 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
             } for item in phase_executions(selection, phase))
         history.verdict(phase, progress)
 
-    def prepare_reboot(script, operation, *, timeout=300):
+    def prepare_reboot(script, operation, *, timeout=300, ordinary_daytime=False):
         # Each history keeps its own fixture and real reboot; share only the
         # command/readiness mechanics and their normal stage timing.
         if already_installed:
             require_fixture_ready()
         log('stage:' + operation + '-fixture')
         with ledger.measure('test', operation=operation + '-fixture'):
+            if ordinary_daytime:
+                sys.path.insert(0, str(ROOT / 'tests/e2e'))
+                from calendar_fixture import prepare_ordinary_clock
+
+                log('stage:' + operation + '-daytime')
+                daytime = prepare_ordinary_clock(vm)
             vm.call(['env', f'ONPC_EXPECTED_RUN={run}',
                      'PYTHONDONTWRITEBYTECODE=1', '/usr/bin/python3', '-B',
                      PAYLOAD + '/' + script, 'prepare'], timeout=timeout)
         log('stage:' + operation + '-reboot')
         with ledger.measure('reboot', operation=operation):
             reboot()
+            if ordinary_daytime:
+                noon = daytime['target_epoch_ns'] // 1_000_000_000
+                epoch = int(vm.call(['date', '+%s']))
+                require(noon <= epoch < noon + 3600, 'calendar-fixture:daytime-lost-after-reboot')
 
     def collect_guest(outcome, *, destination=None):
         destination = directory / 'guest-results' if destination is None else destination
@@ -3038,10 +3048,14 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     observe_kiosk_agent(vm, lease, directory, ledger,
                                         fixture_context, fixture_selection)
             if phase == 'session' and graphical_expiry:
+                owner = next(item for item in phase_executions(selection, phase)
+                             if item.case_id in GRAPHICAL_EXPIRY_CASES)
+                policy_order = owner.case_id == POLICY_ORDER_CASE
                 if current_build:
-                    history.start(next(item for item in phase_executions(selection, phase)
-                                       if item.case_id in GRAPHICAL_EXPIRY_CASES))
-                prepare_reboot('system_graphical_expiry.py', 'graphical-expiry')
+                    history.start(owner)
+                prepare_reboot('system_graphical_expiry.py', 'graphical-expiry',
+                               ordinary_daytime=owner.case_id in (
+                                   GRAPHICAL_EXPIRY_CASE, FOREGROUND_REVOKE_CASE, POLICY_ORDER_CASE))
                 with ledger.measure('test', operation='graphical-expiry'):
                     observe_graphical_expiry(vm, lease, directory, ledger,
                                              fixture_context, fixture_selection,
@@ -3049,8 +3063,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                                               for item in selection.executions),
                         pending_approval=any(item.case_id == PENDING_APPROVAL_CASE
                                              for item in selection.executions),
-                        policy_order=any(item.case_id == POLICY_ORDER_CASE
-                                         for item in selection.executions),
+                        policy_order=policy_order,
                         session_replacement=any(item.case_id == SESSION_REPLACEMENT_CASE
                                                 for item in selection.executions),
                         broker_crash=any(item.case_id == BROKER_CRASH_CASE
@@ -3081,7 +3094,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                     log('stage:extension-login-installed-reboot')
                     with ledger.measure('reboot', operation='extension-login-installed'):
                         reboot()
-                prepare_reboot('system_extension_login.py', 'extension-login')
+                prepare_reboot('system_extension_login.py', 'extension-login', ordinary_daytime=True)
                 with ledger.measure('test', operation='extension-login'):
                     observe_extension_login(vm, lease, directory, ledger,
                                             fixture_context, fixture_selection)

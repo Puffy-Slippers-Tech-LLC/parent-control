@@ -6482,13 +6482,12 @@ account/profile, execution order, independent result endpoints and failure stop
 before later input. Inspect shared consumers when their contract changes;
 unchanged transport, decoding and recording need no renewed qualification.
 
-Check time-of-day dependencies across the complete history. Unfinished
-non-calendar consumers use the shared
+Check time-of-day dependencies across the complete history. Ordinary daily-time
+journeys use the shared
 [pre-test daytime clock preparation](E2E-Scenario-Recipes.md#pre-test-clock-preparation)
-before customer input; calendar consumers keep their declared boundary preset.
-Bind the exact journey prefix and setup action in both the plan and action map.
-Retain independent guest-clock readback and the original real-time assertions;
-do not make the task wait for an ordinary host-clock window.
+before customer input. Calendar consumers keep their declared boundary preset.
+Bind any explicit clock action in both the plan and action map. Retain independent
+guest-clock readback and the original real-time assertions.
 
 For a named child's policy journey, trace every reused allowance and app-edit
 operation through `JourneyPlan.child_bindings`, not only the final row reads.

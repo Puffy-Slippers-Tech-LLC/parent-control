@@ -168,6 +168,7 @@ class JourneyPlan:
     overlay_requests: dict = field(default_factory=dict)
     kiosk_request: tuple | None = None
     kiosk_requests: dict = field(default_factory=dict)
+    ordinary_daytime: bool = False
 
     def __post_init__(self):
         require(type(self.work_texts) is dict and all(
@@ -424,6 +425,21 @@ class JourneyPlan:
     @property
     def stages(self):
         return ('ready', 'setup-detached', *self.screen_tags)
+
+    @property
+    def needs_daytime_preset(self):
+        """Keep ordinary daily access independent of the guest's calendar."""
+        if self.stage_actions.get('setup-detached') in (
+                'calendar-window', 'daytime-clock', 'daytime-window'):
+            return False  # These journeys already own their clock preparation.
+        controls = accessible_ui.TIME_CONTROL_CONFIGURATIONS
+        return (self.ordinary_daytime
+                or any(seconds > 0 for seconds in self.balance_checks.values())
+                or any(isinstance(expected, SettingsObservation) and expected.limit_enabled
+                       and any(float(duration.split()[0]) > 0 for duration in expected.allowance)
+                       for expected in self.settings_checks.values())
+                or any(minutes > 0 and enabled and 'ui:' + operation in self.screen_tags.values()
+                       for operation, (_, minutes, enabled) in controls.items()))
 
 
 def matched_screens(directory, plan, observations=()):
@@ -1117,6 +1133,12 @@ class InstalledJourney:
         self.check_settings(stage, observed)
         self.check_request(stage, observed)
         self.check_activity(stage, observed)
+        if stage == 'setup-detached' and plan.needs_daytime_preset:
+            from calendar_fixture import prepare_ordinary_clock
+
+            guard()
+            observed['setup']['daytime'] = prepare_ordinary_clock(self.transport)
+            guard()
         if any(stage == pair[0] for pair in plan.reboot_transitions):
             observed['reboot'] = self.submit_reboot(guard)
         if stage in plan.assertions_after:

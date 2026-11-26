@@ -972,7 +972,7 @@ authentication deadline. Worker reply waits cover both finite histories without
 extending the original natural-lock bound. Protected input, original-work
 recovery, unrelated foreground input, collection and baseline restoration passed
 on session-selected `onpc-Ubuntu26.04-1`; Fedora remains unqualified. This supplies
-no customer-case or entry-exposure credit.
+no customer-case credit.
 For startup diagnosis, `tools/test-vm --vm NAME reproduce-system-graphical-expiry`
 reuses system-282's bounded autologin grant, reboot and fixture renewal, then
 records the child session, foreground and read-only public surface before and

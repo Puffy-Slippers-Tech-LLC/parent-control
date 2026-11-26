@@ -797,9 +797,9 @@
           {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
         ],
         "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child."},
+          {"id": "step-1", "operation": "ui", "description": "Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity."},
           {"id": "step-2", "operation": "ui", "description": "Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity."},
-          {"id": "step-3", "operation": "ui", "description": "Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity."}
+          {"id": "step-3", "operation": "ui", "description": "Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, revisit the retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity."}
         ],
         "end": [
           {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
@@ -821,18 +821,16 @@
       "matrix": {
         "dimensions": {
           "daily": ["zero", "remaining"],
-          "sessions": ["single", "multiple"]
+          "sessions": ["single"]
         },
         "full_combinations": [
           ["daily", "sessions"]
         ],
-        "rationale": "Daily balance by one/multiple child desktops is fully combined. E2E-036 owns no-grant revocation; distinct-desktop cases remain gated on supported entry."
+        "rationale": "Both daily balances are covered. E2E-036 owns no-grant revocation."
       },
       "variants": [
         {"coverage_id": 17, "id": "zero-single", "owner": "parent-policy", "parameters": {"daily": "zero", "sessions": "single"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/revocation_case.py", "test_id": "zero-single"}},
-        {"coverage_id": 18, "id": "zero-multiple", "owner": "parent-policy", "parameters": {"daily": "zero", "sessions": "multiple"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null},
-        {"coverage_id": 19, "id": "remaining-single", "owner": "parent-policy", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/revocation_case.py", "test_id": "remaining-single"}},
-        {"coverage_id": 20, "id": "remaining-multiple", "owner": "parent-policy", "parameters": {"daily": "remaining", "sessions": "multiple"}, "status": "pending", "pending_reason": "Customer recipe is documented; required public blocks and full installed acceptance are pending.", "executable": null}
+        {"coverage_id": 19, "id": "remaining-single", "owner": "parent-policy", "parameters": {"daily": "remaining", "sessions": "single"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/revocation_case.py", "test_id": "remaining-single"}}
       ]
     },
     {
@@ -1585,61 +1583,6 @@
       "variants": [
         {"coverage_id": 110, "id": "update", "owner": "app-launch", "parameters": {"change": "update"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/catalogue_update_case.py", "test_id": "update"}},
         {"coverage_id": 111, "id": "remove", "owner": "app-launch", "parameters": {"change": "remove"}, "status": "ready", "pending_reason": null, "executable": {"path": "tests/e2e/catalogue_update_case.py", "test_id": "remove"}}
-      ]
-    },
-    {
-      "id": "E2E-021",
-      "subcategory": "general",
-      "title": "Apply an action across a child's distinct retained desktops",
-      "category": "customer-journey",
-      "owners": ["app-isolation"],
-      "requirements": ["ONPC-CORE-APPS-006", "ONPC-CORE-REQUEST-010", "ONPC-CORE-REQUEST-011", "ONPC-CORE-REQUEST-012", "ONPC-CORE-RECOVERY-001"],
-      "requirement_gap": null,
-      "contract_refs": ["docs/TestAutomation/E2E-Building-Blocks.md", "docs/TestAutomation/E2E-Scenario-Recipes.md"],
-      "components": ["parent", "child", "kiosk", "broker"],
-      "environment": ["ubuntu", "fedora"],
-      "preconditions": ["existing-guarded-vm-lease", "accepted-product-free-baseline", "digest-verified-assets", "isolated-cleanup-safety-prerequisites", "installed-digest-verified-product", "fixture-credentials-via-secret-api"],
-      "phases": {
-        "setup": [
-          {"id": "setup", "operation": "provision", "description": "Restore the required suite snapshot under the existing lease: onpc-[version] for installed-app prerequisites, onpc-baseline for clean package lifecycle cases; provision declared accounts and digest-verified assets before the attempt. Do not preconfigure policy, grants, or authentication outcomes tested below."}
-        ],
-        "start": [
-          {"id": "start", "operation": "begin", "description": "Record input identities and boot/session continuity; begin one independent attempt with no in-journey restore or step resume."}
-        ],
-        "steps": [
-          {"id": "step-1", "operation": "ui", "description": "Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited."},
-          {"id": "step-2", "operation": "ui", "description": "Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface."},
-          {"id": "step-3", "operation": "ui", "description": "Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity."}
-        ],
-        "end": [
-          {"id": "end", "operation": "collect", "description": "End the attempt and collect private, secret-excluding step evidence and separate product, infrastructure, collection, and cleanup outcomes; preserve first failure."}
-        ],
-        "cleanup": [
-          {"id": "cleanup", "operation": "outer-reset", "description": "Finish evidence collection, shut down owned operations, restore the next case's required snapshot under the lease, and preserve unrelated host/source files without rejecting concurrent checkout edits. Final suite cleanup restores onpc-baseline and preserves the verified version snapshot under the runner's retention contract."}
-        ]
-      },
-      "interventions": [],
-      "assertions": {
-        "visible": [
-          {"id": "visible-result", "step_id": "step-3", "description": "Every accessible retained child desktop shows the action's required closure or preservation; other-user activity continues. Repeatedly resuming one desktop proves no multiple-desktop claim."}
-        ],
-        "backend": [],
-        "other_user": []
-      },
-      "expected_evidence": ["action-trace", "cleanup", "continuity", "input-provenance", "outcomes", "screen"],
-      "duration_seconds": 1800,
-      "matrix": {
-        "dimensions": {
-          "transaction": ["save", "approve-without-soft", "approve-with-soft", "revoke"]
-        },
-        "full_combinations": [],
-        "rationale": "Four actions cover distinct same-child desktops. Qualified public entry remains a prerequisite; backend-created sessions cannot satisfy it."
-      },
-      "variants": [
-        {"coverage_id": 112, "id": "save", "owner": "app-isolation", "parameters": {"transaction": "save"}, "status": "pending", "pending_reason": "Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.", "executable": null},
-        {"coverage_id": 113, "id": "approve-without-soft", "owner": "app-isolation", "parameters": {"transaction": "approve-without-soft"}, "status": "pending", "pending_reason": "Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.", "executable": null},
-        {"coverage_id": 114, "id": "approve-with-soft", "owner": "app-isolation", "parameters": {"transaction": "approve-with-soft"}, "status": "pending", "pending_reason": "Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.", "executable": null},
-        {"coverage_id": 115, "id": "revoke", "owner": "app-isolation", "parameters": {"transaction": "revoke"}, "status": "pending", "pending_reason": "Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.", "executable": null}
       ]
     },
     {

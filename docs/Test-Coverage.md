@@ -28,9 +28,9 @@ The host inventory counts parametrized Python cases and executable script entrie
 
 | Subcategory | Count (Ready/Pending/Total) |
 | --- | ---: |
-| customer-journey | <span style="color: green">138</span>/<span style="color: gray">49</span>/187 |
+| customer-journey | <span style="color: green">138</span>/<span style="color: gray">43</span>/181 |
 | runner-smoke | <span style="color: green">0</span>/<span style="color: gray">1</span>/1 |
-| **Total** | **<span style="color: green">138</span>/<span style="color: gray">50</span>/188** |
+| **Total** | **<span style="color: green">138</span>/<span style="color: gray">44</span>/182** |
 
 Each number selects exactly one variant. IDs are stored in `tests/e2e/scenarios.json` and stay unchanged when entries are reordered or become ready. Assign new variants fresh IDs; never renumber or reuse an existing ID.
 
@@ -180,8 +180,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | [266](#scenario-266) | Each child receives their saved warnings before time runs out | `E2E-065/warnings-play-renewal-reboot` | ready |
 | <span style="color: gray">[1](#scenario-1)</span> | <span style="color: gray">Fresh boot and graphical/observation transport</span> | <span style="color: gray">`E2E-001/gdm-observation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[6](#scenario-6)</span> | <span style="color: gray">Standard user cannot manage policy (launch: terminal)</span> | <span style="color: gray">`E2E-004/terminal`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[18](#scenario-18)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)</span> | <span style="color: gray">`E2E-007/zero-multiple`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[20](#scenario-20)</span> | <span style="color: gray">Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)</span> | <span style="color: gray">`E2E-007/remaining-multiple`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[38](#scenario-38)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-predefined`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[39](#scenario-39)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: custom; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-custom`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[40](#scenario-40)</span> | <span style="color: gray">Shared duration boundaries and duplicate submission (choice: rest of day; surface: child overlay)</span> | <span style="color: gray">`E2E-014/child-overlay-rest-of-day`</span> | <span style="color: gray">pending</span> |
@@ -204,10 +202,6 @@ Titles and steps below come directly from the runtime inventory. Customer scope 
 | <span style="color: gray">[104](#scenario-104)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: allowed; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-allowed-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[106](#scenario-106)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: hard blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-hard-blocked-enabled`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[108](#scenario-108)</span> | <span style="color: gray">Use supported launch routes under each app rule (control: enabled; policy: soft blocked; route: flatpak command)</span> | <span style="color: gray">`E2E-019/flatpak-command-soft-blocked-enabled`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[112](#scenario-112)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: save)</span> | <span style="color: gray">`E2E-021/save`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[113](#scenario-113)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve without soft)</span> | <span style="color: gray">`E2E-021/approve-without-soft`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[114](#scenario-114)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: approve with soft)</span> | <span style="color: gray">`E2E-021/approve-with-soft`</span> | <span style="color: gray">pending</span> |
-| <span style="color: gray">[115](#scenario-115)</span> | <span style="color: gray">Apply an action across a child's distinct retained desktops (transaction: revoke)</span> | <span style="color: gray">`E2E-021/revoke`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[153](#scenario-153)</span> | <span style="color: gray">Feedback drafts, validation and attachment review (flow: validation)</span> | <span style="color: gray">`E2E-031/validation`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[156](#scenario-156)</span> | <span style="color: gray">Send reviewed feedback and read service acceptance</span> | <span style="color: gray">`E2E-032/success`</span> | <span style="color: gray">pending</span> |
 | <span style="color: gray">[157](#scenario-157)</span> | <span style="color: gray">Recover feedback sending after reconnecting</span> | <span style="color: gray">`E2E-033/retry`</span> | <span style="color: gray">pending</span> |
@@ -413,9 +407,9 @@ Variant: daily: zero; sessions: single
 
 **Steps:**
 
-- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity.
 - Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
-- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, revisit the retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
 ### Scenario 19
 
@@ -427,9 +421,9 @@ Variant: daily: remaining; sessions: single
 
 **Steps:**
 
-- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
+- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity.
 - Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
-- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
+- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, revisit the retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
 
 ### Scenario 22
 
@@ -2236,46 +2230,6 @@ Pending: Consolidated into E2E-004/app-grid (case 5), which independently checks
 
 <div style="color: gray">
 
-### Scenario 18
-
-**Cancel then confirm revocation with open apps (daily: zero; sessions: multiple)**
-
-Case: `E2E-007/zero-multiple` · Category: customer-journey · Status: **pending**
-
-Variant: daily: zero; sessions: multiple
-
-**Steps:**
-
-- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
-- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
-- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 20
-
-**Cancel then confirm revocation with open apps (daily: remaining; sessions: multiple)**
-
-Case: `E2E-007/remaining-multiple` · Category: customer-journey · Status: **pending**
-
-Variant: daily: remaining; sessions: multiple
-
-**Steps:**
-
-- Using Parent and actual approval, establish the declared daily balance and active grant. Leave allowed and temporarily permitted soft-blocked activities open for the child and another user's recognizable activity. Multiple requires distinct supported desktops for this child.
-- Open Revoke in Parent, read the child and warning, and Cancel. Revisit the child and read the balances to confirm continued access and the same activity.
-- Confirm Revoke and read zero one-time time and unchanged daily time. With daily time left, visit each retained child desktop and inspect blocked-app closure and launch denial; with zero time, verify time-limit denial. Revisit the other user's same activity.
-
-Pending: Customer recipe is documented; required public blocks and full installed acceptance are pending.
-
-</div>
-
-<div style="color: gray">
-
 ### Scenario 38
 
 **Shared duration boundaries and duplicate submission (choice: predefined; surface: child overlay)**
@@ -2711,86 +2665,6 @@ Variant: control: enabled; policy: soft blocked; route: flatpak command
 - Sign in as the unrelated standard user and launch and use the same app through the corresponding route. Allowed grid cases repeat both grid and command with normal app closure between launches.
 
 Pending: Retired from scheduling. Combined into case 102, which independently verifies hidden grid and the attributed soft-blocked command denial. No replacement task.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 112
-
-**Apply an action across a child's distinct retained desktops (transaction: save)**
-
-Case: `E2E-021/save` · Category: customer-journey · Status: **pending**
-
-Variant: transaction: save
-
-**Steps:**
-
-- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
-- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
-- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
-
-Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 113
-
-**Apply an action across a child's distinct retained desktops (transaction: approve without soft)**
-
-Case: `E2E-021/approve-without-soft` · Category: customer-journey · Status: **pending**
-
-Variant: transaction: approve without soft
-
-**Steps:**
-
-- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
-- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
-- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
-
-Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 114
-
-**Apply an action across a child's distinct retained desktops (transaction: approve with soft)**
-
-Case: `E2E-021/approve-with-soft` · Category: customer-journey · Status: **pending**
-
-Variant: transaction: approve with soft
-
-**Steps:**
-
-- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
-- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
-- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
-
-Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
-
-</div>
-
-<div style="color: gray">
-
-### Scenario 115
-
-**Apply an action across a child's distinct retained desktops (transaction: revoke)**
-
-Case: `E2E-021/revoke` · Category: customer-journey · Status: **pending**
-
-Variant: transaction: revoke
-
-**Steps:**
-
-- Use the declared supported sign-in route to retain distinct desktops for one child and another user, each with recognizable activities. Give positive daily time so all child desktops can be revisited.
-- Perform the declared app-rule save, approval excluding soft apps, approval including soft apps or confirmed revocation through its normal interface.
-- Visit every declared retained desktop and inspect earlier activity and later launches. Revisit the other user's same activity.
-
-Pending: Requires a supported public route to distinct desktops for the same child; no backend session creation or repeated resume can qualify it.
 
 </div>
 

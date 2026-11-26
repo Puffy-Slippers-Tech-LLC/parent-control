@@ -717,9 +717,7 @@ Ubuntu 26.04. Cancel preserved balances, saved
 rules and both original activities. Confirm cleared the grant with daily time
 remaining, closed the original soft activity, preserved usable Allowed work and
 denied both H/S command launches; Riley's original work remained usable.
-Collection, worker cleanup and baseline restoration passed. Cases 18/20 remain
-outside execution scheduling under [Two desktops](../Two_Desktops.md); they
-are open scenarios, not prerequisites for cases 17/19. Case 17 uses Jordan's
+Collection, worker cleanup and baseline restoration passed. Case 17 uses Jordan's
 zero daily allowance,
 a real 20-minute soft-included grant, original Allowed A/Soft Blocked S activities
 and Riley's retained activity. Cancel compares both original child windows and
@@ -1306,14 +1304,6 @@ Bindings: change = update / remove.
 1. FLOW16(usable time) → PARENT10 → PARENT16(Hard Blocked) → PARENT13 → UI16(match draft covering the declared updated target).
 2. LIFE04(app update/remove through shared administrator SSH commands); Parent's editor stays open.
 3. PARENT15(save in the still-open editor) → LIFE01(Parent) → PARENT02(Jordan) → await Jordan's loaded App Limits. Update: PARENT12 → C → FLOW08. Remove: UI13(app absent) → LIFE04(reinstall) → LIFE01(Parent) → PARENT02(Jordan) → PARENT12 → UI12(retained rule) → C → FLOW08. The supporting package command needs no foreground change or editor-reactivation step. Reopen Parent only after saving the retained draft; switching children reuses cached catalogues.
-
-### E2E-021
-
-Cases **112–115** are removed from execution scheduling by developer decision.
-[Two desktops](../Two_Desktops.md) preserves their scenario descriptions and the
-open customer-route question. It is not an execution plan. Pending inventory
-records and this retained family anchor supply no task, prerequisite,
-implementation instruction or passing result.
 
 ### E2E-022
 

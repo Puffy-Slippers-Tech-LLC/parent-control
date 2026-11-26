@@ -1480,12 +1480,15 @@ def _native_policy_transition(accounts, record, variant, caller):
                                 os.fchmod(descriptor, mode)
                                 guest.require(channel_identity() == original_channel,
                                               'enforcement:reload-channel-not-restored')
+                            # A reconciliation that hit the disabled FIFO can
+                            # still report its failure after mode restoration.
+                            # The identical save must succeed and synchronizes
+                            # with that in-flight native policy work.
+                            request('SetPreferences', '(us)', transaction)
                     finally:
                         os.close(descriptor)
-                # This is also the identical transaction's retry after removing
-                # the fault. The rule and child launch observations below are
-                # independent of compilation/notification command completion.
-                request('SetPreferences', '(us)', transaction)
+                else:
+                    request('SetPreferences', '(us)', transaction)
                 saved = json.loads(request('GetPreferences', '(u)', (child,))[0])
             guest.require(saved['parent_control_enabled'] is enabled and
                           saved['daily_time_limit_minutes'] == original_limit and

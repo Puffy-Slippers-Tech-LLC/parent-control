@@ -34,3 +34,8 @@ def test_child_extension_monitor_native_recovery(record_testsuite_property, capf
 def test_child_extension_login_unlock_recovery(record_testsuite_property):
     from system_extension_login import verify
     verify(record_testsuite_property)
+
+
+def test_active_usage_checkpoint_retry(record_testsuite_property):
+    from system_usage_checkpoint import verify
+    verify(record_testsuite_property)

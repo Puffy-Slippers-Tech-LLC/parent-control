@@ -18,6 +18,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
     const deferred = [];
     let nextTimer = 0;
     let hold = false;
+    let holdNextWrite = false;
     let failure = null;
     let failureMethod = null;
     let clockOffset = 0;
@@ -88,7 +89,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
                     : error.code === 'IDENTIFYING_USER' ? `${error.iface}.Error.IdentifyingUser`
                     : error.code === 'UNREVIEWED_BUSY' ? 'private.secret.Error.Busy' : null,
             },
-            IOErrorEnum: {}, dbus_error_quark: () => 'dbus', io_error_quark: () => 'io',
+            IOErrorEnum: {CANCELLED: 'CANCELLED'}, dbus_error_quark: () => 'dbus', io_error_quark: () => 'io',
             DBusCallFlags: {NONE: 0},
             DBus: {system: {call(...args) {
                 calls.push(args);
@@ -99,7 +100,21 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
                         : args[3] === 'GetEstimatedTimes' ? [Math.floor(now), {'': [false, 0, Math.floor(now) + remaining]}]
                         : []};
                 }}, {});
-                if (hold) deferred.push(finish);
+                if (holdNextWrite && args[3] === 'RecordUsage') {
+                    holdNextWrite = false;
+                    const token = args[8];
+                    let resolved = false;
+                    const complete = () => {
+                        if (resolved) return;
+                        resolved = true;
+                        token.disconnect(handler);
+                        if (token.is_cancelled()) {
+                            args.at(-1)({call_finish() { throw new BusError('CANCELLED'); }}, {});
+                        } else finish();
+                    };
+                    const handler = token.connect(() => queueMicrotask(complete));
+                    deferred.push(complete);
+                } else if (hold) deferred.push(finish);
                 else queueMicrotask(finish);
             }}},
         },
@@ -116,6 +131,7 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
         setRemaining: value => { remaining = value; },
         setFailure: (value, method = null) => { failure = value; failureMethod = method; },
         setHold: value => { hold = value; },
+        holdNextWrite: () => { holdNextWrite = true; },
         release: () => deferred.splice(0).forEach(finish => finish()),
         activity(active) { manager.dailyLimitTime = active ? now + remaining : 0; manager.emit(); },
         tick() {
@@ -127,6 +143,23 @@ function harness({active = true, records = [[20, 40]], remaining = 100, now = 10
 
 const settle = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
 const plain = value => JSON.parse(JSON.stringify(value));
+const usageWrites = h => h.calls.filter(call => call[3] === 'RecordUsage')
+    .map(call => plain(call[4].value)[0]);
+
+async function exhaustCheckpointRetries(h) {
+    for (const delay of [100, 250, 500, 1000, 2000]) {
+        assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [delay]);
+        h.tick();
+        await settle();
+    }
+    assert.equal(h.timers.size, 0);
+}
+
+function checkpoint(h, now) {
+    h.setNow(now);
+    h.manager.dailyLimitTime++;
+    h.manager.emit();
+}
 
 test('closing the resume refresh cancels estimate backoff and releases the timer queue', async () => {
     const h = harness({active: false});
@@ -217,6 +250,258 @@ test('a new active interval excludes time spent inactive from corrective checkpo
     await settle();
     assert.deepEqual(plain(h.calls.at(-2)[4].value), [[[170, 180, 'login-session', '']]]);
     h.bridge.close();
+});
+
+test('a busy checkpoint retries its exact timestamps across inactivity while estimates proceed', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130);
+    await settle();
+    const observed = [[100, 130, 'login-session', '']];
+    assert.deepEqual(usageWrites(h), [observed]);
+    assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [100]);
+    assert.equal((await h.query())[''][2], 230);
+    h.setNow(140);
+    h.setFailure(null);
+    h.activity(false);
+    await settle();
+    assert.deepEqual(h.calls.map(call => call[3]), [
+        'QueryUsage', 'RecordUsage', 'GetEstimatedTimes', 'QueryUsage', 'RecordUsage', 'GetEstimatedTimes',
+    ]);
+    assert.deepEqual(usageWrites(h), [observed, observed]);
+    assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [50_000]);
+    assert.equal(h.reports.length, 0);
+    h.bridge.close();
+});
+
+test('an exhausted checkpoint is included with later disjoint activity and cleared on acknowledgement', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130);
+    await settle();
+    await exhaustCheckpointRetries(h);
+    const older = [100, 130, 'login-session', ''];
+    assert.deepEqual(usageWrites(h), Array(6).fill([older]));
+    assert.equal(h.logs.at(-1).event, 'child.resume-refresh-deferred');
+
+    h.setFailure('BUSY', 'QueryUsage');
+    h.activity(false);
+    await settle();
+    h.setFailure(null);
+    h.setHold(true);
+    h.setNow(160);
+    h.activity(true);
+    await settle();
+    h.setNow(165);
+    h.setHold(false);
+    h.release();
+    await settle();
+    assert.deepEqual(usageWrites(h).at(-1), [older, [160, 165, 'login-session', '']]);
+    checkpoint(h, 170);
+    await settle();
+    assert.deepEqual(usageWrites(h).at(-1), [[160, 170, 'login-session', '']]);
+    assert.equal(h.reports.length, 0);
+    h.bridge.close();
+});
+
+test('a new activity period interrupts old backoff and keeps the prior observed interval', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130);
+    await settle();
+    h.setFailure('BUSY', 'QueryUsage');
+    h.activity(false);
+    await settle();
+    assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [1000]);
+    h.setFailure(null);
+    h.setHold(true);
+    h.setNow(132);
+    h.activity(true);
+    await settle();
+    h.setNow(133);
+    h.setHold(false);
+    h.release();
+    await settle();
+    const older = [100, 130, 'login-session', ''];
+    assert.deepEqual(usageWrites(h), [[older], [older, [132, 133, 'login-session', '']]]);
+    assert.equal(h.timers.size, 0);
+    h.bridge.close();
+});
+
+test('an in-flight checkpoint releases the refresh on lock and retains the submitted interval', async () => {
+    const h = harness({records: []});
+    h.holdNextWrite();
+    checkpoint(h, 130);
+    await settle();
+    const older = [[100, 130, 'login-session', '']];
+    assert.deepEqual(usageWrites(h), [older]);
+
+    h.setNow(130.5);
+    h.activity(false);
+    await settle();
+    assert.deepEqual(usageWrites(h), [older, older]);
+    h.setNow(131);
+    h.activity(true);
+    await settle();
+    checkpoint(h, 132);
+    await settle();
+    h.setNow(133);
+    h.activity(false);
+    await settle();
+    assert.deepEqual(usageWrites(h), [older, older,
+        [[131, 131, 'login-session', '']], [[131, 132, 'login-session', '']]]);
+    h.release();
+    await settle();
+    assert.equal(usageWrites(h).length, 4, 'a late result must not start additional work');
+    assert.equal(h.reports.length, 0);
+    h.bridge.close();
+});
+
+test('a briefly future checkpoint stays inside the bounded retry window after a small rollback', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130.05);
+    await settle();
+    const observed = [[100, 130, 'login-session', '']];
+    assert.deepEqual(usageWrites(h), [observed]);
+
+    h.setFailure(null);
+    h.setClockOffset(-0.3);
+    h.setNow(130.15);
+    h.tick();
+    await settle();
+    assert.deepEqual(usageWrites(h), [observed]);
+    assert.deepEqual([...h.timers.values()].map(timer => timer.delay), [250]);
+    h.setNow(130.4);
+    h.tick();
+    await settle();
+    assert.deepEqual(usageWrites(h), [observed, observed]);
+    assert.equal(h.timers.size, 0);
+    h.bridge.close();
+});
+
+test('a same-second resume keeps the recovery batch free of zero-length intervals', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130);
+    await settle();
+    h.setFailure('BUSY', 'QueryUsage');
+    h.activity(false);
+    await settle();
+    h.setFailure(null);
+    h.setNow(140);
+    h.activity(true);
+    await settle();
+    assert.deepEqual(usageWrites(h), Array(2).fill([[100, 130, 'login-session', '']]));
+    h.bridge.close();
+});
+
+test('clock corrections retire old pending checkpoints and leave shifted native history intact', async () => {
+    for (const offset of [-50, 300]) {
+        const h = harness({records: []});
+        h.setFailure('BUSY', 'RecordUsage');
+        checkpoint(h, 130);
+        await settle();
+        // Test correction during the immediate backoff and after exhaustion.
+        if (offset > 0) await exhaustCheckpointRetries(h);
+        const oldAttempts = usageWrites(h).length;
+        h.setFailure(null);
+        h.setClockOffset(offset);
+        if (offset < 0) h.tick();
+        else checkpoint(h, 140);
+        await settle();
+        assert.equal(usageWrites(h).length, oldAttempts);
+
+        h.setNow(185);
+        const shifted = [100 + offset, 185 + offset];
+        h.records.push(shifted);
+        h.activity(false);
+        await settle();
+        assert.deepEqual(usageWrites(h).slice(oldAttempts), [[[
+            ...shifted, 'login-session', '',
+        ]]]);
+        assert.equal(h.reports.length, 0);
+        h.bridge.close();
+    }
+});
+
+test('successive small clock corrections are measured from the start of observed activity', async () => {
+    const h = harness({now: 100.6, records: []});
+    h.setFailure('BUSY', 'RecordUsage');
+    h.setClockOffset(0.7);
+    checkpoint(h, 130.6);
+    await settle();
+    assert.deepEqual(usageWrites(h), [[[100, 131, 'login-session', '']]]);
+
+    h.setFailure(null);
+    h.setClockOffset(1.6);
+    h.setNow(130.7);
+    h.tick();
+    await settle();
+    assert.deepEqual(usageWrites(h), [[[100, 131, 'login-session', '']]]);
+    assert.equal(h.timers.size, 0);
+
+    h.setNow(140);
+    h.records.push([102, 141]);
+    h.activity(false);
+    await settle();
+    assert.deepEqual(usageWrites(h).at(-1), [[102, 141, 'login-session', '']]);
+    assert.equal(h.reports.length, 0);
+    h.bridge.close();
+});
+
+test('an older prefix remains eligible when a newer Busy checkpoint crosses its clock tolerance', async () => {
+    const h = harness();
+    h.setFailure('BUSY', 'RecordUsage');
+    checkpoint(h, 130);
+    await settle();
+    await exhaustCheckpointRetries(h);
+    const older = [[100, 130, 'login-session', '']];
+    assert.deepEqual(usageWrites(h), Array(6).fill(older));
+
+    h.setClockOffset(0.8);
+    checkpoint(h, 149.3);
+    await settle();
+    assert.deepEqual(usageWrites(h).at(-1), [[100, 150, 'login-session', '']]);
+    h.setFailure(null);
+    h.setClockOffset(-0.4);
+    h.setNow(149.4);
+    h.tick();
+    await settle();
+    assert.equal(usageWrites(h).length, 8);
+    assert.deepEqual(usageWrites(h).at(-1), older);
+    assert.equal(h.timers.size, 0);
+    h.bridge.close();
+});
+
+test('disabling limits or closing the controller cancels a pending checkpoint retry', async () => {
+    for (const close of [false, true]) {
+        const h = harness();
+        h.setFailure('BUSY', 'RecordUsage');
+        checkpoint(h, 130);
+        await settle();
+        assert.equal(h.timers.size, 1);
+        if (close) h.bridge.close();
+        else {
+            h.manager.parentalControlsSessionLimitsEnabled = false;
+            h.manager.emit('notify::daily-limit-enabled');
+        }
+        await settle();
+        assert.equal(h.timers.size, 0);
+        assert.equal(usageWrites(h).length, 1);
+        assert.equal(h.reports.length, 0);
+        if (!close) {
+            // The native getter can stay positive for a Wellbeing-only limit.
+            h.setFailure(null);
+            h.setNow(160);
+            h.manager.parentalControlsSessionLimitsEnabled = true;
+            h.manager.emit('notify::daily-limit-enabled');
+            checkpoint(h, 170);
+            await settle();
+            assert.deepEqual(usageWrites(h).at(-1), [[160, 170, 'login-session', '']]);
+        }
+        h.bridge.close();
+    }
 });
 
 test('a subsecond backward clock correction during resume cannot send a reversed interval', async () => {

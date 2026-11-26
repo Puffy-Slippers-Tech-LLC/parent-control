@@ -370,6 +370,17 @@ def drop_identity(uid, *, allow_root=False):
 
 
 def execute(connection, operation, Gio, GLib):
+    if operation['kind'] == 'timer-self-usage':
+        guest.require(os.getuid() >= 1000, 'caller:timer-self-usage-identity')
+        timer = 'org.freedesktop.MalcontentTimer1'
+        try:
+            result = connection.call_sync(
+                timer, '/org/freedesktop/MalcontentTimer1', timer + '.Parent', 'QueryUsage',
+                GLib.Variant('(uss)', (os.getuid(), 'login-session', '')),
+                GLib.VariantType.new('(a(tt))'), Gio.DBusCallFlags.NONE, 12000, None)
+            return {'result': result.unpack()[0]}
+        except GLib.Error as error:
+            return {'error': Gio.DBusError.get_remote_error(error) or 'transport-error'}
     if operation['kind'] in ('private-read', 'private-write'):
         # Exact product paths only; never return private record contents.
         target = operation['target']

@@ -7,9 +7,11 @@ import {logInfo, logWarning} from './logger.js';
 const BUS_NAME = 'org.freedesktop.MalcontentTimer1';
 const OBJECT_PATH = '/org/freedesktop/MalcontentTimer1';
 const INTERFACE = 'org.freedesktop.MalcontentTimer1.Child';
+const CHILD_BUSY_ERROR = `${INTERFACE}.Error.Busy`;
 const ESTIMATE_REPLY_TYPE = '(ta{s(btttt)})';
 const QUERY_BUDGET_MS = 25000;
 const CALL_TIMEOUT_MS = 5000;
+const CLOCK_TOLERANCE_USEC = 1_000_000;
 const REACTIVATION_RETRY_DELAYS_MS = [200, 1000, 3000, 5000];
 let _queue = Promise.resolve();
 
@@ -41,7 +43,7 @@ export function queryEstimatedTimes(cancellable = null) {
                 lastError = error;
                 const category = timerErrorCategory(error);
                 const retryDelay = category === 'busy'
-                    ? busyRetryDelay('org.freedesktop.MalcontentTimer1.Child.Error.Busy', attempt)
+                    ? busyRetryDelay(CHILD_BUSY_ERROR, attempt)
                     : (['no-reply', 'no-owner', 'service-unknown', 'timeout'].includes(category)
                         ? REACTIVATION_RETRY_DELAYS_MS[attempt] : undefined);
                 const retry = retryDelay !== undefined &&
@@ -59,44 +61,132 @@ export function queryEstimatedTimes(cancellable = null) {
     });
 }
 
-// Malcontent merges overlapping records. Inactive refreshes replay a completed
-// self-read interval; active refreshes checkpoint only activity actually observed
-// by the controller. Date the checkpoint at dispatch, including queue/read time.
-export function replayOwnUsage(cancellable, observeStage = () => {}, activeSince = () => null) {
-    return enqueue(async () => {
-        if (cancellable.is_cancelled()) return false;
-        observeStage('query-usage');
-        const uid = Gio.Credentials.new().get_unix_user();
-        const [records] = await callTimer('org.freedesktop.MalcontentTimer1.Parent',
-            'QueryUsage', new GLib.Variant('(uss)', [uid, 'login-session', '']),
-            '(a(tt))', CALL_TIMEOUT_MS, cancellable);
-        if (cancellable.is_cancelled()) return false;
-        observeStage('select-record');
-        const realtime = GLib.get_real_time();
-        const monotonic = GLib.get_monotonic_time();
-        const now = Math.floor(realtime / 1_000_000);
-        const since = activeSince();
-        if (since !== null) {
-            if (![since.realtime, since.monotonic].every(value =>
-                Number.isSafeInteger(value) && value >= 0) || since.monotonic > monotonic)
-                throw new Error('Invalid active usage boundary');
-            // Completed checkpoints are wall-clock intervals. Remapping them
-            // after a clock correction could charge the same activity twice.
-            // Leave that boundary to Shell until its clocks agree again or a
-            // new active interval begins. Allow the API's one-second precision.
-            if (Math.abs((realtime - since.realtime) - (monotonic - since.monotonic)) > 1_000_000)
-                return false;
-        }
-        const record = since === null ? records.findLast(([start, end]) =>
+function clockRebased(previousOffset, currentOffset) {
+    return Math.abs(currentOffset - previousOffset) > CLOCK_TOLERANCE_USEC;
+}
+
+// Checkpoint at dispatch, including time spent in the queue and reading usage.
+async function selectUsageRecord(cancellable, observeStage, activeSince) {
+    observeStage('query-usage');
+    const uid = Gio.Credentials.new().get_unix_user();
+    const [records] = await callTimer('org.freedesktop.MalcontentTimer1.Parent',
+        'QueryUsage', new GLib.Variant('(uss)', [uid, 'login-session', '']),
+        '(a(tt))', CALL_TIMEOUT_MS, cancellable);
+    if (cancellable.is_cancelled()) return null;
+    observeStage('select-record');
+    const realtime = GLib.get_real_time();
+    const monotonic = GLib.get_monotonic_time();
+    const offset = realtime - monotonic;
+    const now = Math.floor(realtime / 1_000_000);
+    const since = activeSince();
+    if (since === null) {
+        const refresh = records.findLast(([start, end]) =>
             Number.isSafeInteger(start) && Number.isSafeInteger(end) &&
-            start >= 0 && end >= start && end <= now)
-            : [Math.floor(since.realtime / 1_000_000), now];
-        if (!record || record[1] < record[0]) return false;
-        observeStage('record-usage');
-        await callTimer(INTERFACE, 'RecordUsage', new GLib.Variant('(a(ttss))',
-            [[[record[0], record[1], 'login-session', '']]]), '()', CALL_TIMEOUT_MS, cancellable);
-        return true;
-    });
+            start >= 0 && end >= start && end <= now);
+        return {refresh, offset};
+    }
+
+    if (![since.realtime, since.monotonic].every(value =>
+        Number.isSafeInteger(value) && value >= 0) || since.monotonic > monotonic)
+        throw new Error('Invalid active usage boundary');
+    // Remapping observed wall-clock intervals after a clock correction could
+    // charge activity twice. Leave that boundary to Shell. Allow one second
+    // of skew, matching the timer API's timestamp precision.
+    const start = Math.floor(since.realtime / 1_000_000);
+    const startOffset = since.realtime - since.monotonic;
+    if (start > now || clockRebased(startOffset, offset)) return {offset};
+    // Preserve the one-shot resume refresh, but only positive spans enter
+    // recovery batches. Malcontent 0.14 cannot construct a same-second span.
+    if (start === now) return {refresh: [start, now], offset};
+    return {observed: {start, end: now, startOffset, captureOffset: offset}, offset};
+}
+
+function discardRebasedCheckpoints(checkpoints, offset) {
+    // Shell can save the same activity on the corrected clock. Check both
+    // captured offsets so several small steps cannot evade the tolerance.
+    for (const interval of checkpoints) {
+        if (clockRebased(interval.startOffset, offset) || clockRebased(interval.captureOffset, offset))
+            checkpoints.delete(interval);
+    }
+}
+
+function recordUsage(records, cancellable, timeoutMs) {
+    const payload = Array.from(records, ([start, end]) => [start, end, 'login-session', '']);
+    return callTimer(INTERFACE, 'RecordUsage', new GLib.Variant('(a(ttss))', [payload]),
+        '()', timeoutMs, cancellable);
+}
+
+export async function replayOwnUsage(cancellable, pending, observeStage, activeSince) {
+    let batch;
+    let deadline;
+    let lastBusy;
+    for (let attempt = 0; ; attempt++) {
+        const result = await enqueue(async () => {
+            if (cancellable.is_cancelled()) return false;
+            if (!batch) {
+                const selection = await selectUsageRecord(cancellable, observeStage, activeSince);
+                if (!selection || cancellable.is_cancelled()) return false;
+                discardRebasedCheckpoints(pending, selection.offset);
+                batch = new Set(pending);
+                if (selection.observed) batch.add(selection.observed);
+                if (!batch.size) {
+                    if (!selection.refresh) return false;
+                    observeStage('record-usage');
+                    await recordUsage([selection.refresh], cancellable, CALL_TIMEOUT_MS);
+                    return true;
+                }
+                deadline = GLib.get_monotonic_time() / 1000 + QUERY_BUDGET_MS;
+            }
+
+            const realtime = GLib.get_real_time();
+            const monotonic = GLib.get_monotonic_time();
+            const remaining = Math.floor(deadline - monotonic / 1000);
+            const offset = realtime - monotonic;
+            discardRebasedCheckpoints(pending, offset);
+            discardRebasedCheckpoints(batch, offset);
+            if (!batch.size) return false;
+            const now = Math.floor(realtime / 1_000_000);
+            // A small rollback can briefly put an endpoint in the future.
+            // Let it become eligible within this same bounded retry window.
+            if (remaining <= 0 || [...batch].some(({end}) => end > now)) return undefined;
+            const records = new Map();
+            // Combine prefixes only on the wire. An earlier observation can
+            // still be usable when the longer one's clock mapping changes.
+            for (const {start, end} of batch)
+                records.set(start, Math.max(end, records.get(start) ?? end));
+            observeStage('record-usage');
+            try {
+                await recordUsage(records, cancellable, Math.min(CALL_TIMEOUT_MS, remaining));
+            } catch (error) {
+                const remote = error instanceof GLib.Error ? Gio.DBusError.get_remote_error(error) : null;
+                const busy = remote === CHILD_BUSY_ERROR;
+                const interrupted = cancellable.is_cancelled() && error instanceof GLib.Error &&
+                    error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED);
+                if (busy || interrupted) {
+                    // Cancellation releases the refresh promptly. The daemon
+                    // may still commit, so retain the exact submitted spans.
+                    for (const interval of batch)
+                        pending.add(interval);
+                }
+                if (!busy) throw error;
+                lastBusy = error;
+                return undefined;
+            }
+            for (const interval of batch)
+                pending.delete(interval);
+            return true;
+        });
+        if (cancellable.is_cancelled()) return false;
+        if (result !== undefined) return result;
+        const delay = busyRetryDelay(CHILD_BUSY_ERROR, attempt);
+        if (delay === undefined || deadline - GLib.get_monotonic_time() / 1000 <= delay) {
+            if (lastBusy) throw lastBusy;
+            return false;
+        }
+        // Estimates can run during backoff. The next observed activity
+        // boundary cancels this wait and can submit the retained work.
+        await waitForRetry(delay, cancellable);
+    }
 }
 
 async function callEstimatedTimes(timeoutMs, cancellable) {
@@ -128,7 +218,7 @@ export function timerErrorCategory(error) {
     const remote = Gio.DBusError.get_remote_error(error);
     // The daemon registers separate error domains for its Child and Parent
     // interfaces. Estimates/replay use Child; QueryUsage uses Parent.
-    if (remote === 'org.freedesktop.MalcontentTimer1.Child.Error.Busy' ||
+    if (remote === CHILD_BUSY_ERROR ||
         remote === 'org.freedesktop.MalcontentTimer1.Parent.Error.Busy')
         return 'busy';
     for (const [code, category] of [

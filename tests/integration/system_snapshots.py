@@ -27,6 +27,7 @@ def attempts(selection, *, fresh_install=False):
     # Real password login has a different initial session from the monitor's
     # autologin fixture. Keep it isolated for both current and fresh installs.
     groups.append((('extension-login',), not fresh_install))
+    groups.append(((system.USAGE_CHECKPOINT_PHASE,), True))
     result = []
     def append(phases, executions, installed):
         if phases:

@@ -41,7 +41,7 @@ export class ResumeEstimateRefresh {
         const previousDeadline = this.deadline;
         this.enabled = this.manager.parentalControlsSessionLimitsEnabled;
         this.deadline = Number(this.manager.dailyLimitTime);
-        this.active = this.deadline > 0;
+        this.active = this.enabled && this.deadline > 0;
         if (this.active && !wasActive)
             this.activeSince = {
                 realtime: GLib.get_real_time(),
@@ -50,6 +50,7 @@ export class ResumeEstimateRefresh {
         else if (!this.active)
             this.activeSince = null;
         if (this.enabled !== wasEnabled) {
+            this.checkpoints = this.enabled ? new Set() : null;
             this.resumeFailures.clear();
             this.resumeReported = false;
             this.reported = false;
@@ -83,7 +84,7 @@ export class ResumeEstimateRefresh {
         let retry = false;
         let stage = 'usage-queue';
         try {
-            const replayed = await replayOwnUsage(cancellable, value => { stage = value; },
+            const replayed = await replayOwnUsage(cancellable, this.checkpoints, value => { stage = value; },
                 () => this.activeSince);
             if (cancellable.is_cancelled()) return;
             if (replayed) {
@@ -179,6 +180,7 @@ export class ResumeEstimateRefresh {
         this.closed = true;
         this.cancelTimer();
         this.cancellable?.cancel();
+        this.checkpoints = null;
         for (const id of this.connections) this.manager.disconnect(id);
         this.connections = [];
         this.onError = null;

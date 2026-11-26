@@ -137,7 +137,7 @@ required by the recipe; their existence does not qualify an unimplemented route.
 | Sessions and power | Reuse direct entry, logout, lock/greeter and reboot helpers. Suspend uses one supported guest command and one supported owned-VM wake operation, followed by the actual public return/unlock result. Do not add power-settings, screensaver, RTC, hardware or wake-method matrices. Ordinary overlay reopening uses REQUEST02. |
 | Offline and recovery | Installed offline consumers use LIFE06's same VM Internet-isolation/recovery helper, including from a child desktop or GDM. Restoring Internet access needs no visit to Parent, network settings or another session. Preserve the current product surface and independently observe the local-operation result. Reallocated feedback UI checks use fake retry/success responses instead of VM Internet isolation. |
 | Feedback and information | Routine sending checks reuse the existing fake sender in the Parent/request UI component previews under the [feedback allocation](UI-and-E2E-Coverage.md#feedback-sending-allocation). Keep real sending separate and optional; no inbox, recipient configuration or sending authorization gates routine checks. Genuine installed collection, confinement and exit results keep their owners. Check offered links under the link-only mandate and open/read/close the owned Privacy disclosure. No external page/content or handler validation. |
-| Unavailable prerequisites | Check the declared route and report the exact missing prerequisite. Prepared Lunar assets and natural calendar windows retain their scheduled owners' gates. Stricter zero-time entry exposure remains unscheduled. Do not build virtual seats/display servers, fault frameworks, vendor setup automation or a new calendar scheduler to manufacture eligibility. Preserve each active product assertion and its pending status. |
+| Unavailable prerequisites | Check the declared route and report the exact missing prerequisite. Prepared Lunar assets and natural calendar windows retain their scheduled owners' gates. Do not build virtual seats/display servers, fault frameworks, vendor setup automation or a new calendar scheduler to manufacture eligibility. Preserve each active product assertion and its pending status. |
 
 Preparation never writes the product policy, grants, usage, private state or
 outcome under test. An explicitly tested dependency boundary still runs: package
@@ -5128,9 +5128,6 @@ cleanup, normal broker recovery and baseline restoration; the VM was confirmed
 off. Existing deterministic policy, UID/pidfd and discovery matrices remain
 reused. This supplies Ubuntu engineering qualification only, with no Fedora,
 new authentication or customer E2E acceptance credit.
-Engineering obligation 142's stricter entry-exposure
-question is removed from execution and retained only in
-[Unlock desktop](../Unlock_Desktop.md), with no completion claim or prerequisite.
 Unsupported OS/reserved-account failures, conversion/rollback, all-account
 authorization and injected faults remain technical coverage. An already-open
 hard-blocked app still needs a real public setup where an active case requires it.
@@ -5177,9 +5174,7 @@ attachment case 154 supplies no interactive-mute qualification.
 Pending-prompt leave/close routes, genuine installed diagnostic-collection
 failures and calendar windows retain their explicit gates. Missing gates keep
 only their dependent cases pending. Routine sending is component-owned with
-the existing fake sender; optional real sending does not block it. Stricter
-zero-time entry exposure remains an open question in [Unlock desktop](../Unlock_Desktop.md),
-outside all execution queues and prerequisite chains.
+the existing fake sender; optional real sending does not block it.
 
 Functional acceptance uses accessible meaning and real user input. It never
 gates on transient animation duration, color, fixed geometry, scale or image

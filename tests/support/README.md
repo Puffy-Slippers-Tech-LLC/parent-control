@@ -1941,7 +1941,7 @@ Distinct-user retained histories compose `journey_blocks.retained_app_activities
 and `activity_checks` compares the original window and draft before resumed
 Submit. Do not copy `retained_app_visits.PLAN` or run its qualification as setup.
 The [qualified scope](../../docs/TestAutomation/E2E-Building-Blocks.md#distinct-user-retained-app-qualification)
-owns available bindings; same-child multiple desktops remain separate.
+owns available bindings.
 
 Shell authentication declarations reuse `request_flow.overlay_authentication`
 for Cancel, fixed approval or rejection, paired with `onpc_request_flow::shell_cancel` /

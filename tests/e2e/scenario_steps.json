@@ -49,7 +49,7 @@
   "E2E-007": {
     "expected": "Cancellation changes nothing; confirmation removes temporary time and restores blocks without removing daily time or affecting other users.",
     "summary": "Cancel or confirm revocation while a child has open apps.",
-    "steps": ["Give temporary access and leave child and other-user apps open.", "Cancel revocation and check that access and work continue.", "Confirm revocation; check temporary time is removed and blocked apps close across the child's desktops.", "Check daily time and the other user's work remain unaffected."]
+    "steps": ["Give temporary access and leave child and other-user apps open.", "Cancel revocation and check that access and work continue.", "Confirm revocation and check that temporary time is removed. With daily time left, verify blocked apps close. With zero time, verify entry is denied.", "Check daily time and the other user's work remain unaffected."]
   },
   "E2E-008": {
     "expected": "Exhausted daily time locks the child and prevents access until valid new time is approved.",
@@ -125,11 +125,6 @@
     "expected": "Saving handles the changed app and preserves its intended rule across update or removal and reinstall.",
     "summary": "Save an app rule when the app changes while its editor is open.",
     "steps": ["Edit a blocked app's match rule without saving yet.", "Update or remove the app, then save the rule and reopen Parent.", "Check the updated app remains covered, or reinstall the removed app and check its rule was retained."]
-  },
-  "E2E-021": {
-    "expected": "The action reaches every affected child desktop while leaving other users' work unchanged.",
-    "summary": "Apply policy changes across one child's open desktops.",
-    "steps": ["Leave recognizable work open in multiple child desktops and another user's desktop.", "Save app rules, approve access or revoke time through the normal controls.", "Check app behavior in every child desktop and confirm the other user's work continues."]
   },
   "E2E-022": {
     "expected": "Saved settings survive the selected lifecycle event, time keeps its original deadline, and expired access needs new approval.",

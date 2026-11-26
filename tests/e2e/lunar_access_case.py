@@ -149,7 +149,7 @@ PLAN = JourneyPlan(
             'installed-greeter': 'start'},
     advance_after={list(PARTS['step-' + str(index)])[-1]: 'step-' + str(index + 1)
                    for index in range(1, 5)},
-    stage_actions={'setup-detached': 'launcher-prepare', 'desktop': 'native-verify'},
+    stage_actions={'setup-detached': 'daytime-window', 'desktop': 'native-verify'},
     child_bindings={stage: 'existing' for stage, tag in SCREENS.items()
                     if tag.removeprefix('ui:') in NAMED_CHILD_OPERATIONS},
     settings_checks={
@@ -253,7 +253,7 @@ def prepare(journey, guard):
 def execute(recorder, context):
     record_installed_journey(recorder, context, PLAN, timeout=1800,
         journey_type=LunarAccessJourney,
-        actions={**fixture_actions(include_refusal=False), 'launcher-prepare': prepare})
+        actions={**fixture_actions(include_refusal=False), 'daytime-window': prepare})
 
 
 E2E_CASES = {'appimagelauncher-login-autostart': execute}

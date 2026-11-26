@@ -1320,6 +1320,12 @@ diagnostics, the owning controller wakes the display with a fixed non-text
 Shift modifier and retains a private screen capture, checking ownership around
 both operations. Capture failure preserves the original test failure.
 
+Installed histories that need ordinary daily access use the
+[shared daytime clock preset](../../docs/TestAutomation/E2E-Scenario-Recipes.md#pre-test-clock-preparation)
+before fixture policy or child sign-in. The runner verifies the preset again
+after reboot. This covers the daily-access portions of system 282, 301, 303
+and 305.
+
 The same fixture and guarded worker supply system 303,
 `session::test_foreground_revocation`. This separate engineering binding does
 not replay system 282's natural-expiry or peer histories. With the child still

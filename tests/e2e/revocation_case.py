@@ -133,7 +133,7 @@ REMAINING_LOGINS['confirmed-child-'] = 'other-child'
 REMAINING_LOGIN_STAGES = {prefix + stage for prefix, account in REMAINING_LOGINS.items()
                           for stage in fresh_desktop(account)}
 REMAINING_PLAN = replace(PLAN, worker_mode='revocation_remaining_case',
-    screen_tags=REMAINING_SCREENS,
+    screen_tags=REMAINING_SCREENS, ordinary_daytime=True,
     phases={'ready': 'setup', 'setup-detached': 'setup',
             **{stage: 'step-1' for stage in REMAINING_PREPARATION}, 'installed-greeter': 'start',
             **{stage: 'step-2' for stage in REMAINING_CANCEL},

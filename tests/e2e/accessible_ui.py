@@ -686,6 +686,19 @@ ALLOWANCE_KEYBOARD_OPERATIONS = {
     for phase in ('click', 'selected')
 }
 OPERATIONS |= ALLOWANCE_KEYBOARD_OPERATIONS.keys()
+TIME_CONTROL_CONFIGURATIONS = {
+    'time-explanation-setup-zero-read': (False, 0, True),
+    'time-explanation-setup-positive-read': (True, 15, True),
+    'time-explanation-setup-thirty-read': (False, 30, True),
+    'time-explanation-enabled-thirty-read': (True, 30, True),
+    'time-explanation-off-read': (True, 15, False),
+    'time-explanation-positive-read': (False, 15, True),
+    'time-explanation-zero-read': (True, 0, True),
+    **{f'time-explanation-daily-{minutes}-{state}-read': (state == 'on', minutes, True)
+       for minutes in (1, 2, 4, 6, 10) for state in ('off', 'on')},
+    **{f'time-explanation-daily-{minutes}-on-read': (True, minutes, True)
+       for minutes in (20, 40)},
+}
 TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-collapse', 'time-explanation-collapsed',
     'time-explanation-expand', 'time-explanation-wrong-child',
@@ -693,13 +706,7 @@ TIME_EXPLANATION_OPERATIONS = frozenset({
     'time-explanation-reach-read', 'time-explanation-reach-reread',
     'time-explanation-reach-wrong-child', 'time-explanation-config-wrong-child',
     'time-explanation-config-wrong-state',
-    'time-explanation-off-read', 'time-explanation-positive-read',
-    'time-explanation-zero-read', 'time-explanation-zero-reread',
-    'time-explanation-setup-zero-read', 'time-explanation-setup-positive-read',
-    'time-explanation-setup-thirty-read',
-    *{f'time-explanation-daily-{minutes}-{state}-read'
-      for minutes in (1, 2, 4, 6, 10) for state in ('off', 'on')},
-    'time-explanation-daily-20-on-read', 'time-explanation-daily-40-on-read',
+    'time-explanation-zero-reread', *TIME_CONTROL_CONFIGURATIONS,
 })
 OPERATIONS |= TIME_EXPLANATION_OPERATIONS
 REVOKE_DISABLED_OPERATIONS = {
@@ -1057,8 +1064,6 @@ MANAGEMENT_OPERATIONS = frozenset({
     'existing-child-choice-highlighted', 'existing-returned', 'discovery-ready',
     'existing-apps', 'parent-apps-page', 'parent-toggle-enabled', 'parent-toggle-disabled',
 }) | NAMED_TIME_OPERATIONS | RETAINED_PARENT_OPERATIONS
-OPERATIONS |= {'time-explanation-enabled-thirty-read'}
-TIME_EXPLANATION_OPERATIONS |= {'time-explanation-enabled-thirty-read'}
 NAMED_TIME_OPERATIONS |= {'time-explanation-enabled-thirty-read', 'time-explanation-setup-positive-read'}
 NAMED_CHILD_OPERATIONS |= NAMED_TIME_OPERATIONS
 MANAGEMENT_OPERATIONS |= NAMED_TIME_OPERATIONS | NAMED_CUSTOM_OPERATIONS | ALLOWANCE_KEYBOARD_OPERATIONS.keys() | {
@@ -7139,21 +7144,8 @@ class AccessibleUI:
         require(child in (CHILD, EXISTING_CHILD) and
                 (child == CHILD or operation in NAMED_TIME_OPERATIONS), 'ui:time-child-binding')
         other_child = EXISTING_CHILD if child == CHILD else CHILD
-        configurations = {
-            'time-explanation-setup-zero-read': (False, 0, True),
-            'time-explanation-setup-positive-read': (True, 15, True),
-            'time-explanation-setup-thirty-read': (False, 30, True),
-            'time-explanation-enabled-thirty-read': (True, 30, True),
-            'time-explanation-off-read': (True, 15, False),
-            'time-explanation-positive-read': (False, 15, True),
-            'time-explanation-zero-read': (True, 0, True),
-            **{f'time-explanation-daily-{minutes}-{state}-read': (state == 'on', minutes, True)
-               for minutes in (1, 2, 4, 6, 10) for state in ('off', 'on')},
-            **{f'time-explanation-daily-{minutes}-on-read': (True, minutes, True)
-               for minutes in (20, 40)},
-        }
-        if operation in configurations:
-            initial, minutes, final = configurations[operation]
+        if operation in TIME_CONTROL_CONFIGURATIONS:
+            initial, minutes, final = TIME_CONTROL_CONFIGURATIONS[operation]
             return self.configure_time_controls(
                 child, initial_enabled=initial, minutes=minutes, final_enabled=final)
         if operation == 'time-explanation-refresh-read':

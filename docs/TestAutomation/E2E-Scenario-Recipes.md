@@ -438,24 +438,20 @@ cases retain their declared acceptance prerequisites and budgets.
 
 ### Pre-test clock preparation
 
-The developer authorizes an attempt-owned guest clock preset so unfinished
-non-calendar cases can run at any host time. Before any parent/child input,
-daily-policy setup, approval or timed observation, use
-`calendar_fixture.preset_ordinary_daytime` at `setup-detached` after normal
-restore/setup. It reuses the calendar fixture's guarded preparation: disable
-network time synchronization, set noon on the next future ordinary day in the
-unchanged timezone, and independently read back the result. Read the actual
-guest clock again to verify the recipe's full execution margin before midnight.
-Keep the existing lease, watch, one-use entry and cleanup guards. Snapshot
-restoration removes these attempt-owned changes.
+The installed journey sets a daytime clock at `setup-detached` when the plan
+declares a positive daily balance, enabled positive allowance, or a time-control
+operation that enables a positive allowance. Use `ordinary_daytime=True` for
+custom sequences that need the same full-day margin. Preparation happens after
+restore/setup and before parent or child input, policy changes, approvals or
+timed observation. The shared calendar fixture disables network time
+synchronization, sets noon on the next future ordinary day in the guest's
+unchanged timezone and verifies the result. Snapshot restoration removes these
+attempt-owned changes.
 
-Apply this during implementation of every remaining capability or scenario
-whose daily balances, request estimates, positive access or uninterrupted
-history could otherwise depend on the host's time of day. Bind each implemented
-journey's exact prefix in the shared helper; a planned consumer has no executable
-binding until its own implementation and acceptance. Read-only fixture checks
-and cases with no time-of-day dependency need no clock mutation. Deferred cases
-stay deferred; preparation grants no acceptance.
+Journeys with extra preparation or a specific margin can bind the shared
+`preset_ordinary_daytime` action at `setup-detached` and read back that margin.
+Keep the existing lease, watch and one-use guards. Read-only fixture checks and
+cases with no time-of-day dependency need no clock mutation.
 
 Calendar-boundary cases keep their declared ordinary-midnight or seasonal
 preparation under [natural calendar windows](#natural-calendar-windows).

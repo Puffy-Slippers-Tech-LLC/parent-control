@@ -661,6 +661,8 @@ CASES = (
                  'Keep a child’s previous rules when a parent save fails and retry'),
     CaseIdentity(318, 'enforcement', 'test_partial_app_termination_retry',
                  'Retry closing a child’s blocked apps after only some close'),
+    CaseIdentity(319, 'extension', 'test_active_usage_checkpoint_retry',
+                 'Recover active desktop usage after the timer store is busy'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

@@ -1627,7 +1627,11 @@ def reproduce_native_desktop_access(lease, fixture_selection):
         boundary_operation='child-countdown-present', fixture_selection=selection, timeout=1800)
 
 
-TIMER_TRACE = '''import hashlib,json,os,pathlib,signal,time
+from inspect import getsource
+from timer_trace_bus import monitor_timer
+
+
+TIMER_TRACE = getsource(monitor_timer) + '''import hashlib,json,os,pathlib,signal,time
 from gi.repository import Gio,GLib
 boot=lambda:hashlib.sha256(pathlib.Path('/proc/sys/kernel/random/boot_id').read_bytes()).hexdigest()
 started=time.monotonic()
@@ -1638,25 +1642,7 @@ def emit(event,**fields):
     assert count<=4096
     print(json.dumps(dict(event=event,monotonic_ns=time.monotonic_ns(),
                           realtime_ns=time.time_ns(),**fields)),flush=True)
-bus=Gio.DBusConnection.new_for_address_sync(Gio.dbus_address_get_for_bus_sync(
-    Gio.BusType.SYSTEM,None),Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT |
-    Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,None,None)
-def receive(connection,message,incoming,data):
-    if incoming:
-        emit('message',kind=int(message.get_message_type()),sender=message.get_sender(),
-             destination=message.get_destination(),serial=message.get_serial(),
-             reply_serial=message.get_reply_serial(),interface=message.get_interface(),
-             member=message.get_member(),error_name=message.get_error_name(),body=message.get_body().print_(True)
-             if message.get_body() is not None else '')
-    # Consume copied traffic so GDBus cannot answer another client's call.
-    return message if not incoming or message.get_destination()==connection.get_unique_name() else None
-bus.add_filter(receive,None)
-rules=["interface='org.freedesktop.MalcontentTimer1.Child'",
-       "interface='org.freedesktop.MalcontentTimer1.Parent'",
-       "sender='org.freedesktop.MalcontentTimer1'"]
-bus.call_sync('org.freedesktop.DBus','/org/freedesktop/DBus',
-    'org.freedesktop.DBus.Monitoring','BecomeMonitor',GLib.Variant('(asu)',(rules,0)),
-    None,Gio.DBusCallFlags.NONE,5000,None)
+bus=monitor_timer(emit)
 loop=GLib.MainLoop()
 bus.connect('closed',lambda *_args: loop.quit())
 GLib.unix_signal_add(GLib.PRIORITY_DEFAULT,signal.SIGUSR1,lambda: (loop.quit(),False)[1])

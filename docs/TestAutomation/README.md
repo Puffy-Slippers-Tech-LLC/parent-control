@@ -37,7 +37,6 @@ diagnostic files do not govern task progression.
 | [UI and E2E coverage](UI-and-E2E-Coverage.md) | GUI matrix ownership, duplicate review and minimal installed checks | A test pass, task completion or another task queue |
 | [Two desktops](../Two_Desktops.md) | Open question and unscheduled same-child/two-desktop scenario descriptions | An execution plan, prerequisite, passing result or automatic authorization to implement the scenarios |
 | [Unlock desktop](../Unlock_Desktop.md) | Open zero-time entry question and unscheduled exposure scenarios | An execution plan, prerequisite, passing result or automatic authorization to implement the scenarios |
-| [Failed usage saves](../Failed_Save.md) | Open usage-save issue, causal findings and unscheduled former E2E-048 scenarios | An execution plan, passing result, regression gate or automatic authorization to resume the investigation |
 | [Fixture design](Fixture-Design.md) | Immutable host inputs, minimal guest closure, provisioning/readiness and compatibility boundaries; runtime guides own current target availability | New runner capability or customer acceptance merely from the design |
 | [Evidence/export design](Export-Design.md) | Test evidence identity, capture, export and lifetime design; runtime contracts remain authoritative | Product acceptance, VM operations or new passing results |
 | [Generated coverage](../Test-Coverage.md) | Generated view of the executable inventories | Authority over its source files |

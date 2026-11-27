@@ -19,10 +19,13 @@ from .config import UINT32_MAX
 from .data_migration import (
     GRANTS_DIRECTORY, MigrationError, _atomic_write, _fsync_directory, _read_record,
 )
+from .preferences import MAX_TIME_GRANT_SECONDS
 
 FORMAT_VERSION = 1
 UINT64_MAX = 2 ** 64 - 1
 MAX_USERNAME_LENGTH = 256
+MAX_SAVED_SECONDS = MAX_TIME_GRANT_SECONDS
+"""A saved balance never exceeds the existing maximum single grant."""
 
 GrantTuple = tuple[int, int]
 """An ``ActiveExtension`` value: issuance epoch seconds and duration seconds."""
@@ -138,7 +141,7 @@ def _parse_tuple(raw: object, name: str, *, running: bool) -> GrantTuple:
 
 def _parse_saved(raw: object) -> SavedBalance:
     raw = _object(raw, {"seconds", "allow_soft_blocked_apps"}, "saved balance")
-    return SavedBalance(_integer(raw["seconds"], 1, UINT32_MAX, "saved balance"),
+    return SavedBalance(_integer(raw["seconds"], 1, MAX_SAVED_SECONDS, "saved balance"),
                         _boolean(raw["allow_soft_blocked_apps"], "saved app choice"))
 
 
@@ -200,6 +203,55 @@ def parse_grant_record(raw: object) -> GrantRecord:
 def validate_grant_record(raw: object) -> dict:
     """Current-schema validator for the pure JSON migration pass."""
     return parse_grant_record(raw).document()
+
+
+# Balance arithmetic in integer seconds at one evaluation time ``now``:
+# D daily time remaining, A running-grant remaining, S saved, X = max(0, A - D).
+
+def _seconds(value: object, maximum: int = UINT32_MAX) -> int:
+    if type(value) is not int or not 0 <= value <= maximum:
+        raise ValueError("time value is outside the supported range")
+    return value
+
+
+def remaining_seconds(grant: GrantTuple, now: int) -> int:
+    """A: the seconds a live ``ActiveExtension`` tuple still runs at ``now``."""
+    issued, duration = grant
+    remaining = max(0, _seconds(issued, UINT64_MAX) + _seconds(duration) -
+                    _seconds(now, UINT64_MAX))
+    return _seconds(remaining)
+
+
+def beyond_daily_seconds(daily: int, running: int) -> int:
+    """X: running approved time beyond today's daily time."""
+    return max(0, _seconds(running) - _seconds(daily))
+
+
+def merged_saved_seconds(saved: int, added: int) -> int:
+    """S + X or S + N, refusing a balance beyond the saved-time limit."""
+    return _seconds(_seconds(saved) + _seconds(added), MAX_SAVED_SECONDS)
+
+
+def running_mode(record: GrantRecord, live: GrantTuple, remaining: int) -> str:
+    """Derive ``none``, ``fixed`` or ``deadline``; the mode is never stored.
+
+    Only the recorded fixed tuple is fixed. Its pause-ended form counts as
+    ended. Pre-feature, rest-of-day and external tuples are deadline grants.
+    """
+    fixed = record.fixed if record.fixed is not None and record.fixed.grant == live else None
+    if _seconds(remaining) == 0 or (fixed is not None and fixed.ended_by_pause):
+        return "none"
+    return "deadline" if fixed is None else "fixed"
+
+
+def new_grant_is_fixed(record: GrantRecord, live: GrantTuple, daily: int, remaining: int) -> bool:
+    """Whether a grant replacing ``live`` with ``max(D, A) + seconds`` is fixed.
+
+    It stays a deadline grant when it absorbed a running deadline grant that
+    still contributed time beyond daily time.
+    """
+    return not (beyond_daily_seconds(daily, remaining) > 0 and
+                running_mode(record, live, remaining) == "deadline")
 
 
 @dataclass

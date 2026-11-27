@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from unittest import mock
 from zoneinfo import ZoneInfo
 
+from oh_no_parent_control import data_migration
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RollbackFailure,
     NativeDeadlineSuspended, UserAccount, calculate_active_extension_seconds, emit_backend_failure,
@@ -15,6 +16,11 @@ from oh_no_parent_control.core import (
 )
 from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
+)
+from oh_no_parent_control.config import UINT32_MAX
+from oh_no_parent_control.grant_store import (
+    FixedGrant, GrantRecord, GrantStore, GrantStoreError, PauseIntent, RedeemIntent,
+    SavedBalance, remaining_seconds, running_mode,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
 from oh_no_parent_control.extension_manager import (
@@ -2564,20 +2570,25 @@ def test_approval_cannot_snapshot_parent_disable_bridge_or_rollback(
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
 @pytest.mark.parametrize("duration, stage", [
     (300, "usage"),
+    (300, "grant-store"),
     *((duration, stage) for duration in (0, 300) for stage in (
         "preflight", "get_limit_type", "get_daily_limit", "get_filter", "get_extension",
     )),
 ])
 def test_departure_before_admission_has_no_effect_and_requires_fresh_authentication(
-        monkeypatch, surface, duration, stage):
+        monkeypatch, tmp_path, surface, duration, stage):
     accounts, preferences, auth = Accounts(), Preferences(), Authorizer()
     preferences.values[1001]["parent_control_enabled"] = True
     usage, apps = TimerUsage(), RunningApps()
     extensions = Extensions()
+    store = GrantStore(tmp_path / "grants") if stage == "grant-store" else None
     broker = make_broker(auth, accounts, preferences, extensions=extensions,
-                         timer_usage=usage, running_apps=apps)
-    operation = usage if stage == "usage" else apps if stage == "preflight" else accounts
-    method = "query_usage_as" if stage == "usage" else stage
+                         timer_usage=usage, running_apps=apps, grant_store=store)
+    operation, method = {
+        "usage": (usage, "query_usage_as"),
+        "preflight": (apps, "preflight"),
+        "grant-store": (store, "load"),
+    }.get(stage, (accounts, stage))
     original = getattr(operation, method)
     calls = 0
     cancel_at = 2 if stage == "get_extension" and duration else 1
@@ -2599,6 +2610,8 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     assert not any(event[0].startswith("set_") for event in accounts.events)
     assert not any(call[0] == "terminate" for call in apps.calls)
     assert extensions.calls == []
+    if store is not None:
+        assert not store.directory.exists()
     second = submit_request(broker, surface, duration)
     assert second[1] == "approved"
     assert first[0] != second[0]
@@ -2607,15 +2620,19 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     assert extensions.calls == ([(1001, True)] if surface == "kiosk" else [])
 
 
-@pytest.mark.parametrize("stage", ("preflight", "snapshots"))
+@pytest.mark.parametrize("stage", ("preflight", "snapshots", "grant-store"))
 @pytest.mark.parametrize("change", ("target", "approver", "preferences"))
 @pytest.mark.parametrize("duration", (0, 300))
 def test_slow_preflight_and_snapshots_revalidate_before_admission(
-        monkeypatch, stage, change, duration):
+        monkeypatch, tmp_path, stage, change, duration):
     accounts, preferences, auth, apps = Accounts(), Preferences(), Authorizer(), RunningApps()
-    broker = make_broker(auth, accounts, preferences, running_apps=apps)
-    operation = apps if stage == "preflight" else accounts
-    method = "preflight" if stage == "preflight" else "get_extension"
+    store = GrantStore(tmp_path / "grants") if stage == "grant-store" else None
+    broker = make_broker(auth, accounts, preferences, running_apps=apps, grant_store=store)
+    operation, method = {
+        "preflight": (apps, "preflight"),
+        "snapshots": (accounts, "get_extension"),
+        "grant-store": (store, "load"),
+    }[stage]
     original = getattr(operation, method)
     calls = 0
     change_at = 2 if stage == "snapshots" and duration else 1
@@ -2640,6 +2657,8 @@ def test_slow_preflight_and_snapshots_revalidate_before_admission(
     assert auth.pending.closed
     assert not any(event[0].startswith("set_") for event in accounts.events)
     assert not any(call[0] == "terminate" for call in apps.calls)
+    if store is not None:
+        assert not store.directory.exists()
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))
@@ -2685,6 +2704,250 @@ def test_grant_preserves_extension_choices_outside_enabled_kiosk(surface):
     broker = make_broker(preferences=preferences, extensions=extensions)
     assert submit_request(broker, surface)[1] == "approved"
     assert extensions.calls == []
+
+
+TRACKING_NOW = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
+TRACKING_SECONDS = int(TRACKING_NOW.timestamp())
+SAVED = SavedBalance(900, False)
+
+
+@pytest.fixture
+def tracked(tmp_path):
+    tmp_path.chmod(0o700)
+    accounts, preferences = Accounts(), Preferences()
+    preferences.values[1001]["parent_control_enabled"] = True
+    preferences.values[1001]["daily_time_limit_minutes"] = 30  # D = 1800 s without usage
+    store = GrantStore(tmp_path / "grants")
+    broker = make_broker(accounts=accounts, preferences=preferences, grant_store=store)
+    return accounts, store, broker
+
+
+def seed_record(store, **fields):
+    return store.write(replace(store.load(1001, "child"), **fields))
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+@pytest.mark.parametrize("live, recorded, expect_fixed", (
+    ((1, 2), None, True),                                     # nothing running
+    ((TRACKING_SECONDS - 60, 3660), None, False),             # external A > D
+    ((TRACKING_SECONDS - 60, 1860), None, True),              # external A == D
+    ((TRACKING_SECONDS - 60, 660), None, True),               # external A < D
+    ((TRACKING_SECONDS - 60, 3660), "fixed", True),           # running fixed A > D
+    ((TRACKING_SECONDS - 60, 63), "paused", True),            # pause-ended tail
+))
+def test_immediate_fixed_approval_records_only_non_absorbing_grants_as_fixed(
+        tracked, surface, live, recorded, expect_fixed):
+    accounts, store, broker = tracked
+    accounts.extension = live
+    fixed = None if recorded is None else FixedGrant(live, True, recorded == "paused")
+    before = seed_record(store, fixed=fixed, saved=SAVED)
+
+    assert submit_request(broker, surface, duration=300, allow_soft=True)[1] == "approved"
+
+    grant = (TRACKING_SECONDS, max(1800, live[0] + live[1] - TRACKING_SECONDS) + 300)
+    assert accounts.extension == grant
+    after = store.load(1001, "child")
+    assert after.saved == SAVED
+    assert after.fixed == (FixedGrant(grant, True) if expect_fixed else None)
+    assert running_mode(after, grant, grant[1]) == ("fixed" if expect_fixed else "deadline")
+    assert after.revision == before.revision + 1
+
+
+def test_rest_of_day_and_expiry_during_the_prompt_keep_saved_time(tracked):
+    accounts, store, broker = tracked
+    running = (TRACKING_SECONDS - 60, 3660)
+    accounts.extension = running
+    seed_record(store, fixed=FixedGrant(running, False), saved=SAVED)
+    assert submit_request(broker, "kiosk", duration=0)[1] == "approved"
+    record = store.load(1001, "child")
+    assert (record.fixed, record.saved) == (None, SAVED)
+    assert running_mode(record, accounts.extension, accounts.extension[1]) == "deadline"
+    assert submit_request(broker, "kiosk", duration=0)[1] == "approved"
+    assert store.load(1001, "child") == replace(record, revision=record.revision + 1)
+
+    # A contributing deadline grant expires while the parent decides; the
+    # approval captures A = 0 afterwards and is a fixed grant again.
+    accounts.extension = running
+    later = TRACKING_NOW + timedelta(seconds=3700)
+    broker._authorizer.callback = lambda: setattr(broker, "_now", lambda: later)
+    assert submit_request(broker, "kiosk", duration=300)[1] == "approved"
+    grant = (int(later.timestamp()), 1800 + 300)
+    assert accounts.extension == grant
+    assert store.load(1001, "child").fixed == FixedGrant(grant, False)
+    assert store.load(1001, "child").saved == SAVED
+
+
+@pytest.mark.parametrize("duration", (6, 150))
+def test_fractional_minute_requests_are_tracked_in_exact_seconds(tracked, duration):
+    accounts, store, broker = tracked
+    assert submit_request(broker, "kiosk", duration=duration)[1] == "approved"
+    assert store.load(1001, "child").fixed == FixedGrant((TRACKING_SECONDS, 1800 + duration), False)
+
+
+@pytest.mark.parametrize("change, error", (
+    ("float", InvalidRequest), ("too-short", InvalidRequest), ("uint32", InvalidRequest),
+    ("epoch", BackendFailure), ("apply", BackendFailure),
+))
+def test_refused_or_failed_approvals_leave_tracking_unchanged(tracked, change, error):
+    accounts, store, broker = tracked
+    # The account double can roll back only to its initial (1, 2) tuple.
+    running = {"uint32": (TRACKING_SECONDS, UINT32_MAX), "apply": (1, 2)}.get(
+        change, (TRACKING_SECONDS - 60, 3660))
+    accounts.extension = running
+    accounts.fail_extension = change == "apply"
+    before = seed_record(store, fixed=FixedGrant(running, False), saved=SAVED)
+    duration = {"float": 300.0, "too-short": 5}.get(change, 300)
+    if change == "epoch":
+        broker._now = lambda: datetime(1970, 1, 1, tzinfo=ZoneInfo("UTC"))
+    with pytest.raises(error):
+        submit_request(broker, "kiosk", duration=duration)
+    assert accounts.extension == running
+    assert store.load(1001, "child") == before
+
+
+@pytest.mark.parametrize("fault", ("write", "account"))
+def test_tracking_failure_after_apply_leaves_a_safe_deadline_grant(tracked, fault):
+    accounts, store, broker = tracked
+    running = (TRACKING_SECONDS - 60, 660)
+    accounts.extension = running
+    if fault == "account":
+        # The record of a deleted account with this UID is cleared first.
+        store.write(GrantRecord(1001, "previous-owner", saved=SAVED))
+    else:
+        seed_record(store, fixed=FixedGrant(running, False), saved=SAVED)
+    before = None if fault == "account" else store.load(1001, "child")
+    failure = GrantStoreError("stored") if fault == "write" else None
+    with mock.patch.object(store, "write", side_effect=failure, wraps=store.write):
+        assert submit_request(broker, "kiosk", duration=300)[1] == "approved"
+
+    grant = (TRACKING_SECONDS, 2100)
+    assert accounts.extension == grant
+    after = store.load(1001, "child")
+    if fault == "account":
+        assert (after.username, after.saved, after.fixed) == ("child", None, FixedGrant(grant, False))
+    else:
+        assert after == before
+        assert running_mode(after, grant, grant[1]) == "deadline"
+
+
+@pytest.mark.parametrize("operation", ("pause", "redeem", "unreadable"))
+def test_immediate_approval_preserves_unresolved_transfer(tracked, operation):
+    accounts, store, broker = tracked
+    running = (TRACKING_SECONDS - 60, 660)
+    accounts.extension = running
+    intent = None
+    if operation == "pause":
+        intent = PauseIntent(running, (running[0], 61), SavedBalance(1500, False))
+    elif operation == "redeem":
+        intent = RedeemIntent(running, (TRACKING_SECONDS, 2700), False, True)
+    before = seed_record(store, fixed=FixedGrant(running, False), saved=SAVED, intent=intent)
+
+    load_error = GrantStoreError("unreadable") if operation == "unreadable" else None
+    with mock.patch.object(store, "load", side_effect=load_error, wraps=store.load):
+        with pytest.raises(BackendFailure if load_error else Busy):
+            submit_request(broker, "kiosk", duration=300)
+
+    assert not broker._authorizer.pending.admitted
+    assert accounts.extension == running
+    assert accounts.filter == (False, ("old.App",))
+    assert store.load(1001, "child") == before
+
+
+@pytest.mark.parametrize("interruption", (
+    "same-live-tuple", "stale-fixed-tuple", "failed-apply", "failed-directory-sync",
+))
+def test_rest_of_day_cannot_inherit_a_colliding_fixed_marker(tracked, monkeypatch, interruption):
+    accounts, store, broker = tracked
+    now = TRACKING_NOW.replace(hour=23, minute=50)
+    epoch = int(now.timestamp())
+    grant = (epoch, 600)
+    accounts.extension = grant if interruption != "stale-fixed-tuple" else (1, 2)
+    broker._now = lambda: now
+    before = seed_record(store, fixed=FixedGrant(grant, True), saved=SAVED)
+
+    if interruption in {"failed-apply", "failed-directory-sync"}:
+        if interruption == "failed-apply":
+            write_extension = accounts.set_extension
+
+            def fail_first_write(uid, value):
+                monkeypatch.setattr(accounts, "set_extension", write_extension)
+                raise RuntimeError("write failed")
+
+            monkeypatch.setattr(accounts, "set_extension", fail_first_write)
+        else:
+            sync_directory = data_migration._fsync_directory
+
+            def fail_first_sync(path):
+                monkeypatch.setattr(data_migration, "_fsync_directory", sync_directory)
+                raise OSError("directory sync failed")
+
+            monkeypatch.setattr(data_migration, "_fsync_directory", fail_first_sync)
+        with pytest.raises(BackendFailure):
+            submit_request(broker, "kiosk", duration=0)
+        assert accounts.extension == grant
+        assert store.load(1001, "child") == replace(before, revision=before.revision + 2)
+        if interruption == "failed-directory-sync":
+            assert all(not event[0].startswith("set_") for event in accounts.events)
+    else:
+        # Stop after the verified AccountsService write, before the final record write.
+        monkeypatch.setattr(broker, "_track_immediate_grant", mock.Mock(side_effect=SystemExit))
+        with pytest.raises(SystemExit):
+            submit_request(broker, "kiosk", duration=0)
+        assert accounts.extension == grant
+        after = store.load(1001, "child")
+        assert after.saved == SAVED
+        assert running_mode(after, grant, remaining_seconds(grant, epoch)) == "deadline"
+
+
+@pytest.mark.parametrize("changes, eligible_binding", (
+    ({"label": "Updated display name", "desktop_language": "es"}, True),
+    ({"username": "replacement"}, False),
+    ({"is_admin": True}, False),
+))
+def test_verified_approval_tracks_only_for_the_bound_account(tracked, monkeypatch,
+                                                             changes, eligible_binding):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    write_extension = accounts.set_extension
+
+    def change_account_after_write(uid, value):
+        write_extension(uid, value)
+        accounts.users[uid] = replace(accounts.users[uid], **changes)
+
+    monkeypatch.setattr(accounts, "set_extension", change_account_after_write)
+    assert submit_request(broker, "kiosk", duration=300)[1] == "approved"
+    assert accounts.extension == (TRACKING_SECONDS, 2100)
+    after = store.load(1001, "child")
+    if eligible_binding:
+        assert after == replace(before, revision=before.revision + 1,
+                                fixed=FixedGrant(accounts.extension, False))
+    else:
+        assert after == before
+
+
+def test_saved_time_never_reaches_usable_countdown_or_session_inputs(tmp_path):
+    tmp_path.chmod(0o700)
+    store = GrantStore(tmp_path / "grants")
+    store.write(GrantRecord(1001, "child", saved=SavedBalance(3600, True)))
+    results = []
+    for grant_store in (None, store):
+        accounts, preferences = Accounts(), Preferences()
+        preferences.values[1001]["parent_control_enabled"] = True
+        preferences.values[1001]["daily_time_limit_minutes"] = 30
+        accounts.extension = (TRACKING_SECONDS - 100, 50)
+        usage = TimerUsage(((TRACKING_SECONDS - 1800, TRACKING_SECONDS),))  # D = 0
+        broker = make_broker(accounts=accounts, preferences=preferences,
+                             timer_usage=usage, grant_store=grant_store)
+        status = broker.get_time_status(0, 1001)  # The GDM helper asks as root.
+        results.append((
+            status, broker.get_time_status(1001, 1001, 300),
+            broker.calculate_own_remaining_time(1001, 0),
+            broker.calculate_own_deadline(1001, TRACKING_SECONDS * 1_000_000, 0),
+            broker.prepare_own_session(1001),
+        ))
+        assert status.calculated_active_extension_seconds == 0
+    assert results[0] == results[1]
+    assert store.load(1001, "child").saved == SavedBalance(3600, True)
 
 
 if __name__ == "__main__":

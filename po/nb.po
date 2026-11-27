@@ -1764,3 +1764,95 @@ msgstr "Skriv inn et gyldig tall."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Tillatt område: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Be om mer tid"
+
+msgid "Approved time"
+msgstr "Godkjent tid"
+
+msgid "Request & use now"
+msgstr "Be om tid og bruk den nå"
+
+msgid "More request options"
+msgstr "Flere valg for forespørselen"
+
+msgid "Request & save for later"
+msgstr "Be om tid og spar den til senere"
+
+msgid "Rest of the day can't be saved."
+msgstr "Resten av dagen kan ikke spares til senere."
+
+msgid "Saved for later"
+msgstr "Spart til senere"
+
+msgid "Use saved time"
+msgstr "Bruk spart tid"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Start nedtellingen og gå tilbake til innloggingsskjermen."
+
+msgid "Add it to your time now."
+msgstr "Legg den til den tilgjengelige tiden din nå."
+
+msgid "Timer running"
+msgstr "Nedtellingen går"
+
+msgid "Pause timer"
+msgstr "Sett nedtellingen på pause"
+
+msgid "Save the remaining time for later."
+msgstr "Spar den gjenværende tiden til senere."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Dagens tidskvote: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Sette nedtellingen på pause og låse skjermen?"
+
+msgid "Save for later and lock?"
+msgstr "Spare tiden til senere og låse skjermen?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Omtrent %(duration)s blir spart. Skjermen låses nå, og du trenger passordet ditt for å komme tilbake. Begynn å bruke spart tid fra «Godkjent tid» her så lenge du har tid igjen av dagskvoten, eller på forespørselsstasjonen."
+
+msgid "Pause and lock"
+msgstr "Sett på pause og lås"
+
+msgid "No approved time available"
+msgstr "Ingen godkjent tid tilgjengelig"
+
+msgid "Covered by today's daily time"
+msgstr "Dekkes av dagens tidskvote"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Godkjent til %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Legg spart tid til nedtellingen"
+
+msgid "Loading time status…"
+msgstr "Laster tidsstatus…"
+
+msgid "Time status unavailable"
+msgstr "Tidsstatus er utilgjengelig"
+
+msgid "Time controls are busy. Try again."
+msgstr "Tidskontrollene er opptatt. Prøv igjen."
+
+msgid "Updating approved time…"
+msgstr "Oppdaterer godkjent tid…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Spart ved godkjenning: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Allerede spart: %(duration)s"

@@ -1764,3 +1764,92 @@ msgstr "Enigu validan nombron."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Permesita intervalo: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Peti pli da tempo"
+
+msgid "Approved time"
+msgstr "Aprobita tempo"
+
+msgid "Request & use now"
+msgstr "Peti kaj uzi nun"
+
+msgid "More request options"
+msgstr "Pliaj petopcioj"
+
+msgid "Request & save for later"
+msgstr "Peti kaj konservi por poste"
+
+msgid "Rest of the day can't be saved."
+msgstr "La opcio «Resto de la tago» ne estas konservebla."
+
+msgid "Saved for later"
+msgstr "Konservita por poste"
+
+msgid "Use saved time"
+msgstr "Uzi konservitan tempon"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Startigu la tempigilon kaj revenu al la ensaluta ekrano."
+
+msgid "Add it to your time now."
+msgstr "Nun aldonu la konservitan tempon al via tempo."
+
+msgid "Timer running"
+msgstr "La tempigilo funkcias"
+
+msgid "Pause timer"
+msgstr "Paŭzigi la tempigilon"
+
+msgid "Save the remaining time for later."
+msgstr "Konservu la restantan tempon por poste."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Hodiaŭa ĉiutaga tempo: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Ĉu paŭzigi la tempigilon kaj ŝlosi la ekranon?"
+
+msgid "Save for later and lock?"
+msgstr "Ĉu konservi por poste kaj ŝlosi la ekranon?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Proksimume %(duration)s estos konservitaj. Via ekrano nun ŝlosiĝos, kaj vi bezonos vian pasvorton por reveni. Ekuzi la konservitan tempon vi povas ĉi tie sub «Aprobita tempo», dum restas ĉiutaga tempo, aŭ ĉe la petostacio."
+
+msgid "Pause and lock"
+msgstr "Paŭzigi kaj ŝlosi"
+
+msgid "No approved time available"
+msgstr "Neniu aprobita tempo disponeblas"
+
+msgid "Covered by today's daily time"
+msgstr "Kovrita de la hodiaŭa ĉiutaga tempo"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Aprobita ĝis %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Aldoni konservitan tempon al la tempigilo"
+
+msgid "Loading time status…"
+msgstr "Ŝargante la staton de la tempo…"
+
+msgid "Time status unavailable"
+msgstr "La stato de la tempo ne disponeblas"
+
+msgid "Time controls are busy. Try again."
+msgstr "La temporegiloj estas okupataj. Provu denove."
+
+msgid "Updating approved time…"
+msgstr "Ĝisdatigante la aprobitan tempon…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Konservota se aprobita: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Jam konservita: %(duration)s"

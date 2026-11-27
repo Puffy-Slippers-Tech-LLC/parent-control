@@ -1758,3 +1758,95 @@ msgstr "Geçerli bir sayı girin."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "İzin verilen aralık: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Daha fazla süre iste"
+
+msgid "Approved time"
+msgstr "Onaylanan süre"
+
+msgid "Request & use now"
+msgstr "İste ve şimdi kullan"
+
+msgid "More request options"
+msgstr "Diğer istek seçenekleri"
+
+msgid "Request & save for later"
+msgstr "İste ve sonraya sakla"
+
+msgid "Rest of the day can't be saved."
+msgstr "Günün geri kalanı sonraya saklanamaz."
+
+msgid "Saved for later"
+msgstr "Sonraya saklandı"
+
+msgid "Use saved time"
+msgstr "Saklanan süreyi kullan"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Zamanlayıcıyı başlatın ve oturum açma ekranına dönün."
+
+msgid "Add it to your time now."
+msgstr "Bu süreyi şimdi kullanılabilir sürenize ekleyin."
+
+msgid "Timer running"
+msgstr "Zamanlayıcı çalışıyor"
+
+msgid "Pause timer"
+msgstr "Zamanlayıcıyı duraklat"
+
+msgid "Save the remaining time for later."
+msgstr "Kalan süreyi sonraya saklayın."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Bugünkü süre hakkı: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Zamanlayıcı duraklatılsın ve ekran kilitlensin mi?"
+
+msgid "Save for later and lock?"
+msgstr "Süre sonraya saklansın ve ekran kilitlensin mi?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Yaklaşık %(duration)s sonraya saklanacak. Ekranınız şimdi kilitlenecek ve geri dönmek için parolanız gerekecek. Günlük süre hakkınız bitmeden buradaki “Onaylanan süre” sekmesinden saklanan süreyi başlatabilirsiniz. Saklanan süreyi istek istasyonundan da başlatabilirsiniz."
+
+msgid "Pause and lock"
+msgstr "Duraklat ve kilitle"
+
+msgid "No approved time available"
+msgstr "Kullanılabilir onaylanmış süre yok"
+
+msgid "Covered by today's daily time"
+msgstr "Bugünkü süre hakkına dahil"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s saatine kadar onaylandı"
+
+msgid "Add saved time to the timer"
+msgstr "Saklanan süreyi zamanlayıcıya ekle"
+
+msgid "Loading time status…"
+msgstr "Süre durumu yükleniyor…"
+
+msgid "Time status unavailable"
+msgstr "Süre durumu kullanılamıyor"
+
+msgid "Time controls are busy. Try again."
+msgstr "Süre denetimleri meşgul. Yeniden deneyin."
+
+msgid "Updating approved time…"
+msgstr "Onaylanan süre güncelleniyor…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Onaylanırsa saklanacak süre: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Zaten saklanan süre: %(duration)s"

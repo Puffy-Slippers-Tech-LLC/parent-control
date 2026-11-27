@@ -1762,3 +1762,92 @@ msgstr "Saisissez un nombre valide."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Plage autorisée: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Demander plus de temps"
+
+msgid "Approved time"
+msgstr "Temps accordé"
+
+msgid "Request & use now"
+msgstr "Demander et utiliser maintenant"
+
+msgid "More request options"
+msgstr "Autres options de demande"
+
+msgid "Request & save for later"
+msgstr "Demander et enregistrer pour plus tard"
+
+msgid "Rest of the day can't be saved."
+msgstr "L’option « Reste de la journée » ne peut pas être enregistrée."
+
+msgid "Saved for later"
+msgstr "Enregistré pour plus tard"
+
+msgid "Use saved time"
+msgstr "Utiliser le temps enregistré"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Démarrez le minuteur et revenez à l’écran de connexion."
+
+msgid "Add it to your time now."
+msgstr "Ajoutez le temps enregistré à votre temps dès maintenant."
+
+msgid "Timer running"
+msgstr "Minuteur en cours"
+
+msgid "Pause timer"
+msgstr "Mettre le minuteur en pause"
+
+msgid "Save the remaining time for later."
+msgstr "Enregistrez le temps restant pour plus tard."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Temps quotidien d’aujourd’hui : %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Mettre le minuteur en pause et verrouiller l’écran ?"
+
+msgid "Save for later and lock?"
+msgstr "Enregistrer pour plus tard et verrouiller l’écran ?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Le système enregistrera environ %(duration)s. L’écran va se verrouiller et vous aurez besoin de votre mot de passe pour revenir. Pour utiliser le temps enregistré, ouvrez « Temps accordé » ici tant qu’il vous reste du temps quotidien, ou passez par la station de demandes."
+
+msgid "Pause and lock"
+msgstr "Mettre en pause et verrouiller"
+
+msgid "No approved time available"
+msgstr "Aucun temps accordé disponible"
+
+msgid "Covered by today's daily time"
+msgstr "Couvert par le temps quotidien d’aujourd’hui"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Accordé jusqu’à %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Ajouter le temps enregistré au minuteur"
+
+msgid "Loading time status…"
+msgstr "Chargement de l’état du temps…"
+
+msgid "Time status unavailable"
+msgstr "État du temps indisponible"
+
+msgid "Time controls are busy. Try again."
+msgstr "Les commandes de temps sont occupées. Réessayez."
+
+msgid "Updating approved time…"
+msgstr "Mise à jour du temps accordé…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Sera enregistré en cas d’accord : %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Déjà enregistré : %(duration)s"

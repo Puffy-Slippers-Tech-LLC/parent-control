@@ -1758,3 +1758,95 @@ msgstr "ป้อนตัวเลขที่ถูกต้อง"
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "ช่วงที่อนุญาต: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "ขอเวลาเพิ่ม"
+
+msgid "Approved time"
+msgstr "เวลาที่อนุมัติ"
+
+msgid "Request & use now"
+msgstr "ขอและใช้ทันที"
+
+msgid "More request options"
+msgstr "ตัวเลือกเพิ่มเติมสำหรับคำขอ"
+
+msgid "Request & save for later"
+msgstr "ขอและเก็บไว้ใช้ภายหลัง"
+
+msgid "Rest of the day can't be saved."
+msgstr "ไม่สามารถเก็บเวลาที่เหลือของวันไว้ใช้ภายหลังได้"
+
+msgid "Saved for later"
+msgstr "เก็บไว้ใช้ภายหลัง"
+
+msgid "Use saved time"
+msgstr "ใช้เวลาที่เก็บไว้"
+
+msgid "Start the timer and return to sign-in."
+msgstr "เริ่มตัวจับเวลาและกลับไปยังหน้าลงชื่อเข้าใช้"
+
+msgid "Add it to your time now."
+msgstr "เพิ่มเวลานี้เข้าในเวลาที่คุณใช้ได้ตอนนี้"
+
+msgid "Timer running"
+msgstr "ตัวจับเวลากำลังทำงาน"
+
+msgid "Pause timer"
+msgstr "พักตัวจับเวลา"
+
+msgid "Save the remaining time for later."
+msgstr "เก็บเวลาที่เหลือไว้ใช้ภายหลัง"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "โควตาเวลาของวันนี้: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "พักตัวจับเวลาและล็อกหน้าจอหรือไม่"
+
+msgid "Save for later and lock?"
+msgstr "เก็บเวลาไว้ใช้ภายหลังและล็อกหน้าจอหรือไม่"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "ระบบจะเก็บเวลาไว้ประมาณ %(duration)s หน้าจอจะล็อกทันที และคุณต้องใช้รหัสผ่านเพื่อกลับมา เริ่มใช้เวลาที่เก็บไว้ได้จากแท็บ “เวลาที่อนุมัติ” ตรงนี้ขณะที่โควตาเวลารายวันยังเหลืออยู่ หรือที่จุดขอเวลา"
+
+msgid "Pause and lock"
+msgstr "พักและล็อก"
+
+msgid "No approved time available"
+msgstr "ไม่มีเวลาที่อนุมัติให้ใช้"
+
+msgid "Covered by today's daily time"
+msgstr "อยู่ในโควตาเวลาของวันนี้"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "อนุมัติถึง %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "เพิ่มเวลาที่เก็บไว้ในตัวจับเวลา"
+
+msgid "Loading time status…"
+msgstr "กำลังโหลดสถานะเวลา…"
+
+msgid "Time status unavailable"
+msgstr "ไม่สามารถดูสถานะเวลาได้"
+
+msgid "Time controls are busy. Try again."
+msgstr "ระบบควบคุมเวลากำลังทำงานอื่นอยู่ ลองอีกครั้ง"
+
+msgid "Updating approved time…"
+msgstr "กำลังอัปเดตเวลาที่อนุมัติ…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "เวลาที่จะเก็บไว้หากอนุมัติ: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "เวลาที่เก็บไว้แล้ว: %(duration)s"

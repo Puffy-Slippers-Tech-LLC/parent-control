@@ -14,6 +14,123 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#. Shared message: REQUEST_MORE_TIME
+msgid "Request more time"
+msgstr ""
+
+#. Shared message: APPROVED_TIME
+msgid "Approved time"
+msgstr ""
+
+#. Shared message: REQUEST_USE_NOW
+msgid "Request & use now"
+msgstr ""
+
+#. Shared message: MORE_REQUEST_OPTIONS
+msgid "More request options"
+msgstr ""
+
+#. Shared message: REQUEST_SAVE_FOR_LATER
+msgid "Request & save for later"
+msgstr ""
+
+#. Shared message: REST_OF_DAY_CANNOT_BE_SAVED
+msgid "Rest of the day can't be saved."
+msgstr ""
+
+#. Shared message: SAVED_FOR_LATER
+msgid "Saved for later"
+msgstr ""
+
+#. Shared message: USE_SAVED_TIME
+msgid "Use saved time"
+msgstr ""
+
+#. Shared message: START_TIMER_AND_RETURN_TO_SIGN_IN
+msgid "Start the timer and return to sign-in."
+msgstr ""
+
+#. Shared message: ADD_IT_TO_YOUR_TIME_NOW
+msgid "Add it to your time now."
+msgstr ""
+
+#. Shared message: TIMER_RUNNING
+msgid "Timer running"
+msgstr ""
+
+#. Shared message: PAUSE_TIMER
+msgid "Pause timer"
+msgstr ""
+
+#. Shared message: SAVE_REMAINING_TIME_FOR_LATER
+msgid "Save the remaining time for later."
+msgstr ""
+
+#. Shared message: TODAYS_DAILY_TIME
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr ""
+
+#. Shared message: PAUSE_AND_LOCK_QUESTION
+msgid "Pause and lock the screen?"
+msgstr ""
+
+#. Shared message: SAVE_AND_LOCK_QUESTION
+msgid "Save for later and lock?"
+msgstr ""
+
+#. Shared message: LOCK_CONFIRMATION_BODY
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr ""
+
+#. Shared message: PAUSE_AND_LOCK
+msgid "Pause and lock"
+msgstr ""
+
+#. Shared message: NO_APPROVED_TIME
+msgid "No approved time available"
+msgstr ""
+
+#. Shared message: COVERED_BY_DAILY_TIME
+msgid "Covered by today's daily time"
+msgstr ""
+
+#. Shared message: APPROVED_UNTIL
+#, python-format
+msgid "Approved until %(time)s"
+msgstr ""
+
+#. Shared message: ADD_SAVED_TIME_TO_TIMER
+msgid "Add saved time to the timer"
+msgstr ""
+
+#. Shared message: LOADING_TIME_STATUS
+msgid "Loading time status…"
+msgstr ""
+
+#. Shared message: TIME_STATUS_UNAVAILABLE
+msgid "Time status unavailable"
+msgstr ""
+
+#. Shared message: TIME_CONTROLS_BUSY
+msgid "Time controls are busy. Try again."
+msgstr ""
+
+#. Shared message: UPDATING_APPROVED_TIME
+msgid "Updating approved time…"
+msgstr ""
+
+#. Shared message: SAVED_IF_APPROVED
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr ""
+
+#. Shared message: ALREADY_SAVED
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr ""
+
 #. Shared message: DAILY_ALLOWANCE_REMAINING_B_DAILY_S_B_ONE_TIME_GRANT_REMAINING_B
 #. Preserve named operands and any markup; operands are supplied by the owning UI.
 #, python-format

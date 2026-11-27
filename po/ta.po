@@ -1764,3 +1764,95 @@ msgstr "செல்லுபடியாகும் எண்ணை உள்�
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "அனுமதிக்கப்பட்ட வரம்பு: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "கூடுதல் நேரம் கேட்கவும்"
+
+msgid "Approved time"
+msgstr "அனுமதிக்கப்பட்ட நேரம்"
+
+msgid "Request & use now"
+msgstr "கேட்டு இப்போதே பயன்படுத்தவும்"
+
+msgid "More request options"
+msgstr "கோரிக்கைக்கான கூடுதல் விருப்பங்கள்"
+
+msgid "Request & save for later"
+msgstr "கேட்டுப் பின்னர் பயன்படுத்தச் சேமிக்கவும்"
+
+msgid "Rest of the day can't be saved."
+msgstr "நாளின் மீதமுள்ள பகுதியைப் பின்னர் பயன்படுத்தச் சேமிக்க முடியாது."
+
+msgid "Saved for later"
+msgstr "பின்னர் பயன்படுத்தச் சேமிக்கப்பட்டது"
+
+msgid "Use saved time"
+msgstr "சேமித்த நேரத்தைப் பயன்படுத்தவும்"
+
+msgid "Start the timer and return to sign-in."
+msgstr "நேரக்கணிப்பானைத் தொடங்கி உள்நுழைவுத் திரைக்குத் திரும்பவும்."
+
+msgid "Add it to your time now."
+msgstr "இந்த நேரத்தை இப்போதே உங்களுக்குக் கிடைக்கும் நேரத்துடன் சேர்க்கவும்."
+
+msgid "Timer running"
+msgstr "நேரக்கணிப்பான் இயங்குகிறது"
+
+msgid "Pause timer"
+msgstr "நேரக்கணிப்பானை இடைநிறுத்தவும்"
+
+msgid "Save the remaining time for later."
+msgstr "மீதமுள்ள நேரத்தைப் பின்னர் பயன்படுத்தச் சேமிக்கவும்."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "இன்று ஒதுக்கப்பட்ட நேரம்: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "நேரக்கணிப்பானை இடைநிறுத்தித் திரையைப் பூட்டவா?"
+
+msgid "Save for later and lock?"
+msgstr "பின்னர் பயன்படுத்தச் சேமித்துத் திரையைப் பூட்டவா?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "சுமார் %(duration)s சேமிக்கப்படும். உங்கள் திரை இப்போது பூட்டப்படும். மீண்டும் திறக்க உங்கள் கடவுச்சொல் தேவைப்படும். தினசரி நேரம் மீதமிருந்தால், இங்குள்ள «அனுமதிக்கப்பட்ட நேரம்» பகுதியில் சேமித்த நேரத்தைப் பயன்படுத்தத் தொடங்கலாம். கோரிக்கை நிலையத்திலும் அதைத் தொடங்கலாம்."
+
+msgid "Pause and lock"
+msgstr "இடைநிறுத்திப் பூட்டவும்"
+
+msgid "No approved time available"
+msgstr "அனுமதிக்கப்பட்ட நேரம் எதுவும் இல்லை"
+
+msgid "Covered by today's daily time"
+msgstr "இன்று ஒதுக்கப்பட்ட நேரத்திற்குள் அடங்கும்"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s வரை அனுமதிக்கப்பட்டது"
+
+msgid "Add saved time to the timer"
+msgstr "சேமித்த நேரத்தை நேரக்கணிப்பானில் சேர்க்கவும்"
+
+msgid "Loading time status…"
+msgstr "நேர நிலை ஏற்றப்படுகிறது…"
+
+msgid "Time status unavailable"
+msgstr "நேர நிலை கிடைக்கவில்லை"
+
+msgid "Time controls are busy. Try again."
+msgstr "நேரக் கட்டுப்பாடுகள் இப்போது வேறொரு செயலில் உள்ளன. மீண்டும் முயலவும்."
+
+msgid "Updating approved time…"
+msgstr "அனுமதிக்கப்பட்ட நேரம் புதுப்பிக்கப்படுகிறது…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "அனுமதிக்கப்பட்டால் சேமிக்கப்படும் நேரம்: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "ஏற்கெனவே சேமித்த நேரம்: %(duration)s"

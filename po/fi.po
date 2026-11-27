@@ -1764,3 +1764,92 @@ msgstr "Anna kelvollinen luku."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Sallittu alue: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Pyydä lisää aikaa"
+
+msgid "Approved time"
+msgstr "Hyväksytty aika"
+
+msgid "Request & use now"
+msgstr "Pyydä ja käytä heti"
+
+msgid "More request options"
+msgstr "Lisää pyyntövaihtoehtoja"
+
+msgid "Request & save for later"
+msgstr "Pyydä ja tallenna myöhemmäksi"
+
+msgid "Rest of the day can't be saved."
+msgstr "”Loppupäivä”-valintaa ei voi tallentaa."
+
+msgid "Saved for later"
+msgstr "Tallennettu myöhemmäksi"
+
+msgid "Use saved time"
+msgstr "Käytä tallennettua aikaa"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Käynnistä ajastin ja palaa kirjautumisnäyttöön."
+
+msgid "Add it to your time now."
+msgstr "Lisää tallennettu aika käyttöösi heti."
+
+msgid "Timer running"
+msgstr "Ajastin käy"
+
+msgid "Pause timer"
+msgstr "Keskeytä ajastin"
+
+msgid "Save the remaining time for later."
+msgstr "Tallenna jäljellä oleva aika myöhempää käyttöä varten."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Tämän päivän päivittäinen aika: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Keskeytetäänkö ajastin ja lukitaanko näyttö?"
+
+msgid "Save for later and lock?"
+msgstr "Tallennetaanko aika myöhemmäksi ja lukitaanko näyttö?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Noin %(duration)s tallennetaan. Näyttö lukitaan nyt, ja tarvitset salasanasi palataksesi. Aloita tallennetun ajan käyttö tässä kohdassa ”Hyväksytty aika”, kun päivittäistä aikaa on jäljellä, tai pyyntöasemalla."
+
+msgid "Pause and lock"
+msgstr "Keskeytä ja lukitse"
+
+msgid "No approved time available"
+msgstr "Hyväksyttyä aikaa ei ole käytettävissä"
+
+msgid "Covered by today's daily time"
+msgstr "Sisältyy tämän päivän päivittäiseen aikaan"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Hyväksytty kello %(time)s asti"
+
+msgid "Add saved time to the timer"
+msgstr "Lisää tallennettu aika ajastimeen"
+
+msgid "Loading time status…"
+msgstr "Ladataan ajan tilaa…"
+
+msgid "Time status unavailable"
+msgstr "Ajan tila ei ole saatavilla"
+
+msgid "Time controls are busy. Try again."
+msgstr "Ajanhallinta on varattu. Yritä uudelleen."
+
+msgid "Updating approved time…"
+msgstr "Päivitetään hyväksyttyä aikaa…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Tallennetaan, jos hyväksytään: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Jo tallennettu: %(duration)s"

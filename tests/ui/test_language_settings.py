@@ -132,31 +132,31 @@ assert not editor._preview_pending
 # Independent text oracles: do not load the same catalogue as the app to predict it.
 LANGUAGES = {
     'en': ('en_US.UTF-8', 'English', 'Choose your language', 'Save',
-           'Save your language preference.', 'Screen time limit', 'REQUEST',
+           'Save your language preference.', 'Screen time limit', 'Request & use now',
            'Request unavailable'),
     'de': ('de_DE.UTF-8', 'Deutsch', 'Sprache wählen', 'Speichern',
-           'Die Spracheinstellung speichern.', 'Bildschirmzeit begrenzen', 'ANFRAGEN',
+           'Die Spracheinstellung speichern.', 'Bildschirmzeit begrenzen', 'Anfragen und jetzt nutzen',
            'Anfrage nicht verfügbar'),
     'zh-Hans': ('zh_CN.UTF-8', '中文（简体）', '选择语言', '保存',
-                '保存语言偏好设置。', '限制屏幕时间', '提交请求', '暂时无法提交请求'),
+                '保存语言偏好设置。', '限制屏幕时间', '请求并立即使用', '暂时无法提交请求'),
 }
 # Literal meanings reviewed independently of the catalog author and runtime.
 EXPANDED_LANGUAGES = {
     'ar': ('العربية', 'اختر لغتك', 'حفظ', 'احفظ تفضيل اللغة لديك.',
-           'حد وقت استخدام الشاشة', 'طلب'),
+           'حد وقت استخدام الشاشة', 'اطلب الوقت واستخدمه الآن'),
     'he': ('עברית', 'בחירת השפה שלך', 'שמירה', 'שמירת העדפת השפה שלך.',
-           'מגבלת זמן מסך', 'בקשה'),
+           'מגבלת זמן מסך', 'לבקש ולהשתמש עכשיו'),
     'pt': ('Português', 'Escolha a sua língua', 'Guardar', 'Guardar a sua preferência de língua.',
-           'Limite de tempo de ecrã', 'SOLICITAR'),
-    'zh-Hant': ('中文（繁體）', '選擇語言', '儲存', '儲存語言偏好設定。', '限制螢幕時間', '提交請求'),
+           'Limite de tempo de ecrã', 'Pedir e usar agora'),
+    'zh-Hant': ('中文（繁體）', '選擇語言', '儲存', '儲存語言偏好設定。', '限制螢幕時間', '提出要求並立即使用'),
     'ug': ('ئۇيغۇرچە', 'تىلىڭىزنى تاللاڭ', 'ساقلاش', 'تىل مايىللىقىڭىزنى ساقلاڭ.',
-           'ئېكران ۋاقىت چەكلىمىسى', 'تەلەپ'),
+           'ئېكران ۋاقىت چەكلىمىسى', 'ئىلتىماس قىلىپ ھازىر ئىشلىتىڭ'),
     'ur': ('اردو', 'اپنی زبان منتخب کریں', 'محفوظ کریں', 'اپنی زبان کی ترجیح محفوظ کریں۔',
-           'اسکرین ٹائم کی حد', 'درخواست'),
+           'اسکرین ٹائم کی حد', 'مانگیں اور ابھی استعمال کریں'),
     'fur': ('Furlan', 'Sielç la tô lenghe', 'Salve', 'Salve la tô preference di lenghe.',
-            'Limit dal timp di schermi', 'DOMANDE'),
+            'Limit dal timp di schermi', 'Domande e dopre cumò'),
     'ta': ('தமிழ்', 'உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்', 'சேமிக்கவும்',
-           'உங்கள் மொழி விருப்பத்தைச் சேமிக்கவும்.', 'திரை நேர வரம்பு', 'கோரிக்கை'),
+           'உங்கள் மொழி விருப்பத்தைச் சேமிக்கவும்.', 'திரை நேர வரம்பு', 'கேட்டு இப்போதே பயன்படுத்தவும்'),
 }
 
 
@@ -1112,8 +1112,7 @@ def test_language_history_nondefault_requests_restore_through_real_gtk(
 def assert_surface_language(ui, wait, surface, language):
     identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
     expected = LANGUAGES[language][5 if surface == 'parent' else 6]
-    # The request button's displayed caption differs from its accessible name.
-    # Parent's switch is checked by its accessible label, not button text.
+    # Read the switch's accessible name and the request button's displayed text.
     read_text = ui.text if surface == 'parent' else ui.getText
     wait(lambda: read_text(identity) == expected, 'surface uses the committed language')
 
@@ -1451,8 +1450,7 @@ def test_expanded_catalogue_choices_save_with_translated_text(
     ui.reader.save_language(scope)
     assert committed(path) == [language]
     identity = 'parent-screen-limit-toggle' if surface == 'parent' else 'kiosk-request-submit'
-    # Read request captions separately from their accessible action names,
-    # as in assert_surface_language; Parent's switch uses its accessible label.
+    # Read the switch's accessible name and the request button's displayed text.
     read_text = ui.text if surface == 'parent' else ui.getText
     wait(lambda: read_text(identity) == (screen if surface == 'parent' else request),
          'surface uses independently verified translated text')

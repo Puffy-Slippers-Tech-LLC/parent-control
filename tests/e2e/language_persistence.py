@@ -146,14 +146,13 @@ for stage, tag in SCREENS.items():
                 if stage == 'parent-' + name + '-state' else None,
             app_names_same=name + '-chinese-app-names'
                 if language == 'zh-Hans' and stage != 'parent-' + name + '-state' else None)
-FORM_TEXT = {'en': ('Child', 'Approver', '30 minutes', 'REQUEST', 'CANCEL'),
-    'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'ANFRAGEN', 'Abbrechen'),
-    'he': ('ילד', 'מאשר', '30 דקות', 'בקשה', 'ביטול')}
+FORM_TEXT = {'en': ('Child', 'Approver', '30 minutes', 'Request & use now', 'CANCEL'),
+    'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'Anfragen und jetzt nutzen', 'Abbrechen'),
+    'he': ('ילד', 'מאשר', '30 דקות', 'לבקש ולהשתמש עכשיו', 'ביטול')}
 # The reader's texts contain accessible names; labels contain visible captions.
-# Preserve the descriptive button names established by kiosk_language.FORM.
-FORM_NAMES = {'en': ('Request access', 'Cancel request'),
-    'de': ('Zugriff anfragen', 'Anfrage abbrechen'),
-    'he': ('בקשת גישה', 'ביטול הבקשה')}
+FORM_NAMES = {'en': ('Request & use now', 'Cancel request'),
+    'de': ('Anfragen und jetzt nutzen', 'Anfrage abbrechen'),
+    'he': ('לבקש ולהשתמש עכשיו', 'ביטול הבקשה')}
 FORM_IDS = ('kiosk-child-account-caption', 'kiosk-approver-account-caption', 'kiosk-duration-label-1800',
     'kiosk-request-submit', 'kiosk-request-cancel')
 FORM_STAGES = {'jordan-original': ('jordan', 'en', 'jamie', False),

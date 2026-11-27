@@ -1764,3 +1764,92 @@ msgstr "یک عدد معتبر وارد کنید."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "محدودهٔ مجاز: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "درخواست زمان بیشتر"
+
+msgid "Approved time"
+msgstr "زمان تأییدشده"
+
+msgid "Request & use now"
+msgstr "درخواست و استفادهٔ فوری"
+
+msgid "More request options"
+msgstr "گزینه‌های بیشتر درخواست"
+
+msgid "Request & save for later"
+msgstr "درخواست و ذخیره برای بعد"
+
+msgid "Rest of the day can't be saved."
+msgstr "گزینهٔ «باقی روز» را نمی‌توان ذخیره کرد."
+
+msgid "Saved for later"
+msgstr "ذخیره‌شده برای بعد"
+
+msgid "Use saved time"
+msgstr "استفاده از زمان ذخیره‌شده"
+
+msgid "Start the timer and return to sign-in."
+msgstr "زمان‌سنج را شروع کنید و به صفحهٔ ورود برگردید."
+
+msgid "Add it to your time now."
+msgstr "زمان ذخیره‌شده را همین حالا به زمانتان اضافه کنید."
+
+msgid "Timer running"
+msgstr "زمان‌سنج در حال اجراست"
+
+msgid "Pause timer"
+msgstr "توقف موقت زمان‌سنج"
+
+msgid "Save the remaining time for later."
+msgstr "زمان باقی‌مانده را برای بعد ذخیره کنید."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "زمان روزانهٔ امروز: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "زمان‌سنج موقتاً متوقف و صفحه قفل شود؟"
+
+msgid "Save for later and lock?"
+msgstr "زمان برای بعد ذخیره و صفحه قفل شود؟"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "حدود %(duration)s ذخیره می‌شود. صفحه‌تان اکنون قفل می‌شود و برای بازگشت به گذرواژه نیاز دارید. تا وقتی از زمان روزانه‌تان باقی مانده، از بخش «زمان تأییدشده» در همین‌جا استفاده از زمان ذخیره‌شده را شروع کنید. این کار در ایستگاه درخواست هم ممکن است."
+
+msgid "Pause and lock"
+msgstr "توقف موقت و قفل صفحه"
+
+msgid "No approved time available"
+msgstr "زمان تأییدشده‌ای در دسترس نیست"
+
+msgid "Covered by today's daily time"
+msgstr "در محدودهٔ زمان روزانهٔ امروز"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "تأییدشده تا %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "افزودن زمان ذخیره‌شده به زمان‌سنج"
+
+msgid "Loading time status…"
+msgstr "در حال بارگیری وضعیت زمان…"
+
+msgid "Time status unavailable"
+msgstr "وضعیت زمان در دسترس نیست"
+
+msgid "Time controls are busy. Try again."
+msgstr "کنترل‌های زمان مشغول‌اند. دوباره تلاش کنید."
+
+msgid "Updating approved time…"
+msgstr "در حال به‌روزرسانی زمان تأییدشده…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "در صورت تأیید ذخیره می‌شود: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "از قبل ذخیره شده: %(duration)s"

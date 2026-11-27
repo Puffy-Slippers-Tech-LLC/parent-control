@@ -1768,3 +1768,95 @@ msgstr "Wpisz prawidłową liczbę."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Dozwolony zakres: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Poproś o więcej czasu"
+
+msgid "Approved time"
+msgstr "Zatwierdzony czas"
+
+msgid "Request & use now"
+msgstr "Poproś i użyj teraz"
+
+msgid "More request options"
+msgstr "Więcej opcji prośby"
+
+msgid "Request & save for later"
+msgstr "Poproś i zachowaj na później"
+
+msgid "Rest of the day can't be saved."
+msgstr "Nie można zachować reszty dnia na później."
+
+msgid "Saved for later"
+msgstr "Zachowano na później"
+
+msgid "Use saved time"
+msgstr "Użyj zachowanego czasu"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Uruchom licznik i wróć do ekranu logowania."
+
+msgid "Add it to your time now."
+msgstr "Dodaj ten czas do dostępnego czasu już teraz."
+
+msgid "Timer running"
+msgstr "Licznik działa"
+
+msgid "Pause timer"
+msgstr "Wstrzymaj licznik"
+
+msgid "Save the remaining time for later."
+msgstr "Zachowaj pozostały czas na później."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Dzisiejszy limit czasu: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Wstrzymać licznik i zablokować ekran?"
+
+msgid "Save for later and lock?"
+msgstr "Zachować czas na później i zablokować ekran?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Zachowasz około %(duration)s. Ekran zostanie teraz zablokowany, a do powrotu potrzebne będzie hasło. Jeśli masz jeszcze czas z dziennego limitu, możesz zacząć korzystać z zachowanego czasu tutaj, na karcie „Zatwierdzony czas”. Możesz też zacząć z niego korzystać na stanowisku składania próśb."
+
+msgid "Pause and lock"
+msgstr "Wstrzymaj i zablokuj"
+
+msgid "No approved time available"
+msgstr "Brak dostępnego zatwierdzonego czasu"
+
+msgid "Covered by today's daily time"
+msgstr "Mieści się w dzisiejszym limicie czasu"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Zatwierdzono do %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Dodaj zachowany czas do licznika"
+
+msgid "Loading time status…"
+msgstr "Wczytywanie stanu czasu…"
+
+msgid "Time status unavailable"
+msgstr "Stan czasu jest niedostępny"
+
+msgid "Time controls are busy. Try again."
+msgstr "Trwa inna operacja związana z czasem. Spróbuj ponownie."
+
+msgid "Updating approved time…"
+msgstr "Aktualizowanie zatwierdzonego czasu…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Do zachowania po zatwierdzeniu: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Już zachowano: %(duration)s"

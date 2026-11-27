@@ -1764,3 +1764,92 @@ msgstr "Inserìs un numar valit."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Interval permetût: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Domande plui timp"
+
+msgid "Approved time"
+msgstr "Timp aprovât"
+
+msgid "Request & use now"
+msgstr "Domande e dopre cumò"
+
+msgid "More request options"
+msgstr "Altris opzions pe domande"
+
+msgid "Request & save for later"
+msgstr "Domande e salve par dopo"
+
+msgid "Rest of the day can't be saved."
+msgstr "No si pues salvâ «Il rest de zornade»."
+
+msgid "Saved for later"
+msgstr "Salvât par dopo"
+
+msgid "Use saved time"
+msgstr "Dopre il timp salvât"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Invie il temporizadôr e torne ae schermade di acès."
+
+msgid "Add it to your time now."
+msgstr "Zonte cumò il timp salvât al to timp."
+
+msgid "Timer running"
+msgstr "Temporizadôr in vore"
+
+msgid "Pause timer"
+msgstr "Met in pause il temporizadôr"
+
+msgid "Save the remaining time for later."
+msgstr "Salve il timp che al reste par dopo."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Timp di vuê: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Meti in pause il temporizadôr e blocâ il schermi?"
+
+msgid "Save for later and lock?"
+msgstr "Salvâ par dopo e blocâ il schermi?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Si salvarà cirche %(duration)s. Cumò il schermi si blocarà e ti coventarà la tô password par tornâ. Scomence a doprâ il timp salvât chi, in «Timp aprovât», fintremai che ti reste timp di vuê, o ae postazion des domandis."
+
+msgid "Pause and lock"
+msgstr "Met in pause e bloche"
+
+msgid "No approved time available"
+msgstr "Nissun timp aprovât disponibil"
+
+msgid "Covered by today's daily time"
+msgstr "Cuviert dal timp di vuê"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Aprovât fin aes %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Zonte il timp salvât al temporizadôr"
+
+msgid "Loading time status…"
+msgstr "Daûr a cjariâ il stât dal timp…"
+
+msgid "Time status unavailable"
+msgstr "Stât dal timp no disponibil"
+
+msgid "Time controls are busy. Try again."
+msgstr "I contrôi dal timp a son ocupâts. Torne prove."
+
+msgid "Updating approved time…"
+msgstr "Daûr a inzornâ il timp aprovât…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Si salvarà se al ven aprovât: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Za salvât: %(duration)s"

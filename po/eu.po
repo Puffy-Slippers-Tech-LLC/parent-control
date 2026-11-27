@@ -1764,3 +1764,92 @@ msgstr "Sartu baliozko zenbaki bat."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Onartutako tartea: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Eskatu denbora gehiago"
+
+msgid "Approved time"
+msgstr "Onartutako denbora"
+
+msgid "Request & use now"
+msgstr "Eskatu eta erabili orain"
+
+msgid "More request options"
+msgstr "Eskaera egiteko aukera gehiago"
+
+msgid "Request & save for later"
+msgstr "Eskatu eta gorde gerorako"
+
+msgid "Rest of the day can't be saved."
+msgstr "Ezin da «Egunaren gainerakoa» aukera gorde."
+
+msgid "Saved for later"
+msgstr "Gerorako gordeta"
+
+msgid "Use saved time"
+msgstr "Erabili gordetako denbora"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Abiarazi tenporizadorea eta itzuli saioa hasteko pantailara."
+
+msgid "Add it to your time now."
+msgstr "Gehitu orain gordetako denbora zure denborari."
+
+msgid "Timer running"
+msgstr "Tenporizadorea martxan"
+
+msgid "Pause timer"
+msgstr "Pausatu tenporizadorea"
+
+msgid "Save the remaining time for later."
+msgstr "Gorde geratzen den denbora gerorako."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Gaurko eguneroko denbora: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Tenporizadorea pausatu eta pantaila blokeatu?"
+
+msgid "Save for later and lock?"
+msgstr "Denbora gerorako gorde eta pantaila blokeatu?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "%(duration)s inguru gordeko dira. Pantaila orain blokeatuko da eta itzultzeko pasahitza beharko duzu. Hasi gordetako denbora erabiltzen hemengo «Onartutako denbora» atalean, eguneroko denbora geratzen zaizun bitartean, edo eskaera-gunean."
+
+msgid "Pause and lock"
+msgstr "Pausatu eta blokeatu"
+
+msgid "No approved time available"
+msgstr "Ez dago onartutako denborarik erabilgarri"
+
+msgid "Covered by today's daily time"
+msgstr "Gaurko eguneroko denborak estaltzen du"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s arte onartuta"
+
+msgid "Add saved time to the timer"
+msgstr "Gehitu gordetako denbora tenporizadoreari"
+
+msgid "Loading time status…"
+msgstr "Denboraren egoera kargatzen…"
+
+msgid "Time status unavailable"
+msgstr "Denboraren egoera ez dago erabilgarri"
+
+msgid "Time controls are busy. Try again."
+msgstr "Denbora-kontrolak lanpetuta daude. Saiatu berriro."
+
+msgid "Updating approved time…"
+msgstr "Onartutako denbora eguneratzen…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Onartuz gero gordeko dena: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Dagoeneko gordeta: %(duration)s"

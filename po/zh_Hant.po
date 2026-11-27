@@ -1759,3 +1759,95 @@ msgstr "請輸入有效數字。"
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "允許範圍: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "要求更多時間"
+
+msgid "Approved time"
+msgstr "已核准的時間"
+
+msgid "Request & use now"
+msgstr "提出要求並立即使用"
+
+msgid "More request options"
+msgstr "更多要求選項"
+
+msgid "Request & save for later"
+msgstr "提出要求並保留供日後使用"
+
+msgid "Rest of the day can't be saved."
+msgstr "今天剩餘時間無法保留供日後使用。"
+
+msgid "Saved for later"
+msgstr "已保留供日後使用"
+
+msgid "Use saved time"
+msgstr "使用保留的時間"
+
+msgid "Start the timer and return to sign-in."
+msgstr "啟動計時器並返回登入畫面。"
+
+msgid "Add it to your time now."
+msgstr "立即將這段時間加到你的可用時間中。"
+
+msgid "Timer running"
+msgstr "計時器正在運作"
+
+msgid "Pause timer"
+msgstr "暫停計時器"
+
+msgid "Save the remaining time for later."
+msgstr "將剩餘時間保留供日後使用。"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "今天的每日可用時間：%(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "暫停計時器並鎖定畫面？"
+
+msgid "Save for later and lock?"
+msgstr "保留供日後使用並鎖定畫面？"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "將保留約 %(duration)s。畫面現在會鎖定，你需要輸入密碼才能返回。如果今天的每日可用時間還有剩餘，可以在這裡的「已核准的時間」中開始使用保留的時間。也可以在時間申請站開始使用。"
+
+msgid "Pause and lock"
+msgstr "暫停並鎖定"
+
+msgid "No approved time available"
+msgstr "沒有可用的已核准時間"
+
+msgid "Covered by today's daily time"
+msgstr "已包含在今天的每日可用時間內"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "已核准至 %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "將保留的時間加入計時器"
+
+msgid "Loading time status…"
+msgstr "正在載入時間狀態…"
+
+msgid "Time status unavailable"
+msgstr "無法取得時間狀態"
+
+msgid "Time controls are busy. Try again."
+msgstr "時間控制忙碌中，請再試一次。"
+
+msgid "Updating approved time…"
+msgstr "正在更新已核准的時間…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "核准後將保留：%(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "已保留：%(duration)s"

@@ -1788,3 +1788,92 @@ msgstr "أدخل رقمًا صالحًا."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "النطاق المسموح: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "اطلب المزيد من الوقت"
+
+msgid "Approved time"
+msgstr "الوقت الموافق عليه"
+
+msgid "Request & use now"
+msgstr "اطلب الوقت واستخدمه الآن"
+
+msgid "More request options"
+msgstr "المزيد من خيارات الطلب"
+
+msgid "Request & save for later"
+msgstr "اطلب الوقت واحفظه لوقت لاحق"
+
+msgid "Rest of the day can't be saved."
+msgstr "لا يمكن حفظ الوقت عند اختيار «بقية اليوم»."
+
+msgid "Saved for later"
+msgstr "محفوظ لوقت لاحق"
+
+msgid "Use saved time"
+msgstr "استخدم الوقت المحفوظ"
+
+msgid "Start the timer and return to sign-in."
+msgstr "ابدأ تشغيل المؤقت وارجع إلى شاشة تسجيل الدخول."
+
+msgid "Add it to your time now."
+msgstr "أضف الوقت المحفوظ إلى وقتك الآن."
+
+msgid "Timer running"
+msgstr "المؤقت يعمل"
+
+msgid "Pause timer"
+msgstr "أوقف المؤقت مؤقتًا"
+
+msgid "Save the remaining time for later."
+msgstr "احفظ الوقت المتبقي لاستخدامه لاحقًا."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "الوقت اليومي المتبقي اليوم: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "هل تريد إيقاف المؤقت مؤقتًا وقفل الشاشة؟"
+
+msgid "Save for later and lock?"
+msgstr "هل تريد حفظ الوقت لوقت لاحق وقفل الشاشة؟"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "سيُحفظ نحو %(duration)s. ستُقفل شاشتك الآن وستحتاج إلى كلمة مرورك للعودة. ابدأ استخدام الوقت المحفوظ من «الوقت الموافق عليه» هنا ما دام لديك وقت يومي متبقٍ، أو من محطة الطلبات."
+
+msgid "Pause and lock"
+msgstr "أوقف المؤقت مؤقتًا واقفل الشاشة"
+
+msgid "No approved time available"
+msgstr "لا يتوفر وقت موافق عليه"
+
+msgid "Covered by today's daily time"
+msgstr "ضمن الوقت اليومي المتاح اليوم"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "الوقت متاح حتى %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "أضف الوقت المحفوظ إلى المؤقت"
+
+msgid "Loading time status…"
+msgstr "جارٍ تحميل حالة الوقت…"
+
+msgid "Time status unavailable"
+msgstr "حالة الوقت غير متاحة"
+
+msgid "Time controls are busy. Try again."
+msgstr "عناصر التحكم في الوقت مشغولة. حاول مجددًا."
+
+msgid "Updating approved time…"
+msgstr "جارٍ تحديث الوقت الموافق عليه…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "سيُحفظ عند الموافقة: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "المحفوظ مسبقًا: %(duration)s"

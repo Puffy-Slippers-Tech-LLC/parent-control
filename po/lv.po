@@ -1770,3 +1770,95 @@ msgstr "Ievadiet derīgu skaitli."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Atļautais diapazons: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Lūgt vairāk laika"
+
+msgid "Approved time"
+msgstr "Apstiprinātais laiks"
+
+msgid "Request & use now"
+msgstr "Lūgt un izmantot tūlīt"
+
+msgid "More request options"
+msgstr "Citas pieprasījuma iespējas"
+
+msgid "Request & save for later"
+msgstr "Lūgt un saglabāt vēlākam laikam"
+
+msgid "Rest of the day can't be saved."
+msgstr "Atlikušo dienas daļu nevar saglabāt."
+
+msgid "Saved for later"
+msgstr "Saglabāts vēlākam laikam"
+
+msgid "Use saved time"
+msgstr "Izmantot saglabāto laiku"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Palaidiet taimeri un atgriezieties pie pierakstīšanās ekrāna."
+
+msgid "Add it to your time now."
+msgstr "Pievienojiet to savam pieejamajam laikam tūlīt."
+
+msgid "Timer running"
+msgstr "Taimeris darbojas"
+
+msgid "Pause timer"
+msgstr "Apturēt taimeri"
+
+msgid "Save the remaining time for later."
+msgstr "Saglabājiet atlikušo laiku vēlākam laikam."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Šodien atļautais laiks: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Apturēt taimeri un bloķēt ekrānu?"
+
+msgid "Save for later and lock?"
+msgstr "Saglabāt vēlākam laikam un bloķēt ekrānu?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Tiks saglabāts aptuveni %(duration)s. Ekrāns tūlīt tiks bloķēts, un, lai atgrieztos, vajadzēs paroli. Saglabāto laiku varat sākt izmantot šeit, sadaļā “Apstiprinātais laiks”, kamēr vēl ir atlicis šodien atļautais laiks, vai pieprasījumu stacijā."
+
+msgid "Pause and lock"
+msgstr "Apturēt un bloķēt"
+
+msgid "No approved time available"
+msgstr "Nav pieejama apstiprināta laika"
+
+msgid "Covered by today's daily time"
+msgstr "Ietilpst šodien atļautajā laikā"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Apstiprināts līdz %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Pievienot saglabāto laiku taimerim"
+
+msgid "Loading time status…"
+msgstr "Ielādē informāciju par pieejamo laiku…"
+
+msgid "Time status unavailable"
+msgstr "Informācija par pieejamo laiku nav pieejama"
+
+msgid "Time controls are busy. Try again."
+msgstr "Laika vadība pašlaik ir aizņemta. Mēģiniet vēlreiz."
+
+msgid "Updating approved time…"
+msgstr "Atjaunina apstiprināto laiku…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Ja apstiprinās, tiks saglabāts: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Jau saglabāts: %(duration)s"

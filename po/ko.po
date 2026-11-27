@@ -1758,3 +1758,92 @@ msgstr "유효한 숫자를 입력하세요."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "허용 범위: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "시간 더 요청하기"
+
+msgid "Approved time"
+msgstr "승인된 시간"
+
+msgid "Request & use now"
+msgstr "요청하고 지금 사용하기"
+
+msgid "More request options"
+msgstr "다른 요청 옵션"
+
+msgid "Request & save for later"
+msgstr "요청하고 나중을 위해 저장하기"
+
+msgid "Rest of the day can't be saved."
+msgstr "‘오늘 남은 시간 전체’ 옵션은 저장할 수 없습니다."
+
+msgid "Saved for later"
+msgstr "나중을 위해 저장됨"
+
+msgid "Use saved time"
+msgstr "저장된 시간 사용하기"
+
+msgid "Start the timer and return to sign-in."
+msgstr "타이머를 시작하고 로그인 화면으로 돌아갑니다."
+
+msgid "Add it to your time now."
+msgstr "저장된 시간을 지금 사용 시간에 추가합니다."
+
+msgid "Timer running"
+msgstr "타이머 실행 중"
+
+msgid "Pause timer"
+msgstr "타이머 일시 정지"
+
+msgid "Save the remaining time for later."
+msgstr "남은 시간을 나중에 쓰도록 저장합니다."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "오늘의 일일 허용 시간: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "타이머를 일시 정지하고 화면을 잠글까요?"
+
+msgid "Save for later and lock?"
+msgstr "나중을 위해 저장하고 화면을 잠글까요?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "저장될 시간은 약 %(duration)s입니다. 지금 화면이 잠기며, 돌아오려면 비밀번호가 필요합니다. 일일 허용 시간이 남아 있다면 여기 ‘승인된 시간’에서 저장된 시간을 사용할 수 있습니다. 요청 스테이션에서도 사용할 수 있습니다."
+
+msgid "Pause and lock"
+msgstr "일시 정지하고 잠그기"
+
+msgid "No approved time available"
+msgstr "사용할 수 있는 승인된 시간이 없습니다"
+
+msgid "Covered by today's daily time"
+msgstr "오늘의 일일 허용 시간에 포함됩니다"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s까지 승인됨"
+
+msgid "Add saved time to the timer"
+msgstr "저장된 시간을 타이머에 추가하기"
+
+msgid "Loading time status…"
+msgstr "시간 상태 불러오는 중…"
+
+msgid "Time status unavailable"
+msgstr "시간 상태를 확인할 수 없습니다"
+
+msgid "Time controls are busy. Try again."
+msgstr "시간 제어 기능이 사용 중입니다. 다시 시도하세요."
+
+msgid "Updating approved time…"
+msgstr "승인된 시간 업데이트 중…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "승인되면 저장될 시간: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "이미 저장된 시간: %(duration)s"

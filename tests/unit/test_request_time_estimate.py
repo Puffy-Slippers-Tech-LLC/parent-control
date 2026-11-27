@@ -6,10 +6,11 @@ import subprocess
 from unittest.mock import Mock, patch
 
 import pytest
-from gi.repository import Gio
+from gi.repository import Gio, GLib
 
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.diagnostic_events import decode
+from common.oh_no_parent_control_ui.grant_client import RequestGrantClient
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.model import RequestState
 from oh_no_parent_control_kiosk.request_content import RequestContent
@@ -594,6 +595,90 @@ def test_request_snapshot_and_each_async_stage_are_single_use(overlay):
     window._show_error.assert_not_called()
     assert [call.args for call in window._set_request_controls.call_args_list] == [
         (False,), (True,)]
+
+
+def test_request_grant_status_preserves_saved_time_and_estimates():
+    connection = Mock()
+    connection.call_finish.return_value = GLib.Variant(
+        "(ttuuuuuustuu)", (2**40, 1234, 30, 90, 60, 600, 90, 690, "fixed", 1324, 390, 960),
+    )
+    done = Mock()
+
+    RequestGrantClient(connection).get_grant_status(1001, 300, done)
+    _, _, _, method, parameters, reply_type, _, timeout, _, callback = connection.call.call_args.args
+    assert (method, parameters.unpack(), reply_type.dup_string(), timeout) == (
+        "GetGrantStatus", (1001, 300), "(ttuuuuuustuu)", 30_000,
+    )
+    callback(connection, object())
+
+    status, error = done.call_args.args
+    assert error is None
+    assert (status.revision, status.running_mode, status.saved_seconds, status.usable_seconds,
+            status.immediate_estimate_seconds, status.deferred_estimate_seconds) == (
+        2**40, "fixed", 600, 90, 390, 960,
+    )
+
+
+@pytest.mark.parametrize("client_method, method, signature, timeout", (
+    ("pause_grant", "PauseGrant", "(ut)", 120_000),
+    ("use_saved_time", "UseSavedTime", "(ut)", 120_000),
+    ("request_deferred_access", "RequestDeferredAccess", "(uuubt)", GLib.MAXINT),
+))
+def test_saved_time_mutations_send_the_revision_and_keep_old_broker_unavailable(
+        client_method, method, signature, timeout):
+    connection = Mock()
+    client = RequestGrantClient(connection)
+    done = Mock()
+    old_broker_error = Gio.DBusError.new_for_dbus_error(
+        "org.freedesktop.DBus.Error.UnknownMethod", "unknown method",
+    )
+    arguments = (1001, 1000, 300, True, 2**40) if method == "RequestDeferredAccess" else (1001, 2**40)
+    connection.call_finish.side_effect = old_broker_error
+
+    getattr(client, client_method)(*arguments, done)
+    _, _, _, actual_method, parameters, reply_type, _, actual_timeout, _, callback = (
+        connection.call.call_args.args
+    )
+    assert (actual_method, parameters.get_type_string(), parameters.unpack(), actual_timeout) == (
+        method, signature, arguments, timeout,
+    )
+    assert reply_type.dup_string() == ("(sss)" if method == "RequestDeferredAccess" else "()")
+    callback(connection, object())
+
+    done.assert_called_once_with(None, None)
+    connection.call.assert_called_once()
+
+
+def test_deferred_approval_exposes_saved_minutes_when_pause_fails():
+    connection = Mock()
+    done = Mock()
+    pause_error = "com.puffyslippers.OhNoParentControl1.Error.DesktopInUse"
+    connection.call_finish.return_value = GLib.Variant(
+        "(sss)", ("approval-id", "saved_pause_error", pause_error),
+    )
+
+    RequestGrantClient(connection).request_deferred_access(1001, 1000, 300, True, 8, done)
+    connection.call.call_args.args[-1](connection, object())
+
+    reply, error = done.call_args.args
+    assert error is None
+    assert (reply.correlation_id, reply.result_code, reply.pause_error) == (
+        "approval-id", "saved_pause_error", pause_error,
+    )
+
+
+def test_lost_saved_time_mutation_reply_is_never_resubmitted():
+    connection = Mock()
+    client = RequestGrantClient(connection)
+    done = Mock()
+    lost_reply = Gio.DBusError.new_for_dbus_error("org.freedesktop.DBus.Error.NoReply", "lost reply")
+    connection.call_finish.side_effect = lost_reply
+
+    client.use_saved_time(1001, 8, done)
+    connection.call.call_args.args[-1](connection, object())
+
+    done.assert_called_once_with(None, lost_reply)
+    connection.call.assert_called_once()
 
 
 def test_child_language_resolved_during_preferences_save_prepares_current_locale():

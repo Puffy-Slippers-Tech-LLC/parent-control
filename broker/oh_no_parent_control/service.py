@@ -50,6 +50,7 @@ BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
 INTERFACE = BUS_NAME
 CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-control/config.json")
+MAX_SAVED_TIME_WORKERS = 4
 MAX_QUEUED_GRANT_RECOVERIES = 32
 
 INTROSPECTION_XML = f"""
@@ -256,6 +257,40 @@ INTROSPECTION_XML = f"""
       <arg name="level" type="s" direction="in"/>
       <arg name="message" type="s" direction="in"/>
     </method>
+    <method name="RequestDeferredAccess">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="approver_uid" type="u" direction="in"/>
+      <arg name="duration_seconds" type="u" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+      <arg name="correlation_id" type="s" direction="out"/>
+      <arg name="result_code" type="s" direction="out"/>
+      <arg name="pause_error" type="s" direction="out"/>
+    </method>
+    <method name="PauseGrant">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+    </method>
+    <method name="UseSavedTime">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+    </method>
+    <method name="GetGrantStatus">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="requested_seconds" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="out"/>
+      <arg name="evaluated_at_epoch_seconds" type="t" direction="out"/>
+      <arg name="daily_remaining_seconds" type="u" direction="out"/>
+      <arg name="running_remaining_seconds" type="u" direction="out"/>
+      <arg name="running_beyond_daily_seconds" type="u" direction="out"/>
+      <arg name="saved_seconds" type="u" direction="out"/>
+      <arg name="usable_seconds" type="u" direction="out"/>
+      <arg name="total_seconds" type="u" direction="out"/>
+      <arg name="running_mode" type="s" direction="out"/>
+      <arg name="running_end_epoch_seconds" type="t" direction="out"/>
+      <arg name="immediate_estimate_seconds" type="u" direction="out"/>
+      <arg name="deferred_estimate_seconds" type="u" direction="out"/>
+    </method>
   </interface>
 </node>
 """
@@ -318,6 +353,7 @@ class Service:
         self.connection = connection
         self.diagnostics_only = diagnostics_only
         self._diagnostic_export_lock = threading.Lock()
+        self._saved_time_slots = threading.BoundedSemaphore(MAX_SAVED_TIME_WORKERS)
         self._grant_observation_lock = threading.Lock()
         self._grant_recovery_lock = threading.Lock()
         self._grant_recovery_queued: set[int] = set()
@@ -800,6 +836,19 @@ class Service:
                 target_uid, = parameters.unpack()
                 self.broker.revoke_one_time_grant(caller_uid, target_uid)
                 invocation.return_value(None)
+            elif method in ("RequestDeferredAccess", "PauseGrant", "UseSavedTime", "GetGrantStatus"):
+                if not self._saved_time_slots.acquire(blocking=False):
+                    raise Busy("saved-time service is busy")
+                try:
+                    threading.Thread(
+                        target=self._saved_time_worker,
+                        args=(invocation, caller_uid, sender, method, parameters.unpack()),
+                        daemon=True,
+                    ).start()
+                except BaseException:
+                    self._saved_time_slots.release()
+                    raise
+                deferred_reply = True
             elif method == "ExportDiagnosticLogs":
                 self.broker.authorize_diagnostic_export(caller_uid)
                 if not self._diagnostic_export_lock.acquire(blocking=False):
@@ -953,6 +1002,64 @@ class Service:
             GLib.idle_add(
                 self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
             )
+
+    @operation_scope
+    def _saved_time_worker(self, invocation, caller_uid, sender, method, args):
+        try:
+            reply = self._saved_time_reply(invocation, caller_uid, sender, method, args)
+            GLib.idle_add(self._send_saved_time_reply, *reply)
+        except BaseException:
+            self._saved_time_slots.release()
+            raise
+
+    def _send_saved_time_reply(self, callback, *args):
+        # Retain the slot while the completed invocation waits for the main loop.
+        self._saved_time_slots.release()
+        return callback(*args)
+
+    def _saved_time_reply(self, invocation, caller_uid, sender, method, args):
+        try:
+            value = None
+            if method == "GetGrantStatus":
+                status = self.broker.get_grant_status(
+                    caller_uid, *args, schedule_recovery=self._schedule_grant_recovery,
+                )
+                value = GLib.Variant("(ttuuuuuustuu)", (
+                    status.revision,
+                    status.evaluated_at_epoch_seconds,
+                    status.daily_remaining_seconds,
+                    status.running_remaining_seconds,
+                    status.running_beyond_daily_seconds,
+                    status.saved_seconds,
+                    status.usable_seconds,
+                    status.total_seconds,
+                    status.running_mode,
+                    status.running_end_epoch_seconds,
+                    status.immediate_estimate_seconds,
+                    status.deferred_estimate_seconds,
+                ))
+            elif method == "RequestDeferredAccess":
+                result = self.broker.request_deferred_access(caller_uid, sender, *args)
+                value = GLib.Variant("(sss)", (
+                    result.correlation_id, result.result_code, result.pause_error,
+                ))
+            elif method == "PauseGrant":
+                self.broker.pause_grant(caller_uid, sender, *args)
+            elif method == "UseSavedTime":
+                self.broker.use_saved_time(caller_uid, sender, *args)
+            LOG.info("service.008", method=method)
+            return self._return_value_variant, invocation, value
+        except BrokerError as error:
+            emit_backend_failure(error)
+            LOG.warning("service.009", method=method, error_type=error_code(error))
+            if isinstance(error, (BackendFailure, RollbackFailure)):
+                record_exception(error)
+            return self._return_error, invocation, error.dbus_name, str(error)
+        except Exception as error:
+            emit_failure("broker", "unexpected")
+            LOG.error("service.010", method=method, error_type=error_code(error))
+            record_exception(error)
+            return self._return_error, invocation, f"{BUS_NAME}.Error.Failed", "service failure"
 
     @operation_scope
     def _prepare_own_session_worker(self, invocation, caller_uid, recovery_target=None):

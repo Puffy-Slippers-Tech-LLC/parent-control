@@ -1,7 +1,7 @@
 # Save approved time for later execution plan
 
 Task queue: [Ordered task queue](Save-For-Later-Task-Queue.md).
-Next task: **010 — [Make saved time and timer actions available to the apps](Save-For-Later-Tasks/010.md)**.
+Next task: **025 — [Refresh the child countdown while the overlay stays open](Save-For-Later-Tasks/025.md)**.
 
 Implement deferred parent approval, manual pause, and use of saved time in the
 kiosk and child overlay. The [feature design](Save-For-Later-Design.md) retains

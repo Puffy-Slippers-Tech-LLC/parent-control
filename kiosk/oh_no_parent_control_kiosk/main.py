@@ -40,6 +40,10 @@ from common.oh_no_parent_control_ui.errors import (
     ErrorHandler, install_exception_hooks, show_startup_error,
     broker_reboot_required, show_update_required,
 )
+from common.oh_no_parent_control_ui.grant_client import (
+    BUS_NAME, OBJECT_PATH, INTERFACE, REQUEST_TIMEOUT_MS, STATUS_TIMEOUT_MS,
+    RequestGrantClient, call_broker_async,
+)
 
 from .model import RequestState, public_error
 from .preference_dialog import PreferencesDialog
@@ -61,12 +65,6 @@ from .chrome import (
     paint_board_frame,
 )
 
-BUS_NAME = "com.puffyslippers.OhNoParentControl1"
-OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
-INTERFACE = BUS_NAME
-# An authorization prompt remains open until the administrator responds.
-# G_MAXINT is GIO's supported no-timeout value.
-REQUEST_TIMEOUT_MS = GLib.MAXINT
 # Keep the confirmation visible briefly before returning to GDM or
 # closing the child overlay. Fade any remaining thunder over this interval.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
@@ -1005,6 +1003,7 @@ class RequestWindow(Adw.ApplicationWindow):
             broker_connection if broker_connection is not None else
             (None if preview else Gio.bus_get_sync(Gio.BusType.SYSTEM, None))
         )
+        self._grant_client = RequestGrantClient(self._system_bus)
         self._build()
         self._thunder = None
         if REQUEST_MEDIA_ENABLED:
@@ -1757,13 +1756,9 @@ class RequestWindow(Adw.ApplicationWindow):
             1_000, self._tick_success_countdown,
         )
 
-    def _bus_call(self, method, parameters, reply_signature, callback, timeout=30_000):
-        if self._system_bus is None:
-            raise RuntimeError("the preview does not have a broker connection")
-        self._system_bus.call(
-            BUS_NAME, OBJECT_PATH, INTERFACE, method, parameters,
-            GLib.VariantType.new(reply_signature), Gio.DBusCallFlags.NONE,
-            timeout, None, callback,
+    def _bus_call(self, method, parameters, reply_signature, callback, timeout=STATUS_TIMEOUT_MS):
+        call_broker_async(
+            self._system_bus, method, parameters, reply_signature, callback, timeout,
         )
 
     def _load_users(self, *_args):

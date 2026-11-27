@@ -138,8 +138,9 @@ timing, qualification or a workflow's decision to disable capacity recovery.
 Resolve the fallback when its logical session starts and retain it through every
 capacity retry, including automatic plan-controller reload. Later metadata edits
 affect new logical sessions, not an admitted session's retry policy.
-Claude presets are configuration only; they do not qualify Claude workflows.
-Their initial mapping uses Fable 5.2 for frontier reasoning, Opus 5.5 for
+The top-level `agent` field (`codex` or `claude`) selects the provider for every
+repository-owned session; there is no cross-agent fallback. The Claude presets'
+initial mapping uses Fable 5.2 for frontier reasoning, Opus 5.5 for
 workhorse coding and Haiku 5.5 for bargain tasks, following the official
 [model lineup](https://platform.claude.com/docs/en/about-claude/models/overview)
 and supported [Claude Code effort levels](https://code.claude.com/docs/en/model-config#adjust-effort-level).
@@ -171,6 +172,18 @@ uses one fresh schema-free native goal session for the whole repair and validati
 Native goal continuation stays in that session; the launcher does not resume old
 threads or submit corrective turns. Complete the goal after the assigned work
 has been verified.
+
+When `agent` is `claude`, there is no native goal API for headless sessions. The
+[Claude adapter](../tools/agent_claude.py) instead pins the same objective in the
+appended system prompt of every coordinator and in every helper role prompt, and
+maps goal-activation wording to it. This is an instruction, not native goal
+state: it gives no automatic continuation. Each fresh `claude -p` session ends
+when its turn ends without queued developer input. Repair sessions run one turn
+plus queued follow-ups; plan sessions keep their structured result schema.
+Sessions do not persist or resume Claude conversations. Native roles are fixed
+per session: built-in agents and forks are disabled, helpers run in the foreground
+and are joined, and the delegation concurrency and depth limits are enforced
+natively. Read-only roles get only file read/search tools.
 
 If native turn submission reports an active-turn output-schema conflict, the
 shared Codex adapter reads that same thread, interrupts its active turn and waits

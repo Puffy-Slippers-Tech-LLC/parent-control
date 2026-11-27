@@ -1017,7 +1017,7 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     document['agent'] = 'codex'
     config.write_text(json.dumps(document))
     codex = resolve_selection(root / '.')
-    assert (codex.name, codex.root, codex.execution_qualified) == ('codex', root.resolve(), True)
+    assert (codex.name, codex.root) == ('codex', root.resolve())
     assert codex.adapter().name == 'codex'
     with pytest.raises(FrozenInstanceError):
         codex.name = 'claude'
@@ -1026,17 +1026,13 @@ def test_optional_backup_root_allows_non_backup_registry_consumers(tmp_path, mon
     config.write_text(json.dumps(document))
     assert vm_config.registry(config)['Guest'].name == 'Guest'
     claude = resolve_selection(root)
-    assert claude.name == 'claude' and not claude.execution_qualified
-    # Refusal must precede even loading the optional Claude transport/SDK.
-    monkeypatch.setitem(sys.modules, 'agent_claude', None)
-    monkeypatch.setitem(sys.modules, 'claude_agent_sdk', None)
-    with pytest.raises(ValueError, match='not qualified.*no agent was started or fallback selected'):
-        claude.adapter()
+    assert claude.name == 'claude' and claude.adapter().name == 'claude'
+    # A missing CLI is reported for the selected agent, never replaced by Codex.
     setup_agent(root, headless=True)
     report_readiness(root, {'PATH': ''})
     messages = capsys.readouterr().out
-    assert messages.count('setup: action needed:') == 2
-    assert 'not qualified' in messages and str(root) in messages
+    assert messages.count('setup: action needed:') == 1
+    assert 'agent claude selected by' in messages and 'Claude CLI is missing' in messages
     assert codex.name == 'codex' and codex.adapter().name == 'codex'
 
     # Agent-free inspection stays available with no CLI or optional SDK.

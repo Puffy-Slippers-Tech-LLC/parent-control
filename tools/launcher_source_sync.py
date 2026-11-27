@@ -13,7 +13,7 @@ from host_dispatch import git, require_checkout
 
 STATUS = 78
 BOUNDARY_AGENT_ENV = 'ONPC_TEST_SYNC_UPSTREAM'
-BOUNDARY_AGENT_ENV_KEYS = ('PATH', 'NVM_DIR', 'CODEX_HOME')
+BOUNDARY_AGENT_ENV_KEYS = ('PATH', 'NVM_DIR', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR')
 
 
 class SyncError(ValueError):

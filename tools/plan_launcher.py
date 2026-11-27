@@ -806,8 +806,7 @@ def execute(root, spec, run, owner):
     if status:
         if error_path.exists():
             error = json.loads(error_path.read_text())
-            if (status == 75 and error.get('context') == 'turn failed'
-                    and error.get('codex_error_info') == 'serverOverloaded'):
+            if status == 75 and error.get('capacity') is True:
                 raise AgentCapacityUnavailable(error['message'])
             raise ValueError(error['message'])
         raise ValueError(f'agent session exited {status}; inspect retained output and handoff')
@@ -818,7 +817,7 @@ RESPONSE_VALIDATOR_SOURCES = (
     'plan_launcher.py', 'execution_plan.py', 'document_checks.py',
     'launcher_runtime.py', 'detached_launcher.py',
     # Hash optional native sources without importing their runtime dependencies.
-    'agent_adapter.py', 'agent_codex.py', 'agent_claude.py', 'agent_claude_bridge.py',
+    'agent_adapter.py', 'agent_codex.py', 'agent_claude.py',
     'backend_reviewer.toml', 'plan_monitor.toml', 'plan_worker.toml',
     'sync_whatsnew_translator.toml',
     'launcher_reload.py',

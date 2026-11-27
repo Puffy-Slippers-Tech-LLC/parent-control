@@ -86,6 +86,10 @@ class Accounts:
     def get_user(self, uid):
         return self.users[uid]
 
+    @contextmanager
+    def bind_grant_mutations(self, uid, username):
+        yield
+
     def get_filter(self, uid):
         self.events.append(("get_filter", uid))
         return self.filter

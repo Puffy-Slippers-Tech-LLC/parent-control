@@ -30,8 +30,8 @@ from zoneinfo import ZoneInfo
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .grant_store import (
     FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
-    PauseIntent, SavedBalance, UINT64_MAX, beyond_daily_seconds, merged_saved_seconds,
-    new_grant_is_fixed, remaining_seconds, running_mode,
+    PauseIntent, RedeemIntent, RedeemTimeState, SavedBalance, UINT64_MAX,
+    beyond_daily_seconds, merged_saved_seconds, new_grant_is_fixed, remaining_seconds, running_mode,
 )
 from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
@@ -173,6 +173,15 @@ class _ActivePause:
     waiter: threading.Lock = field(default_factory=threading.Lock)
 
 
+@dataclass
+class _RedeemAttempt:
+    record: GrantRecord
+    intent: RedeemIntent
+    external: GrantTuple | None = None
+    termination_may_have_changed_processes: bool = False
+    original_filter: tuple[bool, tuple[str, ...]] | None = None
+
+
 class Approval(Protocol):
     outcome: str
 
@@ -189,6 +198,7 @@ class Accounts(Protocol):
     def diagnostic_user_roles(self, *, excluded_uid: int, deadline: float,
                               limit: int) -> tuple[str, list[tuple[int, str]]]: ...
     def get_user(self, uid: int) -> UserAccount: ...
+    def bind_grant_mutations(self, uid: int, username: str) -> AbstractContextManager[None]: ...
     def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]: ...
     def validate_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
     def set_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
@@ -371,7 +381,7 @@ class Broker:
         return ((deadline is not None and self._monotonic() >= deadline) or
                 (wall_deadline is not None and self._now().timestamp() >= wall_deadline))
 
-    def _write_extension(self, uid, value, *, deadline=None, wall_deadline=None):
+    def _write_extension(self, uid, value, *, deadline=None, wall_deadline=None, readback=None):
         if self._extension_window_elapsed(deadline, wall_deadline):
             raise TimeoutError("extension write window elapsed")
         self._grant_diagnostics.write_started(uid)
@@ -380,7 +390,8 @@ class Broker:
         self._accounts.set_extension(uid, value, **bounds, **wall_bound)
         if self._extension_window_elapsed(deadline, wall_deadline):
             raise TimeoutError("extension write window elapsed")
-        if self._accounts.get_extension(uid, **bounds) != value:
+        live = self._accounts.get_extension(uid, **bounds) if readback is None else readback()
+        if live != value:
             raise BackendFailure("extension verification failed")
         if self._extension_window_elapsed(deadline, wall_deadline):
             raise TimeoutError("extension verification window elapsed")
@@ -390,7 +401,7 @@ class Broker:
         except Exception:
             get_logger("grant").warning("grant.invalid")
 
-    def _prepare_time_state(self, uid, limit_type, daily_limit):
+    def _prepare_time_state(self, uid, limit_type, daily_limit, *, check_account=lambda: None):
         # Malcontent 0.14 checks extensions even when LimitType is zero, then
         # asserts that a current extension has enabled limits. Clearing a grant
         # under an exhausted daily limit instead emits a lockable zero estimate.
@@ -398,21 +409,29 @@ class Broker:
         # local wall-clock range stays usable on 25-hour days too; a maximum
         # daily allowance does not. Keep the original schedule until finalization.
         if self._accounts.get_limit_type(uid) != 0 or limit_type != 0:
+            check_account()
             self._accounts.set_daily_schedule(uid, FULL_DAY_SCHEDULE)
             if self._accounts.get_daily_schedule(uid) != FULL_DAY_SCHEDULE:
                 raise BackendFailure("daily-schedule verification failed")
+            check_account()
             self._accounts.set_limit_type(uid, DAILY_SCHEDULE_FLAG)
             if self._accounts.get_limit_type(uid) != DAILY_SCHEDULE_FLAG:
                 raise BackendFailure("limit-type verification failed")
+        check_account()
         self._accounts.set_daily_limit(uid, daily_limit)
         if self._accounts.get_daily_limit(uid) != daily_limit:
             raise BackendFailure("daily-limit verification failed")
 
     def _finish_time_state(self, uid, limit_type, daily_schedule, extension):
         self._write_extension(uid, extension)
+        self._finalize_time_state(uid, limit_type, daily_schedule)
+
+    def _finalize_time_state(self, uid, limit_type, daily_schedule, *, check_account=lambda: None):
+        check_account()
         self._accounts.set_limit_type(uid, limit_type)
         if self._accounts.get_limit_type(uid) != limit_type:
             raise BackendFailure("limit-type verification failed")
+        check_account()
         self._accounts.set_daily_schedule(uid, daily_schedule)
         if self._accounts.get_daily_schedule(uid) != daily_schedule:
             raise BackendFailure("daily-schedule verification failed")
@@ -995,11 +1014,95 @@ class Broker:
         finally:
             self._release_request_lock()
 
+    def use_saved_time(self, caller_uid: int, sender: str, target_uid: int, revision: int) -> None:
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            context = self._saved_time_context(caller_uid, sender, target_uid)
+            if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
+                raise InvalidRequest("grant record revision is invalid")
+            record = self._load_saved_time_record(context.target)
+            if record.revision != revision:
+                raise Stale("grant record changed since it was read")
+            if isinstance(record.intent, RedeemIntent):
+                self._recover_redeem_intent(record)
+                raise Stale("grant record changed while recovering its redemption")
+            if record.intent is not None:
+                raise RecoveryPending("a saved-time transfer is awaiting recovery")
+            if record.saved is None:
+                raise Stale("no saved time remains")
+            with self._accounts.bind_grant_mutations(record.uid, record.username):
+                self._use_saved_time_locked(context, record)
+        finally:
+            self._release_request_lock()
+
+    def _use_saved_time_locked(self, context: SavedTimeContext, record: GrantRecord) -> None:
+        uid = context.target.uid
+        correlation_id = str(uuid.uuid4())
+        allow_soft = record.saved.allow_soft_blocked_apps
+        desired_filter, termination_patterns = self._approval_app_policy(
+            uid, context.preferences, allow_soft,
+        )
+        source = self._read_live_grant(uid)
+        capture = self._capture_use_saved_time_daily_remaining(context)
+        issued_at = int(capture.evaluated_at.timestamp())
+        if not 0 < issued_at <= UINT64_MAX:
+            raise BackendFailure("redemption issuance is outside the supported range")
+        daily = capture.daily_remaining_seconds
+        try:
+            remaining = remaining_seconds(source, issued_at) if source[1] else 0
+        except ValueError as error:
+            raise BackendFailure("remaining-time grant is outside the supported range") from error
+        if running_mode(record, source, remaining) == "none":
+            remaining = 0
+        duration = calculate_active_extension_seconds(daily, remaining, record.saved.seconds)
+        if duration > MAX_REQUEST_SECONDS:
+            raise InvalidRequest("using saved time would exceed the grant limit")
+        destination = (issued_at, duration)
+        intent = RedeemIntent(source, destination, allow_soft,
+                              new_grant_is_fixed(record, source, daily, remaining),
+                              activate_child_extension=context.request_kind == "kiosk")
+        attempt = _RedeemAttempt(record, intent)
+
+        def recheck():
+            self._recheck_saved_time_context(capture.context)
+            if self._load_saved_time_record(context.target) != record:
+                raise Stale("grant record changed while preparing the redemption")
+            return True
+
+        try:
+            self._apply(uid, context.preferences, desired_filter, destination, correlation_id,
+                        termination_patterns, admit=recheck,
+                        activate_child_extension=intent.activate_child_extension, redeem=attempt)
+        except BrokerError as error:
+            if attempt.record.intent is None:
+                raise
+            try:
+                _, committed = self._resolve_redeem_intent(attempt, correlation_id)
+            except RecoveryPending as recovery_error:
+                if isinstance(error, RollbackFailure):
+                    raise error from recovery_error
+                raise
+            if not committed:
+                raise BackendFailure("an external grant superseded the redemption") from error
+        else:
+            self._finish_redeem_intent(attempt.record, committed=True)
+
     def _load_pause_record(self, target: UserAccount) -> GrantRecord:
+        record = self._load_saved_time_record(target)
+        if isinstance(record.intent, PauseIntent):
+            self._active_pause = _ActivePause(target.uid)
+            self._recover_pause_intent(record)
+            raise Stale("grant record changed while recovering its pause")
+        if record.intent is not None:
+            raise RecoveryPending("a saved-time transfer is awaiting recovery")
+        return record
+
+    def _load_saved_time_record(self, target: UserAccount) -> GrantRecord:
         if self._grant_store is None:
             raise BackendFailure("saved-time store is unavailable")
         try:
-            record = self._grant_store.load(target.uid, target.username)
+            return self._grant_store.load(target.uid, target.username)
         except GrantAccountError:
             self._check_grant_account(self._load_config(), target)
             try:
@@ -1009,13 +1112,6 @@ class Broker:
             raise Stale("saved time belonged to a previous account")
         except GrantStoreError as error:
             raise BackendFailure("saved-time record is unavailable") from error
-        if isinstance(record.intent, PauseIntent):
-            self._active_pause = _ActivePause(target.uid)
-            self._recover_pause_intent(record)
-            raise Stale("grant record changed while recovering its pause")
-        if record.intent is not None:
-            raise RecoveryPending("a saved-time transfer is awaiting recovery")
-        return record
 
     def _read_live_grant(self, uid: int, *, deadline: float | None = None) -> GrantTuple:
         bounds = {} if deadline is None else {"deadline": deadline}
@@ -2244,13 +2340,6 @@ class Broker:
                 raise AccessDenied("a child can request access only for itself")
             approver = self._approver(config, approver_uid)
             preferences = self._load_request_preferences(target.uid)
-            desired_filter = (
-                False,
-                blocked_targets(preferences, allow_soft_blocked_apps),
-            )
-            termination_patterns = (
-                () if allow_soft_blocked_apps else blocked_patterns(preferences, False)
-            )
             if request_kind == "child" and not preferences["parent_control_enabled"]:
                 raise AccessDenied("parent control is not enabled for this account")
             LOG.info(
@@ -2357,21 +2446,9 @@ class Broker:
             if not 0 < issued_at <= UINT64_MAX or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
             grant = (issued_at, duration)
-            terminate_blocked_apps = (
-                not allow_soft_blocked_apps and
-                (bool(desired_filter[1]) or bool(termination_patterns))
+            desired_filter, termination_patterns = self._approval_app_policy(
+                target.uid, preferences, allow_soft_blocked_apps,
             )
-            if terminate_blocked_apps:
-                if self._running_apps is None:
-                    raise BackendFailure("blocked application termination is unavailable")
-                try:
-                    self._running_apps.preflight(
-                        target.uid, desired_filter[1], termination_patterns,
-                    )
-                except Exception as error:
-                    raise BackendFailure(
-                        "blocked applications could not be stopped"
-                    ) from error
 
             record = cleared_record = None
 
@@ -2409,7 +2486,7 @@ class Broker:
             try:
                 applied = self._apply(
                     target.uid, preferences, desired_filter, grant, correlation_id,
-                    termination_patterns if terminate_blocked_apps else None,
+                    termination_patterns,
                     admit=admit_effect,
                     activate_child_extension=(request_kind == "kiosk" and
                                               preferences["parent_control_enabled"]),
@@ -2491,17 +2568,366 @@ class Broker:
         except (OSError, PreferencesError) as error:
             raise BackendFailure("preferences are unavailable") from error
 
+    def _approval_app_policy(self, uid: int, preferences: dict, allow_soft: bool
+                             ) -> tuple[tuple[bool, tuple[str, ...]], tuple[str, ...] | None]:
+        desired_filter = (False, blocked_targets(preferences, allow_soft))
+        patterns = () if allow_soft else blocked_patterns(preferences, False)
+        if allow_soft or not (desired_filter[1] or patterns):
+            return desired_filter, None
+        if self._running_apps is None:
+            raise BackendFailure("blocked application termination is unavailable")
+        try:
+            self._running_apps.preflight(uid, desired_filter[1], patterns)
+        except Exception as error:
+            raise BackendFailure("blocked applications could not be stopped") from error
+        return desired_filter, patterns
+
+    def _set_verified_filter(self, uid: int, desired_filter: tuple[bool, tuple[str, ...]]) -> None:
+        # The adapter reconciles execution rules after setting the account
+        # property. Even a matching property needs a retry after a failure.
+        self._accounts.set_filter(uid, desired_filter)
+        if self._accounts.get_filter(uid) != desired_filter:
+            raise BackendFailure("app-filter verification failed")
+
+    def _terminate_approval_apps(self, uid: int, targets: tuple[str, ...],
+                                 patterns: tuple[str, ...], correlation_id: str,
+                                 *, redeem: _RedeemAttempt | None = None,
+                                 expected: tuple[GrantTuple, ...] = ()) -> int:
+        LOG.info("core.036", request=correlation_id)
+        if redeem is not None:
+            self._require_redeem_live(redeem, *expected)
+            if not self._redeem_current(redeem.intent):
+                return 0
+            self._write_redeem_intent(redeem, replace(redeem.intent, termination_started=True))
+            self._require_redeem_live(redeem, *expected)
+            if not self._redeem_current(redeem.intent):
+                return 0
+            prior_termination = redeem.termination_may_have_changed_processes
+            redeem.termination_may_have_changed_processes = True
+        terminated = self._running_apps.terminate(uid, targets, patterns)
+        if type(terminated) is not int or terminated < 0:
+            raise BackendFailure("blocked application termination failed")
+        if redeem is not None:
+            redeem.termination_may_have_changed_processes = prior_termination or terminated > 0
+        LOG.info("core.037", request=correlation_id, count=terminated)
+        return terminated
+
+    def _check_redeem_account(self, record: GrantRecord) -> None:
+        target = self._target(self._load_config(), record.uid)
+        if (target.uid, target.username) != (record.uid, record.username):
+            raise AccessDenied("redemption account changed")
+
+    def _redeem_preferences(self, record: GrantRecord) -> dict:
+        self._check_redeem_account(record)
+        preferences = self._load_request_preferences(record.uid)
+        if not preferences["parent_control_enabled"]:
+            raise AccessDenied("parent control is not enabled for this account")
+        return preferences
+
+    def _recover_redeem_intent(self, record: GrantRecord) -> GrantRecord:
+        """Resolve one child's durable redemption under the transaction lock."""
+        assert isinstance(record.intent, RedeemIntent)
+        attempt = _RedeemAttempt(record, record.intent,
+                                 termination_may_have_changed_processes=record.intent.termination_started)
+        with self._accounts.bind_grant_mutations(record.uid, record.username):
+            result, _ = self._resolve_redeem_intent(attempt, str(uuid.uuid4()))
+        return result
+
+    def _resolve_redeem_intent(self, attempt: _RedeemAttempt,
+                               correlation_id: str) -> tuple[GrantRecord, bool]:
+        uid = attempt.record.uid
+        intent = attempt.intent
+
+        try:
+            preferences = self._redeem_preferences(attempt.record)
+
+            def read_live():
+                try:
+                    return self._read_redeem_live(attempt)
+                except BackendFailure:
+                    # Publication is unknown. Close any temporary bridge and
+                    # enforce full app policy until the live grant is readable.
+                    try:
+                        self._reconcile_redeem_time_state(
+                            attempt.record, preferences, destination=False,
+                        )
+                    finally:
+                        self._set_redeem_strict_filter(attempt.record, preferences)
+                    raise
+
+            if attempt.original_filter is None:
+                # An earlier replacement can be visible even when its
+                # directory sync failed. Confirm durability before replay.
+                try:
+                    self._write_redeem_intent(attempt, attempt.intent)
+                except RecoveryPending:
+                    # An observed full-day bridge still needs to be removed.
+                    try:
+                        live = self._read_redeem_live(attempt)
+                    except BackendFailure:
+                        live = None
+                    self._close_redeem_bridge(attempt.record, preferences,
+                                              destination=(live == intent.destination))
+                    raise
+            live = read_live()
+            if live == intent.source:
+                # An interrupted attempt may have left the full-day bridge
+                # active. Restore bounded time before app preflight can fail.
+                self._reconcile_redeem_time_state(attempt.record, preferences, destination=False)
+                if attempt.original_filter is None:
+                    # After a restart the current filter may be the one the
+                    # interrupted attempt installed before writing the grant.
+                    self._set_redeem_strict_filter(attempt.record, preferences)
+                desired_filter, patterns = self._redeem_app_policy(attempt, preferences)
+
+                def recheck():
+                    if self._redeem_preferences(attempt.record) != preferences:
+                        raise AccessDenied("preferences changed during redemption recovery")
+                    return True
+
+                try:
+                    self._apply(uid, preferences, desired_filter, intent.destination,
+                                correlation_id, patterns, admit=recheck, redeem=attempt,
+                                activate_child_extension=intent.activate_child_extension)
+                except BrokerError:
+                    live = read_live()
+                    if live == intent.source:
+                        raise
+                else:
+                    return self._finish_redeem_intent(attempt.record, committed=True), True
+
+            if live == intent.destination:
+                try:
+                    self._repair_redeem_destination(attempt, correlation_id)
+                except Exception:
+                    live = read_live()
+                    if live in (intent.source, intent.destination):
+                        if not self._redeem_current(intent):
+                            self._set_redeem_strict_filter(
+                                attempt.record, self._redeem_preferences(attempt.record),
+                            )
+                        raise
+                else:
+                    return self._finish_redeem_intent(attempt.record, committed=True), True
+
+            preferences = self._redeem_preferences(attempt.record)
+            self._reconcile_redeem_time_state(attempt.record, preferences, destination=False)
+            self._set_redeem_strict_filter(attempt.record, preferences)
+            return self._finish_redeem_intent(attempt.record, committed=False), False
+        except (RecoveryPending, RollbackFailure):
+            raise
+        except Exception as error:
+            raise RecoveryPending("saved-time redemption could not be resolved") from error
+
+    def _finish_redeem_intent(self, record: GrantRecord, *, committed: bool) -> GrantRecord:
+        intent = record.intent
+        assert isinstance(intent, RedeemIntent)
+        fixed = None
+        if committed and intent.record_fixed:
+            fixed = FixedGrant(intent.destination, intent.allow_soft_blocked_apps)
+        if not committed:
+            try:
+                self._redeem_preferences(record)
+            except BrokerError as error:
+                raise RecoveryPending("redemption account could not be revalidated") from error
+        try:
+            return self._grant_store.write(replace(record, fixed=fixed, saved=None, intent=None))
+        except GrantStoreError as error:
+            raise RecoveryPending("redemption result durability is uncertain") from error
+
+    def _read_redeem_live(self, attempt: _RedeemAttempt) -> GrantTuple:
+        self._check_redeem_account(attempt.record)
+        if attempt.external is not None:
+            return attempt.external
+        live = self._read_live_grant(attempt.record.uid)
+        if live not in (attempt.intent.source, attempt.intent.destination):
+            attempt.external = live
+        return live
+
+    def _require_redeem_live(self, attempt: _RedeemAttempt, *expected: GrantTuple) -> None:
+        if self._read_redeem_live(attempt) not in expected:
+            raise BackendFailure("the live grant changed during redemption")
+        self._check_redeem_account(attempt.record)
+
+    def _redeem_current(self, intent: RedeemIntent) -> bool:
+        return self._now().timestamp() < sum(intent.destination)
+
+    def _redeem_app_policy(self, attempt: _RedeemAttempt, preferences: dict
+                           ) -> tuple[tuple[bool, tuple[str, ...]], tuple[str, ...] | None]:
+        if self._redeem_current(attempt.intent):
+            return self._approval_app_policy(
+                attempt.record.uid, preferences, attempt.intent.allow_soft_blocked_apps,
+            )
+        return (False, blocked_targets(preferences, False)), None
+
+    def _write_redeem_intent(self, attempt: _RedeemAttempt, intent: RedeemIntent) -> None:
+        record = attempt.record
+        self._check_redeem_account(record)
+        try:
+            attempt.record = self._grant_store.write(replace(record, intent=intent))
+        except GrantStoreError as error:
+            try:
+                observed = self._grant_store.load(record.uid, record.username)
+            except GrantStoreError:
+                raise RecoveryPending("redemption intent durability is uncertain") from error
+            if record.intent is None and observed == record:
+                raise BackendFailure("redemption intent could not be stored") from error
+            if record.intent is not None and observed == replace(record, revision=record.revision + 1,
+                                                                 intent=intent):
+                # A failed sync can leave a new revision visible. A later
+                # source retry must still publish it durably before effects.
+                attempt.record = observed
+                attempt.intent = intent
+            raise RecoveryPending("redemption intent durability is uncertain") from error
+        attempt.intent = intent
+
+    def _write_redeem_extension(self, attempt: _RedeemAttempt) -> None:
+        intent = attempt.intent
+        live = self._read_redeem_live(attempt)
+        if live == intent.source:
+            self._check_redeem_account(attempt.record)
+            try:
+                self._write_extension(attempt.record.uid, intent.destination,
+                                      readback=lambda: self._read_redeem_live(attempt))
+            except Exception:
+                # A dispatched write can land even when Set or read-back fails.
+                # Preserve the destination if observed and finish the other effects.
+                if self._read_redeem_live(attempt) != intent.destination:
+                    raise
+        elif live != intent.destination:
+            raise BackendFailure("the live grant changed during redemption")
+
+    def _close_redeem_bridge(self, record: GrantRecord, preferences: dict, *,
+                             destination: bool) -> None:
+        state = record.intent.time_state
+        if state is None:
+            return
+        self._check_redeem_account(record)
+        # Either native field can still carry the bridge after the other
+        # matches the journal. Matching fields can be the untouched source.
+        bridge_type = (state.limit_type != DAILY_SCHEDULE_FLAG and
+                       self._accounts.get_limit_type(record.uid) == DAILY_SCHEDULE_FLAG)
+        if bridge_type or (state.daily_schedule != FULL_DAY_SCHEDULE and
+                           self._accounts.get_daily_schedule(record.uid) == FULL_DAY_SCHEDULE):
+            self._reconcile_redeem_time_state(record, preferences, destination=destination)
+
+    def _reconcile_redeem_time_state(self, record: GrantRecord, preferences: dict, *,
+                                    destination: bool) -> None:
+        state = record.intent.time_state
+        if state is None:
+            return
+        uid = record.uid
+
+        # An unacknowledged Set can still publish the grant. Keep configured
+        # daily enforcement when the bridge started with disabled limits.
+        limit_type = state.limit_type or DAILY_LIMIT_FLAG
+        daily_limit = (preferences["daily_time_limit_minutes"] * 60
+                       if destination or not state.limit_type else state.daily_limit)
+
+        # Recovery leaves ActiveExtension alone. Close the temporary schedule
+        # first and retain any daily enforcement while repairing the cap.
+        if self._accounts.get_daily_schedule(uid) != state.daily_schedule:
+            self._check_redeem_account(record)
+            self._accounts.set_daily_schedule(uid, state.daily_schedule)
+            if self._accounts.get_daily_schedule(uid) != state.daily_schedule:
+                raise BackendFailure("daily-schedule recovery verification failed")
+        if self._accounts.get_limit_type(uid) != limit_type:
+            self._check_redeem_account(record)
+            self._accounts.set_limit_type(uid, limit_type)
+            if self._accounts.get_limit_type(uid) != limit_type:
+                raise BackendFailure("limit-type recovery verification failed")
+        if self._accounts.get_daily_limit(uid) != daily_limit:
+            self._check_redeem_account(record)
+            self._accounts.set_daily_limit(uid, daily_limit)
+            if self._accounts.get_daily_limit(uid) != daily_limit:
+                raise BackendFailure("daily-limit recovery verification failed")
+
+    def _set_redeem_strict_filter(self, record: GrantRecord, preferences: dict) -> None:
+        self._check_redeem_account(record)
+        self._set_verified_filter(record.uid, (False, blocked_targets(preferences, False)))
+
+    def _repair_redeem_destination(self, attempt: _RedeemAttempt, correlation_id: str) -> None:
+        intent = attempt.intent
+        record = attempt.record
+        preferences = self._redeem_preferences(record)
+        self._require_redeem_live(attempt, intent.destination)
+        self._reconcile_redeem_time_state(record, preferences, destination=True)
+        desired_filter, patterns = self._redeem_app_policy(attempt, preferences)
+        if self._redeem_preferences(record) != preferences:
+            raise AccessDenied("preferences changed during redemption recovery")
+        self._require_redeem_live(attempt, intent.destination)
+        applied_filter = None
+        if self._redeem_current(intent):
+            self._set_verified_filter(record.uid, desired_filter)
+            applied_filter = desired_filter
+            if patterns is not None:
+                self._terminate_approval_apps(record.uid, desired_filter[1], patterns, correlation_id,
+                                              redeem=attempt, expected=(intent.destination,))
+        self._complete_redeem_effects(attempt, applied_filter)
+
+    def _complete_redeem_effects(
+            self, attempt: _RedeemAttempt,
+            applied_filter: tuple[bool, tuple[str, ...]] | None,
+    ) -> None:
+        intent = attempt.intent
+        self._require_redeem_live(attempt, intent.destination)
+        if intent.activate_child_extension and self._redeem_current(intent):
+            if self._extensions is None:
+                raise BackendFailure("extension management is unavailable")
+            self._extensions.set_enabled(attempt.record.uid, True, recover_global_switch=True)
+            self._require_redeem_live(attempt, intent.destination)
+        preferences = self._redeem_preferences(attempt.record)
+        if not self._redeem_current(intent):
+            strict_filter = False, blocked_targets(preferences, False)
+            if applied_filter != strict_filter:
+                self._set_redeem_strict_filter(attempt.record, preferences)
+        # Validate eligibility before the final live read. A replacement
+        # during that validation must still enter tuple recovery.
+        if self._read_redeem_live(attempt) != intent.destination:
+            raise BackendFailure("the live grant changed before redemption committed")
+
+    def _restore_redeem_attempt(self, attempt: _RedeemAttempt) -> None:
+        record = attempt.record
+        intent = attempt.intent
+        preferences = self._redeem_preferences(record)
+        try:
+            live = self._read_redeem_live(attempt)
+        except BackendFailure:
+            # A time read failure leaves publication uncertain. Remove the
+            # bridge and keep full app policy until recovery verifies the tuple.
+            live = None
+        destination = live == intent.destination
+        try:
+            self._reconcile_redeem_time_state(record, preferences, destination=destination)
+        finally:
+            current = self._redeem_current(intent)
+            if not current or not destination:
+                if (live == intent.source and current and
+                        not attempt.termination_may_have_changed_processes and
+                        attempt.original_filter is not None):
+                    self._check_redeem_account(record)
+                    self._set_verified_filter(record.uid, attempt.original_filter)
+                else:
+                    self._set_redeem_strict_filter(record, preferences)
+
     def _apply(self, target_uid: int,
                preferences: dict, desired_filter: tuple[bool, tuple[str, ...]],
                extension: tuple[int, int], correlation_id: str,
                termination_patterns: tuple[str, ...] | None = None,
                *, admit: Callable[[], bool],
-               activate_child_extension: bool = False) -> bool:
+               activate_child_extension: bool = False,
+               redeem: _RedeemAttempt | None = None) -> bool:
         old_limit_type = old_daily_limit = old_daily_schedule = old_filter = old_extension = None
         snapshot_complete = False
         termination_may_have_changed_processes = False
+
+        def check_account():
+            if redeem is not None:
+                self._check_redeem_account(redeem.record)
+
         try:
-            if activate_child_extension and self._extensions is None:
+            if (activate_child_extension and self._extensions is None and
+                    (redeem is None or self._redeem_current(redeem.intent))):
                 raise BackendFailure("extension management is unavailable")
             # Capture every reversible value before the first write. A read
             # failure here has made no state change, so it needs public error
@@ -2510,48 +2936,76 @@ class Broker:
             old_daily_limit = self._accounts.get_daily_limit(target_uid)
             old_daily_schedule = self._accounts.get_daily_schedule(target_uid)
             old_filter = self._accounts.get_filter(target_uid)
-            old_extension = self._accounts.get_extension(target_uid)
+            if redeem is None:
+                old_extension = self._accounts.get_extension(target_uid)
+            elif self._read_redeem_live(redeem) != redeem.intent.source:
+                raise Stale("grant changed while preparing the redemption")
             desired_daily_limit = preferences["daily_time_limit_minutes"] * 60
             # Cancellation or validation failure before admission made no
             # changes. In particular, it must not trigger rollback writes.
             if not admit():
                 return False
-            snapshot_complete = True
             initialize_time = old_limit_type == 0 or old_daily_limit != desired_daily_limit
+            if redeem is not None:
+                if self._read_redeem_live(redeem) != redeem.intent.source:
+                    raise Stale("grant changed while preparing the redemption")
+                if redeem.record.intent is None:
+                    redeem.original_filter = old_filter
+                time_state = redeem.intent.time_state
+                if time_state is None and initialize_time:
+                    time_state = RedeemTimeState(old_limit_type, old_daily_limit, old_daily_schedule)
+                if time_state is not None:
+                    initialize_time = True
+                    old_limit_type = time_state.limit_type
+                    old_daily_schedule = time_state.daily_schedule
+                # Rewrite even an existing intent before new effects. An
+                # earlier failure may have published it without syncing it.
+                self._write_redeem_intent(redeem, replace(redeem.intent, time_state=time_state))
+                self._require_redeem_live(redeem, redeem.intent.source)
+            snapshot_complete = True
             if initialize_time:
                 LOG.info("core.034", request=correlation_id)
                 self._prepare_time_state(
                     target_uid, old_limit_type or DAILY_LIMIT_FLAG, desired_daily_limit,
+                    check_account=check_account,
                 )
+            if redeem is not None:
+                self._require_redeem_live(redeem, redeem.intent.source, extension)
+                if not self._redeem_current(redeem.intent):
+                    desired_filter = False, blocked_targets(preferences, False)
+                    termination_patterns = None
             LOG.info("core.035", request=correlation_id)
-            self._accounts.set_filter(target_uid, desired_filter)
-            if self._accounts.get_filter(target_uid) != desired_filter:
-                raise BackendFailure("app-filter verification failed")
+            self._set_verified_filter(target_uid, desired_filter)
             if termination_patterns is not None:
-                LOG.info("core.036", request=correlation_id)
                 termination_may_have_changed_processes = True
-                terminated = self._running_apps.terminate(
-                    target_uid, desired_filter[1], termination_patterns,
+                terminated = self._terminate_approval_apps(
+                    target_uid, desired_filter[1], termination_patterns, correlation_id, redeem=redeem,
+                    expected=() if redeem is None else (redeem.intent.source, extension),
                 )
-                if type(terminated) is not int or terminated < 0:
-                    raise BackendFailure("blocked application termination failed")
                 termination_may_have_changed_processes = terminated > 0
-                LOG.info("core.037", request=correlation_id, count=terminated)
             LOG.info("core.038", request=correlation_id)
-            if initialize_time:
-                self._finish_time_state(
-                    target_uid, old_limit_type or DAILY_LIMIT_FLAG, old_daily_schedule, extension,
-                )
+            if redeem is not None:
+                self._write_redeem_extension(redeem)
+                self._require_redeem_live(redeem, extension)
+                if initialize_time:
+                    self._finalize_time_state(
+                        target_uid, old_limit_type or DAILY_LIMIT_FLAG, old_daily_schedule,
+                        check_account=check_account,
+                    )
+                self._complete_redeem_effects(redeem, desired_filter)
             else:
-                self._write_extension(target_uid, extension)
-            if self._accounts.get_extension(target_uid) != extension:
-                raise BackendFailure("extension verification failed")
-            # Reassert enforcement after the verified grant, so activation
-            # cannot lock the child against an old exhausted balance. Keep this
-            # as the final commit effect: activation rolls itself back on
-            # failure, and the account rollback below then removes the grant.
-            if activate_child_extension:
-                self._extensions.set_enabled(target_uid, True, recover_global_switch=True)
+                if initialize_time:
+                    self._finish_time_state(
+                        target_uid, old_limit_type or DAILY_LIMIT_FLAG, old_daily_schedule, extension,
+                    )
+                else:
+                    self._write_extension(target_uid, extension)
+                if self._accounts.get_extension(target_uid) != extension:
+                    raise BackendFailure("extension verification failed")
+                # Activation follows the verified grant so it cannot enforce
+                # the old exhausted balance.
+                if activate_child_extension:
+                    self._extensions.set_enabled(target_uid, True, recover_global_switch=True)
             self._observe_grant(target_uid, *extension)
             return True
         except Exception as error:
@@ -2563,6 +3017,14 @@ class Broker:
             record_exception(error)
             if not snapshot_complete:
                 LOG.warning("core.039", request=correlation_id, error_type=error_code(error))
+            elif redeem is not None:
+                try:
+                    self._restore_redeem_attempt(redeem)
+                except Exception as rollback_error:
+                    failure = RollbackFailure("redemption rollback could not be verified")
+                    emit_backend_failure(failure, original=rollback_error)
+                    LOG.critical("core.041", request=correlation_id)
+                    raise failure from rollback_error
             elif termination_may_have_changed_processes:
                 # A killed process cannot be restored. Keep the canonical
                 # hard+soft block filter active and restore the time state.

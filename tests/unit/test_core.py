@@ -20,11 +20,12 @@ from oh_no_parent_control.core import (
 )
 from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
+    MAX_TIME_GRANT_SECONDS,
 )
 from oh_no_parent_control.config import UINT32_MAX, validate
 from oh_no_parent_control.grant_store import (
     FixedGrant, GrantRecord, GrantStore, GrantStoreError, PauseIntent, RedeemIntent,
-    SavedBalance, remaining_seconds, running_mode,
+    RedeemTimeState, SavedBalance, remaining_seconds, running_mode,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
 from oh_no_parent_control.extension_manager import (
@@ -3722,6 +3723,714 @@ def test_saved_time_never_reaches_usable_countdown_or_session_inputs(tmp_path):
         assert status.calculated_active_extension_seconds == 0
     assert results[0] == results[1]
     assert store.load(1001, "child").saved == SavedBalance(3600, True)
+
+
+@pytest.fixture
+def redemption(saved_time_session, tmp_path):
+    state = saved_time_session
+    state.store = GrantStore(tmp_path / "grants")
+    state.running_apps = RunningApps(state.accounts.events, terminated=1)
+    state.extensions = Extensions()
+    state.authorizer = Authorizer()
+    state.accounts.extension = (0, 0)
+    state.accounts.daily_limit = 120
+
+    def restart():
+        state.store = GrantStore(state.store.directory)
+        state.broker = Broker(
+            lambda: validate(valid_config()), state.authorizer, state.accounts, state.preferences,
+            extensions=state.extensions, timer_usage=state.usage, running_apps=state.running_apps,
+            sessions=state.sessions, grant_store=state.store, now=state.clock,
+            monotonic=state.monotonic, sleep=state.sleep,
+        )
+
+    def use(revision, *, caller=1001):
+        state.sessions.resolve.return_value = state.kiosk if caller == 991 else state.child
+        state.broker.use_saved_time(caller, ":1.42", 1001, revision)
+
+    state.restart, state.use = restart, use
+    state.record = lambda: state.store.load(1001, "child")
+    restart()
+    return state
+
+
+def test_overlay_uses_full_balance_after_live_time_and_applies_current_hard_blocks(redemption):
+    state = redemption
+    source = (state.epoch - 80, 160)
+    state.accounts.extension = source
+    state.usage.query_native_deadline.return_value = 125_000_000  # D capped at 25 s
+    before = seed_record(state.store, fixed=FixedGrant(source, False), saved=SavedBalance(300, True))
+    other = state.store.write(GrantRecord(1002, "other", saved=SavedBalance(700, False)))
+    # The parent promoted the soft app to hard and added a different soft app.
+    apps = state.preferences.values[1001]["apps"]
+    apps["soft.desktop"]["state"] = "permanent"
+    apps["new.desktop"] = {**apps["soft.desktop"], "state": "conditional",
+                           "targets": ["/usr/bin/new"]}
+
+    state.use(before.revision)
+
+    destination = (state.epoch, 380)
+    result = state.record()
+    assert result == replace(before, revision=before.revision + 2,
+                             fixed=FixedGrant(destination, True), saved=None)
+    assert state.accounts.extension == destination
+    assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert state.running_apps.calls == state.authorizer.calls == []
+    assert state.store.load(1002, "other") == other
+    assert all(event[1] == 1001 for event in state.accounts.events)
+    state.usage.query_native_deadline.assert_called_once_with(1001)
+    state.sessions.lock.assert_not_called()
+
+    events = state.accounts.events[:]
+    with pytest.raises(Stale):
+        state.use(before.revision)
+    assert state.record() == result and state.accounts.events == events
+
+
+def test_kiosk_uses_completed_usage_and_journals_before_stopping_blocked_apps(redemption):
+    state = redemption
+    before = seed_record(state.store, saved=SavedBalance(300, False))
+    desktop = replace(state.child, active=False, state="online")
+    state.sessions.for_user.side_effect = lambda *_args, **_kwargs: (desktop,)
+    state.sessions.get.side_effect = lambda *_args, **_kwargs: desktop
+    state.usage.query_native_deadline.return_value = 0
+
+    def lock(session_id, **_kwargs):
+        nonlocal desktop
+        assert session_id == desktop.session_id
+        desktop = replace(desktop, locked=True)
+        state.usage.query_usage.return_value = ((state.epoch - 20, state.epoch),)
+
+    state.sessions.lock.side_effect = lock
+    terminate = state.running_apps.terminate
+
+    def check_then_terminate(uid, targets, patterns):
+        pending = GrantStore(state.store.directory).load(uid, "child")
+        assert pending.intent.destination == (state.epoch, 400)
+        assert pending.intent.termination_started
+        assert state.accounts.extension == (0, 0)
+        return terminate(uid, targets, patterns)
+
+    with mock.patch.object(state.running_apps, "terminate", side_effect=check_then_terminate):
+        state.use(before.revision, caller=991)
+
+    assert state.accounts.extension == (state.epoch, 400)
+    assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert state.running_apps.calls[-1] == ("terminate", 1001, state.accounts.filter[1], ())
+    assert state.extensions.recoveries == [1001]
+    assert (state.record().saved, state.record().intent) == (None, None)
+    state.sessions.lock.assert_called_once()
+    state.usage.query_native_deadline.assert_not_called()
+
+
+@pytest.mark.parametrize(("remaining", "expect_fixed"), [(200, False), (120, True), (0, True)])
+def test_use_saved_time_preserves_a_deadline_only_when_it_contributes(redemption, remaining, expect_fixed):
+    state = redemption
+    source = (state.epoch - 10, remaining + 10)
+    state.accounts.extension = source
+    before = seed_record(state.store, saved=SavedBalance(300, True))
+
+    state.use(before.revision)
+
+    destination = (state.epoch, max(120, remaining) + 300)
+    assert state.accounts.extension == destination
+    assert state.record().fixed == (FixedGrant(destination, True) if expect_fixed else None)
+
+
+@pytest.mark.parametrize("same_tuple", [False, True])
+def test_use_saved_time_excludes_the_paused_grants_short_os_tail(redemption, same_tuple):
+    state = redemption
+    source = ((state.epoch, TRANSFER_MARGIN_SECONDS) if same_tuple else
+              (state.epoch - 60, 60 + TRANSFER_MARGIN_SECONDS))
+    state.accounts.extension = source
+    state.preferences.values[1001]["daily_time_limit_minutes"] = 0
+    state.accounts.daily_limit = 0
+    seconds = TRANSFER_MARGIN_SECONDS if same_tuple else 300
+    before = seed_record(state.store, fixed=FixedGrant(source, True, ended_by_pause=True),
+                         saved=SavedBalance(seconds, True))
+
+    if same_tuple:
+        # The live tuple alone cannot show that the app effects ran.
+        with mock.patch.object(state.accounts, "set_filter", side_effect=SystemExit):
+            with pytest.raises(SystemExit):
+                state.use(before.revision)
+        state.restart()
+        recover_redemption(state)
+    else:
+        state.use(before.revision)
+
+    assert state.accounts.extension == (state.epoch, seconds)
+    assert state.accounts.filter == (False, ("org.example.Game",))
+    assert state.record().fixed == FixedGrant(state.accounts.extension, True)
+
+
+@pytest.mark.parametrize(("refusal", "error"), [
+    ("stale revision", Stale), ("zero saved", Stale),
+    ("over grant limit", InvalidRequest), ("over uint32", InvalidRequest),
+    ("missing usage", BackendFailure), ("preflight fails", BackendFailure),
+    ("snapshot fails", BackendFailure), ("caller left", AccessDenied),
+])
+def test_use_saved_time_pre_intent_refusals_preserve_time_and_apps(redemption, refusal, error):
+    state = redemption
+    saved = None if refusal == "zero saved" else SavedBalance(300, False)
+    before = seed_record(state.store, saved=saved)
+    original_filter = state.accounts.filter
+    if refusal == "over grant limit":
+        state.accounts.extension = (state.epoch, MAX_TIME_GRANT_SECONDS)
+    elif refusal == "over uint32":
+        state.accounts.extension = (state.epoch, UINT32_MAX)
+    elif refusal == "missing usage":
+        state.usage.query_usage.side_effect = OSError("usage unavailable")
+    elif refusal == "caller left":
+        def depart(*_args, **_kwargs):
+            state.sessions.resolve.return_value = replace(state.child, active=False)
+            return ()
+
+        state.usage.query_usage.side_effect = depart
+    source = state.accounts.extension
+    revision = before.revision - 1 if refusal == "stale revision" else before.revision
+
+    with mock.patch.object(state.running_apps, "preflight", wraps=state.running_apps.preflight,
+                           side_effect=OSError("preflight") if refusal == "preflight fails" else None), \
+            mock.patch.object(state.accounts, "get_filter", wraps=state.accounts.get_filter,
+                              side_effect=OSError("snapshot") if refusal == "snapshot fails" else None):
+        with pytest.raises(error):
+            state.use(revision)
+
+    assert state.record() == before
+    assert (state.accounts.extension, state.accounts.filter) == (source, original_filter)
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+    state.sessions.lock.assert_not_called()
+    if refusal in {"stale revision", "zero saved"}:
+        state.usage.query_usage.assert_not_called()
+
+
+@pytest.mark.parametrize("limit_type", (0, 2))
+def test_use_saved_time_refuses_to_publish_before_intent_is_durable(redemption, monkeypatch, limit_type):
+    state = redemption
+    state.accounts.limit_type = limit_type
+    state.accounts.daily_limit = 120 if limit_type else 480
+    before = seed_record(state.store, saved=SavedBalance(300, True))
+
+    def fail_directory_sync(_path):
+        raise OSError("the intent replacement was visible but durability was unconfirmed")
+
+    with monkeypatch.context() as patches:
+        patches.setattr(data_migration, "_fsync_directory", fail_directory_sync)
+        with pytest.raises(RecoveryPending):
+            state.use(before.revision)
+
+    assert state.record().intent.destination == (state.epoch, 420)
+    assert state.record().saved == before.saved
+    assert state.accounts.extension == (0, 0)
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+
+    # Seeing the renamed file on a later call still does not confirm durability.
+    pending = state.record()
+    with monkeypatch.context() as patches:
+        patches.setattr(data_migration, "_fsync_directory", fail_directory_sync)
+        with pytest.raises(RecoveryPending):
+            state.use(pending.revision)
+    assert state.accounts.extension == (0, 0)
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+
+    with pytest.raises(Stale):
+        state.use(state.record().revision)
+    assert state.accounts.extension == (state.epoch, 420)
+    assert (state.accounts.limit_type, state.accounts.daily_limit) == (2, 120)
+    assert state.record().saved is None and state.record().intent is None
+
+
+@pytest.mark.parametrize("outcome", (
+    "failed write", "late write", "unreadable verify", "repeated read failure",
+    "late with disabled limits", "external replacement",
+))
+def test_use_saved_time_resolves_uncertainty_from_the_live_tuple(redemption, outcome):
+    state = redemption
+    source = (state.epoch - 10, 90)
+    destination = (state.epoch, 420)
+    replacement = (state.epoch + 1, 250)
+    if outcome == "late with disabled limits":
+        source = (0, 0)
+        state.accounts.limit_type = 0
+    state.accounts.extension = source
+    # An external replacement matching an old fixed marker must still be a deadline.
+    before = seed_record(state.store, fixed=FixedGrant(replacement, True), saved=SavedBalance(300, True))
+    read = state.accounts.get_extension
+    write = state.accounts.set_extension
+    attempted = []
+    reads_lost = 0
+    late = False
+
+    def set_extension(uid, value):
+        nonlocal reads_lost, late
+        if value != destination:
+            assert state.accounts.extension != replacement
+            return write(uid, value)
+        attempted.append(value)
+        if len(attempted) > 1:
+            return write(uid, value)
+        if outcome == "failed write":
+            raise OSError("write failed before the service changed the tuple")
+        if outcome in {"late write", "late with disabled limits"}:
+            late = True
+            if outcome == "late with disabled limits":
+                reads_lost = 2
+            raise TimeoutError("the dispatched write may finish later")
+        if outcome in {"unreadable verify", "repeated read failure"}:
+            write(uid, value)
+            reads_lost = 2 if outcome == "repeated read failure" else 1
+            return
+        state.accounts.extension = replacement
+        raise TimeoutError("another writer replaced the grant")
+
+    def read_extension(uid):
+        nonlocal reads_lost, late
+        if reads_lost:
+            reads_lost -= 1
+            raise TimeoutError("read-back unavailable")
+        if late:
+            late = False
+            state.accounts.extension = destination
+        return read(uid)
+
+    with mock.patch.object(state.accounts, "set_extension", side_effect=set_extension), \
+            mock.patch.object(state.accounts, "get_extension", side_effect=read_extension):
+        if outcome == "external replacement":
+            with pytest.raises(BackendFailure):
+                state.use(before.revision)
+        else:
+            state.use(before.revision)
+
+    result = state.record()
+    assert result.saved is None and result.intent is None
+    if outcome == "external replacement":
+        assert state.accounts.extension == replacement
+        assert running_mode(result, replacement, 250) == "deadline"
+        assert attempted == [destination]
+        assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    elif outcome == "failed write":
+        assert attempted == [destination, destination]
+        assert state.accounts.extension == destination
+        assert result.fixed == FixedGrant(destination, True)
+    else:
+        assert attempted == [destination]
+        assert state.accounts.extension == destination
+        assert result.fixed == FixedGrant(destination, True)
+    if outcome != "external replacement":
+        assert state.accounts.filter == (False, ("org.example.Game",))
+    if outcome == "late with disabled limits":
+        assert not any(event == ("set_limit_type", 1001, 0) for event in state.accounts.events)
+        assert (state.accounts.limit_type, state.accounts.daily_limit) == (2, 120)
+
+
+def recover_redemption(state):
+    with state.broker._request_lock:
+        return state.broker._recover_redeem_intent(state.record())
+
+
+@pytest.mark.parametrize("failure_point", ("grant read", "grant write"))
+def test_failed_source_recovery_does_not_inherit_interrupted_soft_app_access(redemption, failure_point):
+    state = redemption
+    strict_filter = False, ("/usr/bin/game", "org.example.Game")
+    state.accounts.filter = strict_filter
+    saved = SavedBalance(300, True)
+    before = seed_record(state.store, saved=saved)
+    with mock.patch.object(state.accounts, "set_extension", side_effect=SystemExit):
+        with pytest.raises(SystemExit):
+            state.use(before.revision)
+    assert state.accounts.filter == (False, ("org.example.Game",))
+    assert state.accounts.extension == (0, 0)
+
+    state.restart()
+    read_error = TimeoutError("grant unavailable") if failure_point == "grant read" else None
+    with mock.patch.object(state.accounts, "set_extension", side_effect=OSError("write failed")) as write, \
+            mock.patch.object(state.accounts, "get_extension", wraps=state.accounts.get_extension,
+                              side_effect=read_error):
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+    if read_error is not None:
+        write.assert_not_called()
+
+    assert state.accounts.extension == (0, 0)
+    assert state.accounts.filter == strict_filter
+    assert state.record().saved == saved and state.record().intent.destination == (state.epoch, 420)
+
+
+def test_elapsed_destination_recovery_revalidates_account_before_writing_strict_filter(redemption):
+    state = redemption
+    destination = (state.epoch, 420)
+    saved = SavedBalance(300, True)
+    pending = seed_record(state.store, saved=saved, intent=RedeemIntent(
+        (0, 0), destination, True, True,
+    ))
+    state.accounts.extension = destination
+    state.sleep(500)
+    complete = state.broker._complete_redeem_effects
+    load = state.preferences.load
+
+    def reassign(uid):
+        state.accounts.users[uid] = replace(state.accounts.users[uid], username="replacement")
+        return load(uid)
+
+    def complete_with_reassignment(*args, **kwargs):
+        with mock.patch.object(state.preferences, "load", side_effect=reassign):
+            complete(*args, **kwargs)
+
+    with mock.patch.object(state.broker, "_complete_redeem_effects", side_effect=complete_with_reassignment):
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+    assert state.record() == replace(pending, revision=state.record().revision)
+    assert state.accounts.extension == destination
+
+
+def test_destination_recovery_retries_native_policy_and_stops_apps_after_filter_rollback(redemption):
+    state = redemption
+    source = (state.epoch - 10, 90)
+    destination = (state.epoch, 420)
+    saved = SavedBalance(300, False)
+    strict_filter = False, ("/usr/bin/game", "org.example.Game")
+    state.accounts.extension = destination
+    # After a reversible filter rollback, a matching process could start before
+    # the late destination appeared. The next native policy update loses its reply.
+    state.accounts.filter = (False, ("org.example.Game",))
+    seed_record(state.store, saved=saved, intent=RedeemIntent(
+        source, destination, False, True, termination_started=True,
+    ))
+    apply_filter = state.accounts.set_filter
+    native_filter = state.accounts.filter
+    matched_app_running = True
+    attempts = 0
+
+    def set_filter(uid, value):
+        nonlocal native_filter, attempts
+        attempts += 1
+        apply_filter(uid, value)
+        if attempts == 1:
+            raise OSError("native policy update failed after the AccountsService property write")
+        native_filter = value
+
+    def terminate(uid, targets, patterns):
+        nonlocal matched_app_running
+        assert (uid, targets, patterns) == (1001, strict_filter[1], ())
+        assert native_filter == strict_filter
+        assert state.record().intent.termination_started
+        matched_app_running = False
+        return 1
+
+    with mock.patch.object(state.accounts, "set_filter", side_effect=set_filter), \
+            mock.patch.object(state.running_apps, "terminate", side_effect=terminate) as stop:
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+        assert state.accounts.filter == strict_filter and native_filter != strict_filter
+        assert state.record().saved == saved
+        stop.assert_not_called()
+        result = recover_redemption(state)
+
+    assert attempts == 2
+    stop.assert_called_once()
+    assert not matched_app_running
+    assert native_filter == strict_filter
+    assert result.saved is None and result.intent is None
+    assert not any(event[0] == "set_extension" for event in state.accounts.events)
+
+
+@pytest.mark.parametrize(("outcome", "limit_type"), (
+    ("source", 3), ("destination", 3), ("external replacement", 3), ("external replacement", 0),
+))
+def test_use_saved_time_recovers_interruption_during_native_time_initialization(
+        redemption, outcome, limit_type):
+    state = redemption
+    source = (state.epoch - 10, 90) if limit_type else (0, 0)
+    destination = (state.epoch, 420)
+    replacement = (state.epoch, 85)
+    original_schedule = (300, 60_000)
+    state.accounts.extension = source
+    state.accounts.daily_limit = 480
+    state.accounts.daily_schedule = original_schedule
+    state.accounts.limit_type = limit_type
+    strict_filter = False, ("/usr/bin/game", "org.example.Game")
+    state.accounts.filter = strict_filter
+    before = seed_record(state.store, saved=SavedBalance(300, True))
+    write = state.accounts.set_extension
+
+    def interrupt(uid, value):
+        assert value == destination
+        if outcome == "destination":
+            write(uid, value)
+        elif outcome == "external replacement":
+            state.accounts.extension = replacement
+        raise SystemExit("the broker stopped before finalizing native time settings")
+
+    with mock.patch.object(state.accounts, "set_extension", side_effect=interrupt):
+        with pytest.raises(SystemExit):
+            state.use(before.revision)
+
+    assert state.record().intent.destination == destination
+    assert state.accounts.limit_type == 1 and state.accounts.daily_schedule == (0, 86_400)
+    assert state.accounts.filter == (False, ("org.example.Game",))
+    state.restart()
+    state.accounts.events.clear()
+    result = recover_redemption(state)
+
+    assert result.intent is None and result.saved is None
+    assert (state.accounts.limit_type, state.accounts.daily_schedule) == (limit_type or 2, original_schedule)
+    assert not any(event == ("set_limit_type", 1001, 0) for event in state.accounts.events)
+    if outcome == "external replacement":
+        assert state.accounts.filter == strict_filter
+        assert state.running_apps.calls == []
+        if limit_type:
+            assert state.accounts.daily_limit == 480
+    else:
+        assert state.accounts.daily_limit == 120
+    assert state.accounts.extension == (replacement if outcome == "external replacement" else destination)
+    writes = [event[2] for event in state.accounts.events if event[0] == "set_extension"]
+    assert writes == ([destination] if outcome == "source" else [])
+
+
+@pytest.mark.parametrize(("live_tuple", "failure_point", "bridge_state"), (
+    ("source", "app policy", "full"), ("destination", "app policy", "full"),
+    ("external", "app policy", "full"), ("source", "directory sync", "full"),
+    ("source", "grant read", "full"), ("source", "directory sync and grant read", "full"),
+    ("source", "grant read", "type restored"), ("source", "grant read and daily cap", "type restored"),
+    ("source", "directory sync", "type restored"),
+    ("source", "directory sync and grant read", "type restored"),
+    ("source", "grant read", "schedule restored"),
+    ("source", "directory sync and grant read", "schedule restored"),
+))
+def test_interrupted_redemption_closes_full_day_bridge_on_recovery_failure(
+        redemption, live_tuple, failure_point, bridge_state):
+    state = redemption
+    source = (state.epoch - 10, 90)
+    destination = (state.epoch, 420)
+    replacement = (state.epoch, 60)
+    native = RedeemTimeState(3, 480, (300, 60_000))
+    live = {"source": source, "destination": destination, "external": replacement}[live_tuple]
+    state.accounts.extension = live
+    state.accounts.limit_type = native.limit_type if bridge_state == "type restored" else 1
+    state.accounts.daily_schedule = native.daily_schedule if bridge_state == "schedule restored" else (0, 86_400)
+    saved = SavedBalance(300, False)
+    seed_record(state.store, saved=saved, intent=RedeemIntent(
+        source, destination, False, True, time_state=native,
+    ))
+    failure = OSError("recovery failure")
+    sync_error = failure if "directory sync" in failure_point else None
+    app_error = failure if failure_point == "app policy" else None
+    read_error = TimeoutError("grant read did not finish") if "grant read" in failure_point else None
+    cap_error = failure if "daily cap" in failure_point else None
+
+    with mock.patch.object(state.running_apps, "preflight", side_effect=app_error), \
+            mock.patch.object(state.accounts, "set_filter", side_effect=app_error), \
+            mock.patch.object(state.accounts, "get_extension", wraps=state.accounts.get_extension,
+                              side_effect=read_error), \
+            mock.patch.object(state.accounts, "set_daily_limit", wraps=state.accounts.set_daily_limit,
+                              side_effect=cap_error) as set_cap, \
+            mock.patch.object(data_migration, "_fsync_directory", wraps=data_migration._fsync_directory,
+                              side_effect=sync_error):
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+
+    assert state.accounts.extension == live
+    assert (state.accounts.limit_type, state.accounts.daily_schedule) == (3, native.daily_schedule)
+    assert state.accounts.daily_limit == (120 if live_tuple == "destination" or cap_error else 480)
+    if cap_error:
+        set_cap.assert_called_once_with(1001, 480)
+        assert ("set_limit_type", 1001, 1) not in state.accounts.events
+    assert state.record().saved == saved and state.record().intent.destination == destination
+    assert not any(event[0] == "set_extension" for event in state.accounts.events)
+
+
+def test_bridge_recovery_rechecks_account_after_native_read(redemption):
+    state = redemption
+    destination = (state.epoch, 420)
+    native = RedeemTimeState(3, 480, (300, 60_000))
+    saved = SavedBalance(300, True)
+    seed_record(state.store, saved=saved, intent=RedeemIntent(
+        (0, 0), destination, True, True, time_state=native,
+    ))
+    state.accounts.limit_type = 1
+    state.accounts.daily_schedule = (0, 86_400)
+    read = state.accounts.get_daily_schedule
+
+    def read_then_reassign(uid):
+        value = read(uid)
+        state.accounts.users[uid] = replace(state.accounts.users[uid], username="replacement")
+        return value
+
+    with mock.patch.object(state.accounts, "get_daily_schedule", side_effect=read_then_reassign):
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+
+    assert state.accounts.extension == (0, 0)
+    assert state.record().saved == saved and state.record().intent.destination == destination
+    assert any(event[0] == "get_daily_schedule" for event in state.accounts.events)
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+
+
+def test_failed_redemption_roll_forward_restores_prior_time_and_keeps_strict_apps(redemption):
+    state = redemption
+    source = (state.epoch - 100, 200)
+    destination = (state.epoch, 420)
+    state.accounts.extension = source
+    state.accounts.daily_limit = 480
+    state.accounts.daily_schedule = (300, 60_000)
+    state.accounts.limit_type = 3
+    before = seed_record(state.store, fixed=FixedGrant(source, True), saved=SavedBalance(300, False))
+    attempts = []
+
+    def fail_new_grant(uid, value):
+        attempts.append((uid, value))
+        raise OSError("the new grant could not be written")
+
+    with mock.patch.object(state.accounts, "set_extension", side_effect=fail_new_grant):
+        with pytest.raises(RecoveryPending):
+            state.use(before.revision, caller=991)
+
+    assert attempts == [(1001, destination), (1001, destination)]
+    assert (state.accounts.extension, state.accounts.daily_limit, state.accounts.limit_type,
+            state.accounts.daily_schedule) == (source, 480, 3, (300, 60_000))
+    assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    pending = state.record()
+    assert pending.saved == before.saved
+    assert pending.intent.termination_started
+    assert pending.intent.destination == destination
+
+    state.sleep(86_400)
+    state.restart()
+    result = recover_redemption(state)
+
+    assert result == state.record()
+    assert result.saved is None and result.intent is None
+    assert state.accounts.extension == destination
+    assert state.broker.get_time_status(0, 1001).one_time_grant_remaining_seconds == 0
+
+
+def test_activation_failure_keeps_the_published_grant_pending_without_an_inverse_write(redemption):
+    state = redemption
+    source = (state.epoch - 100, 200)
+    destination = (state.epoch, 420)
+    state.accounts.extension = source
+    before = seed_record(state.store, saved=SavedBalance(300, False))
+    writes = []
+    apply_to_accounts = state.accounts.set_extension
+
+    def write(uid, value):
+        writes.append(value)
+        if value == source:
+            raise TimeoutError("an inverse write would be pending and could still land")
+        apply_to_accounts(uid, value)
+
+    with mock.patch.object(state.accounts, "set_extension", side_effect=write), \
+            mock.patch.object(state.extensions, "set_enabled", side_effect=OSError("activation unavailable")):
+        with pytest.raises(RecoveryPending):
+            state.use(before.revision, caller=991)
+
+    assert state.accounts.extension == destination
+    assert state.record().saved == before.saved
+    assert state.record().intent.destination == destination
+    state.restart()
+    with mock.patch.object(state.accounts, "set_extension", side_effect=write):
+        result = recover_redemption(state)
+    assert writes == [destination]
+    assert state.accounts.extension == destination
+    assert result.saved is None and result.intent is None
+    assert state.extensions.recoveries == [1001]
+
+
+@pytest.mark.parametrize("change", (
+    "reassigned", "promoted", "external replacement", "external during final validation",
+))
+def test_kiosk_redemption_rechecks_account_and_tuple_after_activation(redemption, change):
+    state = redemption
+    destination = (state.epoch, 420)
+    replacement = (state.epoch, 60)
+    before = seed_record(state.store, saved=SavedBalance(300, True))
+    changed_at = []
+    load = state.preferences.load
+
+    def activate(uid, *_args, **_kwargs):
+        assert uid == 1001 and state.accounts.extension == destination
+        changed_at.append(len(state.accounts.events))
+        if change == "external replacement":
+            state.accounts.extension = replacement
+        elif change == "reassigned":
+            state.accounts.users[uid] = replace(state.accounts.users[uid], username="new-child")
+            raise OSError("the account changed while activating the extension")
+        elif change == "promoted":
+            state.accounts.users[uid] = replace(state.accounts.users[uid], is_admin=True)
+
+    def load_preferences(uid):
+        if change == "external during final validation" and changed_at and state.accounts.extension == destination:
+            state.accounts.extension = replacement
+        return load(uid)
+
+    external = change.startswith("external")
+    with mock.patch.object(state.extensions, "set_enabled", side_effect=activate), \
+            mock.patch.object(state.preferences, "load", side_effect=load_preferences):
+        expected = BackendFailure if external else (RecoveryPending, RollbackFailure)
+        with pytest.raises(expected):
+            state.use(before.revision, caller=991)
+
+    assert len(changed_at) == 1
+    events = state.accounts.events[changed_at[0]:]
+    result = state.record()
+    if external:
+        assert state.accounts.extension == replacement
+        assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+        assert result.saved is None and result.fixed is None and result.intent is None
+        assert not any(event[0] == "set_extension" for event in events)
+    else:
+        assert state.accounts.extension == destination
+        assert result.saved == before.saved and result.intent.destination == destination
+        assert not any(event[0].startswith(("set_", "terminate")) for event in events)
+
+
+@pytest.mark.parametrize("interruption", ("before grant", "before result", "unconfirmed result"))
+def test_redemption_recovery_does_not_restart_or_reopen_expired_access(redemption, interruption):
+    state = redemption
+    source = (state.epoch - 10, 210)
+    destination = (state.epoch, 500)
+    state.accounts.extension = source  # Contributing deadline grant.
+    before = seed_record(state.store, saved=SavedBalance(300, True))
+    write = state.store.write
+
+    def fail_result(record):
+        if record.intent is None:
+            if interruption == "unconfirmed result":
+                write(record)
+            raise GrantStoreError("the final result write could not be confirmed")
+        return write(record)
+
+    if interruption == "before grant":
+        with mock.patch.object(state.accounts, "set_extension", side_effect=SystemExit):
+            with pytest.raises(SystemExit):
+                state.use(before.revision)
+        assert state.accounts.extension == source
+    else:
+        with mock.patch.object(state.store, "write", side_effect=fail_result):
+            with pytest.raises(RecoveryPending):
+                state.use(before.revision)
+        assert state.accounts.extension == destination
+    state.sleep(86_400)
+    state.restart()
+    assert state.broker.prepare_own_session(1001)
+    strict_filter = (False, ("/usr/bin/game", "org.example.Game"))
+    assert state.accounts.filter == strict_filter
+    events = state.accounts.events[:]
+    result = state.record() if interruption == "unconfirmed result" else recover_redemption(state)
+
+    assert result == state.record()
+    assert result.fixed is None and result.saved is None and result.intent is None
+    assert state.accounts.extension == destination
+    assert state.accounts.filter == strict_filter
+    assert state.broker.get_time_status(0, 1001).one_time_grant_remaining_seconds == 0
+    with pytest.raises(Stale):
+        state.use(before.revision)
+    assert not any(event[0] == "terminate_apps" for event in state.accounts.events[len(events):])
+    writes = [event[2] for event in state.accounts.events[len(events):] if event[0] == "set_extension"]
+    assert writes == ([destination] if interruption == "before grant" else [])
 
 
 if __name__ == "__main__":

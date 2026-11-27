@@ -91,6 +91,9 @@ class ParentWindowHarness:
     def _load_selected(self):
         self.load_count += 1
 
+    def _reset_time_status(self, _value):
+        self._remaining_time_seconds = None
+
     def _toast(self, message):
         self.toasts.append(message)
 
@@ -1269,6 +1272,9 @@ class ParentWindowTests(unittest.TestCase):
         window._selected_uid = lambda: 1001
         window._time_status_value = Label()
         window._time_explanation = Label()
+        window._saved_time_value = Label()
+        window._saved_time = SimpleNamespace(set_subtitle=lambda _value: None)
+        window._time_status_retry = FakeVisibleWidget()
         window._preferences = {"daily_time_limit_minutes": 0}
         window._loading = False
         window._account = FakeSensitiveWidget()
@@ -1285,12 +1291,13 @@ class ParentWindowTests(unittest.TestCase):
             "one_time_grant_remaining_seconds": 0,
             "additional_one_time_grant_seconds": 0,
             "calculated_active_extension_seconds": 0,
+            "saved_seconds": 0,
         }
-        ParentWindow._time_status_loaded(window, 1001, status)
+        ParentWindow._time_status_loaded(window, status)
         self.assertEqual(window._remaining_time_seconds, 0)
         self.assertFalse(window._revoke.sensitive)
         status["has_running_soft_blocked_apps"] = True
-        ParentWindow._time_status_loaded(window, 1001, status)
+        ParentWindow._time_status_loaded(window, status)
         self.assertTrue(window._revoke.sensitive)
         for busy_field in ("_loading", "_save_in_progress"):
             setattr(window, busy_field, True)
@@ -1298,20 +1305,13 @@ class ParentWindowTests(unittest.TestCase):
             self.assertFalse(window._revoke.sensitive)
             setattr(window, busy_field, False)
         status["has_running_soft_blocked_apps"] = False
-        ParentWindow._time_status_loaded(window, 1001, status)
+        ParentWindow._time_status_loaded(window, status)
         self.assertFalse(window._revoke.sensitive)
         status["calculated_active_extension_seconds"] = 60
-        ParentWindow._time_status_loaded(window, 1001, status)
+        ParentWindow._time_status_loaded(window, status)
         self.assertTrue(window._revoke.sensitive)
 
-    def test_transient_time_status_failure_retries_before_showing_unavailable(self):
-        class Label:
-            def __init__(self, label):
-                self.label = label
-
-            def set_label(self, label):
-                self.label = label
-
+    def test_transient_time_status_failure_retries_with_an_explicit_busy_state(self):
         window = type("WindowHarness", (), {
             "_retry_time_status": ParentWindow._retry_time_status,
         })()
@@ -1320,30 +1320,28 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_retry_id = 0
         window._time_status_retry_count = 0
         window._selected_uid = lambda: 1001
-        window._time_status_value = Label("59 minutes")
-        window._time_explanation = Label("One-time grant remaining: 59m.")
+        window._set_time_status_unreadable = mock.Mock()
+        window._set_apps_sensitive = mock.Mock()
         window._load_time_status = mock.Mock()
+        error = Gio.DBusError.new_for_dbus_error(
+            "com.puffyslippers.OhNoParentControl1.Error.Busy", "busy",
+        )
 
         with mock.patch(
             "parent.oh_no_parent_control_parent.main.GLib.timeout_add_seconds",
             return_value=73,
         ) as timeout_add:
-            ParentWindow._time_status_failed(window, 1001, RuntimeError("busy"))
+            ParentWindow._time_status_failed(window, 1001, error)
 
-        self.assertEqual(window._time_status_value.label, "59 minutes")
+        window._set_time_status_unreadable.assert_called_once_with(
+            m.UNAVAILABLE, detail=m.TIME_CONTROLS_BUSY, can_retry=True,
+        )
         self.assertEqual(window._time_status_retry_id, 73)
         retry_callback = timeout_add.call_args.args[1]
         self.assertEqual(retry_callback(), 0)
         window._load_time_status.assert_called_once_with(retry=True)
 
     def test_time_status_failure_shows_unavailable_after_bounded_retries(self):
-        class Label:
-            def __init__(self):
-                self.label = "value"
-
-            def set_label(self, label):
-                self.label = label
-
         window = type("WindowHarness", (), {})()
         window._time_status_loading = True
         window._time_status_refresh_pending = False
@@ -1352,13 +1350,14 @@ class ParentWindowTests(unittest.TestCase):
         window._show_error = mock.Mock()
         window._show_refresh_error = mock.Mock()
         window._selected_uid = lambda: 1001
-        window._time_status_value = Label()
-        window._time_explanation = Label()
+        window._set_time_status_unreadable = mock.Mock()
+        window._set_apps_sensitive = mock.Mock()
 
         ParentWindow._time_status_failed(window, 1001, RuntimeError("busy"))
 
-        self.assertEqual(window._time_status_value.label, "Unavailable")
-        self.assertEqual(window._time_explanation.label, "—")
+        window._set_time_status_unreadable.assert_called_once_with(
+            m.UNAVAILABLE, detail=m.TIME_STATUS_UNAVAILABLE, can_retry=True,
+        )
         window._show_refresh_error.assert_called_once()
 
     def test_overlapping_time_status_refresh_is_coalesced(self):
@@ -1366,6 +1365,7 @@ class ParentWindowTests(unittest.TestCase):
         window._time_status_loading = True
         window._time_status_refresh_pending = False
         window._selected_uid = lambda: 1001
+        window._loading = False
 
         ParentWindow._load_time_status(window)
 

@@ -1778,6 +1778,12 @@ msgstr "今天剩余时间无法留待以后使用。"
 msgid "Saved for later"
 msgstr "已留待以后使用"
 
+msgid "The child can start this time later."
+msgstr "孩子可以稍后开始使用这段时间。"
+
+msgid "This also clears saved time."
+msgstr "这也会清除已保留的时间。"
+
 msgid "Use saved time"
 msgstr "使用留存的时间"
 

@@ -1792,6 +1792,12 @@ msgstr "Zvyšok dňa sa nedá odložiť na neskôr."
 msgid "Saved for later"
 msgstr "Odložené na neskôr"
 
+msgid "The child can start this time later."
+msgstr "Dieťa môže tento čas začať využívať neskôr."
+
+msgid "This also clears saved time."
+msgstr "Tým sa vymaže aj uložený čas."
+
 msgid "Use saved time"
 msgstr "Použiť odložený čas"
 

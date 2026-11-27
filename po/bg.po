@@ -1786,6 +1786,12 @@ msgstr "„Остатъкът от деня“ не може да се запа�
 msgid "Saved for later"
 msgstr "Запазено за по-късно"
 
+msgid "The child can start this time later."
+msgstr "Детето може да започне да използва това време по-късно."
+
+msgid "This also clears saved time."
+msgstr "Това ще изчисти и запазеното време."
+
 msgid "Use saved time"
 msgstr "Използвайте запазеното време"
 

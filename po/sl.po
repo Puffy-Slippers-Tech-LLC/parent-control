@@ -1798,6 +1798,12 @@ msgstr "Preostanka dneva ni mogoče shraniti za pozneje."
 msgid "Saved for later"
 msgstr "Shranjeno za pozneje"
 
+msgid "The child can start this time later."
+msgstr "Otrok lahko ta čas začne uporabljati pozneje."
+
+msgid "This also clears saved time."
+msgstr "S tem se izbriše tudi shranjeni čas."
+
 msgid "Use saved time"
 msgstr "Uporabi shranjeni čas"
 

@@ -1780,6 +1780,12 @@ msgstr "بۈگۈننىڭ قالغان قىسمىنى كېيىنگە ساقلىغ
 msgid "Saved for later"
 msgstr "كېيىنگە ساقلاندى"
 
+msgid "The child can start this time later."
+msgstr "بالا بۇ ۋاقىتنى كېيىن ئىشلىتىشكە باشلىيالايدۇ."
+
+msgid "This also clears saved time."
+msgstr "بۇ مەشغۇلات ساقلانغان ۋاقىتنىمۇ ئۆچۈرىدۇ."
+
 msgid "Use saved time"
 msgstr "ساقلانغان ۋاقىتنى ئىشلىتىڭ"
 

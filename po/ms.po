@@ -1780,6 +1780,12 @@ msgstr "Baki hari ini tidak boleh disimpan."
 msgid "Saved for later"
 msgstr "Disimpan untuk kemudian"
 
+msgid "The child can start this time later."
+msgstr "Kanak-kanak boleh mula menggunakan masa ini kemudian."
+
+msgid "This also clears saved time."
+msgstr "Tindakan ini juga memadamkan masa yang disimpan."
+
 msgid "Use saved time"
 msgstr "Guna masa yang disimpan"
 

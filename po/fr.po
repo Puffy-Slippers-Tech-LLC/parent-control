@@ -1784,6 +1784,12 @@ msgstr "L’option « Reste de la journée » ne peut pas être enregistrée."
 msgid "Saved for later"
 msgstr "Enregistré pour plus tard"
 
+msgid "The child can start this time later."
+msgstr "L’enfant peut commencer à utiliser ce temps plus tard."
+
+msgid "This also clears saved time."
+msgstr "Cette action efface également le temps enregistré."
+
 msgid "Use saved time"
 msgstr "Utiliser le temps enregistré"
 

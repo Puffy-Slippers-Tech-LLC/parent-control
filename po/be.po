@@ -1792,6 +1792,12 @@ msgstr "Час з варыянтам «Да канца дня» нельга з�
 msgid "Saved for later"
 msgstr "Захавана на потым"
 
+msgid "The child can start this time later."
+msgstr "Дзіця можа пачаць выкарыстоўваць гэты час пазней."
+
+msgid "This also clears saved time."
+msgstr "Гэта таксама выдаліць захаваны час."
+
 msgid "Use saved time"
 msgstr "Выкарыстаць захаваны час"
 

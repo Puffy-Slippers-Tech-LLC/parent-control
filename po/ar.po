@@ -1810,6 +1810,12 @@ msgstr "لا يمكن حفظ الوقت عند اختيار «بقية اليو�
 msgid "Saved for later"
 msgstr "محفوظ لوقت لاحق"
 
+msgid "The child can start this time later."
+msgstr "يمكن للطفل بدء استخدام هذا الوقت لاحقًا."
+
+msgid "This also clears saved time."
+msgstr "سيؤدي هذا أيضًا إلى مسح الوقت المحفوظ."
+
 msgid "Use saved time"
 msgstr "استخدم الوقت المحفوظ"
 

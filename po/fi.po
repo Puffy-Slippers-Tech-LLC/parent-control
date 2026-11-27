@@ -1786,6 +1786,12 @@ msgstr "”Loppupäivä”-valintaa ei voi tallentaa."
 msgid "Saved for later"
 msgstr "Tallennettu myöhemmäksi"
 
+msgid "The child can start this time later."
+msgstr "Lapsi voi ottaa tämän ajan käyttöön myöhemmin."
+
+msgid "This also clears saved time."
+msgstr "Tämä poistaa myös tallennetun ajan."
+
 msgid "Use saved time"
 msgstr "Käytä tallennettua aikaa"
 

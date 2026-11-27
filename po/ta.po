@@ -1786,6 +1786,12 @@ msgstr "நாளின் மீதமுள்ள பகுதியைப் 
 msgid "Saved for later"
 msgstr "பின்னர் பயன்படுத்தச் சேமிக்கப்பட்டது"
 
+msgid "The child can start this time later."
+msgstr "குழந்தை இந்த நேரத்தைப் பின்னர் பயன்படுத்தத் தொடங்கலாம்."
+
+msgid "This also clears saved time."
+msgstr "இது சேமித்த நேரத்தையும் நீக்கும்."
+
 msgid "Use saved time"
 msgstr "சேமித்த நேரத்தைப் பயன்படுத்தவும்"
 

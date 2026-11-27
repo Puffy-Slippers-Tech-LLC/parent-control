@@ -1786,6 +1786,12 @@ msgstr "No es pot desar «La resta del dia»."
 msgid "Saved for later"
 msgstr "Desat per a més endavant"
 
+msgid "The child can start this time later."
+msgstr "L’infant pot començar a fer servir aquest temps més endavant."
+
+msgid "This also clears saved time."
+msgstr "Això també elimina el temps desat."
+
 msgid "Use saved time"
 msgstr "Fes servir el temps desat"
 

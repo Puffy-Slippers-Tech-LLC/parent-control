@@ -154,8 +154,11 @@ this service neither collects passwords nor injects attachments into application
 | `parent-custom-daily-limit` | Text/value get/set and Enter activation; both setters normalize explicit whole-minute duration tokens to digits (`15m` to `15`); ordinary 0–1439 validation remains |
 | `parent-time-status` | Boolean expansion value |
 | `parent-time-remaining`, `parent-time-explanation` | Public current remaining-time text and explanation |
+| `parent-time-saved`, `parent-time-saved-status` | Saved time amount and availability, separate from usable time |
+| `parent-time-retry` | Retry the time status read when available |
 | `parent-revoke-button` | Open ordinary revocation confirmation |
 | `parent-revoke-dialog`, `parent-revoke-warning`, `parent-revoke-cancel`, `parent-revoke-confirm` | Confirmation surface, explanation and native response actions |
+| `parent-revoke-saved-warning` | Confirmation text explaining that revocation clears saved time |
 | `parent-revoke-apps-heading`, `parent-revoke-apps` | Running soft-app explanation and canonical catalogue-ID list; present only for a nonempty list |
 | `parent-revoke-app-KEY`, `parent-revoke-app-KEY-bullet`, `parent-revoke-app-KEY-icon` | Catalogue name, bullet and canonical icon source; `KEY` uses the app-row desktop-ID hash |
 | `parent-app-KEY-icon` | App Limits icon, using the same renderer/source as revoke confirmation |

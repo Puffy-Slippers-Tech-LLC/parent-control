@@ -1780,6 +1780,12 @@ msgstr "«Күннің қалған бөлігі» нұсқасын сақтау
 msgid "Saved for later"
 msgstr "Кейінге сақталған"
 
+msgid "The child can start this time later."
+msgstr "Бала бұл уақытты пайдалануды кейінірек бастай алады."
+
+msgid "This also clears saved time."
+msgstr "Бұл әрекет сақталған уақытты да жояды."
+
 msgid "Use saved time"
 msgstr "Сақталған уақытты пайдалану"
 

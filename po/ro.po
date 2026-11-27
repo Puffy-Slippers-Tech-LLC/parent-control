@@ -1792,6 +1792,12 @@ msgstr "Restul zilei nu poate fi păstrat pentru mai târziu."
 msgid "Saved for later"
 msgstr "Păstrat pentru mai târziu"
 
+msgid "The child can start this time later."
+msgstr "Copilul poate începe să folosească acest timp mai târziu."
+
+msgid "This also clears saved time."
+msgstr "Această acțiune șterge și timpul păstrat."
+
 msgid "Use saved time"
 msgstr "Folosește timpul păstrat"
 

@@ -1786,6 +1786,12 @@ msgstr "אי אפשר לשמור את האפשרות ״שאר היום״."
 msgid "Saved for later"
 msgstr "נשמר למועד מאוחר יותר"
 
+msgid "The child can start this time later."
+msgstr "הילד יכול להתחיל להשתמש בזמן הזה מאוחר יותר."
+
+msgid "This also clears saved time."
+msgstr "פעולה זו מוחקת גם את הזמן שנשמר."
+
 msgid "Use saved time"
 msgstr "להשתמש בזמן שנשמר"
 

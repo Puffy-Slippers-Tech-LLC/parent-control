@@ -1792,6 +1792,12 @@ msgstr "Možnost „Zbytek dne“ nelze uložit."
 msgid "Saved for later"
 msgstr "Uloženo na později"
 
+msgid "The child can start this time later."
+msgstr "Dítě může tento čas začít využívat později."
+
+msgid "This also clears saved time."
+msgstr "Tím se také vymaže uložený čas."
+
 msgid "Use saved time"
 msgstr "Využít uložený čas"
 

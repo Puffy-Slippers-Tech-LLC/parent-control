@@ -663,6 +663,8 @@ CASES = (
                  'Retry closing a child’s blocked apps after only some close'),
     CaseIdentity(319, 'extension', 'test_active_usage_checkpoint_retry',
                  'Recover active desktop usage after the timer store is busy'),
+    CaseIdentity(320, 'package', 'test_saved_grant_update',
+                 'Keep saved time and running grants through a package update'),
 )
 
 BY_ID = MappingProxyType({case.numeric_id: case for case in CASES})

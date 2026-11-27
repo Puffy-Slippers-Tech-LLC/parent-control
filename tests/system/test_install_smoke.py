@@ -58,6 +58,15 @@ def test_previous_package_policy_preservation(record_testsuite_property):
         phase](record_testsuite_property)
 
 
+def test_saved_grant_update(record_testsuite_property):
+    from system_saved_grant_update import prepare, verify_updated, verify_reboot
+    phase = os.environ['ONPC_SYSTEM_PHASE']
+    guest.require(phase in ('previous-policy', 'installed', 'rebooted'),
+                  'saved-grant-update:test-phase')
+    {'previous-policy': prepare, 'installed': verify_updated, 'rebooted': verify_reboot}[
+        phase](record_testsuite_property)
+
+
 def test_trusted_native_upgrade_fixtures(record_testsuite_property):
     from system_trusted_fixtures import qualify
     guest.require(os.environ['ONPC_SYSTEM_PHASE'] == 'trusted-fixtures',

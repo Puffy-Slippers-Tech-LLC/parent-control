@@ -266,10 +266,18 @@ class PersistentCaller:
     """Keep a guarded real caller alive; signal only its recorded pidfd."""
 
     def __init__(self, uid, *, allow_root=False):
+        self._spawn(['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')])
+        try:
+            self.send({'uid': uid, 'stream': True, 'allow_root': allow_root})
+            self._ready(uid, self.receive())
+        except BaseException:
+            self.close()
+            raise
+
+    def _spawn(self, command):
         guest.guard()
-        self.child = subprocess.Popen(
-            ['/usr/bin/python3', '-B', str(guest.PAYLOAD / 'system_caller.py')],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        self.child = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.DEVNULL)
         try:
             self.pidfd = os.pidfd_open(self.child.pid)
         except BaseException:
@@ -279,17 +287,14 @@ class PersistentCaller:
             self.child.wait(timeout=5)
             raise
         self.pending = b''
-        try:
-            self.send({'uid': uid, 'stream': True, 'allow_root': allow_root})
-            ready = self.receive()
-            guest.require(ready.get('uid') == uid and
-                          isinstance(ready.get('name'), str) and ready['name'].startswith(':'),
-                          'caller:stream-identity')
-            self.name = ready['name']
-            self.uid = ready['uid']
-        except BaseException:
-            self.close()
-            raise
+        self.subject_pid = self.child.pid
+
+    def _ready(self, uid, ready):
+        guest.require(ready.get('uid') == uid and
+                      isinstance(ready.get('name'), str) and ready['name'].startswith(':'),
+                      'caller:stream-identity')
+        self.name = ready['name']
+        self.uid = ready['uid']
 
     def send(self, operation):
         self.child.stdin.write(json.dumps(operation).encode() + b'\n')
@@ -301,11 +306,11 @@ class PersistentCaller:
         # challenges to that same process. Include start time against PID reuse.
         guest.require(self.pidfd is not None and self.child.poll() is None,
                       'caller:agent-subject-exited')
-        fields = Path(f'/proc/{self.child.pid}/stat').read_text().rsplit(')', 1)[1].split()
+        fields = Path(f'/proc/{self.subject_pid}/stat').read_text().rsplit(')', 1)[1].split()
         start_time = fields[19]
         guest.require(start_time.isdecimal() and int(start_time) > 0 and
                       self.child.poll() is None, 'caller:agent-subject-identity')
-        return f'{self.child.pid},{start_time}'
+        return f'{self.subject_pid},{start_time}'
 
     def receive(self, timeout=100):
         deadline = time.monotonic() + timeout
@@ -351,6 +356,85 @@ class PersistentCaller:
 
     def __exit__(self, *_):
         self.close()
+
+
+# Runs as the target account, which cannot read the root-only payload. It uses
+# only the system bus and the same one-line JSON stream protocol.
+SESSION_WORKER = '''
+import json, os, sys
+import gi
+gi.require_version('Gio', '2.0')
+from gi.repository import Gio, GLib
+BUS = 'com.puffyslippers.OhNoParentControl1'
+connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+print(json.dumps({'uid': os.getuid(), 'name': connection.get_unique_name(), 'pid': os.getpid()}),
+      flush=True)
+for line in sys.stdin:
+    operation = json.loads(line)
+    try:
+        if operation.get('kind') != 'call':
+            raise ValueError('operation')
+        reply = connection.call_sync(
+            BUS, '/com/puffyslippers/OhNoParentControl1', BUS, operation['method'],
+            GLib.Variant(operation['signature'], tuple(operation['args'])),
+            None, Gio.DBusCallFlags.NONE, 90000, None)
+        print(json.dumps({'result': reply.unpack()}), flush=True)
+    except GLib.Error as error:
+        print(json.dumps({'error': Gio.DBusError.get_remote_error(error) or 'transport-error'}),
+              flush=True)
+'''
+
+
+class SessionCaller(PersistentCaller):
+    """Keep a broker caller inside its own local logind session.
+
+    systemd opens a real PAM ``login`` session for the account, outside this
+    command's root SSH session. Without a seat, logind reports that local
+    session active and unlocked, as saved-time mutations require. It is not a
+    graphical session, so it cannot satisfy a pause step's lock before capture.
+    """
+
+    def __init__(self, uid):
+        self.unit = 'onpc-session-caller-' + secrets.token_hex(8)
+        self._spawn(['/usr/bin/systemd-run', '--quiet', '--wait', '--collect', '--pipe',
+                     '--unit=' + self.unit, '--uid=' + str(uid), '--property=PAMName=login',
+                     '/usr/bin/python3', '-I', '-B', '-c', SESSION_WORKER])
+        try:
+            ready = self.receive(timeout=60)
+            self._ready(uid, ready)
+            guest.require(type(ready.get('pid')) is int and guest.run([
+                'systemctl', 'show', '--property=MainPID', '--value', self.unit]) == str(ready['pid']),
+                'caller:session-process')
+            self.subject_pid = ready['pid']
+            self._require_session()
+        except BaseException:
+            self.close()
+            raise
+
+    def _require_session(self):
+        from gi.repository import Gio, GLib
+        bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+        def call(path, interface, method, value, reply):
+            return bus.call_sync('org.freedesktop.login1', path, interface, method, value,
+                                 GLib.VariantType.new(reply), Gio.DBusCallFlags.NONE,
+                                 10000, None).unpack()[0]
+
+        path = call('/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
+                    'GetSessionByPID', GLib.Variant('(u)', (self.subject_pid,)), '(o)')
+        session = call(path, 'org.freedesktop.DBus.Properties', 'GetAll',
+                       GLib.Variant('(s)', ('org.freedesktop.login1.Session',)), '(a{sv})')
+        guest.require(session['User'][0] == self.uid and session['Remote'] is False and
+                      session['Active'] is True and session['LockedHint'] is False and
+                      session['State'] in ('online', 'active'), 'caller:session-binding')
+
+    def close(self):
+        try:
+            super().close()
+        finally:
+            # The pinned systemd-run normally waits for this exact transient
+            # unit. Stop that owned name too if the client had to be killed.
+            guest.commands.run(['systemctl', 'stop', self.unit], check=False, timeout=60)
 
 
 def drop_identity(uid, *, allow_root=False):

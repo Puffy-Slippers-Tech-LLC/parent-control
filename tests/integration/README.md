@@ -1603,6 +1603,39 @@ The selector is explicit and isolated; ordinary current-package or upgrade
 selections do not add it. Its passing result qualifies inputs, without granting
 candidate-upgrade or customer GUI acceptance.
 
+`package` → `test_saved_grant_update` (ID **320**) is another explicit, isolated
+engineering history on the same `previous-policy`, `installed` and `rebooted`
+phases and `--match-activation` update. Bare and package-wide selections never
+add it, so the default 287/288 selection is unchanged. The previous package
+chooses its history:
+
+- An explicit pair from `tools/run-tests artifacts prepare --for-vm
+  --no-action-inputs --vm NAME`, or for a VM on another host `tools/run-tests
+  artifacts prepare --no-action-inputs --package-format rpm --build-target fedora45`
+  (the VM's build target), passed as `--artifacts DIR/current
+  --previous-artifacts DIR/previous`, carries the saved-time feature. A fixture
+  writes one child's saved balance with a nondefault app choice; a broker
+  restart must keep its exact seconds, app choice and record bytes. The fixture
+  then creates the package's exclusion marker, stops the broker and stages a
+  second child's pending pause, whose boundary has passed, against a live
+  fixed grant. Until a candidate broker runs, the update must leave both
+  records byte-identical. After normal activation or the reboot, the first
+  record is unchanged and recovery abandons the pause exactly once: the
+  revision advances by one, saved time and the original tuple stay unchanged.
+- Use `--upgrade-inputs --upgrade-from=v2.0` for the newest earlier release
+  preceding the store. A real Polkit-approved kiosk request starts a fixed
+  grant before the store exists. After the update and reboot, the grant keeps
+  its original start and duration. Status reports a `deadline` grant with Pause
+  unavailable and an empty saved balance, and no grant record exists. A
+  child-rule `RequestDeferredAccess`, approved by the selected parent, then
+  returns `saved` and writes the new balance independently of the deadline grant.
+  Its caller runs in its own seatless PAM `login` session through
+  `system_caller.SessionCaller`, which logind reports local, active and unlocked;
+  it cannot satisfy a pause step's graphical lock before capture.
+
+The runner records both package identities and the history name. This engineering
+case supplies no customer GUI acceptance.
+
 Native policy cases use finite sequences: the command baseline keeps
 allow/hard/restore with screen-time control off, then hard/restore/soft/restore
 with control on; whitespace keeps allow/soft/restore with control

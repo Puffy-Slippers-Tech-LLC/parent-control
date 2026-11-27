@@ -23,7 +23,7 @@ recorded native qualification.
 | [x] | 013 | Show saved time in Parent and let parents revoke it | 010 | Parent balance display, availability, and saved-only revoke | Done. Parent UI and client checks, queued DEB and RPM builds, and fixture cleanup passed. |
 | [x] | 014 | Report saved-time operations without personal information | 010 | Structured event catalogue, operation outcomes, and field validation | Done. Host diagnostics and D-Bus checks, queued package builds, and independent review passed. |
 | [x] | 015 | Check that removal preserves saved time only if it is aborted | 010 | Installed removal, rollback, retry, reinstall, and purge engineering histories | Done. Installed checks passed on all three targets, including both Fedora rollback histories. Host fixture checks passed. |
-| [ ] | 016 | [Check that an upgrade preserves saved time](Save-For-Later-Tasks/016.md) | 010 | Installed broker restart and package update with saved time and recovery state | 2–3 h |
+| [x] | 016 | Check that an upgrade preserves saved time | 010 | Installed broker restart and package update with saved time and recovery state | Done. Both installed upgrade histories passed on all three targets. |
 | [ ] | 023 | [Check that pausing captures all usage on every target](Save-For-Later-Tasks/023.md) | 010 | Installed kiosk-rule lock before capture after a raw VT switch, per target | 2–3 h |
 | [ ] | 017 | [Qualify the shared test actions for saved time](Save-For-Later-Tasks/017.md) | 012, 013, 014 | Reusable public UI actions and observations on both surfaces | 2–3 h |
 | [ ] | 018 | [Save a running grant at the kiosk and unlock the retained desktop](Save-For-Later-Tasks/018.md) | 017, 023 | Scenario 1 retained desktop variant | 1–2 h |

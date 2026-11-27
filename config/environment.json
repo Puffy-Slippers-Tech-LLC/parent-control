@@ -1,5 +1,5 @@
 {
-  "agent": "codex",
+  "agent": "claude",
   "agents": {
     "codex": {
       "defaults": {

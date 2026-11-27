@@ -1764,3 +1764,92 @@ msgstr "Sisesta sobiv arv."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Lubatud vahemik: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Küsi lisaaega"
+
+msgid "Approved time"
+msgstr "Kinnitatud aeg"
+
+msgid "Request & use now"
+msgstr "Küsi ja kasuta kohe"
+
+msgid "More request options"
+msgstr "Rohkem taotlusvalikuid"
+
+msgid "Request & save for later"
+msgstr "Küsi ja salvesta hilisemaks"
+
+msgid "Rest of the day can't be saved."
+msgstr "Valikut „Ülejäänud päev“ ei saa salvestada."
+
+msgid "Saved for later"
+msgstr "Hilisemaks salvestatud"
+
+msgid "Use saved time"
+msgstr "Kasuta salvestatud aega"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Käivita taimer ja naase sisselogimiskuvale."
+
+msgid "Add it to your time now."
+msgstr "Lisa salvestatud aeg kohe oma ajale."
+
+msgid "Timer running"
+msgstr "Taimer töötab"
+
+msgid "Pause timer"
+msgstr "Peata taimer ajutiselt"
+
+msgid "Save the remaining time for later."
+msgstr "Salvesta järelejäänud aeg hilisemaks."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Tänane päevane aeg: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Kas peatada taimer ajutiselt ja lukustada ekraan?"
+
+msgid "Save for later and lock?"
+msgstr "Kas salvestada aeg hilisemaks ja lukustada ekraan?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Salvestatakse umbes %(duration)s. Ekraan lukustub kohe ja naasmiseks on vaja parooli. Alusta salvestatud aja kasutamist siin jaotises „Kinnitatud aeg“, kuni päevast aega on veel alles, või taotlusjaamas."
+
+msgid "Pause and lock"
+msgstr "Peata ajutiselt ja lukusta"
+
+msgid "No approved time available"
+msgstr "Kinnitatud aega pole saadaval"
+
+msgid "Covered by today's daily time"
+msgstr "Kaetud tänase päevase ajaga"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Kinnitatud kuni %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Lisa salvestatud aeg taimerile"
+
+msgid "Loading time status…"
+msgstr "Aja oleku laadimine…"
+
+msgid "Time status unavailable"
+msgstr "Aja olek pole saadaval"
+
+msgid "Time controls are busy. Try again."
+msgstr "Aja juhtnupud on hõivatud. Proovi uuesti."
+
+msgid "Updating approved time…"
+msgstr "Kinnitatud aja uuendamine…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Salvestatakse kinnitamisel: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Juba salvestatud: %(duration)s"

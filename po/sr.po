@@ -1776,3 +1776,95 @@ msgstr "Унесите исправан број."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Дозвољени опсег: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Затражи још времена"
+
+msgid "Approved time"
+msgstr "Одобрено време"
+
+msgid "Request & use now"
+msgstr "Затражи и искористи одмах"
+
+msgid "More request options"
+msgstr "Још опција за захтев"
+
+msgid "Request & save for later"
+msgstr "Затражи и сачувај за касније"
+
+msgid "Rest of the day can't be saved."
+msgstr "Остатак дана не може да се сачува за касније."
+
+msgid "Saved for later"
+msgstr "Сачувано за касније"
+
+msgid "Use saved time"
+msgstr "Искористи сачувано време"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Покрени тајмер и врати се на екран за пријаву."
+
+msgid "Add it to your time now."
+msgstr "Додај ово време свом расположивом времену одмах."
+
+msgid "Timer running"
+msgstr "Тајмер ради"
+
+msgid "Pause timer"
+msgstr "Паузирај тајмер"
+
+msgid "Save the remaining time for later."
+msgstr "Сачувај преостало време за касније."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Дневно ограничење за данас: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Паузирати тајмер и закључати екран?"
+
+msgid "Save for later and lock?"
+msgstr "Сачувати за касније и закључати екран?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Биће сачувано око %(duration)s. Екран ће се одмах закључати, а за повратак ће ти требати лозинка. Док ти је остало дневног времена, можеш да почнеш да користиш сачувано време овде на картици „Одобрено време“. Можеш да почнеш и на станици за слање захтева."
+
+msgid "Pause and lock"
+msgstr "Паузирај и закључај"
+
+msgid "No approved time available"
+msgstr "Нема доступног одобреног времена"
+
+msgid "Covered by today's daily time"
+msgstr "У оквиру дневног ограничења за данас"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Одобрено до %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Додај сачувано време тајмеру"
+
+msgid "Loading time status…"
+msgstr "Учитавање стања времена…"
+
+msgid "Time status unavailable"
+msgstr "Стање времена није доступно"
+
+msgid "Time controls are busy. Try again."
+msgstr "У току је друга радња у вези с временом. Покушај поново."
+
+msgid "Updating approved time…"
+msgstr "Ажурирање одобреног времена…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Биће сачувано ако се одобри: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Већ сачувано: %(duration)s"

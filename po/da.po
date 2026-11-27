@@ -1764,3 +1764,92 @@ msgstr "Indtast et gyldigt tal."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Tilladt interval: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Anmod om mere tid"
+
+msgid "Approved time"
+msgstr "Godkendt tid"
+
+msgid "Request & use now"
+msgstr "Anmod og brug nu"
+
+msgid "More request options"
+msgstr "Flere anmodningsmuligheder"
+
+msgid "Request & save for later"
+msgstr "Anmod og gem til senere"
+
+msgid "Rest of the day can't be saved."
+msgstr "»Resten af dagen« kan ikke gemmes."
+
+msgid "Saved for later"
+msgstr "Gemt til senere"
+
+msgid "Use saved time"
+msgstr "Brug gemt tid"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Start timeren, og vend tilbage til loginskærmen."
+
+msgid "Add it to your time now."
+msgstr "Læg den gemte tid til din tid nu."
+
+msgid "Timer running"
+msgstr "Timeren kører"
+
+msgid "Pause timer"
+msgstr "Sæt timeren på pause"
+
+msgid "Save the remaining time for later."
+msgstr "Gem den resterende tid til senere."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Tilladt tid i dag: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Sæt timeren på pause, og lås skærmen?"
+
+msgid "Save for later and lock?"
+msgstr "Gem til senere, og lås skærmen?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Der gemmes cirka %(duration)s. Skærmen låses nu, og du skal bruge din adgangskode for at vende tilbage. Start den gemte tid under »Godkendt tid« her, så længe du har daglig tid tilbage, eller ved anmodningsstationen."
+
+msgid "Pause and lock"
+msgstr "Sæt på pause, og lås"
+
+msgid "No approved time available"
+msgstr "Ingen godkendt tid tilgængelig"
+
+msgid "Covered by today's daily time"
+msgstr "Dækket af den tilladte tid i dag"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Godkendt indtil %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Føj gemt tid til timeren"
+
+msgid "Loading time status…"
+msgstr "Indlæser tidsstatus…"
+
+msgid "Time status unavailable"
+msgstr "Tidsstatus er ikke tilgængelig"
+
+msgid "Time controls are busy. Try again."
+msgstr "Tidsstyringen er optaget. Prøv igen."
+
+msgid "Updating approved time…"
+msgstr "Opdaterer godkendt tid…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Gemmes ved godkendelse: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Allerede gemt: %(duration)s"

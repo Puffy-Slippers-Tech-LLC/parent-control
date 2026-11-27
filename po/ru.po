@@ -1768,3 +1768,95 @@ msgstr "Введите допустимое число."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Допустимый диапазон: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Попросить больше времени"
+
+msgid "Approved time"
+msgstr "Одобренное время"
+
+msgid "Request & use now"
+msgstr "Запросить и использовать сейчас"
+
+msgid "More request options"
+msgstr "Другие варианты запроса"
+
+msgid "Request & save for later"
+msgstr "Запросить и сохранить на потом"
+
+msgid "Rest of the day can't be saved."
+msgstr "Нельзя сохранить время до конца дня на потом."
+
+msgid "Saved for later"
+msgstr "Сохранено на потом"
+
+msgid "Use saved time"
+msgstr "Использовать сохранённое время"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Запустите таймер и вернитесь на экран входа."
+
+msgid "Add it to your time now."
+msgstr "Добавьте это время к доступному времени прямо сейчас."
+
+msgid "Timer running"
+msgstr "Таймер запущен"
+
+msgid "Pause timer"
+msgstr "Приостановить таймер"
+
+msgid "Save the remaining time for later."
+msgstr "Сохраните оставшееся время на потом."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Лимит времени на сегодня: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Приостановить таймер и заблокировать экран?"
+
+msgid "Save for later and lock?"
+msgstr "Сохранить время на потом и заблокировать экран?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Будет сохранено около %(duration)s. Экран сейчас заблокируется, и для возврата понадобится пароль. Запустить сохранённое время можно здесь на вкладке «Одобренное время», пока не исчерпан дневной лимит, или на станции запросов."
+
+msgid "Pause and lock"
+msgstr "Приостановить и заблокировать"
+
+msgid "No approved time available"
+msgstr "Нет доступного одобренного времени"
+
+msgid "Covered by today's daily time"
+msgstr "Укладывается в лимит на сегодня"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Одобрено до %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Добавить сохранённое время к таймеру"
+
+msgid "Loading time status…"
+msgstr "Загрузка сведений о времени…"
+
+msgid "Time status unavailable"
+msgstr "Сведения о времени недоступны"
+
+msgid "Time controls are busy. Try again."
+msgstr "Выполняется другая операция с лимитом времени. Попробуйте ещё раз."
+
+msgid "Updating approved time…"
+msgstr "Обновление одобренного времени…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Будет сохранено при одобрении: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Уже сохранено: %(duration)s"

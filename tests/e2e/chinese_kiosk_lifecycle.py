@@ -64,7 +64,7 @@ NOTICE = {'update-required-message': '请重启计算机，以使 Oh No! Parent 
           'update-required-close': '关闭', 'update-required-reboot': '立即重启'}
 FORM = {'kiosk-child-account-caption': '孩子',
         'kiosk-approver-account-caption': '批准人',
-        'kiosk-duration-label-1800': '30 分钟', 'kiosk-request-submit': '提交请求',
+        'kiosk-duration-label-1800': '30 分钟', 'kiosk-request-submit': '请求并立即使用',
         'kiosk-request-cancel': '取消'}
 CHOOSER = {'language-title': '选择语言', 'language-continue': '保存', 'language-cancel': '取消'}
 

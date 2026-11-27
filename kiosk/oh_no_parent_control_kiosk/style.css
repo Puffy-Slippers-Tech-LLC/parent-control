@@ -196,19 +196,42 @@ button.about-link > label {
   min-height: 36px;
 }
 
-.oh-no-parent-control-header-copy {
-  padding: 1px 6px 0 0;
+button.oh-no-parent-control-request-tab {
+  padding: 4px;
+  border: 2px solid #252925;
+  border-top-color: #9aab91;
+  border-radius: 0;
+  background: #3c413a;
+  color: white;
+  font-weight: bold;
 }
 
-.oh-no-parent-control-title {
-  color: rgba(255, 255, 255, 0.98);
-  font-family: "Monocraft", "Ubuntu Mono", monospace;
-  font-size: 1.18em;
-  font-weight: 700;
-  letter-spacing: 0;
-  /* Pixel fonts ink above the Pango line box; pad so "OH NO!" stays inside. */
-  padding-top: 2px;
-  line-height: 1.05;
+button.oh-no-parent-control-request-tab.selected,
+menubutton.oh-no-parent-control-request-menu > button {
+  border-color: #245421;
+  border-top-color: #a5d795;
+  background: #4b9341;
+  color: white;
+}
+
+button.oh-no-parent-control-request-tab:hover,
+button.oh-no-parent-control-request-tab:focus-visible,
+menubutton.oh-no-parent-control-request-menu > button:hover,
+menubutton.oh-no-parent-control-request-menu > button:focus-visible {
+  border-top-color: #d8ffd0;
+}
+
+button.oh-no-parent-control-request-tab:disabled,
+menubutton.oh-no-parent-control-request-menu > button:disabled {
+  background: #2a2a2e;
+  border-color: #1a1a1c;
+  color: rgba(255, 255, 255, 0.50);
+}
+
+.oh-no-parent-control-approved-balance {
+  color: #a8e599;
+  font-size: 2em;
+  font-weight: bold;
 }
 
 .oh-no-parent-control-status {
@@ -537,6 +560,13 @@ entry.oh-no-parent-control-custom-entry {
 .oh-no-parent-control-actions {
   min-width: 0;
   font-size: 14px;
+}
+
+menubutton.oh-no-parent-control-request-menu > button {
+  margin-top: 4px;
+  padding: 3px 6px;
+  border-width: 3px;
+  border-radius: 0;
 }
 
 button.oh-no-parent-control-request-button,

@@ -1764,3 +1764,92 @@ msgstr "Adjon meg egy érvényes számot."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Megengedett tartomány: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Több idő kérése"
+
+msgid "Approved time"
+msgstr "Jóváhagyott idő"
+
+msgid "Request & use now"
+msgstr "Kérés és azonnali használat"
+
+msgid "More request options"
+msgstr "További kérési lehetőségek"
+
+msgid "Request & save for later"
+msgstr "Kérés és mentés későbbre"
+
+msgid "Rest of the day can't be saved."
+msgstr "„A nap hátralévő része” nem menthető."
+
+msgid "Saved for later"
+msgstr "Későbbre mentve"
+
+msgid "Use saved time"
+msgstr "Mentett idő használata"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Indítsd el az időzítőt, és térj vissza a bejelentkezési képernyőre."
+
+msgid "Add it to your time now."
+msgstr "Add hozzá most a mentett időt a rendelkezésedre álló időhöz."
+
+msgid "Timer running"
+msgstr "Az időzítő fut"
+
+msgid "Pause timer"
+msgstr "Időzítő szüneteltetése"
+
+msgid "Save the remaining time for later."
+msgstr "Mentsd el a hátralévő időt későbbre."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Mai napi időkeret: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Szünetelteted az időzítőt és zárolod a képernyőt?"
+
+msgid "Save for later and lock?"
+msgstr "Elmented az időt későbbre és zárolod a képernyőt?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Körülbelül %(duration)s lesz elmentve. A képernyő most zárolódik, és a visszatéréshez szükséged lesz a jelszavadra. A mentett időt itt, a „Jóváhagyott idő” lapon indíthatod el, amíg van még a napi időkeretedből, vagy az időkérő állomáson is elindíthatod."
+
+msgid "Pause and lock"
+msgstr "Szüneteltetés és zárolás"
+
+msgid "No approved time available"
+msgstr "Nincs elérhető jóváhagyott idő"
+
+msgid "Covered by today's daily time"
+msgstr "A mai napi időkeret fedezi"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Jóváhagyva eddig: %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Mentett idő hozzáadása az időzítőhöz"
+
+msgid "Loading time status…"
+msgstr "Az idő állapotának betöltése…"
+
+msgid "Time status unavailable"
+msgstr "Az idő állapota nem érhető el"
+
+msgid "Time controls are busy. Try again."
+msgstr "Az idővezérlők foglaltak. Próbáld újra."
+
+msgid "Updating approved time…"
+msgstr "Jóváhagyott idő frissítése…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Jóváhagyás esetén mentve lesz: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Már mentve: %(duration)s"

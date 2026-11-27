@@ -1764,3 +1764,95 @@ msgstr "Voer een geldig getal in."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Toegestaan bereik: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Meer tijd aanvragen"
+
+msgid "Approved time"
+msgstr "Goedgekeurde tijd"
+
+msgid "Request & use now"
+msgstr "Aanvragen en nu gebruiken"
+
+msgid "More request options"
+msgstr "Meer aanvraagopties"
+
+msgid "Request & save for later"
+msgstr "Aanvragen en bewaren voor later"
+
+msgid "Rest of the day can't be saved."
+msgstr "De rest van de dag kan niet worden bewaard."
+
+msgid "Saved for later"
+msgstr "Bewaard voor later"
+
+msgid "Use saved time"
+msgstr "Bewaarde tijd gebruiken"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Start de timer en ga terug naar het aanmeldscherm."
+
+msgid "Add it to your time now."
+msgstr "Voeg deze tijd nu toe aan je beschikbare tijd."
+
+msgid "Timer running"
+msgstr "Timer loopt"
+
+msgid "Pause timer"
+msgstr "Timer pauzeren"
+
+msgid "Save the remaining time for later."
+msgstr "Bewaar de resterende tijd voor later."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Tijdbudget voor vandaag: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Timer pauzeren en scherm vergrendelen?"
+
+msgid "Save for later and lock?"
+msgstr "Bewaren voor later en scherm vergrendelen?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Er wordt ongeveer %(duration)s bewaard. Je scherm wordt nu vergrendeld en je hebt je wachtwoord nodig om terug te keren. Start je bewaarde tijd hier onder ‘Goedgekeurde tijd’ zolang je nog tijd over hebt van je dagelijkse tijdbudget, of bij het aanvraagstation."
+
+msgid "Pause and lock"
+msgstr "Pauzeren en vergrendelen"
+
+msgid "No approved time available"
+msgstr "Geen goedgekeurde tijd beschikbaar"
+
+msgid "Covered by today's daily time"
+msgstr "Valt binnen het tijdbudget voor vandaag"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Goedgekeurd tot %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Bewaarde tijd aan de timer toevoegen"
+
+msgid "Loading time status…"
+msgstr "Tijdstatus laden…"
+
+msgid "Time status unavailable"
+msgstr "Tijdstatus niet beschikbaar"
+
+msgid "Time controls are busy. Try again."
+msgstr "Er wordt al een andere actie voor tijdbeheer uitgevoerd. Probeer het opnieuw."
+
+msgid "Updating approved time…"
+msgstr "Goedgekeurde tijd bijwerken…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Bewaard bij goedkeuring: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Al bewaard: %(duration)s"

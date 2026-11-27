@@ -1764,3 +1764,92 @@ msgstr "Sláðu inn gilda tölu."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Leyfilegt bil: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Biðja um meiri tíma"
+
+msgid "Approved time"
+msgstr "Samþykktur tími"
+
+msgid "Request & use now"
+msgstr "Biðja um og nota strax"
+
+msgid "More request options"
+msgstr "Fleiri valkostir fyrir beiðni"
+
+msgid "Request & save for later"
+msgstr "Biðja um og vista til seinna"
+
+msgid "Rest of the day can't be saved."
+msgstr "Ekki er hægt að vista valkostinn „Það sem eftir er af deginum“."
+
+msgid "Saved for later"
+msgstr "Vistað til seinna"
+
+msgid "Use saved time"
+msgstr "Nota vistaðan tíma"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Ræstu tímamælinn og farðu aftur á innskráningarskjáinn."
+
+msgid "Add it to your time now."
+msgstr "Bættu vistaða tímanum við tímann þinn núna."
+
+msgid "Timer running"
+msgstr "Tímamælirinn er í gangi"
+
+msgid "Pause timer"
+msgstr "Gera hlé á tímamæli"
+
+msgid "Save the remaining time for later."
+msgstr "Vistaðu tímann sem eftir er til seinna."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Daglegur tími í dag: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Gera hlé á tímamælinum og læsa skjánum?"
+
+msgid "Save for later and lock?"
+msgstr "Vista til seinna og læsa skjánum?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Það verða vistaðar um %(duration)s. Skjánum verður læst núna og þú þarft lykilorðið þitt til að komast aftur inn. Byrjaðu að nota vistaða tímann hér undir „Samþykktur tími“ á meðan enn er daglegur tími eftir, eða í beiðnastöðinni."
+
+msgid "Pause and lock"
+msgstr "Gera hlé og læsa"
+
+msgid "No approved time available"
+msgstr "Enginn samþykktur tími í boði"
+
+msgid "Covered by today's daily time"
+msgstr "Innifalið í daglegum tíma dagsins"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Samþykkt til kl. %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Bæta vistuðum tíma við tímamælinn"
+
+msgid "Loading time status…"
+msgstr "Sæki stöðu tímans…"
+
+msgid "Time status unavailable"
+msgstr "Staða tímans er ekki tiltæk"
+
+msgid "Time controls are busy. Try again."
+msgstr "Tímastýringin er upptekin. Reyndu aftur."
+
+msgid "Updating approved time…"
+msgstr "Uppfæri samþykktan tíma…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Verður vistað við samþykki: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Þegar vistað: %(duration)s"

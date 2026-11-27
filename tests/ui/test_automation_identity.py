@@ -23,7 +23,7 @@ def test_language_chooser_previews_keep_owner_language_until_commit(
               })
     ui, wait = automation, wait_for_accessible_state
     owner = 'parent-screen-limit-toggle' if frontend == 'parent' else 'kiosk-request-submit'
-    owner_text = 'Screen time limit' if frontend == 'parent' else 'REQUEST'
+    owner_text = 'Screen time limit' if frontend == 'parent' else 'Request & use now'
     # The Parent switch publishes an accessible label, not displayed child text.
     read_owner_text = ui.text if frontend == 'parent' else ui.getText
     ui.reader.open_language_preferences(frontend)

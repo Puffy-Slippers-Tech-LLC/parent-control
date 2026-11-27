@@ -1758,3 +1758,92 @@ msgstr "შეიყვანეთ სწორი რიცხვი."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "დასაშვები დიაპაზონი: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "მოითხოვეთ მეტი დრო"
+
+msgid "Approved time"
+msgstr "დამტკიცებული დრო"
+
+msgid "Request & use now"
+msgstr "მოითხოვეთ და გამოიყენეთ ახლავე"
+
+msgid "More request options"
+msgstr "მოთხოვნის სხვა ვარიანტები"
+
+msgid "Request & save for later"
+msgstr "მოითხოვეთ და შეინახეთ მოგვიანებით გამოსაყენებლად"
+
+msgid "Rest of the day can't be saved."
+msgstr "„დღის დარჩენილი ნაწილის“ შენახვა შეუძლებელია."
+
+msgid "Saved for later"
+msgstr "შენახულია მოგვიანებით გამოსაყენებლად"
+
+msgid "Use saved time"
+msgstr "გამოიყენეთ შენახული დრო"
+
+msgid "Start the timer and return to sign-in."
+msgstr "გაუშვით ტაიმერი და დაბრუნდით შესვლის ეკრანზე."
+
+msgid "Add it to your time now."
+msgstr "შენახული დრო ახლავე დაამატეთ თქვენს დროს."
+
+msgid "Timer running"
+msgstr "ტაიმერი მუშაობს"
+
+msgid "Pause timer"
+msgstr "დროებით შეაჩერეთ ტაიმერი"
+
+msgid "Save the remaining time for later."
+msgstr "დარჩენილი დრო მოგვიანებით გამოსაყენებლად შეინახეთ."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "დღევანდელი დღიური დრო: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "დროებით შევაჩეროთ ტაიმერი და დავბლოკოთ ეკრანი?"
+
+msgid "Save for later and lock?"
+msgstr "შევინახოთ დრო მოგვიანებით გამოსაყენებლად და დავბლოკოთ ეკრანი?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "შეინახება დაახლოებით %(duration)s. ეკრანი ახლავე დაიბლოკება და დასაბრუნებლად პაროლი დაგჭირდებათ. შენახული დროის გამოყენება დაიწყეთ აქ, „დამტკიცებული დროის“ განყოფილებაში, სანამ დღიური დრო გაქვთ დარჩენილი, ან მოთხოვნის სადგურზე."
+
+msgid "Pause and lock"
+msgstr "დროებით შეაჩერეთ და დაბლოკეთ"
+
+msgid "No approved time available"
+msgstr "დამტკიცებული დრო არ არის ხელმისაწვდომი"
+
+msgid "Covered by today's daily time"
+msgstr "დღევანდელი დღიური დრო საკმარისია"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "დამტკიცებულია %(time)s-მდე"
+
+msgid "Add saved time to the timer"
+msgstr "დაამატეთ შენახული დრო ტაიმერს"
+
+msgid "Loading time status…"
+msgstr "დროის სტატუსი იტვირთება…"
+
+msgid "Time status unavailable"
+msgstr "დროის სტატუსი მიუწვდომელია"
+
+msgid "Time controls are busy. Try again."
+msgstr "დროის მართვის საშუალებები დაკავებულია. სცადეთ ხელახლა."
+
+msgid "Updating approved time…"
+msgstr "დამტკიცებული დრო ახლდება…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "დამტკიცების შემთხვევაში შეინახება: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "უკვე შენახულია: %(duration)s"

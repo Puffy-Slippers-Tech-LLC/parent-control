@@ -1764,3 +1764,92 @@ msgstr "Introduce un número válido."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Intervalo permitido: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Pedir máis tempo"
+
+msgid "Approved time"
+msgstr "Tempo aprobado"
+
+msgid "Request & use now"
+msgstr "Pedir e usar agora"
+
+msgid "More request options"
+msgstr "Máis opcións de solicitude"
+
+msgid "Request & save for later"
+msgstr "Pedir e gardar para máis adiante"
+
+msgid "Rest of the day can't be saved."
+msgstr "Non se pode gardar a opción «Resto do día»."
+
+msgid "Saved for later"
+msgstr "Gardado para máis adiante"
+
+msgid "Use saved time"
+msgstr "Usar o tempo gardado"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Inicia o temporizador e volve á pantalla de inicio de sesión."
+
+msgid "Add it to your time now."
+msgstr "Engade agora o tempo gardado ao teu tempo."
+
+msgid "Timer running"
+msgstr "Temporizador en marcha"
+
+msgid "Pause timer"
+msgstr "Pór en pausa o temporizador"
+
+msgid "Save the remaining time for later."
+msgstr "Garda o tempo que queda para máis adiante."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Tempo diario de hoxe: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Pór en pausa o temporizador e bloquear a pantalla?"
+
+msgid "Save for later and lock?"
+msgstr "Gardar para máis adiante e bloquear a pantalla?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Gardaranse aproximadamente %(duration)s. A pantalla bloquearase agora e precisarás o teu contrasinal para volver. Comeza a usar o tempo gardado aquí, en «Tempo aprobado», mentres che quede tempo diario, ou na estación de solicitudes."
+
+msgid "Pause and lock"
+msgstr "Pór en pausa e bloquear"
+
+msgid "No approved time available"
+msgstr "Non hai tempo aprobado dispoñible"
+
+msgid "Covered by today's daily time"
+msgstr "Cuberto polo tempo diario de hoxe"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Aprobado ata as %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Engadir o tempo gardado ao temporizador"
+
+msgid "Loading time status…"
+msgstr "Cargando o estado do tempo…"
+
+msgid "Time status unavailable"
+msgstr "O estado do tempo non está dispoñible"
+
+msgid "Time controls are busy. Try again."
+msgstr "Os controis de tempo están ocupados. Téntao de novo."
+
+msgid "Updating approved time…"
+msgstr "Actualizando o tempo aprobado…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Gardarase se se aproba: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Xa gardado: %(duration)s"

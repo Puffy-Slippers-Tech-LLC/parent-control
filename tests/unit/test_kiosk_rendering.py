@@ -3,7 +3,7 @@ import inspect
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 from tests.support.paths import ROOT
@@ -534,6 +534,31 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("if self._state.in_flight:\n            return False", source)
         self.assertIn("self._cancel()\n        return True", source)
 
+    def test_escape_dismisses_request_menu_before_it_can_cancel_the_form(self):
+        from oh_no_parent_control_kiosk.main import Gdk, RequestWindow
+
+        content = SimpleNamespace(dismiss_request_menu=Mock(side_effect=[True, False]),
+                                  can_cancel=lambda: True)
+        window = SimpleNamespace(_request_content=content, _cancel=Mock(),
+                                 _state=SimpleNamespace(in_flight=False),
+                                 _stack=SimpleNamespace(get_visible_child_name=lambda: "request"))
+        assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
+        window._cancel.assert_not_called()
+        assert RequestWindow._escape_pressed(window, None, Gdk.KEY_Escape, 0, 0)
+        window._cancel.assert_called_once_with()
+
+    def test_tab_keyboard_navigation_uses_the_same_tab_change_and_focus_target(self):
+        from oh_no_parent_control_kiosk.request_content import Gdk, RequestContent
+
+        tabs = {name: Mock() for name in ("request", "approved")}
+        content = SimpleNamespace(_tabs=tabs, select_tab=Mock(),
+                                  _pages=SimpleNamespace(get_visible_child_name=lambda: "request"))
+        assert RequestContent._tab_key_pressed(content, None, Gdk.KEY_Right, 0, 0)
+        content.select_tab.assert_called_once_with("approved")
+        tabs["approved"].grab_focus.assert_called_once_with()
+        assert not RequestContent._tab_key_pressed(content, None, Gdk.KEY_Tab, 0, 0)
+        assert content.select_tab.call_count == 1
+
     def test_screen_time_disabled_never_enables_request_submission(self):
         content = KIOSK_CONTENT.read_text(encoding="utf-8")
 
@@ -678,9 +703,9 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertIn("SHIELD", content)
         self.assertNotIn("PixelIcon(LOCK", content)
         self.assertIn("PixelIcon(POINTER", content)
-        self.assertIn('label=m.REQUEST', content)
+        self.assertIn('label=m.REQUEST_USE_NOW', content)
         self.assertIn('label=m.CANCEL_2', content)
-        self.assertEqual(m.REQUEST.source, 'REQUEST')
+        self.assertEqual(m.REQUEST_USE_NOW.source, 'Request & use now')
         self.assertEqual(m.CANCEL_2.source, 'CANCEL')
         self.assertIn("class MetalBoard(Gtk.Box):", chrome)
         self.assertIn("class MetalPanel(Gtk.Box):", chrome)
@@ -729,7 +754,7 @@ class KioskRenderingTests(unittest.TestCase):
         ].default
         calls = [node for node in ast.walk(constructor) if isinstance(node, ast.Call)]
         for attribute, label, accessible_label, description, identity, callback in (
-            ("_request", "m.REQUEST", "m.REQUEST_ACCESS",
+            ("_request", "m.REQUEST_USE_NOW", "m.REQUEST_USE_NOW",
              "m.SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL",
              "kiosk-request-submit", "on_request"),
             ("_cancel", "m.CANCEL_2", "m.CANCEL_REQUEST",
@@ -749,7 +774,10 @@ class KioskRenderingTests(unittest.TestCase):
                 self.assertEqual(ast.unparse(button.func), "localized")
                 self.assertEqual([ast.unparse(arg) for arg in button.args], ["ArmoredButton"])
                 keywords = {item.arg: item.value for item in button.keywords}
-                self.assertEqual(ast.unparse(keywords["label"]), label)
+                text_widget = keywords.get("child", button)
+                captions = [ast.unparse(item.value) for item in text_widget.keywords
+                            if item.arg == "label"]
+                self.assertEqual(captions, [label])
                 kind = (ast.literal_eval(keywords["armor_kind"])
                         if "armor_kind" in keywords else default_kind)
                 self.assertEqual(kind, "request")
@@ -891,21 +919,22 @@ class KioskRenderingTests(unittest.TestCase):
         )
         self.assertLess(
             source.index("self._body.append(child_selector)"),
-            source.index("self._body.append(self._screen_limit_overlay)"),
+            source.index("self._body.append(self._pages)"),
         )
         self.assertLess(
-            source.index("self._body.append(self._screen_limit_overlay)"),
+            source.index('self._pages.add_named(self._screen_limit_overlay, "request")'),
             source.index("self._body.append(actions)"),
         )
         self.assertIn("self._screen_time_limit_enabled is True", source)
         self.assertIn(
-            "self._custom_entry.set_sensitive(request_available and time_limit_enabled)",
+            "self._custom_entry.set_sensitive(request_available)",
             source,
         )
         self.assertIn("self._allow_soft.set_sensitive(request_available)", source)
         self.assertIn("self._filter_row.set_sensitive(request_available)", source)
         self.assertIn("self._approvers.set_sensitive(request_available)", source)
-        self.assertIn("self._cancel.set_sensitive(self._controls_enabled)", source)
+        self.assertIn('self._cancel.set_sensitive(self._controls_enabled and self._grant_state != "pending")',
+                      source)
         self.assertIn("self._status.remove_css_class(\"oh-no-parent-control-error\")", source)
 
     def test_four_block_chains_connect_gateway_corners_to_form_rail_lugs(self):

@@ -1764,3 +1764,92 @@ msgstr "Εισαγάγετε έναν έγκυρο αριθμό."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Επιτρεπόμενο εύρος: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Ζητήστε περισσότερο χρόνο"
+
+msgid "Approved time"
+msgstr "Εγκεκριμένος χρόνος"
+
+msgid "Request & use now"
+msgstr "Ζητήστε και χρησιμοποιήστε τώρα"
+
+msgid "More request options"
+msgstr "Περισσότερες επιλογές αιτήματος"
+
+msgid "Request & save for later"
+msgstr "Ζητήστε και αποθηκεύστε για αργότερα"
+
+msgid "Rest of the day can't be saved."
+msgstr "Η επιλογή «Υπόλοιπο ημέρας» δεν μπορεί να αποθηκευτεί."
+
+msgid "Saved for later"
+msgstr "Αποθηκευμένος για αργότερα"
+
+msgid "Use saved time"
+msgstr "Χρησιμοποιήστε τον αποθηκευμένο χρόνο"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Ξεκινήστε τον χρονομετρητή και επιστρέψτε στην οθόνη σύνδεσης."
+
+msgid "Add it to your time now."
+msgstr "Προσθέστε τώρα τον αποθηκευμένο χρόνο στον χρόνο σας."
+
+msgid "Timer running"
+msgstr "Ο χρονομετρητής λειτουργεί"
+
+msgid "Pause timer"
+msgstr "Παύση χρονομετρητή"
+
+msgid "Save the remaining time for later."
+msgstr "Αποθηκεύστε τον υπόλοιπο χρόνο για αργότερα."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Σημερινός ημερήσιος χρόνος: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Να τεθεί ο χρονομετρητής σε παύση και να κλειδωθεί η οθόνη;"
+
+msgid "Save for later and lock?"
+msgstr "Να αποθηκευτεί ο χρόνος για αργότερα και να κλειδωθεί η οθόνη;"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Θα αποθηκευτούν περίπου %(duration)s. Η οθόνη σας θα κλειδωθεί τώρα και θα χρειαστείτε τον κωδικό πρόσβασής σας για να επιστρέψετε. Ξεκινήστε να χρησιμοποιείτε τον αποθηκευμένο χρόνο εδώ από τον «Εγκεκριμένο χρόνο», όσο απομένει ημερήσιος χρόνος, ή από τον σταθμό αιτημάτων."
+
+msgid "Pause and lock"
+msgstr "Παύση και κλείδωμα"
+
+msgid "No approved time available"
+msgstr "Δεν υπάρχει διαθέσιμος εγκεκριμένος χρόνος"
+
+msgid "Covered by today's daily time"
+msgstr "Καλύπτεται από τον σημερινό ημερήσιο χρόνο"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Εγκεκριμένος έως τις %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Προσθέστε τον αποθηκευμένο χρόνο στον χρονομετρητή"
+
+msgid "Loading time status…"
+msgstr "Φόρτωση κατάστασης χρόνου…"
+
+msgid "Time status unavailable"
+msgstr "Η κατάσταση χρόνου δεν είναι διαθέσιμη"
+
+msgid "Time controls are busy. Try again."
+msgstr "Τα στοιχεία ελέγχου χρόνου είναι απασχολημένα. Δοκιμάστε ξανά."
+
+msgid "Updating approved time…"
+msgstr "Ενημέρωση εγκεκριμένου χρόνου…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Θα αποθηκευτεί αν εγκριθεί: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Ήδη αποθηκευμένος χρόνος: %(duration)s"

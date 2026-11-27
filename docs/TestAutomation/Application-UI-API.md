@@ -186,6 +186,8 @@ screen-time control and absent accounts retain their existing restrictions.
 
 | ID or family | Values and operations |
 | --- | --- |
+| `kiosk-request-tabs` | Get/set `request` (initial page) or `approved`. Switching pages uses the normal tab handler and keeps the current child and request choices. |
+| `kiosk-tab-request`, `kiosk-tab-approved` | Select by activation, with boolean selected state. Both tabs are insensitive while a time operation is pending or the broker is busy. |
 | `kiosk-child-selector`, `kiosk-approver-selector` | Get/set eligible UID string; choices are current eligible UIDs |
 | `kiosk-<role>-choice-<uid>`, `kiosk-<role>-selected-<uid>` | Actual account choice and selected identity |
 | `kiosk-duration-choices`, alias `kiosk-duration` | Get/set seconds string from choices, `0` for rest of day, or `custom` |
@@ -194,8 +196,18 @@ screen-time control and absent accounts retain their existing restrictions.
 | `kiosk-custom-duration-units` | Inline radio selector: get/set canonical `minutes` (default) or `hours`; choices retain those same values |
 | `kiosk-custom-duration-unit-minutes`, `kiosk-custom-duration-unit-hours` | Actual grouped unit radios; boolean get/set and ordinary activation use the same unit-change handler |
 | `kiosk-soft-apps-toggle` | Boolean get/set |
-| `kiosk-request-submit`, `kiosk-request-cancel` | Ordinary request/cancel actions; authentication remains external |
+| `kiosk-request-submit`, `kiosk-request-cancel` | Request & use now and ordinary form cancellation. Authentication remains external. |
 | `kiosk-request-status`, `kiosk-screen-limit-notice` | Current estimate, progress or validation text |
+| `kiosk-request-retry` | Reread time status from the request page while the timer controls are busy or recovery is pending |
+| `kiosk-request-already-saved` | Saved time that will stay saved under the immediate request |
+| `kiosk-request-menu` | Open by activation or get/set boolean open state. Closing the split menu leaves the form open. |
+| `kiosk-request-save-for-later`, `kiosk-request-save-hint` | Deferred request action in the open menu and its estimate or availability explanation. Rest of the day disables the action. |
+| `kiosk-approved-page`, `kiosk-approved-status` | Approved time page and canonical `ready`, `empty`, `loading`, `unavailable`, `busy`, `recovery`, `pending` or `disabled` state. Displayed messages are translated. |
+| `kiosk-approved-running`, `kiosk-approved-saved`, `kiosk-approved-daily` | Canonical seconds and translated display text for the running time beyond daily time, saved time and daily time. Unavailable snapshots have no seconds value. |
+| `kiosk-approved-running-status`, `kiosk-approved-pause-hint`, `kiosk-approved-saved-title`, `kiosk-approved-saved-hint` | Translated running and saved row captions and hints |
+| `kiosk-approved-pause`, `kiosk-approved-use-saved`, `kiosk-approved-retry`, `kiosk-approved-request-more` | Ordinary actions, available according to status, balance and screen-time control. Request more time switches tabs. |
+| `kiosk-lock-confirmation`, `kiosk-lock-title`, `kiosk-lock-body` | Overlay-only modal owned by `kiosk-request-window`. Close cancels, and activation uses the dialog's default action, Cancel. |
+| `kiosk-lock-cancel`, `kiosk-lock-confirm` | Dismiss the dialog or continue the current Pause and lock / Save for later and lock operation. Bind to `kiosk-lock-confirmation`. |
 | `kiosk-menu-button` | `setValue` commands `preferences`/`about`, `whats-new` with current Child notes, plus `help` in overlay; preview additionally offers `change-screens`; `getChoices` reflects actual availability |
 | `kiosk-menu-item-<key>` | Actual menu item action |
 | `kiosk-result-title`, `kiosk-result-detail`, `kiosk-result-child-<uid>`, `kiosk-result-action` | Result readback and dismissal action |
@@ -228,6 +240,13 @@ screen-time control and absent accounts retain their existing restrictions.
 | `reminder-value-increase`, `reminder-value-decrease` | Normal bounded time increment/decrement handlers |
 | `reminder-editor-save`, `reminder-editor-cancel`, `reminder-editor-close` | Save to the preferences draft or discard the current edit |
 | `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
+
+The shared view exposes the approved-time controls and their current
+availability. Live broker actions and status refresh are tracked in the
+[saved-time task queue](../Save-For-Later-Task-Queue.md). The approving-parent
+selector and duration fields belong to the request page. The selected child
+and the form's Cancel action are shared across pages. Escape dismisses the
+split menu or lock confirmation before it can close the form.
 
 On the shared child/kiosk Preferences surface, `language-dialog.getValue()`
 returns an opaque 32-character lowercase hexadecimal lifetime token. It stays

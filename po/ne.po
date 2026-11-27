@@ -1764,3 +1764,95 @@ msgstr "मान्य सङ्ख्या प्रविष्ट गर्
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमति दिइएको दायरा: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "थप समय माग्नुहोस्"
+
+msgid "Approved time"
+msgstr "स्वीकृत समय"
+
+msgid "Request & use now"
+msgstr "माग्नुहोस् र अहिले प्रयोग गर्नुहोस्"
+
+msgid "More request options"
+msgstr "अनुरोधका थप विकल्पहरू"
+
+msgid "Request & save for later"
+msgstr "माग्नुहोस् र पछिका लागि बचत गर्नुहोस्"
+
+msgid "Rest of the day can't be saved."
+msgstr "दिनको बाँकी समय पछिका लागि बचत गर्न मिल्दैन।"
+
+msgid "Saved for later"
+msgstr "पछिका लागि बचत गरिएको"
+
+msgid "Use saved time"
+msgstr "बचत गरिएको समय प्रयोग गर्नुहोस्"
+
+msgid "Start the timer and return to sign-in."
+msgstr "टाइमर सुरु गर्नुहोस् र साइन इन स्क्रिनमा फर्कनुहोस्।"
+
+msgid "Add it to your time now."
+msgstr "यो समय अहिले नै आफ्नो उपलब्ध समयमा थप्नुहोस्।"
+
+msgid "Timer running"
+msgstr "टाइमर चलिरहेको छ"
+
+msgid "Pause timer"
+msgstr "टाइमर रोक्नुहोस्"
+
+msgid "Save the remaining time for later."
+msgstr "बाँकी समय पछिका लागि बचत गर्नुहोस्।"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "आजका लागि छुट्याइएको समय: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "टाइमर रोकेर स्क्रिन लक गर्ने?"
+
+msgid "Save for later and lock?"
+msgstr "समय पछिका लागि बचत गरेर स्क्रिन लक गर्ने?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "करिब %(duration)s बचत हुनेछ। तपाईंको स्क्रिन अहिले लक हुनेछ र फर्कन पासवर्ड चाहिन्छ। दैनिक छुट्याइएको समय बाँकी छ भने यहाँको «स्वीकृत समय» बाट बचत गरिएको समय प्रयोग गर्न सक्नुहुन्छ। अनुरोध केन्द्रबाट पनि त्यो समय प्रयोग गर्न सक्नुहुन्छ।"
+
+msgid "Pause and lock"
+msgstr "रोक्नुहोस् र लक गर्नुहोस्"
+
+msgid "No approved time available"
+msgstr "स्वीकृत समय उपलब्ध छैन"
+
+msgid "Covered by today's daily time"
+msgstr "आजका लागि छुट्याइएको समयभित्र पर्छ"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s सम्म स्वीकृत"
+
+msgid "Add saved time to the timer"
+msgstr "बचत गरिएको समय टाइमरमा थप्नुहोस्"
+
+msgid "Loading time status…"
+msgstr "समयको स्थिति लोड हुँदै छ…"
+
+msgid "Time status unavailable"
+msgstr "समयको स्थिति उपलब्ध छैन"
+
+msgid "Time controls are busy. Try again."
+msgstr "समय नियन्त्रण अहिले व्यस्त छ। फेरि प्रयास गर्नुहोस्।"
+
+msgid "Updating approved time…"
+msgstr "स्वीकृत समय अद्यावधिक हुँदै छ…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "स्वीकृत भएमा बचत हुने समय: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "पहिले नै बचत गरिएको समय: %(duration)s"

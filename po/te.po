@@ -1764,3 +1764,95 @@ msgstr "చెల్లుబాటు అయ్యే సంఖ్యను న
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "అనుమతించబడిన పరిధి: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "మరింత సమయం అడగండి"
+
+msgid "Approved time"
+msgstr "ఆమోదించిన సమయం"
+
+msgid "Request & use now"
+msgstr "అడిగి ఇప్పుడే వాడండి"
+
+msgid "More request options"
+msgstr "అభ్యర్థనకు మరిన్ని ఎంపికలు"
+
+msgid "Request & save for later"
+msgstr "అడిగి తర్వాత కోసం దాచండి"
+
+msgid "Rest of the day can't be saved."
+msgstr "రోజులో మిగిలిన భాగాన్ని తర్వాత కోసం దాచలేరు."
+
+msgid "Saved for later"
+msgstr "తర్వాత కోసం దాచినది"
+
+msgid "Use saved time"
+msgstr "దాచిన సమయాన్ని వాడండి"
+
+msgid "Start the timer and return to sign-in."
+msgstr "టైమర్‌ను ప్రారంభించి ప్రవేశ తెరకు తిరిగివెళ్లండి."
+
+msgid "Add it to your time now."
+msgstr "దీన్ని ఇప్పుడే మీకు అందుబాటులో ఉన్న సమయానికి జోడించండి."
+
+msgid "Timer running"
+msgstr "టైమర్ నడుస్తోంది"
+
+msgid "Pause timer"
+msgstr "టైమర్‌ను తాత్కాలికంగా ఆపండి"
+
+msgid "Save the remaining time for later."
+msgstr "మిగిలిన సమయాన్ని తర్వాత కోసం దాచండి."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "ఈ రోజు కేటాయించిన సమయం: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "టైమర్‌ను ఆపి తెరకు తాళం వేయాలా?"
+
+msgid "Save for later and lock?"
+msgstr "తర్వాత కోసం దాచి తెరకు తాళం వేయాలా?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "దాదాపు %(duration)s దాచబడుతుంది. ఇప్పుడు మీ తెరకు తాళం పడుతుంది. తిరిగి రావడానికి మీ సంకేతపదం అవసరం. రోజువారీ సమయం మిగిలి ఉంటే ఇక్కడి «ఆమోదించిన సమయం» నుంచి దాచిన సమయాన్ని వాడటం మొదలుపెట్టవచ్చు. అభ్యర్థన కేంద్రం నుంచి కూడా దాన్ని వాడటం మొదలుపెట్టవచ్చు."
+
+msgid "Pause and lock"
+msgstr "ఆపి తాళం వేయండి"
+
+msgid "No approved time available"
+msgstr "ఆమోదించిన సమయం అందుబాటులో లేదు"
+
+msgid "Covered by today's daily time"
+msgstr "ఈ రోజు కేటాయించిన సమయంలోనే ఉంది"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s వరకు ఆమోదించారు"
+
+msgid "Add saved time to the timer"
+msgstr "దాచిన సమయాన్ని టైమర్‌కు జోడించండి"
+
+msgid "Loading time status…"
+msgstr "సమయ స్థితి లోడ్ అవుతోంది…"
+
+msgid "Time status unavailable"
+msgstr "సమయ స్థితి అందుబాటులో లేదు"
+
+msgid "Time controls are busy. Try again."
+msgstr "సమయ నియంత్రణలు ప్రస్తుతం వేరే పనిలో ఉన్నాయి. మళ్లీ ప్రయత్నించండి."
+
+msgid "Updating approved time…"
+msgstr "ఆమోదించిన సమయం నవీకరించబడుతోంది…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "ఆమోదిస్తే దాచే సమయం: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "ఇప్పటికే దాచిన సమయం: %(duration)s"

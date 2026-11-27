@@ -1756,3 +1756,92 @@ msgstr "有効な数値を入力してください。"
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "許容範囲: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "時間の延長をリクエスト"
+
+msgid "Approved time"
+msgstr "許可された時間"
+
+msgid "Request & use now"
+msgstr "リクエストして今すぐ使う"
+
+msgid "More request options"
+msgstr "その他のリクエストオプション"
+
+msgid "Request & save for later"
+msgstr "リクエストして後で使うために保存"
+
+msgid "Rest of the day can't be saved."
+msgstr "「今日の残りすべて」は保存できません。"
+
+msgid "Saved for later"
+msgstr "後で使うために保存済み"
+
+msgid "Use saved time"
+msgstr "保存した時間を使う"
+
+msgid "Start the timer and return to sign-in."
+msgstr "タイマーを開始して、ログイン画面に戻ります。"
+
+msgid "Add it to your time now."
+msgstr "保存した時間を今すぐ利用時間に追加します。"
+
+msgid "Timer running"
+msgstr "タイマー作動中"
+
+msgid "Pause timer"
+msgstr "タイマーを一時停止"
+
+msgid "Save the remaining time for later."
+msgstr "残り時間を後で使えるように保存します。"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "今日の通常の利用時間：%(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "タイマーを一時停止して画面をロックしますか？"
+
+msgid "Save for later and lock?"
+msgstr "時間を保存して画面をロックしますか？"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "約%(duration)sが保存されます。画面は今すぐロックされ、戻るにはパスワードが必要です。今日の通常の利用時間が残っている間は、ここにある「許可された時間」から保存した時間の利用を開始できます。リクエストステーションからも開始できます。"
+
+msgid "Pause and lock"
+msgstr "一時停止してロック"
+
+msgid "No approved time available"
+msgstr "利用できる許可済みの時間はありません"
+
+msgid "Covered by today's daily time"
+msgstr "今日の通常の利用時間内です"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)sまで利用可能"
+
+msgid "Add saved time to the timer"
+msgstr "保存した時間をタイマーに追加"
+
+msgid "Loading time status…"
+msgstr "利用時間の状態を読み込み中…"
+
+msgid "Time status unavailable"
+msgstr "利用時間の状態を取得できません"
+
+msgid "Time controls are busy. Try again."
+msgstr "時間の操作を処理中です。もう一度お試しください。"
+
+msgid "Updating approved time…"
+msgstr "許可された時間を更新中…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "許可された場合に保存される時間: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "すでに保存されている時間: %(duration)s"

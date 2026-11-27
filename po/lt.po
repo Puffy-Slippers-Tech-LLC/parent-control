@@ -1770,3 +1770,92 @@ msgstr "Įveskite tinkamą skaičių."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Leistinas intervalas: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Prašyti daugiau laiko"
+
+msgid "Approved time"
+msgstr "Patvirtintas laikas"
+
+msgid "Request & use now"
+msgstr "Prašyti ir naudoti dabar"
+
+msgid "More request options"
+msgstr "Daugiau prašymo parinkčių"
+
+msgid "Request & save for later"
+msgstr "Prašyti ir išsaugoti vėlesniam naudojimui"
+
+msgid "Rest of the day can't be saved."
+msgstr "Parinkties „Likusi dienos dalis“ išsaugoti negalima."
+
+msgid "Saved for later"
+msgstr "Išsaugota vėlesniam naudojimui"
+
+msgid "Use saved time"
+msgstr "Naudoti išsaugotą laiką"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Paleiskite laikmatį ir grįžkite į prisijungimo ekraną."
+
+msgid "Add it to your time now."
+msgstr "Pridėkite išsaugotą laiką prie savo laiko dabar."
+
+msgid "Timer running"
+msgstr "Laikmatis veikia"
+
+msgid "Pause timer"
+msgstr "Pristabdyti laikmatį"
+
+msgid "Save the remaining time for later."
+msgstr "Išsaugokite likusį laiką vėlesniam naudojimui."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Šiandienos dienos laikas: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Pristabdyti laikmatį ir užrakinti ekraną?"
+
+msgid "Save for later and lock?"
+msgstr "Išsaugoti laiką vėlesniam naudojimui ir užrakinti ekraną?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Bus išsaugota maždaug %(duration)s. Ekranas bus užrakintas dabar, o norint grįžti reikės slaptažodžio. Kol dar liko dienos laiko, pradėkite naudoti išsaugotą laiką čia, skiltyje „Patvirtintas laikas“, arba prašymų stotyje."
+
+msgid "Pause and lock"
+msgstr "Pristabdyti ir užrakinti"
+
+msgid "No approved time available"
+msgstr "Patvirtinto laiko nėra"
+
+msgid "Covered by today's daily time"
+msgstr "Įskaičiuota į šiandienos dienos laiką"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Patvirtinta iki %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Pridėti išsaugotą laiką prie laikmačio"
+
+msgid "Loading time status…"
+msgstr "Įkeliama laiko būsena…"
+
+msgid "Time status unavailable"
+msgstr "Laiko būsena nepasiekiama"
+
+msgid "Time controls are busy. Try again."
+msgstr "Laiko valdikliai užimti. Bandykite dar kartą."
+
+msgid "Updating approved time…"
+msgstr "Atnaujinamas patvirtintas laikas…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Patvirtinus bus išsaugota: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Jau išsaugota: %(duration)s"

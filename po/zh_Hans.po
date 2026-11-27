@@ -1756,3 +1756,95 @@ msgstr "请输入有效数字。"
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "允许范围: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "请求更多时间"
+
+msgid "Approved time"
+msgstr "已批准的时间"
+
+msgid "Request & use now"
+msgstr "请求并立即使用"
+
+msgid "More request options"
+msgstr "更多请求选项"
+
+msgid "Request & save for later"
+msgstr "请求并留待以后使用"
+
+msgid "Rest of the day can't be saved."
+msgstr "今天剩余时间无法留待以后使用。"
+
+msgid "Saved for later"
+msgstr "已留待以后使用"
+
+msgid "Use saved time"
+msgstr "使用留存的时间"
+
+msgid "Start the timer and return to sign-in."
+msgstr "启动计时器并返回登录界面。"
+
+msgid "Add it to your time now."
+msgstr "立即将这段时间加到你的可用时间中。"
+
+msgid "Timer running"
+msgstr "计时器正在运行"
+
+msgid "Pause timer"
+msgstr "暂停计时器"
+
+msgid "Save the remaining time for later."
+msgstr "将剩余时间留待以后使用。"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "今天的每日可用时间：%(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "暂停计时器并锁定屏幕？"
+
+msgid "Save for later and lock?"
+msgstr "留待以后使用并锁定屏幕？"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "将留存约 %(duration)s。屏幕现在会锁定，你需要输入密码才能返回。如果今天的每日可用时间还有剩余，可以在这里的“已批准的时间”中开始使用留存的时间。也可以在时间请求站开始使用。"
+
+msgid "Pause and lock"
+msgstr "暂停并锁定"
+
+msgid "No approved time available"
+msgstr "没有可用的已批准时间"
+
+msgid "Covered by today's daily time"
+msgstr "已包含在今天的每日可用时间内"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "已批准至 %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "将留存的时间加入计时器"
+
+msgid "Loading time status…"
+msgstr "正在加载时间状态…"
+
+msgid "Time status unavailable"
+msgstr "无法获取时间状态"
+
+msgid "Time controls are busy. Try again."
+msgstr "时间控制正忙，请重试。"
+
+msgid "Updating approved time…"
+msgstr "正在更新已批准的时间…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "批准后将留存：%(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "已留存：%(duration)s"

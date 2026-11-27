@@ -10,14 +10,15 @@ from common.oh_no_parent_control_ui.translation_widgets import (
 import json
 import math
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Pango
+from gi.repository import Gdk, GLib, Gtk, Pango
 
-from common.oh_no_parent_control_ui.about import app_name, branding_asset_path
+from common.oh_no_parent_control_ui.about import branding_asset_path
 from common.oh_no_parent_control_ui.accessibility import describe_control, set_automation_id
 from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
@@ -65,6 +66,31 @@ NUMBER_RE = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)$")
 # Expanded account lists stay on the gateway plane, so they grow the board.
 # Keep only two rows visible and page with matching chevrons when more exist.
 VISIBLE_ACCOUNT_CHOICES = 2
+
+
+@dataclass(frozen=True)
+class GrantView:
+    """Display values from one status read for the selected child."""
+
+    daily_seconds: int = 0
+    running_mode: str = "none"
+    running_seconds: int = 0  # Approved time beyond today's daily time.
+    saved_seconds: int = 0
+    running_end: int = 0
+    requested_seconds: int = 0
+    immediate_estimate: int = 0
+    deferred_estimate: int = 0
+
+
+GRANT_STATUS_TEXT = {
+    "loading": m.LOADING_TIME_STATUS,
+    "unavailable": m.TIME_STATUS_UNAVAILABLE,
+    "busy": m.TIME_CONTROLS_BUSY,
+    "recovery": m.TIME_STATUS_UNAVAILABLE,
+    "pending": m.UPDATING_APPROVED_TIME,
+    "disabled": m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP,
+    "empty": m.NO_APPROVED_TIME,
+}
 
 
 class GatewayDropDown(Gtk.Box):
@@ -326,6 +352,11 @@ class RequestContent(MetalBoard):
         self._screen_time_limit_enabled = None
         self._time_estimate = None
         self._validation_error = None
+        self._grant_state = "unavailable"
+        self._grant_view = None
+        self._grant_actions = {}
+        self._lock_dialog = None
+        self._tabs = {}
         self._lock_child_selector = lock_child_selector
         self._selection_store = selection_store
         self._on_account_selected = on_account_selected
@@ -366,6 +397,8 @@ class RequestContent(MetalBoard):
         self._accounts.set_hexpand(True)
         child_selector = self._account_row(m.CHILD, self._accounts, identity="child")
         self._body.append(child_selector)
+        self._pages = Gtk.Stack(hhomogeneous=False, vhomogeneous=False)
+        self._body.append(self._pages)
 
         self._request_form = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=5,
@@ -501,20 +534,23 @@ class RequestContent(MetalBoard):
         self._filter_row = filter_row
         self._request_form.append(filter_row)
 
-        actions = Gtk.Box(spacing=10, homogeneous=True)
+        actions = Gtk.Box(spacing=10)
         set_automation_id(actions, "kiosk-request-actions")
         actions.add_css_class("oh-no-parent-control-actions")
-        self._request = localized(ArmoredButton, 
-            label=m.REQUEST, hexpand=True, armor_kind="request",
+        self._request = localized(
+            ArmoredButton, hexpand=True, armor_kind="request",
+            child=localized(Gtk.Label, label=m.REQUEST_USE_NOW, wrap=True,
+                            wrap_mode=Pango.WrapMode.WORD_CHAR, justify=Gtk.Justification.CENTER),
         )
         describe_control(
-            self._request, m.REQUEST_ACCESS,
+            self._request, m.REQUEST_USE_NOW,
             m.SUBMIT_THE_SELECTED_DURATION_AND_APP_ACCESS_CHOICE_FOR_APPROVAL,
             automation_id="kiosk-request-submit",
         )
         self._request.add_css_class("oh-no-parent-control-request-button")
         self._request.set_sensitive(False)
         self._request.connect("clicked", on_request)
+        self._request_split = self._build_request_split()
 
         self._screen_limit_overlay = Gtk.Overlay()
         set_automation_id(self._screen_limit_overlay, "kiosk-screen-limit-overlay")
@@ -529,7 +565,8 @@ class RequestContent(MetalBoard):
         set_automation_id(self._screen_limit_notice, "kiosk-screen-limit-notice")
         self._screen_limit_notice.add_css_class("oh-no-parent-control-screen-limit-notice")
         self._screen_limit_overlay.add_overlay(self._screen_limit_notice)
-        self._body.append(self._screen_limit_overlay)
+        self._pages.add_named(self._screen_limit_overlay, "request")
+        self._pages.add_named(self._build_approved_page(), "approved")
 
         self._cancel = localized(ArmoredButton, 
             label=m.CANCEL_2, hexpand=True,
@@ -542,17 +579,18 @@ class RequestContent(MetalBoard):
         )
         self._cancel.connect("clicked", on_cancel)
         actions.append(self._cancel)
-        actions.append(self._request)
+        actions.append(self._request_split)
         self._body.append(actions)
-        status_row = MetalPanel(
+        self._status_row = MetalPanel(
             orientation=Gtk.Orientation.VERTICAL,
             hexpand=True,
             panel_kind="footer",
         )
-        set_automation_id(status_row, "kiosk-request-status-panel")
-        status_row.add_css_class("oh-no-parent-control-status-row")
-        status_row.set_overflow(Gtk.Overflow.VISIBLE)
+        set_automation_id(self._status_row, "kiosk-request-status-panel")
+        self._status_row.add_css_class("oh-no-parent-control-status-row")
+        self._status_row.set_overflow(Gtk.Overflow.VISIBLE)
         status_inner = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
             hexpand=True,
             valign=Gtk.Align.CENTER,
@@ -561,8 +599,18 @@ class RequestContent(MetalBoard):
         status_inner.add_css_class("oh-no-parent-control-status-inner")
         status_inner.set_overflow(Gtk.Overflow.VISIBLE)
         status_inner.append(self._status)
-        status_row.append(status_inner)
-        self._body.append(status_row)
+        self._already_saved = self._approved_label("kiosk-request-already-saved", xalign=0)
+        self._already_saved.add_css_class("oh-no-parent-control-status")
+        status_inner.append(self._already_saved)
+        self._request_retry = self._action_button(m.TRY_AGAIN, "kiosk-request-retry",
+                                                   lambda *_: self._run_grant_action("retry"))
+        self._request_retry.set_halign(Gtk.Align.START)
+        status_inner.append(self._request_retry)
+        self._status_row.append(status_inner)
+        self._body.append(self._status_row)
+        self._pages.set_visible_child_name("request")
+        self._sync_tabs()
+        self._update_controls()
         self._custom_entry.connect("changed", self._emit_values_changed)
         self._custom_entry.connect("activate", self._submit_custom_duration)
 
@@ -578,59 +626,359 @@ class RequestContent(MetalBoard):
             str(branding_asset_path("app_logo.png")),
         )
         set_automation_id(icon, "kiosk-request-logo")
-        # Match the logo artwork to the visual height of the two-line title.
         icon.set_pixel_size(36)
         icon.set_valign(Gtk.Align.CENTER)
         icon.add_css_class("oh-no-parent-control-header-icon")
         plate = Gtk.Box()
         set_automation_id(plate, "kiosk-request-logo-plate")
         plate.add_css_class("oh-no-parent-control-logo-plate")
-        plate.set_valign(Gtk.Align.END)
-        # Optical correction for the pixel font's ink extending below its
-        # line box: lower the logo relative to the centered title block.
-        plate.set_margin_top(8)
+        plate.set_valign(Gtk.Align.CENTER)
         plate.append(icon)
         header.append(plate)
-        copy = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=1,
-            valign=Gtk.Align.CENTER,
-            hexpand=True,
-        )
-        set_automation_id(copy, "kiosk-request-title")
-        copy.add_css_class("oh-no-parent-control-header-copy")
-        for line in RequestContent._title_lines(app_name()):
-            title = localized(Gtk.Label, 
-                label=line,
-                xalign=0.5,
-                wrap=True,
-                justify=Gtk.Justification.CENTER,
-            )
-            title.add_css_class("oh-no-parent-control-title")
-            copy.append(title)
-        header.append(copy)
-        preferences = localized(Gtk.Button,
-                                tooltip_text=m.PREFERENCES, valign=Gtk.Align.CENTER,
-                                css_classes=['kiosk-preferences-button'])
+        self._tab_bar = Gtk.Box(spacing=4, hexpand=True, homogeneous=True,
+                                accessible_role=Gtk.AccessibleRole.TAB_LIST)
+        set_automation_id(self._tab_bar, "kiosk-request-tabs")
+        bind_ui(self._tab_bar, get_value=lambda: self._pages.get_visible_child_name(),
+                set_value=self.select_tab, choices=lambda: list(self._tabs))
+        for name, caption in (("request", m.REQUEST_MORE_TIME), ("approved", m.APPROVED_TIME)):
+            button = Gtk.Button(accessible_role=Gtk.AccessibleRole.TAB)
+            button.add_css_class("oh-no-parent-control-request-tab")
+            button.set_child(localized(Gtk.Label, label=caption, wrap=True,
+                                       justify=Gtk.Justification.CENTER))
+            describe_control(button, caption, caption, automation_id=f"kiosk-tab-{name}")
+            bind_ui(button, get_value=lambda name=name: self._pages.get_visible_child_name() == name)
+            button.connect("clicked", lambda _button, name=name: self.select_tab(name))
+            self._tabs[name] = button
+            self._tab_bar.append(button)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._tab_key_pressed)
+        self._tab_bar.add_controller(keys)
+        header.append(self._tab_bar)
+        self._preferences = localized(Gtk.Button,
+                                      tooltip_text=m.PREFERENCES, valign=Gtk.Align.CENTER,
+                                      css_classes=['kiosk-preferences-button'])
         # Header hardware is painted over its children without reserving space.
         # Keep the compact action inside the face, clear of the right rivet/rail.
-        preferences.set_margin_end(10)
+        self._preferences.set_margin_end(10)
         gear = PixelIcon(GEAR, display_size=16, label='')
         gear.set_halign(Gtk.Align.CENTER)
         gear.set_valign(Gtk.Align.CENTER)
-        preferences.set_child(gear)
-        describe_control(preferences, m.PREFERENCES, m.PREFERENCES,
+        self._preferences.set_child(gear)
+        describe_control(self._preferences, m.PREFERENCES, m.PREFERENCES,
                          automation_id='kiosk-preferences-button')
-        preferences.connect('clicked', lambda *_: self._on_preferences and self._on_preferences())
-        header.append(preferences)
+        self._preferences.connect('clicked', lambda *_: self._on_preferences and self._on_preferences())
+        header.append(self._preferences)
         return header
 
+    def select_tab(self, name):
+        if not isinstance(name, str) or name not in self._tabs:
+            raise ValueError("unknown request tab")
+        if name == self._pages.get_visible_child_name():
+            return
+        self.dismiss_request_menu()
+        self._accounts.collapse()
+        self._approvers.collapse()
+        self._pages.set_visible_child_name(name)
+        self._sync_tabs()
+
+    def _sync_tabs(self):
+        active = self._pages.get_visible_child_name()
+        for name, button in self._tabs.items():
+            selected = name == active
+            button.update_state([Gtk.AccessibleState.SELECTED], [selected])
+            if selected:
+                button.add_css_class("selected")
+            else:
+                button.remove_css_class("selected")
+        request = active == "request"
+        self._request_split.set_visible(request)
+        self._status_row.set_visible(request)
+        self._cancel.set_hexpand(request)
+        self._cancel.set_halign(Gtk.Align.FILL if request else Gtk.Align.END)
+        self._cancel.get_parent().set_halign(Gtk.Align.FILL if request else Gtk.Align.END)
+
+    def _tab_key_pressed(self, _controller, keyval, _keycode, modifiers):
+        if modifiers & Gtk.accelerator_get_default_mod_mask():
+            return False
+        names = list(self._tabs)
+        if keyval in (Gdk.KEY_Left, Gdk.KEY_Right):
+            name = next(name for name in names if name != self._pages.get_visible_child_name())
+        elif keyval in (Gdk.KEY_Home, Gdk.KEY_End):
+            name = names[0 if keyval == Gdk.KEY_Home else -1]
+        else:
+            return False
+        self.select_tab(name)
+        self._tabs[name].grab_focus()
+        return True
+
     @staticmethod
-    def _title_lines(name):
-        """Split the product name into the two-line board heading."""
-        if "! " in name:
-            lead, rest = name.split("! ", 1)
-            return (f"{lead}!".upper(), rest.upper())
-        return (name.upper(),)
+    def _action_button(caption, identity, clicked, *, primary=True):
+        button = ArmoredButton(armor_kind="request" if primary else "cancel")
+        button.set_child(localized(Gtk.Label, label=caption, wrap=True,
+                                   wrap_mode=Pango.WrapMode.WORD_CHAR,
+                                   justify=Gtk.Justification.CENTER))
+        button.add_css_class("oh-no-parent-control-request-button" if primary
+                             else "oh-no-parent-control-cancel-button")
+        set_automation_id(button, identity)
+        button.connect("clicked", clicked)
+        return button
+
+    @staticmethod
+    def _approved_label(identity, message="", *, xalign=0.5):
+        label = localized(Gtk.Label, label=message, wrap=True, xalign=xalign,
+                          wrap_mode=Pango.WrapMode.WORD_CHAR,
+                          justify=Gtk.Justification.CENTER if xalign == 0.5 else Gtk.Justification.LEFT)
+        set_automation_id(label, identity)
+        return label
+
+    def _build_request_split(self):
+        split = Gtk.Box(spacing=1, hexpand=True)
+        split.append(self._request)
+        popover = Gtk.Popover(autohide=True, position=Gtk.PositionType.BOTTOM)
+        set_automation_id(popover, "kiosk-request-menu-popover")
+        self._request_menu = Gtk.MenuButton(popover=popover, icon_name="pan-down-symbolic")
+        self._request_menu.add_css_class("oh-no-parent-control-request-menu")
+        describe_control(self._request_menu, m.MORE_REQUEST_OPTIONS, m.MORE_REQUEST_OPTIONS,
+                         automation_id="kiosk-request-menu")
+        bind_ui(self._request_menu, get_value=popover.get_visible,
+                set_value=self._set_request_menu_open)
+        split.append(self._request_menu)
+        items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self._save_for_later = self._action_button(
+            m.REQUEST_SAVE_FOR_LATER, "kiosk-request-save-for-later",
+            self._save_requested, primary=False)
+        self._save_hint = self._approved_label("kiosk-request-save-hint")
+        self._save_hint.set_max_width_chars(25)
+        items.append(self._save_for_later)
+        items.append(self._save_hint)
+        popover.set_child(items)
+        return split
+
+    def _set_request_menu_open(self, opened):
+        if type(opened) is not bool:
+            raise ValueError("request menu state requires a boolean")
+        if opened:
+            self._request_menu.popup()
+        else:
+            self.dismiss_request_menu()
+
+    def dismiss_request_menu(self):
+        if not self._request_menu.get_popover().get_visible():
+            return False
+        self._request_menu.popdown()
+        return True
+
+    def _build_approved_page(self):
+        page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10, panel_kind="well")
+        set_automation_id(page, "kiosk-approved-page")
+        page.set_margin_start(10)
+        page.set_margin_end(10)
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                       margin_start=12, margin_end=12, margin_top=12, margin_bottom=12)
+        page.append(body)
+        self._approved_status = self._approved_label("kiosk-approved-status")
+        bind_ui(self._approved_status, get_value=self._approved_display_state)
+        self._approved_status.set_margin_top(4)
+        body.append(self._approved_status)
+
+        self._running_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self._running_status = self._approved_label("kiosk-approved-running-status")
+        self._running_balance = self._balance_label("running", "running_seconds")
+        self._pause = self._action_button(m.PAUSE_TIMER, "kiosk-approved-pause",
+                                          self._pause_requested)
+        self._pause_hint = self._approved_label("kiosk-approved-pause-hint",
+                                               m.SAVE_REMAINING_TIME_FOR_LATER)
+        for widget in (self._running_status, self._running_balance, self._pause, self._pause_hint):
+            self._running_row.append(widget)
+        body.append(self._running_row)
+        self._daily_balance = self._balance_label("daily", "daily_seconds")
+        body.append(self._daily_balance)
+
+        self._saved_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self._saved_row.append(self._approved_label("kiosk-approved-saved-title", m.SAVED_FOR_LATER))
+        self._saved_balance = self._balance_label("saved", "saved_seconds")
+        self._saved_row.append(self._saved_balance)
+        self._use_saved = self._action_button(m.USE_SAVED_TIME, "kiosk-approved-use-saved",
+                                               lambda *_: self._run_grant_action("use_saved"))
+        self._saved_row.append(self._use_saved)
+        hint = m.ADD_IT_TO_YOUR_TIME_NOW if self._lock_child_selector else m.START_TIMER_AND_RETURN_TO_SIGN_IN
+        self._saved_row.append(self._approved_label("kiosk-approved-saved-hint", hint))
+        body.append(self._saved_row)
+
+        self._retry = self._action_button(m.TRY_AGAIN, "kiosk-approved-retry",
+                                          lambda *_: self._run_grant_action("retry"))
+        body.append(self._retry)
+        self._request_more = self._action_button(m.REQUEST_MORE_TIME, "kiosk-approved-request-more",
+                                                 self._return_to_request)
+        body.append(self._request_more)
+        return page
+
+    def _return_to_request(self, _button):
+        self.select_tab("request")
+        self._tabs["request"].grab_focus()
+
+    def _balance_label(self, name, field):
+        label = self._approved_label(f"kiosk-approved-{name}")
+        if name != "daily":
+            label.add_css_class("oh-no-parent-control-approved-balance")
+        bind_ui(label, get_value=lambda: getattr(self._displayed_grant(), field, None))
+        return label
+
+    def set_grant_actions(self, *, save_for_later, pause, use_saved, retry):
+        """Attach the window's action handlers to this view."""
+        self._grant_actions = dict(save_for_later=save_for_later, pause=pause,
+                                   use_saved=use_saved, retry=retry)
+        self._update_controls()
+
+    def set_grant_status(self, state, status=None):
+        """Render a status update already bound to the current account by the caller."""
+        if state == "ready":
+            if not isinstance(status, GrantView):
+                raise ValueError("ready time status requires a snapshot")
+        elif state not in {"loading", "unavailable", "busy", "recovery", "pending"} or status is not None:
+            raise ValueError("invalid time status")
+        self._grant_state = state
+        self._grant_view = status
+        self._update_controls()
+        self._update_status()
+
+    def _approved_display_state(self):
+        if self._screen_time_limit_enabled is False:
+            return "disabled"
+        if not self._controls_enabled:
+            return "pending"
+        if self._screen_time_limit_enabled is None:
+            return "unavailable" if self._accounts_loaded and not self._account_uids else "loading"
+        if self._grant_state == "ready":
+            view = self._grant_view
+            if view.running_mode == "none" and not view.saved_seconds:
+                return "empty"
+        return self._grant_state
+
+    def _displayed_grant(self):
+        if self._approved_display_state() in {"ready", "empty"}:
+            return self._grant_view
+        return None
+
+    def _render_approved(self):
+        state = self._approved_display_state()
+        set_text(self._approved_status, "label", GRANT_STATUS_TEXT.get(state, ""))
+        self._approved_status.set_visible(state != "ready")
+        self._retry.set_visible(state in {"busy", "unavailable", "recovery"})
+        can_retry = bool(self._grant_actions.get("retry") and self._account_uids)
+        self._retry.set_sensitive(can_retry)
+        self._request_retry.set_sensitive(can_retry)
+        self._request_retry.set_visible(state in {"busy", "recovery"})
+        self._request_more.set_visible(state == "empty")
+
+        view = self._displayed_grant()
+        running = view is not None and view.running_mode != "none"
+        fixed = running and view.running_mode == "fixed"
+        can_pause = fixed and view.running_seconds > 0
+        saved = view is not None and view.saved_seconds > 0
+        daily = view is not None and view.daily_seconds > 0
+        self._running_row.set_visible(running)
+        self._running_balance.set_visible(can_pause)
+        self._daily_balance.set_visible(daily)
+        self._saved_row.set_visible(saved)
+        self._use_saved.set_sensitive(bool(saved and self._grant_actions.get("use_saved")))
+        self._pause.set_visible(can_pause)
+        self._pause.set_sensitive(bool(can_pause and self._grant_actions.get("pause")))
+        self._pause_hint.set_visible(can_pause)
+
+        running_status = ""
+        if fixed:
+            running_status = m.TIMER_RUNNING if can_pause else m.COVERED_BY_DAILY_TIME
+        elif running:
+            deadline = GLib.DateTime.new_from_unix_local(view.running_end)
+            running_status = m.APPROVED_UNTIL % {"time": deadline.format("%H:%M")}
+        set_text(self._running_status, "label", running_status)
+        set_text(self._running_balance, "label", format_duration(view.running_seconds) if can_pause else "")
+        set_text(self._saved_balance, "label", format_duration(view.saved_seconds) if saved else "")
+        set_text(self._daily_balance, "label", m.TODAYS_DAILY_TIME % {
+            "duration": format_duration(view.daily_seconds)} if daily else "")
+        set_text(self._use_saved.get_child(), "label", m.ADD_SAVED_TIME_TO_TIMER if running else m.USE_SAVED_TIME)
+
+    def _run_grant_action(self, name):
+        action = self._grant_actions.get(name)
+        if action is not None:
+            action()
+
+    def _save_requested(self, _button):
+        self.dismiss_request_menu()
+        try:
+            _uid, _child, _approver, seconds, _soft = self.selected()
+        except ValueError as error:
+            self.show_validation_error(error.args[0])
+            return
+        view = self._displayed_grant()
+        if not seconds or view is None:
+            return
+        if self._lock_child_selector and view.running_mode == "fixed":
+            estimate = view.deferred_estimate if view.requested_seconds == seconds else 0
+            self._confirm_lock("save_for_later", estimate or view.saved_seconds + seconds + view.running_seconds)
+        else:
+            self._run_grant_action("save_for_later")
+
+    def _pause_requested(self, _button):
+        view = self._displayed_grant()
+        if view is None or view.running_mode != "fixed" or view.running_seconds <= 0:
+            return
+        if self._lock_child_selector:
+            self._confirm_lock("pause", view.saved_seconds + view.running_seconds)
+        else:
+            self._run_grant_action("pause")
+
+    def _confirm_lock(self, action, seconds):
+        if self._lock_dialog is not None:
+            return
+        saving = action == "save_for_later"
+        title = m.SAVE_AND_LOCK_QUESTION if saving else m.PAUSE_AND_LOCK_QUESTION
+        dialog = Gtk.Window(transient_for=self.get_root(), modal=True,
+                            decorated=False, destroy_with_parent=True)
+        self._lock_dialog = dialog
+        set_automation_id(dialog, "kiosk-lock-confirmation")
+        set_text(dialog, "title", title)
+        dialog.add_css_class("oh-no-parent-control-language-dialog")
+        dialog.set_default_size(360, -1)
+        board = MetalBoard(orientation=Gtk.Orientation.VERTICAL)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                          margin_start=18, margin_end=18, margin_top=18, margin_bottom=18)
+        heading = self._approved_label("kiosk-lock-title", title)
+        heading.add_css_class("oh-no-parent-control-page-title")
+        content.append(heading)
+        detail = self._approved_label("kiosk-lock-body", m.LOCK_CONFIRMATION_BODY % {
+            "duration": format_duration(seconds)}, xalign=0)
+        detail.set_max_width_chars(38)
+        content.append(detail)
+
+        def close(*_args):
+            self._lock_dialog = None
+            dialog.destroy()
+            return True
+
+        def confirm(_button):
+            close()
+            source = self._save_for_later if saving else self._pause
+            if source.is_sensitive():
+                self._run_grant_action(action)
+
+        actions = Gtk.Box(spacing=6, homogeneous=True)
+        cancel = self._action_button(m.CANCEL, "kiosk-lock-cancel", close, primary=False)
+        actions.append(cancel)
+        actions.append(self._action_button(m.CONTINUE if saving else m.PAUSE_AND_LOCK,
+                                          "kiosk-lock-confirm", confirm))
+        content.append(actions)
+        board.append(content)
+        dialog.set_child(board)
+        dialog.set_default_widget(cancel)
+        dialog.set_focus(cancel)
+        bind_ui(dialog, activate=lambda: dialog.emit("activate-default"))
+        dialog.connect("close-request", close)
+        keys = Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", lambda _keys, keyval, *_: close() if keyval == Gdk.KEY_Escape else False)
+        dialog.add_controller(keys)
+        dialog.present()
 
     def _account_row(self, caption, dropdown, *, identity):
         row = MetalPanel(spacing=0, panel_kind="metal", hexpand=True)
@@ -762,6 +1110,8 @@ class RequestContent(MetalBoard):
         self._approvers_loaded = False
         self._ready = False
         self._screen_time_limit_enabled = None
+        self._grant_state = "unavailable"
+        self._grant_view = None
         self._update_controls()
         self._validation_error = None
         self._time_estimate = None
@@ -807,6 +1157,8 @@ class RequestContent(MetalBoard):
         self._update_controls()
 
     def _update_status(self):
+        saved_message = ""
+        save_hint = ""
         if not self._accounts_loaded or not self._approvers_loaded:
             message = m.LOADING_ACCOUNTS
         elif not self._account_uids:
@@ -819,20 +1171,40 @@ class RequestContent(MetalBoard):
             message = m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
         elif not self._controls_enabled:
             message = m.WAITING_FOR_APPROVAL
+        elif self._grant_state in {"busy", "pending", "recovery"}:
+            message = GRANT_STATUS_TEXT[self._grant_state]
         elif self._validation_error:
             message = self._validation_error
         else:
             try:
-                self.selected()
+                _uid, _child, _approver, seconds, _soft = self.selected()
             except ValueError as error:
                 message = error.args[0]
             else:
                 message = self._time_estimate
+                view = self._grant_view
+                if view is not None:
+                    if view.saved_seconds:
+                        saved_message = m.ALREADY_SAVED % {"duration": format_duration(view.saved_seconds)}
+                    if seconds and seconds == view.requested_seconds:
+                        if view.immediate_estimate:
+                            message = m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {
+                                "format_duration_seconds": format_duration(view.immediate_estimate)}
+                        if view.deferred_estimate:
+                            save_hint = m.SAVED_IF_APPROVED % {"duration": format_duration(view.deferred_estimate)}
+        if self._ui_duration_value() == "0":
+            save_hint = m.REST_OF_DAY_CANNOT_BE_SAVED
+        elif self._validation_error is None and self._grant_state == "unavailable":
+            save_hint = m.TIME_STATUS_UNAVAILABLE
         if message is None:
             message = m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {
                 'format_duration_seconds': '',
             }
         set_text(self._status, 'label', message)
+        set_text(self._already_saved, "label", saved_message)
+        self._already_saved.set_visible(bool(saved_message))
+        set_text(self._save_hint, "label", save_hint)
+        self._save_hint.set_visible(bool(save_hint))
         if self._validation_error and message == self._validation_error:
             self._status.add_css_class("oh-no-parent-control-error")
         else:
@@ -857,13 +1229,15 @@ class RequestContent(MetalBoard):
         if (self._accounts_loaded and index < len(self._account_uids)
                 and self._selection_store and not self._lock_child_selector):
             self._selection_store.remember("child_uid", self._account_uids[index])
-        if (self._accounts_loaded and index < len(self._account_uids) and
-                self._on_account_selected is not None):
+        if self._accounts_loaded and index < len(self._account_uids):
             self._screen_time_limit_enabled = None
             self._validation_error = None
             self._time_estimate = None
+            self._grant_state = "unavailable"
+            self._grant_view = None
             self._update_ready()
-            self._on_account_selected(self._account_uids[index])
+            if self._on_account_selected is not None:
+                self._on_account_selected(self._account_uids[index])
 
     def _toggle_allow_soft(self, _button):
         if not self._allow_soft.get_sensitive():
@@ -878,11 +1252,13 @@ class RequestContent(MetalBoard):
         self._emit_values_changed()
 
     def _emit_values_changed(self, *_args):
-        if self._suppress_values_changed or self._on_values_changed is None:
+        if self._suppress_values_changed:
             return
         self._validation_error = None
+        self._update_save_control()
         self._update_status()
-        self._on_values_changed()
+        if self._on_values_changed is not None:
+            self._on_values_changed()
 
     def muted_for_surface(self, surface):
         return self._child_muted if surface == "child" else self._kiosk_muted
@@ -1102,16 +1478,32 @@ class RequestContent(MetalBoard):
         self._update_controls()
         self._update_status()
 
+    def can_cancel(self):
+        return self._cancel.is_sensitive()
+
+    def _update_save_control(self):
+        save_allowed = (self._request.get_sensitive() and self._grant_state == "ready"
+                        and self._ui_duration_value() != "0" and self._grant_actions.get("save_for_later"))
+        self._save_for_later.set_sensitive(bool(save_allowed))
+
     def _update_controls(self):
         """Apply request availability while always preserving the exit path."""
+        navigation = self._controls_enabled and self._grant_state not in {"busy", "pending"}
         request_available = (
             self._controls_enabled and self._ready and
-            self._screen_time_limit_enabled is True
+            self._screen_time_limit_enabled is True and
+            self._grant_state not in {"busy", "pending", "recovery"}
         )
-        time_limit_enabled = self._screen_time_limit_enabled is True
         self._request.set_sensitive(request_available)
-        self._cancel.set_sensitive(self._controls_enabled)
-        accounts_enabled = self._controls_enabled and not self._lock_child_selector
+        self._request_menu.set_sensitive(request_available)
+        if not request_available:
+            self.dismiss_request_menu()
+        self._cancel.set_sensitive(self._controls_enabled and self._grant_state != "pending")
+        self._tab_bar.set_sensitive(navigation)
+        for button in self._tabs.values():
+            button.set_sensitive(navigation)
+        self._preferences.set_sensitive(navigation)
+        accounts_enabled = navigation and not self._lock_child_selector
         self._accounts.set_interaction_enabled(accounts_enabled)
         # Expose the effective locked state on the actionable descendant too.
         # AT-SPI reports a widget's own state rather than inferring sensitivity
@@ -1119,13 +1511,15 @@ class RequestContent(MetalBoard):
         # made the child-overlay trigger appear interactive to assistive tools.
         if self._lock_child_selector:
             self._accounts.collapse()
-        self._custom_entry.set_sensitive(request_available and time_limit_enabled)
+        self._custom_entry.set_sensitive(request_available)
         self._unit_selector.set_sensitive(request_available)
         self._allow_soft.set_sensitive(request_available)
         self._filter_row.set_sensitive(request_available)
         self._approvers.set_sensitive(request_available)
         for button in self._duration_buttons:
-            button.set_sensitive(request_available and time_limit_enabled)
+            button.set_sensitive(request_available)
         self._screen_limit_notice.set_visible(
             self._screen_time_limit_enabled is False
         )
+        self._update_save_control()
+        self._render_approved()

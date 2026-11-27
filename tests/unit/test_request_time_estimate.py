@@ -1179,6 +1179,8 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
         _accounts_loaded=True, _approvers_loaded=True, _account_uids=[1001],
         _approver_uids=[1000], _screen_time_limit_enabled=True,
         _validation_error=None, _controls_enabled=True,
+        _grant_state="unavailable", _grant_view=None,
+        _ui_duration_value=lambda: "300", _already_saved=Mock(), _save_hint=Mock(),
         selected=Mock(return_value=(1001, "Child", 1000, 300, False)),
         _status=Mock(),
     ), RequestContent, ("set_time_estimate", "_update_status"))
@@ -1204,6 +1206,8 @@ def test_pending_estimate_keeps_label_with_blank_value_until_result():
         _accounts_loaded=True, _approvers_loaded=True, _account_uids=[1001],
         _approver_uids=[1000], _screen_time_limit_enabled=True,
         _validation_error=None, _controls_enabled=True,
+        _grant_state="unavailable", _grant_view=None,
+        _ui_duration_value=lambda: "300", _already_saved=Mock(), _save_hint=Mock(),
         selected=Mock(return_value=(1001, "Child", 1000, 300, False)),
         _status=Mock(),
     ), RequestContent, ("set_time_estimate", "_update_status"))

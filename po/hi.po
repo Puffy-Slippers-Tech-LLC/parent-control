@@ -1764,3 +1764,92 @@ msgstr "कोई मान्य संख्या दर्ज करें�
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमत सीमा: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "और समय माँगें"
+
+msgid "Approved time"
+msgstr "स्वीकृत समय"
+
+msgid "Request & use now"
+msgstr "समय माँगें और अभी इस्तेमाल करें"
+
+msgid "More request options"
+msgstr "अनुरोध के और विकल्प"
+
+msgid "Request & save for later"
+msgstr "समय माँगें और बाद के लिए सहेजें"
+
+msgid "Rest of the day can't be saved."
+msgstr "‘दिन का शेष समय’ सहेजा नहीं जा सकता।"
+
+msgid "Saved for later"
+msgstr "बाद के लिए सहेजा गया"
+
+msgid "Use saved time"
+msgstr "सहेजा गया समय इस्तेमाल करें"
+
+msgid "Start the timer and return to sign-in."
+msgstr "टाइमर शुरू करें और साइन-इन स्क्रीन पर लौटें।"
+
+msgid "Add it to your time now."
+msgstr "सहेजा गया समय अभी अपने समय में जोड़ें।"
+
+msgid "Timer running"
+msgstr "टाइमर चल रहा है"
+
+msgid "Pause timer"
+msgstr "टाइमर रोकें"
+
+msgid "Save the remaining time for later."
+msgstr "बचा हुआ समय बाद के लिए सहेजें।"
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "आज का दैनिक समय: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "टाइमर रोकें और स्क्रीन लॉक करें?"
+
+msgid "Save for later and lock?"
+msgstr "समय बाद के लिए सहेजें और स्क्रीन लॉक करें?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "लगभग %(duration)s सहेजा जाएगा। आपकी स्क्रीन अभी लॉक हो जाएगी और वापस आने के लिए आपको अपना पासवर्ड चाहिए होगा। दैनिक समय बाकी रहने पर यहीं ‘स्वीकृत समय’ से, या अनुरोध स्टेशन से, सहेजे गए समय का इस्तेमाल शुरू करें।"
+
+msgid "Pause and lock"
+msgstr "रोकें और लॉक करें"
+
+msgid "No approved time available"
+msgstr "कोई स्वीकृत समय उपलब्ध नहीं है"
+
+msgid "Covered by today's daily time"
+msgstr "आज के दैनिक समय में शामिल"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s तक स्वीकृत"
+
+msgid "Add saved time to the timer"
+msgstr "सहेजा गया समय टाइमर में जोड़ें"
+
+msgid "Loading time status…"
+msgstr "समय की स्थिति लोड हो रही है…"
+
+msgid "Time status unavailable"
+msgstr "समय की स्थिति उपलब्ध नहीं है"
+
+msgid "Time controls are busy. Try again."
+msgstr "समय के नियंत्रण व्यस्त हैं। फिर से प्रयास करें।"
+
+msgid "Updating approved time…"
+msgstr "स्वीकृत समय अपडेट हो रहा है…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "स्वीकृति मिलने पर सहेजा जाएगा: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "पहले से सहेजा गया: %(duration)s"

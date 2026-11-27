@@ -923,6 +923,20 @@ class ServiceContractTests(unittest.TestCase):
         service.broker.set_child_language.assert_called_once_with(991, 1001, 'fr')
         self.assertEqual(invocation.return_value.call_args.args[0].unpack(), ('fr',))
 
+    def test_child_monitors_config_dispatch_passes_authenticated_caller_and_target(self):
+        service = Service.__new__(Service)
+        service.credentials = mock.Mock()
+        service.credentials.uid.return_value = 991
+        service.broker = mock.Mock()
+        service.broker.get_child_monitors_config.return_value = '<monitors version="2"/>'
+        from oh_no_parent_control.service import GLib
+        invocation = mock.Mock()
+        service._method_call(None, ':1.42', None, None, 'GetChildMonitorsConfig',
+                             GLib.Variant('(u)', (1001,)), invocation)
+        service.broker.get_child_monitors_config.assert_called_once_with(991, 1001)
+        self.assertEqual(invocation.return_value.call_args.args[0].unpack(),
+                         ('<monitors version="2"/>',))
+
     def test_language_contract_never_accepts_target_identity(self):
         self.assertEqual(signatures(INTROSPECTION_XML)["GetOwnLanguage"],
                          (("language", "s", "out"),))

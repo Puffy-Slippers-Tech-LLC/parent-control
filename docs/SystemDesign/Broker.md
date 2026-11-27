@@ -130,6 +130,7 @@ the broker resolves and revalidates it.
 | `GetOwnSessionAllowsSoftApps` | own | - | - |
 | `GetChildLanguage` | - | selected child | - |
 | `GetChildLanguageContext` | - | selected child | - |
+| `GetChildMonitorsConfig` | - | selected child | - |
 | `SetChildLanguage` | - | selected child | - |
 | `GetPreferences` | own | selected child | selected child |
 | `GetPolicyWarnings` | own | selected child | selected child |

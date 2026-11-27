@@ -119,6 +119,10 @@ INTROSPECTION_XML = f"""
       <arg name="language" type="s" direction="out"/>
       <arg name="desktop_language" type="s" direction="out"/>
     </method>
+    <method name="GetChildMonitorsConfig">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="monitors_xml" type="s" direction="out"/>
+    </method>
     <method name="SetChildLanguage">
       <arg name="target_uid" type="u" direction="in"/>
       <arg name="language" type="s" direction="in"/>
@@ -691,6 +695,10 @@ class Service:
                 target_uid, = parameters.unpack()
                 context = self.broker.get_child_language_context(caller_uid, target_uid)
                 invocation.return_value(GLib.Variant("(ss)", context))
+            elif method == "GetChildMonitorsConfig":
+                target_uid, = parameters.unpack()
+                config = self.broker.get_child_monitors_config(caller_uid, target_uid)
+                invocation.return_value(GLib.Variant("(s)", (config,)))
             elif method == "SetChildLanguage":
                 target_uid, language = parameters.unpack()
                 saved = self.broker.set_child_language(caller_uid, target_uid, language)

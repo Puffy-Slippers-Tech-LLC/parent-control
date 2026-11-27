@@ -149,6 +149,11 @@ Shared close-out review checks in test_launchers add tiny private Git repositori
 and bounded, waited Git children. They change no real checkout, credentials or
 remote refs; commit execution is doubled at the controller boundary. Existing
 unit overlap remains safe, with no cleanup or UI inventory membership.
+
+Kiosk display-config checks parse fixed XML with process-local Mutter state
+tuples and read only pytest-private home trees; they open no bus, display,
+service, child process or shared path. Compatible unit overlap applies; the
+module has no cleanup or UI inventory membership.
 """
 
 from pathlib import PurePosixPath
@@ -200,6 +205,7 @@ graphical_lease
 installer
 kiosk_confinement
 kiosk_approval_safety
+kiosk_display_config
 kiosk_login
 kiosk_model
 kiosk_rendering

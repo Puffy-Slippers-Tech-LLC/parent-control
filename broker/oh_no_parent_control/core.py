@@ -28,6 +28,7 @@ from typing import Callable, Iterable, Protocol
 from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
+from .display_config import read_monitors_config
 from .grant_store import (
     MAX_SAVED_SECONDS, UINT64_MAX, BridgeRepair, FixedGrant, GrantAccountError, GrantRecord,
     GrantStore, GrantStoreError, GrantTuple, PauseIntent, RedeemIntent, RedeemTimeState, SavedBalance,
@@ -394,7 +395,8 @@ class Broker:
                  now=local_now, caller_alive=lambda _sender: True,
                  whats_new_loader=WhatsNewCatalog.load,
                  grant_store: GrantStore | None = None,
-                 sessions: Sessions | None = None, sleep=time.sleep):
+                 sessions: Sessions | None = None, sleep=time.sleep,
+                 monitors_reader: Callable[[int], str] = read_monitors_config):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
@@ -410,6 +412,7 @@ class Broker:
         self._grant_store = grant_store
         self._sessions = sessions
         self._sleep = sleep
+        self._monitors_reader = monitors_reader
         self._request_lock = threading.Lock()
         self._grant_fence_lock = threading.Lock()
         self._grant_fences: dict[int, tuple[int, int]] = {}
@@ -2272,6 +2275,14 @@ class Broker:
         except Exception as error:
             raise BackendFailure("child desktop language is unavailable") from error
         return language, desktop_language
+
+    def get_child_monitors_config(self, caller_uid: int, target_uid: int) -> str:
+        """Return the selected child's saved desktop monitor layout for the kiosk."""
+        target_uid = self._kiosk_language_target(caller_uid, target_uid)
+        try:
+            return self._monitors_reader(target_uid)
+        except (OSError, ValueError, KeyError) as error:
+            raise BackendFailure("child monitor configuration is unavailable") from error
 
     def set_child_language(self, caller_uid: int, target_uid: int, language: object) -> str:
         target_uid = self._kiosk_language_target(caller_uid, target_uid)

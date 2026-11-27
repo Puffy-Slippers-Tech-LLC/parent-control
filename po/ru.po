@@ -1853,6 +1853,17 @@ msgstr "Выполняется другая операция с лимитом �
 msgid "Updating approved time…"
 msgstr "Обновление одобренного времени…"
 
+msgid "The time status changed. Try again."
+msgstr "Состояние времени изменилось. Повтори попытку."
+
+msgid "The timer could not be paused."
+msgstr "Не удалось приостановить таймер."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s сейчас пользуется рабочим столом."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Будет сохранено при одобрении: %(duration)s"

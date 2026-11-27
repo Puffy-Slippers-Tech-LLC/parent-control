@@ -1855,6 +1855,17 @@ msgstr "Controalele de timp sunt ocupate. Încearcă din nou."
 msgid "Updating approved time…"
 msgstr "Se actualizează timpul aprobat…"
 
+msgid "The time status changed. Try again."
+msgstr "Starea timpului s-a schimbat. Încearcă din nou."
+
+msgid "The timer could not be paused."
+msgstr "Cronometrul nu a putut fi întrerupt."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s folosește desktopul."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Păstrat dacă se aprobă: %(duration)s"

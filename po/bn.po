@@ -1846,6 +1846,17 @@ msgstr "সময় নিয়ন্ত্রণ ব্যস্ত। আব
 msgid "Updating approved time…"
 msgstr "অনুমোদিত সময় হালনাগাদ হচ্ছে…"
 
+msgid "The time status changed. Try again."
+msgstr "সময়ের অবস্থা বদলেছে। আবার চেষ্টা করো।"
+
+msgid "The timer could not be paused."
+msgstr "টাইমার থামানো যায়নি।"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ডেস্কটপ ব্যবহার করছে।"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "অনুমোদন পেলে সংরক্ষিত হবে: %(duration)s"

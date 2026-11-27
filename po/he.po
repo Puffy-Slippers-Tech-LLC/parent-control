@@ -1846,6 +1846,17 @@ msgstr "בקרי הזמן תפוסים. כדאי לנסות שוב."
 msgid "Updating approved time…"
 msgstr "הזמן שאושר מתעדכן…"
 
+msgid "The time status changed. Try again."
+msgstr "מצב הזמן השתנה. אפשר לנסות שוב."
+
+msgid "The timer could not be paused."
+msgstr "לא היה אפשר להשהות את הטיימר."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "שולחן העבודה נמצא בשימוש של %(name)s."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "יישמר אם יאושר: %(duration)s"

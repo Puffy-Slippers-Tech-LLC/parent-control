@@ -1844,6 +1844,17 @@ msgstr "Los controles de tiempo están ocupados. Inténtalo de nuevo."
 msgid "Updating approved time…"
 msgstr "Actualizando el tiempo aprobado…"
 
+msgid "The time status changed. Try again."
+msgstr "El estado del tiempo ha cambiado. Inténtalo de nuevo."
+
+msgid "The timer could not be paused."
+msgstr "No se pudo pausar el temporizador."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s está usando el escritorio."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Se guardará si se aprueba: %(duration)s"

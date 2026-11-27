@@ -1846,6 +1846,17 @@ msgstr "La temporegiloj estas okupataj. Provu denove."
 msgid "Updating approved time…"
 msgstr "Ĝisdatigante la aprobitan tempon…"
 
+msgid "The time status changed. Try again."
+msgstr "La tempostato ŝanĝiĝis. Provu denove."
+
+msgid "The timer could not be paused."
+msgstr "Ne eblis paŭzigi la tempigilon."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s uzas la labortablon."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Konservota se aprobita: %(duration)s"

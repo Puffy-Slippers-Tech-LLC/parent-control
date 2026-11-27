@@ -1846,6 +1846,17 @@ msgstr "Τα στοιχεία ελέγχου χρόνου είναι απασχ�
 msgid "Updating approved time…"
 msgstr "Ενημέρωση εγκεκριμένου χρόνου…"
 
+msgid "The time status changed. Try again."
+msgstr "Η κατάσταση χρόνου άλλαξε. Δοκίμασε ξανά."
+
+msgid "The timer could not be paused."
+msgstr "Δεν ήταν δυνατή η παύση του χρονομέτρου."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "Ο λογαριασμός %(name)s χρησιμοποιεί την επιφάνεια εργασίας."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Θα αποθηκευτεί αν εγκριθεί: %(duration)s"

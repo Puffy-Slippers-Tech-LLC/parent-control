@@ -1852,6 +1852,17 @@ msgstr "Элементы кіравання часам занятыя. Пасп�
 msgid "Updating approved time…"
 msgstr "Абнаўляецца ўхвалены час…"
 
+msgid "The time status changed. Try again."
+msgstr "Стан часу змяніўся. Паспрабуй яшчэ раз."
+
+msgid "The timer could not be paused."
+msgstr "Не ўдалося прыпыніць таймер."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s карыстаецца працоўным сталом."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Будзе захавана пры ўхваленні: %(duration)s"

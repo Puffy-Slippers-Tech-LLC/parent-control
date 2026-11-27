@@ -1846,6 +1846,17 @@ msgstr "Denbora-kontrolak lanpetuta daude. Saiatu berriro."
 msgid "Updating approved time…"
 msgstr "Onartutako denbora eguneratzen…"
 
+msgid "The time status changed. Try again."
+msgstr "Denboraren egoera aldatu da. Saiatu berriro."
+
+msgid "The timer could not be paused."
+msgstr "Ezin izan da tenporizadorea pausatu."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s mahaigaina erabiltzen ari da."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Onartuz gero gordeko dena: %(duration)s"

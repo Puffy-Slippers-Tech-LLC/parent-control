@@ -1843,6 +1843,17 @@ msgstr "ระบบควบคุมเวลากำลังทำงาน
 msgid "Updating approved time…"
 msgstr "กำลังอัปเดตเวลาที่อนุมัติ…"
 
+msgid "The time status changed. Try again."
+msgstr "สถานะเวลาเปลี่ยนไปแล้ว โปรดลองอีกครั้ง"
+
+msgid "The timer could not be paused."
+msgstr "ไม่สามารถหยุดตัวจับเวลาชั่วคราวได้"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s กำลังใช้เดสก์ท็อป"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "เวลาที่จะเก็บไว้หากอนุมัติ: %(duration)s"

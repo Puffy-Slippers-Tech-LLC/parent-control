@@ -1849,6 +1849,17 @@ msgstr "ਸਮਾਂ ਕੰਟਰੋਲ ਰੁੱਝੇ ਹੋਏ ਹਨ। ਦ�
 msgid "Updating approved time…"
 msgstr "ਮਨਜ਼ੂਰ ਕੀਤਾ ਸਮਾਂ ਅੱਪਡੇਟ ਹੋ ਰਿਹਾ ਹੈ…"
 
+msgid "The time status changed. Try again."
+msgstr "ਸਮੇਂ ਦੀ ਸਥਿਤੀ ਬਦਲ ਗਈ ਹੈ। ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"
+
+msgid "The timer could not be paused."
+msgstr "ਟਾਈਮਰ ਨੂੰ ਰੋਕਿਆ ਨਹੀਂ ਜਾ ਸਕਿਆ।"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ਡੈਸਕਟਾਪ ਵਰਤ ਰਹੇ ਹਨ।"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "ਮਨਜ਼ੂਰੀ ਮਿਲਣ ’ਤੇ ਸੰਭਾਲਿਆ ਜਾਵੇਗਾ: %(duration)s"

@@ -1849,6 +1849,17 @@ msgstr "സമയ നിയന്ത്രണങ്ങൾ ഇപ്പോൾ ത
 msgid "Updating approved time…"
 msgstr "അനുവദിച്ച സമയം പുതുക്കുന്നു…"
 
+msgid "The time status changed. Try again."
+msgstr "സമയത്തിന്റെ നില മാറി. വീണ്ടും ശ്രമിക്കുക."
+
+msgid "The timer could not be paused."
+msgstr "ടൈമർ താൽക്കാലികമായി നിർത്താൻ കഴിഞ്ഞില്ല."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ഡെസ്ക്ടോപ്പ് ഉപയോഗിക്കുന്നു."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "അനുമതി ലഭിച്ചാൽ സൂക്ഷിക്കുന്ന സമയം: %(duration)s"

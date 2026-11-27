@@ -1844,6 +1844,17 @@ msgstr "Les commandes de temps sont occupées. Réessayez."
 msgid "Updating approved time…"
 msgstr "Mise à jour du temps accordé…"
 
+msgid "The time status changed. Try again."
+msgstr "L’état du temps a changé. Réessaie."
+
+msgid "The timer could not be paused."
+msgstr "Impossible de mettre le minuteur en pause."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s utilise le bureau."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Sera enregistré en cas d’accord : %(duration)s"

@@ -1849,6 +1849,17 @@ msgstr "وقت کے کنٹرول مصروف ہیں۔ دوبارہ کوشش کر�
 msgid "Updating approved time…"
 msgstr "منظور شدہ وقت اپ ڈیٹ ہو رہا ہے…"
 
+msgid "The time status changed. Try again."
+msgstr "وقت کی حالت بدل گئی ہے۔ دوبارہ کوشش کریں۔"
+
+msgid "The timer could not be paused."
+msgstr "ٹائمر کو عارضی طور پر روکا نہیں جا سکا۔"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ڈیسک ٹاپ استعمال کر رہے ہیں۔"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "منظوری پر محفوظ ہوگا: %(duration)s"

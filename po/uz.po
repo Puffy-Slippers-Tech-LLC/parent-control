@@ -1844,6 +1844,17 @@ msgstr "Vaqt boshqaruvi band. Qayta urinib ko‘ring."
 msgid "Updating approved time…"
 msgstr "Tasdiqlangan vaqt yangilanmoqda…"
 
+msgid "The time status changed. Try again."
+msgstr "Vaqt holati oʻzgardi. Qayta urinib koʻr."
+
+msgid "The timer could not be paused."
+msgstr "Taymerni vaqtincha toʻxtatib boʻlmadi."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ish stolidan foydalanmoqda."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Tasdiqlansa saqlanadigan vaqt: %(duration)s"

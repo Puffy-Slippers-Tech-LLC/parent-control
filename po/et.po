@@ -1846,6 +1846,17 @@ msgstr "Aja juhtnupud on hõivatud. Proovi uuesti."
 msgid "Updating approved time…"
 msgstr "Kinnitatud aja uuendamine…"
 
+msgid "The time status changed. Try again."
+msgstr "Aja olek muutus. Proovi uuesti."
+
+msgid "The timer could not be paused."
+msgstr "Taimerit ei õnnestunud peatada."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s kasutab töölauda."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Salvestatakse kinnitamisel: %(duration)s"

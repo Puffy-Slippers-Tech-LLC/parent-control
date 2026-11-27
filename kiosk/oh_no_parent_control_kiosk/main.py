@@ -22,6 +22,7 @@ import os
 import random
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import gi
 
@@ -50,7 +51,7 @@ from .preference_dialog import PreferencesDialog
 from .whats_new import WhatsNewPresenter
 from .agent_locale import KioskAgentLocale
 from common.oh_no_parent_control_ui.languages import selected_language
-from .request_content import RequestContent
+from .request_content import GrantView, RequestContent
 from .selection_store import SelectionStore
 from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
 from .floating_islands import (
@@ -69,6 +70,7 @@ from .chrome import (
 # closing the child overlay. Fade any remaining thunder over this interval.
 SUCCESS_LOGOUT_DELAY_MS = 3_000
 SUCCESS_COUNTDOWN_SECONDS = SUCCESS_LOGOUT_DELAY_MS // 1_000
+GRANT_STATUS_RETRY_SECONDS = (1, 3, 10)
 CHILD_SUCCESS_TITLE = m.TIME_GRANTED
 CHILD_SUCCESS_COPY = m.TIME_GRANTED_CLOSE
 GATEWAY_EFFECT_FRAME_MS = 33
@@ -935,6 +937,20 @@ def _time_estimate_label(seconds):
     return m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {'format_duration_seconds': format_duration(seconds)}
 
 
+def _grant_error_kind(error):
+    name = Gio.DBusError.get_remote_error(error) if isinstance(error, GLib.Error) else error
+    prefix = f"{BUS_NAME}.Error."
+    return name.removeprefix(prefix) if isinstance(name, str) and name.startswith(prefix) else None
+
+
+class PendingApproval(NamedTuple):
+    target_uid: int
+    approver_uid: int
+    duration_seconds: int
+    allow_soft: bool
+    grant_revision: int | None  # None selects immediate approval.
+
+
 class RequestWindow(Adw.ApplicationWindow):
     def __init__(self, application, *, preview=False,
                  child_overlay=False, broker_connection=None):
@@ -991,11 +1007,15 @@ class RequestWindow(Adw.ApplicationWindow):
         self._request_revision = 0
         self._request_stage = None
         self._pending_request = None
+        self._preferences_revision = 0
         self._estimate_revision = 0
         self._estimate_in_flight = False
         self._estimate_debounce_id = 0
         self._estimate_refresh_id = 0
         self._estimate_closed = False
+        self._grant_retry_step = None
+        self._grant_tick_id = 0
+        self._grant_methods_missing = False
         self._success_logout_source_id = None
         self._success_countdown_remaining = None
         self._success_action_label = None
@@ -1029,6 +1049,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._estimate_refresh_id = GLib.timeout_add_seconds(
             30, self._refresh_time_estimate,
         )
+        self._grant_tick_id = GLib.timeout_add_seconds(1, self._request_content.tick_grant_view)
 
     def _on_destroy(self, *_args):
         self._estimate_closed = True
@@ -1045,10 +1066,11 @@ class RequestWindow(Adw.ApplicationWindow):
             self._agent_locale.close()
         if self._session_logout is not None:
             self._session_logout.close()
-        for source_id in (self._estimate_debounce_id, self._estimate_refresh_id):
+        for source_id in (self._estimate_debounce_id, self._estimate_refresh_id, self._grant_tick_id):
             if source_id:
                 GLib.source_remove(source_id)
         self._estimate_debounce_id = self._estimate_refresh_id = 0
+        self._grant_tick_id = 0
         self._cancel_success_dismiss()
         if self._thunder is not None:
             self._thunder.close()
@@ -1202,6 +1224,7 @@ class RequestWindow(Adw.ApplicationWindow):
             always_show_arrow=False,
             popover=help_popover,
         )
+        self._hud_menu_button = menu_button
         describe_control(
             menu_button, m.REQUEST_SCREEN_MENU,
             m.OPEN_PREFERENCES_HELP_AND_PRODUCT_INFORMATION_FOR_THIS_REQUEST_S,
@@ -1250,6 +1273,11 @@ class RequestWindow(Adw.ApplicationWindow):
                 child_overlay=self._child_overlay,
             )),
         )
+        if not self._preview or self._interactive_preview:
+            self._request_content.set_grant_actions(
+                save_for_later=self._request_deferred, pause=self._pause_grant,
+                use_saved=self._use_saved_time, retry=self._retry_grant_status,
+            )
         self._request_surface = GatewayAlignedRequest(
             self._request_content, "request",
         )
@@ -1418,7 +1446,7 @@ class RequestWindow(Adw.ApplicationWindow):
             self._result_detail.set_visible(True)
 
     def _show_preferences(self, *_args, tab='language'):
-        if self._estimate_closed:
+        if self._estimate_closed or self._state.in_flight:
             return
         self._preferences_tab_requested = tab
         self._language_requested = True
@@ -1746,9 +1774,9 @@ class RequestWindow(Adw.ApplicationWindow):
         GLib.source_remove(self._success_logout_source_id)
         self._success_logout_source_id = None
 
-    def _schedule_success_logout(self):
+    def _schedule_success_logout(self, action=None):
         self._cancel_success_dismiss()
-        self._success_action_label = (CHILD_SUCCESS_COPY if self._child_overlay else m.RETURN_TO_LOGIN)
+        self._success_action_label = action or (CHILD_SUCCESS_COPY if self._child_overlay else m.RETURN_TO_LOGIN)
         self._success_countdown_remaining = SUCCESS_COUNTDOWN_SECONDS
         set_text(self._result_action, 'label', self._success_countdown_label(SUCCESS_COUNTDOWN_SECONDS),
         )
@@ -1829,6 +1857,9 @@ class RequestWindow(Adw.ApplicationWindow):
         if not self._child_overlay:
             self._select_language_child(target_uid)
         self._whats_new.select_child(target_uid)
+        self._preferences_revision += 1
+        revision = self._preferences_revision
+        self._grant_retry_step = None
         self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
             from .preview_data import PREVIEW_PREFERENCES
@@ -1850,7 +1881,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._bus_call(
             "GetPreferences", GLib.Variant("(u)", (target_uid,)), "(s)",
             lambda connection, result: self._preferences_done(
-                target_uid, connection, result,
+                target_uid, connection, result, revision,
             ),
         )
 
@@ -1870,11 +1901,12 @@ class RequestWindow(Adw.ApplicationWindow):
         set_automation_id(self._language_readiness, "kiosk-language-loading")
         self._load_language()
 
-    def _preferences_done(self, target_uid, connection, result):
+    def _preferences_done(self, target_uid, connection, result, revision):
+        if (self._estimate_closed or revision != self._preferences_revision or
+                not self._request_content.is_selected_account(target_uid)):
+            return
         try:
             encoded, = connection.call_finish(result).unpack()
-            if not self._request_content.is_selected_account(target_uid):
-                return
             self._applying_preferences = True
             try:
                 self._request_content.set_preferences(json.loads(encoded))
@@ -1883,6 +1915,8 @@ class RequestWindow(Adw.ApplicationWindow):
                 )
             finally:
                 self._applying_preferences = False
+            if self._request_content.grant_status_selection() is not None:
+                self._request_content.set_grant_status("loading")
             self._queue_time_estimate(settled=True)
             LOG.info("kiosk.021")
             self._log_duration_selection("restored")
@@ -1934,30 +1968,104 @@ class RequestWindow(Adw.ApplicationWindow):
         if (self._state.in_flight or
                 self._stack.get_visible_child_name() != "request"):
             return GLib.SOURCE_CONTINUE
-        selection = self._request_content.time_estimate_selection()
-        if selection is None:
-            return GLib.SOURCE_CONTINUE
-        uid, seconds = selection
-        if seconds == 0:
+        estimate = self._request_content.time_estimate_selection()
+        if estimate is not None and estimate[1] == 0:
             self._request_content.set_time_estimate(m.IF_APPROVED_ACCESS_UNTIL_MIDNIGHT)
-            return GLib.SOURCE_CONTINUE
         if self._estimate_in_flight:
             return GLib.SOURCE_CONTINUE
         if self._preview and not self._interactive_preview:
-            self._request_content.set_time_estimate(_time_estimate_label(15 * 60 + seconds))
+            if estimate is not None and estimate[1]:
+                self._request_content.set_time_estimate(_time_estimate_label(15 * 60 + estimate[1]))
+            return GLib.SOURCE_CONTINUE
+        selection = self._request_content.grant_status_selection()
+        if selection is None:
             return GLib.SOURCE_CONTINUE
         revision = self._estimate_revision
         self._estimate_in_flight = True
+        if self._grant_methods_missing:
+            self._grant_status_done(revision, selection, None, None)
+            return GLib.SOURCE_CONTINUE
+        try:
+            self._grant_client.get_grant_status(
+                *selection, lambda reply, error: self._grant_status_done(
+                    revision, selection, reply, error),
+            )
+        except Exception as error:
+            self._grant_status_done(revision, selection, None, error)
+        return GLib.SOURCE_CONTINUE
+
+    def _status_is_current(self, revision, selection, current_selection):
+        if self._estimate_closed or self._state.in_flight:
+            return False
+        if revision == self._estimate_revision and selection == current_selection:
+            return True
+        # Coalesce changes made during a broker read into one fresh request.
+        if not self._estimate_debounce_id:
+            self._refresh_time_estimate()
+        return False
+
+    def _grant_status_done(self, revision, selection, status, error):
+        self._estimate_in_flight = False
+        if self._estimate_closed or not self._status_is_current(
+                revision, selection, self._request_content.grant_status_selection()):
+            return
+        _uid, requested = selection
+        if status is not None:
+            self._grant_retry_step = None
+            if requested:
+                self._request_content.set_time_estimate(
+                    None if status.immediate_estimate_seconds else m.REQUEST_UNAVAILABLE)
+            self._request_content.set_grant_status("ready", GrantView(
+                daily_seconds=status.daily_remaining_seconds,
+                running_mode=status.running_mode,
+                running_seconds=status.running_beyond_daily_seconds,
+                saved_seconds=status.saved_seconds,
+                running_end=status.running_end_epoch_seconds,
+                requested_seconds=requested,
+                immediate_estimate=status.immediate_estimate_seconds,
+                deferred_estimate=status.deferred_estimate_seconds,
+                revision=status.revision,
+                evaluated_at=status.evaluated_at_epoch_seconds,
+            ))
+            if requested:
+                self._log_estimate(status.daily_remaining_seconds, status.running_remaining_seconds,
+                                   requested, status.immediate_estimate_seconds)
+            return
+        if error is None:
+            self._request_content.set_grant_status("unavailable")
+            if requested:
+                self._read_legacy_estimate(revision, selection)
+            return
+        if broker_reboot_required(error):
+            self._show_error(error)
+            return
+        state = {"Busy": "busy", "RecoveryPending": "recovery"}.get(
+            _grant_error_kind(error), "unavailable")
+        self._request_content.set_grant_status(state)
+        if state == "unavailable":
+            self._show_estimate_failure(error)
+        elif (self._grant_retry_step is not None
+              and self._grant_retry_step < len(GRANT_STATUS_RETRY_SECONDS)
+              and not self._estimate_debounce_id):
+            delay = GRANT_STATUS_RETRY_SECONDS[self._grant_retry_step]
+            self._grant_retry_step += 1
+            self._estimate_debounce_id = GLib.timeout_add_seconds(delay, self._time_estimate_debounced)
+
+    def _retry_grant_status(self):
+        self._grant_methods_missing = False
+        self._queue_time_estimate(settled=True)
+
+    def _read_legacy_estimate(self, revision, selection):
+        self._estimate_in_flight = True
         try:
             self._bus_call(
-                "GetTimeStatus", GLib.Variant("(uu)", (uid, seconds)), "(uuuu)",
+                "GetTimeStatus", GLib.Variant("(uu)", selection), "(uuuu)",
                 lambda connection, result: self._time_estimate_done(
                     revision, selection, connection, result,
                 ),
             )
         except Exception as error:
             self._finish_time_estimate(revision, selection, error=error)
-        return GLib.SOURCE_CONTINUE
 
     def _time_estimate_done(self, revision, selection, connection, result):
         try:
@@ -1971,31 +2079,28 @@ class RequestWindow(Adw.ApplicationWindow):
     def _finish_time_estimate(self, revision, selection, *, seconds=None, error=None,
                               operands=None):
         self._estimate_in_flight = False
-        if self._estimate_closed:
-            return
-        if (revision != self._estimate_revision or
-                selection != self._request_content.time_estimate_selection()):
-            # Coalesce changes made during a broker read into one fresh request.
-            if not self._estimate_debounce_id:
-                self._refresh_time_estimate()
+        if self._estimate_closed or not self._status_is_current(
+                revision, selection, self._request_content.time_estimate_selection()):
             return
         if error is not None:
-            LOG.warning("kiosk.023", error_type=error_code(error))
-            # Advisory refreshes must not put a modal over a cancelled request.
-            # Keep diagnostics and the footer; the existing refresh can recover.
-            if not (self._child_overlay and isinstance(error, GLib.Error) and
-                    Gio.DBusError.get_remote_error(error) == f"{BUS_NAME}.Error.Busy"):
-                self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
-                                     m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
-            self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
+            self._show_estimate_failure(error)
         else:
-            LOG.debug("kiosk.024", seconds=seconds)
             self._request_content.set_time_estimate(_time_estimate_label(seconds))
             if operands is not None:
-                daily, grant, additional = operands
-                LOG.info("kiosk.estimate-calculated", daily=daily, grant=grant,
-                         additional=additional, calculated=seconds,
-                         overlay=self._child_overlay)
+                self._log_estimate(*operands, seconds)
+
+    def _show_estimate_failure(self, error):
+        LOG.warning("kiosk.023", error_type=error_code(error))
+        # Estimate failures stay in the form and can recover on the next read.
+        if not (self._child_overlay and _grant_error_kind(error) == "Busy"):
+            self._errors.capture(error, m.TIME_ESTIMATE_UNAVAILABLE,
+                                 m.THE_ESTIMATED_REMAINING_TIME_COULD_NOT_BE_LOADED)
+        self._request_content.set_time_estimate(m.TIME_ESTIMATE_UNAVAILABLE)
+
+    def _log_estimate(self, daily, grant, additional, seconds):
+        LOG.debug("kiosk.024", seconds=seconds)
+        LOG.info("kiosk.estimate-calculated", daily=daily, grant=grant,
+                 additional=additional, calculated=seconds, overlay=self._child_overlay)
 
     def _persist_form_values(self):
         if (self._preview and not self._interactive_preview) or self._applying_preferences:
@@ -2008,6 +2113,7 @@ class RequestWindow(Adw.ApplicationWindow):
         except ValueError:
             return
         self._log_duration_selection("edited")
+        revision = self._preferences_revision
         try:
             self._bus_call(
                 "UpdateRequestPreferencesWithUnit",
@@ -2016,7 +2122,8 @@ class RequestWindow(Adw.ApplicationWindow):
                     (target_uid, selected, custom, allow_soft, approver_uid,
                      self._request_content.custom_unit()),
                 ),
-                "(s)", self._preferences_save_done,
+                "(s)", lambda connection, result: self._preferences_save_done(
+                    connection, result, revision),
             )
         except Exception as error:
             LOG.warning("kiosk.025", error_type=error_code(error))
@@ -2030,18 +2137,22 @@ class RequestWindow(Adw.ApplicationWindow):
             target_uid, *_rest = self._request_content.selected()
         except ValueError:
             return
+        revision = self._preferences_revision
         try:
             self._bus_call(
                 "SetRequestMuted",
                 GLib.Variant("(usb)", (target_uid, self._mute_surface(), muted)),
-                "(s)", self._preferences_save_done,
+                "(s)", lambda connection, result: self._preferences_save_done(
+                    connection, result, revision),
             )
         except Exception as error:
             LOG.warning("kiosk.026", error_type=error_code(error))
             self._errors.handle(error, m.SETTINGS_COULD_NOT_BE_SAVED,
                                 m.YOUR_SOUND_PREFERENCE_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LATER)
 
-    def _preferences_save_done(self, connection, result):
+    def _preferences_save_done(self, connection, result, revision):
+        if self._estimate_closed or revision != self._preferences_revision:
+            return
         try:
             connection.call_finish(result)
         except Exception as error:
@@ -2049,7 +2160,12 @@ class RequestWindow(Adw.ApplicationWindow):
             self._errors.handle(error, m.SETTINGS_COULD_NOT_BE_SAVED,
                                 m.YOUR_REQUEST_PREFERENCES_COULD_NOT_BE_SAVED_PLEASE_TRY_AGAIN_LAT)
 
-    def _request_access(self, *_args):
+    def _request_deferred(self):
+        revision = self._request_content.grant_revision()
+        if revision is not None:
+            self._request_access(grant_revision=revision)
+
+    def _request_access(self, *_args, grant_revision=None):
         if self._estimate_closed:
             return
         if self._preview and not self._interactive_preview:
@@ -2082,6 +2198,9 @@ class RequestWindow(Adw.ApplicationWindow):
             self._state.finish()
             self._request_content.show_validation_error(error.args[0])
             return
+        if grant_revision is not None and not duration_seconds:
+            self._state.finish()
+            return
         self._request_revision += 1
         revision = self._request_revision
         self._request_stage = 'preferences'
@@ -2095,8 +2214,8 @@ class RequestWindow(Adw.ApplicationWindow):
             overlay=self._child_overlay,
         )
         try:
-            self._pending_request = (
-                target_uid, approver_uid, duration_seconds, allow_soft,
+            self._pending_request = PendingApproval(
+                target_uid, approver_uid, duration_seconds, allow_soft, grant_revision,
             )
             self._bus_call(
                 "UpdateRequestPreferencesWithUnit",
@@ -2124,17 +2243,8 @@ class RequestWindow(Adw.ApplicationWindow):
         try:
             connection.call_finish(result)
             _log_timing('request-preferences', getattr(self, '_request_started_ns', time.monotonic_ns()))
-            target_uid, approver_uid, duration_seconds, allow_soft = self._pending_request
             if self._child_overlay:
-                self._request_stage = 'approval'
-                self._bus_call(
-                    "RequestOwnAccess",
-                    GLib.Variant(
-                        "(uub)", (approver_uid, duration_seconds, allow_soft),
-                    ),
-                    "(ssu)", lambda connection, result: self._request_done(
-                        connection, result, revision), REQUEST_TIMEOUT_MS,
-                )
+                self._dispatch_approval(revision)
             else:
                 self._request_stage = 'agent'
                 self._agent_locale.prepare(
@@ -2150,14 +2260,32 @@ class RequestWindow(Adw.ApplicationWindow):
             self._request_failed(error, revision)
             return
         try:
-            self._request_stage = 'approval'
-            _log_timing('request-dispatch', getattr(self, '_request_started_ns', time.monotonic_ns()))
-            self._bus_call(
-                'RequestAccess', GLib.Variant('(uuub)', self._pending_request),
-                '(ss)', lambda connection, result: self._request_done(
-                    connection, result, revision), REQUEST_TIMEOUT_MS)
+            self._dispatch_approval(revision)
         except Exception as error:
             self._request_failed(error, revision)
+
+    def _dispatch_approval(self, revision):
+        target, approver, seconds, soft, grant_revision = self._pending_request
+        self._request_stage = 'approval'
+        if not self._child_overlay:
+            _log_timing('request-dispatch', self._request_started_ns)
+        if grant_revision is not None:
+            try:
+                self._grant_client.request_deferred_access(
+                    target, approver, seconds, soft, grant_revision,
+                    lambda reply, error: self._grant_mutation_done(
+                        "deferred", revision, reply, error),
+                )
+            except Exception as error:
+                self._grant_mutation_done("deferred", revision, None, error)
+            return
+        if self._child_overlay:
+            method, signature, args, reply = "RequestOwnAccess", "(uub)", (approver, seconds, soft), "(ssu)"
+        else:
+            method, signature, args, reply = "RequestAccess", "(uuub)", (target, approver, seconds, soft), "(ss)"
+        self._bus_call(method, GLib.Variant(signature, args), reply,
+                       lambda connection, result: self._request_done(connection, result, revision),
+                       REQUEST_TIMEOUT_MS)
 
     def _request_done(self, connection, result, revision):
         if not self._request_is_current(revision, 'approval'):
@@ -2172,6 +2300,8 @@ class RequestWindow(Adw.ApplicationWindow):
             if outcome not in {"approved", "denied", "cancelled"}:
                 raise ValueError("broker returned malformed result")
             LOG.info("kiosk.029", request=correlation_id, outcome=outcome)
+            if outcome == "approved":
+                self._request_content.set_grant_status("loading")
             self._present_request_outcome(outcome)
         except Exception as error:
             self._request_failed(error, revision)
@@ -2208,7 +2338,98 @@ class RequestWindow(Adw.ApplicationWindow):
         self._finish_request()
         self._show_error(error)
 
+    def _pause_grant(self):
+        self._transfer_grant("pause", self._grant_client.pause_grant)
+
+    def _use_saved_time(self):
+        self._transfer_grant("use", self._grant_client.use_saved_time)
+
+    def _transfer_grant(self, action, transfer):
+        account = self._request_content.selected_child_account()
+        grant_revision = self._request_content.grant_revision()
+        if (self._estimate_closed or account is None or grant_revision is None
+                or not self._state.begin()):
+            return
+        self._request_revision += 1
+        revision = self._request_revision
+        self._request_stage = 'approval'
+        self._set_request_controls(False)
+        self._request_content.set_grant_feedback(None)
+        self._request_content.set_grant_status("pending")
+        try:
+            transfer(account[0], grant_revision, lambda reply, error: self._grant_mutation_done(
+                action, revision, reply, error))
+        except Exception as error:
+            self._grant_mutation_done(action, revision, None, error)
+
+    def _grant_mutation_done(self, action, revision, reply, error):
+        if not self._request_is_current(revision, 'approval'):
+            return
+        self._finish_request()
+        if reply is None:
+            if broker_reboot_required(error):
+                self._show_error(error)
+                return
+            if error is None:
+                self._grant_methods_missing = True
+                self._request_content.set_grant_status("unavailable")
+            else:
+                self._report_grant_failure(error, pausing=action == "pause")
+                self._request_content.set_grant_status("recovery")
+        elif action == "deferred":
+            outcome = reply.result_code
+            if outcome in {"denied", "cancelled"}:
+                LOG.info("kiosk.029", request=reply.correlation_id, outcome=outcome)
+                self._present_request_outcome(outcome)
+            elif outcome in {"saved", "saved_paused", "saved_pause_error"}:
+                self._request_content.set_grant_feedback(None)
+                self._request_content.set_grant_status("loading")
+                self._request_content.select_tab("approved")
+                if self._child_overlay and outcome == "saved_paused":
+                    self._close_overlay()
+                    return
+                self._refresh_child_countdown()
+                if outcome == "saved_pause_error":
+                    self._request_content.set_grant_status("recovery")
+                    self._report_grant_failure(reply.pause_error, pausing=True)
+            else:
+                self._request_content.set_grant_status("recovery")
+                self._report_grant_failure(ValueError("broker returned malformed result"))
+        elif action == "pause":
+            if self._child_overlay:
+                self._close_overlay()
+                return
+            self._request_content.set_grant_status("loading")
+        else:
+            self._request_content.set_grant_status("loading")
+            self._refresh_child_countdown()
+            set_text(self._result_action, 'label', m.CLOSE if self._child_overlay else m.RETURN_TO_LOGIN)
+            self._show_result(m.TIMER_RUNNING, "")
+            self._schedule_success_logout(m.CLOSE if self._child_overlay else m.RETURN_TO_LOGIN)
+        self._grant_retry_step = 0
+        self._queue_time_estimate(settled=True)
+
+    def _report_grant_failure(self, error, *, pausing=False):
+        kind = _grant_error_kind(error)
+        if kind == "DesktopInUse":
+            _uid, child, _icon = self._request_content.selected_child_account()
+            message = m.CHILD_IS_USING_DESKTOP % {"name": child}
+        elif kind == "Stale":
+            message = m.TIME_STATUS_CHANGED
+        elif kind == "Busy":
+            message = m.TIME_CONTROLS_BUSY
+        elif kind == "RecoveryPending":
+            message = None
+        else:
+            message = (m.TIMER_COULD_NOT_BE_PAUSED if pausing and kind is not None else
+                       m.THE_OPERATION_COULD_NOT_BE_COMPLETED_PLEASE_TRY_AGAIN_LATER)
+            if isinstance(error, Exception):
+                LOG.warning("kiosk.030", error_type=error_code(error))
+                self._errors.capture(error, m.REQUEST_UNAVAILABLE, message)
+        self._request_content.set_grant_feedback(message)
+
     def _set_request_controls(self, enabled):
+        self._hud_menu_button.set_sensitive(enabled)
         self._request_content.set_controls_sensitive(enabled)
 
     def _show_error(self, error, *, failure_category="operation"):
@@ -2236,9 +2457,14 @@ class RequestWindow(Adw.ApplicationWindow):
         self._report_row.set_visible(True)
 
     def _show_child_success(self):
+        self._refresh_child_countdown()
         set_text(self._result_action, 'label', CHILD_SUCCESS_COPY)
         self._show_result(CHILD_SUCCESS_TITLE, "")
         self._schedule_success_logout()
+
+    def _refresh_child_countdown(self):
+        if self._child_overlay:
+            self.get_application().request_countdown_refresh()
 
     def _show_result(self, title, detail):
         self._error_report = None

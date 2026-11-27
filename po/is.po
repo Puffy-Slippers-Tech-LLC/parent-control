@@ -1846,6 +1846,17 @@ msgstr "Tímastýringin er upptekin. Reyndu aftur."
 msgid "Updating approved time…"
 msgstr "Uppfæri samþykktan tíma…"
 
+msgid "The time status changed. Try again."
+msgstr "Staða tímans hefur breyst. Reyndu aftur."
+
+msgid "The timer could not be paused."
+msgstr "Ekki tókst að gera hlé á tímamælinum."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s notar skjáborðið."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Verður vistað við samþykki: %(duration)s"

@@ -1846,6 +1846,17 @@ msgstr "Az idővezérlők foglaltak. Próbáld újra."
 msgid "Updating approved time…"
 msgstr "Jóváhagyott idő frissítése…"
 
+msgid "The time status changed. Try again."
+msgstr "Az idő állapota megváltozott. Próbáld újra."
+
+msgid "The timer could not be paused."
+msgstr "Az időzítőt nem sikerült szüneteltetni."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s éppen az asztalt használja."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Jóváhagyás esetén mentve lesz: %(duration)s"

@@ -309,6 +309,17 @@ msgstr "Time controls are busy. Try again."
 msgid "Updating approved time…"
 msgstr "Updating approved time…"
 
+msgid "The time status changed. Try again."
+msgstr "The time status changed. Try again."
+
+msgid "The timer could not be paused."
+msgstr "The timer could not be paused."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s is using the desktop."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Saved if approved: %(duration)s"

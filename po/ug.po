@@ -1843,6 +1843,17 @@ msgstr "ۋاقىت باشقۇرۇشى ھازىر ئالدىراش. قايتا س
 msgid "Updating approved time…"
 msgstr "تەستىقلانغان ۋاقىت يېڭىلىنىۋاتىدۇ…"
 
+msgid "The time status changed. Try again."
+msgstr "ۋاقىت ھالىتى ئۆزگەردى. قايتا سىناڭ."
+
+msgid "The timer could not be paused."
+msgstr "ۋاقىت ھېسابلىغۇچنى ۋاقىتلىق توختاتقىلى بولمىدى."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s ئۈستەلئۈستىنى ئىشلىتىۋاتىدۇ."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "تەستىقلانسا ساقلىنىدىغان ۋاقىت: %(duration)s"

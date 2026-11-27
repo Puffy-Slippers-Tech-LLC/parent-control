@@ -1846,6 +1846,17 @@ msgstr "समय के नियंत्रण व्यस्त हैं�
 msgid "Updating approved time…"
 msgstr "स्वीकृत समय अपडेट हो रहा है…"
 
+msgid "The time status changed. Try again."
+msgstr "समय की स्थिति बदल गई है। फिर कोशिश करें।"
+
+msgid "The timer could not be paused."
+msgstr "टाइमर को रोका नहीं जा सका।"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s डेस्कटॉप का उपयोग कर रहे हैं।"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "स्वीकृति मिलने पर सहेजा जाएगा: %(duration)s"

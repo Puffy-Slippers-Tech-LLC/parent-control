@@ -1849,6 +1849,17 @@ msgstr "సమయ నియంత్రణలు ప్రస్తుతం వ
 msgid "Updating approved time…"
 msgstr "ఆమోదించిన సమయం నవీకరించబడుతోంది…"
 
+msgid "The time status changed. Try again."
+msgstr "సమయం స్థితి మారింది. మళ్లీ ప్రయత్నించండి."
+
+msgid "The timer could not be paused."
+msgstr "టైమర్‌ను పాజ్ చేయలేకపోయాము."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s డెస్క్‌టాప్‌ను ఉపయోగిస్తున్నారు."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "ఆమోదిస్తే దాచే సమయం: %(duration)s"

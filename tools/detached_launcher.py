@@ -342,11 +342,9 @@ class _GoalSession:
             return
         if not self.ready:
             return
-        # Native goal continuation owns turn creation. Keep input queued between
-        # turns, and steer only the live turn rather than starting another one.
-        chat_ready = self.protocol.turn is not None and not any(
-                method in ('turn/start', 'turn/steer')
-                for method, _params in self.protocol.requests.values())
+        # Native goal continuation owns turn creation; the adapter reports when
+        # developer input can be delivered without starting a launcher turn.
+        chat_ready = self.protocol.chat_ready
         model_session = self.session_view.get('model_session')
         if not chat_ready and model_session is None:
             return
@@ -728,7 +726,8 @@ def _supervise_once(root, run, owner, kind, command, *, nested=False, hide_task_
             error = renderer.failure
             if error is not None and error['capacity']:
                 message = str(error.get('message', 'Model at capacity'))
-                details = dict(message=message, context=error['context'], **error['details'])
+                details = dict(message=message, context=error['context'], capacity=True,
+                               **error['details'])
                 if plain:
                     _optional_observation(atomic, run / 'agent-error.json', details)
                 else:

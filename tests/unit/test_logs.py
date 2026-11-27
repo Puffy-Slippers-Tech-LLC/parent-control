@@ -5,8 +5,10 @@ from zipfile import ZipFile
 
 import pytest
 
-from oh_no_parent_control.logs import DailyLogWriter
+from oh_no_parent_control.logs import BrokerFileHandler, DailyLogWriter
 from common.oh_no_parent_control_ui.diagnostic_events import encode, event
+from common.oh_no_parent_control_ui import diagnostic_events
+from common.oh_no_parent_control_ui.diagnostic_report import read_report
 
 
 def payload(operation=0):
@@ -98,6 +100,37 @@ def test_timed_external_change_survives_storage_and_export(tmp_path):
         text = "".join(archive.read(name).decode() for name in archive.namelist() if name.endswith(".log"))
         assert timestamp in text
         assert "source=external" in text
+
+
+def test_saved_time_catalog_projects_unfamiliar_categories_before_export(tmp_path, caplog):
+    caplog.set_level("INFO")
+    writer = DailyLogWriter(tmp_path)
+    handler = BrokerFileHandler(writer)
+    expected = []
+    for name in ("grant.deferred-approval", "grant.pause", "grant.redemption", "grant.recovery",
+                 "grant.lock", "grant.pause-overrun", "core.transaction-busy"):
+        definition = diagnostic_events.CATALOG[name]
+        fields = definition["fields"]
+        private = "/home/private-child"
+        values = {key: private if spec["type"] == "enum" else
+                  False if spec["type"] == "bool" else 0 for key, spec in fields.items()}
+        projected = {key: "other" if value == private else value for key, value in values.items()}
+        for key, spec in fields.items():
+            if spec["type"] == "int":
+                for invalid in (-1, spec["max"] + 1, True):
+                    with pytest.raises(ValueError):
+                        event(name, dict(projected, **{key: invalid}))
+        with pytest.raises(ValueError):
+            event(name, dict(projected, username=private))
+        diagnostic_events.get_logger(definition["domain"]).info(name, **values)
+        handler.emit(caplog.records[-1])
+        expected.append((name, projected))
+
+    with ZipFile(BytesIO(writer.snapshot())) as archive:
+        logs, _ = read_report(archive)
+        assert [(row["event"], row["fields"]) for rows in logs.values() for row in rows] == expected
+        assert all(private not in archive.read(name).decode() for name in archive.namelist())
+    assert private not in caplog.text
 
 
 def test_native_unlock_refusal_and_success_survive_storage_and_export(tmp_path):

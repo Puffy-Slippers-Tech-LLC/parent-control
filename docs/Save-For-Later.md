@@ -2,13 +2,16 @@
 
 ## Status and reading route
 
-This is the proposed end-to-end implementation design for **kiosk-only deferred
-approval and manual pause/resume**. It records the agreed customer behavior and
-GUI direction from the design discussion, plus explicit engineering decisions
-needed to implement them. No feature implementation or installed acceptance is
-claimed by this document or its draft images.
-The [design gates](#design-gates-before-implementation) remain unresolved;
-this is not yet an implementation-ready transaction specification.
+This is the proposed end-to-end implementation design for **deferred approval
+and manual pause/resume in both the kiosk and the child overlay**. It records
+the agreed customer behavior and GUI direction from the design discussion, plus
+the engineering decisions needed to implement them. No feature implementation
+or installed acceptance is claimed by this document or its draft images.
+All design decisions, including transfer accounting, account binding, external
+grants, balance arithmetic, app-policy timing and surface behavior, are settled
+and [recorded below](#resolved-design-decisions). The
+[native qualification gate](#native-qualification-gate) has verified the
+platform behavior the design depends on, on the supported system.
 
 Start product work at [System design](System-Design.md), then use this document
 as the feature handoff. The current [specification](Specification.md),
@@ -20,46 +23,55 @@ Update their affected contracts when implementing this design; do not present
 the proposed behavior as already shipped.
 
 The feature does not require changes to GDM, GNOME Shell internals, PAM ordering,
-or Malcontent's meaning of an active extension. The following decisions are
-part of this proposed design: the balance formula, treatment of rest-of-day and
-legacy grants, and app-policy timing. Recovery requirements and their remaining
-gaps are explicit below so a new session does not infer guarantees from the
-screenshots or the journal outline.
+or Malcontent's meaning of an active extension. It locks a child session only
+through logind's public session lock.
 
 ## Customer contract
 
-- A parent can approve additional time in the kiosk for immediate use or for
-  later use. Both request modes authenticate the selected parent.
-- Requesting time for later also saves the remaining active grant. After
-  a fixed-duration approval, the combined grant is saved and its timer is
-  stopped. Rest-of-day approval instead replaces the balance and retains its
-  midnight deadline, as specified below.
-- The kiosk can pause an existing active grant without another parent approval.
-- The kiosk's **Use saved time** action starts either paused time or time
-  approved in advance. These are the exact same backend operation and state.
-- A saved fixed-duration grant survives kiosk exit, logout, broker restart,
-  shutdown, and reboot without losing seconds once saving has committed.
-  Revocation, control toggles, account invalidation, and package removal still
-  clear it. Interrupted transfers must meet the recovery gate below.
+- A parent can approve additional time for immediate use or for later use, in
+  the kiosk and in the child overlay. Both request modes authenticate the
+  selected parent.
+- Saved time is approved time **beyond** the daily allowance. The daily
+  allowance stays independent: saving or pausing never clears or pauses it, and
+  using saved time adds the saved seconds on top of the daily time still left.
+- Requesting time for later adds the new minutes to saved time. If a
+  fixed-duration grant is running, the same request then pauses it and saves its
+  remaining time beyond today's daily allowance. If that pause fails, the new
+  minutes stay saved, the timer keeps running, and the result says so.
+- Both surfaces can pause a running fixed-duration grant without another parent
+  approval. In the child overlay, Pause first asks for confirmation and then
+  locks the screen immediately, so the child cannot keep using the session on
+  paused time. An overlay save-for-later request that pauses a running grant
+  locks the same way. If daily time remains, the child can unlock with their
+  password and use only that daily time.
+- Before the kiosk pauses or uses saved time, it locks any of the child's
+  desktops that were switched away from without locking, so the use up to that
+  point is recorded. The child unlocks with their password, as after Switch User.
+- **Use saved time** starts all saved time in either surface. It is the only
+  start operation: there is no separate resume. The kiosk then returns to
+  sign-in; the overlay closes and the child continues. Once the child has no
+  usable time, only the kiosk can reach Use saved time.
+- Saved time survives kiosk exit, logout, broker restart, shutdown, and reboot
+  without losing seconds once saving has committed. Revocation, screen-time
+  control toggles, account invalidation, and package removal clear it.
+- Rest-of-day grants and grants that existed before this feature run to their
+  end. They cannot be paused or saved, and Rest of the day cannot be requested
+  for later.
+- Immediate approvals leave saved time saved.
 - Opening the kiosk, locking, switching users, signing out, or suspending does
-  not automatically pause an active grant. Time runs until the pause/save
-  transaction takes effect. Once restarted, it runs during the return to sign-in
-  and password entry, as well as subsequent lock/suspend/power-off intervals.
-- Save-for-later, Pause, and Use saved time are available only in the dedicated
-  kiosk session. The child-session overlay retains its current title, layout,
-  and immediate, parent-authenticated request action. It gets no tabs or timer
-  management controls. The kiosk and child overlay continue to share their form
-  and validation code. Backend authorization enforces this separation too.
-- Parent **Revoke** clears both running and saved grants, including when only a
-  saved grant exists. Existing strict-app-policy and termination behavior remains.
-- Daily allowance is independent. Pausing a one-time grant does not pause daily
-  accounting, clear daily allowance, or promise to prevent desktop access while
-  daily time remains. An approval's app choice remains separate from time.
+  not pause a grant. Time runs until an explicit pause takes effect. Once
+  started, saved time runs during the return to sign-in and password entry, and
+  during later lock/suspend/power-off intervals.
+- Parent **Revoke** clears running and saved time, including when only saved
+  time exists. Existing strict-app-policy and termination behavior remains.
+- An approval's soft-app choice travels with its time. It applies while that
+  time runs, never while it is saved, and never beyond the parent's current app
+  policy.
 
-This is manual pause/resume through the kiosk. Automatic pause on lock or automatic
-redemption at login/unlock is outside the feature.
+Automatic pause on lock and automatic redemption at login/unlock remain outside
+the feature.
 
-## Why redemption happens in the kiosk
+## Surfaces and the exhausted session
 
 Today the broker writes the public AccountsService property
 `ActiveExtension = (issued_at_epoch_seconds, duration_seconds)`. Its remaining
@@ -79,7 +91,10 @@ Consequently, a PAM redemption hook alone cannot guarantee that an exhausted
 retained session offers password entry. Earlier proposals to skip Malcontent
 checks, toggle `LimitType`, or redeem only after unlock are superseded.
 
-The supported flow is:
+The child overlay runs inside the child's unlocked session. While the child has
+usable time, it offers every action of this feature in-session. Once the time is
+exhausted, the session is behind Shell's shield and fresh logins are refused, so
+the overlay cannot be reached. The kiosk is the required route for that case:
 
 ```text
 Locked child desktop (or no child desktop)
@@ -92,15 +107,17 @@ Locked child desktop (or no child desktop)
 ```
 
 Malcontent's policy-change/estimate notifications let Shell observe the new
-grant. The implementation must qualify that the existing lock-screen shield
-actually clears on the supported Ubuntu 26.04 / GNOME 50 environment. A stale
-shield is a behavior mismatch to diagnose through public interfaces, not a
-reason to patch private Shell state. The child password is still required.
+grant. The [native qualification gate](#native-qualification-gate) confirmed
+that the existing lock-screen shield clears on the supported Ubuntu 26.04 /
+GNOME 50 environment. A stale shield would be a behavior mismatch to diagnose
+through public interfaces, not a reason to patch private Shell state. The child
+password is still required.
 
 No lock-screen button is hidden or replaced. No product code calls Shell's
 native **Ignore** action, takes over Malcontent's extension agent, fakes usage,
 sets a distant future grant, or continually renews a temporary grant. The broker
-uses its existing verified AccountsService adapter to issue real access.
+uses its existing verified AccountsService adapter to issue real access, and
+logind's `LockSession` for the [lock before capture](#caller-and-session-binding).
 
 Upstream sources inspected for this design:
 
@@ -113,17 +130,21 @@ Upstream sources inspected for this design:
 
 The supplied images are visual design references, not screenshots of implemented
 behavior. They retain the current metal frame, pixel font, green selected/action
-surfaces, account artwork, compact proportions, and background.
+surfaces, account artwork, compact proportions, and background. Their text is
+illustrative, including its typos; product strings come from this document and
+are translated into every supported language.
 
-**In the kiosk, the two tab headers replace the “Oh No! Parent Control” title.**
-Keep the small app icon. Order the tabs **Request more time**, then **Approved
-time**. The shared child selector sits immediately below the tabs, as shown in
-the drafts, and its selection applies to both pages. Preserve the shared form's
-responsive/scaled layout rather than hardcoding these image dimensions.
+**On both surfaces, the two tab headers replace the “Oh No! Parent Control”
+title.** Keep the small app icon. Order the tabs **Request more time**, then
+**Approved time**. The shared child selector sits immediately below the tabs,
+as shown in the drafts, and its selection applies to both pages. The kiosk lists
+eligible children; the overlay keeps its selector fixed to the signed-in child,
+as today. Preserve the shared form's responsive/scaled layout rather than
+hardcoding these image dimensions.
 
 ### Request more time
 
-![Kiosk request tab with immediate request and save-for-later menu](images/save-for-later/request-more-time.png)
+![Request tab with immediate request and save-for-later menu](images/save-for-later/request-more-time.png)
 
 - Preserve duration options, custom validation, soft-app selection, remembered
   request choices, estimate/status area, and Cancel.
@@ -131,391 +152,565 @@ responsive/scaled layout rather than hardcoding these image dimensions.
   omission, not permission to remove account selection or selected-parent
   authentication. It belongs only in this tab, between child and duration fields.
 - Primary split-button action: **Request & use now**.
-- Dropdown action: **Request & save for later**.
+- Dropdown action: **Request & save for later**. It is insensitive while Rest of
+  the day is selected, with the explanation “Rest of the day can't be saved.”
 - The dropdown is a menu/popover, not a permanently expanded second button.
   Selecting its action closes the menu and submits that request after validation.
   Outside click or Escape dismisses the menu without submitting; that Escape
   must not also close the form.
 - Both modes use the same duration/app validation and selected-parent Polkit
-  flow. The trusted prompt must explicitly name immediate versus saved use and
-  explain that saved use pauses any existing grant. UI mode cannot change during
+  flow. The trusted prompt must name immediate versus saved use, state that saved
+  use pauses a running fixed-duration grant, and state that the soft-app choice
+  applies when the saved time is used. UI mode cannot change during
   authentication and cannot be silently substituted after authorization.
-- The estimate includes saved time, uses current balances, and distinguishes
-  “remaining if approved” from “saved if approved” for the selected action. It is
-  advisory; commit recalculates after authentication. Invalid-input, loading,
-  authorization, and failure messages take precedence over estimates.
-- Immediate success retains the existing confirmation/exit behavior. Saved
-  success stays in the kiosk and selects Approved time with the committed saved
-  balance; do not automatically start it or exit before that state is visible.
+- In the overlay, when a fixed-duration grant is running, Request & save for
+  later first shows the [lock confirmation](#overlay-lock-confirmation). Cancelling
+  it submits nothing.
+- The estimate uses current balances and distinguishes, for the selected action,
+  “remaining if approved” (U after an immediate approval) from “saved if
+  approved” (S after a deferred approval). Saved time is shown separately for an
+  immediate request because it stays saved. The estimate is advisory; commit
+  recalculates after authentication. Invalid-input, loading, authorization, and
+  failure messages take precedence over estimates.
+- Immediate success keeps each surface's existing behavior: the kiosk confirms
+  and exits, the overlay confirms for three seconds and closes. Saved success
+  stays in the form and selects Approved time with the committed saved balance;
+  it never starts that time. If the pause that follows a saved approval fails,
+  show the saved balance together with the pause error; the timer keeps running.
+  In the overlay, a deferred request that paused a running grant then locks the
+  screen as described for Pause.
 - The screenshots' 30-minute selection and 45-minute estimate are illustrative;
   they are not the numeric inputs for the 18 + 20 scenario below.
 
 ### Approved time: saved
 
-![Kiosk Approved time tab with saved balance and Use saved time](images/save-for-later/approved-time-saved.png)
+![Approved time tab with saved balance and Use saved time](images/save-for-later/approved-time-saved.png)
 
-Show **Saved for later**, the saved one-time balance, **Use saved time**, and
-“Start the timer and return to sign-in.” Do not distinguish paused from newly
-approved time in the primary action or invent a separate Resume endpoint.
-The draft's 30m is illustrative; the combined scenario must display about 38m.
-Successful redemption uses the existing exit-to-sign-in route. Its confirmation
-must not suggest that the timer waits for password entry.
+Show **Saved for later**, the saved balance, **Use saved time**, and a hint. The
+kiosk hint is “Start the timer and return to sign-in.”; the overlay hint is
+“Add it to your time now.” Do not distinguish paused from newly approved time
+or invent a separate Resume endpoint. The draft's 30m is illustrative; the
+combined scenario must display about 38m.
+
+Kiosk success uses the existing exit-to-sign-in route; its confirmation must not
+suggest that the timer waits for password entry. Overlay success shows the
+existing three-second confirmation and closes; the child's panel countdown
+reflects the new time at once.
 
 ### Approved time: running
 
-![Kiosk Approved time tab with running balance and Pause timer](images/save-for-later/approved-time-running.png)
+![Approved time tab with running balance and Pause timer](images/save-for-later/approved-time-running.png)
 
-Show **Timer running**, the live remaining one-time balance, **Pause timer**, and
-“Save the remaining time for later.” Displayed time continues to decrease while
-the kiosk is open. Successful pause stays on this tab and changes it to the saved
-state. Do not show Pause and Use saved time simultaneously.
+Show **Timer running**, the running grant's time beyond today's daily time
+(X below), **Pause timer**, and “Save the remaining time for later.” When daily
+time also remains, add a secondary line with today's daily time so that the two
+amounts add up to the child's countdown. The kiosk display decreases live,
+because the child's session is inactive. In the overlay, X stays constant while
+the child uses daily time and the grant together, and decreases once daily time
+is gone.
+
+Kiosk Pause stays on this tab and changes it to the saved state. Overlay Pause
+opens the [lock confirmation](#overlay-lock-confirmation).
+
+### Overlay lock confirmation
+
+The overlay shows a modal dialog inside the shared form before any broker call
+that would pause a running grant:
+
+- Title “Pause and lock the screen?”; the request variant is “Save for later and
+  lock?”.
+- The body shows the estimated saved amount, says that the screen locks now and
+  the password is needed to return, and says that saved time is started from
+  Approved time on this panel while daily time remains, or at the request station.
+- Actions: **Cancel** (default, also Escape) and **Pause and lock**. The request
+  variant's **Continue** then opens the parent prompt.
+
+After confirmation, the broker locks the session before it stops the timer. A
+pause refused before the lock, such as for a stale revision or a grant that can
+no longer be paused, leaves the session unlocked and shows the error. On success
+the overlay closes behind the lock screen. On a failure after the lock it stays
+open with the error and refreshed status, which the child sees after unlocking;
+the grant keeps running if the pause did not commit.
 
 ### Other UI states and shared behavior
 
 | State | Approved time page |
 | --- | --- |
-| No active or saved grant | “No approved time available” and an action selecting Request more time; daily-only time does not enable Pause |
+| No running or saved approved time | “No approved time available” and an action selecting Request more time; daily-only time does not enable Pause |
+| Running grant fully covered by daily time (X = 0) | “Covered by today's daily time”; no Pause |
+| Rest-of-day or pre-feature grant running | “Approved until HH:MM”; no Pause |
+| Running grant and saved time together | Running row (Pause only for a fixed grant) above the saved row; Use saved time is labelled as adding to the running timer |
 | Loading or failed read | Loading/unavailable text with retry; never render an unknown balance as zero |
-| Mutation pending | Disable account/tab changes and competing mutations; show bounded progress and retain the selected child |
-| Recovery pending | “Time status unavailable” with retry; no speculative saved/running balance or mutation |
+| Mutation pending or broker busy | Disable account/tab changes and competing mutations; show bounded progress and retain the selected child. While any transaction holds the broker lock, including another child's parent prompt, report busy with retry |
+| Recovery pending | “Time status unavailable” with retry; no speculative balance or mutation. Retry rereads status, which starts a recovery attempt; recovery also runs at broker start and before the child's next mutation, and Parent Revoke also resolves it |
 | Screen-time control off | Existing disabled-control explanation; no pause, redeem, or request operation |
-| Deadline-capped saved grant | Saved balance plus a concise “Available until …” explanation; never imply indefinite preservation |
+
+Show Pause only for a running fixed grant with X > 0, and Use saved time only
+with a positive saved balance.
 
 Open Request more time by default to preserve today's initial task. Returning
-from Pause/save selects Approved time. Within one form, preserve the selected tab
-when switching children but discard stale asynchronous replies. Tab switching
-does not save a request, authenticate, pause, redeem, or reset duration choices.
-Cancel/Escape closes the idle form using current rules, after dismissing an open
-menu first. During authentication, cancellation belongs to the trusted prompt.
-After a mutation starts, closing or losing the frontend is not proof of rollback;
-on return, read its outcome and current status. Closing does not itself pause time.
+from a kiosk Pause or any saved request selects Approved time. Within one form,
+preserve the selected tab when switching children but discard stale asynchronous
+replies. Tab switching does not save a request, authenticate, pause, redeem, or
+reset duration choices. Cancel/Escape closes the idle form using current rules,
+after dismissing an open menu or dialog first. During authentication,
+cancellation belongs to the trusted prompt. After a mutation starts, closing or
+losing the frontend is not proof of rollback; on return, read its outcome and
+current status. Closing does not itself pause time.
 
 Use existing duration formatting and error-report routes. Only the approved
 time page has the large one-time balance; do not relabel daily time as saved.
 Retain window/application accessibility identity even though the visible title
 is replaced. Add stable public accessible IDs and selected/disabled state for
-both tabs, balances, status, split menu, and timer actions. Reuse existing IDs
-for unchanged fields and test both shared-form surfaces.
+both tabs, balances, status, split menu, timer actions, and the lock
+confirmation. Reuse existing IDs for unchanged fields and test both shared-form
+surfaces.
 
-## Two end-to-end scenarios
+## Customer scenarios
 
-### Scenario 1: approve now, save the combined grant, use it later
+### Scenario 1: approve in the kiosk, save the combined grant, use it later
 
 Precondition: screen-time control is enabled for Riley; daily allowance is zero
-for the numeric example. Riley has an active grant and locks the desktop.
+for the numeric example. Riley has a running fixed-duration grant and locks the
+desktop.
 
-1. Riley switches to the kiosk and selects Riley. The active grant keeps ticking.
+1. Riley switches to the kiosk and selects Riley. The grant keeps ticking.
 2. On Request more time, select the parent, Custom **20 minutes**, the app choice,
    and **Request & save for later**.
 3. The selected parent authenticates in the trusted prompt. Assume **18 minutes
-   remain at the broker's accounting transfer point**, not at form opening.
-4. The shared defer operation produces `18 + 20 = 38 minutes` at its qualified
-   accounting transfer point and verifies `ActiveExtension = (0, 0)` before
-   publishing the committed saved balance. Establishing that transfer point
-   across interruptions is a design gate, not supplied by a JSON write alone.
-5. Kiosk displays Approved time: **Saved for later — 38m**. Waiting does not reduce
-   this fixed-duration balance. Closing the kiosk, signing out, and rebooting
-   preserve it. Riley's existing locked desktop is retained unless the machine
-   is rebooted; pausing itself never logs the child out.
+   remain at the broker's transfer boundary B**, not at form opening.
+4. The broker first adds the 20 approved minutes to saved time. The
+   [pause step](#the-pause-step) then ends the running grant at B and adds its
+   18 minutes: `18 + 20 = 38 minutes` saved.
+5. Kiosk displays Approved time: **Saved for later — 38m**. Waiting does not
+   reduce it. Closing the kiosk, signing out, and rebooting preserve it. Riley's
+   existing locked desktop is retained unless the machine is rebooted; pausing
+   itself never logs the child out.
 6. Later, Riley opens the kiosk, selects Riley, and clicks **Use saved time**.
-7. Broker moves those saved seconds to a normal active grant exactly once and
-   clears the spendable saved balance. The timer starts now; kiosk returns to
-   sign-in. Riley can unlock the retained desktop or log in after reboot using
-   the normal password, with the return/login interval deducted.
+7. The broker moves the saved seconds into a normal active grant exactly once,
+   `ActiveExtension := (now, D + 38m)` with D = 0, and empties the saved balance.
+   The timer starts now; the kiosk returns to sign-in. Riley can unlock the
+   retained desktop or log in after reboot using the normal password, with the
+   return/login interval deducted.
 8. After natural exhaustion with daily time still zero, the normal restriction
    returns. No saved copy remains for a second redemption.
 
 The same scenario starts from zero active time: approving 20 fixed minutes for
-later saves 20 minutes in grant-only mode. No child login is needed to store or
-redeem it. Parent denial/cancellation preserves the prior state, allowing only
+later saves 20 minutes with only a store write. No child login is needed to store
+or redeem it. Parent denial/cancellation preserves the prior state, allowing only
 the ordinary elapsed decrease of an already running grant.
 
-### Scenario 2: pause existing granted time, then use it later
+### Scenario 2: pause existing granted time in the kiosk, then use it later
 
-Precondition: enabled screen-time control and a fixed-duration grant approved
-with this feature's mode metadata. Rest-of-day and adopted legacy grants retain
-their deadlines and are covered separately.
+Precondition: enabled screen-time control, a fixed-duration grant approved after
+this feature was installed, and zero daily allowance. Rest-of-day and
+pre-feature grants cannot be paused.
 
-1. Riley uses an active grant, locks the screen, and opens the kiosk.
-2. On Approved time, click **Pause timer**. At the broker's transfer point,
+1. Riley uses the grant, locks the screen, and opens the kiosk.
+2. On Approved time, click **Pause timer**. At the broker's transfer boundary,
    suppose **18m 42s** remain.
-3. Without a new parent prompt, the same defer backend saves those seconds and
-   clears `ActiveExtension`. The page becomes **Saved for later — 18m 42s**.
-4. Wait, exit, restart the broker, or reboot. The fixed-duration balance stays
-   unchanged. A second Pause cannot add another copy of the old active grant.
+3. Without a new parent prompt, the same pause step ends the grant at B and
+   saves those seconds. The page becomes **Saved for later — 18m 42s**.
+4. Wait, exit, restart the broker, or reboot. The balance stays unchanged.
+   A second Pause cannot add another copy of the old grant.
 5. Later click **Use saved time**. This calls exactly the same redemption method
    as Scenario 1, starts the saved seconds, and returns to sign-in.
 6. Repeat pause/use cycles. The acceptance target is conservation of granted
-   seconds across transfers: only running intervals consume time. The recovery
-   gate must establish this for interrupted transfers too. Another child's
+   seconds across transfers: only running intervals consume time. Another child's
    balance and session are unaffected.
+
+### Scenario 3: pause, save and use time from the child overlay
+
+Precondition: enabled screen-time control; Riley is signed in.
+
+1. With a running fixed-duration grant and no daily time left, Riley opens the
+   panel's request overlay, selects Approved time and clicks **Pause timer**.
+2. The confirmation appears. **Pause and lock** locks the screen at once; the
+   broker then saves the remaining seconds. Because no time remains, the lock
+   screen shows the exhausted shield.
+3. Later, Riley uses the kiosk's **Use saved time** as in Scenario 1 and unlocks.
+4. With 30m daily time left and no grant running, Riley chooses **Request & save
+   for later** for 15 minutes in the overlay. The parent authenticates, the
+   screen does not lock, and Approved time shows **Saved for later — 15m**.
+5. Near the end of daily time, Riley clicks **Use saved time** in the overlay.
+   The countdown grows by 15 minutes beyond the remaining daily time, and the
+   overlay closes.
 
 These are separate customer acceptance cases even though their transitions share
 backend code and reusable test blocks.
 
-## State machine and time arithmetic
+## State and time arithmetic
 
-Use one grant per child with `empty`, `running`, `saved`, and an internal
-`transitioning/recovery` state. Retain expired-running metadata needed for the
-current strict-policy reconciliation; an expired grant has zero usable seconds.
-Do not create a queue of independently redeemable grants.
+Each child has at most one running grant, the live `ActiveExtension` tuple, and
+one saved balance of fixed seconds. Each has its own app choice. Running and
+saved time can coexist. There is no queue of independently redeemable grants:
+saved time is one balance and is always used in full.
 
 ```text
-New parent approval, immediate --------------------> running
-New parent approval, save later ---> shared defer -> saved
-running -- Pause timer -----------> shared defer -> saved
-saved ---- Use saved time -------> shared redeem -> running
-running/saved ---------------------- Revoke ------> empty
+Approve now ----------------------------------> running (saved unchanged)
+Approve for later --> save minutes --> saved += N, then the pause step if needed
+running fixed -- Pause ---> pause step --> saved += X
+saved ---- Use saved time --> redeem ------> running (saved empty)
+running/saved ------------- Revoke --------> empty
 ```
 
 At a single authoritative evaluation time, define:
 
-- `D`: current daily allowance remaining, calculated from validated Malcontent use.
-- `A`: running-grant remaining seconds; zero without a current active grant.
-- `S`: effective saved-grant seconds; zero without a saved grant.
+- `D`: current daily allowance remaining today, from validated Malcontent use.
+- `A`: running-grant remaining seconds; zero without a running grant.
+- `S`: saved seconds; zero without saved time.
 - `N`: newly approved fixed-duration seconds, within current request bounds.
-
-Normal committed state has **at most one of A and S positive**. A recovery journal
-is not an additional spendable balance. An unexpected live grant alongside a
-saved record is a conflict to reconcile, not permission to sum both.
+- `X = max(0, A - D)`: running approved time beyond today's daily time.
 
 ```text
-Approved one-time balance G = max(A, S)
-Total including saved time T = max(D, G)
-Usable on the desktop now U = max(D, A)
-Fixed new approval C = max(D, A, S) + N
+Usable on the desktop now    U = max(D, A)
+Total including saved time   T = max(D, A) + S
 
-Approve immediately:  running := C; saved := 0
-Approve for later:    saved := C; ActiveExtension := (0, 0)
-Pause:               saved := A; ActiveExtension := (0, 0)
-Use saved time:       ActiveExtension := (now, S); saved := 0
+Approve now, fixed:          running := (t, max(D, A) + N)    S unchanged
+Approve now, rest of day:    running := (t, until midnight)   S unchanged
+Approve for later:           S := S + N; then Pause when a fixed grant runs
+Pause (fixed grant, X > 0):  S := S + X; the grant ends at B
+Use saved time:              running := (t, max(D, A) + S)    S := 0
+Revoke:                      running ended; S := 0
 ```
 
-**Pause and redemption do not run new-approval arithmetic.** They never add daily
-time or requested minutes. With D=10m and A=20m, pause yields S=20m and T=20m,
-not 30m. With D=10m, S=20m, and N=5m, a new approval yields 25m, not 35m.
-This replaces the earlier discussion's `max(D,A)+S` proposal, which would double
-count a moved balance. Resume creates exactly S active seconds, even if D is
-larger; the daily allowance independently remains usable.
+Malcontent runs `ActiveExtension` concurrently with the daily allowance, which is
+why an immediate approval adds N to `max(D, A)`. Saved time is used before or
+after daily time, not alongside it. Measuring saved time beyond daily time
+therefore conserves the total exactly, in whichever order the child uses it:
 
-As today, new approval converts the larger existing balance plus N into a
-one-time grant. Therefore a daily remainder included in C becomes part of that
-approved grant and may survive a day boundary once saved. Do not describe this
-as daily allowance itself rolling over, and do not add that daily remainder
-again on redemption. This is the deliberate consequence of preserving the
-existing approval formula while including saved approvals.
+- D=30m, nothing running, 5m approved for later: S=5m. The child gets 30m daily
+  time plus 5m later, the same 35m as approving 5m now.
+- D=10m, fixed A=20m, Pause: S=10m. Before the pause the child had
+  `max(10m, 20m) = 20m`; afterwards 10m daily time plus 10m saved.
+- D=30m, S=20m, Use saved time: running `(t, 50m)`. Neither balance loses time.
+- D=0 as in Scenarios 1 and 2: S = A (+ N), for example 18m + 20m = 38m.
 
-All newly approved fixed-duration immediate requests use the same C calculation,
-including an ordinary parent-authenticated child-overlay request. Such a new
-approval replaces the existing saved/running grant and starts C; it must not
-leave a saved copy.
-This does not expose a child-callable Pause or unauthenticated redemption method.
-Include saved time in the existing estimate/approval explanation so that using
-it as part of the new approval is not hidden. No child-overlay controls change.
+Pause and redemption never add requested minutes. Use saved time adds D only so
+that the saved seconds run after daily time instead of alongside it. Immediate
+approvals keep today's formula and leave saved time alone, so the existing
+`GetTimeStatus` calculation remains exact for them. As today, D is the remaining
+allowance for the current day; the existing formula's day-boundary
+approximation is unchanged.
 
-Use integer seconds, reject invalid values and uint32 duration overflow, and retain
-current clipping/merging of daily usage. Do not treat a failed usage read as zero.
-Validate issuance/deadline timestamps separately against the public uint64
-timestamp bounds. Capture balances after authentication/preflight, rather than
-reusing the earlier form estimate. The qualified transfer protocol must define
-the capture point and account for time still enforced by the old tuple; writing
-an intent alone does not stop that tuple. All committed balances must use the
-same established accounting boundary.
+### Sources of D
 
-### Rest of the day and pre-feature grants
+Completed usage records omit uninterrupted activity, and a child-supplied native
+deadline can only be trusted to lower D. The direction of each operation decides
+which source is safe:
 
-Keep today's immediate rest-of-day behavior: replace the one-time grant with
-access until the next local midnight, even if an older fixed grant ended later.
-Saving or pausing such a grant carries a fixed `valid_until` for that same
-midnight. Effective S is `min(stored_seconds, max(0, valid_until - now))`.
-Redemption never moves that deadline. Display the deadline in saved UI; it is
-not a frozen fixed-duration bank. Midnight calculation must retain timezone/DST
-handling. Calculate an absolute deadline at approval; later timezone changes do
-not move an existing cap. Once expiry is recorded, a clock rollback must not
-revive the saved entitlement. A later parent-approved fixed request replaces the
-mode/deadline using normal fixed-request arithmetic; a new rest-of-day request
-replaces the balance.
+- Operations that add D to a grant, namely immediate approvals and Use saved
+  time, may lower D with the requesting child's fresh native deadline, as
+  `RequestOwnAccess` does today. A lower D can only shorten the grant.
+- The pause step subtracts D. It uses completed usage records only, captured
+  after the [lock before capture](#caller-and-session-binding). It never uses
+  a child-supplied value, because a lower D would raise the saved amount.
+- Use saved time under kiosk rules uses completed usage records after the same
+  lock before capture, because an unrecorded interval would inflate D and the
+  new grant.
 
-Existing ActiveExtension tuples do not reveal whether they came from fixed or
-rest-of-day approval. During one-time compatibility adoption, preserve the exact
-tuple and label its mode `legacy-deadline`, capped at its original expiry. If
-paused, it stays capped at that expiry. Never guess its mode and accidentally
-extend an old rest-of-day authorization across midnight. New approvals have
-explicit mode metadata and get the full fixed-duration saving behavior.
+Use integer seconds. Keep running durations and the saved balance within uint32
+and the existing maximum grant, and refuse a merge or redemption that would
+exceed them. Reject invalid values, retain current clipping/merging of daily
+usage, and do not treat a failed usage read as zero. Validate issuance timestamps
+against the public uint64 bounds. Capture balances after
+authentication/preflight rather than reusing the earlier form estimate.
+
+The child countdown and PAM must use U, **never T**: saved time is not desktop
+access until it is used. `CalculateOwnRemainingTime` continues using the actual
+active extension and the supplied validated daily estimate. Add contract tests
+preventing saved seconds from leaking into countdown/login authorization.
+
+### Grant modes
+
+The record stores the last tuple the broker wrote as fixed. A running grant's
+mode is derived, never stored: it is **fixed** only when the live tuple equals
+that recorded tuple and no pause has ended it; every other running grant is
+**deadline**. Status reads therefore never write. Only fixed grants can be
+paused.
+
+- After a fixed-duration approval or Use saved time, the broker records the new
+  tuple as fixed, unless the new grant absorbed a running deadline grant that
+  still contributed time beyond daily time (X > 0).
+- Deadline grants therefore include rest-of-day approvals, such absorbing grants,
+  pre-feature tuples at upgrade, and tuples from the native Ignore flow or other
+  external writers. A deadline grant runs to its end and is never paused or
+  converted into saved time.
+
+Keep today's immediate rest-of-day behavior: the running grant lasts until the
+next local midnight, even if an older running grant ended later. Midnight
+calculation retains timezone/DST handling. Rest of the day cannot be requested
+for later: saved deadline time would shrink exactly as fast as running time, so
+saving it would only remove access.
+
+External and pre-feature tuples need no adoption step or record write: they do
+not equal the recorded fixed tuple, so they are deadline grants. Saved time is
+unaffected. It is never summed with, converted by, or overwritten by an external
+tuple, and Use saved time merges with it through `max(D, A) + S`. No state is
+quarantined.
 
 ## Shared backend and authorization
 
-Implement one policy core operation, conceptually
-`defer_grant(validated_context, optional_new_approval)`, used by **both** Pause
-and Request & save for later. It owns the read, calculation selection, durable
-saved-state transition, ActiveExtension clear/read-back, revision, and result.
-Entry points only supply their authorization and optional new approved amount
-and app choice. Do not duplicate the transaction in two handlers, or issue an
-active grant followed by a separate Pause call to implement deferred approval.
+Besides the existing immediate approval, the broker has two time transitions,
+each implemented once and shared by both surfaces:
 
-Implement one `redeem_grant(validated_kiosk_context)` for all saved time. Do not
-add separate resume, redeem-new, or redeem-paused implementations. Pause is not
-a call to Revoke: revocation destroys the entitlement and has app effects.
+- `pause_grant(validated_context)` is the [pause step](#the-pause-step). It ends
+  a running fixed grant and adds its time beyond daily time to saved time.
+  Pause uses it directly. Request & save for later first
+  [saves its approved minutes](#saving-approved-minutes), then runs the pause
+  step under the same broker lock when a fixed grant runs. The pause step does
+  its own validation and session handling.
+- `redeem_grant(validated_context)` starts all saved time. Do not add separate
+  resume, redeem-new, or redeem-paused implementations.
+
+Do not duplicate these transitions in several handlers, and do not implement
+deferred approval by issuing an active grant followed by Pause. Pause is not a
+call to Revoke: revocation destroys the entitlement and has app effects.
 
 The public method names below are proposed additive contracts; finalize their
 wire signatures together in both introspection definitions and clients.
 
 | Method | Caller and behavior |
 | --- | --- |
-| Existing RequestAccess | Existing kiosk immediate request; parent approval; updated shared balance arithmetic |
-| Existing RequestOwnAccess | Existing child immediate request; parent approval; cannot select deferred mode |
-| RequestDeferredAccess | Configured kiosk caller and eligible target only; selected-parent authentication; invokes shared defer with new approval |
-| PauseOneTimeGrant | Configured kiosk caller only; requires positive active grant; shared defer without new approval |
-| UseSavedTime | Configured kiosk caller only; requires positive effective saved balance; shared redeem |
-| GetGrantStatus | Same target-read boundary as GetTimeStatus; explicit state, coherent D/A/S, usable U, total including saved T, optional new-request estimate C, mode/deadline, evaluation time, revision, and availability |
-| Existing RevokeOneTimeGrant | Administrator only; clears all grant state and pending old transitions |
+| Existing RequestAccess, RequestOwnAccess | Immediate requests; parent approval; unchanged arithmetic; saved time unchanged; additionally [record](#immediate-approvals) a fixed result |
+| RequestDeferredAccess(target, approver, duration, allow_soft, revision) | Selected-parent authentication; saves the approved minutes, then runs the pause step when a fixed grant runs |
+| PauseGrant(target, revision) | Running fixed grant; the pause step |
+| UseSavedTime(target, revision) | Positive saved balance; redemption |
+| GetGrantStatus(target) | Same target-read boundary as GetTimeStatus; explicit state, coherent D/A/X/S, usable U, total T, derived running mode and end time, optional estimates for both request modes, evaluation time, revision, and availability |
+| Existing RevokeOneTimeGrant | Administrator only; clears running and saved time and any pending transition |
 
-Bind the new kiosk mutations to the configured kiosk UID and a verified active,
-local, unlocked kiosk session using supported caller/session identity. Recheck
-the original connection/session immediately before the durable mutation boundary.
-Reuse existing identity helpers where applicable; do not accept a frontend
-`is_kiosk` boolean. Deny new mutation methods to child, unrelated, and
-administrator frontend callers; management still uses its authorized revoke
-path. The kiosk may operate the selected managed child
-without another parent challenge because that time is already approved; it is
-not proof that the person at the keyboard owns the selected child account.
-This shared-station redemption behavior must be documented, not advertised as
-child-password-protected control of a saved balance.
+The caller selects the rules, as `GetTimeStatus` already does. The configured
+kiosk UID gets kiosk rules for an eligible target. A caller equal to the target
+gets child rules. Every other caller, including an administrator, is refused.
+The kiosk UID is never an eligible child, so the roles cannot overlap. Each
+mutation carries the revision the client last read; the broker refuses a
+mismatch with refresh guidance.
+
+### Caller and session binding
+
+- Resolve the sender to a logind session as the Polkit lifecycle monitor in
+  `authorization.py` does today: the process's own session, or else its user
+  manager's `Display` session. The kiosk app runs as a systemd user service and
+  GNOME Shell starts the overlay, so neither has a session scope of its own.
+  Unlike today, refuse a caller that resolves to neither: there is no
+  sessionless path. Then require the expected owner (the kiosk UID or the child),
+  `Remote=false`, `Active=true`, `LockedHint=false`, and a state other than
+  closing. Recheck immediately before the durable mutation boundary. After the
+  pause step's own child-rule lock, that recheck drops the `Active` and
+  `LockedHint` requirements: it requires the same local session, owned by the
+  child, in a state other than closing. The existing `_check_caller` checks only
+  the UID, and Pause and Use have no parent prompt, so this binding is their only
+  guard. Do not accept a frontend `is_kiosk` boolean.
+- Under child rules, the pause step locks that same resolved session through
+  logind's `LockSession` and then waits up to `SESSION_LOCK_TIMEOUT_SECONDS`
+  (5 seconds) for `LockedHint`; locks took about 0.2 seconds during
+  qualification. If the lock is not observed, the pause step changes nothing.
+- **Lock before capture.** GNOME writes the completed usage record when it locks
+  a session, not when a session merely becomes inactive. An unlocked session left
+  by a raw VT switch keeps counting as use and has no record. Before capturing D,
+  the pause step and kiosk-rule Use saved time therefore lock every unlocked
+  local graphical (Wayland or X11) session of the target child through
+  `LockSession` and wait up to the same timeout for each `LockedHint`. Under
+  child rules this is the caller's session, locked as above. Under kiosk rules a
+  child session that is active and unlocked is never locked from the station;
+  it refuses with “Riley is using the desktop.” GNOME does not document that the
+  usage record precedes `LockedHint`, so for every session the broker locked
+  itself it then waits, within the same timeout, for a completed record that ends
+  no earlier than one second before the lock request, the API's precision. Such
+  a record is always expected: Shell counts an unlocked session as in use until
+  it is locked. If any lock or record is not observed, the operation changes
+  nothing. Sessions that were already locked need no wait. Other session types,
+  such as SSH, are ignored, because Malcontent's usage records track graphical
+  sessions.
+
+The kiosk is a shared station: the person at its keyboard can pause or use any
+managed child's already approved time without a new challenge. Document this
+shared-station behavior; do not advertise it as child-password-protected control.
+Child rules are bound to the signed-in child and cannot act for another child.
 
 All new mutations require enabled screen-time control and revalidate account
-eligibility at commit. Close the existing `RequestAccess` disabled-control gap
-too: both immediate entry points must refuse disabled control before prompting
-and at commit. This intentionally tightens the old kiosk D-Bus contract while
-matching the existing installed form's availability rule. Pause cannot mint
-time, extend a deadline, or modify app permission. Redeem cannot edit amount or
-app choice. Only the ordinary selected-parent approval flow can add/change those
-authorizations. Bind deferred mode to
-the trusted Polkit prompt; preserve prompt cancellation, caller-liveness,
-preference revalidation and transaction serialization. Pause/redeem need
-serialization and replay protection, not a new parent prompt. All balances are
-broker-derived, never supplied by the form.
+eligibility at commit. The existing immediate methods keep their current
+disabled-control behavior; changing it is outside this design. Pause cannot mint
+time, end a deadline grant, or modify app permission. Use saved time cannot edit
+the amount or the stored app choice. Only the selected-parent approval flow can
+add time or set an app choice. Bind deferred mode to the trusted Polkit prompt;
+preserve prompt cancellation, caller-liveness, preference revalidation and
+transaction serialization. Pause/redeem need serialization and the revision
+check, not a new parent prompt. All balances are broker-derived, never supplied
+by the form.
 
-Keep both the wire shape and meaning of GetTimeStatus backward compatible: its
-one-time operand remains A and its calculation remains `max(D, A) + additional`.
-Changing that operand to G would silently label saved time as usable in older
-clients. Updated request forms use GetGrantStatus for estimates including S;
-Parent distinguishes usable now from saved time and keeps Revoke available for
-daily-only, running, or saved time. Do not label T as current desktop access.
+### Serialization and status reads
 
-Existing immediate request methods use the shared C calculation for fixed
-requests regardless of client version. The trusted approval prompt must explain
-consumption/replacement of a saved grant, including rest-of-day replacement;
-an older client's estimate
-cannot supply that explanation. New clients connected to an older broker report
-saved-time features unavailable and never treat an unknown method as a zero
-balance or silently substitute an immediate request for a deferred request.
+The existing transaction lock is global and nonblocking. Approvals, revocation,
+`SetParentControl` and session preparation already take it
+([broker transactions](SystemDesign/Broker.md#authorization-and-grant-transactions)).
+Extend it to every grant-store writer, recovery, and the new methods. Because it
+is held through a parent's Polkit prompt, the new mutations return `Busy` for
+every child while any child's prompt is open; clients report busy with retry.
+Never hold two unrelated locks in inconsistent order.
 
-The child countdown and PAM must use U, **never T**: saved time is not desktop
-access until redeemed. CalculateOwnRemainingTime continues using the actual
-active extension and the supplied validated daily estimate. Add contract tests
-preventing saved seconds from leaking into countdown/login authorization.
+`GetGrantStatus` does not take the lock, and it never writes. It reports busy
+while the lock is held, and recovery-pending while the record holds an intent and
+the lock is free; in that case it also queues one
+[recovery attempt](#revisions-recovery-and-invalidation) for that child, at most
+one at a time, which runs on the broker worker under the lock like a mutation.
+Otherwise it reads the record, then the live tuple, then the record again, and
+reports busy if the revision changed. Status reads therefore stay bounded during
+prompts and never combine different revisions.
+
+Keep both the wire shape and meaning of `GetTimeStatus`: its one-time operand
+remains A and its calculation remains `max(D, A) + additional`, which is still
+exactly the immediate-approval result. Older clients therefore neither consume
+nor strand saved time; they only do not show it. Updated request forms use
+`GetGrantStatus` for estimates including S. Parent distinguishes usable-now from
+saved time and keeps Revoke available for daily-only, running, or saved time.
+Do not label T as current desktop access. New clients connected to an older
+broker report saved-time features unavailable and never treat an unknown method
+as a zero balance or silently substitute an immediate request for a deferred one.
 
 ## Persistent state and recoverable transactions
 
 Create a separate broker-owned, versioned runtime store, proposed location
-`/var/lib/oh-no-parent-control/grants/<uid>.json`. It is not request-selector state
-and does not belong in the preferences JSON. Use a root-only directory and
+`/var/lib/oh-no-parent-control/grants/<uid>.json`. It is not request-selector
+state and does not belong in the preferences JSON. Use a root-only directory and
 mode-0600 regular records; validate ownership, bounds, schema, duplicate keys,
 symlinks, and account identity. The broker's existing StateDirectory covers this
 location; do not broaden its filesystem/network sandbox.
 
-Record at least: schema version, account binding, monotonically increasing
-revision, phase, grant generation/ID, fixed/deadline/legacy mode, running tuple
-or saved seconds, optional deadline, last operation ID/result, and any pending
-transition intent. Record approval/app-policy metadata only where needed to
-audit/invalidate the corresponding entitlement, never passwords or reusable
-Polkit authorization. Do not log stored identity fields.
+Record the schema version, UID and username, a revision, the last tuple the
+broker wrote as fixed with its app choice and whether a pause ended it, the
+saved balance with its app choice, and an optional pending intent. Every record
+write increments the revision. Never record passwords or reusable Polkit
+authorization. Do not log stored identity fields.
 
-AccountsService remains the OS's active enforcement input. The runtime record
-owns saved entitlement and recovery intent, and tracks the exact committed
-running tuple. An AccountsService tuple and a saved record are never two grants.
-Allow the explicit one-time adoption of pre-feature tuples; persist completion
-of adoption so a missing/corrupt record cannot reopen that route. After adoption,
-unexpected external changes, including a grant from the native Ignore flow,
-are conflicts, not silently imported approval. Quarantine the saved entitlement
-from spending and report unavailable status; do not sum it with, or silently
-overwrite, the external tuple. Quarantine is not an OS admission barrier.
-Deleting/recreating an account must not attach saved time to a reused UID. Use
-live account validation and removal observation, but do not mistake them for an
-existing durable account-incarnation identifier. If continuity cannot be
-established after downtime, quarantine the entitlement rather than guessing from
-UID alone. Resolving that uncertainty while preserving ordinary reboot behavior
-is an identity-binding design gate.
+AccountsService remains the OS's active enforcement input. The record owns saved
+time, the recovery intent, and the identity of the last fixed tuple.
 
-Reuse the broker's transaction boundary, but extend it to screen-time toggles,
-relevant allowance edits, and all grant-state writers. Readers must obtain a
-coherent revision/snapshot or a bounded busy/unavailable result; they must not
-wait behind an unbounded parent prompt or combine different revisions. Today
-SetParentControl does not take that lock; leaving this gap would allow a toggle
-or revoke to race saved-time activation. Never hold two unrelated locks in
-inconsistent order. Do not let a long parent prompt silently resurrect a stale
-grant generation.
+### Account binding
 
-Use a durable write-ahead intent and idempotent recovery, because JSON and
-AccountsService cannot be atomically committed together. The following is an
-ordering framework, subject to the transfer gate below, not a complete recovery
-algorithm:
+Key records by UID, as preference records already are, and store the username.
+The broker has no account-deletion observer, so it validates lazily: at every
+record read, a record is invalid when the live account is missing, no longer
+eligible, or has a different username. Package removal also invalidates it; an
+ordinary reboot does not. The residual risk is documented: an account deleted
+and recreated while the broker is down, with the same UID and username, inherits
+saved time, just as it already inherits preferences.
 
-1. Under serialization, validate caller/target/revision and read a complete
-   source snapshot. Finish authentication, usage reads, and nonmutating
-   app-policy preflight. No account/app writes have happened yet.
-2. Write/fsync a bounded intent containing the source, desired transition,
-   generation, operation ID, and app-side recovery obligation. Record the running
-   issuance tuple before publishing it. For saving, the qualified protocol must
-   establish how the final saved amount relates to the actual clear boundary;
-   do not declare the timer stopped merely because the intent is durable.
-3. For a new approval, apply and verify the selected app policy and required
-   account-limit setup under that intent, before publishing its time state.
-   Journal entry into irreversible termination before signalling processes;
-   retain the existing stricter-policy failure rules. Pure pause/redeem do not
-   perform those app effects. Write the exact desired ActiveExtension through
-   the existing adapter and verify read-back. A saved destination requires
-   `(0, 0)`; a running destination requires the recorded issuance tuple. Never
-   replace it with a fresh `now` during recovery, which would restart the duration.
-4. Atomically replace/fsync the committed record and its directory. Only then
-   return success and publish status. Pending state is unavailable to ordinary
-   balance reads and cannot be spent by another call.
-5. On interruption, recover the recorded phase idempotently before exposing
-   ordinary mutations. Recovery must distinguish completing a time transition
-   from rolling back a failed app transaction. A lost reply leads the UI to
-   reread status; it does not create a second operation. Bind each operation ID
-   to the authorized caller, target, expected revision and complete request
-   payload. Reusing it with different arguments is refused. A duplicate returns
-   its recorded outcome without applying effects again, plus current status;
-   historical success is not proof that time still exists after revoke/expiry.
-   Expired replay entries cannot bypass revision checks or create a new grant.
-   A new operation with a stale revision is refused with refresh guidance.
+### Saving approved minutes
 
-Before durable intent, failure preserves prior policy/time state except ordinary
-elapsed time; the preflight above has performed no app termination. After intent,
-an uncertain result must be reported as such and completed/reconciled on
-retry/startup; never report a definitive cancellation while subsequently
-committing hidden extra time.
-While an interrupted pause is pending, the old active tuple may still be enforced
-until clearing is verified; the future saved record is not redeemable. Freezing
-its intent-time balance regardless of that interval would refund time and is
-not an acceptable recovery algorithm. An interrupted redemption uses the
-original recorded deadline and can expire during downtime. This can consume
-time after the requested start but cannot refund it by restarting the tuple.
+Request & save for later always begins with a store-only write. Right after
+authentication, revalidation and effect admission, atomically replace and fsync
+the record and its directory with the saved balance increased by N and the
+request's app choice. There is no `ActiveExtension` write, no app write and no
+intent. The pause step follows only when a fixed grant runs; if it fails, the
+saved minutes remain committed.
 
-Revocation invalidates saved state and any older generation under the same
-recovery protocol. Resolve or durably supersede an unresolved transition under
-serialization; do not publish a pending approval merely to revoke it. Once
-revoke reports success, recovery must never replay that older grant. Retain
-bounded replay/tombstone state as needed. Apply the same invalidation rule to
-control toggles and package removal.
-Rollback and termination semantics must extend the existing contract. A failed
-app transaction before time publication restores prior active/saved time state;
-restore the original running tuple, not a refreshed duration, and retain stricter
-policy once termination may have occurred. Journal rollback before applying it
-so restart cannot instead complete an abandoned approval. A possibly published
-running destination must not be refunded into a full saved balance without
-accounting for its enforced interval. Report rollback failure distinctly.
+### The pause step
+
+Pause, and Request & save for later after its store write, use this protocol:
+
+1. Under serialization, validate caller, target, control and revision. Read the
+   record and the live tuple `R = (i, d)` and require that R is the recorded
+   fixed tuple; otherwise refuse without locking anything. Then apply the
+   [lock before capture](#caller-and-session-binding), which under child rules
+   locks the caller's session, and capture D from completed usage records.
+2. Choose the boundary `B = now + M`. M is the named constant
+   `TRANSFER_MARGIN_SECONDS`, proposed at 5 seconds. The R' write and its
+   read-back share one dedicated timeout no longer than M, instead of the
+   adapter's 30-second per-call default. Let `A_B = max(0, i + d - B)` and
+   `X = max(0, A_B - D)`. If X = 0, nothing beyond daily time remains to save:
+   the step changes nothing and the grant keeps running. Otherwise the new saved
+   balance is `S + X`.
+3. Write and fsync an intent with R, the destination `R' = (i, B - i)`, and the
+   new saved balance.
+4. Write R' within that timeout and verify read-back. R' keeps enforcing until B
+   and then expires on its own. If the write or read-back fails or times out,
+   still under the lock, wait until B has passed, read the live tuple once more,
+   and resolve the intent by the table below before returning.
+5. Atomically replace and fsync the committed record and its directory: the new
+   saved balance, R' as the recorded tuple marked as ended by a pause, and no
+   intent. Only then return success and publish status.
+
+R' records its own transfer point, so a read-back after any interruption shows
+whether and where the grant ended. Recovery reads the live tuple T:
+
+| Live tuple | Meaning | Recovery |
+| --- | --- | --- |
+| R' | The grant ended at B | Commit the recorded saved balance |
+| R, read before B | A timed-out write may still land | Wait under the lock until B has passed, at most M, then read again |
+| R, read after B | The write never took effect; R kept running | Abandon: nothing is saved and R keeps running. A deferred request's minutes were already saved by its store write |
+| Anything else | External write | Abandon; T is a deadline grant by derivation |
+
+Saved seconds are exact while the child's graphical sessions stay inactive until
+B. If the child unlocks within those M seconds and uses daily time alongside R',
+at most M seconds of that daily use is not credited back. This bounded loss,
+never a refund, is the product decision for that window. Only an AccountsService
+stall longer than M can make a transfer inexact; the broker logs the overrun it
+can observe.
+
+### Use saved time
+
+1. Under serialization, validate caller, control and revision, require a positive
+   saved balance, under kiosk rules apply the
+   [lock before capture](#caller-and-session-binding), capture D from the
+   [allowed source](#sources-of-d), and compute `R* = (t, max(D, A) + S)`.
+2. Write and fsync an intent with the source tuple, R*, and the saved app choice.
+3. Apply the saved choice and R* through the existing approval effect path:
+   time-state initialization, filter, termination under the approval rules,
+   extension write and read-back, and child-extension activation. Journal entry
+   into termination before signalling processes.
+4. Commit the record with an empty saved balance and R* as the recorded fixed
+   tuple with the saved choice, unless R* absorbed a contributing deadline grant.
+
+Once the intent is durable, redemption only rolls forward. A write that timed
+out can still land later, so seeing the source tuple never proves that R* will
+not appear; abandoning while keeping the saved balance could leave both. If step
+3 fails or is uncertain, the operation applies this table before returning, and
+recovery applies it later when that is not possible:
+
+| Live tuple | Recovery |
+| --- | --- |
+| R* | Commit as in step 4 |
+| Source tuple | Rerun step 3 with the same saved choice and the identical R*, then commit. Writing the same tuple twice is harmless |
+| Anything else | An external write raced the redemption. Clear the saved balance and leave the live tuple as a deadline grant by derivation, so failure leaves less access, never a second copy |
+
+A failed rerun leaves the intent for the next recovery attempt. R* is never
+rewritten with a fresh start time: once published, it consumes time from t,
+including any downtime.
+
+### Immediate approvals
+
+After `_apply` succeeds, an immediate fixed approval writes the record with the
+new tuple as the recorded fixed tuple and the approval's app choice, unless it
+absorbed a contributing deadline grant. A rest-of-day approval clears the
+recorded fixed tuple. No intent is needed: a crash between `_apply` and this
+write leaves a grant that does not match the record. That grant is a safe,
+unpausable deadline grant.
+
+### Revisions, recovery and invalidation
+
+Each mutation carries the revision the client last read. The revision also stops
+duplicates: a lost reply leads the client to reread status, and a retry with the
+old revision is refused. There are no operation IDs or replay records.
+
+Recovery runs per child, under the lock. An operation that ends with an uncertain
+outcome resolves it before returning, as the pause step and redemption tables
+describe, so an intent normally outlives its operation only through a broker
+crash or an AccountsService outage. The broker then resolves a pending intent at
+startup, before that child's next mutation, and in the attempt queued by a status
+read. Until it is resolved, status reports recovery-pending. An attempt that
+cannot read or write AccountsService leaves the intent for the next attempt.
+
+Revoke and a screen-time control toggle first durably clear the record: saved
+balance, recorded tuple and any intent. They then run today's operation. If that
+operation fails and rolls back, saved time stays cleared, so failure always
+leaves less access and recovery has nothing to replay. Account invalidation
+clears the record the same way.
+
+Before the durable intent, failure preserves prior policy/time state except
+ordinary elapsed time. After it, an uncertain result is reported as uncertain and
+resolved by the recovery rules; never report a definitive cancellation while
+subsequently committing hidden extra time.
 
 Recovery does not constitute a PAM/GDM admission barrier. Do not claim that an
 OS login cannot race an already published active tuple during service failure.
@@ -523,178 +718,244 @@ Keep ordinary time enforcement and expose unresolved failures accurately.
 
 ## App policy, revocation, and other lifecycle operations
 
-Time transfer must not create an additional app-policy reset on every pause or
-resume. Use the following explicit timing, preserving current approval behavior:
-
 | Operation | App-policy behavior |
 | --- | --- |
-| New approval, immediate or saved | Apply the selected app policy before success, using today's verified approval/termination contract |
-| Pause existing time | Leave live filter and running apps unchanged; do not call full Revoke |
-| Use saved time | Leave current live filter and running apps unchanged; do not replay an old soft-app exception |
-| Parent app-policy/allowance edit while saved | Retain the saved seconds, apply existing stricter-policy effects; later redemption must not undo the edit |
-| Revoke | Restore strict policy, terminate matching child apps as today, clear active and saved time |
-| Turn screen-time control off or on across a toggle | Clear both active and saved time, apply today's toggle app effects |
-| Enabled allowance edit | Preserve active/saved grant; update D and existing app-policy effects |
+| Approve now | Unchanged: apply the selected choice with today's verified approval/termination contract |
+| Approve for later | No app change at approval; the saved time takes the request's choice. A running fixed grant ended by the pause step follows natural-expiry policy |
+| Pause | No immediate app change; the ended grant follows natural-expiry policy, so the next session entry restores the complete saved policy, even before B |
+| Use saved time | Apply the saved choice with the approval contract, evaluated against the parent's current saved policy |
+| Parent app-policy/allowance edit while saved | Existing effects; the saved time keeps its choice, evaluated against the edited policy when used |
+| Revoke | Clear the record first; then restore strict policy, terminate matching child apps as today, and clear running time |
+| Turn screen-time control off or on across a toggle | Clear the record first; then apply today's toggle, which clears running time, and its app effects |
+| Enabled allowance edit | Preserve running and saved time; update D and existing app-policy effects |
 
-Thus a new saved approval's soft-app choice takes effect at approval, as current
-approval does; saving is not an app suspension feature. Existing daily time may
-still allow use. This choice avoids later restoring permissions that a parent
-has tightened and avoids inferring authorization from remembered UI choices.
-Do not implement an alternative “reapply soft apps on resume” interpretation.
+Each balance has one app choice, set by the operation that writes the balance.
+An immediate approval sets the running choice, and a deferred approval sets the
+saved choice. Pause carries the running grant's choice into saved time only when
+saved time is empty; otherwise the saved choice stays, so the pause step of a
+deferred request keeps the parent's new choice. Use saved time gives the running
+grant the saved choice.
 
-PrepareOwnSession must distinguish saved entitlement from expired running state:
-a zero ActiveExtension with a valid saved record is not a failed/expired grant
-requiring destruction of the saved balance. Preserve current expired-running
-strict-policy reconciliation. A deadline-capped saved grant that expires needs
-an expiry marker so session-entry policy restoration is not lost just because
-ActiveExtension was cleared. Natural expiry retains existing running-app rules;
-no new immediate termination-on-expiry behavior is introduced here.
+Use saved time computes the filter as
+`blocked_targets(current_preferences, allow_soft)`. It therefore lifts only apps
+that are soft-blocked now; hard blocks and any edit the parent made while the
+time was saved win. A parent who wants to withdraw the saved permission uses
+Revoke.
 
-New fixed grants are durable across reboot until consumed/revoked. Rest-of-day
-and legacy caps expire as specified. Account deletion/ineligibility and ordinary
-package removal invalidate active/saved entitlements, retaining ordinary parent
-preferences as today. Reinstallation must not resurrect them. Purge deletes the
-runtime store. Package upgrade preserves valid records and reconciles pending
-intents before exposing mutations. Handle old clients and disabled-control races
-explicitly; do not permit an older immediate-request route to strand saved state.
+`PrepareOwnSession` gains one comparison: it treats a live tuple equal to the
+record's pause-ended tuple R' as expired, even before B. A child who unlocks
+within the transfer margin therefore gets the same strict-policy restoration as
+after natural expiry ([ONPC-CORE-APPS-011](Specification.md)). A zero tuple
+remains a no-op. Preparation never changes saved time.
 
-Extend the existing removal snapshot and `abort-remove` recovery to the runtime
-records, pending phases and adoption/replay metadata. An aborted removal restores
-the entitlement consistently with its original running tuple or saved balance;
-a completed removal durably invalidates it before dropping rollback material.
-Removal must discover grant records as well as preference records and must not
-replay a pending approval merely to clear it. Retry and reinstall must preserve
-the distinction between aborted and completed removal.
+Saved time lasts until used or revoked. Account deletion/ineligibility, detected
+at the next record read, and ordinary package removal invalidate running and
+saved entitlements, retaining ordinary parent preferences as today.
+Reinstallation must not resurrect them. Purge deletes the runtime store. Package
+upgrade preserves valid records; pending intents are recovered as above.
+
+Package removal leaves the grant store untouched while removal can still be
+aborted. `abort-remove` restores the live tuple as today, and the untouched
+record plus ordinary recovery reconcile with it. When removal completes,
+invalidate the store at the point where the existing flow drops its rollback
+material. Retry and reinstall must preserve the distinction between aborted and
+completed removal.
 
 Give this store its own format constant, validator, migration registry, and pass
 in `migrate_all_state()` following [Data migration](SystemDesign/Data-Migration.md).
-Do not insert AccountsService reads into pure JSON migration. Runtime adoption
-and reconciliation happen separately after migration. Include cleanup/recovery
-in provisioning/removal and classify package activation using the existing
-classifier. Broker changes require process restart; kiosk changes require new
-frontend/session loading according to that classifier. This design introduces
-no PAM profile change or new reboot requirement by itself.
+Do not insert AccountsService reads into pure JSON migration. Include
+cleanup/recovery in provisioning/removal and classify package activation using
+the existing classifier. Broker changes require process restart; kiosk and
+overlay changes require new frontend/session loading according to that
+classifier. This design introduces no PAM profile change or new reboot
+requirement by itself.
 
-## Design gates before implementation
+## Resolved design decisions
 
-These are unresolved requirements, not permission to weaken the customer
-contract or to claim qualification from this document:
+1. **Balance model.** Saved time is time beyond daily time. The pause step saves
+   X, and Use saved time writes `max(D, A) + S`. Pausing or saving therefore
+   neither gains nor loses time, whatever the daily allowance.
+2. **Grant modes.** Only fixed grants can be paused. The mode is derived by
+   comparing the live tuple with the record, never stored. Rest-of-day,
+   pre-feature and external grants run to their end, so saved time has no
+   deadlines, expiry markers or clock-rollback rules.
+3. **Transfer accounting.** The pause step writes the shortened tuple R', which
+   records the transfer point for recovery. A named margin of about 5 seconds and
+   a dedicated write timeout make it exact apart from the bounded loss described
+   in the protocol and AccountsService stalls.
+4. **Saving approved minutes.** A deferred approval commits its minutes to
+   saved time right after admission; the pause step follows. A failed pause
+   keeps the saved minutes and reports that the timer is still running.
+5. **External tuples.** Deadline grants by derivation; saved time is unaffected.
+   There is no quarantine.
+6. **Account continuity.** UID and username binding, as for preferences, checked
+   on every record read, with a documented residual risk.
+7. **App policy.** Each balance's choice is set by the operation that writes it
+   and applied while its time runs. A paused grant ends like natural expiry, even
+   when the child unlocks before B.
+8. **Surfaces and API.** Both surfaces offer the whole feature through three new
+   mutating methods whose rules follow the caller. The overlay locks the session
+   before any pause, and only the kiosk can reach an exhausted child.
+9. **Immediate approvals.** They keep today's arithmetic and disabled-control
+   behavior and leave saved time alone, which keeps older clients and
+   `GetTimeStatus` correct.
+10. **Concurrency and recovery.** A single record revision replaces operation IDs
+    and replay records. Revoke and toggles clear the record before acting, so
+    failure always leaves less access. An operation resolves its own uncertain
+    outcome before returning; a status read, the next mutation or broker start
+    resolves the rest. Redemption only rolls forward, so a late write can never
+    leave both the new grant and the saved balance.
+11. **Lock before capture.** GNOME records usage when it locks, not at an
+    unlocked VT switch. The pause step and kiosk-rule Use saved time therefore
+    lock the child's unlocked graphical sessions and wait for the usage record
+    each lock produces before capturing D. Under kiosk rules, a session the child
+    is using refuses instead of being locked.
 
-1. **Transfer accounting across service failure.** An intent storing 18 minutes
-   followed by a crash before clearing ActiveExtension leaves the old grant
-   ticking. Recovering that entire 18 minutes later duplicates the interval in
-   which the old grant remained usable. Conversely, always deducting through
-   recovery can lose seconds if clearing succeeded before the crash. Read-back
-   after restart identifies the tuple, not when it changed. Specify a protocol
-   supported by the available public APIs and prove its accounting at each
-   interruption boundary, including rollback after possible publication. Do not
-   treat a journal, operation ID, or unavailable broker status as an enforcement
-   barrier. If exact conservation cannot be met, obtain an explicit product
-   decision about failure-time accounting before implementation; neither silent
-   loss nor refunded access is already authorized by this design.
-2. **Account continuity.** Identify and qualify the durable evidence that binds
-   a grant to one account incarnation across broker downtime and reboot. The
-   current eligible-account checks, UID, and a matching username alone do not
-   prove that an account was not deleted and recreated. Quarantine on uncertainty
-   is required, but quarantining every ordinary reboot would fail the feature's
-   persistence contract. Resolve both obligations before choosing the store's
-   identity schema.
-3. **Native unlock recovery.** Qualify a normal public grant against the retained
-   exhausted-session shield on the supported system. Source inspection explains
-   the intended notification path; it is not installed acceptance. Keep the
-   public-API and child-password boundaries if that path fails.
+## Native qualification gate
+
+Qualified on 2026-11-26 on Ubuntu 26.04 with GNOME Shell 50.1, through public
+interfaces only:
+
+1. **The shield clears after a grant.** A normal grant written while a retained
+   session is exhausted clears Shell's shield, and password unlock works.
+   Installed E2E case 22 covers this history and passed on Ubuntu 26.04.
+2. **Lock and R' expiry.** logind `LockSession` on the child's session locked it
+   in 0.12 s and set `LockedHint` in 0.18 s. A shortened tuple `(i, B - i)` was
+   accepted and read back exactly. With daily time exhausted, Malcontent reported
+   the limit reached at the first sample after B (1.6 s), and the locked session
+   showed “Screen Time Limit Reached” with no password field. Locked time was
+   not charged.
+3. **Usage records at lock.** A completed record ending at the lock second was
+   present at the first read after `LockedHint`, 0.24 s after `LockSession`.
+   GNOME's Switch User locks first and takes the same path. A raw VT switch does
+   not: the inactive, unlocked session wrote no record for 60 seconds, and Shell
+   later charged the switched-away time as use. `LockSession` on that inactive
+   session locked it in 0.14 s and wrote the record within 0.26 s. This is why
+   the broker [locks before capture](#caller-and-session-binding). The record
+   followed `LockedHint` by about 0.06 s; that order is not documented, so the
+   broker waits for the record instead of relying on it.
+
+Items 2 and 3 ran in a disposable guest without the product, using the
+distribution's Malcontent timer, so they measure platform behavior. The child
+extension can only add usage checkpoints. Installed customer acceptance
+exercises the same paths with the product.
+
+A later failure of these behaviors is a platform mismatch to diagnose and report
+through public interfaces. It does not reopen this design, and the product never
+patches Shell state or relaxes the public-API and child-password boundaries.
 
 ## Implementation map
 
 | Boundary | Current entry points and required work |
 | --- | --- |
-| Grant policy/arithmetic | [core.py](../broker/oh_no_parent_control/core.py): request paths, time status, CalculateOwnRemainingTime, revoke, toggle, PrepareOwnSession; extract shared defer/redeem transitions |
-| Live backend | [adapters.py](../broker/oh_no_parent_control/adapters.py): retain verified AccountsService property writes and usage identities |
+| Grant policy/arithmetic | [core.py](../broker/oh_no_parent_control/core.py): request paths, time status, CalculateOwnRemainingTime, revoke, toggle, PrepareOwnSession; add the save, pause and redeem transitions, reuse the approval effect path for redemption, and add PrepareOwnSession's ended-tuple comparison |
+| Live backend | [adapters.py](../broker/oh_no_parent_control/adapters.py): retain verified AccountsService property writes and usage identities; add the bounded R' write and the logind session lock |
 | Persistent grant state | Add a focused store/transition module alongside [preferences.py](../broker/oh_no_parent_control/preferences.py); extend [data_migration.py](../broker/oh_no_parent_control/data_migration.py) for the separate state family |
-| D-Bus | [service.py](../broker/oh_no_parent_control/service.py) and [installed introspection](../data/dbus-1/com.puffyslippers.OhNoParentControl1.xml): matching additive APIs, role checks, worker dispatch, errors, recovery readiness |
-| Authentication | [authorization.py](../broker/oh_no_parent_control/authorization.py), kiosk Polkit policy/template/rendering: bind saved/immediate intent to selected-parent prompt; retain cancellation and identity checks |
-| Shared GTK content | [request_content.py](../kiosk/oh_no_parent_control_kiosk/request_content.py): explicit kiosk surface capability, tab header, approved states, split menu, accessibility; preserve child overlay |
-| GTK orchestration | [main.py](../kiosk/oh_no_parent_control_kiosk/main.py): request modes, status polling, immutable target binding, pause/redeem callbacks, success navigation, recovery UI |
+| D-Bus | [service.py](../broker/oh_no_parent_control/service.py) and [installed introspection](../data/dbus-1/com.puffyslippers.OhNoParentControl1.xml): three additive mutating methods and GetGrantStatus with caller-derived rules, worker dispatch, errors, recovery readiness |
+| Authentication and identity | [authorization.py](../broker/oh_no_parent_control/authorization.py), kiosk Polkit policy/template/rendering: session resolution without the sessionless path; bind saved/immediate intent to the selected-parent prompt on both surfaces; retain cancellation and identity checks |
+| Shared GTK content | [request_content.py](../kiosk/oh_no_parent_control_kiosk/request_content.py): tab header, approved states, split menu, lock confirmation and accessibility on both surfaces |
+| GTK orchestration | [main.py](../kiosk/oh_no_parent_control_kiosk/main.py): request modes, status polling, immutable target binding, pause/redeem callbacks, per-surface success navigation, recovery UI |
 | Parent management | [client.py](../parent/oh_no_parent_control_parent/client.py), [main.py](../parent/oh_no_parent_control_parent/main.py): saved/running explanation and revoke enablement |
-| Child enforcement | [remainingTimeIndicator.js](../child/remainingTimeIndicator.js): verify active-only countdown and reconciliation; no kiosk features in the overlay |
-| Package lifecycle | [uninstall.py](../broker/oh_no_parent_control/uninstall.py), [preinst](../debian/preinst), [postinst](../debian/postinst), [package_activation.py](../debian/package_activation.py), [Makefile](../Makefile): state handling, source inventory, activation |
-| Diagnostics | [grant_diagnostics.py](../broker/oh_no_parent_control/grant_diagnostics.py) and shared event catalogue: distinguish pause from revoke/expiry and redeem from new parent approval |
+| Child panel | [remainingTimeIndicator.js](../child/remainingTimeIndicator.js): active-only countdown; refresh immediately after an overlay mutation |
+| Package lifecycle | [uninstall.py](../broker/oh_no_parent_control/uninstall.py), [preinst](../debian/preinst), [postinst](../debian/postinst), [package_activation.py](../debian/package_activation.py), [Makefile](../Makefile): invalidate the grant store when removal completes, source inventory, activation |
+| Diagnostics | [grant_diagnostics.py](../broker/oh_no_parent_control/grant_diagnostics.py) and shared event catalogue: distinguish pause and deferred approval from revoke/expiry, redemption from new parent approval, and record lock outcomes and accounting overruns |
 
-Events may contain approved operation categories, seconds, revisions/generation
-correlation, outcome, and recovery stage, with catalogue review. They must not
-expose names, UIDs/session IDs, home paths, credentials, raw backend errors, or
-unvalidated record contents. Do not log a deferred approval as already-running
-access or a pause as revocation.
+Events may contain approved operation categories, seconds, surface, revisions,
+outcome, and recovery stage, with catalogue review. They must not expose names,
+UIDs/session IDs, home paths, credentials, raw backend errors, or unvalidated
+record contents. Do not log a deferred approval as already-running access or a
+pause as revocation.
 
 ## Verification and acceptance
 
 Follow the [test-automation map](TestAutomation/README.md) and
-[scenario inventory](../tests/e2e/scenarios.json). Register the two complete
-customer cases separately and compose shared blocks for selecting tabs, reading
-time state, requesting deferred approval, pausing, redeeming, switching sessions,
-and comparing balances. Follow composition preflight before live attempts.
-Do not advance the existing E2E queue or claim case completion from this design.
+[scenario inventory](../tests/e2e/scenarios.json). Register the three customer
+cases separately and compose shared blocks for selecting tabs, reading time
+state, requesting deferred approval, pausing, confirming the overlay lock,
+redeeming, switching sessions, and comparing balances. Follow composition
+preflight before live attempts. Do not advance the existing E2E queue or claim
+case completion from this design.
 
 ### Engineering regressions
 
-- Arithmetic: D/A/S zero/nonzero combinations, 18+20=38 at the transfer point, existing
-  saved balance plus new approval, pure pause/redeem conservation, overflow,
-  fractional request rounding, expiry during parent decision, midnight/DST,
-  timezone changes, clock adjustments, and no revival of recorded expiry.
-- Model/state-machine tests: one spendable generation; no active/saved duplication;
-  repeated calls, lost replies, stale revisions, multiple kiosk clients,
-  independent children, normal immediate requests replacing saved balances.
-- Fault injection at each intent fsync, ActiveExtension write/read-back, record
-  replacement, reply, and startup boundary. Revoke/toggle cannot be undone by
-  delayed recovery. Preserve prior time on denied/failed approval and applicable
-  irreversible app effects. Test rollback failure distinctly. Include long
-  downtime both before and after a successful clear/write, and prove that a
-  retry neither refunds an enforced interval nor consumes committed saved time.
-- Storage: ownership/mode, symlinks, malformed/future schemas, legacy adoption,
-  deadline caps, missing records after adoption, deletion/UID reuse while offline,
-  migration interruption, upgrade/removal/purge, aborted removal and reinstall.
-- Authorization: child and unrelated callers cannot invoke the kiosk methods or
-  forge mode/target/session. Pause/redeem cannot mint time or relax apps. Selected
-  parent sees correct mode; denial/cancel/session loss before durable mutation
-  leaves no new approval. Later disconnect must reconcile the original operation,
-  not create a second one or promise cancellation. Exercise payload-mismatched
-  IDs, stale revisions, replay after revoke, and disabled old immediate routes.
+- Arithmetic: D/A/S zero and nonzero combinations, X with D above and below A,
+  X = 0 pause steps, 18+20=38 at B, deferred approval adding no daily time, pause
+  and redemption conservation with positive D, saved-balance merges, overflow and
+  maximum grant, fractional request rounding, expiry during the parent decision,
+  and rest-of-day midnight/DST.
+- Model/state-machine tests: running and saved coexistence, derived modes,
+  deadline grants never paused or converted, external tuples treated as
+  deadline, a crash between `_apply` and its record write, a failed pause step
+  after committed saved minutes, app-choice rules, lost replies, stale
+  revisions, multiple clients, independent children, immediate approvals
+  leaving saved time unchanged.
+- Fault injection at each intent fsync, `ActiveExtension` write/read-back, record
+  replacement, reply, and startup boundary, covering every row of both recovery
+  tables, including reads before B, in-operation resolution, a redemption write
+  that times out and lands later, and recovery started by a status read. Revoke
+  and toggles clear the record first and cannot be undone by recovery, including
+  when their own operation rolls back.
+  Preserve prior time on denied/failed approval and applicable irreversible app
+  effects. Test rollback failure distinctly, and long downtime before and after a
+  successful write.
+- Storage: ownership/mode, symlinks, malformed/future schemas, username mismatch
+  and deleted accounts detected at read, migration interruption,
+  upgrade/removal/purge, aborted removal and reinstall.
+- Authorization: child and unrelated callers cannot get kiosk rules; a child
+  cannot act for another child; administrators are refused; callers without a
+  resolvable session, remote, inactive or locked callers are refused, while the
+  user-service kiosk and Shell-started overlay resolve through `Display`. A forged
+  native deadline cannot raise a saved amount. Pause/redeem cannot mint time or
+  relax apps beyond the saved choice. The selected parent sees the correct mode
+  on both surfaces; denial/cancel/session loss before admission leaves no change.
+  Exercise stale revisions, revoke during pending recovery, a failed overlay lock,
+  kiosk rules locking a switched-away unlocked child session before capture, an
+  active unlocked child session refusing kiosk rules, a failed lock before
+  capture, a lock whose usage record is late or never appears, and an SSH
+  session that does not block kiosk pause.
 - App policy: both soft choices, hard blocks, current running-app effects, parent
-  edits between save/redeem, expiry markers, other-user isolation.
-- UI: all tab states and public identities, no missing approver, keyboard/focus
-  navigation, split-menu behavior, asynchronous child switches, narrow/scaled
-  layout, no extra controls/title change in the child overlay, proper saved versus
-  usable estimates, pending/error/retry behavior.
+  edits between save and use, session-entry restoration after a pause including
+  an unlock before B, other-user isolation.
+- UI: all tab states and public identities on both surfaces, no missing approver,
+  Rest of the day disabling save-for-later, lock confirmation behavior, a pause
+  failure after a saved approval, keyboard/focus navigation, split-menu behavior,
+  asynchronous child switches, narrow/scaled layout, saved versus usable
+  estimates, pending/error/retry and busy behavior.
 - Existing login/PAM and child countdown regressions: saved-only time with D=0
   is still exhausted until kiosk redemption; no accidental T-for-U substitution.
-- Compatibility: old GetTimeStatus semantics, new clients with an old broker,
-  old immediate-request clients with a saved balance, and external native grants
-  conflicting with a saved record. Status reads remain bounded during prompts.
+- Compatibility: old `GetTimeStatus` semantics, new clients with an old broker,
+  old immediate-request clients with saved time, and external native grants
+  alongside saved time. Status reads remain bounded during prompts.
 
 ### Installed customer acceptance
 
-Qualify both scenarios with a retained locked desktop, and scenario 1 with no
-desktop/fresh login after reboot. Use short real durations for routine tests and
-the 18+20 example as an arithmetic contract; allow measured elapsed seconds
-around live approval rather than weakening conservation assertions.
+Qualify Scenarios 1 and 2 with a retained locked desktop, Scenario 1 with no
+desktop/fresh login after reboot, and Scenario 3 in a live child session. Use
+short real durations for routine tests and the 18+20 example as an arithmetic
+contract; allow measured elapsed seconds around live approval rather than
+weakening conservation assertions.
 
 Require visible evidence that:
 
-1. Time runs while locked/in the kiosk until Pause/save completes.
-2. Fixed saved time remains unchanged over a wait and reboot; no active grant
-   independently keeps providing one-time access.
-3. Use saved time starts once, returns to sign-in, and GNOME permits ordinary
-   password unlock/fresh login. The child’s retained apps remain according to
-   the selected app-policy operation, and unrelated sessions continue.
+1. Time runs while locked or in the kiosk until Pause/save completes.
+2. Saved time remains unchanged over a wait and reboot; no running grant
+   independently keeps providing access.
+3. Use saved time starts once. From the kiosk it returns to sign-in, and GNOME
+   permits ordinary password unlock/fresh login; from the overlay the countdown
+   grows at once. The child's retained apps follow the saved choice, and
+   unrelated sessions continue.
 4. The original exhausted shield returns at expiry; repeated redemption cannot
    restart consumed time. Parent revoke of saved-only time prevents later use.
-5. The parent can still make an immediate request, both in the kiosk and the
-   child overlay; the child overlay exposes no saved-time controls.
-6. Deadline-capped saved time expires at its original deadline; cancellation,
-   backend failure, disabled control, and absent saved time do not report success.
-7. With daily allowance remaining, saving the one-time grant leaves that daily
-   time usable and separately labelled. A parent app-policy edit while time is
-   saved remains effective after redemption.
+5. The parent can still make an immediate request on both surfaces, and it leaves
+   saved time saved. The overlay offers save, pause and use, and its Pause locks
+   the screen immediately after confirmation.
+6. Rest of the day cannot be saved and deadline grants cannot be paused;
+   cancellation, backend failure, disabled control, a failed lock and absent
+   saved time do not report success.
+7. With daily time remaining, pausing saves only the time beyond it, daily time
+   stays usable and separately labelled, and using saved time adds it beyond the
+   remaining daily time. A parent app-policy edit while time is saved remains
+   effective after redemption.
 
 Internal state probes/fault injection remain engineering evidence, separate from
 public customer journeys. A stale native shield, inconsistent balances, duplicated
@@ -704,31 +965,33 @@ report, not an expectation to adjust automatically.
 Discover exact suites using `tools/run-tests --list` and `--help`; select affected
 unit, component, UI and child scopes. Review added/resource-changing host tests
 for parallel scheduling and use shared storage allocation. Read the UI/VM/storage
-mandates when those activities begin. Run `tools/build_package.py` after implementation
-changes affecting shipped sources, APIs, assets or packaging. This documentation
-and its reference images alone do not require a package build.
+mandates when those activities begin. Run `tools/build_package.py` after
+implementation changes affecting shipped sources, APIs, assets or packaging. This
+documentation and its reference images alone do not require a package build.
 
 ## Implementation order and completion conditions
 
-1. Resolve the design gates above and choose exact additive wire signatures,
-   including revision, operation-ID and status/error semantics. Qualify native
-   shield recovery with a normal public grant before claiming the retained-session
-   path works. Do not start feature implementation from an unresolved transfer or
-   account-continuity protocol.
-2. Implement versioned runtime state, balance model, durable transitions,
-   recovery/replay protection and concurrency coverage. Integrate revoke/toggle
-   and account/package lifecycle before exposing new UI actions.
-3. Add broker entry points and mode-bound authentication, then clients and status
-   separation. Prove direct child calls cannot perform kiosk-only operations.
-4. Add the kiosk tabs and timer states using the supplied visual references;
-   preserve the child surface. Update Parent status/revoke and diagnostic events.
-5. Run scoped regressions and build; qualify public UI blocks and both installed
-   journeys, including restart/reboot and retained-session recovery.
+1. Choose exact additive wire signatures, including revision and status/error
+   semantics. The [native qualification gate](#native-qualification-gate) has
+   passed.
+2. Implement the versioned runtime store, balance model, pause-step protocol,
+   recovery and concurrency coverage. Integrate revoke/toggle, immediate-approval
+   recording and account/package lifecycle before exposing new UI actions.
+3. Add the three broker methods and `GetGrantStatus`, the session resolution,
+   the overlay session lock, the lock before capture and mode-bound
+   authentication, then clients and status. Prove that a child cannot get kiosk
+   rules or act for another child.
+4. Add the tabs, timer states and lock confirmation on both surfaces using the
+   supplied visual references, with strings in every supported language. Update
+   Parent status/revoke and diagnostic events.
+5. Run scoped regressions and build; qualify public UI blocks and all installed
+   journeys, including restart/reboot, retained-session recovery and the overlay
+   lock.
 6. Update specification, owning design modules, threat/state ownership contracts,
    package activation and canonical test records to the implemented behavior.
    Keep this design's status accurate and resolve any remaining deviations.
 
-The feature is complete only when both customer scenarios, kiosk-only backend
-authorization, conservation/recovery, revocation, reboot persistence, native
-unlock recovery, and unchanged child-session request UI have acceptance evidence.
-No implementation or test-completion credit is implied by staging this document.
+The feature is complete only when all three customer scenarios, caller-derived
+backend authorization, the overlay lock, conservation/recovery, revocation,
+reboot persistence and native unlock recovery have acceptance evidence. No
+implementation or test-completion credit is implied by staging this document.

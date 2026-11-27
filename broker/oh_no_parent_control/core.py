@@ -22,7 +22,7 @@ import threading
 import time
 import uuid
 from contextlib import AbstractContextManager, ExitStack
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Callable, Iterable, Protocol
 from zoneinfo import ZoneInfo
@@ -30,7 +30,8 @@ from zoneinfo import ZoneInfo
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .grant_store import (
     FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
-    UINT64_MAX, new_grant_is_fixed, remaining_seconds,
+    PauseIntent, SavedBalance, UINT64_MAX, beyond_daily_seconds, merged_saved_seconds,
+    new_grant_is_fixed, remaining_seconds, running_mode,
 )
 from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
@@ -54,6 +55,8 @@ CLOCK_SAMPLE_TOLERANCE_USEC = 1000
 EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS = 30
 SESSION_LOCK_TIMEOUT_SECONDS = 5
 SESSION_LOCK_POLL_SECONDS = 0.05
+TRANSFER_MARGIN_SECONDS = 5
+PAUSE_SESSION_ENTRY_TIMEOUT_SECONDS = SESSION_LOCK_TIMEOUT_SECONDS + 2 * TRANSFER_MARGIN_SECONDS
 GRAPHICAL_SESSION_TYPES = frozenset({"wayland", "x11"})
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
 UsageIntervals = tuple[tuple[int, int], ...]
@@ -77,6 +80,14 @@ class Busy(BrokerError):
 
 class DesktopInUse(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.DesktopInUse"
+
+
+class Stale(BrokerError):
+    dbus_name = "com.puffyslippers.OhNoParentControl1.Error.Stale"
+
+
+class RecoveryPending(BrokerError):
+    dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RecoveryPending"
 
 
 class BackendFailure(BrokerError):
@@ -152,6 +163,14 @@ class DailyCapture:
     context: SavedTimeContext
     evaluated_at: datetime
     daily_remaining_seconds: int
+    transfer_anchor: tuple[datetime, float]
+
+
+@dataclass(frozen=True)
+class _ActivePause:
+    uid: int
+    released: threading.Event = field(default_factory=threading.Event)
+    waiter: threading.Lock = field(default_factory=threading.Lock)
 
 
 class Approval(Protocol):
@@ -173,8 +192,9 @@ class Accounts(Protocol):
     def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]: ...
     def validate_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
     def set_filter(self, target_uid: int, value: tuple[bool, tuple[str, ...]]) -> None: ...
-    def get_extension(self, target_uid: int) -> tuple[int, int]: ...
-    def set_extension(self, target_uid: int, value: tuple[int, int]) -> None: ...
+    def get_extension(self, target_uid: int, *, deadline: float | None = None) -> GrantTuple: ...
+    def set_extension(self, target_uid: int, value: GrantTuple, *,
+                      deadline: float | None = None, wall_deadline: float | None = None) -> None: ...
     def get_limit_type(self, target_uid: int) -> int: ...
     def set_limit_type(self, target_uid: int, value: int) -> None: ...
     def get_daily_limit(self, target_uid: int) -> int: ...
@@ -315,6 +335,7 @@ class Broker:
         self._sleep = sleep
         self._request_lock = threading.Lock()
         self._request_lock_diagnostic = None
+        self._active_pause: _ActivePause | None = None
         self._transaction_revision = 0
         self._grant_diagnostics = GrantDiagnostics()
 
@@ -340,13 +361,29 @@ class Broker:
         # Clear before unlocking; a new owner must never inherit old metadata.
         # This advisory snapshot does not authorize or synchronize any work.
         self._request_lock_diagnostic = None
+        pause = self._active_pause
+        self._active_pause = None
         self._request_lock.release()
+        if pause is not None:
+            pause.released.set()
 
-    def _write_extension(self, uid, value):
+    def _extension_window_elapsed(self, deadline, wall_deadline):
+        return ((deadline is not None and self._monotonic() >= deadline) or
+                (wall_deadline is not None and self._now().timestamp() >= wall_deadline))
+
+    def _write_extension(self, uid, value, *, deadline=None, wall_deadline=None):
+        if self._extension_window_elapsed(deadline, wall_deadline):
+            raise TimeoutError("extension write window elapsed")
         self._grant_diagnostics.write_started(uid)
-        self._accounts.set_extension(uid, value)
-        if self._accounts.get_extension(uid) != value:
+        bounds = {} if deadline is None else {"deadline": deadline}
+        wall_bound = {} if wall_deadline is None else {"wall_deadline": wall_deadline}
+        self._accounts.set_extension(uid, value, **bounds, **wall_bound)
+        if self._extension_window_elapsed(deadline, wall_deadline):
+            raise TimeoutError("extension write window elapsed")
+        if self._accounts.get_extension(uid, **bounds) != value:
             raise BackendFailure("extension verification failed")
+        if self._extension_window_elapsed(deadline, wall_deadline):
+            raise TimeoutError("extension verification window elapsed")
         try:
             self._grant_diagnostics.wrote(uid, value)
             self._observe_grant(uid, *value)
@@ -613,23 +650,20 @@ class Broker:
         remain untouched.
         """
         if not self._acquire_request_lock("session-prepare"):
-            raise Busy("another request is already in progress")
+            if (not self._wait_for_active_pause(caller_uid) or
+                    not self._acquire_request_lock("session-prepare")):
+                raise Busy("another request is already in progress")
         try:
             config = self._load_config()
             target = self._target(config, caller_uid)
-            try:
-                grant_time, grant_duration = self._accounts.get_extension(target.uid)
-            except Exception as error:
-                raise BackendFailure("remaining-time grant is unavailable") from error
-            if (type(grant_time) is not int or type(grant_duration) is not int or
-                    grant_time < 0 or not 0 <= grant_duration <= UINT32_MAX):
-                raise BackendFailure("remaining-time grant is invalid")
+            grant = self._read_live_grant(target.uid)
+            grant_time, grant_duration = grant
 
             now_seconds = int(self._now().timestamp())
             if grant_duration == 0:
                 LOG.info("core.002")
                 return False
-            if grant_time + grant_duration > now_seconds:
+            if grant_time + grant_duration > now_seconds and not self._pause_ended_grant(target, grant):
                 LOG.info("core.003")
                 return False
 
@@ -696,6 +730,30 @@ class Broker:
                 raise public_error from error
         finally:
             self._release_request_lock()
+
+    def _wait_for_active_pause(self, caller_uid: int) -> bool:
+        # Keep one session-entry worker for the same child across pause
+        # recovery, including unlocks that exhaust the client's Busy retries.
+        pause = self._active_pause
+        if pause is None or pause.uid != caller_uid or not pause.waiter.acquire(blocking=False):
+            return False
+        try:
+            return pause.released.wait(PAUSE_SESSION_ENTRY_TIMEOUT_SECONDS)
+        finally:
+            pause.waiter.release()
+
+    def _pause_ended_grant(self, target: UserAccount, live: GrantTuple) -> bool:
+        if self._grant_store is None:
+            return False
+        try:
+            record = self._grant_store.load(target.uid, target.username)
+        except GrantAccountError:
+            return False
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record is unavailable") from error
+        return ((record.fixed is not None and record.fixed.ended_by_pause and
+                 record.fixed.grant == live) or
+                (isinstance(record.intent, PauseIntent) and record.intent.destination == live))
 
     def recover_child_extension(self, caller_uid: int, target_uid: int, *,
                                 on_recovered: Callable[[int], None] | None = None) -> bool:
@@ -923,6 +981,193 @@ class Broker:
         if not self._caller_alive(context.sender):
             raise AccessDenied("caller disconnected during request")
 
+    def pause_grant(self, caller_uid: int, sender: str, target_uid: int, revision: int) -> None:
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            context = self._saved_time_context(caller_uid, sender, target_uid)
+            if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
+                raise InvalidRequest("grant record revision is invalid")
+            record = self._load_pause_record(context.target)
+            if record.revision != revision:
+                raise Stale("grant record changed since it was read")
+            self._pause_grant_locked(context, record)
+        finally:
+            self._release_request_lock()
+
+    def _load_pause_record(self, target: UserAccount) -> GrantRecord:
+        if self._grant_store is None:
+            raise BackendFailure("saved-time store is unavailable")
+        try:
+            record = self._grant_store.load(target.uid, target.username)
+        except GrantAccountError:
+            self._check_grant_account(self._load_config(), target)
+            try:
+                self._grant_store.clear(target.uid, target.username)
+            except GrantStoreError as error:
+                raise BackendFailure("saved-time record could not be cleared") from error
+            raise Stale("saved time belonged to a previous account")
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record is unavailable") from error
+        if isinstance(record.intent, PauseIntent):
+            self._active_pause = _ActivePause(target.uid)
+            self._recover_pause_intent(record)
+            raise Stale("grant record changed while recovering its pause")
+        if record.intent is not None:
+            raise RecoveryPending("a saved-time transfer is awaiting recovery")
+        return record
+
+    def _read_live_grant(self, uid: int, *, deadline: float | None = None) -> GrantTuple:
+        bounds = {} if deadline is None else {"deadline": deadline}
+        try:
+            if deadline is not None and self._monotonic() >= deadline:
+                raise TimeoutError("extension read window elapsed")
+            issued, duration = self._accounts.get_extension(uid, **bounds)
+            if deadline is not None and self._monotonic() >= deadline:
+                raise TimeoutError("extension read window elapsed")
+        except Exception as error:
+            raise BackendFailure("remaining-time grant is unavailable") from error
+        if (type(issued) is not int or not 0 <= issued <= UINT64_MAX or
+                type(duration) is not int or not 0 <= duration <= UINT32_MAX):
+            raise BackendFailure("remaining-time grant is invalid")
+        return issued, duration
+
+    def _pause_grant_locked(self, context: SavedTimeContext, record: GrantRecord) -> None:
+        """Pause a fixed grant under the transaction lock using a validated record."""
+        if record.intent is not None:
+            raise RecoveryPending("a saved-time transfer is awaiting recovery")
+        uid = context.target.uid
+        source = self._read_live_grant(uid)
+        try:
+            remaining = remaining_seconds(source, int(self._now().timestamp()))
+        except ValueError as error:
+            raise BackendFailure("remaining-time grant is outside the supported range") from error
+        if running_mode(record, source, remaining) != "fixed":
+            raise Stale("there is no running fixed grant to pause")
+
+        self._active_pause = _ActivePause(uid)
+        capture = self._capture_pause_daily_remaining(context)
+        try:
+            current = self._grant_store.load(uid, context.target.username)
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record is unavailable") from error
+        if current != record or self._read_live_grant(uid) != source:
+            raise Stale("grant changed while capturing completed usage")
+        self._recheck_saved_time_context(capture.context)
+
+        # The wire tuple ends on a whole wall-clock second. Charge all work
+        # after the transfer anchor to the same margin on both clocks.
+        anchor_at, anchor_monotonic = capture.transfer_anchor
+        anchor_timestamp = anchor_at.timestamp()
+        boundary = int(anchor_timestamp) + TRANSFER_MARGIN_SECONDS
+        transfer_deadline = anchor_monotonic + (boundary - anchor_timestamp)
+        try:
+            transferable = beyond_daily_seconds(
+                capture.daily_remaining_seconds, remaining_seconds(source, boundary),
+            )
+        except ValueError as error:
+            raise BackendFailure("pause balance is outside the supported range") from error
+        if transferable == 0:
+            raise Stale("no approved time beyond the daily allowance remains to save")
+        shortened = (source[0], boundary - source[0])
+        if shortened[1] <= 0:
+            raise BackendFailure("grant was issued after the pause boundary")
+        try:
+            saved_seconds = merged_saved_seconds(
+                record.saved.seconds if record.saved is not None else 0, transferable,
+            )
+        except ValueError as error:
+            raise InvalidRequest("pause would exceed the saved-time limit") from error
+        app_choice = record.saved if record.saved is not None else record.fixed
+        intent = PauseIntent(source, shortened,
+                             SavedBalance(saved_seconds, app_choice.allow_soft_blocked_apps))
+
+        if self._extension_window_elapsed(transfer_deadline, boundary):
+            raise BackendFailure("completed usage is too old for the pause transfer", expected=True)
+        try:
+            pending = self._grant_store.write(replace(record, intent=intent))
+        except GrantStoreError as error:
+            # Replacement may have happened before the directory sync failed.
+            # Never shorten the live grant without a confirmed durable intent.
+            try:
+                observed = self._grant_store.load(uid, context.target.username)
+            except GrantStoreError:
+                raise RecoveryPending("pause intent durability is uncertain") from error
+            if observed == record:
+                raise BackendFailure("pause intent could not be stored") from error
+            raise RecoveryPending("pause intent durability is uncertain") from error
+
+        try:
+            # AccountsService has no conditional Set. Recheck the source
+            # after syncing the intent to narrow the race with external writes.
+            if self._extension_window_elapsed(transfer_deadline, boundary):
+                raise TimeoutError("extension write window elapsed")
+            live = self._read_live_grant(uid, deadline=transfer_deadline)
+            if live == source:
+                self._write_extension(uid, shortened, deadline=transfer_deadline,
+                                      wall_deadline=boundary)
+                live = shortened
+        except Exception as error:
+            record_exception(error)
+            resolved = self._recover_pause_intent(pending, transfer_deadline=transfer_deadline)
+            if resolved.fixed is None or not resolved.fixed.ended_by_pause:
+                raise BackendFailure("the shortened grant could not be verified") from error
+        else:
+            self._finish_pause_intent(pending, live)
+            if live != shortened:
+                raise BackendFailure("the running grant changed before it could be shortened")
+
+    def _wait_for_pause_boundary(self, boundary: int, transfer_deadline: float | None) -> None:
+        wall_delay = boundary - self._now().timestamp()
+        delay = wall_delay
+        if transfer_deadline is not None:
+            delay = max(delay, transfer_deadline - self._monotonic())
+        if delay > TRANSFER_MARGIN_SECONDS:
+            raise RecoveryPending("pause boundary is outside the recovery wait window")
+        if delay > 0:
+            self._sleep(delay)
+        if (self._now().timestamp() < boundary or
+                (transfer_deadline is not None and self._monotonic() < transfer_deadline)):
+            raise RecoveryPending("pause boundary has not passed")
+
+    def _recover_pause_intent(self, record: GrantRecord, *,
+                              transfer_deadline: float | None = None) -> GrantRecord:
+        """Resolve a durable pause intent under the transaction lock."""
+        intent = record.intent
+        assert isinstance(intent, PauseIntent)
+        boundary = sum(intent.destination)
+        try:
+            if transfer_deadline is not None:
+                self._wait_for_pause_boundary(boundary, transfer_deadline)
+            for attempt in range(2):
+                # A read begun before B is never evidence that the write
+                # failed, even when its reply arrives after B.
+                read_started = self._now().timestamp()
+                deadline = self._monotonic() + TRANSFER_MARGIN_SECONDS
+                live = self._read_live_grant(record.uid, deadline=deadline)
+                if live != intent.source or (
+                        read_started >= boundary and self._now().timestamp() >= boundary):
+                    break
+                if attempt or transfer_deadline is not None:
+                    raise RecoveryPending("pause boundary has not passed")
+                self._wait_for_pause_boundary(boundary, None)
+        except BackendFailure as error:
+            raise RecoveryPending("pause outcome could not be verified") from error
+        return self._finish_pause_intent(record, live)
+
+    def _finish_pause_intent(self, record: GrantRecord, live: GrantTuple) -> GrantRecord:
+        intent = record.intent
+        result = replace(record, intent=None)
+        if live == intent.destination:
+            result = replace(result, saved=intent.saved,
+                             fixed=replace(record.fixed, grant=live, ended_by_pause=True))
+        try:
+            return self._grant_store.write(result)
+        except GrantStoreError as error:
+            # A visible replacement is insufficient to confirm durability.
+            # Either version can safely be read or recovered on the next call.
+            raise RecoveryPending("pause result durability is uncertain") from error
+
     def _capture_pause_daily_remaining(self, context: SavedTimeContext) -> DailyCapture:
         return self._capture_saved_time_daily_remaining(context, lock_before_capture=True)
 
@@ -936,6 +1181,8 @@ class Broker:
         self._recheck_saved_time_context(context)
         uid = context.target.uid
         usage = None
+        transfer_anchor = None
+        witnesses = []
         if lock_before_capture:
             own_session = context.session if context.request_kind == "child" else None
             if own_session is not None and own_session.kind not in GRAPHICAL_SESSION_TYPES:
@@ -944,16 +1191,21 @@ class Broker:
             if own_session is not None:
                 targets += (own_session,)
             seen_ends = set()
-            witnesses = []
             for session in targets:
-                usage = self._lock_and_observe_usage(context, session, seen_ends, witnesses)
-            if usage is not None:
-                coverage = _merge_usage_intervals(usage)
-                if not all(any(start <= first and last <= end for start, end in coverage)
-                           for first, last in witnesses):
-                    raise BackendFailure("completed usage changed during desktop locking")
+                usage, lock_anchor = self._lock_and_observe_usage(context, session, seen_ends, witnesses)
+                if session is own_session:
+                    # The caller can unlock while the lock's usage is still being collected.
+                    transfer_anchor = lock_anchor
         if usage is None:
             usage = self._saved_time_usage(uid)
+        if transfer_anchor is None:
+            observed_monotonic = self._monotonic()
+            transfer_anchor = (self._now(), observed_monotonic)
+        if witnesses:
+            coverage = _merge_usage_intervals(usage)
+            if not all(any(start <= first and last <= end for start, end in coverage)
+                       for first, last in witnesses):
+                raise BackendFailure("completed usage changed during desktop locking")
         if lock_before_capture:
             self._require_no_unlocked_child_desktops(context)
 
@@ -970,7 +1222,8 @@ class Broker:
             context.preferences, usage, 0, 0, 0, evaluated_at, native_deadline=native_deadline,
         )
         return DailyCapture(replace(context, lock_capture_complete=lock_before_capture),
-                            evaluated_at, status.daily_allowance_remaining_seconds)
+                            evaluated_at, status.daily_allowance_remaining_seconds,
+                            transfer_anchor)
 
     def _require_no_unlocked_child_desktops(self, context: SavedTimeContext) -> None:
         if self._unlocked_child_desktops(context):
@@ -1030,7 +1283,7 @@ class Broker:
     def _lock_and_observe_usage(
             self, context: SavedTimeContext, session: SessionState,
             seen_ends: set[int], witnesses: list[tuple[int, int]],
-    ) -> UsageIntervals:
+    ) -> tuple[UsageIntervals, tuple[datetime, float]]:
         uid = context.target.uid
         deadline = self._monotonic() + SESSION_LOCK_TIMEOUT_SECONDS
         # QueryUsage merges overlaps and has second precision. Give each lock
@@ -1058,7 +1311,9 @@ class Broker:
                 raise BackendFailure("child desktop locked before usage could be captured")
             if context.request_kind == "kiosk" and current.active:
                 raise DesktopInUse("child desktop is active and unlocked")
-        earliest_end = int(self._now().timestamp()) - 1
+        lock_monotonic = self._monotonic()
+        lock_at = self._now()
+        earliest_end = int(lock_at.timestamp()) - 1
         if earliest_end <= watermark:
             raise BackendFailure("wall clock changed before desktop locking")
         timeout = self._lock_time_remaining(deadline)
@@ -1078,7 +1333,7 @@ class Broker:
             seen_ends.update(end for _, end in usage)
             if witness is not None:
                 witnesses.append(witness)
-                return usage
+                return usage, (lock_at, lock_monotonic)
             self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
 
     @staticmethod

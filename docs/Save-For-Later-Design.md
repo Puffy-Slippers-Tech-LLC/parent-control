@@ -761,10 +761,13 @@ Pause, and Request & save for later after its store write, use this protocol:
    fixed tuple; otherwise refuse without locking anything. Then apply the
    [lock before capture](#caller-and-session-binding), which under child rules
    locks the caller's session, and capture D from completed usage records.
-2. Choose the boundary `B = now + M`. M is the named constant
-   `TRANSFER_MARGIN_SECONDS`, proposed at 5 seconds. The R' write and its
-   read-back share one dedicated timeout no longer than M, instead of the
-   adapter's 30-second per-call default. Let `A_B = max(0, i + d - B)` and
+2. Choose the boundary `B = now + M`, where `now` is the broker's own session
+   lock request time under child rules and the completed usage observation
+   under kiosk rules. M is the named constant `TRANSFER_MARGIN_SECONDS`, set
+   to 5 seconds. Any remaining usage checks, final revalidation, intent
+   persistence, the R' write and read-back spend the same window. The write
+   must start before B on the wall clock and within the monotonic budget.
+   Let `A_B = max(0, i + d - B)` and
    `X = max(0, A_B - D)`. If X = 0, nothing beyond daily time remains to save:
    the step changes nothing and the grant keeps running. Otherwise the new saved
    balance is `S + X`.

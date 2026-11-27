@@ -10,7 +10,7 @@ recorded native qualification.
 | [x] | 001 | Define how requests and results travel between the app and broker | Baseline | Additive method signatures, status, errors, and client compatibility | Done: [wire contract](Save-For-Later-Design.md#wire-contract) reviewed |
 | [x] | 002 | Store saved time securely for each child | 001 | Private versioned records, account binding, revisions, and JSON migration | Done: `grant_store.py` and grant migration pass; independent review on Opus 5.5 xhigh (developer-authorized) resolved |
 | [x] | 003 | Track what can be paused without changing immediate approvals | 002 | Balance arithmetic, grant classification, and immediate approval recording | Done. Focused host checks, queued package builds, and independent backend review passed. |
-| [ ] | 004 | [Keep saved time through upgrades and clear it on removal](Save-For-Later-Tasks/004.md) | 002 | DEB/RPM package hooks, state retention and cleanup, and activation | 1–2 h |
+| [x] | 004 | Keep saved time through upgrades and clear it on removal | 002 | DEB/RPM package hooks, state retention and cleanup, and activation | Done. Host checks, queued package builds, and independent backend review passed. |
 | [ ] | 005 | [Verify who can control the timer and capture time at lock](Save-For-Later-Tasks/005.md) | 001 | Caller/session binding and bounded lock-and-usage capture | 1–2 h |
 | [ ] | 006 | [Pause the timer and preserve the remaining approved time](Save-For-Later-Tasks/006.md) | 003, 005 | Shared pause transaction, fault recovery, and expiry policy on session entry | 2–3 h |
 | [ ] | 007 | [Start saved time once with the approved app access](Save-For-Later-Tasks/007.md) | 003, 005 | Shared redemption transaction and roll-forward recovery | 2–3 h |

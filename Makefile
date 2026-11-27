@@ -174,7 +174,7 @@ PACKAGE_SOURCE_FILES += packaging/package_activation.py packaging/check_package.
 	packaging/render_lifecycle.py packaging/stage_distribution.py packaging/fedora_pam.py packaging/purge.py \
 	packaging/fedora_execution_policy.py \
 	packaging/ubuntu.inc packaging/fedora.inc \
-	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in) \
+	$(addprefix packaging/lifecycle/,preinst.in postinst.in prerm.in postrm.in grants.inc) \
 	rpm/oh-no-parent-control.spec.in rpm/Containerfile
 PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf

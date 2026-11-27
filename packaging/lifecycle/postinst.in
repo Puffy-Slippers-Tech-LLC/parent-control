@@ -1,7 +1,12 @@
 #!/bin/sh
 set -e
 
+@grant_retirement@
+
 if [ "$1" = abort-remove ]; then
+    # A new erase can be aborted after an interrupted reinstall. Finish any
+    # committed retirement from the earlier erase before restoring this one.
+    finish_grant_retirement
     /usr/libexec/oh-no-parent-control-uninstall --restore
 @pam_restore@
     /usr/libexec/oh-no-parent-control-distro-pam --distribution @kiosk_distribution@ verify
@@ -87,6 +92,9 @@ if [ "$1" = configure ]; then
             *) echo 'oh-no-parent-control: broker remained active; configuration must be retried' >&2; exit 1 ;;
         esac
     fi
+    # An erase interrupted after retirement must not restore old enforcement
+    # or migrate the retired records back into the live grant store.
+    finish_grant_retirement
     /usr/libexec/oh-no-parent-control-migrate-state
     release_removal_guard
 

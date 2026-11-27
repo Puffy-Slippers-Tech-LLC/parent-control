@@ -44,6 +44,7 @@ def fragments(root: Path, distribution: str) -> dict[str, str]:
                      'execution_policy_remove_rule'):
             values[name] = ''
     values['log_tree_cleanup'] = embedded_log_cleanup(root)
+    values['grant_retirement'] = (root / 'packaging/lifecycle/grants.inc').read_text().rstrip('\n')
     values['confinement_finish_remove'] = embedded_confinement_finish_remove(root)
     values['kiosk_pre_unpack'] = embedded_kiosk_pre_unpack(root)
     values['kiosk_distribution'] = distribution

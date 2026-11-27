@@ -3,6 +3,7 @@ set -e
 
 @notice_cleanup@
 @log_tree_cleanup@
+@grant_retirement@
 check_tree() {
     # Only fixed product paths below. Never follow links or cross filesystems.
     if [ -L "$1" ]; then
@@ -354,7 +355,6 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
         /var/lib/oh-no-parent-control/migration-in-progress \
         /var/lib/oh-no-parent-control/package-activation-pending \
         /var/lib/oh-no-parent-control/previous-package-activation.json \
-        /var/lib/oh-no-parent-control/uninstall-enforcement.json \
         /var/lib/oh-no-parent-control/malcontent-pam-before-install \
         /var/lib/oh-no-parent-control/data-migration.lock \
         /var/lib/oh-no-parent-control/first-install-in-progress
@@ -363,6 +363,19 @@ if [ "$1" = remove ] || [ "$1" = purge ]; then
     # Keep pretransaction provenance until every owned integration/account has
     # been cleaned, so interrupted post-erase cleanup can safely retry.
 @execution_policy_cleanup@
+    # The reversible removal hooks leave saved time alone. At this final
+    # boundary atomically take the whole store out of service, so a retry or
+    # reinstall cannot use a partially deleted generation.
+    if [ -e "$grant_store" ] || [ -L "$grant_store" ]; then
+        [ ! -e "$retired_grants" ] && [ ! -L "$retired_grants" ] || refuse_grant_cleanup
+        check_grant_store "$grant_store"
+        mv --no-copy -T -- "$grant_store" "$retired_grants"
+    fi
+    if [ -e "$retired_grants" ] || [ -L "$retired_grants" ]; then
+        finish_grant_retirement
+    else
+        discard_enforcement_snapshot
+    fi
 fi
 
 if [ "$1" = purge ]; then

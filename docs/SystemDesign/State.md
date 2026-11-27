@@ -293,6 +293,7 @@ The ownership of runtime state is deliberately split:
 | Configured screen-time and app choices | Product preference record | Durable parent intent |
 | `AppFilter` | AccountsService | Live launcher/Flatpak blocklist derived from preferences |
 | `ActiveExtension` | AccountsService | Current one-time grant |
+| Saved time, last fixed tuple and transfer intent | Broker-private grant record | Approved time for later and recovery of interrupted transfers |
 | Usage intervals and estimates | `malcontent-timerd` | Measured daily use |
 | Product countdown deadline | Broker calculation from native/timer observations and the live grant | Derived monotonic deadline, retained only in extension memory |
 | UID-scoped native deny rules | fapolicyd | Live execution policy derived from `AppFilter` and saved patterns |
@@ -305,6 +306,21 @@ The ownership of runtime state is deliberately split:
 
 No measured usage, grant expiry, or generated execution state is imported into
 the preference record.
+
+### Saved-time grant records
+
+[grant_store.py](../../broker/oh_no_parent_control/grant_store.py) keeps one
+schema-1 record per child at `/var/lib/oh-no-parent-control/grants/N.json`, in a
+root-only directory with mode-`0600` regular records, using the shared validated
+reader and atomic, fsynced writer. A record holds `version`, `uid`, `username`,
+`revision`, the last `fixed` tuple with its app choice and pause-ended marker, the
+`saved` balance with its own app choice, and an optional pause or redemption
+`intent`. Reads distinguish an absent record (revision 0), a record bound to
+another account, unsupported or unsafe data, and a valid empty record. Every
+write and clear issues the next revision; a write based on an older revision is
+refused. Clears keep an empty record rather than deleting the file, and unsupported
+data is never replaced. The [feature design](../Save-For-Later-Design.md#persistent-state-and-recoverable-transactions)
+owns the transaction rules that use these records.
 
 A missing child record loads validated defaults; a record is created on save.
 Defaults disable screen-time control, set a zero daily limit, leave apps allowed,

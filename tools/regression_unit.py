@@ -5,6 +5,10 @@ Owned children are bounded and reaped; no live VM, service, display or shared
 cache is acquired. Deleting tests adds no resource owner or overlap requirement.
 Unknown modules remain exclusive pending review.
 
+grant_store writes only tiny records beneath its pytest temporary directory and
+starts no child process, bus or service; it is compatible with unit overlap and
+has no cleanup or UI inventory membership.
+
 Native PAM checks in prepared_kiosk_pam, pam_runtime_cap and package_configuration
 compile one small audit-transport double in pytest scratch, with a bounded,
 waited compiler child forwarding scratch leases. Its symbols remain local to
@@ -191,6 +195,7 @@ fedora_pam
 feedback_collection
 feedback_transport
 floating_islands
+grant_store
 graphical_lease
 installer
 kiosk_confinement

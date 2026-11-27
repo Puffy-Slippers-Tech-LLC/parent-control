@@ -18,6 +18,7 @@ from .preferences import FORMAT_VERSION, validate_preferences
 
 STATE_DIRECTORY = Path("/var/lib/oh-no-parent-control")
 PREFERENCES_DIRECTORY = STATE_DIRECTORY / "preferences"
+GRANTS_DIRECTORY = STATE_DIRECTORY / "grants"
 MIGRATION_MARKER = STATE_DIRECTORY / "migration-in-progress"
 MIGRATION_LOCK = STATE_DIRECTORY / "data-migration.lock"
 UID_RECORD_RE = re.compile(r"^(0|[1-9][0-9]*)\.json$")
@@ -81,6 +82,9 @@ def migrate_whats_new_v1_to_v2(raw: dict[str, Any]) -> dict[str, Any]:
 WHATS_NEW_INSTALLATION_MIGRATIONS: dict[int, Migration] = {
     1: migrate_whats_new_v1_to_v2,
 }
+
+# Saved-time records start at schema 1; append N -> N + 1 steps here.
+GRANT_MIGRATIONS: dict[int, Migration] = {}
 
 
 class MigrationError(RuntimeError):
@@ -154,11 +158,11 @@ def _read_record(path: Path) -> tuple[object, os.stat_result]:
     except OSError as error:
         raise MigrationError(f"cannot inspect {path.name}: {error.strerror}") from error
     if not stat.S_ISREG(file_stat.st_mode):
-        raise MigrationError(f"preference record is not a regular file: {path.name}")
+        raise MigrationError(f"state record is not a regular file: {path.name}")
     if file_stat.st_uid != os.geteuid():
-        raise MigrationError(f"preference record has an unexpected owner: {path.name}")
+        raise MigrationError(f"state record has an unexpected owner: {path.name}")
     if stat.S_IMODE(file_stat.st_mode) != 0o600:
-        raise MigrationError(f"preference record has unsafe permissions: {path.name}")
+        raise MigrationError(f"state record has unsafe permissions: {path.name}")
 
     flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
@@ -166,12 +170,21 @@ def _read_record(path: Path) -> tuple[object, os.stat_result]:
         with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
             opened_stat = os.fstat(stream.fileno())
             if (opened_stat.st_dev, opened_stat.st_ino) != (file_stat.st_dev, file_stat.st_ino):
-                raise MigrationError(f"preference record changed while opening: {path.name}")
+                raise MigrationError(f"state record changed while opening: {path.name}")
             return json.load(stream, object_pairs_hook=_object_without_duplicate_keys), file_stat
     except MigrationError:
         raise
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise MigrationError(f"cannot read preference record {path.name}") from error
+    # ValueError includes JSONDecodeError and the integer-digit limit.
+    except (OSError, ValueError, RecursionError) as error:
+        raise MigrationError(f"cannot read state record {path.name}") from error
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _atomic_write(path: Path, value: object, file_stat: os.stat_result) -> None:
@@ -186,14 +199,9 @@ def _atomic_write(path: Path, value: object, file_stat: os.stat_result) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
-        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-        directory_descriptor = os.open(path.parent, directory_flags)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        _fsync_directory(path.parent)
     except OSError as error:
-        raise MigrationError(f"cannot replace preference record {path.name}") from error
+        raise MigrationError(f"cannot replace state record {path.name}") from error
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -203,24 +211,37 @@ def migrate_preferences(directory: Path = PREFERENCES_DIRECTORY, *,
                         migrations: Mapping[int, Migration] = PREFERENCE_MIGRATIONS,
                         validator: Validator = validate_preferences) -> int:
     """Migrate all preference records, returning the number rewritten."""
+    return _migrate_uid_records(directory, "preference", current_version=current_version,
+                                migrations=migrations, validator=validator)
+
+
+def migrate_grants(directory: Path = GRANTS_DIRECTORY) -> int:
+    """Migrate saved-time records; AccountsService binding is checked at read."""
+    from .grant_store import FORMAT_VERSION as GRANT_FORMAT_VERSION, validate_grant_record
+    return _migrate_uid_records(directory, "grant", current_version=GRANT_FORMAT_VERSION,
+                                migrations=GRANT_MIGRATIONS, validator=validate_grant_record)
+
+
+def _migrate_uid_records(directory: Path, family: str, *, current_version: int,
+                         migrations: Mapping[int, Migration], validator: Validator) -> int:
     if not directory.exists():
         return 0
     directory_stat = directory.lstat()
     if not stat.S_ISDIR(directory_stat.st_mode):
-        raise MigrationError("preferences path is not a directory")
+        raise MigrationError(f"{family} path is not a directory")
     if directory_stat.st_uid != os.geteuid() or directory_stat.st_mode & 0o022:
-        raise MigrationError("preferences directory has unsafe ownership or permissions")
+        raise MigrationError(f"{family} directory has unsafe ownership or permissions")
 
     records = []
     for path in directory.iterdir():
         match = UID_RECORD_RE.fullmatch(path.name)
         if match is None:
             if path.name.endswith(".json"):
-                raise MigrationError(f"invalid preference record name: {path.name}")
+                raise MigrationError(f"invalid {family} record name: {path.name}")
             continue
         uid = int(match.group(1))
         if uid > UINT32_MAX:
-            raise MigrationError(f"preference UID is out of range: {path.name}")
+            raise MigrationError(f"{family} UID is out of range: {path.name}")
         records.append((uid, path))
 
     rewritten = 0
@@ -310,6 +331,7 @@ def migrate_all_state(state_directory: Path = STATE_DIRECTORY, *,
         os.fchmod(descriptor, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         rewritten = migrate_preferences(state_directory / "preferences")
+        rewritten += migrate_grants(state_directory / GRANTS_DIRECTORY.name)
         if product_path is not None:
             rewritten += configure_whats_new(state_directory, product_path)
         return rewritten

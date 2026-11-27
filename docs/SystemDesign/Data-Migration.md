@@ -9,7 +9,7 @@ Implementation: [data_migration.py](../../broker/oh_no_parent_control/data_migra
 
 Oh No! Parent Control migrates application-owned persistent data automatically during package configuration. Data schema versions are independent of distribution package versions: package releases may leave a schema unchanged, and one release may migrate more than one saved-data family.
 
-The current framework migrates unified per-user records in `/var/lib/oh-no-parent-control/preferences/`, including personal settings and child policy/request choices. It also configures the separately versioned [What's New installation history](#whats-new-installation-history). Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
+The current framework migrates unified per-user records in `/var/lib/oh-no-parent-control/preferences/`, including personal settings and child policy/request choices. It also configures the separately versioned [What's New installation history](#whats-new-installation-history) and validates the separately versioned [saved-time grant records](State.md#saved-time-grant-records) in `grants/` through their own `GRANT_MIGRATIONS` registry, which starts at schema 1 with no steps. Machine configuration, transient markers, logs, AccountsService, Malcontent, and files managed as Debian conffiles are not preference data and must not be added to that migration chain. If another application-owned data family later needs versioning, give it its own current-version constant, migration registry, validation, and migration pass in `migrate_all_state()`.
 
 The current preference schema is version 4. Its `3 -> 4` step adds
 `personal.language = ""` (follow the frontend session language) without changing
@@ -101,7 +101,7 @@ An optional field with an unambiguous default may remain compatible and be norma
 
 ## Safety contract
 
-The runner accepts only numeric UID JSON records, regular files owned by the invoking privileged identity with mode `0600`, and a preference directory that is not group- or world-writable. It rejects duplicate JSON keys, malformed or missing versions, gaps in the migration registry, invalid migration output, and schemas newer than the installed program. Unknown future data must never be replaced with defaults.
+The runner accepts only numeric UID JSON records, regular files owned by the invoking privileged identity with mode `0600`, and a record directory that is not group- or world-writable. It rejects duplicate JSON keys, malformed or missing versions, gaps in the migration registry, invalid migration output, and schemas newer than the installed program. Unknown future data must never be replaced with defaults.
 
 Each changed record is validated with the production current-schema validator, written to a mode-`0600` temporary file in the same directory, flushed, and atomically replaced. The directory is then flushed. A crash therefore leaves either the complete old record or the complete new record. A process-wide file lock serializes migration commands, while the marker excludes broker access.
 

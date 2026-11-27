@@ -2,6 +2,7 @@
 
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
+import subprocess
 from unittest.mock import Mock, call
 
 import pytest
@@ -9,10 +10,21 @@ from gi.repository import Gio, GLib
 
 from tests.support.paths import ROOT
 
-loader = SourceFileLoader("onpc_usage_query", str(ROOT / "broker/oh-no-parent-control-query-usage"))
+HELPER = ROOT / "broker/oh-no-parent-control-query-usage"
+loader = SourceFileLoader("onpc_usage_query", str(HELPER))
 spec = spec_from_loader(loader.name, loader)
 helper = module_from_spec(spec)
 loader.exec_module(helper)
+
+
+def test_usage_helper_entry_point_ignores_python_startup_settings():
+    # No target argument means startup exits before opening a bus connection.
+    result = subprocess.run(
+        [str(HELPER)], env={"LANG": "C.UTF-8", "PYTHONPROFILEIMPORTTIME": "1"},
+        capture_output=True, timeout=5, check=False,
+    )
+    assert result.returncode == 64
+    assert result.stderr == b""
 
 
 def dbus_error(name):

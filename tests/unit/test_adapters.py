@@ -5,11 +5,116 @@ from types import SimpleNamespace
 from gi.repository import Gio, GLib
 
 from oh_no_parent_control.adapters import (
-    AccountsService, RUNTIME_MAX_USEC_INFINITY, TimerUsage,
-    TimerUsageError,
+    AccountsService, LOGIN_MANAGER_INTERFACE, LOGIN_NAME, LOGIN_PATH, LogindSessions,
+    RUNTIME_MAX_USEC_INFINITY, TimerUsage, TimerUsageError,
 )
-from oh_no_parent_control.core import NativeDeadlineSuspended, UserAccount
+from oh_no_parent_control.core import NativeDeadlineSuspended, SessionState, UserAccount
 from tests.support.broker import make_broker
+
+
+class LogindSessionsTests(unittest.TestCase):
+    SESSION = "/org/freedesktop/login1/session/c7"
+    OTHER_SESSION = "/org/freedesktop/login1/session/c8"
+    USER = "/org/freedesktop/login1/user/_1001"
+
+    def setUp(self):
+        self.call = mock.Mock()
+        self.sessions = LogindSessions(SimpleNamespace(call_sync=self.call))
+
+    def _snapshot(self, **overrides):
+        return GLib.Variant("(a{sv})", ({
+            "Id": GLib.Variant("s", "c7"),
+            "User": GLib.Variant("(uo)", (1001, self.USER)),
+            "Remote": GLib.Variant("b", False),
+            "Active": GLib.Variant("b", True),
+            "LockedHint": GLib.Variant("b", False),
+            "State": GLib.Variant("s", "active"),
+            "Type": GLib.Variant("s", "wayland"),
+            "TimestampMonotonic": GLib.Variant("t", 9876),
+            **overrides,
+        },))
+
+    @staticmethod
+    def _remote_error(name):
+        return Gio.DBusError.new_for_dbus_error(name, "private detail")
+
+    def test_caller_scope_and_user_manager_display_resolve_the_same_typed_session(self):
+        pid = GLib.Variant("(u)", (123,))
+        expected = SessionState(self.SESSION, "c7", 1001, False, True, False,
+                                "active", "wayland", 9876)
+        cases = {
+            "process scope": {"GetSessionByPID": GLib.Variant("(o)", (self.SESSION,))},
+            "user manager": {
+                "GetSessionByPID": self._remote_error("org.freedesktop.login1.NoSessionForPID"),
+                "GetUserByPID": GLib.Variant("(o)", (self.USER,)),
+                "Get": GLib.Variant("(v)", (GLib.Variant("(so)", ("c7", self.SESSION)),)),
+            },
+        }
+        for source, replies in cases.items():
+            with self.subTest(source=source):
+                self.call.reset_mock()
+                self.call.side_effect = [pid, *replies.values(), self._snapshot()]
+                self.assertEqual(self.sessions.resolve(":1.42"), expected)
+                calls = [call.args for call in self.call.call_args_list]
+                self.assertEqual([call[3] for call in calls], [
+                    "GetConnectionUnixProcessID", *replies, "GetAll",
+                ])
+                self.assertEqual(calls[0][4].unpack(), (":1.42",))
+                self.assertEqual(calls[1][4].unpack(), (123,))
+
+    def test_absent_or_empty_display_resolves_to_no_session(self):
+        for fallback in (
+                [self._remote_error("org.freedesktop.login1.NoUserForPID")],
+                [GLib.Variant("(o)", (self.USER,)),
+                 GLib.Variant("(v)", (GLib.Variant("(so)", ("", "/")),))]):
+            self.call.reset_mock()
+            self.call.side_effect = [GLib.Variant("(u)", (123,)),
+                                     self._remote_error("org.freedesktop.login1.NoSessionForPID"),
+                                     *fallback]
+            self.assertIsNone(self.sessions.resolve(":1.42"))
+            self.assertEqual(self.call.call_count, 2 + len(fallback))
+
+    def test_snapshot_rejects_a_value_with_the_wrong_wire_type(self):
+        self.call.return_value = self._snapshot(TimestampMonotonic=GLib.Variant("u", 9876))
+        with self.assertRaisesRegex(RuntimeError, "invalid logind session properties"):
+            self.sessions.get(self.SESSION, timeout_seconds=1)
+
+    def test_user_listing_only_reads_matching_sessions_and_rechecks_ownership(self):
+        listing = GLib.Variant("(a(susso))", ([
+            ("c8", 1002, "other", "seat0", self.OTHER_SESSION),
+            ("c7", 1001, "child", "seat0", self.SESSION),
+        ],))
+        for observed_uid in (1001, 1002):
+            with self.subTest(observed_uid=observed_uid):
+                self.call.reset_mock()
+                self.call.side_effect = [listing, self._snapshot(
+                    User=GLib.Variant("(uo)", (observed_uid, self.USER)))]
+                if observed_uid == 1001:
+                    session, = self.sessions.for_user(1001, timeout_seconds=1)
+                    self.assertEqual(session.path, self.SESSION)
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "logind session listing changed"):
+                        self.sessions.for_user(1001, timeout_seconds=1)
+                self.assertEqual([(call.args[1], call.args[3]) for call in self.call.call_args_list], [
+                    (LOGIN_PATH, "ListSessions"), (self.SESSION, "GetAll"),
+                ])
+
+    def test_caller_resolution_does_not_refresh_the_call_budget(self):
+        with mock.patch("oh_no_parent_control.adapters.time") as clock:
+            clock.monotonic.side_effect = (100.0, 100.0, 100.5, 100.5, 101.0)
+            self.call.side_effect = [GLib.Variant("(u)", (123,)),
+                                     GLib.Variant("(o)", (self.SESSION,))]
+            with self.assertRaises(TimeoutError):
+                self.sessions.resolve(":1.42", timeout_seconds=1)
+        self.assertEqual([call.args[7] for call in self.call.call_args_list], [1000, 500])
+
+    def test_lock_uses_the_logind_manager_and_session_id(self):
+        self.call.return_value = GLib.Variant("()", ())
+        self.sessions.lock("c7", timeout_seconds=1)
+        name, path, interface, method, parameters, *_ = self.call.call_args.args
+        self.assertEqual((name, path, interface, method),
+                         (LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE, "LockSession"))
+        self.assertEqual(parameters.unpack(), ("c7",))
 
 
 class PolkitAdapterTests(unittest.TestCase):
@@ -284,8 +389,26 @@ class PolkitAdapterTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["user"], 1001)
         self.assertEqual(run.call_args.kwargs["group"], 1201)
         self.assertEqual(run.call_args.kwargs["extra_groups"], ())
+        self.assertEqual(run.call_args.kwargs["timeout"], 30)
         self.assertNotIn(identity.pw_name, "\n".join(logs.output))
         self.assertNotIn("1001", "\n".join(logs.output))
+
+    def test_timer_usage_polling_spends_only_the_remaining_timeout_as_the_child(self):
+        identity = SimpleNamespace(pw_name="child", pw_gid=1201)
+        with mock.patch("oh_no_parent_control.adapters.time") as clock, \
+                mock.patch("oh_no_parent_control.adapters.pwd.getpwuid", return_value=identity), \
+                mock.patch("oh_no_parent_control.adapters.subprocess.run",
+                           side_effect=self._helper_result("[[10,20]]")) as run:
+            clock.monotonic.side_effect = (100.0, 100.5, 100.75)
+            self.assertEqual(TimerUsage(object()).query_usage(1001, timeout_seconds=1), ((10, 20),))
+            self.assertEqual(run.call_args.kwargs["timeout"], 0.5)
+            self.assertEqual(run.call_args.kwargs["user"], 1001)
+            self.assertEqual(run.call_args.kwargs["group"], 1201)
+            run.reset_mock()
+            clock.monotonic.side_effect = (100.0, 101.0)
+            with self.assertRaisesRegex(TimerUsageError, "timeout"):
+                TimerUsage(object()).query_usage(1001, timeout_seconds=1)
+            run.assert_not_called()
 
     def test_timer_usage_missing_child_never_launches_helper(self):
         with mock.patch("oh_no_parent_control.adapters.pwd.getpwuid",

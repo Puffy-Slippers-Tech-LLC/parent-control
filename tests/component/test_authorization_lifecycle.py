@@ -69,6 +69,7 @@ class Authorities:
         self.snapshot_error = False
         self.resolve_error = False
         self.cancel_mode = "cancel"
+        self.on_display_read = None
         self.on_snapshot = None
         self.on_check = None
 
@@ -87,9 +88,10 @@ class Authorities:
                 invocation.return_value(GLib.Variant("(o)", (USER,)))
         elif method == "Get":
             assert parameters.unpack() == (authorization.LOGIN_USER_INTERFACE, "Display")
-            invocation.return_value(GLib.Variant("(v)", (
-                GLib.Variant("(so)", ("", "/") if self.no_display else self.display),
-            )))
+            display = GLib.Variant("(so)", ("", "/") if self.no_display else self.display)
+            if self.on_display_read:
+                self.on_display_read()
+            invocation.return_value(GLib.Variant("(v)", (display,)))
         elif method == "GetAll":
             assert path == SESSION
             assert parameters.unpack() == (LOGIN_SESSION_INTERFACE,)
@@ -315,6 +317,22 @@ def test_lock_during_initial_snapshot_is_not_missed(lifecycle):
     pending = lifecycle.start()
     spin_until(lambda: pending["done"])
     assert pending["result"][1:] == ("cancelled", 0)
+    assert lifecycle.accounts.events == []
+
+
+def test_display_switch_during_initial_fallback_read_cancels_before_prompt(lifecycle):
+    authority = lifecycle.authorities
+    authority.fallback = True
+
+    def switch_away_and_return():
+        authority.change_display(("other", OTHER_SESSION))
+        authority.change_display(("child", SESSION))
+
+    authority.on_display_read = switch_away_and_return
+    pending = lifecycle.start()
+    spin_until(lambda: pending["done"])
+    assert pending["result"][1:] == ("cancelled", 0)
+    assert authority.checks == []
     assert lifecycle.accounts.events == []
 
 

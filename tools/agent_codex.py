@@ -10,7 +10,7 @@ import time
 
 from agent_adapter import (BACKEND_REVIEW_INSTRUCTIONS, ROLES, SESSION_GOAL, AgentSelection,
                            ModelProfile, PreparedSession, ProfileRole, SessionEvent,
-                           SessionRequest, helper_profile, resolve_capacity_fallback,
+                           SessionRequest, helper_profile, model_choice, resolve_capacity_fallback,
                            resolve_role_profile)
 
 
@@ -418,19 +418,9 @@ class CodexWire:
     def change_model(self, text):
         if self.model_change_request is not None:
             raise ValueError('A model change is already pending.')
-        match = re.fullmatch(r'/model(?:[ \t]+([^\s-][^\s]*))?(?:[ \t]+--reasoning(?:=|[ \t]+)(\S+))?',
-                             text.strip())
-        if not match or not any(match.groups()):
-            raise ValueError('Use /model, /model <model>, or /model [model] --reasoning=<level>.')
-        model, effort = match.groups()
-        choice = self.model_options.get(model or self.model)
-        if choice is None:
-            raise ValueError('Choose a model from the /model picker.')
-        effort = effort or choice['default']
-        if effort not in choice['efforts']:
-            raise ValueError(f"Choose a reasoning level for {choice['model']}: {', '.join(choice['efforts'])}.")
+        model, effort = model_choice(text, self.model_options, self.model)
         self.model_change_request = self.model_rpc('thread/settings/update', {
-            'threadId': self.thread, 'model': choice['model'], 'effort': effort})
+            'threadId': self.thread, 'model': model, 'effort': effort})
 
     def poll_model_requests(self):
         now = time.monotonic()

@@ -1,6 +1,9 @@
 ## v2.1
 ### Bug Fixes
 
+### UI Improvements
+- **Kiosk:** Neater look! Kiosk session now automatically synchronizes with the selected child's screen layout (resolution, scale etc.).
+
 ### Robustness and Reliability Improvements
 - **Parent App:** Background refreshes interrupted by a broker restart show a brief notification and keep the window usable.
 - **Child App:** Retries saving recent screen time when the parental controls timer is briefly busy, so active use is not lost from the child's countdown.

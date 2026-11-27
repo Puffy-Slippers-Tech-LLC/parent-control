@@ -1043,6 +1043,7 @@ class RequestWindow(Adw.ApplicationWindow):
         if not preview or child_overlay or os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
             self.fullscreen()
             self.connect("map", lambda *_args: self.fullscreen())
+            self._watch_monitors()
         if preview and os.environ.get("ONPC_PREVIEW_SCREEN_FD"):
             from .preview_screen import notify_screen_ready
             self.connect("map", lambda *_: GLib.timeout_add(100, notify_screen_ready, self))
@@ -1850,6 +1851,32 @@ class RequestWindow(Adw.ApplicationWindow):
         except Exception as error:
             LOG.warning("kiosk.019", error_type=error_code(error))
             self._show_error(error)
+
+    def _watch_monitors(self):
+        # GNOME Kiosk sizes a fullscreen window only when it enters fullscreen;
+        # after a resolution, scale or rotation change it keeps the old logical
+        # size and position. Re-enter fullscreen when a monitor's geometry changes.
+        def refit(*_args):
+            if self.get_mapped() and self.is_fullscreen():
+                self.unfullscreen()
+                self.fullscreen()
+
+        handlers = []
+
+        def watch(model, position, _removed, added):
+            for index in range(position, position + added):
+                monitor = model.get_item(index)
+                handlers.append((monitor, monitor.connect('notify::geometry', refit)))
+            refit()
+
+        def unwatch(*_args):
+            for source, handler in handlers:
+                source.disconnect(handler)
+
+        monitors = Gdk.Display.get_default().get_monitors()
+        watch(monitors, 0, 0, monitors.get_n_items())
+        handlers.append((monitors, monitors.connect('items-changed', watch)))
+        self.connect('destroy', unwatch)
 
     def _load_preferences(self, target_uid):
         if not self._child_overlay:

@@ -17,14 +17,14 @@ from gi.repository import Gio, GLib
 from .adapters import (
     DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
     LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE, LOGIN_SESSION_INTERFACE,
-    PROPERTIES_INTERFACE, _call,
+    LOGIN_SESSION_STATES, LOGIN_USER_INTERFACE, PROPERTIES_INTERFACE, _call,
+    _read_login_display, _resolve_login_session,
 )
 
 LOG = get_logger("authorization")
 LIFECYCLE_TIMEOUT_MS = 5_000
 AGENT_STARTUP_GRACE_MS = 5_000
 AGENT_RETRY_MS = 100
-LOGIN_USER_INTERFACE = "org.freedesktop.login1.User"
 POLKIT_NAME = "org.freedesktop.PolicyKit1"
 POLKIT_PATH = "/org/freedesktop/PolicyKit1/Authority"
 POLKIT_INTERFACE = "org.freedesktop.PolicyKit1.Authority"
@@ -103,45 +103,19 @@ class _PendingAuthorization:
         ))
 
     def _session_for_caller(self):
-        pid, = self._read(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
-                          "GetConnectionUnixProcessID",
-                          GLib.Variant("(s)", (self.sender,)), "(u)")
-        try:
-            path, = self._read(LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
-                               "GetSessionByPID", GLib.Variant("(u)", (pid,)), "(o)")
-            return path
-        except GLib.Error as error:
-            if Gio.dbus_error_get_remote_error(error) != (
-                    "org.freedesktop.login1.NoSessionForPID"):
-                raise
+        # Sessionless callers can still use a bus-registered agent.
+        path, self.display = _resolve_login_session(
+            self._read, self.sender, before_display=self._watch_display,
+        )
+        return path
 
-        # GNOME and kiosk apps may be user services outside a session scope.
-        # Match Polkit's documented systemd session resolution: the process's
-        # owning user manager supplies its primary graphical Display session.
-        # Do not select another arbitrary session by UID or scan processes.
-        try:
-            user_path, = self._read(
-                LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
-                "GetUserByPID", GLib.Variant("(u)", (pid,)), "(o)",
-            )
-        except GLib.Error as error:
-            if Gio.dbus_error_get_remote_error(error) == (
-                    "org.freedesktop.login1.NoUserForPID"):
-                return None  # Sessionless callers can use a bus-registered agent.
-            raise
+    def _watch_display(self, user_path):
         self.user_path = user_path
         self._subscribe(LOGIN_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
                         user_path, LOGIN_USER_INTERFACE, self._display_changed)
-        self.display = self._read_display()
-        session_id, path = self.display
-        return path if session_id else None
 
     def _read_display(self):
-        display, = self._read(
-            LOGIN_NAME, self.user_path, PROPERTIES_INTERFACE, "Get",
-            GLib.Variant("(ss)", (LOGIN_USER_INTERFACE, "Display")), "(v)",
-        )
-        return display
+        return _read_login_display(self._read, self.user_path)
 
     def _session_unavailable(self):
         properties, = self._read(
@@ -152,7 +126,7 @@ class _PendingAuthorization:
         # authorization holding the transaction lock.
         if (type(properties.get("LockedHint")) is not bool or
                 type(properties.get("Active")) is not bool or
-                properties.get("State") not in {"opening", "online", "active", "closing"}):
+                properties.get("State") not in LOGIN_SESSION_STATES):
             return "session-state-unavailable"
         return self._unavailable_reason(properties)
 

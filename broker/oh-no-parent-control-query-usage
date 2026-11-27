@@ -1,8 +1,10 @@
-#!/usr/bin/python3
+#!/usr/bin/python3 -I
 """Query Malcontent usage as the Unix identity selected by the broker."""
 
 from __future__ import annotations
 
+# The broker consumes this output under another identity. Isolated startup
+# keeps that account's Python settings and packages out of the trusted reader.
 import json
 import os
 import sys

@@ -262,6 +262,8 @@ TARGET_BATCH_SECONDS = 90
 # joined in-process workers. host_dispatch freezes private Git repositories and
 # runs bounded local bootstrap preflights; none accesses VMs, shared sockets or
 # mutable host caches. Their existing compatible classifications still apply.
+# usage_query_retry launches the fixed helper with no target, so it exits
+# before bus access. The bounded subprocess owns its environment and pipes.
 
 ESTIMATES = {
     **CLEANUP_ESTIMATES,

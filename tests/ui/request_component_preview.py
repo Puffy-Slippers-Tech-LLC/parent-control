@@ -16,7 +16,6 @@ from broker.oh_no_parent_control.preferences import (
 from gi.repository import Gio, GLib
 
 from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
-from kiosk.oh_no_parent_control_kiosk.request_content import GrantView
 from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
 from gi.repository import Gtk
 
@@ -53,6 +52,10 @@ class Reply:
 class Broker:
     def __init__(self):
         self.scenario = os.environ.get("ONPC_REQUEST_COMPONENT_SCENARIO", "normal")
+        self.grants = {}
+        self.status_reads = 0
+        self.grant_evaluated_at = int(time.time())
+        self.redeem_status_read = None
         self.path = os.environ.get("ONPC_REQUEST_COMPONENT_EVENTS_PATH")
         self.pending_slow_reply = None
         self.preferences = copy.deepcopy(PREFERENCES)
@@ -123,7 +126,8 @@ class Broker:
             GLib.timeout_add(20, finish_save)
             return
         reply = self.reply(method, values)
-        if self.scenario == "slow-request" and method.startswith("Request"):
+        if ((self.scenario in {"slow-request", "deferred-cancelled"} and method.startswith("Request"))
+                or (self.scenario == "approved-running" and method == "PauseGrant")):
             if self.pending_slow_reply is not None:
                 raise RuntimeError("duplicate pending request reply")
             self.pending_slow_reply = callback, reply
@@ -181,6 +185,85 @@ class Broker:
     @staticmethod
     def call_finish(reply):
         return reply
+
+    @staticmethod
+    def grant_error(kind):
+        return Reply(error=Gio.DBusError.new_for_dbus_error(
+            f"com.puffyslippers.OhNoParentControl1.Error.{kind}", "fixture grant error"))
+
+    def grant_status(self, uid, requested):
+        self.status_reads += 1
+        if self.scenario == "approved-retry":
+            results = ("Busy", "BackendFailure", "Busy", "RecoveryPending")
+            if self.status_reads <= len(results):
+                return self.grant_error(results[self.status_reads - 1])
+        if self.scenario == "estimate-unavailable":
+            return self.grant_error("BackendFailure")
+        if self.scenario == "older-broker":
+            return Reply(error=Gio.DBusError.new_for_dbus_error(
+                "org.freedesktop.DBus.Error.UnknownMethod", "fixture older broker"))
+        if self.status_reads == self.redeem_status_read:
+            return self.grant_error("RecoveryPending")
+        revision, daily, running, saved, mode = self.grant(uid)
+        now = self.grant_evaluated_at
+        beyond = max(0, running - daily)
+        usable = max(daily, running)
+        return Reply((revision, now, daily, running, beyond, saved, usable, usable + saved,
+                      mode, now + running if running else 0, usable + requested if requested else 0,
+                      saved + requested + (beyond if mode == "fixed" else 0) if requested else 0))
+
+    def grant(self, uid):
+        if uid in self.grants:
+            return self.grants[uid]
+        if self.scenario == "approved-combined" and uid == 1002:
+            return 6, 0, 0, 480, "none"
+        if self.scenario == "approved-covered":
+            return 5, 720, 600, 0, "fixed"
+        if self.scenario == "approved-deadline":
+            return 5, 0, 3600, 0, "deadline"
+        if self.scenario in {"approved-running", "approved-combined",
+                             "deferred-partial", "pause-stale", "pause-after-lock"}:
+            return 5, 720, 1800, 1200 if self.scenario == "approved-combined" else 0, "fixed"
+        if self.scenario == "approved-retry":
+            return 5, 720, 0, 0, "none"
+        if self.scenario == "redeem-lost":
+            return 5, 0, 0, 480, "none"
+        if self.scenario == "two-hours-grant-only":
+            return 5, 0, 0, 0, "none"
+        return 5, 47 * 60 if uid == 1001 else 0, 900, 0, "deadline"
+
+    def grant_mutation(self, method, values):
+        uid, *_, revision = values
+        current, daily, running, saved, mode = self.grant(uid)
+        if revision != current:
+            return self.grant_error("Stale")
+        if method == "PauseGrant":
+            if self.scenario == "pause-stale":
+                return self.grant_error("Stale")
+            if self.scenario == "pause-after-lock":
+                return self.grant_error("BackendFailure")
+            self.grants[uid] = (revision + 1, daily, 0, saved + max(0, running - daily), "none")
+            return Reply(())
+        if method == "UseSavedTime":
+            self.grants[uid] = (revision + 1, daily, max(daily, running) + saved, 0, "fixed")
+            if self.scenario == "redeem-lost" and revision == 5:
+                self.redeem_status_read = self.status_reads + 1
+                return Reply(error=Gio.DBusError.new_for_dbus_error(
+                    "org.freedesktop.DBus.Error.NoReply", "fixture lost reply"))
+            return Reply(())
+        _approver, requested, _soft = values[1:-1]
+        if self.scenario == "deferred-cancelled":
+            return Reply((REQUEST_ID, "cancelled", ""))
+        if self.scenario == "deferred-partial":
+            self.grants[uid] = (revision + 1, daily, running, saved + requested, mode)
+            error = "BackendFailure" if os.environ.get("ONPC_REQUEST_COMPONENT_OVERLAY") == "1" else "DesktopInUse"
+            return Reply((REQUEST_ID, "saved_pause_error",
+                          f"com.puffyslippers.OhNoParentControl1.Error.{error}"))
+        pausing = mode == "fixed" and running > daily
+        self.grants[uid] = (revision + 1, daily, 0 if pausing else running,
+                            saved + requested + (running - daily if pausing else 0),
+                            "none" if pausing else mode)
+        return Reply((REQUEST_ID, "saved_paused" if pausing else "saved", ""))
 
     def reply(self, method, values):
         if self.scenario == 'reboot-required' and method not in (
@@ -281,6 +364,10 @@ class Broker:
             if self.scenario == "two-hours-grant-only":
                 daily = grant = 0
             return Reply((daily, grant, additional, max(daily, grant) + additional))
+        if method == "GetGrantStatus":
+            return self.grant_status(*values)
+        if method in {"RequestDeferredAccess", "PauseGrant", "UseSavedTime"}:
+            return self.grant_mutation(method, values)
         if method in {"UpdateRequestPreferences", "UpdateRequestPreferencesWithUnit"}:
             uid, duration, custom, soft, approver = values[:5]
             self.preferences[uid]["request"].update({
@@ -367,14 +454,6 @@ feedback_transport.requests.Session = lambda: feedback_session
 class ComponentWindow(RequestWindow):
     def _build(self):
         super()._build()
-        self._request_content.set_grant_actions(
-            save_for_later=lambda: BROKER.record("request-save-for-later"),
-            pause=self._pause_grant,
-            use_saved=lambda: BROKER.record("use-saved-time"),
-            retry=self._retry_grant_status,
-        )
-        if BROKER.scenario == "approved-retry":
-            self._grant_retry_states = iter(("unavailable", "busy", "recovery", "ready"))
         # Explicit test-local storage exercises the production form's persistence
         # without enabling writes to the developer's normal preview state.
         path = os.environ.get("ONPC_REQUEST_COMPONENT_SELECTIONS_PATH")
@@ -382,59 +461,6 @@ class ComponentWindow(RequestWindow):
             self._request_content._selection_store = SelectionStore(
                 path, child_overlay=self._child_overlay,
             )
-
-    def _preferences_done(self, target_uid, connection, result):
-        super()._preferences_done(target_uid, connection, result)
-        content = self._request_content
-        if not content.is_selected_account(target_uid):
-            return
-        if BROKER.scenario == "approved-retry":
-            content.set_grant_status("busy")
-            return
-        if BROKER.scenario == "approved-deadline":
-            view = GrantView(running_mode="deadline", running_seconds=18 * 60,
-                             running_end=int(time.time()) + 3600)
-        elif BROKER.scenario == "approved-covered":
-            view = GrantView(daily_seconds=12 * 60, running_mode="fixed")
-        elif BROKER.scenario == "approved-combined" and target_uid == 1002:
-            view = GrantView(saved_seconds=8 * 60)
-        elif BROKER.scenario in {"approved-running", "approved-combined"}:
-            combined = BROKER.scenario == "approved-combined"
-            view = GrantView(daily_seconds=12 * 60, running_mode="fixed",
-                             running_seconds=18 * 60, saved_seconds=20 * 60 if combined else 0,
-                             requested_seconds=1800, immediate_estimate=3600,
-                             deferred_estimate=(68 if combined else 48) * 60)
-        else:
-            return
-        content.set_grant_status("ready", view)
-
-    def _retry_grant_status(self):
-        state = next(self._grant_retry_states)
-        BROKER.record("retry-grant-status", state=state)
-        if state == "ready":
-            self._request_content.set_grant_status(state, GrantView(daily_seconds=12 * 60))
-        else:
-            self._request_content.set_grant_status(state)
-
-    def _pause_grant(self):
-        BROKER.record("pause-grant")
-        self._request_content.set_grant_status("pending")
-        release = Path(os.environ["ONPC_REQUEST_COMPONENT_REQUEST_RELEASE"])
-        deadline = time.monotonic() + 60
-
-        def finish_pause():
-            if release.is_file():
-                self._request_content.set_grant_status(
-                    "ready", GrantView(daily_seconds=12 * 60, saved_seconds=18 * 60),
-                )
-            elif time.monotonic() >= deadline:
-                BROKER.record("pause-release-timeout")
-                self._request_content.set_grant_status("unavailable")
-            else:
-                return GLib.SOURCE_CONTINUE
-            return GLib.SOURCE_REMOVE
-
-        GLib.timeout_add(20, finish_pause)
 
     def __init__(self, application, **kwargs):
         super().__init__(application, broker_connection=BROKER, **kwargs)
@@ -464,6 +490,10 @@ class ComponentWindow(RequestWindow):
 
 
 class ComponentApplication(Application):
+    def request_countdown_refresh(self):
+        BROKER.record("countdown-refresh")
+        super().request_countdown_refresh()
+
     def _watch_preview_files(self):
         # Component checks pin one endpoint and retain in-progress fixture state.
         # Developer edits must not relaunch it or reload assets during a check.

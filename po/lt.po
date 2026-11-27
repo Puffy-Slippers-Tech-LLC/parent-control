@@ -1852,6 +1852,17 @@ msgstr "Laiko valdikliai užimti. Bandykite dar kartą."
 msgid "Updating approved time…"
 msgstr "Atnaujinamas patvirtintas laikas…"
 
+msgid "The time status changed. Try again."
+msgstr "Laiko būsena pasikeitė. Bandyk dar kartą."
+
+msgid "The timer could not be paused."
+msgstr "Nepavyko pristabdyti laikmačio."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s naudojasi darbalaukiu."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Patvirtinus bus išsaugota: %(duration)s"

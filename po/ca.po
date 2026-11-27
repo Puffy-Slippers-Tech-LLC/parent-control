@@ -1846,6 +1846,17 @@ msgstr "Els controls de temps estan ocupats. Torna-ho a provar."
 msgid "Updating approved time…"
 msgstr "S’està actualitzant el temps aprovat…"
 
+msgid "The time status changed. Try again."
+msgstr "L’estat del temps ha canviat. Torna-ho a provar."
+
+msgid "The timer could not be paused."
+msgstr "No s’ha pogut posar el temporitzador en pausa."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s està fent servir l’escriptori."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Es desarà si s’aprova: %(duration)s"

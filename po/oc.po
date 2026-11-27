@@ -1849,6 +1849,17 @@ msgstr "Los contraròtles del temps son ocupats. Tornatz ensajar."
 msgid "Updating approved time…"
 msgstr "Mesa a jorn del temps aprovat…"
 
+msgid "The time status changed. Try again."
+msgstr "L’estat del temps a cambiat. Ensaja tornarmai."
+
+msgid "The timer could not be paused."
+msgstr "Impossible de metre lo cronometre en pausa."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s utiliza lo burèu."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Gardat en cas d’aprobacion: %(duration)s"

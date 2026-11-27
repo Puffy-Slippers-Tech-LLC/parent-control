@@ -1861,6 +1861,17 @@ msgstr "Poteka drug postopek za upravljanje časa. Poskusi znova."
 msgid "Updating approved time…"
 msgstr "Posodabljanje odobrenega časa…"
 
+msgid "The time status changed. Try again."
+msgstr "Stanje časa se je spremenilo. Poskusi znova."
+
+msgid "The timer could not be paused."
+msgstr "Časovnika ni bilo mogoče začasno ustaviti."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s uporablja namizje."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Shranjeno po odobritvi: %(duration)s"

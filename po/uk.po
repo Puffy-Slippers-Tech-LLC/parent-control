@@ -1861,6 +1861,17 @@ msgstr "Виконується інша операція з часом. Спро
 msgid "Updating approved time…"
 msgstr "Оновлення схваленого часу…"
 
+msgid "The time status changed. Try again."
+msgstr "Стан часу змінився. Спробуй ще раз."
+
+msgid "The timer could not be paused."
+msgstr "Не вдалося призупинити таймер."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s користується стільницею."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Буде збережено в разі схвалення: %(duration)s"

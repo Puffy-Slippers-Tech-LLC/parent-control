@@ -1861,6 +1861,17 @@ msgstr "У току је друга радња у вези с временом. 
 msgid "Updating approved time…"
 msgstr "Ажурирање одобреног времена…"
 
+msgid "The time status changed. Try again."
+msgstr "Стање времена се променило. Покушај поново."
+
+msgid "The timer could not be paused."
+msgstr "Тајмер није могао да се паузира."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s користи радну површину."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Биће сачувано ако се одобри: %(duration)s"

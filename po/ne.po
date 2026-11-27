@@ -1849,6 +1849,17 @@ msgstr "समय नियन्त्रण अहिले व्यस्त
 msgid "Updating approved time…"
 msgstr "स्वीकृत समय अद्यावधिक हुँदै छ…"
 
+msgid "The time status changed. Try again."
+msgstr "समयको स्थिति परिवर्तन भएको छ। फेरि प्रयास गर्नुहोस्।"
+
+msgid "The timer could not be paused."
+msgstr "टाइमरलाई पज गर्न सकिएन।"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s डेस्कटप प्रयोग गरिरहनुभएको छ।"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "स्वीकृत भएमा बचत हुने समय: %(duration)s"

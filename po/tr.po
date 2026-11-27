@@ -1843,6 +1843,17 @@ msgstr "Süre denetimleri meşgul. Yeniden deneyin."
 msgid "Updating approved time…"
 msgstr "Onaylanan süre güncelleniyor…"
 
+msgid "The time status changed. Try again."
+msgstr "Süre durumu değişti. Tekrar dene."
+
+msgid "The timer could not be paused."
+msgstr "Zamanlayıcı duraklatılamadı."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s masaüstünü kullanıyor."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Onaylanırsa saklanacak süre: %(duration)s"

@@ -1870,6 +1870,17 @@ msgstr "عناصر التحكم في الوقت مشغولة. حاول مجدد�
 msgid "Updating approved time…"
 msgstr "جارٍ تحديث الوقت الموافق عليه…"
 
+msgid "The time status changed. Try again."
+msgstr "تغيّرت حالة الوقت. حاول مرة أخرى."
+
+msgid "The timer could not be paused."
+msgstr "تعذر إيقاف المؤقت مؤقتًا."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s يستخدم سطح المكتب."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "سيُحفظ عند الموافقة: %(duration)s"

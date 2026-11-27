@@ -1840,6 +1840,17 @@ msgstr "Kontrol waktu sedang sibuk. Coba lagi."
 msgid "Updating approved time…"
 msgstr "Memperbarui waktu yang disetujui…"
 
+msgid "The time status changed. Try again."
+msgstr "Status waktu telah berubah. Coba lagi."
+
+msgid "The timer could not be paused."
+msgstr "Pengatur waktu tidak dapat dijeda."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s sedang menggunakan desktop."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Disimpan jika disetujui: %(duration)s"

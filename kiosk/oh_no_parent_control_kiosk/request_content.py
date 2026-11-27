@@ -10,7 +10,8 @@ from common.oh_no_parent_control_ui.translation_widgets import (
 import json
 import math
 import re
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import gi
@@ -80,6 +81,8 @@ class GrantView:
     requested_seconds: int = 0
     immediate_estimate: int = 0
     deferred_estimate: int = 0
+    revision: int = 0
+    evaluated_at: int = 0
 
 
 GRANT_STATUS_TEXT = {
@@ -354,6 +357,7 @@ class RequestContent(MetalBoard):
         self._validation_error = None
         self._grant_state = "unavailable"
         self._grant_view = None
+        self._grant_feedback = None
         self._grant_actions = {}
         self._lock_dialog = None
         self._tabs = {}
@@ -680,6 +684,7 @@ class RequestContent(MetalBoard):
         self._approvers.collapse()
         self._pages.set_visible_child_name(name)
         self._sync_tabs()
+        self.tick_grant_view()
 
     def _sync_tabs(self):
         active = self._pages.get_visible_child_name()
@@ -780,6 +785,9 @@ class RequestContent(MetalBoard):
         bind_ui(self._approved_status, get_value=self._approved_display_state)
         self._approved_status.set_margin_top(4)
         body.append(self._approved_status)
+        self._approved_feedback = self._approved_label("kiosk-approved-feedback")
+        self._approved_feedback.add_css_class("oh-no-parent-control-error")
+        body.append(self._approved_feedback)
 
         self._running_row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         self._running_status = self._approved_label("kiosk-approved-running-status")
@@ -850,28 +858,51 @@ class RequestContent(MetalBoard):
         if self._screen_time_limit_enabled is None:
             return "unavailable" if self._accounts_loaded and not self._account_uids else "loading"
         if self._grant_state == "ready":
-            view = self._grant_view
+            view = self._displayed_grant()
             if view.running_mode == "none" and not view.saved_seconds:
                 return "empty"
         return self._grant_state
 
     def _displayed_grant(self):
-        if self._approved_display_state() in {"ready", "empty"}:
-            return self._grant_view
+        if (self._controls_enabled and self._screen_time_limit_enabled is True
+                and self._grant_state == "ready"):
+            view = self._grant_view
+            if not view.evaluated_at:
+                return view
+            now = max(view.evaluated_at, int(time.time()))
+            elapsed = now - view.evaluated_at
+            daily = max(0, view.daily_seconds - elapsed) if self._lock_child_selector else view.daily_seconds
+            running = max(0, view.running_end - now)
+            return replace(view, daily_seconds=daily, running_seconds=max(0, running - daily),
+                           running_mode=view.running_mode if running else "none")
         return None
+
+    def grant_revision(self):
+        return self._grant_view.revision if self._displayed_grant() is not None else None
+
+    def tick_grant_view(self):
+        if self._grant_view is not None and self._pages.get_visible_child_name() == "approved":
+            self._render_approved()
+        return GLib.SOURCE_CONTINUE
+
+    def set_grant_feedback(self, message):
+        self._grant_feedback = message
+        set_text(self._approved_feedback, "label", message or "")
+        self._approved_feedback.set_visible(bool(message))
+        self._update_status()
 
     def _render_approved(self):
         state = self._approved_display_state()
+        view = self._displayed_grant()
         set_text(self._approved_status, "label", GRANT_STATUS_TEXT.get(state, ""))
         self._approved_status.set_visible(state != "ready")
         self._retry.set_visible(state in {"busy", "unavailable", "recovery"})
         can_retry = bool(self._grant_actions.get("retry") and self._account_uids)
         self._retry.set_sensitive(can_retry)
         self._request_retry.set_sensitive(can_retry)
-        self._request_retry.set_visible(state in {"busy", "recovery"})
+        self._request_retry.set_visible(state in {"busy", "recovery", "unavailable"})
         self._request_more.set_visible(state == "empty")
 
-        view = self._displayed_grant()
         running = view is not None and view.running_mode != "none"
         fixed = running and view.running_mode == "fixed"
         can_pause = fixed and view.running_seconds > 0
@@ -915,8 +946,7 @@ class RequestContent(MetalBoard):
         if not seconds or view is None:
             return
         if self._lock_child_selector and view.running_mode == "fixed":
-            estimate = view.deferred_estimate if view.requested_seconds == seconds else 0
-            self._confirm_lock("save_for_later", estimate or view.saved_seconds + seconds + view.running_seconds)
+            self._confirm_lock("save_for_later", view.deferred_estimate, view.revision)
         else:
             self._run_grant_action("save_for_later")
 
@@ -925,14 +955,15 @@ class RequestContent(MetalBoard):
         if view is None or view.running_mode != "fixed" or view.running_seconds <= 0:
             return
         if self._lock_child_selector:
-            self._confirm_lock("pause", view.saved_seconds + view.running_seconds)
+            self._confirm_lock("pause", view.saved_seconds + view.running_seconds, view.revision)
         else:
             self._run_grant_action("pause")
 
-    def _confirm_lock(self, action, seconds):
+    def _confirm_lock(self, action, seconds, revision):
         if self._lock_dialog is not None:
             return
         saving = action == "save_for_later"
+        account = self.selected_child_account()
         title = m.SAVE_AND_LOCK_QUESTION if saving else m.PAUSE_AND_LOCK_QUESTION
         dialog = Gtk.Window(transient_for=self.get_root(), modal=True,
                             decorated=False, destroy_with_parent=True)
@@ -960,8 +991,11 @@ class RequestContent(MetalBoard):
         def confirm(_button):
             close()
             source = self._save_for_later if saving else self._pause
-            if source.is_sensitive():
+            if (source.is_sensitive() and account == self.selected_child_account()
+                    and revision == self.grant_revision()):
                 self._run_grant_action(action)
+            elif self.grant_revision() is not None:
+                self.set_grant_feedback(m.TIME_STATUS_CHANGED)
 
         actions = Gtk.Box(spacing=6, homogeneous=True)
         cancel = self._action_button(m.CANCEL, "kiosk-lock-cancel", close, primary=False)
@@ -1170,11 +1204,14 @@ class RequestContent(MetalBoard):
         elif self._screen_time_limit_enabled is False:
             message = m.SCREEN_LIMIT_IS_NOT_ENABLED_IN_PARENT_APP
         elif not self._controls_enabled:
-            message = m.WAITING_FOR_APPROVAL
+            message = (m.UPDATING_APPROVED_TIME if self._grant_state == "pending"
+                       else m.WAITING_FOR_APPROVAL)
         elif self._grant_state in {"busy", "pending", "recovery"}:
             message = GRANT_STATUS_TEXT[self._grant_state]
         elif self._validation_error:
             message = self._validation_error
+        elif self._grant_feedback:
+            message = self._grant_feedback
         else:
             try:
                 _uid, _child, _approver, seconds, _soft = self.selected()
@@ -1182,6 +1219,8 @@ class RequestContent(MetalBoard):
                 message = error.args[0]
             else:
                 message = self._time_estimate
+                if message is None and self._grant_state == "loading":
+                    message = m.LOADING_TIME_STATUS
                 view = self._grant_view
                 if view is not None:
                     if view.saved_seconds:
@@ -1190,8 +1229,10 @@ class RequestContent(MetalBoard):
                         if view.immediate_estimate:
                             message = m.ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S % {
                                 "format_duration_seconds": format_duration(view.immediate_estimate)}
-                        if view.deferred_estimate:
-                            save_hint = m.SAVED_IF_APPROVED % {"duration": format_duration(view.deferred_estimate)}
+                        save_hint = (m.SAVED_IF_APPROVED % {"duration": format_duration(view.deferred_estimate)}
+                                     if view.deferred_estimate else m.REQUEST_UNAVAILABLE)
+                    elif seconds:
+                        save_hint = m.LOADING_TIME_STATUS
         if self._ui_duration_value() == "0":
             save_hint = m.REST_OF_DAY_CANNOT_BE_SAVED
         elif self._validation_error is None and self._grant_state == "unavailable":
@@ -1220,6 +1261,15 @@ class RequestContent(MetalBoard):
             return None
         return uid, seconds
 
+    def grant_status_selection(self):
+        if self._screen_time_limit_enabled is not True:
+            return None
+        account = self.selected_child_account()
+        if account is None:
+            return None
+        estimate = self.time_estimate_selection()
+        return account[0], estimate[1] if estimate is not None else 0
+
     def set_time_estimate(self, message):
         self._time_estimate = message
         self._update_status()
@@ -1235,6 +1285,7 @@ class RequestContent(MetalBoard):
             self._time_estimate = None
             self._grant_state = "unavailable"
             self._grant_view = None
+            self.set_grant_feedback(None)
             self._update_ready()
             if self._on_account_selected is not None:
                 self._on_account_selected(self._account_uids[index])
@@ -1255,6 +1306,8 @@ class RequestContent(MetalBoard):
         if self._suppress_values_changed:
             return
         self._validation_error = None
+        if self._grant_feedback:
+            self.set_grant_feedback(None)
         self._update_save_control()
         self._update_status()
         if self._on_values_changed is not None:
@@ -1482,8 +1535,12 @@ class RequestContent(MetalBoard):
         return self._cancel.is_sensitive()
 
     def _update_save_control(self):
+        choice = self.time_estimate_selection()
+        view = self._grant_view
         save_allowed = (self._request.get_sensitive() and self._grant_state == "ready"
-                        and self._ui_duration_value() != "0" and self._grant_actions.get("save_for_later"))
+                        and self._ui_duration_value() != "0" and self._grant_actions.get("save_for_later")
+                        and (choice is None or (
+                            choice[1] == view.requested_seconds and view.deferred_estimate > 0)))
         self._save_for_later.set_sensitive(bool(save_allowed))
 
     def _update_controls(self):

@@ -1840,6 +1840,17 @@ msgstr "Уақытты басқару құралдары бос емес. Қай
 msgid "Updating approved time…"
 msgstr "Мақұлданған уақыт жаңартылуда…"
 
+msgid "The time status changed. Try again."
+msgstr "Уақыт күйі өзгерді. Қайталап көр."
+
+msgid "The timer could not be paused."
+msgstr "Таймерді кідірту мүмкін болмады."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s жұмыс үстелін пайдаланып жатыр."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Мақұлданса, сақталады: %(duration)s"

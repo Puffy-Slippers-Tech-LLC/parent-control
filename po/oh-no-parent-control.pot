@@ -121,6 +121,17 @@ msgstr ""
 msgid "Updating approved time…"
 msgstr ""
 
+msgid "The time status changed. Try again."
+msgstr ""
+
+msgid "The timer could not be paused."
+msgstr ""
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr ""
+
 #. Shared message: SAVED_IF_APPROVED
 #, python-format
 msgid "Saved if approved: %(duration)s"

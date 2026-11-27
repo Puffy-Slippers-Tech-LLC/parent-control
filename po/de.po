@@ -1844,6 +1844,17 @@ msgstr "Die Zeitsteuerung ist beschäftigt. Versuchen Sie es erneut."
 msgid "Updating approved time…"
 msgstr "Genehmigte Zeit wird aktualisiert…"
 
+msgid "The time status changed. Try again."
+msgstr "Der Zeitstatus hat sich geändert. Versuche es erneut."
+
+msgid "The timer could not be paused."
+msgstr "Der Timer konnte nicht pausiert werden."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s verwendet den Desktop."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Wird bei Genehmigung gespeichert: %(duration)s"

@@ -1855,6 +1855,17 @@ msgstr "Laika vadība pašlaik ir aizņemta. Mēģiniet vēlreiz."
 msgid "Updating approved time…"
 msgstr "Atjaunina apstiprināto laiku…"
 
+msgid "The time status changed. Try again."
+msgstr "Laika statuss ir mainījies. Mēģini vēlreiz."
+
+msgid "The timer could not be paused."
+msgstr "Taimeri neizdevās pauzēt."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s izmanto darbvirsmu."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Ja apstiprinās, tiks saglabāts: %(duration)s"

@@ -1115,7 +1115,8 @@
             if (event.altKey && !event.ctrlKey && !event.metaKey && !event.isComposing &&
                     !event.getModifierState('AltGraph')) {
                 const { key, code } = event;
-                if (key === '<' || key === '>' || (event.shiftKey && (code === 'Comma' || code === 'Period'))) {
+                // Alt+, and Alt+. work with or without Shift (the < and > keys on US layouts).
+                if (key === '<' || key === '>' || code === 'Comma' || code === 'Period') {
                     event.preventDefault();
                     const lower = key === '<' || (key !== '>' && code === 'Comma');
                     if (!event.repeat) stepSessionEffort(section, lower ? -1 : 1);

@@ -72,7 +72,11 @@ def session_instructions(request, roles):
             'keep working until the bounded assignment is verified. Where instructions name '
             'native apply_patch, use the Edit and Write tools; for a $skill mention, read that '
             "skill's SKILL.md. Commands that are not granted fail without a prompt; report a "
-            'needed grant as a blocker instead of working around it.\n\n' + request.instructions)
+            'needed grant as a blocker instead of working around it. A granted command runs '
+            'outside the sandbox (with network access) only when the whole Bash command '
+            'matches its grant: where instructions say to set the working directory, run '
+            '`cd` as its own Bash call (the directory persists), then the bare command, never '
+            '`cd DIR && command`.\n\n' + request.instructions)
     if roles:
         text += (f'Delegate only to the configured {", ".join(sorted(roles))} agents, within '
                  "the launcher's existing delegation policy. Each helper starts with fresh "

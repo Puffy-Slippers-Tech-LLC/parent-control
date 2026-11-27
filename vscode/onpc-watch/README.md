@@ -385,8 +385,8 @@ Waiting for input flashes unless reduced motion is
 enabled. Enter sends chat directly; there is no Send button. Shift+Enter or
 Alt+Enter inserts a new line. Ctrl+U deletes from the start of the current line
 up to the cursor, leaving the character at the cursor and the rest of the line.
-With the chatbox focused, **Alt+<** lowers reasoning effort by one level and
-**Alt+>** raises it by one level when the session supports effort selection.
+With the chatbox focused, **Alt+<** (or **Alt+,**) lowers reasoning effort by one level and
+**Alt+>** (or **Alt+.**) raises it by one level when the session supports effort selection.
 The shortcut keeps your draft and stops at the model's lowest and highest levels.
 Input is routed only to the displayed, still-current launcher session.
 Type `@` in the chat draft to search files in that session's checkout, including

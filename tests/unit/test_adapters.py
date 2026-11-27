@@ -8,7 +8,7 @@ from oh_no_parent_control.adapters import (
     AccountsService, LOGIN_MANAGER_INTERFACE, LOGIN_NAME, LOGIN_PATH, LogindSessions,
     RUNTIME_MAX_USEC_INFINITY, TimerUsage, TimerUsageError,
 )
-from oh_no_parent_control.core import NativeDeadlineSuspended, SessionState, UserAccount
+from oh_no_parent_control.core import AccessDenied, NativeDeadlineSuspended, SessionState, UserAccount
 from tests.support.broker import make_broker
 
 
@@ -118,6 +118,48 @@ class LogindSessionsTests(unittest.TestCase):
 
 
 class PolkitAdapterTests(unittest.TestCase):
+    def test_bound_grant_write_rechecks_account_after_resolving_the_uid_path(self):
+        path = "/org/freedesktop/Accounts/User1001"
+        username = "child"
+        reassign_on_find = False
+        calls = []
+
+        def call(_name, object_path, _interface, method, parameters, *_args):
+            nonlocal username
+            calls.append(method)
+            if method == "FindUserById":
+                self.assertEqual(parameters.unpack(), (1001,))
+                if reassign_on_find:
+                    username = "replacement"
+                return GLib.Variant("(o)", (path,))
+            self.assertEqual(object_path, path)
+            if method == "GetAll":
+                return GLib.Variant("(a{sv})", ({
+                    "Uid": GLib.Variant("t", 1001),
+                    "UserName": GLib.Variant("s", username),
+                    "AccountType": GLib.Variant("i", 0),
+                    "SystemAccount": GLib.Variant("b", False),
+                    "LocalAccount": GLib.Variant("b", True),
+                    "Shell": GLib.Variant("s", "/bin/bash"),
+                },))
+            self.assertEqual(method, "Set")
+            return GLib.Variant("()", ())
+
+        accounts = AccountsService(SimpleNamespace(call_sync=call))
+        with accounts.bind_grant_mutations(1001, "child"):
+            accounts.set_daily_limit(1001, 120)
+            self.assertEqual(calls, ["FindUserById", "GetAll", "Set"])
+            calls.clear()
+            reassign_on_find = True
+            with self.assertRaises(AccessDenied):
+                accounts.set_daily_schedule(1001, (300, 60_000))
+            self.assertEqual(calls, ["FindUserById", "GetAll"])
+
+        calls.clear()
+        username, reassign_on_find = "child", False
+        accounts.set_daily_limit(1001, 120)
+        self.assertEqual(calls, ["FindUserById", "Set"])
+
     def test_active_extension_set_is_refused_if_wall_clock_passes_boundary_during_lookup(self):
         wall = 1000.0
         path = "/org/freedesktop/Accounts/User1001"

@@ -76,6 +76,23 @@ def test_records_round_trip_atomically_with_private_modes_and_new_revisions(dire
     assert store.clear(UID, USERNAME).revision == 4
 
 
+def test_redemption_termination_marker_survives_reopen_and_reads_older_records(directory):
+    pending = GrantRecord(
+        UID, USERNAME, 1, saved=SavedBalance(30, False),
+        intent=RedeemIntent((0, 0), (40, 50), False, True, termination_started=True),
+    )
+    store = GrantStore(directory)
+    write_raw(directory, pending.document())
+    assert store.load(UID, USERNAME) == pending
+
+    legacy = pending.document()
+    del legacy["intent"]["termination_started"]
+    write_raw(directory, legacy)
+    assert store.load(UID, USERNAME) == replace(
+        pending, intent=replace(pending.intent, termination_started=False),
+    )
+
+
 def test_stale_revision_is_refused_without_changing_the_record(directory):
     store = GrantStore(directory)
     first = store.write(paused_record(store))
@@ -199,6 +216,10 @@ def mutate(path, value):
     mutate(("fixed", "duration"), 1.5),
     mutate(("intent", "kind"), "resume"),
     mutate(("intent", "destination", "duration"), 0),
+    mutate(("intent", "destination", "duration"), MAX_TIME_GRANT_SECONDS + 1),
+    mutate(("intent", "allow_soft_blocked_apps"), False),
+    mutate(("intent", "termination_started"), True),
+    mutate(("intent", "time_state"), {"limit_type": 2, "daily_limit": 0, "daily_schedule": [0]}),
     mutate(("intent", "record_fixed"), None),
     mutate(("intent", "extra"), 1),
     mutate(("future_field",), 1),

@@ -1792,6 +1792,12 @@ msgstr "Atlikušo dienas daļu nevar saglabāt."
 msgid "Saved for later"
 msgstr "Saglabāts vēlākam laikam"
 
+msgid "The child can start this time later."
+msgstr "Bērns var sākt izmantot šo laiku vēlāk."
+
+msgid "This also clears saved time."
+msgstr "Tiks dzēsts arī saglabātais laiks."
+
 msgid "Use saved time"
 msgstr "Izmantot saglabāto laiku"
 

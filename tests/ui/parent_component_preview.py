@@ -9,6 +9,9 @@ from pathlib import Path
 import sys
 import time
 
+from gi.repository import Gio
+
+from parent.oh_no_parent_control_parent.client import BUS_NAME
 from parent.oh_no_parent_control_parent.main import Application
 from tests.support.language_fixture import LanguageFixture
 from parent.oh_no_parent_control_parent.preview_data import (
@@ -38,9 +41,11 @@ class ScriptedParentBroker:
                 for role, filename, _name, _description, _match in ASSETS}
         if self._mode == "custom-limit":
             self._preferences[1001]["daily_time_limit_minutes"] = 73
-        if self._mode in {"grant-only", "exact-hours", "zero-total"}:
+        if self._mode in {"grant-only", "exact-hours", "zero-total", "saved-only",
+                          "saved-revoke-fails"}:
             self._preferences[1001]["daily_time_limit_minutes"] = 0
         self._status_attempts = 0
+        self._revoked = set()
         self._events_path = os.environ.get("ONPC_PARENT_COMPONENT_EVENTS_PATH")
         self._whats_new_seen = False
 
@@ -99,10 +104,10 @@ class ScriptedParentBroker:
     def set_own_language(self, language):
         return self._language.save(language)
 
-    def _wait_for_loading_release(self):
+    def _wait_for_loading_release(self, suffix=""):
         # The component test must observe both disabled controls before this
         # scripted response completes. A fixed sleep races public tree reads.
-        release = Path(os.environ["ONPC_PARENT_COMPONENT_LOADING_RELEASE"])
+        release = Path(os.environ["ONPC_PARENT_COMPONENT_LOADING_RELEASE"] + suffix)
         deadline = time.monotonic() + 60
         while not release.is_file():
             if time.monotonic() >= deadline:
@@ -144,20 +149,40 @@ class ScriptedParentBroker:
         return [app_id for app_id, policy in self._preferences[uid]["apps"].items()
                 if policy["state"] == "conditional"]
 
-    def get_time_status(self, _uid):
+    def get_screen_time_status(self, uid):
         self._status_attempts += 1
-        self._record("get_time_status", attempt=self._status_attempts)
-        if self._mode == "status-unavailable":
-            raise RuntimeError("temporarily unavailable")
+        self._record("get_screen_time_status", uid=uid, attempt=self._status_attempts)
+        if self._mode in {"status-unavailable", "status-busy"}:
+            if not Path(os.environ["ONPC_PARENT_COMPONENT_LOADING_RELEASE"]).is_file():
+                kind = "Busy" if self._mode == "status-busy" else "BackendFailure"
+                raise Gio.DBusError.new_for_dbus_error(
+                    f"{BUS_NAME}.Error.{kind}", "temporarily unavailable",
+                )
         if self._mode == "status-retries" and self._status_attempts < 3:
-            raise RuntimeError("temporarily unavailable")
-        daily = 0 if self._mode in {"grant-only", "daily-exhausted", "exact-hours", "zero-total"} else 47 * 60
-        grant = 0 if self._mode == "zero-total" else 2 * 60 * 60 if self._mode == "exact-hours" else 15 * 60
+            kind = "Busy" if self._status_attempts == 1 else "RecoveryPending"
+            raise Gio.DBusError.new_for_dbus_error(f"{BUS_NAME}.Error.{kind}", "temporarily unavailable")
+        saved_only = self._mode in {"saved-only", "saved-revoke-fails"}
+        daily = 0 if saved_only or self._mode in {
+            "grant-only", "daily-exhausted", "exact-hours", "zero-total",
+        } else 47 * 60
+        grant = 2 * 60 * 60 if self._mode == "exact-hours" else 15 * 60
+        if saved_only or uid in self._revoked or self._mode in {"zero-total", "daily-only"}:
+            grant = 0
+        saved = 0
+        if uid not in self._revoked and (saved_only or self._mode == "mixed"):
+            saved = 8 * 60
+        if self._mode == "status-old-broker":
+            saved = None
+        if self._mode == "status-stale-child":
+            self._wait_for_loading_release("" if uid == 1001 else ".next")
+            if uid == 1001:
+                saved = 8 * 60
         return {
             "daily_allowance_remaining_seconds": daily,
             "one_time_grant_remaining_seconds": grant,
             "additional_one_time_grant_seconds": 0,
             "calculated_active_extension_seconds": max(daily, grant),
+            "saved_seconds": saved,
         }
 
     def set_preferences(self, uid, value):
@@ -187,9 +212,13 @@ class ScriptedParentBroker:
         self._preferences[uid]["daily_time_limit_minutes"] = daily_limit_minutes
         return self.get_preferences(uid)
 
-    def revoke_one_time_grant(self, _uid):
-        self._record("revoke_one_time_grant")
-        return None
+    def revoke_one_time_grant(self, uid):
+        self._record("revoke_one_time_grant", uid=uid)
+        if self._mode == "saved-only":
+            self._wait_for_loading_release()
+        if self._mode == "saved-revoke-fails":
+            raise RuntimeError("revoke rejected")
+        self._revoked.add(uid)
 
 
 # Every component preview uses a fake feedback transport, so UI interaction

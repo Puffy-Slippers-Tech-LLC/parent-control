@@ -1780,6 +1780,12 @@ msgstr "Günün geri kalanı sonraya saklanamaz."
 msgid "Saved for later"
 msgstr "Sonraya saklandı"
 
+msgid "The child can start this time later."
+msgstr "Çocuk bu süreyi daha sonra kullanmaya başlayabilir."
+
+msgid "This also clears saved time."
+msgstr "Bu işlem, saklanan süreyi de siler."
+
 msgid "Use saved time"
 msgstr "Saklanan süreyi kullan"
 

@@ -1786,6 +1786,12 @@ msgstr "‘दिन का शेष समय’ सहेजा नहीं 
 msgid "Saved for later"
 msgstr "बाद के लिए सहेजा गया"
 
+msgid "The child can start this time later."
+msgstr "बच्चा इस समय का इस्तेमाल बाद में शुरू कर सकता है।"
+
+msgid "This also clears saved time."
+msgstr "इससे सहेजा गया समय भी मिट जाएगा।"
+
 msgid "Use saved time"
 msgstr "सहेजा गया समय इस्तेमाल करें"
 

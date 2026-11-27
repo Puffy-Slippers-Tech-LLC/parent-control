@@ -399,11 +399,13 @@ class ParentWindow(Adw.ApplicationWindow):
         self._pending_saves = []
         self._restore_preferences_uid = None
         self._custom_daily_limit_save_id = 0
+        self._time_status_generation = 0
         self._time_status_loading = False
         self._time_status_refresh_pending = False
         self._time_status_retry_id = 0
         self._time_status_retry_count = 0
         self._remaining_time_seconds = None
+        self._saved_time_seconds = None
         self._screen_time_ready = False
         self._has_running_soft_blocked_apps = False
         self._app_catalog = None
@@ -976,11 +978,26 @@ class ParentWindow(Adw.ApplicationWindow):
         self._time_status.add_suffix(self._time_status_value)
         self._time_status.add_row(self._time_calculation_panel())
         screen_limit_rows.append(self._time_status)
+        self._saved_time = localized(Adw.ActionRow,
+            title=m.SAVED_FOR_LATER,
+        )
+        set_automation_id(self._saved_time, "parent-time-saved-status")
+        self._saved_time.add_prefix(self._setting_icon("document-save-symbolic"))
+        self._saved_time_value = localized(Gtk.Label, label=m.LOADING,
+                                           valign=Gtk.Align.CENTER)
+        set_automation_id(self._saved_time_value, "parent-time-saved")
+        self._saved_time.add_suffix(self._saved_time_value)
+        self._time_status_retry = localized(Gtk.Button, label=m.TRY_AGAIN,
+                                            visible=False, valign=Gtk.Align.CENTER)
+        set_automation_id(self._time_status_retry, "parent-time-retry")
+        self._time_status_retry.connect("clicked", self._retry_time_status_now)
+        self._saved_time.add_suffix(self._time_status_retry)
+        screen_limit_rows.append(self._saved_time)
         screen_limits.append(screen_limit_rows)
 
         screen_blank = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                css_classes=["screen-limits-card"])
-        for _ in range(3):
+        for _ in range(4):
             screen_blank.append(Gtk.Box(height_request=65,
                                         css_classes=["parent-blank-row"]))
         screen_blank.append(Gtk.Box(height_request=110,
@@ -1943,6 +1960,8 @@ class ParentWindow(Adw.ApplicationWindow):
             self._account_changed()
         else:
             if not self._users:
+                if previous_uid is not None:
+                    self._reset_time_status(m.UNAVAILABLE)
                 self._toast(m.NO_INTERACTIVE_NON_ADMIN_USERS_WERE_FOUND)
         ParentWindow._reveal_panel(self, "account")
         if not self._users:
@@ -1973,11 +1992,8 @@ class ParentWindow(Adw.ApplicationWindow):
         self._loading = True
         # Do not carry a previous child's grant state into this selection while
         # its authoritative time status is still loading.
-        self._remaining_time_seconds = None
+        self._reset_time_status()
         self._screen_time_ready = False
-        self._has_running_soft_blocked_apps = False
-        set_text(self._time_status_value, 'label', m.LOADING)
-        set_text(self._time_explanation, 'label', "—")
         LOG.info("parent.008")
         self._set_apps_sensitive(False)
         # Start the application catalog immediately on a background thread so
@@ -2194,9 +2210,26 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         self._load_time_status()
 
+    def _set_time_status_unreadable(self, value, *, detail="", can_retry=False):
+        self._remaining_time_seconds = None
+        self._saved_time_seconds = None
+        self._has_running_soft_blocked_apps = False
+        set_text(self._time_status_value, 'label', value)
+        set_text(self._time_explanation, 'label', "—")
+        set_text(self._saved_time_value, 'label', value)
+        set_text(self._saved_time, 'subtitle', detail)
+        self._time_status_retry.set_visible(can_retry)
+
+    def _reset_time_status(self, value=m.LOADING):
+        # A read started before this selection or mutation cannot publish.
+        self._time_status_generation += 1
+        self._time_status_refresh_pending = False
+        self._cancel_time_status_retry()
+        self._set_time_status_unreadable(value)
+
     def _load_time_status(self, *, retry=False):
         uid = self._selected_uid()
-        if uid is None:
+        if uid is None or self._loading:
             return
         if self._time_status_loading:
             self._time_status_refresh_pending = True
@@ -2205,27 +2238,37 @@ class ParentWindow(Adw.ApplicationWindow):
             self._cancel_time_status_retry()
             self._time_status_retry_count = 0
         self._time_status_loading = True
+        self._time_status_retry.set_visible(False)
+        generation = self._time_status_generation
         self._run(
-            lambda: self._client.get_time_status(uid),
-            lambda value: self._time_status_loaded(uid, value),
-            lambda error: self._time_status_failed(uid, error),
+            lambda: self._client.get_screen_time_status(uid),
+            lambda value: self._time_status_completed(uid, generation, status=value),
+            lambda error: self._time_status_completed(uid, generation, error=error),
         )
 
-    def _time_status_loaded(self, uid, status):
+    def _time_status_completed(self, uid, generation, *, status=None, error=None):
         self._time_status_loading = False
+        if generation != self._time_status_generation or uid != self._selected_uid():
+            self._load_pending_time_status_refresh()
+        elif error is not None:
+            self._time_status_failed(uid, error)
+        else:
+            self._time_status_loaded(status)
+
+    def _time_status_loaded(self, status):
         self._cancel_time_status_retry()
         self._time_status_retry_count = 0
-        if uid != self._selected_uid():
-            self._time_status_refresh_pending = False
-            self._load_time_status()
-            return
-        self._remaining_time_seconds = max(
-            0, int(status["calculated_active_extension_seconds"]),
-        )
+        self._remaining_time_seconds = status["calculated_active_extension_seconds"]
+        self._saved_time_seconds = status["saved_seconds"]
         self._has_running_soft_blocked_apps = status.get("has_running_soft_blocked_apps", False)
-        set_text(self._time_status_value, 'label', format_duration(status["calculated_active_extension_seconds"])
-        )
+        set_text(self._time_status_value, 'label', format_duration(self._remaining_time_seconds))
         set_text(self._time_explanation, 'label', _time_status_subtitle(status))
+        set_text(self._saved_time_value, 'label',
+                 format_duration(self._saved_time_seconds)
+                 if self._saved_time_seconds is not None else m.UNAVAILABLE)
+        set_text(self._saved_time, 'subtitle',
+                 m.CHILD_CAN_START_SAVED_TIME_LATER if self._saved_time_seconds else "")
+        self._time_status_retry.set_visible(False)
         LOG.info(
             "parent.013",
             daily=status["daily_allowance_remaining_seconds"],
@@ -2239,15 +2282,21 @@ class ParentWindow(Adw.ApplicationWindow):
         self._load_pending_time_status_refresh()
 
     def _time_status_failed(self, uid, error):
-        self._time_status_loading = False
-        if uid != self._selected_uid():
-            self._time_status_refresh_pending = False
-            self._load_time_status()
-            return
         LOG.warning("parent.014", error_type=error_code(error))
+        name = Gio.DBusError.get_remote_error(error) if isinstance(error, GLib.Error) else None
+        detail = {
+            f"{BUS_NAME}.Error.Busy": m.TIME_CONTROLS_BUSY,
+            f"{BUS_NAME}.Error.RecoveryPending": m.UPDATING_APPROVED_TIME,
+        }.get(name, m.TIME_STATUS_UNAVAILABLE)
+        self._set_time_status_unreadable(m.UNAVAILABLE, detail=detail, can_retry=True)
+        self._set_apps_sensitive(True)
+        self._screen_time_ready = True
+        ParentWindow._reveal_screen(self)
+        if broker_reboot_required(error):
+            self._show_error(error)
+            return
         if self._time_status_refresh_pending:
-            self._time_status_refresh_pending = False
-            self._load_time_status()
+            self._load_pending_time_status_refresh()
             return
         if self._time_status_retry_count < MAX_TIME_STATUS_RETRIES:
             self._time_status_retry_count += 1
@@ -2255,12 +2304,18 @@ class ParentWindow(Adw.ApplicationWindow):
                 TIME_STATUS_RETRY_DELAY_SECONDS, self._retry_time_status,
             )
             return
-        set_text(self._time_status_value, 'label', m.UNAVAILABLE)
-        set_text(self._time_explanation, 'label', "—")
-        self._screen_time_ready = True
-        ParentWindow._reveal_screen(self)
-        self._show_refresh_error(error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER,
-                                 uid=uid)
+        if name not in {
+            f"{BUS_NAME}.Error.Busy", f"{BUS_NAME}.Error.RecoveryPending",
+            f"{BUS_NAME}.Error.BackendFailure",
+        }:
+            self._show_refresh_error(
+                error, m.REMAINING_TIME_COULD_NOT_BE_LOADED_PLEASE_TRY_AGAIN_LATER, uid=uid,
+            )
+
+    def _retry_time_status_now(self, *_args):
+        if self._selected_uid() is not None and not self._loading and not self._time_status_loading:
+            self._set_time_status_unreadable(m.LOADING)
+            self._load_time_status()
 
     def _retry_time_status(self):
         self._time_status_retry_id = 0
@@ -2379,6 +2434,7 @@ class ParentWindow(Adw.ApplicationWindow):
             getattr(self, "_app_catalog", []) is not None and
             getattr(self, "_remaining_time_seconds", None) is not None and
             (self._remaining_time_seconds > 0 or
+             (getattr(self, "_saved_time_seconds", None) or 0) > 0 or
              getattr(self, "_has_running_soft_blocked_apps", False))
         )
         self._enabled.set_sensitive(idle and self._selected_uid() is not None)
@@ -2456,14 +2512,20 @@ class ParentWindow(Adw.ApplicationWindow):
         )
         dialog.get_content_area().append(scroll)
         warning = localized(Gtk.Label, 
-            label=(m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED % {'child_name': child_name}),
+            label=(m.THIS_WILL_REVOKE_ONE_TIME_SCREEN_TIME_AND_ACCESS_TO_SOFT_BLOCKED
+                   % {'child_name': child_name}),
             wrap=True, max_width_chars=72, xalign=0,
-            margin_top=18, margin_bottom=18,
+            margin_top=18, margin_bottom=8,
             margin_start=18, margin_end=18,
         )
         warning.set_natural_wrap_mode(Gtk.NaturalWrapMode.WORD)
         set_automation_id(warning, "parent-revoke-warning")
         body.append(warning)
+        saved_warning = localized(Gtk.Label, label=m.CLEARS_SAVED_TIME,
+                                  wrap=True, max_width_chars=72, xalign=0,
+                                  margin_bottom=18, margin_start=18, margin_end=18)
+        set_automation_id(saved_warning, "parent-revoke-saved-warning")
+        body.append(saved_warning)
         replacements = replacement_policy_ids(self._preferences["apps"], self._app_catalog)
         running = set(applications)
         apps = [app for app in self._app_catalog
@@ -2514,6 +2576,7 @@ class ParentWindow(Adw.ApplicationWindow):
         if uid != self._selected_uid():
             return
         self._loading = True
+        self._reset_time_status()
         self._set_apps_sensitive(False)
         self._run(
             lambda: self._client.revoke_one_time_grant(uid),

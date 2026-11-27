@@ -1786,6 +1786,12 @@ msgstr "Ezin da «Egunaren gainerakoa» aukera gorde."
 msgid "Saved for later"
 msgstr "Gerorako gordeta"
 
+msgid "The child can start this time later."
+msgstr "Haurrak geroago has dezake denbora hau erabiltzen."
+
+msgid "This also clears saved time."
+msgstr "Ekintza honek gordetako denbora ere ezabatzen du."
+
 msgid "Use saved time"
 msgstr "Erabili gordetako denbora"
 

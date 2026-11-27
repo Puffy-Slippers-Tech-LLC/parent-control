@@ -1786,6 +1786,12 @@ msgstr "No si pues salvâ «Il rest de zornade»."
 msgid "Saved for later"
 msgstr "Salvât par dopo"
 
+msgid "The child can start this time later."
+msgstr "Il frut al pues tacâ a doprâ chest timp plui indenant."
+
+msgid "This also clears saved time."
+msgstr "Chest al scancele ancje il timp salvât."
+
 msgid "Use saved time"
 msgstr "Dopre il timp salvât"
 

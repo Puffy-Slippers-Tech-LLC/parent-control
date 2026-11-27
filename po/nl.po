@@ -1786,6 +1786,12 @@ msgstr "De rest van de dag kan niet worden bewaard."
 msgid "Saved for later"
 msgstr "Bewaard voor later"
 
+msgid "The child can start this time later."
+msgstr "Het kind kan deze tijd later gaan gebruiken."
+
+msgid "This also clears saved time."
+msgstr "Hierdoor wordt ook de bewaarde tijd gewist."
+
 msgid "Use saved time"
 msgstr "Bewaarde tijd gebruiken"
 

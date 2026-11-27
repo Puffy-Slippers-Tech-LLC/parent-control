@@ -1792,6 +1792,12 @@ msgstr "Opciju „Ostatak dana” nije moguće spremiti."
 msgid "Saved for later"
 msgstr "Spremljeno za kasnije"
 
+msgid "The child can start this time later."
+msgstr "Dijete može početi koristiti ovo vrijeme kasnije."
+
+msgid "This also clears saved time."
+msgstr "Time se briše i spremljeno vrijeme."
+
 msgid "Use saved time"
 msgstr "Iskoristi spremljeno vrijeme"
 

@@ -1790,6 +1790,12 @@ msgstr "Нельзя сохранить время до конца дня на �
 msgid "Saved for later"
 msgstr "Сохранено на потом"
 
+msgid "The child can start this time later."
+msgstr "Ребёнок может начать использовать это время позже."
+
+msgid "This also clears saved time."
+msgstr "Сохранённое время также будет удалено."
+
 msgid "Use saved time"
 msgstr "Использовать сохранённое время"
 

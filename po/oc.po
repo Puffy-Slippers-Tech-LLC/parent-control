@@ -1786,6 +1786,12 @@ msgstr "La rèsta del jorn se pòt pas gardar per mai tard."
 msgid "Saved for later"
 msgstr "Gardat per mai tard"
 
+msgid "The child can start this time later."
+msgstr "L’enfant pòt començar a utilizar aqueste temps mai tard."
+
+msgid "This also clears saved time."
+msgstr "Aquò escafa tanben lo temps gardat."
+
 msgid "Use saved time"
 msgstr "Utilizar lo temps gardat"
 

@@ -1786,6 +1786,12 @@ msgstr "دن کا باقی حصہ بعد کے لیے محفوظ نہیں کیا 
 msgid "Saved for later"
 msgstr "بعد کے لیے محفوظ"
 
+msgid "The child can start this time later."
+msgstr "بچہ یہ وقت بعد میں استعمال کرنا شروع کر سکتا ہے۔"
+
+msgid "This also clears saved time."
+msgstr "اس سے محفوظ کیا گیا وقت بھی مٹ جائے گا۔"
+
 msgid "Use saved time"
 msgstr "محفوظ وقت استعمال کریں"
 

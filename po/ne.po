@@ -1786,6 +1786,12 @@ msgstr "दिनको बाँकी समय पछिका लागि �
 msgid "Saved for later"
 msgstr "पछिका लागि बचत गरिएको"
 
+msgid "The child can start this time later."
+msgstr "बच्चाले यो समय पछि प्रयोग गर्न सुरु गर्न सक्छ।"
+
+msgid "This also clears saved time."
+msgstr "यसले बचत गरिएको समय पनि मेटाउँछ।"
+
 msgid "Use saved time"
 msgstr "बचत गरिएको समय प्रयोग गर्नुहोस्"
 

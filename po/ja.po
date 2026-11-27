@@ -1778,6 +1778,12 @@ msgstr "「今日の残りすべて」は保存できません。"
 msgid "Saved for later"
 msgstr "後で使うために保存済み"
 
+msgid "The child can start this time later."
+msgstr "お子さまは後でこの時間を使い始めることができます。"
+
+msgid "This also clears saved time."
+msgstr "保存済みの時間も消去されます。"
+
 msgid "Use saved time"
 msgstr "保存した時間を使う"
 

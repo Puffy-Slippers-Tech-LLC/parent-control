@@ -1786,6 +1786,12 @@ msgstr "„A nap hátralévő része” nem menthető."
 msgid "Saved for later"
 msgstr "Későbbre mentve"
 
+msgid "The child can start this time later."
+msgstr "A gyermek később is elkezdheti használni ezt az időt."
+
+msgid "This also clears saved time."
+msgstr "Ezzel a mentett idő is törlődik."
+
 msgid "Use saved time"
 msgstr "Mentett idő használata"
 

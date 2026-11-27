@@ -1784,6 +1784,12 @@ msgstr "„Rest des Tages“ kann nicht gespeichert werden."
 msgid "Saved for later"
 msgstr "Für später gespeichert"
 
+msgid "The child can start this time later."
+msgstr "Das Kind kann diese Zeit später starten."
+
+msgid "This also clears saved time."
+msgstr "Dadurch wird auch die gespeicherte Zeit gelöscht."
+
 msgid "Use saved time"
 msgstr "Gespeicherte Zeit nutzen"
 

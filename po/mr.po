@@ -1786,6 +1786,12 @@ msgstr "दिवसाचा उरलेला भाग नंतरसाठ
 msgid "Saved for later"
 msgstr "नंतरसाठी जतन केलेला वेळ"
 
+msgid "The child can start this time later."
+msgstr "मूल हा वेळ नंतर वापरायला सुरुवात करू शकते."
+
+msgid "This also clears saved time."
+msgstr "यामुळे जतन केलेला वेळही काढून टाकला जाईल."
+
 msgid "Use saved time"
 msgstr "जतन केलेला वेळ वापरा"
 

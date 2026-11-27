@@ -1781,6 +1781,12 @@ msgstr "Kunning qolgan qismini keyinga saqlab bo‘lmaydi."
 msgid "Saved for later"
 msgstr "Keyinga saqlangan"
 
+msgid "The child can start this time later."
+msgstr "Bola bu vaqtdan keyinroq foydalanishni boshlashi mumkin."
+
+msgid "This also clears saved time."
+msgstr "Bu amal saqlangan vaqtni ham o‘chiradi."
+
 msgid "Use saved time"
 msgstr "Saqlangan vaqtni ishlatish"
 

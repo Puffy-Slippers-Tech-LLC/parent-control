@@ -1786,6 +1786,12 @@ msgstr "Valikut „Ülejäänud päev“ ei saa salvestada."
 msgid "Saved for later"
 msgstr "Hilisemaks salvestatud"
 
+msgid "The child can start this time later."
+msgstr "Laps saab selle aja kasutamist hiljem alustada."
+
+msgid "This also clears saved time."
+msgstr "See kustutab ka salvestatud aja."
+
 msgid "Use saved time"
 msgstr "Kasuta salvestatud aega"
 

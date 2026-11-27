@@ -228,20 +228,111 @@ def test_parent_time_status_retries(
     wait_for_accessible_state(lambda: ui.text("parent-time-remaining") == "47m",
                               "remaining time loads after retries")
     wait_for_accessible_state(
-        lambda: sum(record["event"] == "get_time_status"
+        lambda: sum(record["event"] == "get_screen_time_status"
                     for record in read_events(path)) == 3,
         "two failed attempts followed by successful retry",
     )
 
 
-def test_parent_time_status_reports_unavailable(
-        launch_ui, automation, wait_for_accessible_state):
+@pytest.mark.parametrize("scenario, detail", (
+    ("status-busy", "Time controls are busy."),
+    ("status-unavailable", "Time status unavailable"),
+))
+def test_parent_time_status_reports_unavailable_and_can_retry(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, scenario, detail):
+    path = tmp_path / "status-events.jsonl"
+    release = tmp_path / "status-release"
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
-                      scenario="status-unavailable")
+                      scenario=scenario, events_path=path, loading_release=release)
     wait_for_accessible_state(
-        lambda: ui.text("parent-time-remaining") == "Unavailable",
-        "unavailable time is public",
+        lambda: ui.showing("parent-time-retry") and
+        sum(event["event"] == "get_screen_time_status" for event in read_events(path)) == 4,
+        "remaining time can be retried after bounded automatic attempts",
     )
+    assert ui.text("parent-time-remaining") == ui.text("parent-time-saved") == "Unavailable"
+    assert detail in ui.target("parent-time-saved-status").get_description()
+    assert not ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE)
+    assert not ui.showing("feedback-dialog")
+    release.touch()
+    ui.activate("parent-time-retry")
+    wait_for_accessible_state(
+        lambda: ui.text("parent-time-remaining") == "47m" and
+        ui.text("parent-time-saved") == "0m" and not ui.showing("parent-time-retry"),
+        "retry restores both balances",
+    )
+
+
+def test_parent_ignores_time_status_for_previously_selected_child(
+        launch_ui, automation, wait_for_accessible_state, tmp_path):
+    path = tmp_path / "status-events.jsonl"
+    release = tmp_path / "status-release"
+    next_release = release.with_suffix(".next")
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="status-stale-child", events_path=path, loading_release=release)
+
+    def status_requested(uid):
+        return any(event["event"] == "get_screen_time_status" and event["uid"] == uid
+                   for event in read_events(path))
+
+    try:
+        wait_for_accessible_state(lambda: status_requested(1001),
+                                  "first child's status request is held")
+        ui.setValue("parent-child-selector", "1002")
+        release.touch()
+        wait_for_accessible_state(lambda: status_requested(1002),
+                                  "second child's status request starts after the late reply")
+        assert not ui.showing("parent-time-saved")
+        assert not ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE)
+    finally:
+        release.touch()
+        next_release.touch()
+    wait_for_accessible_state(
+        lambda: ui.showing("parent-time-saved") and ui.text("parent-time-saved") == "0m",
+        "only the selected child's balance is displayed",
+    )
+
+
+@pytest.mark.parametrize("succeeds", (True, False), ids=("cleared", "failed"))
+def test_parent_can_revoke_saved_only_time(
+        launch_ui, automation, wait_for_accessible_state, tmp_path, succeeds):
+    release = tmp_path / "revoke-release"
+    path = tmp_path / "status-events.jsonl"
+    ui = start_parent(launch_ui, automation, wait_for_accessible_state,
+                      scenario="saved-only" if succeeds else "saved-revoke-fails",
+                      events_path=path, loading_release=release)
+    wait_for_accessible_state(lambda: ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE),
+                              "saved time enables Revoke")
+    assert ui.text("parent-time-remaining") == "0m"
+    assert ui.text("parent-time-saved") == "8m"
+    ui.activate("parent-revoke-button")
+    wait_for_accessible_state(lambda: ui.showing("parent-revoke-dialog"),
+                              "existing confirmation is shown")
+    assert ui.text("parent-revoke-saved-warning") == "This also clears saved time."
+    ui.activate("parent-revoke-confirm")
+    if succeeds:
+        try:
+            wait_for_accessible_state(
+                lambda: any(event["event"] == "revoke_one_time_grant" and event["uid"] == 1001
+                            for event in read_events(path)),
+                "confirmed revoke is pending for the selected child",
+            )
+            assert ui.text("parent-time-saved") == "Loading…"
+            assert not ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE)
+        finally:
+            release.touch()
+        wait_for_accessible_state(lambda: ui.text("parent-time-saved") == "0m",
+                                  "revocation refreshes the saved balance")
+        assert not ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE)
+    else:
+        wait_for_accessible_state(lambda: ui.showing("feedback-dialog"),
+                                  "the failed revoke opens the usual error report")
+        ui.activate("feedback-close")
+        wait_for_accessible_state(
+            lambda: ui.text("parent-time-saved") == "8m" and
+            ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE),
+            "the refreshed saved balance can still be revoked",
+        )
+    assert ui.text("parent-time-remaining") == "0m"
 
 
 def test_parent_zero_balance_keeps_revoke_unavailable_with_limits_on_and_off(
@@ -860,8 +951,6 @@ def test_parent_app_search_rule_edit_and_revocation_confirmation(
                     for record in read_events(path)),
         "confirmed revocation reaches broker",
     )
-    # The recording preview backend has a fixed time status. Actual grant
-    # clearance is an installed result; this component owns action and policy.
     after_saved = reader.saved_revoke_balances(CHILD)
     assert all(after_saved[key] == before_saved[key] for key in ('settings', 'apps', 'rules'))
 
@@ -880,20 +969,29 @@ def test_shared_request_preview_smoke(
     assert ('help' in commands) is overlay
 
 
-@pytest.mark.parametrize("scenario, expected", (
-    ("normal", "Daily allowance remaining: 47m\nOne-time grant remaining: 15m\nRemaining time: 47m — the larger of the two amounts."),
-    ("grant-only", "Daily allowance remaining: 0m\nOne-time grant remaining: 15m\nRemaining time: 15m — the larger of the two amounts."),
-    ("exact-hours", "Daily allowance remaining: 0m\nOne-time grant remaining: 2h\nRemaining time: 2h — the larger of the two amounts."),
-    ("daily-exhausted", "Daily allowance remaining: 0m\nOne-time grant remaining: 15m\nRemaining time: 15m — the larger of the two amounts."),
+@pytest.mark.parametrize("scenario, daily, running, usable, saved, balances", (
+    ("mixed", "47m", "15m", "47m", "8m", [2820, 900, 2820]),
+    ("daily-only", "47m", "0m", "47m", "0m", [2820, 0, 2820]),
+    ("grant-only", "0m", "15m", "15m", "0m", [0, 900, 900]),
+    ("exact-hours", "0m", "2h", "2h", "0m", [0, 7200, 7200]),
+    ("daily-exhausted", "0m", "15m", "15m", "0m", [0, 900, 900]),
+    ("status-old-broker", "47m", "15m", "47m", "Unavailable", [2820, 900, 2820]),
 ))
 def test_parent_remaining_time_explanation(
-        launch_ui, automation, wait_for_accessible_state, scenario, expected):
+        launch_ui, automation, wait_for_accessible_state,
+        scenario, daily, running, usable, saved, balances):
     from gi.repository import GLib
     from tests.e2e.accessible_ui import AccessibleUI, CHILD, EXISTING_CHILD
     ui = start_parent(launch_ui, automation, wait_for_accessible_state,
                       scenario=scenario)
+    expected = (f"Daily allowance remaining: {daily}\nOne-time grant remaining: {running}\n"
+                f"Remaining time: {usable} — the larger of the two amounts.")
     wait_for_accessible_state(lambda: ui.text("parent-time-explanation") == expected,
                               "remaining-time explanation is public")
+    assert ui.text("parent-time-remaining") == usable
+    assert ui.text("parent-time-saved") == saved
+    wait_for_accessible_state(lambda: ui.state("parent-revoke-button", ui.api.StateType.SENSITIVE),
+                              "positive usable time enables Revoke")
     reader = AccessibleUI(
         ui.api, timeout=10, query_errors=ui.query_errors,
         owner_pids=ui.owner_pids, application_ids=ui.application_ids,
@@ -914,10 +1012,8 @@ def test_parent_remaining_time_explanation(
                               "PARENT09 starts independently collapsed")
     assert not ui.showing("parent-time-explanation")
     reached = reader.reach_time_explanation(CHILD)
-    balances = {'normal': [2820, 900, 2820], 'grant-only': [0, 900, 900],
-                'exact-hours': [0, 7200, 7200], 'daily-exhausted': [0, 900, 900]}
     for result in (first, reached):
-        assert [result[key]['seconds'] for key in ('daily', 'one_time', 'total')] == balances[scenario]
+        assert [result[key]['seconds'] for key in ('daily', 'one_time', 'total')] == balances
         assert result['expanded'] is True
     assert ui.showing("parent-time-explanation")
     assert ui.text("parent-time-explanation") == expected

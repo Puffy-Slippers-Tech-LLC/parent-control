@@ -40,7 +40,10 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
 4. Fetch and reconcile remote state without discarding work or rewriting
    published history. Push the source and record its exact successfully pushed
    HEAD. Merge that pinned commit into every other configured destination and
-   push each, preserving local and remote work. Do not force-push, invent missing
+   push each, preserving local and remote work. Merge each destination directly;
+   a pre-merge `git merge-base --is-ancestor` exit 1 only means a merge is
+   needed. Judge commands by exit status and Git output, not unrelated stderr
+   from shell startup. Do not force-push, invent missing
    branches or alter Git configuration. Reuse an applicable maintained public
    workflow when available; do not invoke private launcher helpers ad hoc.
    Before saving dirty destination work, follow the Git contract's

@@ -1,5 +1,8 @@
 # Portable project defaults. Keep credentials, trust and desktop paths in CODEX_HOME.
 service_tier = "default"
+# Commands inherit the session environment. Login-shell startup files can call
+# systemd-cat/systemctl --user, which the sandbox denies with misleading stderr.
+allow_login_shell = false
 
 # workspace-write already permits the current workspace; no absolute root needed.
 [tui]

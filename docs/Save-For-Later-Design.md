@@ -839,7 +839,10 @@ interfaces only:
 Items 2 and 3 ran in a disposable guest without the product, using the
 distribution's Malcontent timer, so they measure platform behavior. The child
 extension can only add usage checkpoints. Installed customer acceptance
-exercises the same paths with the product.
+exercises the same paths with the product. The Fedora targets were not part of
+this qualification; an installed engineering check of the kiosk-rule lock
+before capture, including a raw VT switch, runs on every supported target
+before the customer journeys.
 
 A later failure of these behaviors is a platform mismatch to diagnose and report
 through public interfaces. It does not reopen this design, and the product never
@@ -951,12 +954,16 @@ Require visible evidence that:
    saved time saved. The overlay offers save, pause and use, and its Pause locks
    the screen immediately after confirmation.
 6. Rest of the day cannot be saved and deadline grants cannot be paused;
-   cancellation, backend failure, disabled control, a failed lock and absent
-   saved time do not report success.
+   cancellation, disabled control and absent saved time do not report success.
+   Backend failure and a failed lock need fault injection, so their no-success
+   presentation is engineering evidence from the host UI and client checks,
+   not a customer journey step.
 7. With daily time remaining, pausing saves only the time beyond it, daily time
    stays usable and separately labelled, and using saved time adds it beyond the
    remaining daily time. A parent app-policy edit while time is saved remains
    effective after redemption.
+8. Saved time alone never admits a login: with D = 0 and only saved time, a
+   fresh child login is refused until Use saved time.
 
 Internal state probes/fault injection remain engineering evidence, separate from
 public customer journeys. A stale native shield, inconsistent balances, duplicated

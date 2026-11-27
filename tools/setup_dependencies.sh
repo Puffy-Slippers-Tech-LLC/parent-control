@@ -46,6 +46,7 @@ if [[ $setup_platform == fedora ]]; then
         python3-dbusmock python3-gobject python3-cairo python3-hypothesis \
         python3-pytest python3-pytest-cov python3-requests python3-rich \
         python3-pip curl ripgrep ShellCheck polkit util-linux iproute ffmpeg-free \
+        bubblewrap socat \
         debhelper dpkg-dev perl-Feature-Compat-Try podman shadow-utils-subid \
         passt slirp4netns fuse-overlayfs
     exit 0
@@ -131,6 +132,7 @@ add-apt-repository -y universe
     7zip \
     strace \
     build-essential \
+    bubblewrap \
     at-spi2-core \
     dbus-daemon \
     dbus-user-session \
@@ -184,6 +186,7 @@ add-apt-repository -y universe
     curl \
     ripgrep \
     shellcheck \
+    socat \
     polkitd \
     pkexec
 

@@ -176,6 +176,9 @@ def test_symlink_catalogues_are_refused(repository, tmp_path):
 
 def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     import agent_codex
+    from agent_adapter import AgentSelection
+    # Pin Codex: this checks its argv, independent of the checked-in agent.
+    codex = AgentSelection('codex', ROOT)
     # Exercise the same native preparation used after SSH destination dispatch.
     # The tiny NVM entry point is private; arbitrary shell startup is forbidden.
     home = tmp_path / 'account'
@@ -185,7 +188,7 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     monkeypatch.setenv('NVM_DIR', str(nvm))
     monkeypatch.setenv('PATH', '')
     with pytest.raises(ValueError, match='Codex CLI is missing'):
-        sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
+        sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2, selection=codex)
     native = nvm / 'default bin'
     native.mkdir()
     for name in ('codex', 'node'):
@@ -197,7 +200,7 @@ def test_transport_is_read_only_and_helpers_are_bounded(monkeypatch, tmp_path):
     marker = home / 'must-not-exist'
     startup.write_text(': > ' + shlex.quote(str(marker)) + '\n')
     monkeypatch.setenv('BASH_ENV', str(startup))
-    session = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2)
+    session = sync.agent_command(ROOT, tmp_path, 'gpt-6.1-sol', 'high', 2, selection=codex)
     command = session.argv
     assert command[0] == str(native / 'codex')
     assert session.environment['PATH'] == str(native)

@@ -122,7 +122,7 @@ utilities are not imported: maintained project guards and diagnostics remain the
 authority. Obsolete `.codex-staged-*` snapshots are ignored and unused.
 
 Provision signing configuration/private keys, SSH/Git credentials,
-Codex login, plugin account connections and `~/.onpc-config/.envrc` secrets separately on each
+the selected agent's CLI login, plugin account connections and `~/.onpc-config/.envrc` secrets separately on each
 host. Server setup supplies missing checkout-local Git identity as described below;
 other modes only report missing identity. Setup preserves existing Git settings
 and reports missing upstream;
@@ -139,11 +139,30 @@ No `./setup.sh` step is required for skill discovery. Claude Code applies its ow
 workspace trust and command permissions. Use Claude's native `/goal <condition>`
 when you need a persistent session goal.
 
+### Launcher Claude sessions
+
+When `config/environment.json` selects `"agent": "claude"`, launchers run
+`claude -p` with a per-session policy from [agent_claude.py](../tools/agent_claude.py).
+They load only project settings and instructions, with no personal settings,
+plugins, MCP servers, auto memory or session persistence. Nothing is installed
+into `~/.claude`. Permission prompts are denied automatically. Workspace
+sessions accept edits in the checkout and any added directories. Other shell
+commands run in a fail-closed sandbox (bubblewrap and socat, installed by
+dependency setup). It confines writes to those directories and blocks network
+access. It allows local Unix sockets: Ubuntu's AppArmor profile for bubblewrap
+breaks Claude's socket filter, so sandboxed commands can reach sockets such as
+libvirt or D-Bus. Its host grants are derived from `config/codex-tests.rules`:
+`allow` rules run outside the sandbox, `prompt` and `forbidden` rules are
+denied, and the most restrictive rule wins, as in unattended Codex. The
+machine-wide `curl -fsSL` public-read grant is added. Read-only
+sessions have only the read and search tools. `./setup.sh` reports Claude login
+and sandbox readiness; it does not log in or install the CLI.
+
 ### Local state and worktree portability
 
 The user's private `~/.onpc-config/.envrc` is shared across all checkouts and worktrees on
 that host; checkout-local `.envrc` files are not read.
-Besides `~/.onpc-config/.envrc`, keep `.aws/`, Codex login/trust/plugin caches, SSH/signing keys
+Besides `~/.onpc-config/.envrc`, keep `.aws/`, Codex and Claude login/trust/plugin caches, SSH/signing keys
 and `~/.config/copr` credentials local. Only the two allowlisted `.codex/` files
 are shared. Git configuration (identity, signing and publishing-checkout selection),
 hooks and worktree metadata also belong to the host, not the source tree.
@@ -308,7 +327,7 @@ Setup creates no separate workspace or source settings. Private workspaces
 created by older versions remain unchanged and are no longer needed for this flow.
 Usernames, addresses and keys must never be copied into tracked configuration
 or examples. Remote checkout paths may be public. This mode starts no tests and
-does not provision remote Git credentials or Codex login.
+does not provision remote Git credentials or agent CLI login.
 
 For unattended availability, headless setup persistently masks `sleep.target`,
 `suspend.target`, `hibernate.target`, `hybrid-sleep.target` and
@@ -318,11 +337,13 @@ session. Keep it on external power; battery exhaustion and network loss remain
 possible. Reserve its Wi-Fi address in the router's DHCP configuration.
 To restore normal sleep when retiring the server role, an administrator can run
 `sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target`.
-Account credentials, Codex installation/login and editor connections remain
-administrator responsibilities. Setup reports absent Codex CLI as an action needed.
+Account credentials, the selected agent CLI's installation/login and editor connections
+remain administrator responsibilities. Setup reports an absent or logged-out selected
+CLI, and for Claude missing sandbox tools, as an action needed.
 Remote branch launchers preserve the SSH account's environment. If Codex is
 absent from its noninteractive PATH, they load NVM from `NVM_DIR` (default
-`~/.nvm`) to expose its default Node installation and Codex. They do not source
+`~/.nvm`) to expose its default Node installation and Codex. For Claude, they add
+the native installer's `~/.local/bin` when `claude` is absent. They do not source
 interactive shell configuration. Other user-local installations must be exposed
 on the noninteractive SSH PATH; authentication belongs to that same account.
 Rerunning `./setup.sh --server` applies these additions to an already configured

@@ -8,14 +8,12 @@ import shutil
 import subprocess
 import time
 
-from agent_adapter import (AgentSelection, ModelProfile, PreparedSession, ProfileRole,
-                           SessionEvent, SessionRequest, resolve_workflow_profile,
-                           resolve_capacity_fallback)
+from agent_adapter import (BACKEND_REVIEW_INSTRUCTIONS, ROLES, SESSION_GOAL, AgentSelection,
+                           ModelProfile, PreparedSession, ProfileRole, SessionEvent,
+                           SessionRequest, helper_profile, resolve_capacity_fallback,
+                           resolve_role_profile)
 
 
-SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions that simplify '
-                'the resulting codebase as a whole, not merely minimize the patch. '
-                'Keep refactoring within the task’s scope.')
 MODEL_REQUEST_TIMEOUT = 10
 OBSERVATION_REQUESTS = ('model/list', 'thread/settings/update', 'skills/list')
 SKILL_NAME = r'[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*'
@@ -43,35 +41,6 @@ write ownership. This applies to workers, monitors, advisers and backend reviewe
 it does not authorize delegation beyond the launcher's existing policy.
 
 """
-
-BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
-AGENTS.md requires an independent code review by the backend_reviewer agent
-(using its configured metadata profile) before completing the changes. This mandate applies across
-all launchers, including repair, recovery and optimization sessions. It overrides
-coordinator-model and no-delegation rules only for this required review; keep the launcher's
-existing coordinator, implementation, consultation and escalation model policy.
-Do not request this review for changes outside core backend code. Give the reviewer
-the exact owned changes, relevant source/contracts and validation evidence in a
-fresh context. Pause implementation while it reviews; wait for its findings and
-close it before resuming. Resolve actionable findings and revalidate material
-revisions; obtain a fresh review of material backend revisions before completion.
-Record the review findings and resolution in the existing summary or handoff.
-A missing or failed review is incomplete work, never a completed change; use the
-launcher's existing continuation or blocker route. Review gives no test or installed
-acceptance credit. The reviewer cannot implement, test, control resources or delegate.
-"""
-
-ROLES = {
-    'backend_reviewer': ('backend_reviewer', 'backend_reviewer.toml',
-        'Mandatory independent review of core backend changes only; no implementation'),
-    'monitor': ('plan_monitor', 'plan_monitor.toml',
-        'Routine read-only monitoring; no resource ownership or mutations'),
-    'worker': ('plan_worker', 'plan_worker.toml',
-        'Bounded routine work or coverage refresh on explicitly assigned files'),
-    'translator': ('whatsnew_translator', 'sync_whatsnew_translator.toml',
-        'Read-only latest-release translator/reviewer'),
-}
-
 
 def session_instructions(request):
     return (GOAL_INSTRUCTIONS + request.instructions + SUBAGENT_CONTEXT_INSTRUCTIONS
@@ -134,25 +103,10 @@ class CodexAdapter:
         return 'Codex login verified for this account; model access is checked before each workflow'
 
     def resolve_profile(self, role: ProfileRole, *, model=None, effort=None) -> ModelProfile:
-        workflows = {
-            'implementation': 'execute-plan', 'translator': 'sync-whatsnew',
-            'commit_helper': 'commit-skill-driver', 'conflict_resolver': 'conflict-resolver',
-            'worker': 'execution-plan-worker', 'monitor': 'execution-plan-monitor',
-            'backend_reviewer': 'backend-reviewer',
-        }
-        if role not in workflows:
-            raise ValueError('unsupported agent model profile')
-        return resolve_workflow_profile(workflows[role], selection=self.selection,
-                                        model=model, effort=effort)
+        return resolve_role_profile(role, selection=self.selection, model=model, effort=effort)
 
     def capacity_fallback(self, model):
         return resolve_capacity_fallback(model, selection=self.selection)
-
-    def helper_profile(self, request, role):
-        delegation = request.delegation
-        return (self.resolve_profile(role, model=delegation.model or request.model,
-                                     effort=delegation.effort or request.effort)
-                if role == 'translator' else self.resolve_profile(role))
 
     def executable(self, environment):
         executable = shutil.which('codex', path=environment.get('PATH', ''))
@@ -191,7 +145,7 @@ class CodexAdapter:
                 required.append(ModelProfile(delegation.model or request.model,
                                              delegation.effort or request.effort))
             for role in delegation.roles:
-                required.append(self.helper_profile(request, role))
+                required.append(helper_profile(self, request, role))
         for model, effort in dict.fromkeys(required):
             if not any(isinstance(entry, dict) and entry.get('visibility') == 'list'
                        and entry.get('slug') == model
@@ -247,7 +201,7 @@ class CodexAdapter:
             # Run-less preparations are catalogue inspection only. Supervision
             # always supplies its owned run before starting the native session.
             if request.run is not None:
-                profile = self.helper_profile(request, role)
+                profile = helper_profile(self, request, role)
                 text = (f'model = {json.dumps(profile.model)}\n'
                         f'model_reasoning_effort = {json.dumps(profile.effort)}\n'
                         + asset.read_text())
@@ -807,6 +761,12 @@ class CodexGoalProtocol(CodexWire):
         self.started = self.completed = self.done = False
         self.status = 1
         self.goal = None
+
+    @property
+    def chat_ready(self):
+        # Native continuation owns turns: steer only a live, settled turn.
+        return self.turn is not None and not any(
+            method in ('turn/start', 'turn/steer') for method, _ in self.requests.values())
 
     def start(self):
         self.rpc('initialize', {'clientInfo': {'name': 'onpc_launcher',

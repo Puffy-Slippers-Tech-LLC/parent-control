@@ -114,7 +114,14 @@ def qualify():
         # Exercise the installed session service through its public bus API.
         # The client is exactly the operation used by component tests.
         source = (guest.PAYLOAD / 'wellbeing_probe.py').read_bytes()
-        result = json.loads(user_command(['/usr/bin/python3', '-I', '-'], input=source))
+
+        def retain_probe_error(data, stream):
+            if stream == 'stderr':
+                sys.stderr.buffer.write(data)
+
+        # Keep the probe's error in the enclosing private SSH stderr artifact.
+        result = json.loads(user_command(['/usr/bin/python3', '-I', '-'], input=source,
+                                         on_output=retain_probe_error))
         guest.require(set(result) == {'original', 'backup_recorded', 'suppressed', 'restored'} and
                       result['original'] in ('default', 'true', 'false') and
                       all(result[key] is True for key in ('backup_recorded', 'suppressed', 'restored')),

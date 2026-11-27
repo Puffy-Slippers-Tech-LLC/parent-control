@@ -188,21 +188,45 @@ class ParentClientTests(unittest.TestCase):
         ))
         client = BrokerClient(connection)
 
-        self.assertIsNone(client.get_grant_status(1001))
-        self.assertEqual(client.get_time_status(1001, 300)["calculated_active_extension_seconds"],
-                         2100)
+        status = client.get_screen_time_status(1001)
+        self.assertIsNone(status["saved_seconds"])
+        self.assertEqual(status["calculated_active_extension_seconds"], 2100)
         self.assertEqual([call[3] for call in connection.calls], ["GetGrantStatus", "GetTimeStatus"])
+
+    def test_screen_time_status_keeps_saved_out_of_usable_and_checks_apps_at_zero(self):
+        connection = FakeConnection(
+            grant_status=(1, 1234, 0, 0, 0, 600, 0, 600, "none", 0, 0, 0),
+        )
+        client = BrokerClient(connection)
+
+        status = client.get_screen_time_status(1001)
+        self.assertEqual(status["calculated_active_extension_seconds"], 0)
+        self.assertEqual(status["saved_seconds"], 600)
+        self.assertEqual([call[3:5] for call in connection.calls], [
+            ("GetGrantStatus", (1001, 0)),
+        ])
+
+        connection.grant_status = (2, 1240, 0, 0, 0, 0, 0, 0, "none", 0, 0, 0)
+        status = client.get_screen_time_status(1001)
+        self.assertEqual(status["saved_seconds"], 0)
+        self.assertTrue(status["has_running_soft_blocked_apps"])
+        self.assertEqual([call[3:5] for call in connection.calls[1:]], [
+            ("GetGrantStatus", (1001, 0)),
+            ("HasRunningSoftBlockedApps", (1001,)),
+        ])
 
     def test_grant_status_preserves_broker_failure(self):
         error = Gio.DBusError.new_for_dbus_error(
             f"{BUS_NAME}.Error.RecoveryPending", "try again",
         )
-        client = BrokerClient(FakeConnection(grant_error=error))
+        connection = FakeConnection(grant_error=error)
+        client = BrokerClient(connection)
 
         with self.assertRaises(GLib.Error) as caught:
-            client.get_grant_status(1001)
+            client.get_screen_time_status(1001)
 
         self.assertIs(caught.exception, error)
+        self.assertEqual([call[3] for call in connection.calls], ["GetGrantStatus"])
 
     def test_broker_failures_reach_ui_without_fabricating_time_or_logging_pii(self):
         for name in ("AccessDenied", "BackendFailure"):

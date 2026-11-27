@@ -1780,6 +1780,12 @@ msgstr "ไม่สามารถเก็บเวลาที่เหลื
 msgid "Saved for later"
 msgstr "เก็บไว้ใช้ภายหลัง"
 
+msgid "The child can start this time later."
+msgstr "เด็กสามารถเริ่มใช้เวลานี้ในภายหลังได้"
+
+msgid "This also clears saved time."
+msgstr "การดำเนินการนี้จะลบเวลาที่เก็บไว้ด้วย"
+
 msgid "Use saved time"
 msgstr "ใช้เวลาที่เก็บไว้"
 

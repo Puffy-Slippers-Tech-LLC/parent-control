@@ -1780,6 +1780,12 @@ msgstr "Opsi “Sisa hari ini” tidak dapat disimpan."
 msgid "Saved for later"
 msgstr "Disimpan untuk nanti"
 
+msgid "The child can start this time later."
+msgstr "Anak dapat mulai menggunakan waktu ini nanti."
+
+msgid "This also clears saved time."
+msgstr "Tindakan ini juga menghapus waktu yang disimpan."
+
 msgid "Use saved time"
 msgstr "Gunakan waktu yang disimpan"
 

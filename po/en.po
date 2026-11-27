@@ -249,6 +249,12 @@ msgstr "Rest of the day can't be saved."
 msgid "Saved for later"
 msgstr "Saved for later"
 
+msgid "The child can start this time later."
+msgstr "The child can start this time later."
+
+msgid "This also clears saved time."
+msgstr "This also clears saved time."
+
 msgid "Use saved time"
 msgstr "Use saved time"
 

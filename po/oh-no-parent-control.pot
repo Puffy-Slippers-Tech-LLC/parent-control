@@ -42,6 +42,12 @@ msgstr ""
 msgid "Saved for later"
 msgstr ""
 
+msgid "The child can start this time later."
+msgstr ""
+
+msgid "This also clears saved time."
+msgstr ""
+
 #. Shared message: USE_SAVED_TIME
 msgid "Use saved time"
 msgstr ""

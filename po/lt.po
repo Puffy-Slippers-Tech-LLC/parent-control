@@ -1792,6 +1792,12 @@ msgstr "Parinkties „Likusi dienos dalis“ išsaugoti negalima."
 msgid "Saved for later"
 msgstr "Išsaugota vėlesniam naudojimui"
 
+msgid "The child can start this time later."
+msgstr "Vaikas gali pradėti naudoti šį laiką vėliau."
+
+msgid "This also clears saved time."
+msgstr "Taip pat bus ištrintas išsaugotas laikas."
+
 msgid "Use saved time"
 msgstr "Naudoti išsaugotą laiką"
 

@@ -1786,6 +1786,12 @@ msgstr "Resten av dagen kan ikke spares til senere."
 msgid "Saved for later"
 msgstr "Spart til senere"
 
+msgid "The child can start this time later."
+msgstr "Barnet kan begynne å bruke denne tiden senere."
+
+msgid "This also clears saved time."
+msgstr "Dette fjerner også spart tid."
+
 msgid "Use saved time"
 msgstr "Bruk spart tid"
 

@@ -1786,6 +1786,12 @@ msgstr "گزینهٔ «باقی روز» را نمی‌توان ذخیره کر�
 msgid "Saved for later"
 msgstr "ذخیره‌شده برای بعد"
 
+msgid "The child can start this time later."
+msgstr "کودک می‌تواند استفاده از این زمان را بعداً شروع کند."
+
+msgid "This also clears saved time."
+msgstr "با این کار زمان ذخیره‌شده نیز پاک می‌شود."
+
 msgid "Use saved time"
 msgstr "استفاده از زمان ذخیره‌شده"
 

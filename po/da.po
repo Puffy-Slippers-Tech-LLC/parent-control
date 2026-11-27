@@ -1786,6 +1786,12 @@ msgstr "»Resten af dagen« kan ikke gemmes."
 msgid "Saved for later"
 msgstr "Gemt til senere"
 
+msgid "The child can start this time later."
+msgstr "Barnet kan begynde at bruge denne tid senere."
+
+msgid "This also clears saved time."
+msgstr "Dette sletter også den gemte tid."
+
 msgid "Use saved time"
 msgstr "Brug gemt tid"
 

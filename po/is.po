@@ -1786,6 +1786,12 @@ msgstr "Ekki er hægt að vista valkostinn „Það sem eftir er af deginum“."
 msgid "Saved for later"
 msgstr "Vistað til seinna"
 
+msgid "The child can start this time later."
+msgstr "Barnið getur byrjað að nota þennan tíma síðar."
+
+msgid "This also clears saved time."
+msgstr "Þetta hreinsar einnig vistaðan tíma."
+
 msgid "Use saved time"
 msgstr "Nota vistaðan tíma"
 

@@ -1780,6 +1780,12 @@ msgstr "Không thể để dành phần còn lại của ngày."
 msgid "Saved for later"
 msgstr "Đã để dành dùng sau"
 
+msgid "The child can start this time later."
+msgstr "Trẻ có thể bắt đầu sử dụng thời gian này sau."
+
+msgid "This also clears saved time."
+msgstr "Thao tác này cũng sẽ xóa thời gian đã để dành."
+
 msgid "Use saved time"
 msgstr "Dùng thời gian đã để dành"
 

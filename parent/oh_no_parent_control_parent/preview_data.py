@@ -87,6 +87,7 @@ class PreviewBrokerClient:
 
     def __init__(self):
         self._preferences = copy.deepcopy(PREVIEW_PREFERENCES)
+        self._revoked = set()
         self._language = ""
         self._whats_new_seen = False
 
@@ -128,12 +129,14 @@ class PreviewBrokerClient:
         return [app_id for app_id, policy in self._preferences[uid]["apps"].items()
                 if policy["state"] == "conditional"]
 
-    def get_time_status(self, _uid):
+    def get_screen_time_status(self, uid):
+        grant = 0 if uid in self._revoked else 15 * 60
         return {
             "daily_allowance_remaining_seconds": 47 * 60,
-            "one_time_grant_remaining_seconds": 15 * 60,
+            "one_time_grant_remaining_seconds": grant,
             "additional_one_time_grant_seconds": 0,
             "calculated_active_extension_seconds": 47 * 60,
+            "saved_seconds": 0 if uid in self._revoked else 8 * 60,
         }
 
     def set_preferences(self, uid, value):
@@ -146,5 +149,5 @@ class PreviewBrokerClient:
         preferences["daily_time_limit_minutes"] = daily_limit_minutes
         return self.get_preferences(uid)
 
-    def revoke_one_time_grant(self, _uid):
-        return None
+    def revoke_one_time_grant(self, uid):
+        self._revoked.add(uid)

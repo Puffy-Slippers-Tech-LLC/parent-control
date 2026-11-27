@@ -1798,6 +1798,12 @@ msgstr "Остатак дана не може да се сачува за кас
 msgid "Saved for later"
 msgstr "Сачувано за касније"
 
+msgid "The child can start this time later."
+msgstr "Дете може касније да почне да користи ово време."
+
+msgid "This also clears saved time."
+msgstr "Овим се брише и сачувано време."
+
 msgid "Use saved time"
 msgstr "Искористи сачувано време"
 

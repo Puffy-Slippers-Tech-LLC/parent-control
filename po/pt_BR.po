@@ -1784,6 +1784,12 @@ msgstr "Não é possível guardar o restante do dia."
 msgid "Saved for later"
 msgstr "Guardado para depois"
 
+msgid "The child can start this time later."
+msgstr "A criança pode começar a usar esse tempo mais tarde."
+
+msgid "This also clears saved time."
+msgstr "Isso também apaga o tempo guardado."
+
 msgid "Use saved time"
 msgstr "Usar o tempo guardado"
 

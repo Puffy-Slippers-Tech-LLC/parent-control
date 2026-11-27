@@ -1786,6 +1786,12 @@ msgstr "La opcio «Resto de la tago» ne estas konservebla."
 msgid "Saved for later"
 msgstr "Konservita por poste"
 
+msgid "The child can start this time later."
+msgstr "La infano povas ekuzi ĉi tiun tempon poste."
+
+msgid "This also clears saved time."
+msgstr "Tio ankaŭ forigas la konservitan tempon."
+
 msgid "Use saved time"
 msgstr "Uzi konservitan tempon"
 

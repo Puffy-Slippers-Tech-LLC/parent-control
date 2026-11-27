@@ -1786,6 +1786,12 @@ msgstr "రోజులో మిగిలిన భాగాన్ని తర
 msgid "Saved for later"
 msgstr "తర్వాత కోసం దాచినది"
 
+msgid "The child can start this time later."
+msgstr "పిల్లలు ఈ సమయాన్ని తర్వాత ఉపయోగించడం ప్రారంభించవచ్చు."
+
+msgid "This also clears saved time."
+msgstr "దీంతో దాచిన సమయం కూడా తొలగుతుంది."
+
 msgid "Use saved time"
 msgstr "దాచిన సమయాన్ని వాడండి"
 

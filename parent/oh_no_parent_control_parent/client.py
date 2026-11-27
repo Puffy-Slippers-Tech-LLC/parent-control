@@ -124,11 +124,14 @@ class BrokerClient:
             "calculated_active_extension_seconds": calculated,
         }
         if calculated == 0:
-            running, = self._call(
-                "HasRunningSoftBlockedApps", GLib.Variant("(u)", (uid,)), "(b)",
-            )
-            status["has_running_soft_blocked_apps"] = running
+            status["has_running_soft_blocked_apps"] = self._has_running_soft_blocked_apps(uid)
         return status
+
+    def _has_running_soft_blocked_apps(self, uid):
+        running, = self._call(
+            "HasRunningSoftBlockedApps", GLib.Variant("(u)", (uid,)), "(b)",
+        )
+        return running
 
     def get_grant_status(self, uid, requested_seconds=0):
         """Return the saved-time snapshot, or None if the broker lacks it."""
@@ -137,6 +140,23 @@ class BrokerClient:
             GRANT_STATUS_SIGNATURE, timeout=STATUS_TIMEOUT_MS, allow_unknown_method=True,
         )
         return None if values is None else GrantStatus(*values)
+
+    def get_screen_time_status(self, uid):
+        """Read the balances and the running-app fallback used by Parent."""
+        grant = self.get_grant_status(uid)
+        if grant is None:
+            return {**self.get_time_status(uid), "saved_seconds": None}
+        return {
+            "daily_allowance_remaining_seconds": grant.daily_remaining_seconds,
+            "one_time_grant_remaining_seconds": grant.running_remaining_seconds,
+            "additional_one_time_grant_seconds": 0,
+            "calculated_active_extension_seconds": grant.usable_seconds,
+            "saved_seconds": grant.saved_seconds,
+            "has_running_soft_blocked_apps": (
+                grant.usable_seconds == grant.saved_seconds == 0
+                and self._has_running_soft_blocked_apps(uid)
+            ),
+        }
 
     def set_preferences(self, uid, value):
         encoded, = self._call(

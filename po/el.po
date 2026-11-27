@@ -1786,6 +1786,12 @@ msgstr "Η επιλογή «Υπόλοιπο ημέρας» δεν μπορεί 
 msgid "Saved for later"
 msgstr "Αποθηκευμένος για αργότερα"
 
+msgid "The child can start this time later."
+msgstr "Το παιδί μπορεί να αρχίσει να χρησιμοποιεί αυτόν τον χρόνο αργότερα."
+
+msgid "This also clears saved time."
+msgstr "Αυτό διαγράφει και τον αποθηκευμένο χρόνο."
+
 msgid "Use saved time"
 msgstr "Χρησιμοποιήστε τον αποθηκευμένο χρόνο"
 

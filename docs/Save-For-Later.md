@@ -1,7 +1,7 @@
 # Save approved time for later execution plan
 
 Task queue: [Ordered task queue](Save-For-Later-Task-Queue.md).
-Next task: **015 — [Check that removal preserves saved time only if it is aborted](Save-For-Later-Tasks/015.md)**.
+Next task: **016 — [Check that an upgrade preserves saved time](Save-For-Later-Tasks/016.md)**.
 
 Implement deferred parent approval, manual pause, and use of saved time in the
 kiosk and child overlay. The [feature design](Save-For-Later-Design.md) retains

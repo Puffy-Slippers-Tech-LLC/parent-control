@@ -186,6 +186,14 @@ msgstr "Piešķirt piekļuvi kontam %(target)s\nuz %(duration)s\n\n✗ Īslaicī
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "Piešķirt piekļuvi kontam %(target)s\nuz %(duration)s\n\n✓ Īslaicīgi atbloķējamas lietotnes ir atļautas"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "Sāciet izmantot apstiprināto laiku tūlīt."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "Saglabājiet apstiprināto laiku izmantošanai vēlāk. Tādējādi tiek pauzēta jebkura aktīva noteikta ilguma atļauja. Atlasītais lietotņu iestatījums stājas spēkā, kad tiek izmantots saglabātais laiks."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

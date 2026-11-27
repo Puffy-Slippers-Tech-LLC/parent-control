@@ -186,6 +186,14 @@ msgstr "%(target)s కు ప్రాప్యతను అనుమతిం�
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "%(target)s కు ప్రాప్యతను అనుమతించండి\n%(duration)s పాటు\n\n✓ తాత్కాలికంగా నిరోధం తొలగించగల యాప్‌లు అనుమతించబడ్డాయి"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "ఆమోదించిన సమయాన్ని ఇప్పుడే ఉపయోగించడం ప్రారంభించండి."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "ఆమోదించిన సమయాన్ని తర్వాత ఉపయోగించడానికి భద్రపరచండి. ఇది నిర్ణీత వ్యవధికి ఇచ్చిన, ప్రస్తుతం అమలులో ఉన్న ఏ అనుమతినైనా తాత్కాలికంగా నిలిపివేస్తుంది. భద్రపరచిన సమయాన్ని ఉపయోగించినప్పుడు యాప్‌ల కోసం ఎంచుకున్న సెట్టింగ్ వర్తిస్తుంది."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

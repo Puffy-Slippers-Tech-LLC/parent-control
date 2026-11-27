@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .config import UINT32_MAX
 from .data_migration import (
-    GRANTS_DIRECTORY, MigrationError, _atomic_write, _fsync_directory, _read_record,
+    GRANTS_DIRECTORY, UID_RECORD_RE, MigrationError, _atomic_write, _fsync_directory, _read_record,
 )
 from .preferences import MAX_TIME_GRANT_SECONDS
 
@@ -37,6 +37,10 @@ class GrantStoreError(RuntimeError):
 
 class GrantAccountError(GrantStoreError):
     """The record no longer belongs to the live account with this UID."""
+
+    def __init__(self, message: str, *, record: GrantRecord | None = None):
+        super().__init__(message)
+        self.record = record
 
 
 @dataclass(frozen=True)
@@ -82,6 +86,13 @@ class RedeemIntent:
 
 
 @dataclass(frozen=True)
+class BridgeRepair:
+    """Native time repair left after a redemption has been withdrawn."""
+    destination: GrantTuple
+    time_state: RedeemTimeState
+
+
+@dataclass(frozen=True)
 class GrantRecord:
     """Revision 0 means that no record has been written for this UID."""
     uid: int
@@ -90,9 +101,14 @@ class GrantRecord:
     fixed: FixedGrant | None = None
     saved: SavedBalance | None = None
     intent: PauseIntent | RedeemIntent | None = None
+    bridge_repair: BridgeRepair | None = None
+
+    @property
+    def has_state(self) -> bool:
+        return any((self.fixed, self.saved, self.intent, self.bridge_repair))
 
     def document(self) -> dict:
-        return {
+        document = {
             "version": FORMAT_VERSION, "uid": self.uid, "username": self.username,
             "revision": self.revision,
             "fixed": None if self.fixed is None else {
@@ -103,6 +119,12 @@ class GrantRecord:
             "saved": _saved_document(self.saved),
             "intent": _intent_document(self.intent),
         }
+        if self.bridge_repair is not None:
+            document["bridge_repair"] = {
+                "destination": _tuple_document(self.bridge_repair.destination),
+                "time_state": _time_state_document(self.bridge_repair.time_state),
+            }
+        return document
 
 
 def _tuple_document(value: GrantTuple) -> dict:
@@ -114,6 +136,13 @@ def _saved_document(saved: SavedBalance | None) -> dict | None:
         "seconds": saved.seconds, "allow_soft_blocked_apps": saved.allow_soft_blocked_apps}
 
 
+def _time_state_document(state: RedeemTimeState | None) -> dict | None:
+    return None if state is None else {
+        "limit_type": state.limit_type, "daily_limit": state.daily_limit,
+        "daily_schedule": list(state.daily_schedule),
+    }
+
+
 def _intent_document(intent: PauseIntent | RedeemIntent | None) -> dict | None:
     if intent is None:
         return None
@@ -121,16 +150,12 @@ def _intent_document(intent: PauseIntent | RedeemIntent | None) -> dict | None:
               "destination": _tuple_document(intent.destination)}
     if isinstance(intent, PauseIntent):
         return {"kind": "pause", **common, "saved": _saved_document(intent.saved)}
-    time_state = intent.time_state
     return {"kind": "redeem", **common,
             "allow_soft_blocked_apps": intent.allow_soft_blocked_apps,
             "record_fixed": intent.record_fixed,
             "termination_started": intent.termination_started,
             "activate_child_extension": intent.activate_child_extension,
-            "time_state": None if time_state is None else {
-                "limit_type": time_state.limit_type, "daily_limit": time_state.daily_limit,
-                "daily_schedule": list(time_state.daily_schedule),
-            }}
+            "time_state": _time_state_document(intent.time_state)}
 
 
 def _object(raw: object, keys: set[str], name: str) -> dict:
@@ -210,8 +235,10 @@ def _parse_intent(raw: object) -> PauseIntent | RedeemIntent:
 
 def parse_grant_record(raw: object) -> GrantRecord:
     """Validate one decoded current-schema record without account lookups."""
-    raw = _object(raw, {"version", "uid", "username", "revision", "fixed", "saved", "intent"},
-                  "top-level")
+    keys = {"version", "uid", "username", "revision", "fixed", "saved", "intent"}
+    if isinstance(raw, dict) and "bridge_repair" in raw:
+        keys.add("bridge_repair")
+    raw = _object(raw, keys, "top-level")
     if type(raw["version"]) is not int or raw["version"] != FORMAT_VERSION:
         raise GrantStoreError("grant record has an unsupported schema version")
     username = raw["username"]
@@ -229,6 +256,15 @@ def parse_grant_record(raw: object) -> GrantRecord:
             _boolean(entry["ended_by_pause"], "fixed pause marker"))
     intent = None if raw["intent"] is None else _parse_intent(raw["intent"])
     saved = None if raw["saved"] is None else _parse_saved(raw["saved"])
+    bridge_repair = None
+    if "bridge_repair" in raw:
+        repair = _object(raw["bridge_repair"], {"destination", "time_state"}, "bridge repair")
+        destination = _parse_tuple(repair["destination"], "bridge repair destination", running=True)
+        state = _parse_redeem_time_state(repair["time_state"])
+        if (fixed is not None or saved is not None or intent is not None or state is None or
+                not destination[0] or destination[1] > MAX_TIME_GRANT_SECONDS):
+            raise GrantStoreError("grant record has an invalid bridge repair")
+        bridge_repair = BridgeRepair(destination, state)
     # A pause starts only from the recorded, still-running fixed tuple.
     if isinstance(intent, PauseIntent) and (
             fixed is None or fixed.grant != intent.source or fixed.ended_by_pause):
@@ -245,6 +281,7 @@ def parse_grant_record(raw: object) -> GrantRecord:
         fixed=fixed,
         saved=saved,
         intent=intent,
+        bridge_repair=bridge_repair,
     )
 
 
@@ -308,18 +345,37 @@ class GrantStore:
     _lock: threading.Lock = field(default_factory=threading.Lock,
                                   init=False, repr=False, compare=False)
 
+    def record_uids(self) -> tuple[int, ...]:
+        """Discover record names independently of AccountsService discovery."""
+        with self._lock:
+            if not self._directory_exists(create=False):
+                return ()
+            try:
+                uids = []
+                for path in self.directory.iterdir():
+                    match = UID_RECORD_RE.fullmatch(path.name)
+                    if match and (uid := int(match[1])) <= UINT32_MAX:
+                        uids.append(uid)
+            except OSError as error:
+                raise GrantStoreError("grant records cannot be listed") from error
+            return tuple(sorted(uids))
+
+    def load_record(self, uid: int) -> GrantRecord | None:
+        """Read a stored record before comparing it with the live account."""
+        with self._lock:
+            return self._read(uid)
+
     def load(self, uid: int, username: str) -> GrantRecord:
         """Read the record of the live eligible account ``uid``/``username``.
 
         Absent records read as revision 0 with nothing saved. A record bound to
         another account raises ``GrantAccountError``; callers clear it.
         """
-        with self._lock:
-            record = self._read(uid)
+        record = self.load_record(uid)
         if record is None:
             return GrantRecord(uid, username)
         if record.username != username:
-            raise GrantAccountError("grant record belongs to a different account")
+            raise GrantAccountError("grant record belongs to a different account", record=record)
         return record
 
     def write(self, record: GrantRecord) -> GrantRecord:
@@ -335,6 +391,16 @@ class GrantStore:
             if current is not None and current.username != record.username:
                 raise GrantAccountError("grant record belongs to a different account")
             return self._replace(record, current)
+
+    def confirm_durable(self, record: GrantRecord) -> None:
+        """Confirm the replacement directory entry survived a failed sync."""
+        with self._lock:
+            if self._read(record.uid) != record:
+                raise GrantStoreError("grant record changed since it was read")
+            try:
+                _fsync_directory(self.directory)
+            except OSError as error:
+                raise GrantStoreError("grant record durability could not be confirmed") from error
 
     def clear(self, uid: int, username: str) -> GrantRecord:
         """Invalidate saved time, fixed tracking and intent for this account.

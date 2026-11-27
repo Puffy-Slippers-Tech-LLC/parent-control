@@ -315,12 +315,20 @@ root-only directory with mode-`0600` regular records, using the shared validated
 reader and atomic, fsynced writer. A record holds `version`, `uid`, `username`,
 `revision`, the last `fixed` tuple with its app choice and pause-ended marker, the
 `saved` balance with its own app choice, and an optional pause or redemption
-`intent`. Reads distinguish an absent record (revision 0), a record bound to
+`intent`. A withdrawal can leave a temporary `bridge_repair` entry containing
+only information to restore native time settings. Reads distinguish an absent
+record (revision 0), a record bound to
 another account, unsupported or unsafe data, and a valid empty record. Every
 write and clear issues the next revision; a write based on an older revision is
 refused. Clears keep an empty record rather than deleting the file, and unsupported
 data is never replaced. The [feature design](../Save-For-Later-Design.md#persistent-state-and-recoverable-transactions)
 owns the transaction rules that use these records.
+
+The broker checks the account binding before using a saved-time record. It
+clears records for confirmed missing, ineligible or renamed accounts under the
+same lock as other grant writes. A failed lookup leaves the record available for
+validation on a later attempt. A status read can queue that work while leaving
+the record untouched itself.
 
 A missing child record loads validated defaults; a record is created on save.
 Defaults disable screen-time control, set a zero daily limit, leave apps allowed,

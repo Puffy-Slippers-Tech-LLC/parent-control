@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .grant_store import (
-    FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
+    BridgeRepair, FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
     PauseIntent, RedeemIntent, RedeemTimeState, SavedBalance, UINT64_MAX,
     beyond_daily_seconds, merged_saved_seconds, new_grant_is_fixed, remaining_seconds, running_mode,
 )
@@ -110,6 +110,18 @@ class NativeDeadlineSuspended(RuntimeError):
     """The child session reports that native time is suspended."""
 
 
+class AccountMissing(LookupError):
+    """AccountsService confirmed that a UID no longer exists."""
+
+
+class GrantAccountChanged(AccessDenied):
+    """The adapter confirmed an identity or eligibility change at a bound write."""
+
+
+class _GrantAccountInvalidated(AccessDenied):
+    """The previous account's transaction must stop without retry or rollback."""
+
+
 def emit_backend_failure(error: BrokerError, *, original=None) -> None:
     if (isinstance(error, RollbackFailure) or
             (isinstance(error, BackendFailure) and not error.expected)):
@@ -183,6 +195,12 @@ class _ActivePause:
     uid: int
     released: threading.Event = field(default_factory=threading.Event)
     waiter: threading.Lock = field(default_factory=threading.Lock)
+
+
+@dataclass(eq=False)
+class _GrantObservation:
+    first_revision: int
+    last_revision: int
 
 
 @dataclass
@@ -365,6 +383,10 @@ class Broker:
         self._sessions = sessions
         self._sleep = sleep
         self._request_lock = threading.Lock()
+        self._grant_fence_lock = threading.Lock()
+        self._grant_fences: dict[int, tuple[int, int]] = {}
+        self._grant_observations: dict[int, set[_GrantObservation]] = {}
+        self._grant_publications = 0
         self._request_lock_diagnostic = None
         self._active_pause: _ActivePause | None = None
         self._transaction_revision = 0
@@ -695,7 +717,8 @@ class Broker:
                 raise Busy("another request is already in progress")
         try:
             config = self._load_config()
-            target = self._target(config, caller_uid)
+            target = self._grant_mutation_target(config, caller_uid)
+            record = self._recover_grant_record_locked(target)
             grant = self._read_live_grant(target.uid)
             grant_time, grant_duration = grant
 
@@ -703,7 +726,9 @@ class Broker:
             if grant_duration == 0:
                 LOG.info("core.002")
                 return False
-            if grant_time + grant_duration > now_seconds and not self._pause_ended_grant(target, grant):
+            paused = (record is not None and record.fixed is not None and
+                      record.fixed.ended_by_pause and record.fixed.grant == grant)
+            if grant_time + grant_duration > now_seconds and not paused:
                 LOG.info("core.003")
                 return False
 
@@ -781,19 +806,6 @@ class Broker:
             return pause.released.wait(PAUSE_SESSION_ENTRY_TIMEOUT_SECONDS)
         finally:
             pause.waiter.release()
-
-    def _pause_ended_grant(self, target: UserAccount, live: GrantTuple) -> bool:
-        if self._grant_store is None:
-            return False
-        try:
-            record = self._grant_store.load(target.uid, target.username)
-        except GrantAccountError:
-            return False
-        except GrantStoreError as error:
-            raise BackendFailure("saved-time record is unavailable") from error
-        return ((record.fixed is not None and record.fixed.ended_by_pause and
-                 record.fixed.grant == live) or
-                (isinstance(record.intent, PauseIntent) and record.intent.destination == live))
 
     def recover_child_extension(self, caller_uid: int, target_uid: int, *,
                                 on_recovered: Callable[[int], None] | None = None) -> bool:
@@ -1000,17 +1012,15 @@ class Broker:
         return SavedTimeContext(caller_uid, sender, request_kind, target, preferences, session)
 
     def _saved_time_target(self, config: Configuration, target_uid: int) -> tuple[UserAccount, dict]:
-        target = self._target(config, target_uid)
-        if target.uid != target_uid:
-            raise AccessDenied("selected account identity changed")
+        target = self._grant_mutation_target(config, target_uid)
         preferences = self._load_request_preferences(target.uid)
         if not preferences["parent_control_enabled"]:
             raise AccessDenied("parent control is not enabled for this account")
         return target, preferences
 
-    def _recheck_saved_time_context(self, context: SavedTimeContext) -> None:
+    def _recheck_saved_time_context(self, context: SavedTimeContext, record: GrantRecord) -> None:
         config = self._load_config()
-        self._recheck_saved_time_selection(config, context)
+        self._recheck_saved_time_selection(config, context, record)
         if context.lock_capture_complete:
             self._require_no_unlocked_child_desktops(context)
         self._resolve_saved_time_session(
@@ -1020,12 +1030,13 @@ class Broker:
         if not self._caller_alive(context.sender):
             raise AccessDenied("caller disconnected during request")
 
-    def _recheck_saved_time_selection(self, config: Configuration, context: SavedTimeContext, *,
+    def _recheck_saved_time_selection(self, config: Configuration, context: SavedTimeContext,
+                                      record: GrantRecord, *,
                                       approver: UserAccount | None = None) -> None:
         request_kind = self._saved_time_request_kind(config, context.caller_uid, context.target.uid)
         if request_kind != context.request_kind:
             raise AccessDenied("caller role changed during request")
-        self._check_grant_account(config, context.target)
+        self._check_record_account(record, config=config)
         if approver is not None and self._approver(config, approver.uid) != approver:
             raise AccessDenied("selected approver changed during authorization")
         if self._load_request_preferences(context.target.uid) != context.preferences:
@@ -1035,13 +1046,15 @@ class Broker:
         if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
-            context = self._saved_time_context(caller_uid, sender, target_uid)
             if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
                 raise InvalidRequest("grant record revision is invalid")
-            record = self._load_pause_record(context.target)
-            if record.revision != revision:
-                raise Stale("grant record changed since it was read")
-            self._pause_grant_locked(context, record)
+            context = self._saved_time_context(caller_uid, sender, target_uid)
+            record = self._recover_grant_record_locked(context.target, revision=revision)
+            with self._accounts.bind_grant_mutations(record.uid, record.username):
+                try:
+                    self._pause_grant_locked(context, record)
+                except GrantAccountChanged:
+                    self._reject_invalid_grant(record)
         finally:
             self._release_request_lock()
 
@@ -1049,21 +1062,17 @@ class Broker:
         if not self._acquire_request_lock():
             raise Busy("another request is already in progress")
         try:
-            context = self._saved_time_context(caller_uid, sender, target_uid)
             if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
                 raise InvalidRequest("grant record revision is invalid")
-            record = self._load_saved_time_record(context.target)
-            if record.revision != revision:
-                raise Stale("grant record changed since it was read")
-            if isinstance(record.intent, RedeemIntent):
-                self._recover_redeem_intent(record)
-                raise Stale("grant record changed while recovering its redemption")
-            if record.intent is not None:
-                raise RecoveryPending("a saved-time transfer is awaiting recovery")
+            context = self._saved_time_context(caller_uid, sender, target_uid)
+            record = self._recover_grant_record_locked(context.target, revision=revision)
             if record.saved is None:
                 raise Stale("no saved time remains")
             with self._accounts.bind_grant_mutations(record.uid, record.username):
-                self._use_saved_time_locked(context, record)
+                try:
+                    self._use_saved_time_locked(context, record)
+                except GrantAccountChanged:
+                    self._reject_invalid_grant(record)
         finally:
             self._release_request_lock()
 
@@ -1075,7 +1084,7 @@ class Broker:
             uid, context.preferences, allow_soft,
         )
         source = self._read_live_grant(uid)
-        capture = self._capture_use_saved_time_daily_remaining(context)
+        capture = self._capture_use_saved_time_daily_remaining(context, record)
         issued_at = int(capture.evaluated_at.timestamp())
         if not 0 < issued_at <= UINT64_MAX:
             raise BackendFailure("redemption issuance is outside the supported range")
@@ -1096,7 +1105,7 @@ class Broker:
         attempt = _RedeemAttempt(record, intent)
 
         def recheck():
-            self._recheck_saved_time_context(capture.context)
+            self._recheck_saved_time_context(capture.context, record)
             if self._load_saved_time_record(context.target) != record:
                 raise Stale("grant record changed while preparing the redemption")
             return True
@@ -1105,6 +1114,8 @@ class Broker:
             self._apply(uid, context.preferences, desired_filter, destination, correlation_id,
                         termination_patterns, admit=recheck,
                         activate_child_extension=intent.activate_child_extension, redeem=attempt)
+        except _GrantAccountInvalidated:
+            raise
         except BrokerError as error:
             if attempt.record.intent is None:
                 raise
@@ -1119,32 +1130,280 @@ class Broker:
         else:
             self._finish_redeem_intent(attempt.record, committed=True)
 
-    def _load_pause_record(self, target: UserAccount) -> GrantRecord:
-        record = self._load_saved_time_record(target)
-        if isinstance(record.intent, PauseIntent):
-            self._active_pause = _ActivePause(target.uid)
-            self._recover_pause_intent(record)
-            raise Stale("grant record changed while recovering its pause")
-        if record.intent is not None:
-            raise RecoveryPending("a saved-time transfer is awaiting recovery")
-        return record
-
-    def _load_saved_time_record(self, target: UserAccount, *, invalidate_account=True) -> GrantRecord:
+    def _load_saved_time_record(self, target: UserAccount) -> GrantRecord:
         if self._grant_store is None:
             raise BackendFailure("saved-time store is unavailable")
         try:
-            return self._grant_store.load(target.uid, target.username)
+            record = self._grant_store.load(target.uid, target.username)
         except GrantAccountError as error:
-            if not invalidate_account:
-                raise Stale("saved time belonged to a previous account") from error
-            self._check_grant_account(self._load_config(), target)
-            try:
-                self._grant_store.clear(target.uid, target.username)
-            except GrantStoreError as error:
-                raise BackendFailure("saved-time record could not be cleared") from error
-            raise Stale("saved time belonged to a previous account")
+            if error.record is not None:
+                self._fence_grant(error.record)
+            raise Stale("saved time belonged to a previous account") from error
         except GrantStoreError as error:
             raise BackendFailure("saved-time record is unavailable") from error
+        if self._grant_is_fenced(record, discard_stale=True):
+            raise Stale("saved time belonged to a previous account")
+        return record
+
+    def _grant_is_fenced(self, record: GrantRecord, *, discard_stale: bool = False) -> bool:
+        with self._grant_fence_lock:
+            revisions = self._grant_fences.get(record.uid)
+            if revisions is None:
+                return False
+            first, last = revisions
+            if discard_stale and last < record.revision:
+                del self._grant_fences[record.uid]
+            return first <= record.revision <= last
+
+    def _fence_grant(self, record: GrantRecord, *, through_revision: int | None = None) -> None:
+        if record.revision:
+            with self._grant_fence_lock:
+                last = through_revision if through_revision is not None else record.revision
+                self._fence_grant_revisions_locked(record.uid, record.revision, last)
+
+    def _fence_grant_revisions_locked(self, uid: int, first: int, last: int) -> None:
+        current = self._grant_fences.get(uid)
+        if current is None or first > current[1]:
+            self._grant_fences[uid] = (first, last)
+        elif last >= current[0]:
+            self._grant_fences[uid] = (min(first, current[0]), max(last, current[1]))
+
+    def _note_grant_publication(self, previous: GrantRecord, revision: int, *, uncertain: bool = False) -> bool:
+        """Advance observations of state carried by this write and check its fence."""
+        with self._grant_fence_lock:
+            self._grant_publications += 1
+            for observation in self._grant_observations.get(previous.uid, ()):
+                if not observation.first_revision <= previous.revision <= observation.last_revision:
+                    continue
+                if observation.first_revision < previous.revision and not previous.has_state:
+                    # An ambiguous predecessor cannot attach to a later
+                    # approval through an empty, independently cleared row.
+                    observation.last_revision = previous.revision - 1
+                elif uncertain:
+                    observation.last_revision = max(observation.last_revision, revision)
+                else:
+                    observation.first_revision = observation.last_revision = revision
+            fence = self._grant_fences.get(previous.uid)
+            return fence is not None and fence[0] <= revision and previous.revision <= fence[1]
+
+    def _write_grant_record(self, previous: GrantRecord, replacement: GrantRecord) -> GrantRecord:
+        """Carry forward a generation only if it survived concurrent identity observation."""
+        if self._grant_is_fenced(previous):
+            self._reject_invalid_grant(previous)
+        try:
+            written = self._grant_store.write(replacement)
+        except GrantStoreError as error:
+            successor = replace(replacement, revision=previous.revision + 1)
+            if self._note_grant_publication(previous, successor.revision, uncertain=True):
+                # An unsuccessful directory sync can leave our successor
+                # visible. Block both possible revisions until we can read it.
+                self._fence_grant(previous, through_revision=successor.revision)
+                try:
+                    observed = self._grant_store.load_record(previous.uid)
+                except GrantStoreError:
+                    raise _GrantAccountInvalidated("saved-time account changed") from error
+                if observed in (previous, successor):
+                    self._reject_invalid_grant(observed)
+                raise _GrantAccountInvalidated("saved-time account changed") from error
+            raise
+        if self._note_grant_publication(previous, written.revision):
+            self._reject_invalid_grant(written)
+        return written
+
+    def _read_grant_record_for_status(
+            self, config: Configuration, target_uid: int, *, schedule_recovery: Callable[[int], None],
+    ) -> tuple[UserAccount, GrantRecord]:
+        """Read-only admission for the future status method after caller authorization."""
+        if self._request_lock.locked():
+            raise Busy("another request is already in progress")
+        if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
+            raise InvalidRequest("target UID is invalid")
+        if self._grant_store is None:
+            raise BackendFailure("saved-time store is unavailable")
+        # Pair the disk snapshot with registration without making a writer
+        # hold the observation lock across disk I/O.
+        with self._grant_fence_lock:
+            publications = self._grant_publications
+        try:
+            stored_record = self._grant_store.load_record(target_uid)
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record is unavailable") from error
+        observation = None
+        with self._grant_fence_lock:
+            if publications != self._grant_publications:
+                raise Busy("another request is already in progress")
+            if stored_record is not None:
+                observation = _GrantObservation(stored_record.revision, stored_record.revision)
+                self._grant_observations.setdefault(target_uid, set()).add(observation)
+
+        def invalidate():
+            if observation is None:
+                return
+            with self._grant_fence_lock:
+                self._fence_grant_revisions_locked(
+                    target_uid, observation.first_revision, observation.last_revision,
+                )
+            schedule_recovery(target_uid)
+
+        try:
+            target = self._target(config, target_uid, on_invalid=invalidate)
+            record = stored_record or GrantRecord(target_uid, target.username)
+            if record.username != target.username or self._grant_is_fenced(record):
+                invalidate()
+                raise RecoveryPending("a previous account's saved time is awaiting invalidation")
+            if self._request_lock.locked():
+                raise Busy("another request is already in progress")
+            if record.intent is not None or record.bridge_repair is not None:
+                schedule_recovery(target_uid)
+                raise RecoveryPending("a saved-time transfer is awaiting recovery")
+            return target, record
+        finally:
+            if observation is not None:
+                with self._grant_fence_lock:
+                    observations = self._grant_observations[target_uid]
+                    observations.remove(observation)
+                    if not observations:
+                        del self._grant_observations[target_uid]
+
+    def _grant_mutation_target(self, config: Configuration, target_uid: int) -> UserAccount:
+        return self._target(config, target_uid, on_invalid=lambda: self._invalidate_grant(target_uid))
+
+    def _invalidate_grant(self, uid: int, *, expected: GrantRecord | None = None) -> None:
+        if self._grant_store is None:
+            return
+        try:
+            record = self._grant_store.load_record(uid)
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record could not be cleared") from error
+        if (record is not None and (expected is None or record == expected) and
+                (record.has_state or self._grant_is_fenced(record))):
+            self._fence_grant(record)
+            self._clear_saved_time(uid, record.username)
+
+    def _reject_invalid_grant(self, record: GrantRecord) -> None:
+        self._fence_grant(record)
+        try:
+            self._invalidate_grant(record.uid, expected=record)
+        except BackendFailure as error:
+            raise _GrantAccountInvalidated("saved-time account changed") from error
+        raise _GrantAccountInvalidated("saved-time account changed")
+
+    def _recover_grant_record_locked(
+            self, target: UserAccount, *, revision: int | None = None,
+    ) -> GrantRecord | None:
+        if self._grant_store is None and revision is None:
+            return None
+        try:
+            record = self._load_saved_time_record(target)
+        except Stale:
+            record = self._clear_saved_time(target.uid, target.username)
+            self._check_grant_account(self._load_config(), target)
+            changed = True
+        else:
+            changed = record.intent is not None or record.bridge_repair is not None
+            if record.bridge_repair is not None:
+                record = self._repair_grant_bridge(record)
+            elif isinstance(record.intent, PauseIntent):
+                self._active_pause = _ActivePause(target.uid)
+                with self._accounts.bind_grant_mutations(record.uid, record.username):
+                    record = self._recover_pause_intent(record)
+            elif isinstance(record.intent, RedeemIntent):
+                record = self._recover_redeem_intent(record)
+        if revision is not None and (changed or record.revision != revision):
+            raise Stale("grant record changed since it was read")
+        return record
+
+    def recover_grant(self, target_uid: int, *, at_startup: bool = False) -> None:
+        """Attempt one freshly read record for startup or a queued status read."""
+        if self._grant_store is None or not self._acquire_request_lock():
+            return
+        try:
+            record = self._grant_store.load_record(target_uid) if at_startup else None
+            if at_startup and (record is None or not record.has_state):
+                return
+            config = self._load_config()
+            if record is None:
+                target = self._grant_mutation_target(config, target_uid)
+            else:
+                target = self._target(config, target_uid, on_invalid=lambda: self._reject_invalid_grant(record))
+                if target.username != record.username:
+                    self._fence_grant(record)
+            self._recover_grant_record_locked(target)
+        except Exception as error:
+            record_exception(error)
+        finally:
+            self._release_request_lock()
+
+    def recover_grants_at_startup(self) -> None:
+        if self._grant_store is None:
+            return
+        try:
+            uids = self._grant_store.record_uids()
+        except GrantStoreError as error:
+            record_exception(error)
+            return
+        for uid in uids:
+            self.recover_grant(uid, at_startup=True)
+
+    def _clear_saved_time(self, uid: int, username: str) -> GrantRecord:
+        try:
+            record = self._grant_store.clear(uid, username)
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record could not be cleared") from error
+        with self._grant_fence_lock:
+            self._grant_publications += 1
+            for observation in self._grant_observations.get(uid, ()):
+                if observation.first_revision < record.revision <= observation.last_revision:
+                    observation.last_revision = record.revision - 1
+            revisions = self._grant_fences.get(uid)
+            if revisions is not None and revisions[1] <= record.revision:
+                del self._grant_fences[uid]
+        return record
+
+    def _withdraw_saved_time(self, config: Configuration, target: UserAccount) -> None:
+        if self._grant_store is None:
+            return
+        try:
+            record = self._grant_store.load_record(target.uid)
+        except GrantStoreError as error:
+            raise BackendFailure("saved-time record is unavailable") from error
+        if record is not None and record.username != target.username:
+            self._fence_grant(record)
+        elif record is not None and not self._grant_is_fenced(record):
+            if record.bridge_repair is not None:
+                self._repair_grant_bridge(record)
+                self._check_grant_account(config, target)
+                return
+            if isinstance(record.intent, RedeemIntent) and record.intent.time_state is not None:
+                self._check_record_account(record, config=config)
+                repair = BridgeRepair(record.intent.destination, record.intent.time_state)
+                try:
+                    withdrawn = self._write_grant_record(record, GrantRecord(
+                        record.uid, record.username, record.revision, bridge_repair=repair,
+                    ))
+                except GrantStoreError as error:
+                    raise RecoveryPending("saved-time withdrawal durability is uncertain") from error
+                self._repair_grant_bridge(withdrawn, durable=True)
+                self._check_grant_account(config, target)
+                return
+        self._clear_saved_time(target.uid, target.username)
+        self._check_grant_account(config, target)
+
+    def _repair_grant_bridge(self, record: GrantRecord, *, durable: bool = False) -> GrantRecord:
+        try:
+            if not durable:
+                self._grant_store.confirm_durable(record)
+            self._check_record_account(record)
+            preferences = self._load_request_preferences(record.uid)
+            with self._accounts.bind_grant_mutations(record.uid, record.username):
+                self._reconcile_redeem_time_state(record, preferences, destination=None, bridge_only=True)
+            return self._clear_saved_time(record.uid, record.username)
+        except GrantAccountChanged:
+            self._reject_invalid_grant(record)
+        except _GrantAccountInvalidated:
+            raise
+        except Exception as error:
+            raise RecoveryPending("redemption time settings could not be restored") from error
 
     def _read_live_grant(self, uid: int, *, deadline: float | None = None) -> GrantTuple:
         bounds = {} if deadline is None else {"deadline": deadline}
@@ -1154,6 +1413,8 @@ class Broker:
             issued, duration = self._accounts.get_extension(uid, **bounds)
             if deadline is not None and self._monotonic() >= deadline:
                 raise TimeoutError("extension read window elapsed")
+        except GrantAccountChanged:
+            raise
         except Exception as error:
             raise BackendFailure("remaining-time grant is unavailable") from error
         if (type(issued) is not int or not 0 <= issued <= UINT64_MAX or
@@ -1175,14 +1436,11 @@ class Broker:
             raise _NoPausableTime("there is no running fixed grant to pause")
 
         self._active_pause = _ActivePause(uid)
-        capture = self._capture_pause_daily_remaining(context)
-        try:
-            current = self._grant_store.load(uid, context.target.username)
-        except GrantStoreError as error:
-            raise BackendFailure("saved-time record is unavailable") from error
+        capture = self._capture_pause_daily_remaining(context, record)
+        current = self._load_saved_time_record(context.target)
         if current != record or self._read_live_grant(uid) != source:
             raise Stale("grant changed while capturing completed usage")
-        self._recheck_saved_time_context(capture.context)
+        self._recheck_saved_time_context(capture.context, record)
 
         # The wire tuple ends on a whole wall-clock second. Charge all work
         # after the transfer anchor to the same margin on both clocks.
@@ -1214,7 +1472,7 @@ class Broker:
         if self._extension_window_elapsed(transfer_deadline, boundary):
             raise BackendFailure("completed usage is too old for the pause transfer", expected=True)
         try:
-            pending = self._grant_store.write(replace(record, intent=intent))
+            pending = self._write_grant_record(record, replace(record, intent=intent))
         except GrantStoreError as error:
             # Replacement may have happened before the directory sync failed.
             # Never shorten the live grant without a confirmed durable intent.
@@ -1233,9 +1491,15 @@ class Broker:
                 raise TimeoutError("extension write window elapsed")
             live = self._read_live_grant(uid, deadline=transfer_deadline)
             if live == source:
+                if self._grant_is_fenced(pending):
+                    self._reject_invalid_grant(pending)
                 self._write_extension(uid, shortened, deadline=transfer_deadline,
                                       wall_deadline=boundary)
                 live = shortened
+        except GrantAccountChanged:
+            self._reject_invalid_grant(pending)
+        except _GrantAccountInvalidated:
+            raise
         except Exception as error:
             record_exception(error)
             resolved = self._recover_pause_intent(pending, transfer_deadline=transfer_deadline)
@@ -1281,6 +1545,8 @@ class Broker:
                 if attempt or transfer_deadline is not None:
                     raise RecoveryPending("pause boundary has not passed")
                 self._wait_for_pause_boundary(boundary, None)
+        except GrantAccountChanged:
+            self._reject_invalid_grant(record)
         except BackendFailure as error:
             raise RecoveryPending("pause outcome could not be verified") from error
         return self._finish_pause_intent(record, live)
@@ -1292,23 +1558,26 @@ class Broker:
             result = replace(result, saved=intent.saved,
                              fixed=replace(record.fixed, grant=live, ended_by_pause=True))
         try:
-            return self._grant_store.write(result)
-        except GrantStoreError as error:
+            self._check_record_account(record)
+            return self._write_grant_record(record, result)
+        except _GrantAccountInvalidated:
+            raise
+        except (BrokerError, GrantStoreError) as error:
             # A visible replacement is insufficient to confirm durability.
             # Either version can safely be read or recovered on the next call.
             raise RecoveryPending("pause result durability is uncertain") from error
 
-    def _capture_pause_daily_remaining(self, context: SavedTimeContext) -> DailyCapture:
-        return self._capture_saved_time_daily_remaining(context, lock_before_capture=True)
+    def _capture_pause_daily_remaining(self, context: SavedTimeContext, record: GrantRecord) -> DailyCapture:
+        return self._capture_saved_time_daily_remaining(context, record, lock_before_capture=True)
 
-    def _capture_use_saved_time_daily_remaining(self, context: SavedTimeContext) -> DailyCapture:
+    def _capture_use_saved_time_daily_remaining(self, context: SavedTimeContext, record: GrantRecord) -> DailyCapture:
         return self._capture_saved_time_daily_remaining(
-            context, lock_before_capture=context.request_kind == "kiosk",
+            context, record, lock_before_capture=context.request_kind == "kiosk",
         )
 
     def _capture_saved_time_daily_remaining(
-            self, context: SavedTimeContext, *, lock_before_capture: bool) -> DailyCapture:
-        self._recheck_saved_time_context(context)
+            self, context: SavedTimeContext, record: GrantRecord, *, lock_before_capture: bool) -> DailyCapture:
+        self._recheck_saved_time_context(context, record)
         uid = context.target.uid
         usage = None
         transfer_anchor = None
@@ -1822,14 +2091,25 @@ class Broker:
         except (PreferencesError, OSError) as error:
             raise BackendFailure("could not save user language") from error
 
-    def _target(self, config: Configuration, target_uid: int) -> UserAccount:
+    def _target(self, config: Configuration, target_uid: int, *,
+                on_invalid: Callable[[], None] | None = None) -> UserAccount:
         if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
             raise InvalidRequest("target UID is invalid")
         try:
             user = self._accounts.get_user(target_uid)
+        except GrantAccountChanged:
+            if on_invalid is not None:
+                on_invalid()
+            raise
         except Exception as error:
+            if isinstance(error, AccountMissing) and on_invalid is not None:
+                on_invalid()
             raise InvalidRequest("selected account is unavailable") from error
+        if user.uid != target_uid:
+            raise AccessDenied("selected account identity changed")
         if not self._eligible(config, user):
+            if on_invalid is not None:
+                on_invalid()
             raise AccessDenied("selected account is not an eligible standard account")
         return user
 
@@ -1914,7 +2194,7 @@ class Broker:
         config = self._load_config()
         if not self._is_admin(caller_uid):
             raise AccessDenied("administrator access is required")
-        target = self._target(config, target_uid)
+        target = self._grant_mutation_target(config, target_uid)
         if self._preferences is None:
             raise BackendFailure("preference store is unavailable")
         try:
@@ -1925,6 +2205,7 @@ class Broker:
             requested = validate_preferences(value)
         except PreferencesError as error:
             raise InvalidRequest(str(error)) from error
+        self._recover_grant_record_locked(target)
         # The dedicated toggle operation owns installation state.
         requested["parent_control_enabled"] = current["parent_control_enabled"]
         # Personal choices belong to the child, not the policy editor.
@@ -2094,7 +2375,7 @@ class Broker:
             raise InvalidRequest(
                 "daily time limit must be an integer from 0 to 1440 minutes"
             )
-        target = self._target(config, target_uid)
+        target = self._grant_mutation_target(config, target_uid)
         LOG.info("core.016", enabled=enabled, daily_limit_minutes=daily_limit_minutes)
         if self._preferences is None or self._extensions is None:
             raise BackendFailure("extension management is unavailable")
@@ -2106,9 +2387,14 @@ class Broker:
         try:
             current = self._preferences.load(target.uid)
             previous = current["parent_control_enabled"]
+            extension_changed = enabled != previous
+            if extension_changed:
+                self._withdraw_saved_time(config, target)
+            else:
+                self._recover_grant_record_locked(target)
             desired_filter = (False, blocked_targets(current, False))
-            # Known rendering failures must not toggle the extension, clear a
-            # grant, or change time limits before an inevitable failed save.
+            # Known rendering failures must not toggle the extension or change
+            # native limits before an inevitable failed save.
             # Commit still reconciles again: this is not a filesystem lock.
             self._accounts.validate_filter(target.uid, desired_filter)
             old_limit_type = self._accounts.get_limit_type(target.uid)
@@ -2116,7 +2402,6 @@ class Broker:
             old_daily_schedule = self._accounts.get_daily_schedule(target.uid)
             old_filter = self._accounts.get_filter(target.uid)
             old_extension = self._accounts.get_extension(target.uid)
-            extension_changed = enabled != previous
             LOG.info("core.parent-control-state", previous=previous, requested=enabled, changed=extension_changed)
             if not enabled and not extension_changed:
                 issued, duration = old_extension
@@ -2243,7 +2528,7 @@ class Broker:
             raise failure from error
         except (OSError, RuntimeError, PreferencesError) as error:
             LOG.warning("core.parent-control-stage", stage=stage, outcome="failed")
-            if isinstance(error, RollbackFailure):
+            if isinstance(error, (RecoveryPending, RollbackFailure, _GrantAccountInvalidated)):
                 raise
             expected = (isinstance(error, ChildExtensionSessionLost) or
                         isinstance(error, BackendFailure) and error.expected)
@@ -2260,7 +2545,8 @@ class Broker:
             config = self._load_config()
             if not self._is_admin(caller_uid):
                 raise AccessDenied("administrator access is required")
-            target = self._target(config, target_uid)
+            target = self._grant_mutation_target(config, target_uid)
+            self._withdraw_saved_time(config, target)
             preferences = self._load_request_preferences(target.uid)
             desired_filter = (False, blocked_targets(preferences, False))
             termination_patterns = blocked_patterns(preferences, False)
@@ -2370,11 +2656,7 @@ class Broker:
                 approver = self._approver(config, approver_uid)
                 if approver.uid != approver_uid:
                     raise AccessDenied("selected approver identity changed")
-                record = self._load_saved_time_record(target)
-                if record.revision != revision:
-                    raise Stale("grant record changed since it was read")
-                if record.intent is not None:
-                    raise RecoveryPending("a saved-time transfer is awaiting recovery")
+                record = self._recover_grant_record_locked(target, revision=revision)
                 try:
                     seconds = merged_saved_seconds(record.saved.seconds if record.saved else 0, duration_seconds)
                 except ValueError as error:
@@ -2395,10 +2677,10 @@ class Broker:
                     return DeferredApproval(correlation_id, "cancelled")
 
                 def validate_selection():
-                    current = self._load_saved_time_record(target, invalidate_account=False)
+                    current = self._load_saved_time_record(target)
                     if current != record:
                         raise Stale("grant record changed during authorization")
-                    self._recheck_saved_time_selection(self._load_config(), context, approver=approver)
+                    self._recheck_saved_time_selection(self._load_config(), context, current, approver=approver)
 
                 if not approval.admit(validate=validate_selection):
                     return DeferredApproval(correlation_id, "cancelled")
@@ -2410,7 +2692,7 @@ class Broker:
 
     def _save_deferred_approval(self, context, record, balance, correlation_id) -> DeferredApproval:
         try:
-            saved = self._grant_store.write(replace(record, saved=balance))
+            saved = self._write_grant_record(record, replace(record, saved=balance))
         except GrantStoreError as error:
             # The replacement can be visible even if its directory sync failed.
             # Report uncertainty and leave the live grant alone.
@@ -2419,6 +2701,10 @@ class Broker:
             try:
                 with self._accounts.bind_grant_mutations(saved.uid, saved.username):
                     paused = self._pause_grant_locked(context, saved)
+            except GrantAccountChanged:
+                self._reject_invalid_grant(saved)
+            except _GrantAccountInvalidated:
+                raise
             except _NoPausableTime:
                 pass
             except BrokerError as error:
@@ -2466,13 +2752,19 @@ class Broker:
             elif request_kind != "child":
                 raise BackendFailure("request kind is invalid")
             self._validate_approval_values(duration_seconds, allow_soft_blocked_apps)
-            target = self._target(config, target_uid)
+            target = self._grant_mutation_target(config, target_uid)
             if request_kind == "child" and caller_uid != target.uid:
                 raise AccessDenied("a child can request access only for itself")
             approver = self._approver(config, approver_uid)
             preferences = self._load_request_preferences(target.uid)
             if request_kind == "child" and not preferences["parent_control_enabled"]:
                 raise AccessDenied("parent control is not enabled for this account")
+            try:
+                record = self._recover_grant_record_locked(target)
+            except RecoveryPending as error:
+                # The existing immediate methods already expose Busy while a
+                # transfer is pending. Keep that response for older clients.
+                raise Busy("a saved-time transfer is awaiting recovery") from error
             LOG.info(
                 "core.026",
                 request=correlation_id,
@@ -2498,7 +2790,7 @@ class Broker:
             # Fail closed if the selected account changed while the parent was
             # authenticating (including an AccountType promotion to admin), or
             # if the selected approver is no longer an eligible administrator.
-            if self._target(config, target_uid) != target:
+            if self._check_grant_account(config, target, record=record) != target:
                 raise AccessDenied("selected account changed during authorization")
             if self._approver(config, approver_uid) != approver:
                 raise AccessDenied("selected approver changed during authorization")
@@ -2527,7 +2819,7 @@ class Broker:
                 if not self._caller_alive(sender):
                     LOG.info("core.027", request=correlation_id, outcome="cancelled")
                     return correlation_id, "cancelled", 0
-                if self._target(config, target_uid) != target:
+                if self._check_grant_account(config, target, record=record) != target:
                     raise AccessDenied("selected account changed during authorization")
                 if self._approver(config, approver_uid) != approver:
                     raise AccessDenied("selected approver changed during authorization")
@@ -2561,7 +2853,7 @@ class Broker:
             if not self._caller_alive(sender):
                 LOG.info("core.027", request=correlation_id, outcome="cancelled")
                 return correlation_id, "cancelled", 0
-            if self._target(config, target_uid) != target:
+            if self._check_grant_account(config, target, record=record) != target:
                 raise AccessDenied("selected account changed during authorization")
             if self._approver(config, approver_uid) != approver:
                 raise AccessDenied("selected approver changed during authorization")
@@ -2575,37 +2867,36 @@ class Broker:
                 target.uid, preferences, allow_soft_blocked_apps,
             )
 
-            record = cleared_record = None
+            cleared_record = None
 
             def admit_effect():
-                nonlocal record, cleared_record
-                if self._grant_store is not None:
-                    self._check_grant_account(config, target)
-                    try:
-                        record = self._grant_store.load(target.uid, target.username)
-                    except GrantAccountError:
-                        # Leave invalidation until after a verified account write.
-                        pass
+                nonlocal cleared_record
+                if record is not None:
+                    current = self._load_saved_time_record(target)
+                    if current.intent is not None:
+                        raise Busy("a saved-time transfer is awaiting recovery")
+                    if current != record:
+                        raise BackendFailure("saved-time record changed during request")
                 # Preflight and snapshot reads may block. Revalidate the
                 # original selection after those reads, then let the authorizer
                 # observe queued departure events and claim the sole boundary.
                 if not self._caller_alive(sender):
                     return False
-                if self._target(config, target_uid) != target:
+                if self._check_grant_account(config, target, record=record) != target:
                     raise AccessDenied("selected account changed during request")
                 if self._approver(config, approver_uid) != approver:
                     raise AccessDenied("selected approver changed during request")
                 if self._load_request_preferences(target.uid) != preferences:
                     raise AccessDenied("preferences changed during request")
-                if record is not None and record.intent is not None:
-                    raise Busy("a saved-time transfer is awaiting recovery")
+                if record is not None and self._grant_is_fenced(record):
+                    self._reject_invalid_grant(record)
                 if not approval.admit():
                     return False
                 if record is not None and record.fixed is not None and record.fixed.grant == grant:
                     # If the new grant has the same tuple, a crash could
                     # otherwise make it inherit the previous fixed marker.
                     cleared_record = replace(record, fixed=None)
-                    cleared_record = self._grant_store.write(cleared_record)
+                    cleared_record = self._write_grant_record(record, cleared_record)
                 return True
 
             try:
@@ -2633,20 +2924,24 @@ class Broker:
             finally:
                 self._release_request_lock()
 
-    def _check_grant_account(self, config: Configuration, target: UserAccount) -> None:
+    def _check_grant_account(self, config: Configuration, target: UserAccount, *,
+                             record: GrantRecord | None = None) -> UserAccount:
+        if record is not None:
+            return self._check_record_account(record, config=config)
         current = self._target(config, target.uid)
-        if (current.uid, current.username) != (target.uid, target.username):
+        if current.username != target.username:
             raise AccessDenied("selected account changed during request")
+        return current
 
     def _restore_immediate_tracking(self, config: Configuration, target: UserAccount,
                                     record: GrantRecord) -> None:
         try:
-            self._check_grant_account(config, target)
             current = self._grant_store.load(target.uid, target.username)
+            self._check_record_account(current, config=config)
             cleared = replace(record, revision=record.revision + 1, fixed=None)
             # A failed directory sync can leave the marker clear published.
             if current == cleared:
-                self._grant_store.write(replace(record, revision=current.revision))
+                self._write_grant_record(current, replace(record, revision=current.revision))
         except (BrokerError, GrantStoreError) as error:
             record_exception(error)
 
@@ -2655,19 +2950,18 @@ class Broker:
             allow_soft_blocked_apps: bool, replaced: tuple[GrantTuple, TimeStatus] | None,
             record: GrantRecord | None, cleared_record: GrantRecord | None) -> None:
         """Persist the verified result without changing the saved balance."""
-        if self._grant_store is None:
+        if record is None:
             return
         try:
-            self._check_grant_account(config, target)
-            if record is None:
-                record = self._grant_store.clear(target.uid, target.username)
+            current = cleared_record or record
+            self._check_record_account(current, config=config)
             fixed = None
             if replaced is not None:
                 live, status = replaced
                 if new_grant_is_fixed(record, live, status.daily_allowance_remaining_seconds,
                                       status.one_time_grant_remaining_seconds):
                     fixed = FixedGrant(grant, allow_soft_blocked_apps)
-            self._grant_store.write(replace(cleared_record or record, fixed=fixed))
+            self._write_grant_record(current, replace(current, fixed=fixed))
         except (BrokerError, GrantStoreError) as error:
             # The account grant has committed and cannot inherit an old marker.
             record_exception(error)
@@ -2703,6 +2997,8 @@ class Broker:
             raise BackendFailure("blocked application termination is unavailable")
         try:
             self._running_apps.preflight(uid, desired_filter[1], patterns)
+        except GrantAccountChanged:
+            raise
         except Exception as error:
             raise BackendFailure("blocked applications could not be stopped") from error
         return desired_filter, patterns
@@ -2737,13 +3033,19 @@ class Broker:
         LOG.info("core.037", request=correlation_id, count=terminated)
         return terminated
 
-    def _check_redeem_account(self, record: GrantRecord) -> None:
-        target = self._target(self._load_config(), record.uid)
-        if (target.uid, target.username) != (record.uid, record.username):
-            raise AccessDenied("redemption account changed")
+    def _check_record_account(self, record: GrantRecord, *, config: Configuration | None = None) -> UserAccount:
+        if self._grant_is_fenced(record):
+            self._reject_invalid_grant(record)
+        target = self._target(
+            config if config is not None else self._load_config(), record.uid,
+            on_invalid=lambda: self._reject_invalid_grant(record),
+        )
+        if target.username != record.username or self._grant_is_fenced(record):
+            self._reject_invalid_grant(record)
+        return target
 
     def _redeem_preferences(self, record: GrantRecord) -> dict:
-        self._check_redeem_account(record)
+        self._check_record_account(record)
         preferences = self._load_request_preferences(record.uid)
         if not preferences["parent_control_enabled"]:
             raise AccessDenied("parent control is not enabled for this account")
@@ -2772,12 +3074,17 @@ class Broker:
                 except BackendFailure:
                     # Publication is unknown. Close any temporary bridge and
                     # enforce full app policy until the live grant is readable.
+                    repair_filter = True
                     try:
                         self._reconcile_redeem_time_state(
-                            attempt.record, preferences, destination=False,
+                            attempt.record, preferences, destination=None,
                         )
+                    except (GrantAccountChanged, _GrantAccountInvalidated):
+                        repair_filter = False
+                        raise
                     finally:
-                        self._set_redeem_strict_filter(attempt.record, preferences)
+                        if repair_filter:
+                            self._set_redeem_strict_filter(attempt.record, preferences)
                     raise
 
             if attempt.original_filter is None:
@@ -2791,8 +3098,11 @@ class Broker:
                         live = self._read_redeem_live(attempt)
                     except BackendFailure:
                         live = None
-                    self._close_redeem_bridge(attempt.record, preferences,
-                                              destination=(live == intent.destination))
+                    self._reconcile_redeem_time_state(
+                        attempt.record, preferences,
+                        destination=None if live is None else live == intent.destination,
+                        bridge_only=True,
+                    )
                     raise
             live = read_live()
             if live == intent.source:
@@ -2814,6 +3124,8 @@ class Broker:
                     self._apply(uid, preferences, desired_filter, intent.destination,
                                 correlation_id, patterns, admit=recheck, redeem=attempt,
                                 activate_child_extension=intent.activate_child_extension)
+                except _GrantAccountInvalidated:
+                    raise
                 except BrokerError:
                     live = read_live()
                     if live == intent.source:
@@ -2824,6 +3136,10 @@ class Broker:
             if live == intent.destination:
                 try:
                     self._repair_redeem_destination(attempt, correlation_id)
+                except GrantAccountChanged:
+                    self._reject_invalid_grant(attempt.record)
+                except _GrantAccountInvalidated:
+                    raise
                 except Exception:
                     live = read_live()
                     if live in (intent.source, intent.destination):
@@ -2839,7 +3155,9 @@ class Broker:
             self._reconcile_redeem_time_state(attempt.record, preferences, destination=False)
             self._set_redeem_strict_filter(attempt.record, preferences)
             return self._finish_redeem_intent(attempt.record, committed=False), False
-        except (RecoveryPending, RollbackFailure):
+        except GrantAccountChanged:
+            self._reject_invalid_grant(attempt.record)
+        except (RecoveryPending, RollbackFailure, _GrantAccountInvalidated):
             raise
         except Exception as error:
             raise RecoveryPending("saved-time redemption could not be resolved") from error
@@ -2853,18 +3171,23 @@ class Broker:
         if not committed:
             try:
                 self._redeem_preferences(record)
+            except _GrantAccountInvalidated:
+                raise
             except BrokerError as error:
                 raise RecoveryPending("redemption account could not be revalidated") from error
         try:
-            return self._grant_store.write(replace(record, fixed=fixed, saved=None, intent=None))
+            return self._write_grant_record(record, replace(record, fixed=fixed, saved=None, intent=None))
         except GrantStoreError as error:
             raise RecoveryPending("redemption result durability is uncertain") from error
 
     def _read_redeem_live(self, attempt: _RedeemAttempt) -> GrantTuple:
-        self._check_redeem_account(attempt.record)
+        self._check_record_account(attempt.record)
         if attempt.external is not None:
             return attempt.external
-        live = self._read_live_grant(attempt.record.uid)
+        try:
+            live = self._read_live_grant(attempt.record.uid)
+        except GrantAccountChanged:
+            self._reject_invalid_grant(attempt.record)
         if live not in (attempt.intent.source, attempt.intent.destination):
             attempt.external = live
         return live
@@ -2872,7 +3195,7 @@ class Broker:
     def _require_redeem_live(self, attempt: _RedeemAttempt, *expected: GrantTuple) -> None:
         if self._read_redeem_live(attempt) not in expected:
             raise BackendFailure("the live grant changed during redemption")
-        self._check_redeem_account(attempt.record)
+        self._check_record_account(attempt.record)
 
     def _redeem_current(self, intent: RedeemIntent) -> bool:
         return self._now().timestamp() < sum(intent.destination)
@@ -2887,9 +3210,9 @@ class Broker:
 
     def _write_redeem_intent(self, attempt: _RedeemAttempt, intent: RedeemIntent) -> None:
         record = attempt.record
-        self._check_redeem_account(record)
+        self._check_record_account(record)
         try:
-            attempt.record = self._grant_store.write(replace(record, intent=intent))
+            attempt.record = self._write_grant_record(record, replace(record, intent=intent))
         except GrantStoreError as error:
             try:
                 observed = self._grant_store.load(record.uid, record.username)
@@ -2910,10 +3233,14 @@ class Broker:
         intent = attempt.intent
         live = self._read_redeem_live(attempt)
         if live == intent.source:
-            self._check_redeem_account(attempt.record)
+            self._check_record_account(attempt.record)
             try:
                 self._write_extension(attempt.record.uid, intent.destination,
                                       readback=lambda: self._read_redeem_live(attempt))
+            except GrantAccountChanged:
+                self._reject_invalid_grant(attempt.record)
+            except _GrantAccountInvalidated:
+                raise
             except Exception:
                 # A dispatched write can land even when Set or read-back fails.
                 # Preserve the destination if observed and finish the other effects.
@@ -2922,53 +3249,59 @@ class Broker:
         elif live != intent.destination:
             raise BackendFailure("the live grant changed during redemption")
 
-    def _close_redeem_bridge(self, record: GrantRecord, preferences: dict, *,
-                             destination: bool) -> None:
-        state = record.intent.time_state
-        if state is None:
-            return
-        self._check_redeem_account(record)
-        # Either native field can still carry the bridge after the other
-        # matches the journal. Matching fields can be the untouched source.
-        bridge_type = (state.limit_type != DAILY_SCHEDULE_FLAG and
-                       self._accounts.get_limit_type(record.uid) == DAILY_SCHEDULE_FLAG)
-        if bridge_type or (state.daily_schedule != FULL_DAY_SCHEDULE and
-                           self._accounts.get_daily_schedule(record.uid) == FULL_DAY_SCHEDULE):
-            self._reconcile_redeem_time_state(record, preferences, destination=destination)
-
     def _reconcile_redeem_time_state(self, record: GrantRecord, preferences: dict, *,
-                                    destination: bool) -> None:
-        state = record.intent.time_state
+                                    destination: bool | None, bridge_only: bool = False) -> None:
+        transfer = record.bridge_repair or record.intent
+        state = transfer.time_state
         if state is None:
             return
         uid = record.uid
+        bridge_only = bridge_only or destination is None
 
         # An unacknowledged Set can still publish the grant. Keep configured
         # daily enforcement when the bridge started with disabled limits.
         limit_type = state.limit_type or DAILY_LIMIT_FLAG
-        daily_limit = (preferences["daily_time_limit_minutes"] * 60
-                       if destination or not state.limit_type else state.daily_limit)
+        configured_daily = preferences["daily_time_limit_minutes"] * 60
 
         # Recovery leaves ActiveExtension alone. Close the temporary schedule
         # first and retain any daily enforcement while repairing the cap.
-        if self._accounts.get_daily_schedule(uid) != state.daily_schedule:
-            self._check_redeem_account(record)
+        schedule = self._accounts.get_daily_schedule(uid)
+        if schedule != state.daily_schedule and (not bridge_only or schedule == FULL_DAY_SCHEDULE):
+            self._check_record_account(record)
             self._accounts.set_daily_schedule(uid, state.daily_schedule)
             if self._accounts.get_daily_schedule(uid) != state.daily_schedule:
                 raise BackendFailure("daily-schedule recovery verification failed")
-        if self._accounts.get_limit_type(uid) != limit_type:
-            self._check_redeem_account(record)
+        current_type = self._accounts.get_limit_type(uid)
+        if current_type != limit_type and (not bridge_only or current_type == DAILY_SCHEDULE_FLAG):
+            self._check_record_account(record)
             self._accounts.set_limit_type(uid, limit_type)
             if self._accounts.get_limit_type(uid) != limit_type:
                 raise BackendFailure("limit-type recovery verification failed")
-        if self._accounts.get_daily_limit(uid) != daily_limit:
-            self._check_redeem_account(record)
+        # With native limits still off, the bridge never changed the cap.
+        if bridge_only and current_type == 0:
+            return
+        # With a preexisting limit, an unknown publication can leave two
+        # plausible caps. When the bridge enabled limits, both paths use the
+        # configured daily cap.
+        if (destination is None and record.bridge_repair is None and state.limit_type and
+                state.daily_limit != configured_daily):
+            return
+        current_daily = self._accounts.get_daily_limit(uid)
+        # Either recorded cap can survive partial cleanup. Leave unrelated
+        # native edits alone during bridge-only repair.
+        if bridge_only and current_daily not in (state.daily_limit, configured_daily):
+            return
+        if destination is None and state.limit_type and state.daily_limit != configured_daily:
+            destination = self._read_live_grant(uid) == transfer.destination
+        daily_limit = configured_daily if destination or not state.limit_type else state.daily_limit
+        if current_daily != daily_limit:
+            self._check_record_account(record)
             self._accounts.set_daily_limit(uid, daily_limit)
             if self._accounts.get_daily_limit(uid) != daily_limit:
                 raise BackendFailure("daily-limit recovery verification failed")
 
     def _set_redeem_strict_filter(self, record: GrantRecord, preferences: dict) -> None:
-        self._check_redeem_account(record)
+        self._check_record_account(record)
         self._set_verified_filter(record.uid, (False, blocked_targets(preferences, False)))
 
     def _repair_redeem_destination(self, attempt: _RedeemAttempt, correlation_id: str) -> None:
@@ -3021,16 +3354,20 @@ class Broker:
             # A time read failure leaves publication uncertain. Remove the
             # bridge and keep full app policy until recovery verifies the tuple.
             live = None
-        destination = live == intent.destination
+        destination = None if live is None else live == intent.destination
+        repair_filter = True
         try:
             self._reconcile_redeem_time_state(record, preferences, destination=destination)
+        except (GrantAccountChanged, _GrantAccountInvalidated):
+            repair_filter = False
+            raise
         finally:
             current = self._redeem_current(intent)
-            if not current or not destination:
+            if repair_filter and (not current or not destination):
                 if (live == intent.source and current and
                         not attempt.termination_may_have_changed_processes and
                         attempt.original_filter is not None):
-                    self._check_redeem_account(record)
+                    self._check_record_account(record)
                     self._set_verified_filter(record.uid, attempt.original_filter)
                 else:
                     self._set_redeem_strict_filter(record, preferences)
@@ -3048,7 +3385,7 @@ class Broker:
 
         def check_account():
             if redeem is not None:
-                self._check_redeem_account(redeem.record)
+                self._check_record_account(redeem.record)
 
         try:
             if (activate_child_extension and self._extensions is None and
@@ -3134,6 +3471,10 @@ class Broker:
             self._observe_grant(target_uid, *extension)
             return True
         except Exception as error:
+            if isinstance(error, GrantAccountChanged) and redeem is not None:
+                self._reject_invalid_grant(redeem.record)
+            if isinstance(error, _GrantAccountInvalidated):
+                raise
             public_error = error if isinstance(error, BrokerError) else BackendFailure(
                 "account update failed", expected=isinstance(error, ChildExtensionSessionLost))
             emit_backend_failure(public_error, original=error)
@@ -3145,6 +3486,10 @@ class Broker:
             elif redeem is not None:
                 try:
                     self._restore_redeem_attempt(redeem)
+                except GrantAccountChanged:
+                    self._reject_invalid_grant(redeem.record)
+                except _GrantAccountInvalidated:
+                    raise
                 except Exception as rollback_error:
                     failure = RollbackFailure("redemption rollback could not be verified")
                     emit_backend_failure(failure, original=rollback_error)

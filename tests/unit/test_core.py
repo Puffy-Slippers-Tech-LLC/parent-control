@@ -11,8 +11,10 @@ from unittest import mock
 from zoneinfo import ZoneInfo
 
 from oh_no_parent_control import data_migration
+from oh_no_parent_control.app_termination import RunningAppTerminator
 from oh_no_parent_control.core import (
-    AccessDenied, BackendFailure, Broker, Busy, DesktopInUse, InvalidRequest, RollbackFailure,
+    AccessDenied, AccountMissing, BackendFailure, Broker, Busy, DesktopInUse, GrantAccountChanged,
+    InvalidRequest, RollbackFailure,
     NativeDeadlineSuspended, RecoveryPending, SessionState, Stale, UserAccount,
     TRANSFER_MARGIN_SECONDS, calculate_active_extension_seconds,
     emit_backend_failure,
@@ -84,6 +86,7 @@ def saved_time_session():
     )
     return SimpleNamespace(broker=broker, sessions=sessions, usage=usage, accounts=accounts,
                            preferences=preferences, child=child, kiosk=kiosk,
+                           grant_record=GrantRecord(child.uid, accounts.users[child.uid].username),
                            epoch=int(now.timestamp()), elapsed=lambda: elapsed,
                            clock=clock, monotonic=monotonic, sleep=sleep)
 
@@ -124,7 +127,7 @@ def test_saved_time_admission_requires_the_original_eligible_session(saved_time_
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
     fixture.sessions.resolve.return_value = replace(fixture.child, **changes)
     with pytest.raises(AccessDenied):
-        fixture.broker._recheck_saved_time_context(context)
+        fixture.broker._recheck_saved_time_context(context, fixture.grant_record)
 
 
 @pytest.mark.parametrize("change", ["account", "disabled"])
@@ -136,7 +139,7 @@ def test_saved_time_admission_rechecks_the_target(saved_time_session, change):
     else:
         fixture.preferences.values[1001]["parent_control_enabled"] = False
     with pytest.raises(AccessDenied):
-        fixture.broker._recheck_saved_time_context(context)
+        fixture.broker._recheck_saved_time_context(context, fixture.grant_record)
 
 
 @pytest.mark.parametrize(("native_deadline", "daily"), [(0, 0), (125_000_000, 25), ((1 << 64) - 1, 100)])
@@ -147,9 +150,9 @@ def test_overlay_use_saved_time_can_only_lower_completed_daily_time(
     fixture.usage.query_native_deadline.return_value = native_deadline
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
 
-    capture = fixture.broker._capture_use_saved_time_daily_remaining(context)
+    capture = fixture.broker._capture_use_saved_time_daily_remaining(context, fixture.grant_record)
     assert capture.daily_remaining_seconds == daily
-    fixture.broker._recheck_saved_time_context(capture.context)
+    fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
     fixture.usage.query_native_deadline.assert_called_once_with(1001)
     fixture.sessions.lock.assert_not_called()
 
@@ -166,7 +169,7 @@ def test_kiosk_capture_refuses_a_child_using_the_desktop_before_it_locks_session
     context = fixture.broker._saved_time_context(991, ":1.42", 1001)
 
     with pytest.raises(DesktopInUse):
-        getattr(fixture.broker, method)(context)
+        getattr(fixture.broker, method)(context, fixture.grant_record)
     fixture.sessions.lock.assert_not_called()
     assert fixture.accounts.events == []
 
@@ -183,7 +186,7 @@ def test_kiosk_rechecks_target_state_immediately_before_lock(saved_time_session,
 
     error = DesktopInUse if changes.get("active") else BackendFailure
     with pytest.raises(error):
-        fixture.broker._capture_pause_daily_remaining(context)
+        fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
     fixture.sessions.lock.assert_not_called()
 
 
@@ -216,17 +219,17 @@ def test_overlay_pause_observes_lock_and_fresh_completed_usage_before_admission(
     fixture.sessions.lock.side_effect = lock
     fixture.usage.query_usage.side_effect = query
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
-    capture = fixture.broker._capture_pause_daily_remaining(context)
+    capture = fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
 
     assert capture.daily_remaining_seconds == 85
     assert observed[0] is False and all(observed[1:]) and len(observed) >= 3
     fixture.usage.query_native_deadline.assert_not_called()
-    fixture.broker._recheck_saved_time_context(capture.context)
+    fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
     with pytest.raises(AccessDenied):
-        fixture.broker._recheck_saved_time_context(context)
+        fixture.broker._recheck_saved_time_context(context, fixture.grant_record)
     fixture.sessions.resolve.return_value = replace(locked, uid=1002)
     with pytest.raises(AccessDenied):
-        fixture.broker._recheck_saved_time_context(capture.context)
+        fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
     assert fixture.accounts.events == []
 
 
@@ -236,7 +239,7 @@ def test_overlay_pause_refuses_a_non_graphical_caller_before_lock(saved_time_ses
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
 
     with pytest.raises(AccessDenied):
-        fixture.broker._capture_pause_daily_remaining(context)
+        fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
     fixture.sessions.lock.assert_not_called()
 
 
@@ -260,11 +263,11 @@ def test_overlay_pause_captures_other_unlocked_desktops_before_it_locks_the_call
 
     fixture.sessions.lock.side_effect = lock
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
-    capture = fixture.broker._capture_pause_daily_remaining(context)
+    capture = fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
 
     assert [call.args[0] for call in fixture.sessions.lock.call_args_list] == ["other", "child"]
     assert capture.daily_remaining_seconds == 100 - (records[0][1] - fixture.epoch)
-    fixture.broker._recheck_saved_time_context(capture.context)
+    fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
 
 
 @pytest.mark.parametrize(("method", "missing_last_record"), [
@@ -307,21 +310,21 @@ def test_kiosk_capture_requires_a_record_for_each_switched_away_local_graphical_
     capture_daily_time = getattr(fixture.broker, method)
     if missing_last_record:
         with pytest.raises(BackendFailure):
-            capture_daily_time(context)
+            capture_daily_time(context, fixture.grant_record)
         assert fixture.sessions.lock.call_count == 2
         assert fixture.accounts.events == []
         return
 
-    capture = capture_daily_time(context)
+    capture = capture_daily_time(context, fixture.grant_record)
 
     assert capture.daily_remaining_seconds == 49 - (records[-1][1] - fixture.epoch)
     assert {call.args[0] for call in fixture.sessions.lock.call_args_list} == {"wayland", "x11"}
     assert fixture.sessions.lock.call_count == 2
     fixture.usage.query_native_deadline.assert_not_called()
-    fixture.broker._recheck_saved_time_context(capture.context)
+    fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
     state[fixture.child.path] = fixture.child
     with pytest.raises(DesktopInUse):
-        fixture.broker._recheck_saved_time_context(capture.context)
+        fixture.broker._recheck_saved_time_context(capture.context, fixture.grant_record)
     assert fixture.accounts.events == []
 
 
@@ -345,7 +348,7 @@ def test_pause_bounds_wait_for_lock_and_new_usage(saved_time_session, lock_obser
     fixture.sessions.lock.side_effect = lock
     context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
     with pytest.raises(BackendFailure):
-        fixture.broker._capture_pause_daily_remaining(context)
+        fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
 
     fixture.sessions.lock.assert_called_once()
     assert fixture.elapsed() == pytest.approx(5)
@@ -2443,15 +2446,29 @@ class CoreTests(unittest.TestCase):
             )
         )
         thread.start()
-        self.assertTrue(entered.wait(1))
-        with self.assertRaises(Busy):
-            broker.request_access(991, ":1.3", 1001, 1003, 900, False)
-        with self.assertRaises(Busy):
-            broker.set_preferences(
-                1003, 1001, broker.get_preferences(1003, 1001),
-            )
-        release.set()
-        thread.join()
+        try:
+            self.assertTrue(entered.wait(1))
+            with self.assertRaises(Busy):
+                broker.request_access(991, ":1.3", 1001, 1003, 900, False)
+            with self.assertRaises(Busy):
+                broker.set_preferences(
+                    1003, 1001, broker.get_preferences(1003, 1001),
+                )
+            for mutate in (
+                lambda: broker.pause_grant(991, ":1.3", 1002, 0),
+                lambda: broker.use_saved_time(991, ":1.3", 1002, 0),
+                lambda: broker.request_deferred_access(991, ":1.3", 1002, 1003, 300, False, 0),
+            ):
+                with self.assertRaises(Busy):
+                    mutate()
+            scheduled = []
+            with self.assertRaises(Busy):
+                broker._read_grant_record_for_status(validate(valid_config()), 1002,
+                                                     schedule_recovery=scheduled.append)
+            self.assertEqual(scheduled, [])
+        finally:
+            release.set()
+            thread.join()
 
     def test_local_midnight_dst_boundaries(self):
         zone = ZoneInfo("America/Los_Angeles")
@@ -2909,7 +2926,7 @@ def test_departure_before_admission_has_no_effect_and_requires_fresh_authenticat
     }.get(stage, (accounts, stage))
     original = getattr(operation, method)
     calls = 0
-    cancel_at = 2 if stage == "get_extension" and duration else 1
+    cancel_at = 2 if stage == "grant-store" or (stage == "get_extension" and duration) else 1
 
     def leave(*args):
         nonlocal calls
@@ -2953,7 +2970,7 @@ def test_slow_preflight_and_snapshots_revalidate_before_admission(
     }[stage]
     original = getattr(operation, method)
     calls = 0
-    change_at = 2 if stage == "snapshots" and duration else 1
+    change_at = 2 if stage == "grant-store" or (stage == "snapshots" and duration) else 1
 
     def change_selection(*args):
         nonlocal calls
@@ -3191,11 +3208,13 @@ def test_deferred_approval_reports_pause_outcome_without_losing_saved_time(pause
     ("rest of day", InvalidRequest), ("cross-account rest of day", AccessDenied),
     ("stale at entry", Stale), ("stale after prompt", Stale),
     ("approver replaced", AccessDenied), ("preferences changed", AccessDenied),
+    ("child promoted", AccessDenied),
 ])
 def test_deferred_approval_revalidates_before_effect_admission(pause_transaction, change, error):
     state = pause_transaction
     before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
     authorizer = state.broker._authorizer
+    original_child = state.accounts.users[1001]
 
     def during_prompt():
         if change == "stale after prompt":
@@ -3205,6 +3224,8 @@ def test_deferred_approval_revalidates_before_effect_admission(pause_transaction
             state.accounts.users[1003] = replace(admin, username="replacement")
         elif change == "preferences changed":
             state.preferences.values[1001]["parent_control_enabled"] = False
+        elif change == "child promoted":
+            state.accounts.users[1001] = replace(original_child, is_admin=True)
 
     authorizer.callback = during_prompt
     revision = before.revision - 1 if change == "stale at entry" else before.revision
@@ -3216,7 +3237,12 @@ def test_deferred_approval_revalidates_before_effect_admission(pause_transaction
         assert authorizer.calls == []
     else:
         assert len(authorizer.calls) == 1 and authorizer.pending.closed and not authorizer.pending.admitted
-    assert state.record() == replace(before, revision=before.revision + (change == "stale after prompt"))
+    if change == "child promoted":
+        state.accounts.users[1001] = original_child
+        state.broker.recover_grant(1001)
+        assert state.record() == GrantRecord(1001, "child", before.revision + 1)
+    else:
+        assert state.record() == replace(before, revision=before.revision + (change == "stale after prompt"))
     assert state.accounts.events == []
     state.sessions.lock.assert_not_called()
 
@@ -3430,11 +3456,11 @@ def test_pause_refuses_stale_usage_if_the_child_unlocks_during_recheck(pause_tra
     before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
     recheck = state.broker._recheck_saved_time_context
 
-    def unlock_and_delay(context):
+    def unlock_and_delay(context, record):
         if context.lock_capture_complete:
             state.sessions.resolve.return_value = state.child
             state.sleep(TRANSFER_MARGIN_SECONDS + 1)
-        recheck(context)
+        recheck(context, record)
 
     with mock.patch.object(state.broker, "_recheck_saved_time_context", side_effect=unlock_and_delay):
         with pytest.raises(BackendFailure):
@@ -3539,10 +3565,11 @@ def test_pause_restart_never_repeats_or_loses_a_durable_transfer(pause_transacti
         if boundary == "live write":
             assert state.elapsed() < TRANSFER_MARGIN_SECONDS
             assert recovered.intent is not None and recovered.intent.destination == state.destination
-            # Session entry can use the matching journaled destination before recovery runs.
+            # Session entry resolves the journal and restores strict policy even before B.
             assert state.broker.prepare_own_session(1001)
             assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
-            assert state.record() == recovered
+            assert state.record().revision == recovered.revision + 1
+            assert state.record().intent is None
         with pytest.raises(Stale):
             state.pause(recovered.revision if recovered.intent is not None else before.revision)
 
@@ -3737,14 +3764,38 @@ def test_immediate_approval_preserves_unresolved_transfer(tracked, operation):
     before = seed_record(store, fixed=FixedGrant(running, False), saved=SAVED, intent=intent)
 
     load_error = GrantStoreError("unreadable") if operation == "unreadable" else None
-    with mock.patch.object(store, "load", side_effect=load_error, wraps=store.load):
+    live_error = None if load_error else TimeoutError("active grant unavailable")
+    with (mock.patch.object(store, "load", side_effect=load_error, wraps=store.load),
+          mock.patch.object(accounts, "get_extension", side_effect=live_error, wraps=accounts.get_extension)):
         with pytest.raises(BackendFailure if load_error else Busy):
             submit_request(broker, "kiosk", duration=300)
 
-    assert not broker._authorizer.pending.admitted
+    assert broker._authorizer.calls == []
     assert accounts.extension == running
-    assert accounts.filter == (False, ("old.App",))
-    assert store.load(1001, "child") == before
+    expected_filter = ((False, ("/usr/bin/game", "org.example.Game")) if operation == "redeem"
+                       else (False, ("old.App",)))
+    assert accounts.filter == expected_filter
+    after = store.load(1001, "child")
+    assert replace(after, revision=before.revision) == before
+
+
+def test_immediate_approval_calculates_from_the_recovered_live_grant(tracked):
+    accounts, store, broker = tracked
+    source = (TRACKING_SECONDS - 60, 660)
+    recovered = (TRACKING_SECONDS, 2700)
+    accounts.extension = source
+    seed_record(store, saved=SAVED, intent=RedeemIntent(source, recovered, False, True))
+
+    def during_prompt():
+        assert accounts.extension == recovered
+        assert store.load(1001, "child").intent is None
+
+    broker._authorizer.callback = during_prompt
+    assert submit_request(broker, "kiosk", duration=300)[1] == "approved"
+
+    assert accounts.extension == (TRACKING_SECONDS, 3000)
+    assert store.load(1001, "child").fixed == FixedGrant(accounts.extension, False)
+    assert store.load(1001, "child").saved is None
 
 
 @pytest.mark.parametrize("interruption", (
@@ -3816,7 +3867,7 @@ def test_verified_approval_tracks_only_for_the_bound_account(tracked, monkeypatc
         assert after == replace(before, revision=before.revision + 1,
                                 fixed=FixedGrant(accounts.extension, False))
     else:
-        assert after == before
+        assert after == GrantRecord(1001, "child", before.revision + 1)
 
 
 def test_saved_time_never_reaches_usable_countdown_or_session_inputs(tmp_path):
@@ -4148,7 +4199,476 @@ def recover_redemption(state):
         return state.broker._recover_redeem_intent(state.record())
 
 
-@pytest.mark.parametrize("failure_point", ("grant read", "grant write"))
+def test_deferred_approval_resolves_an_interrupted_redemption_before_prompting(redemption):
+    state = redemption
+    state.authorizer.resolve_session = state.sessions.resolve
+    before = seed_record(state.store, saved=SAVED)
+    with mock.patch.object(state.accounts, "set_extension", side_effect=SystemExit):
+        with pytest.raises(SystemExit):
+            state.use(before.revision)
+    pending = state.record()
+    assert pending.intent.destination == (state.epoch, 1020)
+    state.restart()
+
+    # A retry after a lost reply still carries the last revision the client saw.
+    for revision in (before.revision, pending.revision):
+        with pytest.raises(Stale):
+            state.broker.request_deferred_access(1001, ":1.42", 1001, 1003, 300, False, revision)
+
+    committed = state.record()
+    assert committed.saved is None and committed.intent is None
+    assert state.accounts.extension == pending.intent.destination
+    assert state.authorizer.calls == []
+    assert state.accounts.events.count(("set_extension", 1001, pending.intent.destination)) == 1
+
+
+@pytest.mark.parametrize(("operation", "open_bridge"), (
+    ("revoke", False), ("toggle", False), ("revoke", True),
+))
+def test_failed_withdrawal_cannot_replay_a_pending_redemption(redemption, monkeypatch, operation, open_bridge):
+    state = redemption
+    source, destination = (state.epoch - 10, 310), (state.epoch, 1200)
+    state.accounts.extension = source
+    native = None
+    if open_bridge:
+        native = RedeemTimeState(2, 0, (60, 3600))
+        state.accounts.limit_type = 1
+        state.accounts.daily_schedule = (0, 86400)
+    pending = seed_record(state.store, saved=SAVED,
+                          intent=RedeemIntent(source, destination, False, True, time_state=native))
+    queued = []
+    with pytest.raises(RecoveryPending):
+        state.broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                                   schedule_recovery=queued.append)
+    assert queued == [1001]
+    write_extension = state.accounts.set_extension
+
+    def fail_live_clear(uid, value):
+        cleared = state.record()
+        assert cleared == GrantRecord(uid, "child", cleared.revision)
+        assert cleared.revision > pending.revision
+        if value == (0, 0):
+            raise OSError("live grant write unavailable")
+        write_extension(uid, value)
+
+    with monkeypatch.context() as patches:
+        patches.setattr(state.accounts, "set_extension", fail_live_clear)
+        with pytest.raises(BackendFailure):
+            if operation == "revoke":
+                state.broker.revoke_one_time_grant(0, 1001)
+            else:
+                state.broker.set_parent_control(0, 1001, False, 2)
+
+    cleared = state.record()
+    assert cleared == GrantRecord(1001, "child", cleared.revision)
+    assert cleared.revision > pending.revision
+    assert state.accounts.extension == source  # The native rollback restored the prior tuple.
+    if open_bridge:
+        assert state.accounts.limit_type == native.limit_type
+        assert state.accounts.daily_limit == native.daily_limit
+        assert state.accounts.daily_schedule == native.daily_schedule
+    state.broker.recover_grant(queued.pop())
+    state.restart()
+    with pytest.raises(Stale):
+        state.use(pending.revision)
+    with pytest.raises(Stale):
+        state.use(cleared.revision)
+    assert state.record() == cleared
+    assert state.accounts.extension == source
+    assert state.broker.get_time_status(0, 1001).one_time_grant_remaining_seconds == 300
+    assert ("set_extension", 1001, destination) not in state.accounts.events
+
+
+def test_editing_the_enabled_allowance_preserves_saved_and_running_time(tracked):
+    accounts, store, broker = tracked
+    source = (TRACKING_SECONDS - 10, 310)
+    accounts.extension = source
+    before = seed_record(store, fixed=FixedGrant(source, True), saved=SAVED)
+
+    assert broker.set_parent_control(0, 1001, True, 15)["daily_time_limit_minutes"] == 15
+
+    assert store.load(1001, "child") == before
+    assert accounts.extension == source and accounts.daily_limit == 900
+    assert accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+
+
+@pytest.mark.parametrize("external_cap", (None, 90))
+def test_withdrawal_retries_a_failed_daily_cap_restoration(redemption, monkeypatch, external_cap):
+    state = redemption
+    source, destination = (state.epoch - 10, 90), (state.epoch, 420)
+    native = RedeemTimeState(2, 0, (60, 3600))
+    state.accounts.extension = source
+    state.accounts.limit_type = 1
+    state.accounts.daily_limit = 120
+    state.accounts.daily_schedule = (0, 86400)
+    saved = SavedBalance(300, False)
+    seed_record(state.store, saved=saved,
+                intent=RedeemIntent(source, destination, False, True, time_state=native))
+    set_cap = state.accounts.set_daily_limit
+    fail_once = True
+
+    def restore_cap(uid, value):
+        nonlocal fail_once
+        if value == native.daily_limit and fail_once:
+            fail_once = False
+            raise OSError("prior daily cap temporarily unavailable")
+        set_cap(uid, value)
+
+    monkeypatch.setattr(state.accounts, "set_daily_limit", restore_cap)
+    with pytest.raises(RecoveryPending):
+        state.broker.revoke_one_time_grant(0, 1001)
+    withdrawn = state.record()
+    assert (withdrawn.saved, withdrawn.fixed, withdrawn.intent) == (None, None, None)
+    assert withdrawn.bridge_repair is not None
+    assert state.accounts.extension == source
+    scheduled = []
+    with pytest.raises(RecoveryPending):
+        state.broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                                   schedule_recovery=scheduled.append)
+    assert scheduled == [1001]
+
+    if external_cap is not None:
+        state.accounts.daily_limit = external_cap
+    state.restart()
+    state.broker.recover_grants_at_startup()
+    assert state.record().bridge_repair is None
+    assert state.accounts.extension == source
+    assert state.accounts.filter == (False, ("old.App",))
+    assert state.running_apps.calls == []
+    state.broker.revoke_one_time_grant(0, 1001)
+
+    expected_cap = native.daily_limit if external_cap is None else external_cap
+    assert (state.accounts.limit_type, state.accounts.daily_limit, state.accounts.daily_schedule) == (
+        native.limit_type, expected_cap, native.daily_schedule,
+    )
+    assert state.accounts.extension == (0, 0)
+    assert state.record().saved is None and state.record().intent is None
+    assert ("set_extension", 1001, destination) not in state.accounts.events
+
+
+@pytest.mark.parametrize("ordinary_recovery_first", (False, True))
+def test_withdrawal_waits_for_a_live_read_before_choosing_the_daily_cap(
+        redemption, ordinary_recovery_first):
+    state = redemption
+    source, destination = (state.epoch - 10, 90), (state.epoch, 420)
+    native = RedeemTimeState(2, 480, (60, 3600))
+    state.accounts.extension = destination
+    state.accounts.limit_type = 1
+    state.accounts.daily_limit = 120
+    state.accounts.daily_schedule = (0, 86400)
+    seed_record(state.store, saved=SavedBalance(300, False),
+                intent=RedeemIntent(source, destination, False, True, time_state=native))
+
+    with mock.patch.object(state.accounts, "get_extension", side_effect=TimeoutError):
+        with pytest.raises(RecoveryPending):
+            if ordinary_recovery_first:
+                recover_redemption(state)
+            else:
+                state.broker.revoke_one_time_grant(0, 1001)
+
+    record = state.record()
+    if ordinary_recovery_first:
+        assert record.intent is not None and record.intent.destination == destination
+    else:
+        assert record.intent is None and record.saved is None and record.bridge_repair is not None
+    assert state.accounts.limit_type == native.limit_type and state.accounts.daily_schedule == native.daily_schedule
+    assert state.accounts.daily_limit == 120
+    state.restart()
+    if not ordinary_recovery_first:
+        state.broker.recover_grants_at_startup()
+        assert state.record().bridge_repair is None
+        assert state.accounts.daily_limit == 120 and state.accounts.extension == destination
+    state.broker.revoke_one_time_grant(0, 1001)
+    assert state.accounts.daily_limit == 120 and state.accounts.extension == (0, 0)
+
+
+@pytest.mark.parametrize(("change", "error"), (
+    ("deleted", InvalidRequest), ("promoted", AccessDenied), ("renamed", RecoveryPending),
+    ("lookup unavailable", InvalidRequest),
+))
+def test_status_defers_account_invalidation_to_the_serialized_writer(tracked, monkeypatch, change, error):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    original_user = accounts.users[1001]
+    get_user = accounts.get_user
+
+    def lookup(uid):
+        if uid == 1001:
+            if change == "deleted":
+                raise AccountMissing("account does not exist")
+            if change == "lookup unavailable":
+                raise TimeoutError("account lookup is unavailable")
+        return get_user(uid)
+
+    if change == "promoted":
+        accounts.users[1001] = replace(original_user, is_admin=True)
+    elif change == "renamed":
+        accounts.users[1001] = replace(original_user, username="replacement")
+    monkeypatch.setattr(accounts, "get_user", lookup)
+
+    scheduled = []
+    with pytest.raises(error):
+        broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                             schedule_recovery=scheduled.append)
+    assert store.load(1001, "child") == before
+    if change == "lookup unavailable":
+        assert scheduled == []
+        broker.recover_grant(1001)
+        assert store.load(1001, "child") == before
+    else:
+        assert scheduled == [1001]
+        broker.recover_grant(scheduled.pop())
+        record = store.load(1001, accounts.users[1001].username)
+        assert record == GrantRecord(1001, record.username, before.revision + 1)
+    assert accounts.events == []
+
+
+def test_confirmed_promotion_fences_saved_time_after_reversion_and_worker_contention(tracked):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    original_user = accounts.users[1001]
+    scheduled = []
+
+    def read():
+        return broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                                    schedule_recovery=scheduled.append)
+
+    accounts.users[1001] = replace(original_user, is_admin=True)
+    with pytest.raises(AccessDenied):
+        read()
+    accounts.users[1001] = original_user
+    with broker._request_lock:
+        broker.recover_grant(scheduled.pop())
+    assert store.load(1001, "child") == before
+    with pytest.raises(RecoveryPending):
+        read()
+
+    # An allowance edit can win the lock before the retried worker.
+    broker.set_parent_control(0, 1001, True, 15)
+    broker.recover_grant(scheduled.pop())
+    assert read()[1] == GrantRecord(1001, "child", before.revision + 1)
+
+
+@pytest.mark.parametrize("operation", ("startup", "revoke"))
+def test_serialized_invalidation_survives_reversion_during_account_recheck(tracked, operation):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    get_user = accounts.get_user
+    renamed = True
+
+    def lookup(uid):
+        nonlocal renamed
+        user = get_user(uid)
+        if uid == 1001 and renamed:
+            renamed = False
+            return replace(user, username="replacement")
+        return user
+
+    with mock.patch.object(accounts, "get_user", side_effect=lookup):
+        if operation == "startup":
+            broker.recover_grants_at_startup()
+        else:
+            with pytest.raises(AccessDenied):
+                broker.revoke_one_time_grant(0, 1001)
+
+    cleared = store.load_record(1001)
+    assert cleared == GrantRecord(1001, cleared.username, before.revision + 1)
+    assert accounts.events == []
+
+
+def test_failed_account_clear_still_fences_the_observed_revision(tracked):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    original_user = accounts.users[1001]
+    accounts.users[1001] = replace(original_user, is_admin=True)
+    with mock.patch.object(store, "clear", side_effect=GrantStoreError("store unavailable")):
+        broker.recover_grant(1001)
+    assert store.load(1001, "child") == before
+
+    accounts.users[1001] = original_user
+    scheduled = []
+    with pytest.raises(RecoveryPending):
+        broker._read_grant_record_for_status(validate(valid_config()), 1001, schedule_recovery=scheduled.append)
+    broker.recover_grant(scheduled.pop())
+    assert store.load(1001, "child") == GrantRecord(1001, "child", before.revision + 1)
+
+
+def test_startup_fences_account_change_even_if_the_record_reread_fails(tracked, monkeypatch):
+    accounts, store, broker = tracked
+    before = seed_record(store, saved=SAVED)
+    original_user = accounts.users[1001]
+    accounts.users[1001] = replace(original_user, is_admin=True)
+    load_record = store.load_record
+    reads = 0
+
+    def fail_second_read(uid):
+        nonlocal reads
+        reads += 1
+        if reads == 2:
+            raise GrantStoreError("record unavailable during invalidation")
+        return load_record(uid)
+
+    with monkeypatch.context() as patches:
+        patches.setattr(store, "load_record", fail_second_read)
+        broker.recover_grants_at_startup()
+    accounts.users[1001] = original_user
+    if load_record(1001) == before:
+        with pytest.raises(RecoveryPending):
+            broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                                 schedule_recovery=lambda _uid: None)
+        broker.recover_grant(1001)
+    assert load_record(1001) == GrantRecord(1001, "child", before.revision + 1)
+
+
+def test_stale_account_observation_cannot_clear_a_newer_grant(tracked, monkeypatch):
+    accounts, store, broker = tracked
+    seed_record(store, saved=SAVED)
+    observed, resume = threading.Event(), threading.Event()
+    get_user = accounts.get_user
+    reader = None
+    scheduled = []
+
+    def lookup(uid):
+        if uid == 1001 and threading.current_thread() is reader:
+            observed.set()
+            assert resume.wait(5)
+            raise AccountMissing("account deleted during the old status read")
+        return get_user(uid)
+
+    def read():
+        nonlocal reader
+        reader = threading.current_thread()
+        return broker._read_grant_record_for_status(validate(valid_config()), 1001,
+                                                    schedule_recovery=scheduled.append)
+
+    monkeypatch.setattr(accounts, "get_user", lookup)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        status = pool.submit(read)
+        try:
+            assert observed.wait(5)
+            broker.revoke_one_time_grant(0, 1001)
+            assert submit_request(broker, "kiosk", duration=300)[1] == "approved"
+            approved = store.load(1001, "child")
+        finally:
+            resume.set()
+        with pytest.raises((Busy, InvalidRequest)):
+            status.result(timeout=5)
+    for uid in scheduled:
+        broker.recover_grant(uid)
+    assert store.load(1001, "child") == approved
+    assert approved.fixed == FixedGrant(accounts.extension, False)
+
+
+@pytest.mark.parametrize("late_reply", (False, True))
+def test_confirmed_invalidation_cannot_be_carried_into_a_deferred_approval(
+        pause_transaction, monkeypatch, late_reply):
+    state = pause_transaction
+    before = seed_record(state.store, saved=SAVED)
+    account_read, return_account = threading.Event(), threading.Event()
+    publishing, publish = threading.Event(), threading.Event()
+    get_user, write_record = state.accounts.get_user, state.store.write
+    reader = None
+    scheduled = []
+
+    def lookup(uid):
+        account = get_user(uid)
+        if uid == 1001 and threading.current_thread() is reader:
+            account_read.set()
+            assert return_account.wait(5)
+            return replace(account, is_admin=True)
+        return account
+
+    def write(record):
+        if record.saved == SavedBalance(SAVED.seconds + 300, False):
+            publishing.set()
+            assert publish.wait(5)
+        return write_record(record)
+
+    def read():
+        nonlocal reader
+        reader = threading.current_thread()
+        return state.broker._read_grant_record_for_status(
+            validate(valid_config()), 1001, schedule_recovery=scheduled.append,
+        )
+
+    monkeypatch.setattr(state.accounts, "get_user", lookup)
+    monkeypatch.setattr(state.store, "write", write)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        status = pool.submit(read)
+        try:
+            assert account_read.wait(5)
+            approval = pool.submit(state.broker.request_deferred_access,
+                                   991, ":1.42", 1001, 1003, 300, False, before.revision)
+            assert publishing.wait(5)
+            if late_reply:
+                publish.set()
+                assert approval.result(timeout=5).result_code == "saved"
+                assert state.record().saved == SavedBalance(SAVED.seconds + 300, False)
+            return_account.set()
+            with pytest.raises(AccessDenied):
+                status.result(timeout=5)
+        finally:
+            return_account.set()
+            publish.set()
+        if not late_reply:
+            with pytest.raises((AccessDenied, Stale)):
+                approval.result(timeout=5)
+    for uid in scheduled:
+        state.broker.recover_grant(uid)
+
+    result = state.record()
+    assert result == GrantRecord(1001, "child", result.revision)
+    assert result.revision > before.revision
+    assert state.accounts.events == []
+
+
+def test_confirmed_account_change_at_live_write_cannot_roll_redemption_forward(redemption, monkeypatch):
+    state = redemption
+    before = seed_record(state.store, saved=SAVED)
+    observed = []
+
+    def reject_replaced_identity(uid, value):
+        assert state.record().intent.destination == value
+        assert uid == 1001
+        observed.extend(state.accounts.events)
+        # The bound adapter observed a different identity, even though the
+        # next higher-level account lookup would already see the original one.
+        raise GrantAccountChanged("account binding changed at the native Set")
+
+    monkeypatch.setattr(state.accounts, "set_extension", reject_replaced_identity)
+    with pytest.raises(AccessDenied):
+        state.use(before.revision)
+
+    state.restart()
+    state.broker.recover_grants_at_startup()
+    result = state.record()
+    assert result == GrantRecord(1001, "child", result.revision)
+    assert result.revision > before.revision and state.accounts.extension == (0, 0)
+    assert observed and state.accounts.events == observed
+
+
+def test_confirmed_account_change_during_real_app_preflight_clears_the_balance(redemption, monkeypatch):
+    state = redemption
+    before = seed_record(state.store, saved=SAVED)
+    catalog = mock.Mock(side_effect=GrantAccountChanged("account changed during catalog lookup"))
+    terminator = RunningAppTerminator(application_catalog=catalog)
+    monkeypatch.setattr(terminator, "_identity", mock.Mock())
+    signal_app = mock.Mock()
+    monkeypatch.setattr(terminator, "_pidfd_send_signal", signal_app)
+    monkeypatch.setattr(state.broker, "_running_apps", terminator)
+
+    with pytest.raises(AccessDenied):
+        state.use(before.revision)
+
+    catalog.assert_called_once_with(1001)
+    signal_app.assert_not_called()
+    state.broker.recover_grants_at_startup()
+    assert state.record() == GrantRecord(1001, "child", before.revision + 1)
+    assert state.accounts.extension == (0, 0)
+    assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+
+
+@pytest.mark.parametrize("failure_point", ("grant read", "grant write", "confirmed absent on read"))
 def test_failed_source_recovery_does_not_inherit_interrupted_soft_app_access(redemption, failure_point):
     state = redemption
     strict_filter = False, ("/usr/bin/game", "org.example.Game")
@@ -4162,18 +4682,29 @@ def test_failed_source_recovery_does_not_inherit_interrupted_soft_app_access(red
     assert state.accounts.extension == (0, 0)
 
     state.restart()
-    read_error = TimeoutError("grant unavailable") if failure_point == "grant read" else None
+    read_error = {
+        "grant read": TimeoutError("grant unavailable"),
+        "confirmed absent on read": GrantAccountChanged("account confirmed absent during the native read"),
+    }.get(failure_point)
+    missing = failure_point == "confirmed absent on read"
+    observed = list(state.accounts.events)
     with mock.patch.object(state.accounts, "set_extension", side_effect=OSError("write failed")) as write, \
             mock.patch.object(state.accounts, "get_extension", wraps=state.accounts.get_extension,
                               side_effect=read_error):
-        with pytest.raises(RecoveryPending):
+        with pytest.raises(AccessDenied if missing else RecoveryPending):
             recover_redemption(state)
     if read_error is not None:
         write.assert_not_called()
 
     assert state.accounts.extension == (0, 0)
-    assert state.accounts.filter == strict_filter
-    assert state.record().saved == saved and state.record().intent.destination == (state.epoch, 420)
+    result = state.record()
+    if missing:
+        state.broker.recover_grants_at_startup()
+        assert state.record() == result == GrantRecord(1001, "child", result.revision)
+        assert state.accounts.events == observed
+    else:
+        assert state.accounts.filter == strict_filter
+        assert result.saved == saved and result.intent.destination == (state.epoch, 420)
 
 
 def test_elapsed_destination_recovery_revalidates_account_before_writing_strict_filter(redemption):
@@ -4185,6 +4716,7 @@ def test_elapsed_destination_recovery_revalidates_account_before_writing_strict_
     ))
     state.accounts.extension = destination
     state.sleep(500)
+    original_user = state.accounts.users[1001]
     complete = state.broker._complete_redeem_effects
     load = state.preferences.load
 
@@ -4197,11 +4729,15 @@ def test_elapsed_destination_recovery_revalidates_account_before_writing_strict_
             complete(*args, **kwargs)
 
     with mock.patch.object(state.broker, "_complete_redeem_effects", side_effect=complete_with_reassignment):
-        with pytest.raises(RecoveryPending):
+        with pytest.raises(AccessDenied):
             recover_redemption(state)
 
+    state.accounts.users[1001] = original_user
+    state.broker.recover_grant(1001)
     assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
-    assert state.record() == replace(pending, revision=state.record().revision)
+    result = state.record()
+    assert result.revision > pending.revision
+    assert result == GrantRecord(1001, "child", result.revision)
     assert state.accounts.extension == destination
 
 
@@ -4313,7 +4849,7 @@ def test_use_saved_time_recovers_interruption_during_native_time_initialization(
     ("source", "app policy", "full"), ("destination", "app policy", "full"),
     ("external", "app policy", "full"), ("source", "directory sync", "full"),
     ("source", "grant read", "full"), ("source", "directory sync and grant read", "full"),
-    ("source", "grant read", "type restored"), ("source", "grant read and daily cap", "type restored"),
+    ("source", "grant read", "type restored"), ("source", "daily cap", "type restored"),
     ("source", "directory sync", "type restored"),
     ("source", "directory sync and grant read", "type restored"),
     ("source", "grant read", "schedule restored"),
@@ -4353,7 +4889,7 @@ def test_interrupted_redemption_closes_full_day_bridge_on_recovery_failure(
 
     assert state.accounts.extension == live
     assert (state.accounts.limit_type, state.accounts.daily_schedule) == (3, native.daily_schedule)
-    assert state.accounts.daily_limit == (120 if live_tuple == "destination" or cap_error else 480)
+    assert state.accounts.daily_limit == (120 if live_tuple == "destination" or cap_error or read_error else 480)
     if cap_error:
         set_cap.assert_called_once_with(1001, 480)
         assert ("set_limit_type", 1001, 1) not in state.accounts.events
@@ -4366,7 +4902,7 @@ def test_bridge_recovery_rechecks_account_after_native_read(redemption):
     destination = (state.epoch, 420)
     native = RedeemTimeState(3, 480, (300, 60_000))
     saved = SavedBalance(300, True)
-    seed_record(state.store, saved=saved, intent=RedeemIntent(
+    pending = seed_record(state.store, saved=saved, intent=RedeemIntent(
         (0, 0), destination, True, True, time_state=native,
     ))
     state.accounts.limit_type = 1
@@ -4379,13 +4915,33 @@ def test_bridge_recovery_rechecks_account_after_native_read(redemption):
         return value
 
     with mock.patch.object(state.accounts, "get_daily_schedule", side_effect=read_then_reassign):
-        with pytest.raises(RecoveryPending):
+        with pytest.raises(AccessDenied):
             recover_redemption(state)
 
     assert state.accounts.extension == (0, 0)
-    assert state.record().saved == saved and state.record().intent.destination == destination
+    result = state.record()
+    assert result.revision > pending.revision
+    assert result == GrantRecord(1001, "child", result.revision)
     assert any(event[0] == "get_daily_schedule" for event in state.accounts.events)
     assert not any(event[0].startswith(("set_", "terminate")) for event in state.accounts.events)
+
+
+def test_unknown_publication_closes_a_bridge_that_started_with_limits_disabled(redemption):
+    state = redemption
+    native = RedeemTimeState(0, 480, (300, 60_000))
+    state.accounts.limit_type = 1
+    state.accounts.daily_limit = native.daily_limit
+    state.accounts.daily_schedule = (0, 86400)
+    intent = RedeemIntent((0, 0), (state.epoch, 420), False, True, time_state=native)
+    seed_record(state.store, saved=SavedBalance(300, False), intent=intent)
+
+    with mock.patch.object(state.accounts, "get_extension", side_effect=TimeoutError):
+        with pytest.raises(RecoveryPending):
+            recover_redemption(state)
+
+    assert state.accounts.limit_type == 2 and state.accounts.daily_schedule == native.daily_schedule
+    assert state.accounts.daily_limit == 120 and state.accounts.extension == (0, 0)
+    assert state.record().intent == intent
 
 
 def test_failed_redemption_roll_forward_restores_prior_time_and_keeps_strict_apps(redemption):
@@ -4488,7 +5044,7 @@ def test_kiosk_redemption_rechecks_account_and_tuple_after_activation(redemption
     external = change.startswith("external")
     with mock.patch.object(state.extensions, "set_enabled", side_effect=activate), \
             mock.patch.object(state.preferences, "load", side_effect=load_preferences):
-        expected = BackendFailure if external else (RecoveryPending, RollbackFailure)
+        expected = BackendFailure if external else AccessDenied
         with pytest.raises(expected):
             state.use(before.revision, caller=991)
 
@@ -4502,7 +5058,8 @@ def test_kiosk_redemption_rechecks_account_and_tuple_after_activation(redemption
         assert not any(event[0] == "set_extension" for event in events)
     else:
         assert state.accounts.extension == destination
-        assert result.saved == before.saved and result.intent.destination == destination
+        assert result == GrantRecord(1001, "child", result.revision)
+        assert result.revision > before.revision
         assert not any(event[0].startswith(("set_", "terminate")) for event in events)
 
 
@@ -4534,20 +5091,20 @@ def test_redemption_recovery_does_not_restart_or_reopen_expired_access(redemptio
         assert state.accounts.extension == destination
     state.sleep(86_400)
     state.restart()
+    events = state.accounts.events[:]
     assert state.broker.prepare_own_session(1001)
     strict_filter = (False, ("/usr/bin/game", "org.example.Game"))
     assert state.accounts.filter == strict_filter
-    events = state.accounts.events[:]
-    result = state.record() if interruption == "unconfirmed result" else recover_redemption(state)
+    result = state.record()
 
-    assert result == state.record()
     assert result.fixed is None and result.saved is None and result.intent is None
     assert state.accounts.extension == destination
     assert state.accounts.filter == strict_filter
     assert state.broker.get_time_status(0, 1001).one_time_grant_remaining_seconds == 0
     with pytest.raises(Stale):
         state.use(before.revision)
-    assert not any(event[0] == "terminate_apps" for event in state.accounts.events[len(events):])
+    terminations = [event for event in state.accounts.events[len(events):] if event[0] == "terminate_apps"]
+    assert len(terminations) == 1  # The normal expired-session preparation owns termination.
     writes = [event[2] for event in state.accounts.events[len(events):] if event[0] == "set_extension"]
     assert writes == ([destination] if interruption == "before grant" else [])
 

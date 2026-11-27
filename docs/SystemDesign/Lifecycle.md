@@ -39,9 +39,10 @@ gate in managed child accounts. Actual import and activation errors still fail;
 ### Broker readiness
 
 Construction reconciles current AccountsService filters into fapolicyd, reasserts
-the packaged extension for preference-enabled eligible children, and attempts
-stale live-session runtime-cap cleanup before registering D-Bus. Shared policy
-or extension-dependency failures block readiness. Failed child account/home
+the packaged extension for preference-enabled eligible children, attempts
+stale live-session runtime-cap cleanup, and checks saved-time records before
+registering D-Bus. Shared policy or extension-dependency failures block
+readiness. Failed child account/home
 validation retains its sanitized diagnostic and leaves that child's
 saved controls and live enforcement unchanged while other children continue.
 An extension reported by Shell as failed is also isolated to that child so the
@@ -55,6 +56,11 @@ remain fatal. Readiness therefore does not certify every saved app rule.
 Startup uses live filters plus saved patterns/extension enablement; it does not
 replay all saved daily/app choices after removal cleared live state. Reapplying
 Parent controls projects retained choices; removed grants are never recreated.
+
+The saved-time check resolves interrupted transfers and clears records for
+accounts that have disappeared or become ineligible. If the broker cannot
+verify a transfer's result, the record stays available for a later recovery
+attempt. See [recovery and invalidation](../Save-For-Later-Design.md#revisions-recovery-and-invalidation).
 
 Normal operation starts [extension enablement monitoring](Screen-Time.md#extension-enablement-monitoring)
 for eligible child sessions. Session/account lifecycle notifications refresh the

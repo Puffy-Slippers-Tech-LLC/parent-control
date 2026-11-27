@@ -253,6 +253,7 @@ Technical interfaces, storage formats and verification limits are in the
 - [ONPC-COMP-KIOSK-004] Prevents duplicate submission or changes to the pending request while waiting for authentication.
 - [ONPC-COMP-KIOSK-005] Submits the displayed child, parent, duration and soft-app choice; approval, denial, cancellation, errors and exit follow the shared rules.
 - [ONPC-COMP-KIOSK-006] Remains restricted during requests, About and error reporting. It cannot manage daily allowances, app rules, accounts or system settings.
+- [ONPC-COMP-KIOSK-007] Selecting a child shows the station screen with that child's saved desktop screen resolution and scale when the saved layout fits the connected monitors. The station keeps the last applied layout across sign-out and reboot. When the screen already matches, selection does not refresh or flicker it. Without a fitting saved layout the current screen remains.
 
 ### Child app
 

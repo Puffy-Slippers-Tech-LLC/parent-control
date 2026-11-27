@@ -53,6 +53,7 @@ from .agent_locale import KioskAgentLocale
 from common.oh_no_parent_control_ui.languages import selected_language
 from .request_content import GrantView, RequestContent
 from .selection_store import SelectionStore
+from .display_config import ChildDisplay
 from .snowflakes import GATEWAY_OUTER_BOUNDS, SnowflakeField
 from .floating_islands import (
     FloatingIslands, SCENERY, SOURCE_WIDTH, SOURCE_HEIGHT, scenery_artwork_geometry,
@@ -992,6 +993,7 @@ class RequestWindow(Adw.ApplicationWindow):
         self._language_revision = 0
         self._language_ready = False
         self._whats_new = WhatsNewPresenter(self)
+        self._child_display = ChildDisplay(self._bus_call)
         self._preview_languages = {}
         self._agent_locale = None if child_overlay else KioskAgentLocale()
         self._session_logout = None
@@ -1852,6 +1854,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _load_preferences(self, target_uid):
         if not self._child_overlay:
             self._select_language_child(target_uid)
+            if not self._preview:
+                self._child_display.select(target_uid)
         self._whats_new.select_child(target_uid)
         self._preferences_revision += 1
         revision = self._preferences_revision

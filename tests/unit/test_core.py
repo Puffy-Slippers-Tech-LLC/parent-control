@@ -1073,6 +1073,22 @@ class CoreTests(unittest.TestCase):
         store.load.assert_not_called()
         store.update_language.assert_not_called()
 
+    def test_child_monitors_config_is_kiosk_only_and_reports_unreadable_layout(self):
+        reader = mock.Mock(return_value='<monitors version="2"/>')
+        broker = Broker(make_broker()._config_loader, Authorizer(), Accounts(), monitors_reader=reader)
+        for caller in (0, 1001, 1003, True):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_monitors_config(caller, 1001)
+        for target in (991, 1003, 1004, 1005):
+            with self.assertRaises(AccessDenied):
+                broker.get_child_monitors_config(991, target)
+        reader.assert_not_called()
+        self.assertEqual(broker.get_child_monitors_config(991, 1001), '<monitors version="2"/>')
+        reader.assert_called_once_with(1001)
+        reader.side_effect = PermissionError('foreign file')
+        with self.assertRaises(BackendFailure):
+            broker.get_child_monitors_config(991, 1001)
+
     def test_own_language_is_shared_by_uid_and_independent_of_policy(self):
         accounts, authorizer = Accounts(), Authorizer()
         with tempfile.TemporaryDirectory() as directory:

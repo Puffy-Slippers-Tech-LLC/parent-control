@@ -107,6 +107,18 @@ with the same validation and persistence guarantees as the own-language methods.
 AccountsService desktop language without persisting a default. It retains the
 same kiosk-caller and eligible-target authorization.
 
+`GetChildMonitorsConfig(target_uid)` has the same authorization and returns the
+child's Mutter `~/.config/monitors.xml` (at most 64 KiB), or an empty string when
+absent. The root reader opens `.config` and the file without following links and
+requires child ownership, so a planted link or foreign file is refused. The kiosk
+applies the configuration matching the connected monitors (mode, scale, position,
+rotation, primary, layout mode) with Mutter's persistent method; GNOME Kiosk
+confirms immediately and Mutter saves it in the station's own `monitors.xml`, so
+the next station session, including after reboot, starts with the last applied
+layout. A screen that already matches is left untouched, so selection, including
+the remembered child on re-entry, causes no mode set or flicker. An unmatched or
+unusable layout keeps the current screen. `XDG_CONFIG_HOME` overrides are not followed.
+
 An empty string means follow the frontend session's language, or the selected
 child's desktop language in kiosk; the broker does
 not resolve its root process locale. Explicit IDs contain a 2–8 ASCII-letter

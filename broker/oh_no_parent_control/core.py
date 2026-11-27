@@ -13,7 +13,7 @@ from common.oh_no_parent_control_ui.approval_prompt import (
 )
 from common.oh_no_parent_control_ui.languages import desktop_language_candidates
 from common.oh_no_parent_control_ui.diagnostic_report import LANGUAGE_IDS, MAX_LANGUAGE_USERS
-from .grant_diagnostics import GrantDiagnostics
+from .grant_diagnostics import GrantDiagnostics, buffer_saved_time_logs, log_pause_overrun, log_saved_time
 from .execution_policy import ExecutionPolicyError
 from .extension_manager import ChildExtensionFailed, ChildExtensionSessionLost, ChildExtensionUnavailable
 import math
@@ -21,7 +21,7 @@ import re
 import threading
 import time
 import uuid
-from contextlib import AbstractContextManager, ExitStack
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Callable, Iterable, Protocol
@@ -126,6 +126,18 @@ def emit_backend_failure(error: BrokerError, *, original=None) -> None:
     if (isinstance(error, RollbackFailure) or
             (isinstance(error, BackendFailure) and not error.expected)):
         emit_failure_once("broker", "backend", error, original=original)
+
+
+@contextmanager
+def _report_grant_recovery(stage):
+    try:
+        yield
+    except (RecoveryPending, RollbackFailure):
+        log_saved_time("grant.recovery", stage=stage, outcome="pending")
+        raise
+    except Exception:
+        log_saved_time("grant.recovery", stage=stage, outcome="failed")
+        raise
 
 
 @dataclass(frozen=True)
@@ -446,14 +458,21 @@ class Broker:
         self._grant_diagnostics.write_started(uid)
         bounds = {} if deadline is None else {"deadline": deadline}
         wall_bound = {} if wall_deadline is None else {"wall_deadline": wall_deadline}
-        self._accounts.set_extension(uid, value, **bounds, **wall_bound)
-        if self._extension_window_elapsed(deadline, wall_deadline):
-            raise TimeoutError("extension write window elapsed")
-        live = self._accounts.get_extension(uid, **bounds) if readback is None else readback()
-        if live != value:
-            raise BackendFailure("extension verification failed")
-        if self._extension_window_elapsed(deadline, wall_deadline):
-            raise TimeoutError("extension verification window elapsed")
+        stage = "extension-write"
+        try:
+            self._accounts.set_extension(uid, value, **bounds, **wall_bound)
+            if self._extension_window_elapsed(deadline, wall_deadline):
+                raise TimeoutError("extension write window elapsed")
+            stage = "extension-readback"
+            live = self._accounts.get_extension(uid, **bounds) if readback is None else readback()
+            if live != value:
+                raise BackendFailure("extension verification failed")
+            if self._extension_window_elapsed(deadline, wall_deadline):
+                raise TimeoutError("extension verification window elapsed")
+        except Exception:
+            if deadline is not None:
+                log_pause_overrun(self._monotonic, deadline, stage)
+            raise
         try:
             self._grant_diagnostics.wrote(uid, value)
             self._observe_grant(uid, *value)
@@ -1151,8 +1170,9 @@ class Broker:
         if self._load_request_preferences(context.target.uid) != context.preferences:
             raise AccessDenied("preferences changed during request")
 
+    @buffer_saved_time_logs
     def pause_grant(self, caller_uid: int, sender: str, target_uid: int, revision: int) -> None:
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("pause"):
             raise Busy("another request is already in progress")
         try:
             if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
@@ -1167,8 +1187,9 @@ class Broker:
         finally:
             self._release_request_lock()
 
+    @buffer_saved_time_logs
     def use_saved_time(self, caller_uid: int, sender: str, target_uid: int, revision: int) -> None:
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("redemption"):
             raise Busy("another request is already in progress")
         try:
             if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
@@ -1186,6 +1207,19 @@ class Broker:
             self._release_request_lock()
 
     def _use_saved_time_locked(self, context: SavedTimeContext, record: GrantRecord) -> None:
+        outcome, seconds = "failed", 0
+        try:
+            self._redeem_saved_time_locked(context, record)
+        except (RecoveryPending, RollbackFailure):
+            outcome = "pending"
+            raise
+        else:
+            outcome, seconds = "committed", record.saved.seconds
+        finally:
+            log_saved_time("grant.redemption", surface=context.request_kind,
+                           outcome=outcome, redeemed_seconds=seconds)
+
+    def _redeem_saved_time_locked(self, context: SavedTimeContext, record: GrantRecord) -> None:
         uid = context.target.uid
         correlation_id = str(uuid.uuid4())
         allow_soft = record.saved.allow_soft_blocked_apps
@@ -1431,7 +1465,7 @@ class Broker:
 
     def recover_grant(self, target_uid: int, *, at_startup: bool = False) -> None:
         """Attempt one freshly read record for startup or a queued status read."""
-        if self._grant_store is None or not self._acquire_request_lock():
+        if self._grant_store is None or not self._acquire_request_lock("grant-recovery"):
             return
         try:
             record = self._grant_store.load_record(target_uid) if at_startup else None
@@ -1506,6 +1540,12 @@ class Broker:
         self._check_grant_account(config, target)
 
     def _repair_grant_bridge(self, record: GrantRecord, *, durable: bool = False) -> GrantRecord:
+        with _report_grant_recovery("time-settings"):
+            result = self._restore_grant_bridge(record, durable=durable)
+        log_saved_time("grant.recovery", stage="time-settings", outcome="restored")
+        return result
+
+    def _restore_grant_bridge(self, record: GrantRecord, *, durable: bool) -> GrantRecord:
         try:
             if not durable:
                 self._grant_store.confirm_durable(record)
@@ -1539,6 +1579,24 @@ class Broker:
         return issued, duration
 
     def _pause_grant_locked(self, context: SavedTimeContext, record: GrantRecord) -> GrantRecord:
+        outcome, seconds = "failed", 0
+        try:
+            result = self._transfer_pause_locked(context, record)
+        except _NoPausableTime:
+            outcome = "not-pausable"
+            raise
+        except RecoveryPending:
+            outcome = "pending"
+            raise
+        else:
+            outcome = "committed"
+            seconds = result.saved.seconds - (record.saved.seconds if record.saved else 0)
+            return result
+        finally:
+            log_saved_time("grant.pause", surface=context.request_kind,
+                           outcome=outcome, transferred_seconds=seconds)
+
+    def _transfer_pause_locked(self, context: SavedTimeContext, record: GrantRecord) -> GrantRecord:
         """Pause a fixed grant under the transaction lock using a validated record."""
         if record.intent is not None:
             raise RecoveryPending("a saved-time transfer is awaiting recovery")
@@ -1643,6 +1701,10 @@ class Broker:
     def _recover_pause_intent(self, record: GrantRecord, *,
                               transfer_deadline: float | None = None) -> GrantRecord:
         """Resolve a durable pause intent under the transaction lock."""
+        with _report_grant_recovery("pause"):
+            return self._resolve_pause_intent(record, transfer_deadline=transfer_deadline)
+
+    def _resolve_pause_intent(self, record: GrantRecord, *, transfer_deadline: float | None) -> GrantRecord:
         intent = record.intent
         assert isinstance(intent, PauseIntent)
         boundary = sum(intent.destination)
@@ -1665,7 +1727,11 @@ class Broker:
             self._reject_invalid_grant(record)
         except BackendFailure as error:
             raise RecoveryPending("pause outcome could not be verified") from error
-        return self._finish_pause_intent(record, live)
+        result = self._finish_pause_intent(record, live)
+        outcome = "committed" if live == intent.destination else (
+            "source-retained" if live == intent.source else "superseded")
+        log_saved_time("grant.recovery", stage="pause", outcome=outcome)
+        return result
 
     def _finish_pause_intent(self, record: GrantRecord, live: GrantTuple) -> GrantRecord:
         intent = record.intent
@@ -1684,15 +1750,18 @@ class Broker:
             raise RecoveryPending("pause result durability is uncertain") from error
 
     def _capture_pause_daily_remaining(self, context: SavedTimeContext, record: GrantRecord) -> DailyCapture:
-        return self._capture_saved_time_daily_remaining(context, record, lock_before_capture=True)
+        return self._capture_saved_time_daily_remaining(
+            context, record, operation_kind="pause", lock_before_capture=True,
+        )
 
     def _capture_use_saved_time_daily_remaining(self, context: SavedTimeContext, record: GrantRecord) -> DailyCapture:
         return self._capture_saved_time_daily_remaining(
-            context, record, lock_before_capture=context.request_kind == "kiosk",
+            context, record, operation_kind="redemption", lock_before_capture=context.request_kind == "kiosk",
         )
 
     def _capture_saved_time_daily_remaining(
-            self, context: SavedTimeContext, record: GrantRecord, *, lock_before_capture: bool) -> DailyCapture:
+            self, context: SavedTimeContext, record: GrantRecord, *,
+            operation_kind: str, lock_before_capture: bool) -> DailyCapture:
         self._recheck_saved_time_context(context, record)
         uid = context.target.uid
         usage = None
@@ -1707,7 +1776,9 @@ class Broker:
                 targets += (own_session,)
             seen_ends = set()
             for session in targets:
-                usage, lock_anchor = self._lock_and_observe_usage(context, session, seen_ends, witnesses)
+                usage, lock_anchor = self._lock_and_observe_usage(
+                    context, session, seen_ends, witnesses, operation_kind=operation_kind,
+                )
                 if session is own_session:
                     # The caller can unlock while the lock's usage is still being collected.
                     transfer_anchor = lock_anchor
@@ -1797,7 +1868,7 @@ class Broker:
 
     def _lock_and_observe_usage(
             self, context: SavedTimeContext, session: SessionState,
-            seen_ends: set[int], witnesses: list[tuple[int, int]],
+            seen_ends: set[int], witnesses: list[tuple[int, int]], *, operation_kind: str,
     ) -> tuple[UsageIntervals, tuple[datetime, float]]:
         uid = context.target.uid
         deadline = self._monotonic() + SESSION_LOCK_TIMEOUT_SECONDS
@@ -1832,24 +1903,31 @@ class Broker:
         if earliest_end <= watermark:
             raise BackendFailure("wall clock changed before desktop locking")
         timeout = self._lock_time_remaining(deadline)
+        outcome = "request-failed"
         try:
-            self._sessions.lock(session.session_id, timeout_seconds=timeout)
-        except Exception as error:
-            raise BackendFailure("could not lock desktop session") from error
-        while not self._read_lock_session(session, deadline).locked:
-            self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
+            try:
+                self._sessions.lock(session.session_id, timeout_seconds=timeout)
+            except Exception as error:
+                raise BackendFailure("could not lock desktop session") from error
+            outcome = "lock-unconfirmed"
+            while not self._read_lock_session(session, deadline).locked:
+                self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
 
-        while True:
-            usage = self._saved_time_usage(uid, deadline=deadline)
-            observed_at = int(self._now().timestamp())
-            self._lock_time_remaining(deadline)
-            witness = next(((start, end) for start, end in usage
-                            if earliest_end <= end <= observed_at and end not in seen_ends), None)
-            seen_ends.update(end for _, end in usage)
-            if witness is not None:
-                witnesses.append(witness)
-                return usage, (lock_at, lock_monotonic)
-            self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
+            outcome = "usage-unconfirmed"
+            while True:
+                usage = self._saved_time_usage(uid, deadline=deadline)
+                observed_at = int(self._now().timestamp())
+                self._lock_time_remaining(deadline)
+                witness = next(((start, end) for start, end in usage
+                                if earliest_end <= end <= observed_at and end not in seen_ends), None)
+                seen_ends.update(end for _, end in usage)
+                if witness is not None:
+                    witnesses.append(witness)
+                    outcome = "usage-observed"
+                    return usage, (lock_at, lock_monotonic)
+                self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
+        finally:
+            log_saved_time("grant.lock", operation=operation_kind, surface=context.request_kind, outcome=outcome)
 
     @staticmethod
     def _eligible(config: Configuration, user: UserAccount) -> bool:
@@ -2759,12 +2837,16 @@ class Broker:
             duration_seconds, allow_soft_blocked_apps,
         )
 
+    @buffer_saved_time_logs
     def request_deferred_access(self, caller_uid: int, sender: str, target_uid: int,
                                 approver_uid: int, duration_seconds: int,
                                 allow_soft_blocked_apps: bool, revision: int) -> DeferredApproval:
         correlation_id = str(uuid.uuid4())
-        if not self._acquire_request_lock():
+        if not self._acquire_request_lock("deferred-approval"):
             raise Busy("another request is already in progress")
+        request_kind = "other"
+        failure_outcome = "failed"
+        result = None
         try:
             config = self._load_config()
             request_kind = self._saved_time_request_kind(config, caller_uid, target_uid)
@@ -2791,15 +2873,18 @@ class Broker:
                                                  allow_soft_blocked_apps, deferred=True)
                 outcome = approval.authenticate(target.label, approver.username, message)
                 if outcome in {"denied", "cancelled"}:
-                    return DeferredApproval(correlation_id, outcome)
+                    result = DeferredApproval(correlation_id, outcome)
+                    return result
                 if outcome != "approved":
                     raise BackendFailure("authorizer returned an invalid outcome")
                 try:
                     self._resolve_saved_time_session(caller_uid, sender, expected=context.session)
                 except AccessDenied:
-                    return DeferredApproval(correlation_id, "cancelled")
+                    result = DeferredApproval(correlation_id, "cancelled")
+                    return result
                 if not self._caller_alive(sender):
-                    return DeferredApproval(correlation_id, "cancelled")
+                    result = DeferredApproval(correlation_id, "cancelled")
+                    return result
 
                 def validate_selection():
                     current = self._load_saved_time_record(target)
@@ -2808,20 +2893,24 @@ class Broker:
                     self._recheck_saved_time_selection(self._load_config(), context, current, approver=approver)
 
                 if not approval.admit(validate=validate_selection):
-                    return DeferredApproval(correlation_id, "cancelled")
-                return self._save_deferred_approval(
-                    context, record, SavedBalance(seconds, allow_soft_blocked_apps), correlation_id,
-                )
+                    result = DeferredApproval(correlation_id, "cancelled")
+                    return result
+                balance = SavedBalance(seconds, allow_soft_blocked_apps)
+                try:
+                    saved = self._write_grant_record(record, replace(record, saved=balance))
+                except GrantStoreError as error:
+                    # Replacement may be visible even if directory sync failed.
+                    failure_outcome = "unconfirmed"
+                    raise BackendFailure("approved time could not be durably saved") from error
+                result = self._finish_deferred_approval(context, saved, correlation_id)
+                return result
         finally:
             self._release_request_lock()
+            log_saved_time("grant.deferred-approval", surface=request_kind,
+                           outcome=result.result_code if result else failure_outcome,
+                           saved_seconds=(result.saved_seconds or 0) if result else 0)
 
-    def _save_deferred_approval(self, context, record, balance, correlation_id) -> DeferredApproval:
-        try:
-            saved = self._write_grant_record(record, replace(record, saved=balance))
-        except GrantStoreError as error:
-            # The replacement can be visible even if its directory sync failed.
-            # Report uncertainty and leave the live grant alone.
-            raise BackendFailure("approved time could not be durably saved") from error
+    def _finish_deferred_approval(self, context, saved, correlation_id) -> DeferredApproval:
         if saved.fixed is not None and not saved.fixed.ended_by_pause:
             try:
                 with self._accounts.bind_grant_mutations(saved.uid, saved.username):
@@ -2837,10 +2926,10 @@ class Broker:
                 pause_error = (error.dbus_name if isinstance(error, (DesktopInUse, RecoveryPending))
                                else BackendFailure.dbus_name)
                 return DeferredApproval(correlation_id, "saved_pause_error", pause_error,
-                                        saved_seconds=balance.seconds)
+                                        saved_seconds=saved.saved.seconds)
             else:
                 return DeferredApproval(correlation_id, "saved_paused", saved_seconds=paused.saved.seconds)
-        return DeferredApproval(correlation_id, "saved", saved_seconds=balance.seconds)
+        return DeferredApproval(correlation_id, "saved", saved_seconds=saved.saved.seconds)
 
     @staticmethod
     def _validate_approval_values(duration_seconds, allow_soft_blocked_apps, *, deferred=False):
@@ -3187,6 +3276,14 @@ class Broker:
 
     def _resolve_redeem_intent(self, attempt: _RedeemAttempt,
                                correlation_id: str) -> tuple[GrantRecord, bool]:
+        with _report_grant_recovery("redemption"):
+            result, committed = self._roll_forward_redeem_intent(attempt, correlation_id)
+        log_saved_time("grant.recovery", stage="redemption",
+                       outcome="committed" if committed else "superseded")
+        return result, committed
+
+    def _roll_forward_redeem_intent(self, attempt: _RedeemAttempt,
+                                   correlation_id: str) -> tuple[GrantRecord, bool]:
         uid = attempt.record.uid
         intent = attempt.intent
 

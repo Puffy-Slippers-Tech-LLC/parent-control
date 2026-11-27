@@ -319,6 +319,20 @@ retry observations remain subject to normal duplicate suppression.
 Those numbers reset when the indicator is recreated; disposal does not cancel
 broker work. Diagnostics do not change locking, retries, recovery or reporting.
 
+Saved-time diagnostics distinguish deferred approval, pause, redemption and
+recovery. A deferred result reports the confirmed saved balance, including a
+committed save followed by a failed pause. A store-write failure with uncertain
+durability reports an unconfirmed balance. A committed pause or redemption
+reports the seconds moved by that operation. Recovery records a closed stage and
+the disposition of the transfer or temporary time settings.
+Lock diagnostics distinguish a failed request, an unconfirmed lock, and an
+observed lock with or without new completed usage. The pause overrun records
+elapsed time past the monotonic budget during an attempted AccountsService
+write or read-back. The three public mutations buffer their new events until the
+broker releases the transaction lock, so those timestamps reflect emission.
+Saved-time fields are limited to reviewed operation and surface categories,
+outcomes, recovery stages and bounded durations.
+
 Dependency collection queries fixed systemd services and reviewed fapolicyd
 journal markers under one five-second budget and 256 KiB pipe bound. Timeout/
 overflow reaps only its owned command. Reads are independent within the budget,

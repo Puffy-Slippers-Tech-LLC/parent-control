@@ -6,10 +6,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from dataclasses import replace
 from datetime import datetime, timedelta
+from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
+from zipfile import ZipFile
 from zoneinfo import ZoneInfo
 
+from common.oh_no_parent_control_ui import diagnostic_events
+from common.oh_no_parent_control_ui.diagnostic_report import read_report
 from oh_no_parent_control import data_migration
 from oh_no_parent_control.app_termination import RunningAppTerminator
 from oh_no_parent_control.core import (
@@ -33,6 +37,7 @@ from oh_no_parent_control.execution_policy import ExecutionPolicyError
 from oh_no_parent_control.extension_manager import (
     ChildExtensionFailed, ChildExtensionSessionLost, ChildExtensionUnavailable,
 )
+from oh_no_parent_control.logs import BrokerFileHandler, DailyLogWriter
 
 
 from tests.support.broker import (
@@ -41,6 +46,39 @@ from tests.support.broker import (
 from tests.support.configuration import valid_config
 
 FAILURE_SINK = "common.oh_no_parent_control_ui.diagnostic_events.emit_failure"
+PRIVATE_DIAGNOSTIC_INPUT = "Private Name /home/private-child private@example.test :1.42"
+
+
+@pytest.fixture
+def saved_time_events(caplog, tmp_path):
+    caplog.set_level("INFO")
+
+    def check(*expected):
+        selected = {
+            "grant.deferred-approval", "grant.pause", "grant.redemption", "grant.recovery",
+            "grant.lock", "grant.pause-overrun", "core.transaction-busy",
+        }
+        writer = DailyLogWriter(tmp_path / "logs")
+        handler = BrokerFileHandler(writer)
+        produced = []
+        for record in caplog.records:
+            if not hasattr(record, "onpc_payload"):
+                continue
+            decoded = diagnostic_events.decode(record.onpc_payload, component="broker")
+            if decoded["event"] in selected:
+                produced.append((decoded["event"], decoded["fields"]))
+            handler.emit(record)
+        assert produced == list(expected)
+        with ZipFile(BytesIO(writer.snapshot())) as archive:
+            logs, _ = read_report(archive)
+            retained = [row for rows in logs.values() for row in rows]
+            assert [(row["event"], row["fields"]) for row in retained if row["event"] in selected] == produced
+            text = "".join(archive.read(name).decode() for name in archive.namelist())
+            for private in ("Private Name", "/home/private-child", "private@example.test", ":1.42"):
+                assert private not in text and private not in caplog.text
+        return {row["event"] for row in retained}
+
+    return check
 
 
 def local_session(session_id, uid, **changes):
@@ -328,8 +366,9 @@ def test_kiosk_capture_requires_a_record_for_each_switched_away_local_graphical_
     assert fixture.accounts.events == []
 
 
-@pytest.mark.parametrize(("lock_observed", "record_end_offset"), [(False, 0), (True, 0), (True, 2)])
-def test_pause_bounds_wait_for_lock_and_new_usage(saved_time_session, lock_observed, record_end_offset):
+@pytest.mark.parametrize(("lock_observed", "record_end_offset"), [(False, 0), (True, 0), (True, 2), (None, 0)])
+def test_pause_bounds_wait_for_lock_and_new_usage(
+        saved_time_session, lock_observed, record_end_offset, saved_time_events):
     fixture = saved_time_session
     state = fixture.child
     fixture.sessions.get.side_effect = lambda *_args, **_kwargs: state
@@ -342,6 +381,8 @@ def test_pause_bounds_wait_for_lock_and_new_usage(saved_time_session, lock_obser
 
     def lock(_session_id, *, timeout_seconds):
         nonlocal state
+        if lock_observed is None:
+            raise OSError(PRIVATE_DIAGNOSTIC_INPUT)
         if lock_observed:
             state = replace(state, locked=True)
 
@@ -351,8 +392,11 @@ def test_pause_bounds_wait_for_lock_and_new_usage(saved_time_session, lock_obser
         fixture.broker._capture_pause_daily_remaining(context, fixture.grant_record)
 
     fixture.sessions.lock.assert_called_once()
-    assert fixture.elapsed() == pytest.approx(5)
+    assert fixture.elapsed() == pytest.approx(0 if lock_observed is None else 5)
     assert fixture.accounts.events == []
+    expected = {None: "request-failed", False: "lock-unconfirmed", True: "usage-unconfirmed"}
+    saved_time_events(("grant.lock", {"operation": "pause", "surface": "child",
+                                      "outcome": expected[lock_observed]}))
 
 
 @pytest.mark.parametrize('approval_utc, midnight_utc', (
@@ -3148,7 +3192,8 @@ def test_deferred_approval_saves_twenty_minutes_before_pausing_eighteen(pause_tr
     assert state.running_apps.calls == []
 
 
-def test_deferred_approval_leaves_daily_allowance_and_running_deadline_unchanged(pause_transaction):
+def test_deferred_approval_leaves_daily_allowance_and_running_deadline_unchanged(
+        pause_transaction, saved_time_events):
     state = pause_transaction
     before = seed_record(state.store, saved=SavedBalance(MAX_SAVED_SECONDS - 300, True))
     with pytest.raises(InvalidRequest, match="saved-time limit"):
@@ -3165,9 +3210,27 @@ def test_deferred_approval_leaves_daily_allowance_and_running_deadline_unchanged
     assert state.accounts.extension == state.source
     state.sessions.lock.assert_not_called()
     state.usage.query_usage.assert_not_called()
+    logged = saved_time_events(
+        ("grant.deferred-approval", {"surface": "kiosk", "outcome": "failed", "saved_seconds": 0}),
+        ("grant.deferred-approval", {"surface": "child", "outcome": "saved", "saved_seconds": MAX_SAVED_SECONDS}),
+    )
+    assert logged.isdisjoint({"core.032", "core.grant-rest-of-day", "grant.observed-timed"})
     status = state.broker.get_time_status(991, 1001, 0)
     assert status.daily_allowance_remaining_seconds == 120
     assert status.one_time_grant_remaining_seconds == 600
+
+
+def test_deferred_approval_reports_unconfirmed_store_write(pause_transaction, saved_time_events):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    with mock.patch.object(data_migration, "_fsync_directory", side_effect=OSError(PRIVATE_DIAGNOSTIC_INPUT)):
+        with pytest.raises(BackendFailure, match="approved time could not be durably saved"):
+            state.broker.request_deferred_access(991, ":1.42", 1001, 1003, 300, True, before.revision)
+
+    assert state.record() == replace(before, revision=before.revision + 1, saved=SavedBalance(1200, True))
+    assert state.accounts.extension == state.source and state.writes == []
+    saved_time_events(("grant.deferred-approval", {"surface": "kiosk", "outcome": "unconfirmed",
+                                                   "saved_seconds": 0}))
 
 
 @pytest.mark.parametrize(("fault", "pause_error"), [
@@ -3176,7 +3239,8 @@ def test_deferred_approval_leaves_daily_allowance_and_running_deadline_unchanged
     ("balance limit", BackendFailure.dbus_name),
     ("unconfirmed intent", RecoveryPending.dbus_name),
 ])
-def test_deferred_approval_reports_pause_outcome_without_losing_saved_time(pause_transaction, fault, pause_error):
+def test_deferred_approval_reports_pause_outcome_without_losing_saved_time(
+        pause_transaction, fault, pause_error, saved_time_events):
     state = pause_transaction
     existing = MAX_SAVED_SECONDS - 300 if fault == "balance limit" else 100
     before = seed_record(state.store, saved=SavedBalance(existing, False), fixed=FixedGrant(state.source, False))
@@ -3202,6 +3266,15 @@ def test_deferred_approval_reports_pause_outcome_without_losing_saved_time(pause
     assert (state.record().intent is not None) == (fault == "unconfirmed intent")
     assert state.accounts.extension == state.source
     assert state.writes == state.running_apps.calls == []
+    pause_outcome = {
+        "daily covers remaining": "not-pausable", "desktop in use": "failed",
+        "balance limit": "failed", "unconfirmed intent": "pending",
+    }[fault]
+    saved_time_events(
+        ("grant.pause", {"surface": "kiosk", "outcome": pause_outcome, "transferred_seconds": 0}),
+        ("grant.deferred-approval", {"surface": "kiosk", "outcome": result.result_code,
+                                     "saved_seconds": existing + 300}),
+    )
 
 
 @pytest.mark.parametrize(("change", "error"), [
@@ -3297,6 +3370,30 @@ def test_pause_conserves_seconds_at_boundary_and_restores_strict_policy_on_entry
     assert state.accounts.extension == state.destination
 
 
+def test_pause_contention_reports_saved_time_operation_categories(pause_transaction, caplog, saved_time_events):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True))
+    write = state.store.write
+
+    def write_with_competing_request(record):
+        if record.intent is not None:
+            with pytest.raises(Busy):
+                state.broker.use_saved_time(991, ":1.42", 1001, before.revision)
+        return write(record)
+
+    with mock.patch.object(state.store, "write", side_effect=write_with_competing_request):
+        state.pause(before.revision)
+
+    contention, = [diagnostic_events.decode(record.onpc_payload)["fields"] for record in caplog.records
+                   if record.name == "onpc.core" and "core.transaction-busy" in record.onpc_payload]
+    saved_time_events(
+        ("core.transaction-busy", {"requested": "redemption", "holder": "pause", "holder_known": True,
+                                   "elapsed_ms": contention["elapsed_ms"]}),
+        ("grant.pause", {"surface": "kiosk", "outcome": "committed",
+                         "transferred_seconds": 600 - TRANSFER_MARGIN_SECONDS - 120}),
+    )
+
+
 @pytest.mark.parametrize(("refusal", "error", "locks"), [
     ("stale revision", Stale, 0), ("deadline tuple", Stale, 0), ("expired", Stale, 0),
     ("zero beyond daily", Stale, 1), ("replacement during capture", Stale, 1),
@@ -3336,8 +3433,10 @@ def test_pause_refusal_preserves_time_and_apps(pause_transaction, refusal, error
     assert state.accounts.filter == (False, ("org.example.Game",))
 
 
-@pytest.mark.parametrize("outcome", ("source", "late write", "unreadable verify", "external"))
-def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transaction, outcome):
+@pytest.mark.parametrize("outcome", (
+    "source", "late write", "unreadable verify", "external", "stalled write", "stalled readback",
+))
+def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transaction, outcome, saved_time_events):
     state = pause_transaction
     before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
     replacement = (state.epoch, 50)
@@ -3352,9 +3451,11 @@ def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transa
         if outcome == "external":
             state.accounts.extension = replacement
         elif outcome == "late write":
-            raise TimeoutError("write acknowledgement unavailable")
-        elif outcome == "unreadable verify":
+            raise TimeoutError(PRIVATE_DIAGNOSTIC_INPUT)
+        elif outcome in {"unreadable verify", "stalled write", "stalled readback"}:
             write(uid, grant, **bounds)
+            if outcome == "stalled write":
+                state.sleep(TRANSFER_MARGIN_SECONDS + 1)
 
     def observe(uid, *, deadline=None):
         if attempted:
@@ -3363,7 +3464,10 @@ def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transa
                 state.accounts.extension = state.destination
             elif state.elapsed() < TRANSFER_MARGIN_SECONDS and outcome == "unreadable verify":
                 raise TimeoutError("read-back unavailable")
-        return read(uid, deadline=deadline)
+        live = read(uid, deadline=deadline)
+        if attempted and outcome == "stalled readback" and state.elapsed() < TRANSFER_MARGIN_SECONDS:
+            state.sleep(TRANSFER_MARGIN_SECONDS + 1)
+        return live
 
     with mock.patch.object(state.accounts, "set_extension", side_effect=attempt) as writes, \
             mock.patch.object(state.accounts, "get_extension", side_effect=observe):
@@ -3374,7 +3478,8 @@ def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transa
             assert state.pause(before.revision) is None
 
     writes.assert_called_once()
-    assert observations[-1] == pytest.approx(TRANSFER_MARGIN_SECONDS)
+    stalled = outcome in {"stalled write", "stalled readback"}
+    assert observations[-1] == pytest.approx(TRANSFER_MARGIN_SECONDS + stalled)
     if outcome in {"source", "unreadable verify", "external"}:
         assert observations[0] < TRANSFER_MARGIN_SECONDS
     result = state.record()
@@ -3391,6 +3496,18 @@ def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transa
         assert state.accounts.extension == state.destination
         assert result.fixed == FixedGrant(state.destination, True, ended_by_pause=True)
         assert result.saved == SavedBalance(900 + 600 - TRANSFER_MARGIN_SECONDS - 120, False)
+    recovery_outcome = {"source": "source-retained", "external": "superseded"}.get(outcome, "committed")
+    overrun = []
+    if stalled:
+        stage = "extension-write" if outcome == "stalled write" else "extension-readback"
+        overrun.append(("grant.pause-overrun", {"stage": stage, "overrun_ms": 1000}))
+    logged = saved_time_events(
+        *overrun,
+        ("grant.recovery", {"stage": "pause", "outcome": recovery_outcome}),
+        ("grant.pause", {"surface": "kiosk", "outcome": "failed" if outcome in {"source", "external"}
+                         else "committed", "transferred_seconds": result.saved.seconds - SAVED.seconds}),
+    )
+    assert logged.isdisjoint({"core.020", "core.023"})
 
 
 def test_pause_preserves_replacement_observed_after_intent_is_written(pause_transaction):
@@ -3957,7 +4074,7 @@ def test_overlay_uses_full_balance_after_live_time_and_applies_current_hard_bloc
     assert state.record() == result and state.accounts.events == events
 
 
-def test_kiosk_uses_completed_usage_and_journals_before_stopping_blocked_apps(redemption):
+def test_kiosk_uses_completed_usage_and_journals_before_stopping_blocked_apps(redemption, saved_time_events):
     state = redemption
     before = seed_record(state.store, saved=SavedBalance(300, False))
     desktop = replace(state.child, active=False, state="online")
@@ -3991,6 +4108,11 @@ def test_kiosk_uses_completed_usage_and_journals_before_stopping_blocked_apps(re
     assert (state.record().saved, state.record().intent) == (None, None)
     state.sessions.lock.assert_called_once()
     state.usage.query_native_deadline.assert_not_called()
+    logged = saved_time_events(
+        ("grant.lock", {"operation": "redemption", "surface": "kiosk", "outcome": "usage-observed"}),
+        ("grant.redemption", {"surface": "kiosk", "outcome": "committed", "redeemed_seconds": 300}),
+    )
+    assert logged.isdisjoint({"core.026", "core.032", "core.grant-rest-of-day"})
 
 
 @pytest.mark.parametrize(("remaining", "expect_fixed"), [(200, False), (120, True), (0, True)])
@@ -4384,7 +4506,7 @@ def test_withdrawal_waits_for_a_live_read_before_choosing_the_daily_cap(
 
 @pytest.mark.parametrize(("change", "error"), (
     ("deleted", InvalidRequest), ("promoted", AccessDenied), ("renamed", RecoveryPending),
-    ("lookup unavailable", InvalidRequest),
+    ("lookup unavailable", BackendFailure),
 ))
 def test_status_defers_account_invalidation_to_the_serialized_writer(tracked, monkeypatch, change, error):
     accounts, store, broker = tracked

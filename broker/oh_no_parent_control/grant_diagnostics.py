@@ -5,12 +5,58 @@ in this bounded in-memory lookup; no diagnostic event receives them.
 """
 
 from collections import OrderedDict
+from contextvars import ContextVar
 from datetime import datetime, timedelta
+from functools import wraps
 import threading
 
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger
 
 LOG = get_logger("grant")
+_pending = ContextVar("saved_time_diagnostics", default=None)
+
+
+def _emit_saved_time(event_id, warning, fields):
+    """Send reviewed scalar fields without letting diagnostics interrupt a transfer."""
+    try:
+        emit = LOG.warning if warning else LOG.info
+        emit(event_id, **fields)
+    except Exception:
+        pass
+
+
+def log_saved_time(event_id, *, warning=False, **fields):
+    pending = _pending.get()
+    if pending is None:
+        _emit_saved_time(event_id, warning, fields)
+    else:
+        pending.append((event_id, warning, fields))
+
+
+def buffer_saved_time_logs(callback):
+    """Keep synchronous log storage outside the lock/capture and pause deadlines."""
+    @wraps(callback)
+    def buffered(*args, **kwargs):
+        pending = []
+        token = _pending.set(pending)
+        try:
+            return callback(*args, **kwargs)
+        finally:
+            _pending.reset(token)
+            for item in pending:
+                _emit_saved_time(*item)
+
+    return buffered
+
+
+def log_pause_overrun(monotonic, deadline, stage):
+    try:
+        elapsed = monotonic() - deadline
+        if elapsed >= 0:
+            log_saved_time("grant.pause-overrun", warning=True, stage=stage,
+                           overrun_ms=int(min(2147483647, elapsed * 1000)))
+    except Exception:
+        pass
 
 
 class GrantDiagnostics:

@@ -21,7 +21,7 @@ recorded native qualification.
 | [x] | 011 | Build the request and approved-time tabs | 001 | Shared layout, menu, Approved time states, and lock dialog | Done. Focused host checks and queued DEB/RPM builds passed. |
 | [x] | 012 | Connect both request screens to the timer actions | 010, 011, 025 | Request form state and actions, success routes, and the countdown refresh call | Done. Request UI and client checks, queued DEB/RPM builds, and fixture cleanup passed. |
 | [x] | 013 | Show saved time in Parent and let parents revoke it | 010 | Parent balance display, availability, and saved-only revoke | Done. Parent UI and client checks, queued DEB and RPM builds, and fixture cleanup passed. |
-| [ ] | 014 | [Report saved-time operations without personal information](Save-For-Later-Tasks/014.md) | 010 | Structured event catalogue, operation outcomes, and field validation | 45–90 min |
+| [x] | 014 | Report saved-time operations without personal information | 010 | Structured event catalogue, operation outcomes, and field validation | Done. Host diagnostics and D-Bus checks, queued package builds, and independent review passed. |
 | [ ] | 015 | [Check that removal preserves saved time only if it is aborted](Save-For-Later-Tasks/015.md) | 010 | Installed removal, rollback, retry, reinstall, and purge engineering histories | 2–3 h |
 | [ ] | 016 | [Check that an upgrade preserves saved time](Save-For-Later-Tasks/016.md) | 010 | Installed broker restart and package update with saved time and recovery state | 2–3 h |
 | [ ] | 023 | [Check that pausing captures all usage on every target](Save-For-Later-Tasks/023.md) | 010 | Installed kiosk-rule lock before capture after a raw VT switch, per target | 2–3 h |

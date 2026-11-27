@@ -816,6 +816,9 @@ def test_account_identity_mismatch_is_diagnosable_without_private_data(
         return GLib.Variant("(a{sv})", ({
             "Uid": GLib.Variant("t", 61234),
             "UserName": GLib.Variant("s", "gdm-greeter" if greeter else SECRET),
+            "AccountType": GLib.Variant("i", 0),
+            "SystemAccount": GLib.Variant("b", False),
+            "LocalAccount": GLib.Variant("b", True),
             "RealName": GLib.Variant("s", SECRET),
             "IconFile": GLib.Variant("s", SECRET),
         },))

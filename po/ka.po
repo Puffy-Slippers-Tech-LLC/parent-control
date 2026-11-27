@@ -1840,6 +1840,17 @@ msgstr "დროის მართვის საშუალებები 
 msgid "Updating approved time…"
 msgstr "დამტკიცებული დრო ახლდება…"
 
+msgid "The time status changed. Try again."
+msgstr "დროის მდგომარეობა შეიცვალა. სცადე ხელახლა."
+
+msgid "The timer could not be paused."
+msgstr "ტაიმერის დაპაუზება ვერ მოხერხდა."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s სამუშაო მაგიდას იყენებს."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "დამტკიცების შემთხვევაში შეინახება: %(duration)s"

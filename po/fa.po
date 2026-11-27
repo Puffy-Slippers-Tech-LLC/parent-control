@@ -1846,6 +1846,17 @@ msgstr "کنترل‌های زمان مشغول‌اند. دوباره تلاش 
 msgid "Updating approved time…"
 msgstr "در حال به‌روزرسانی زمان تأییدشده…"
 
+msgid "The time status changed. Try again."
+msgstr "وضعیت زمان تغییر کرد. دوباره تلاش کن."
+
+msgid "The timer could not be paused."
+msgstr "زمان‌سنج را نتوانستیم موقتاً متوقف کنیم."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s در حال استفاده از میز کار است."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "در صورت تأیید ذخیره می‌شود: %(duration)s"

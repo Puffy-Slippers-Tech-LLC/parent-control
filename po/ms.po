@@ -1843,6 +1843,17 @@ msgstr "Kawalan masa sedang sibuk. Cuba lagi."
 msgid "Updating approved time…"
 msgstr "Mengemas kini masa yang diluluskan…"
 
+msgid "The time status changed. Try again."
+msgstr "Status masa telah berubah. Cuba lagi."
+
+msgid "The timer could not be paused."
+msgstr "Pemasaan tidak dapat dijeda."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s sedang menggunakan desktop."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Akan disimpan jika diluluskan: %(duration)s"

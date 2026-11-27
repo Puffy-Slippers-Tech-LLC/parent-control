@@ -1853,6 +1853,17 @@ msgstr "Trwa inna operacja związana z czasem. Spróbuj ponownie."
 msgid "Updating approved time…"
 msgstr "Aktualizowanie zatwierdzonego czasu…"
 
+msgid "The time status changed. Try again."
+msgstr "Stan czasu się zmienił. Spróbuj ponownie."
+
+msgid "The timer could not be paused."
+msgstr "Nie udało się wstrzymać minutnika."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s korzysta z pulpitu."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Do zachowania po zatwierdzeniu: %(duration)s"

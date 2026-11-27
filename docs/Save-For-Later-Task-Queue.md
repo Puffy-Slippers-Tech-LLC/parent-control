@@ -19,7 +19,7 @@ recorded native qualification.
 | [x] | 010 | Make saved time and timer actions available to the apps | 004, 009 | Broker dispatch, consistent status, and frontend client transport | Done. Host checks, queued DEB and RPM builds, and independent backend review passed. |
 | [x] | 025 | Refresh the child countdown while the overlay stays open | 001 | Overlay-to-panel refresh request bound to the started overlay process | Done. Focused countdown and nested Shell checks, queued DEB and RPM builds, and fixture cleanup passed. |
 | [x] | 011 | Build the request and approved-time tabs | 001 | Shared layout, menu, Approved time states, and lock dialog | Done. Focused host checks and queued DEB/RPM builds passed. |
-| [ ] | 012 | [Connect both request screens to the timer actions](Save-For-Later-Tasks/012.md) | 010, 011, 025 | Request form state and actions, success routes, and the countdown refresh call | 2–3 h |
+| [x] | 012 | Connect both request screens to the timer actions | 010, 011, 025 | Request form state and actions, success routes, and the countdown refresh call | Done. Request UI and client checks, queued DEB/RPM builds, and fixture cleanup passed. |
 | [ ] | 013 | [Show saved time in Parent and let parents revoke it](Save-For-Later-Tasks/013.md) | 010 | Parent balance display, availability, and saved-only revoke | 1–2 h |
 | [ ] | 014 | [Report saved-time operations without personal information](Save-For-Later-Tasks/014.md) | 010 | Structured event catalogue, operation outcomes, and field validation | 45–90 min |
 | [ ] | 015 | [Check that removal preserves saved time only if it is aborted](Save-For-Later-Tasks/015.md) | 010 | Installed removal, rollback, retry, reinstall, and purge engineering histories | 2–3 h |

@@ -1846,6 +1846,17 @@ msgstr "I contrôi dal timp a son ocupâts. Torne prove."
 msgid "Updating approved time…"
 msgstr "Daûr a inzornâ il timp aprovât…"
 
+msgid "The time status changed. Try again."
+msgstr "Il stât dal timp al è cambiât. Torne prove."
+
+msgid "The timer could not be paused."
+msgstr "Nol è stât pussibil meti in pause il timer."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s al sta doprant il scritori."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Si salvarà se al ven aprovât: %(duration)s"

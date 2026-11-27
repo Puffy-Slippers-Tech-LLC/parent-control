@@ -1849,6 +1849,17 @@ msgstr "Er wordt al een andere actie voor tijdbeheer uitgevoerd. Probeer het opn
 msgid "Updating approved time…"
 msgstr "Goedgekeurde tijd bijwerken…"
 
+msgid "The time status changed. Try again."
+msgstr "De tijdstatus is gewijzigd. Probeer het opnieuw."
+
+msgid "The timer could not be paused."
+msgstr "De timer kon niet worden gepauzeerd."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s gebruikt het bureaublad."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Bewaard bij goedkeuring: %(duration)s"

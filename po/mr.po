@@ -1849,6 +1849,17 @@ msgstr "वेळेची नियंत्रणे व्यस्त आह
 msgid "Updating approved time…"
 msgstr "मंजूर वेळ अद्ययावत होत आहे…"
 
+msgid "The time status changed. Try again."
+msgstr "वेळेची स्थिती बदलली आहे. पुन्हा प्रयत्न करा."
+
+msgid "The timer could not be paused."
+msgstr "टायमरला विराम देता आला नाही."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s डेस्कटॉप वापरत आहेत."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "मंजुरी मिळाल्यास जतन होईल: %(duration)s"

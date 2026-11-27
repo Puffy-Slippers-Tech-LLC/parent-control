@@ -1846,6 +1846,17 @@ msgstr "Управлението на времето е заето. Опитай
 msgid "Updating approved time…"
 msgstr "Одобреното време се обновява…"
 
+msgid "The time status changed. Try again."
+msgstr "Състоянието на времето се промени. Опитай отново."
+
+msgid "The timer could not be paused."
+msgstr "Таймерът не можа да бъде поставен на пауза."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s използва работния плот."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Ще се запази при одобрение: %(duration)s"

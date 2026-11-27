@@ -1849,6 +1849,17 @@ msgstr "Tidskontrollerna är upptagna. Försök igen."
 msgid "Updating approved time…"
 msgstr "Uppdaterar godkänd tid…"
 
+msgid "The time status changed. Try again."
+msgstr "Tidsstatusen har ändrats. Försök igen."
+
+msgid "The timer could not be paused."
+msgstr "Det gick inte att pausa timern."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s använder skrivbordet."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Sparas vid godkännande: %(duration)s"

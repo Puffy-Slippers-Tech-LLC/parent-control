@@ -10,7 +10,7 @@ from gi.repository import Gio, GLib
 
 from common.oh_no_parent_control_ui.duration import format_duration
 from common.oh_no_parent_control_ui.diagnostic_events import decode
-from common.oh_no_parent_control_ui.grant_client import RequestGrantClient
+from common.oh_no_parent_control_ui.grant_client import GrantStatus, RequestGrantClient
 from oh_no_parent_control_kiosk.main import RequestWindow, _time_estimate_label
 from oh_no_parent_control_kiosk.model import RequestState
 from oh_no_parent_control_kiosk.request_content import RequestContent
@@ -30,17 +30,25 @@ def estimate_window():
     form = SimpleNamespace(
         time_estimate_selection=Mock(return_value=(1001, 300)),
         set_time_estimate=Mock(),
+        set_grant_status=Mock(),
     )
+    form.grant_status_selection = form.time_estimate_selection
+    client = Mock()
+    client.get_grant_status.side_effect = lambda _uid, _seconds, done: done(None, None)
     return bind_methods(SimpleNamespace(
         _request_content=form, _estimate_closed=False, _estimate_revision=1,
         _request_revision=0,
-        _estimate_in_flight=False, _estimate_debounce_id=0,
+        _estimate_in_flight=False, _estimate_debounce_id=0, _grant_tick_id=0,
+        _grant_client=client, _grant_methods_missing=False, _grant_retry_step=None,
+        _preferences_revision=1,
         _state=SimpleNamespace(in_flight=False),
         _stack=SimpleNamespace(get_visible_child_name=lambda: "request"),
         _preview=False, _child_overlay=False, _bus_call=Mock(),
         _errors=Mock(),
     ), RequestWindow, (
         "_refresh_time_estimate", "_time_estimate_done", "_finish_time_estimate",
+        "_grant_status_done", "_status_is_current", "_read_legacy_estimate",
+        "_show_estimate_failure", "_log_estimate",
     ))
 
 
@@ -94,7 +102,7 @@ def test_settled_load_queries_once_after_both_inputs(
     window._show_error = Mock()
     connection = SimpleNamespace(call_finish=lambda value: SimpleNamespace(unpack=lambda: value))
     loads = [
-        lambda: window._preferences_done(1001, connection, ('{"parent_control_enabled":true}',)),
+        lambda: window._preferences_done(1001, connection, ('{"parent_control_enabled":true}',), 1),
         lambda: window._approvers_done(connection, (((1000, '[Parent user]', ''),),)),
     ]
     if approvers_first:
@@ -451,10 +459,11 @@ def request_window(overlay=False):
         _show_error=Mock(), _show_result=Mock(), _show_child_success=Mock(),
         _schedule_success_logout=Mock(), _queue_time_estimate=Mock(), _stack=Mock(),
         _startup_clock_handler=0, _whats_new=Mock(), _session_logout=None,
-        _estimate_debounce_id=0, _estimate_refresh_id=0,
+        _estimate_debounce_id=0, _estimate_refresh_id=0, _grant_tick_id=0,
         _cancel_success_dismiss=Mock(), _thunder=None,
     ), RequestWindow, (
         '_request_access', '_request_is_current', '_preferences_saved', '_agent_prepared',
+        '_dispatch_approval',
         '_request_done', '_present_request_outcome', '_request_failed', '_finish_request', '_on_destroy',
     ))
 
@@ -739,7 +748,7 @@ def test_finished_attempt_cannot_dispatch_or_finish_a_fresh_request(overlay, out
         stale = finish_request_call(completed, values=('old', 'approved', 300), error=error)
         stale.call_finish.assert_not_called()
     assert window._state.in_flight
-    assert window._pending_request == (1002, 1010, 600, True)
+    assert window._pending_request == (1002, 1010, 600, True, None)
     assert window._request_stage == 'preferences'
     assert window._set_request_controls.call_count == controls
     finish_request_call(new_saved)
@@ -1094,6 +1103,28 @@ def test_old_child_reply_is_discarded_and_latest_selection_is_fetched(error):
     )
 
 
+@pytest.mark.parametrize("error", (None, RuntimeError("previous child offline")))
+def test_superseded_grant_status_cannot_publish_a_balance_or_error(error):
+    window = estimate_window()
+    client = window._grant_client
+    client.get_grant_status.side_effect = None
+    window._refresh_time_estimate()
+    old_done = client.get_grant_status.call_args.args[-1]
+    form = window._request_content
+    form.grant_status_selection.return_value = (1002, 600)
+    window._estimate_revision += 1
+    status = GrantStatus(5, 1234, 30, 90, 60, 600, 90, 690, "fixed", 1324, 390, 960)
+    old_done(status if error is None else None, error)
+
+    form.set_grant_status.assert_not_called()
+    window._errors.capture.assert_not_called()
+    uid, requested, done = client.get_grant_status.call_args.args
+    assert (uid, requested) == (1002, 600)
+    done(status._replace(revision=8, saved_seconds=10, deferred_estimate_seconds=670), None)
+    state, view = form.set_grant_status.call_args.args
+    assert (state, view.revision, view.saved_seconds, view.requested_seconds) == ("ready", 8, 10, 600)
+
+
 def test_periodic_refresh_updates_estimate_and_recovers_after_failure():
     window = estimate_window()
     window._refresh_time_estimate()
@@ -1179,7 +1210,7 @@ def test_estimate_refresh_preserves_higher_priority_footer_messages(state, expec
         _accounts_loaded=True, _approvers_loaded=True, _account_uids=[1001],
         _approver_uids=[1000], _screen_time_limit_enabled=True,
         _validation_error=None, _controls_enabled=True,
-        _grant_state="unavailable", _grant_view=None,
+        _grant_state="unavailable", _grant_view=None, _grant_feedback=None,
         _ui_duration_value=lambda: "300", _already_saved=Mock(), _save_hint=Mock(),
         selected=Mock(return_value=(1001, "Child", 1000, 300, False)),
         _status=Mock(),
@@ -1206,7 +1237,7 @@ def test_pending_estimate_keeps_label_with_blank_value_until_result():
         _accounts_loaded=True, _approvers_loaded=True, _account_uids=[1001],
         _approver_uids=[1000], _screen_time_limit_enabled=True,
         _validation_error=None, _controls_enabled=True,
-        _grant_state="unavailable", _grant_view=None,
+        _grant_state="unavailable", _grant_view=None, _grant_feedback=None,
         _ui_duration_value=lambda: "300", _already_saved=Mock(), _save_hint=Mock(),
         selected=Mock(return_value=(1001, "Child", 1000, 300, False)),
         _status=Mock(),

@@ -1846,6 +1846,17 @@ msgstr "Ajanhallinta on varattu. Yritä uudelleen."
 msgid "Updating approved time…"
 msgstr "Päivitetään hyväksyttyä aikaa…"
 
+msgid "The time status changed. Try again."
+msgstr "Ajan tila muuttui. Yritä uudelleen."
+
+msgid "The timer could not be paused."
+msgstr "Ajastinta ei voitu keskeyttää."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s käyttää työpöytää."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Tallennetaan, jos hyväksytään: %(duration)s"

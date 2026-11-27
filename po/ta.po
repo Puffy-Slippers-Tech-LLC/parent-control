@@ -1849,6 +1849,17 @@ msgstr "நேரக் கட்டுப்பாடுகள் இப்ப�
 msgid "Updating approved time…"
 msgstr "அனுமதிக்கப்பட்ட நேரம் புதுப்பிக்கப்படுகிறது…"
 
+msgid "The time status changed. Try again."
+msgstr "நேர நிலை மாறிவிட்டது. மீண்டும் முயலவும்."
+
+msgid "The timer could not be paused."
+msgstr "நேரக்கணிப்பானை இடைநிறுத்த முடியவில்லை."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s கணினித் திரையைப் பயன்படுத்துகிறார்."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "அனுமதிக்கப்பட்டால் சேமிக்கப்படும் நேரம்: %(duration)s"

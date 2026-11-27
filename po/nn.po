@@ -1849,6 +1849,17 @@ msgstr "Tidskontrollane er opptekne. Prøv igjen."
 msgid "Updating approved time…"
 msgstr "Oppdaterer godkjend tid…"
 
+msgid "The time status changed. Try again."
+msgstr "Tidsstatusen har endra seg. Prøv på nytt."
+
+msgid "The timer could not be paused."
+msgstr "Kunne ikkje setje tidtakaren på pause."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s brukar skrivebordet."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Spart ved godkjenning: %(duration)s"

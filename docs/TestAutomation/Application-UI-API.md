@@ -198,11 +198,12 @@ screen-time control and absent accounts retain their existing restrictions.
 | `kiosk-soft-apps-toggle` | Boolean get/set |
 | `kiosk-request-submit`, `kiosk-request-cancel` | Request & use now and ordinary form cancellation. Authentication remains external. |
 | `kiosk-request-status`, `kiosk-screen-limit-notice` | Current estimate, progress or validation text |
-| `kiosk-request-retry` | Reread time status from the request page while the timer controls are busy or recovery is pending |
+| `kiosk-request-retry` | Reread time status from the request page when it is busy, unavailable or recovering |
 | `kiosk-request-already-saved` | Saved time that will stay saved under the immediate request |
 | `kiosk-request-menu` | Open by activation or get/set boolean open state. Closing the split menu leaves the form open. |
 | `kiosk-request-save-for-later`, `kiosk-request-save-hint` | Deferred request action in the open menu and its estimate or availability explanation. Rest of the day disables the action. |
 | `kiosk-approved-page`, `kiosk-approved-status` | Approved time page and canonical `ready`, `empty`, `loading`, `unavailable`, `busy`, `recovery`, `pending` or `disabled` state. Displayed messages are translated. |
+| `kiosk-approved-feedback` | Translated error from the last action, visible alongside refreshed balances when available |
 | `kiosk-approved-running`, `kiosk-approved-saved`, `kiosk-approved-daily` | Canonical seconds and translated display text for the running time beyond daily time, saved time and daily time. Unavailable snapshots have no seconds value. |
 | `kiosk-approved-running-status`, `kiosk-approved-pause-hint`, `kiosk-approved-saved-title`, `kiosk-approved-saved-hint` | Translated running and saved row captions and hints |
 | `kiosk-approved-pause`, `kiosk-approved-use-saved`, `kiosk-approved-retry`, `kiosk-approved-request-more` | Ordinary actions, available according to status, balance and screen-time control. Request more time switches tabs. |
@@ -242,11 +243,11 @@ screen-time control and absent accounts retain their existing restrictions.
 | `reminder-editor-preview` | Show current editor text or translated duration using the real reminder banner renderer with Critical urgency, without saving; editor dismissal closes the preview |
 
 The shared view exposes the approved-time controls and their current
-availability. Live broker actions and status refresh are tracked in the
-[saved-time task queue](../Save-For-Later-Task-Queue.md). The approving-parent
-selector and duration fields belong to the request page. The selected child
-and the form's Cancel action are shared across pages. Escape dismisses the
-split menu or lock confirmation before it can close the form.
+availability. Read the current status and balances after a timer action. A
+saved approval can succeed while its pause fails, so read the feedback too.
+The approving-parent selector and duration fields belong to the request page.
+Both pages share the selected child and the form's Cancel action. Escape
+dismisses the split menu or lock confirmation before it can close the form.
 
 On the shared child/kiosk Preferences surface, `language-dialog.getValue()`
 returns an opaque 32-character lowercase hexadecimal lifetime token. It stays

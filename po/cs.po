@@ -1852,6 +1852,17 @@ msgstr "Ovládání času je zaneprázdněné. Zkuste to znovu."
 msgid "Updating approved time…"
 msgstr "Aktualizuje se schválený čas…"
 
+msgid "The time status changed. Try again."
+msgstr "Stav času se změnil. Zkus to znovu."
+
+msgid "The timer could not be paused."
+msgstr "Časovač se nepodařilo pozastavit."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s používá pracovní plochu."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Uloží se po schválení: %(duration)s"

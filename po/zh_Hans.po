@@ -1841,6 +1841,17 @@ msgstr "时间控制正忙，请重试。"
 msgid "Updating approved time…"
 msgstr "正在更新已批准的时间…"
 
+msgid "The time status changed. Try again."
+msgstr "时间状态已更改。请重试。"
+
+msgid "The timer could not be paused."
+msgstr "无法暂停计时器。"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s 正在使用桌面。"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "批准后将留存：%(duration)s"

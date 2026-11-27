@@ -185,6 +185,10 @@ LOADING_TIME_STATUS = gettext('Loading time status…')
 TIME_STATUS_UNAVAILABLE = gettext('Time status unavailable')
 TIME_CONTROLS_BUSY = gettext('Time controls are busy. Try again.')
 UPDATING_APPROVED_TIME = gettext('Updating approved time…')
+TIME_STATUS_CHANGED = gettext('The time status changed. Try again.')
+TIMER_COULD_NOT_BE_PAUSED = gettext('The timer could not be paused.')
+# Translators: name is the selected child's display name.
+CHILD_IS_USING_DESKTOP = gettext('%(name)s is using the desktop.')
 # Translators: duration is a localized amount of saved screen time.
 SAVED_IF_APPROVED = gettext('Saved if approved: %(duration)s')
 ALREADY_SAVED = gettext('Already saved: %(duration)s')

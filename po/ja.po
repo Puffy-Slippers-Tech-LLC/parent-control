@@ -1838,6 +1838,17 @@ msgstr "時間の操作を処理中です。もう一度お試しください。
 msgid "Updating approved time…"
 msgstr "許可された時間を更新中…"
 
+msgid "The time status changed. Try again."
+msgstr "時間の状態が変わりました。もう一度試してください。"
+
+msgid "The timer could not be paused."
+msgstr "タイマーを一時停止できませんでした。"
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s がデスクトップを使用中です。"
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "許可された場合に保存される時間: %(duration)s"

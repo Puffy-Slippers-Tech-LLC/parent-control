@@ -1843,6 +1843,17 @@ msgstr "Điều khiển thời gian đang bận. Hãy thử lại."
 msgid "Updating approved time…"
 msgstr "Đang cập nhật thời gian được duyệt…"
 
+msgid "The time status changed. Try again."
+msgstr "Trạng thái thời gian đã thay đổi. Hãy thử lại."
+
+msgid "The timer could not be paused."
+msgstr "Không thể tạm dừng bộ hẹn giờ."
+
+#. Translators: name is the selected child's display name.
+#, python-format
+msgid "%(name)s is using the desktop."
+msgstr "%(name)s đang sử dụng màn hình nền."
+
 #, python-format
 msgid "Saved if approved: %(duration)s"
 msgstr "Sẽ để dành nếu được duyệt: %(duration)s"

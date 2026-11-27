@@ -29,8 +29,8 @@ from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
 from .grant_store import (
-    BridgeRepair, FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
-    PauseIntent, RedeemIntent, RedeemTimeState, SavedBalance, UINT64_MAX,
+    MAX_SAVED_SECONDS, UINT64_MAX, BridgeRepair, FixedGrant, GrantAccountError, GrantRecord,
+    GrantStore, GrantStoreError, GrantTuple, PauseIntent, RedeemIntent, RedeemTimeState, SavedBalance,
     beyond_daily_seconds, merged_saved_seconds, new_grant_is_fixed, remaining_seconds, running_mode,
 )
 from .whats_new import WhatsNewCatalog, WhatsNewError
@@ -148,6 +148,22 @@ class TimeStatus:
     one_time_grant_remaining_seconds: int
     additional_one_time_grant_seconds: int
     calculated_active_extension_seconds: int
+
+
+@dataclass(frozen=True)
+class GrantStatus:
+    revision: int
+    evaluated_at_epoch_seconds: int
+    daily_remaining_seconds: int
+    running_remaining_seconds: int
+    running_beyond_daily_seconds: int
+    saved_seconds: int
+    usable_seconds: int
+    total_seconds: int
+    running_mode: str
+    running_end_epoch_seconds: int
+    immediate_estimate_seconds: int
+    deferred_estimate_seconds: int
 
 
 @dataclass(frozen=True)
@@ -854,6 +870,87 @@ class Broker:
         return self._time_status(target.uid, additional_seconds,
                                  own=caller_uid == target.uid)
 
+    def get_grant_status(
+            self, caller_uid: int, target_uid: int, requested_seconds: int = 0, *,
+            schedule_recovery: Callable[[int], None],
+    ) -> GrantStatus:
+        config = self._load_config()
+        own = caller_uid == target_uid
+        if not (own or caller_uid == config.kiosk_uid or
+                self._is_admin(caller_uid, unavailable_is_backend_failure=True)):
+            raise AccessDenied("caller cannot inspect time for this account")
+        self._validate_approval_values(requested_seconds, False)
+        transaction_revision = self._transaction_revision
+
+        def check_transaction():
+            if (self._request_lock.locked() or
+                    self._transaction_revision != transaction_revision):
+                raise Busy("another request is already in progress")
+
+        target, record = self._read_grant_record_for_status(
+            config, target_uid, schedule_recovery=schedule_recovery,
+        )
+        check_transaction()
+        if self._preferences is None or self._timer_usage is None:
+            raise BackendFailure("remaining-time status is unavailable")
+        try:
+            preferences = self._preferences.load(target.uid)
+            usage = self._timer_usage.query_usage(target.uid)
+            native_deadline = self._native_deadline(target.uid, preferences) if own else None
+            live = self._read_live_grant(target.uid)
+            now = self._now()
+            evaluated_monotonic = self._monotonic() if native_deadline is not None else None
+        except NativeDeadlineSuspended as error:
+            raise Busy("native time is suspended while the child session is inactive") from error
+        except BrokerError:
+            raise
+        except Exception as error:
+            raise BackendFailure("remaining-time status is unavailable") from error
+        check_transaction()
+        try:
+            evaluated_at = int(now.timestamp())
+            if not 0 <= evaluated_at <= UINT64_MAX:
+                raise ValueError("evaluation time is outside the supported range")
+            daily = self._daily_remaining_from_usage(
+                preferences, usage, now, evaluated_at, native_deadline,
+                evaluated_monotonic=evaluated_monotonic,
+            )
+            running = remaining_seconds(live, evaluated_at) if live[1] else 0
+            mode = running_mode(record, live, running)
+            if mode == "none":
+                running = 0
+            running_end = sum(live) if running else 0
+            beyond_daily = beyond_daily_seconds(daily, running)
+            saved = record.saved.seconds if record.saved else 0
+            usable = max(daily, running)
+            total = usable + saved
+            if total > UINT32_MAX or running_end > UINT64_MAX:
+                raise ValueError("grant status is outside the supported range")
+        except (KeyError, TypeError, ValueError, OverflowError, OSError) as error:
+            raise BackendFailure("remaining-time status is invalid") from error
+
+        immediate = deferred = 0
+        if requested_seconds:
+            if usable + requested_seconds <= UINT32_MAX:
+                immediate = usable + requested_seconds
+            saved_with_request = saved + requested_seconds
+            if saved_with_request <= MAX_SAVED_SECONDS:
+                # The store-only approval can succeed even if pausing would exceed the limit.
+                deferred = saved_with_request
+                if mode == "fixed" and deferred + beyond_daily <= MAX_SAVED_SECONDS:
+                    deferred += beyond_daily
+        current_target, _ = self._read_grant_record_for_status(
+            config, target_uid, schedule_recovery=schedule_recovery,
+            expected_revision=record.revision,
+        )
+        if current_target.username != target.username:
+            raise Busy("selected account changed during the status read")
+        check_transaction()
+        return GrantStatus(
+            record.revision, evaluated_at, daily, running, beyond_daily, saved, usable, total,
+            mode, running_end, immediate, deferred,
+        )
+
     def has_running_soft_blocked_apps(self, caller_uid: int, target_uid: int) -> bool:
         config = self._load_config()
         if not self._is_admin(caller_uid):
@@ -939,6 +1036,25 @@ class Broker:
             *, native_deadline: int | None = None) -> TimeStatus:
         now = evaluated_at or self._now()
         now_seconds = int(now.timestamp())
+        daily_remaining = self._daily_remaining_from_usage(
+            preferences, usage_entries, now, now_seconds, native_deadline,
+        )
+        try:
+            grant_remaining = remaining_seconds((grant_time, grant_duration), now_seconds)
+        except ValueError as error:
+            raise InvalidRequest("remaining-time values must be unsigned 32-bit integers") from error
+        calculated = calculate_active_extension_seconds(
+            daily_remaining, grant_remaining, additional_seconds,
+        )
+        return TimeStatus(
+            daily_remaining, grant_remaining, additional_seconds, calculated,
+        )
+
+    def _daily_remaining_from_usage(
+            self, preferences: dict, usage_entries: UsageIntervals, now: datetime,
+            now_seconds: int, native_deadline: int | None, *,
+            evaluated_monotonic: float | None = None,
+    ) -> int:
         daily_limit_seconds = (
             preferences["daily_time_limit_minutes"] * 60
             if preferences["parent_control_enabled"] else 0
@@ -961,18 +1077,11 @@ class Broker:
             # Completed records omit uninterrupted activity. The child's fresh
             # native deadline may only reduce that operand; the live grant and
             # authenticated additional interval remain broker-owned.
-            native_remaining = max(0, math.ceil(native_deadline / 1_000_000 - self._monotonic()))
+            if evaluated_monotonic is None:
+                evaluated_monotonic = self._monotonic()
+            native_remaining = max(0, math.ceil(native_deadline / 1_000_000 - evaluated_monotonic))
             daily_remaining = min(daily_remaining, native_remaining)
-        try:
-            grant_remaining = remaining_seconds((grant_time, grant_duration), now_seconds)
-        except ValueError as error:
-            raise InvalidRequest("remaining-time values must be unsigned 32-bit integers") from error
-        calculated = calculate_active_extension_seconds(
-            daily_remaining, grant_remaining, additional_seconds,
-        )
-        return TimeStatus(
-            daily_remaining, grant_remaining, additional_seconds, calculated,
-        )
+        return daily_remaining
 
     @staticmethod
     def _check_caller(config: Configuration, caller_uid: int) -> None:
@@ -1212,8 +1321,9 @@ class Broker:
 
     def _read_grant_record_for_status(
             self, config: Configuration, target_uid: int, *, schedule_recovery: Callable[[int], None],
+            expected_revision: int | None = None,
     ) -> tuple[UserAccount, GrantRecord]:
-        """Read-only admission for the future status method after caller authorization."""
+        """Read and validate a status record after caller authorization."""
         if self._request_lock.locked():
             raise Busy("another request is already in progress")
         if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
@@ -1230,7 +1340,9 @@ class Broker:
             raise BackendFailure("saved-time record is unavailable") from error
         observation = None
         with self._grant_fence_lock:
-            if publications != self._grant_publications:
+            revision = stored_record.revision if stored_record is not None else 0
+            if (publications != self._grant_publications or
+                    (expected_revision is not None and revision != expected_revision)):
                 raise Busy("another request is already in progress")
             if stored_record is not None:
                 observation = _GrantObservation(stored_record.revision, stored_record.revision)
@@ -1246,7 +1358,9 @@ class Broker:
             schedule_recovery(target_uid)
 
         try:
-            target = self._target(config, target_uid, on_invalid=invalidate)
+            target = self._target(
+                config, target_uid, on_invalid=invalidate, unavailable_is_backend_failure=True,
+            )
             record = stored_record or GrantRecord(target_uid, target.username)
             if record.username != target.username or self._grant_is_fenced(record):
                 invalidate()
@@ -1300,6 +1414,8 @@ class Broker:
             self._check_grant_account(self._load_config(), target)
             changed = True
         else:
+            if revision is not None and record.revision != revision:
+                raise Stale("grant record changed since it was read")
             changed = record.intent is not None or record.bridge_repair is not None
             if record.bridge_repair is not None:
                 record = self._repair_grant_bridge(record)
@@ -1743,13 +1859,17 @@ class Broker:
             user.is_local and not user.is_system and not user.is_admin
         )
 
-    def _is_admin(self, caller_uid: int) -> bool:
+    def _is_admin(self, caller_uid: int, *, unavailable_is_backend_failure: bool = False) -> bool:
         if caller_uid == 0:
             return True
         try:
             user = self._accounts.get_user(caller_uid)
             return user.is_admin and user.is_local
-        except Exception:
+        except AccountMissing:
+            return False
+        except Exception as error:
+            if unavailable_is_backend_failure:
+                raise BackendFailure("caller account is unavailable") from error
             return False
 
     def _can_manage_or_kiosk(self, config: Configuration, caller_uid: int) -> bool:
@@ -2092,7 +2212,8 @@ class Broker:
             raise BackendFailure("could not save user language") from error
 
     def _target(self, config: Configuration, target_uid: int, *,
-                on_invalid: Callable[[], None] | None = None) -> UserAccount:
+                on_invalid: Callable[[], None] | None = None,
+                unavailable_is_backend_failure: bool = False) -> UserAccount:
         if type(target_uid) is not int or not 0 <= target_uid <= UINT32_MAX:
             raise InvalidRequest("target UID is invalid")
         try:
@@ -2101,9 +2222,13 @@ class Broker:
             if on_invalid is not None:
                 on_invalid()
             raise
-        except Exception as error:
-            if isinstance(error, AccountMissing) and on_invalid is not None:
+        except AccountMissing as error:
+            if on_invalid is not None:
                 on_invalid()
+            raise InvalidRequest("selected account is unavailable") from error
+        except Exception as error:
+            if unavailable_is_backend_failure:
+                raise BackendFailure("selected account is unavailable") from error
             raise InvalidRequest("selected account is unavailable") from error
         if user.uid != target_uid:
             raise AccessDenied("selected account identity changed")

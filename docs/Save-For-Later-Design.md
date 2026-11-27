@@ -535,17 +535,19 @@ time.
 | `running_mode` | `s` | `none`, `fixed` or `deadline`, [derived](#grant-modes) |
 | `running_end_epoch_seconds` | `t` | i + d of the running tuple; 0 for `none` |
 | `immediate_estimate_seconds` | `u` | U after an immediate approval of `requested_seconds`: max(D, A) + N |
-| `deferred_estimate_seconds` | `u` | S after a deferred approval: S + N, plus X when the mode is `fixed` |
+| `deferred_estimate_seconds` | `u` | S after a deferred approval: S + N, plus X when the mode is `fixed` and the combined balance fits |
 
 The mode is `none` when A = 0, and for a live tuple equal to the record's
 pause-ended R', which the broker treats as ended, as `PrepareOwnSession` does.
 `none` reports A = X = 0. Clients offer Pause only for `fixed` with X > 0, and
 Use saved time only with S > 0. `requested_seconds` is 0 for no estimate, which
 makes both estimates 0; otherwise it must be within the request bounds or the
-read fails with `InvalidRequest`. Because N > 0, a valid estimate is positive. A
-zero estimate for a nonzero request means the broker would refuse that request
-because its result exceeds the uint32 or saved-balance limit. Rest of the day
-keeps its client-side “until midnight” estimate and cannot be deferred.
+read fails with `InvalidRequest`. A zero estimate for a nonzero request means
+the approval itself would exceed the uint32 or saved-balance limit. When S + N
+fits and adding X would exceed the saved-balance limit, the deferred estimate is
+S + N. The broker can still save the newly approved time, and the optional pause
+uses the time remaining at capture. Rest of the day keeps its client-side
+“until midnight” estimate and cannot be deferred.
 Estimates are advisory: status reads never lock before capture, and the commit
 recaptures every operand.
 
@@ -695,6 +697,7 @@ Extend it to every grant-store writer, recovery, and the new methods. Because it
 is held through a parent's Polkit prompt, the new mutations return `Busy` for
 every child while any child's prompt is open; clients report busy with retry.
 Never hold two unrelated locks in inconsistent order.
+The broker also returns `Busy` when all saved-time workers are occupied.
 
 `GetGrantStatus` does not take the lock, and it never writes. It reports busy
 while the lock is held, and recovery-pending while the record holds an intent or

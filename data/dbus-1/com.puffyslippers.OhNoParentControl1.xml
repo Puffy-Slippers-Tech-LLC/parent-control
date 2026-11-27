@@ -201,5 +201,39 @@
       <arg name="level" type="s" direction="in"/>
       <arg name="message" type="s" direction="in"/>
     </method>
+    <method name="RequestDeferredAccess">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="approver_uid" type="u" direction="in"/>
+      <arg name="duration_seconds" type="u" direction="in"/>
+      <arg name="allow_soft_blocked_apps" type="b" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+      <arg name="correlation_id" type="s" direction="out"/>
+      <arg name="result_code" type="s" direction="out"/>
+      <arg name="pause_error" type="s" direction="out"/>
+    </method>
+    <method name="PauseGrant">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+    </method>
+    <method name="UseSavedTime">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="in"/>
+    </method>
+    <method name="GetGrantStatus">
+      <arg name="target_uid" type="u" direction="in"/>
+      <arg name="requested_seconds" type="u" direction="in"/>
+      <arg name="revision" type="t" direction="out"/>
+      <arg name="evaluated_at_epoch_seconds" type="t" direction="out"/>
+      <arg name="daily_remaining_seconds" type="u" direction="out"/>
+      <arg name="running_remaining_seconds" type="u" direction="out"/>
+      <arg name="running_beyond_daily_seconds" type="u" direction="out"/>
+      <arg name="saved_seconds" type="u" direction="out"/>
+      <arg name="usable_seconds" type="u" direction="out"/>
+      <arg name="total_seconds" type="u" direction="out"/>
+      <arg name="running_mode" type="s" direction="out"/>
+      <arg name="running_end_epoch_seconds" type="t" direction="out"/>
+      <arg name="immediate_estimate_seconds" type="u" direction="out"/>
+      <arg name="deferred_estimate_seconds" type="u" direction="out"/>
+    </method>
   </interface>
 </node>

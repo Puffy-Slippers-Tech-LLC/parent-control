@@ -17,7 +17,7 @@ import tomllib
 
 from agent_adapter import (BACKEND_REVIEW_INSTRUCTIONS, ROLES, SESSION_GOAL, AgentSelection,
                            ModelProfile, PreparedSession, SessionEvent, helper_profile,
-                           resolve_capacity_fallback, resolve_role_profile)
+                           model_choice, resolve_capacity_fallback, resolve_role_profile)
 
 
 SANDBOX_TOOLS = ('bwrap', 'socat')
@@ -285,7 +285,8 @@ class ClaudeAdapter:
             CLAUDE_CODE_DISABLE_BACKGROUND_TASKS='1',
             CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=str(request.delegation.max_concurrent),
             CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=str(request.delegation.max_depth))
-        protocol = ClaudeGoalProtocol() if goal else ClaudeProtocol() if request.interactive else None
+        protocol = (ClaudeGoalProtocol(request.model, request.effort) if goal else
+                    ClaudeProtocol(request.model, request.effort) if request.interactive else None)
         return PreparedSession(self, request, tuple(argv), child_environment, request.root,
             protocol=protocol, presentation=None if protocol is not None else ClaudeBatchPresentation(
                 request.run / 'agent-result.json' if request.run is not None else None))
@@ -399,10 +400,14 @@ class ClaudeProtocol(ClaudeStream):
     Input sent during a native turn runs as a later native turn, so follow-ups
     wait for the current result and return through retry_input. An interrupt
     discards that turn's candidate and settles once the CLI acknowledges it.
+    Model choices come from the initialize catalog; changes apply to later turns.
     """
 
-    def __init__(self):
+    def __init__(self, model, effort):
         super().__init__()
+        self.model, self.effort = model, effort
+        self.model_options = {}
+        self.model_changes = {}
         self.outgoing = bytearray()
         self.ready = False
         self.active_turn = False
@@ -414,10 +419,12 @@ class ClaudeProtocol(ClaudeStream):
     def send(self, packet):
         self.outgoing.extend((json.dumps(packet) + '\n').encode())
 
-    def control_request(self, subtype):
+    def control_request(self, subtype, **fields):
         self.requests += 1
-        self.send({'type': 'control_request', 'request_id': f'{subtype}-{self.requests}',
-                   'request': {'subtype': subtype}})
+        request = f'{subtype}-{self.requests}'
+        self.send({'type': 'control_request', 'request_id': request,
+                   'request': {'subtype': subtype, **fields}})
+        return request
 
     def user(self, text):
         self.active_turn = True
@@ -439,6 +446,33 @@ class ClaudeProtocol(ClaudeStream):
     def steer(self, text):
         self.queued.append(text)
 
+    def list_models(self):
+        pass  # The session's catalog is fixed and was published at initialization.
+
+    def change_model(self, text):
+        model, effort = model_choice(text, self.model_options, self.model)
+        request = self.control_request('apply_flag_settings',
+                                       settings={'model': model, 'effortLevel': effort})
+        self.model_changes[request] = model, effort
+
+    def publish_models(self, catalog):
+        options = {}
+        for entry in catalog.get('models') or ():
+            if not isinstance(entry, dict) or entry.get('value') == 'default':
+                continue  # The default alias repeats a listed model.
+            model, efforts = entry.get('resolvedModel'), entry.get('supportedEffortLevels')
+            # Models without effort levels cannot honor the session's pinned effort.
+            if (not isinstance(model, str) or model in options or not model.isprintable()
+                    or not re.fullmatch(r'[^\s-]\S{0,127}', model) or not isinstance(efforts, list)):
+                continue
+            efforts = [effort for effort in efforts if isinstance(effort, str) and effort.isidentifier()]
+            if efforts:
+                options[model] = dict(model=model, label=str(entry.get('displayName') or model),
+                    description=str(entry.get('description') or ''), efforts=efforts,
+                    default=self.effort if self.effort in efforts else efforts[0])
+        self.model_options = options
+        return SessionEvent('model_options', {'options': list(options.values())})
+
     def interrupt(self):
         self.interrupted = True
         self.turn_requests_pending = True
@@ -455,12 +489,21 @@ class ClaudeProtocol(ClaudeStream):
         if request.startswith('interrupt-'):
             # Even a late interrupt is acknowledged; the result was discarded.
             self.turn_requests_pending = False
+        elif request in self.model_changes:
+            model, effort = self.model_changes.pop(request)
+            if response.get('subtype') == 'success':
+                self.model, self.effort = model, effort
+                yield SessionEvent('model_changed', {'model': model, 'effort': effort})
+            else:
+                yield SessionEvent('notice', {'text': 'Model change rejected by Claude. '
+                                              + str(response.get('error', ''))[:500]})
         elif response.get('subtype') != 'success':
             yield failure('process', 'Claude rejected session initialization: '
                           + str(response.get('error', ''))[:500])
         elif not self.ready:
             self.ready = True
             yield SessionEvent('ready', {})
+            yield self.publish_models(response.get('response') or {})
 
     def result(self, packet):
         if not self.active_turn:
@@ -495,8 +538,8 @@ class ClaudeGoalProtocol(ClaudeProtocol):
     no output schema; the runner's own results decide what remains.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, model, effort):
+        super().__init__(model, effort)
         self.started = self.done = False
         self.status = 1
 

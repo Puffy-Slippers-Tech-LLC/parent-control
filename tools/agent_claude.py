@@ -316,8 +316,12 @@ def tool_item(block):
             'path': str(value.get('file_path') or value.get('notebook_path') or ''),
             'kind': 'write' if name == 'Write' else 'update'}]}
     if name in ('Agent', 'Task'):
+        # Delegated instructions stay private; present only the short task title.
         return {'id': identity, 'type': 'sub_agent_activity', 'tool': 'spawn_agent',
-                'agent': value.get('subagent_type'), 'prompt': value.get('prompt')}
+                'agent': value.get('subagent_type'), 'description': value.get('description')}
+    if name == 'SendMessage':
+        return {'id': identity, 'type': 'sub_agent_activity', 'tool': 'send_message',
+                'to': value.get('to')}
     if name == 'TodoWrite':
         return {'id': identity, 'type': 'todo_list', 'items': [
             {'text': str(task.get('content', '')), 'completed': task.get('status') == 'completed'}

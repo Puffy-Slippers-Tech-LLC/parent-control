@@ -62,12 +62,23 @@ class PauseIntent:
 
 
 @dataclass(frozen=True)
+class RedeemTimeState:
+    """Original native time settings when redemption needs the time-state bridge."""
+    limit_type: int
+    daily_limit: int
+    daily_schedule: tuple[int, int]
+
+
+@dataclass(frozen=True)
 class RedeemIntent:
     """Replace ``source`` with ``destination`` using the saved app choice."""
     source: GrantTuple
     destination: GrantTuple
     allow_soft_blocked_apps: bool
     record_fixed: bool
+    termination_started: bool = False
+    activate_child_extension: bool = False
+    time_state: RedeemTimeState | None = None
 
 
 @dataclass(frozen=True)
@@ -110,9 +121,16 @@ def _intent_document(intent: PauseIntent | RedeemIntent | None) -> dict | None:
               "destination": _tuple_document(intent.destination)}
     if isinstance(intent, PauseIntent):
         return {"kind": "pause", **common, "saved": _saved_document(intent.saved)}
+    time_state = intent.time_state
     return {"kind": "redeem", **common,
             "allow_soft_blocked_apps": intent.allow_soft_blocked_apps,
-            "record_fixed": intent.record_fixed}
+            "record_fixed": intent.record_fixed,
+            "termination_started": intent.termination_started,
+            "activate_child_extension": intent.activate_child_extension,
+            "time_state": None if time_state is None else {
+                "limit_type": time_state.limit_type, "daily_limit": time_state.daily_limit,
+                "daily_schedule": list(time_state.daily_schedule),
+            }}
 
 
 def _object(raw: object, keys: set[str], name: str) -> dict:
@@ -145,6 +163,20 @@ def _parse_saved(raw: object) -> SavedBalance:
                         _boolean(raw["allow_soft_blocked_apps"], "saved app choice"))
 
 
+def _parse_redeem_time_state(raw: object) -> RedeemTimeState | None:
+    if raw is None:
+        return None
+    raw = _object(raw, {"limit_type", "daily_limit", "daily_schedule"}, "redemption time state")
+    schedule = raw["daily_schedule"]
+    if not isinstance(schedule, list) or len(schedule) != 2:
+        raise GrantStoreError("grant record has an invalid redemption daily schedule")
+    start, end = (_integer(value, 0, UINT32_MAX, "redemption schedule boundary")
+                  for value in schedule)
+    return RedeemTimeState(_integer(raw["limit_type"], 0, UINT32_MAX, "redemption limit type"),
+                           _integer(raw["daily_limit"], 0, UINT32_MAX, "redemption daily limit"),
+                           (start, end))
+
+
 def _parse_intent(raw: object) -> PauseIntent | RedeemIntent:
     kind = raw.get("kind") if isinstance(raw, dict) else None
     if kind == "pause":
@@ -156,13 +188,23 @@ def _parse_intent(raw: object) -> PauseIntent | RedeemIntent:
             raise GrantStoreError("grant record has an invalid pause destination")
         return PauseIntent(source, destination, _parse_saved(raw["saved"]))
     if kind == "redeem":
+        # Earlier v1 records have no effect-phase or time-bridge metadata.
+        raw = {"termination_started": False, "activate_child_extension": False,
+               "time_state": None, **raw}
         raw = _object(raw, {"kind", "source", "destination", "allow_soft_blocked_apps",
-                            "record_fixed"}, "redemption intent")
+                            "record_fixed", "termination_started", "activate_child_extension",
+                            "time_state"}, "redemption intent")
+        destination = _parse_tuple(raw["destination"], "redemption destination", running=True)
+        if not destination[0] or destination[1] > MAX_TIME_GRANT_SECONDS:
+            raise GrantStoreError("grant record has an invalid redemption destination")
         return RedeemIntent(
             _parse_tuple(raw["source"], "redemption source", running=False),
-            _parse_tuple(raw["destination"], "redemption destination", running=True),
+            destination,
             _boolean(raw["allow_soft_blocked_apps"], "redemption app choice"),
-            _boolean(raw["record_fixed"], "redemption fixed marker"))
+            _boolean(raw["record_fixed"], "redemption fixed marker"),
+            _boolean(raw["termination_started"], "redemption termination phase"),
+            _boolean(raw["activate_child_extension"], "redemption activation flag"),
+            _parse_redeem_time_state(raw["time_state"]))
     raise GrantStoreError("grant record has an invalid intent kind")
 
 
@@ -186,16 +228,22 @@ def parse_grant_record(raw: object) -> GrantRecord:
             _boolean(entry["allow_soft_blocked_apps"], "fixed app choice"),
             _boolean(entry["ended_by_pause"], "fixed pause marker"))
     intent = None if raw["intent"] is None else _parse_intent(raw["intent"])
+    saved = None if raw["saved"] is None else _parse_saved(raw["saved"])
     # A pause starts only from the recorded, still-running fixed tuple.
     if isinstance(intent, PauseIntent) and (
             fixed is None or fixed.grant != intent.source or fixed.ended_by_pause):
         raise GrantStoreError("grant record has a pause intent without its fixed grant")
+    if isinstance(intent, RedeemIntent) and (
+            saved is None or saved.allow_soft_blocked_apps != intent.allow_soft_blocked_apps or
+            saved.seconds > intent.destination[1] or
+            (intent.termination_started and intent.allow_soft_blocked_apps)):
+        raise GrantStoreError("grant record has an invalid redemption for its saved balance")
     return GrantRecord(
         uid=_integer(raw["uid"], 0, UINT32_MAX, "UID"),
         username=username,
         revision=_integer(raw["revision"], 1, UINT64_MAX, "revision"),
         fixed=fixed,
-        saved=None if raw["saved"] is None else _parse_saved(raw["saved"]),
+        saved=saved,
         intent=intent,
     )
 

@@ -12,13 +12,15 @@ import subprocess
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import gi
 
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from .core import NativeDeadlineSuspended, SessionState, UserAccount
+from .core import AccessDenied, NativeDeadlineSuspended, SessionState, UserAccount
 
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
@@ -241,6 +243,17 @@ class AccountsService:
         self._execution_policy = execution_policy
         self._preferences = preferences
         self._execution_policy_lock = threading.RLock()
+        self._grant_mutation_account: ContextVar[tuple[int, str] | None] = ContextVar(
+            "grant_mutation_account", default=None,
+        )
+
+    @contextmanager
+    def bind_grant_mutations(self, uid: int, username: str):
+        token = self._grant_mutation_account.set((uid, username))
+        try:
+            yield
+        finally:
+            self._grant_mutation_account.reset(token)
 
     def _call(self, path, interface, method, parameters, reply_type, *,
               deadline=None, wall_deadline=None, timeout=CALL_TIMEOUT_MS):
@@ -307,10 +320,13 @@ class AccountsService:
         )
         return reply.unpack()[0]
 
-    def _account_from_path(self, path: str) -> UserAccount:
-        reply = _call(
-            self.connection, ACCOUNTS_NAME, path, PROPERTIES_INTERFACE,
+    def _account_from_path(self, path: str, *, expected_grant_account: tuple[int, str] | None = None,
+                           deadline: float | None = None,
+                           wall_deadline: float | None = None) -> UserAccount:
+        reply = self._call(
+            path, PROPERTIES_INTERFACE,
             "GetAll", GLib.Variant("(s)", (ACCOUNTS_INTERFACE + ".User",)), "(a{sv})",
+            deadline=deadline, wall_deadline=wall_deadline,
         )
         properties = reply.unpack()[0]
         uid = properties["Uid"]
@@ -319,15 +335,23 @@ class AccountsService:
             LOG.error("adapters.account-object-mismatch", stage="get-all")
             raise RuntimeError("AccountsService returned an unexpected user object")
         username = properties.get("UserName", "")
+        account_type = properties.get("AccountType", 0)
+        is_system = properties.get("SystemAccount", True)
+        is_local = properties.get("LocalAccount", False)
+        if expected_grant_account is not None and (
+                (uid, username) != expected_grant_account or
+                type(properties.get("AccountType")) is not int or account_type != 0 or
+                is_system is not False or is_local is not True):
+            raise AccessDenied("redemption account changed")
         real_name = " ".join(properties.get("RealName", "").split())[:120]
         label = real_name or username or str(uid)
         return UserAccount(
             uid=uid,
             username=username,
             label=label,
-            is_admin=properties.get("AccountType", 0) != 0,
-            is_system=properties.get("SystemAccount", True),
-            is_local=properties.get("LocalAccount", False),
+            is_admin=account_type != 0,
+            is_system=is_system,
+            is_local=is_local,
             is_locked=properties.get("Locked", True),
             icon_file=_accounts_icon_file(properties.get("IconFile", "")),
             is_interactive=properties.get("Shell", "") not in NONINTERACTIVE_SHELLS,
@@ -434,8 +458,16 @@ class AccountsService:
 
     def _set(self, uid: int, interface: str, prop: str, value: GLib.Variant, *,
              deadline: float | None = None, wall_deadline: float | None = None):
+        bound_account = self._grant_mutation_account.get()
+        if bound_account is not None and uid != bound_account[0]:
+            raise AccessDenied("redemption account changed")
+        path = self._user_path(uid, deadline=deadline)
+        if bound_account is not None:
+            # FindUserById can block and return the same path for a replacement.
+            self._account_from_path(path, expected_grant_account=bound_account,
+                                    deadline=deadline, wall_deadline=wall_deadline)
         self._call(
-            self._user_path(uid, deadline=deadline), PROPERTIES_INTERFACE,
+            path, PROPERTIES_INTERFACE,
             "Set", GLib.Variant("(ssv)", (interface, prop, value)), "()",
             deadline=deadline, wall_deadline=wall_deadline,
         )

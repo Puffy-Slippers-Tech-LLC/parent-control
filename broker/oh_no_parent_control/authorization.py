@@ -18,8 +18,9 @@ from .adapters import (
     DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
     LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE, LOGIN_SESSION_INTERFACE,
     LOGIN_SESSION_STATES, LOGIN_USER_INTERFACE, PROPERTIES_INTERFACE, _call,
-    _read_login_display, _resolve_login_session,
+    LogindSessions, _read_login_display, _resolve_login_session,
 )
+from .core import _same_session
 
 LOG = get_logger("authorization")
 LIFECYCLE_TIMEOUT_MS = 5_000
@@ -41,28 +42,19 @@ class PolkitAuthorizer:
     @contextmanager
     def check(self, request_kind, sender, correlation_id, target_label,
               approver_username, message):
-        try:
-            action_id = REQUEST_ACTION_IDS[request_kind]
-        except KeyError as error:
-            raise ValueError("invalid authorization request kind") from error
-        parameters = GLib.Variant("((sa{sv})sa{ss}us)", (
-            ("system-bus-name", {"name": GLib.Variant("s", sender)}),
-            action_id,
-            {
-                "target-account": target_label,
-                "approver-user": approver_username,
-                "polkit.message": message,
-            },
-            1,  # AllowUserInteraction; no retained authorization.
-            f"oh-no-parent-control-{correlation_id}",
-        ))
-        pending = _PendingAuthorization(
-            self.connection, sender, correlation_id, parameters,
-            wait_for_agent=request_kind == "kiosk",
-        )
+        with self._watch(request_kind, sender, correlation_id) as pending:
+            pending.authenticate(target_label, approver_username, message)
+            yield pending
+
+    def watch_deferred(self, request_kind, sender, correlation_id, caller_uid):
+        return self._watch(request_kind, sender, correlation_id, caller_uid=caller_uid)
+
+    @contextmanager
+    def _watch(self, request_kind, sender, correlation_id, *, caller_uid=None):
+        pending = _PendingAuthorization(self.connection, request_kind, sender, correlation_id, caller_uid)
         pending.context.push_thread_default()
         try:
-            pending.run()
+            pending.watch()
             yield pending
         finally:
             pending.close()
@@ -70,11 +62,17 @@ class PolkitAuthorizer:
 
 
 class _PendingAuthorization:
-    def __init__(self, connection, sender, correlation_id, parameters, *, wait_for_agent=False):
+    def __init__(self, connection, request_kind, sender, correlation_id, caller_uid):
+        try:
+            self.action_id = REQUEST_ACTION_IDS[request_kind]
+        except KeyError as error:
+            raise ValueError("invalid authorization request kind") from error
         self.connection = connection
         self.sender = sender
         self.correlation_id = correlation_id
-        self.parameters = parameters
+        self.parameters = None
+        self.caller_uid = caller_uid
+        self.session = None
         self.context = GLib.MainContext.new()
         self.loop = GLib.MainLoop.new(self.context, False)
         self.cancellable = Gio.Cancellable()
@@ -89,7 +87,8 @@ class _PendingAuthorization:
         self.cancel_done = False
         self.cancel_reason = None
         self.outcome = "denied"
-        self.wait_for_agent = wait_for_agent
+        self.ready = False
+        self.wait_for_agent = request_kind == "kiosk"
         self.agent_deadline = 0
         self.retry_source = None
 
@@ -103,7 +102,7 @@ class _PendingAuthorization:
         ))
 
     def _session_for_caller(self):
-        # Sessionless callers can still use a bus-registered agent.
+        # Immediate requests still support a sessionless bus-registered agent.
         path, self.display = _resolve_login_session(
             self._read, self.sender, before_display=self._watch_display,
         )
@@ -118,6 +117,22 @@ class _PendingAuthorization:
         return _read_login_display(self._read, self.user_path)
 
     def _session_unavailable(self):
+        if self.caller_uid is not None:
+            try:
+                current = LogindSessions(self.connection).get(
+                    self.session_path, timeout_seconds=LIFECYCLE_TIMEOUT_MS / 1000,
+                )
+            except (GLib.Error, TimeoutError, RuntimeError, ValueError):
+                return "session-state-unavailable"
+            if (current.uid != self.caller_uid or current.remote or
+                    (self.display is not None and self.display[0] != current.session_id) or
+                    (self.session is not None and not _same_session(current, self.session))):
+                return "session-state-unavailable"
+            reason = self._unavailable_reason({"Active": current.active,
+                                               "LockedHint": current.locked, "State": current.state})
+            if not reason and self.session is None:
+                self.session = current
+            return reason
         properties, = self._read(
             LOGIN_NAME, self.session_path, PROPERTIES_INTERFACE, "GetAll",
             GLib.Variant("(s)", (LOGIN_SESSION_INTERFACE,)), "(a{sv})",
@@ -140,13 +155,15 @@ class _PendingAuthorization:
             return "session-closing"
         return None
 
-    def run(self):
+    def watch(self):
         try:
             self._subscribe(DBUS_NAME, DBUS_INTERFACE, "NameOwnerChanged",
                             DBUS_PATH, self.sender, self._owner_changed)
             self._subscribe(DBUS_NAME, DBUS_INTERFACE, "NameOwnerChanged",
                             DBUS_PATH, LOGIN_NAME, self._owner_changed)
             self.session_path = self._session_for_caller()
+            if self.caller_uid is not None and self.session_path is None:
+                return
             if self.session_path is not None:
                 self._subscribe(LOGIN_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
                                 self.session_path, LOGIN_SESSION_INTERFACE,
@@ -163,16 +180,8 @@ class _PendingAuthorization:
                     reason = "session-state-unavailable"
                 if reason:
                     self._cancel(reason)
-                    return self.outcome
-            # Dispatch any lifecycle events queued during the initial reads
-            # before launching a password prompt.
-            self._drain_lifecycle()
-            if self.cancel_reason:
-                return self.outcome
-            self.agent_deadline = GLib.get_monotonic_time() + AGENT_STARTUP_GRACE_MS * 1000
-            self._start_check()
-            self.loop.run()
-            return self.outcome
+                    return
+            self.ready = True
         except GLib.Error as error:
             if Gio.dbus_error_get_remote_error(error) == "org.freedesktop.DBus.Error.NameHasNoOwner":
                 self._cancel("caller-disconnected")
@@ -182,13 +191,42 @@ class _PendingAuthorization:
                     request=self.correlation_id,
                     error_type=error_code(error),
                 )
+
+    def authenticate(self, target_label, approver_username, message):
+        # This includes signals queued while the broker prepares the request.
+        self._drain_lifecycle()
+        if not self.ready or self.cancel_reason:
             return self.outcome
+        if self.caller_uid is not None:
+            reason = self._session_unavailable()
+            if reason:
+                self._cancel(reason)
+            self._drain_lifecycle()
+            if self.cancel_reason:
+                return self.outcome
+        if self.parameters is not None:
+            raise RuntimeError("authorization already requested")
+        self.parameters = GLib.Variant("((sa{sv})sa{ss}us)", (
+            ("system-bus-name", {"name": GLib.Variant("s", self.sender)}),
+            self.action_id,
+            {
+                "target-account": target_label,
+                "approver-user": approver_username,
+                "polkit.message": message,
+            },
+            1,  # AllowUserInteraction; no retained authorization.
+            f"oh-no-parent-control-{self.correlation_id}",
+        ))
+        self.agent_deadline = GLib.get_monotonic_time() + AGENT_STARTUP_GRACE_MS * 1000
+        self._start_check()
+        self.loop.run()
+        return self.outcome
 
     def _drain_lifecycle(self):
         while self.context.pending():
             self.context.iteration(False)
 
-    def admit(self):
+    def admit(self, *, validate=None):
         """Claim this checked approval once, in the worker's observed order."""
         if self.closed or self.admitted:
             return False
@@ -213,6 +251,11 @@ class _PendingAuthorization:
         self._drain_lifecycle()
         if self.cancel_reason:
             return False
+        if validate is not None:
+            validate()
+            self._drain_lifecycle()
+            if self.cancel_reason:
+                return False
         self.admitted = True
         return True
 
@@ -256,7 +299,14 @@ class _PendingAuthorization:
                          parameters):
         _interface_name, changed, invalidated = parameters.unpack()
         reason = self._unavailable_reason(changed)
-        if not reason and {"LockedHint", "Active", "State"}.intersection(invalidated):
+        watched = {"LockedHint", "Active", "State"}
+        if self.caller_uid is not None:
+            # Changes to the pinned identity or locality invalidate this check,
+            # and an invalidation can hide a departure followed by a return.
+            identity = {"Remote", "User", "Id", "TimestampMonotonic"}
+            if identity.intersection(changed) or (watched | identity).intersection(invalidated):
+                reason = "session-state-unavailable"
+        elif not reason and watched.intersection(invalidated):
             try:
                 reason = self._session_unavailable()
             except GLib.Error:
@@ -273,6 +323,9 @@ class _PendingAuthorization:
         if "Display" in changed and changed["Display"] != self.display:
             self._cancel("session-state-unavailable")
         elif "Display" in invalidated:
+            if self.caller_uid is not None:
+                self._cancel("session-state-unavailable")
+                return
             try:
                 if self._read_display() != self.display:
                     self._cancel("session-state-unavailable")

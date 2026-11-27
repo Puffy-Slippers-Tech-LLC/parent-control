@@ -62,6 +62,14 @@ msgstr "Concedere l’accesso a %(target)s\nper %(duration)s\n\n✗ App sbloccab
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "Concedere l’accesso a %(target)s\nper %(duration)s\n\n✓ App sbloccabili temporaneamente consentite"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "Avviare subito il tempo approvato."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "Salvare il tempo approvato per usarlo in seguito. Questo mette in pausa qualsiasi autorizzazione a durata fissa in corso. La scelta relativa alle app si applica quando si usa il tempo salvato."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

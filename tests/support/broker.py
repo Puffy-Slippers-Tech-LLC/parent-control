@@ -14,10 +14,11 @@ from oh_no_parent_control.preferences import default_preferences, validate_prefe
 from tests.support.configuration import valid_config
 
 class Authorizer:
-    def __init__(self, outcome="approved", callback=None):
+    def __init__(self, outcome="approved", callback=None, resolve_session=None):
         self.outcome = outcome
         self.calls = []
         self.callback = callback
+        self.resolve_session = resolve_session
         self.pending = None
 
     @contextmanager
@@ -35,6 +36,26 @@ class Authorizer:
         finally:
             self.pending.closed = True
 
+    @contextmanager
+    def watch_deferred(self, request_kind, sender, correlation_id, caller_uid):
+        pending = Approval("denied")
+        pending.session = self.resolve_session(sender, timeout_seconds=5)
+
+        def authenticate(target_label, approver_username, message):
+            self.calls.append((request_kind, sender, correlation_id, target_label,
+                               approver_username, message))
+            if self.callback:
+                self.callback()
+            pending.outcome = self.outcome
+            self.pending = pending
+            return pending.outcome
+
+        pending.authenticate = authenticate
+        try:
+            yield pending
+        finally:
+            pending.closed = True
+
 
 class Approval:
     def __init__(self, outcome):
@@ -46,9 +67,11 @@ class Approval:
         if not self.admitted and not self.closed:
             self.outcome = "cancelled"
 
-    def admit(self):
+    def admit(self, *, validate=None):
         if self.outcome != "approved" or self.admitted or self.closed:
             return False
+        if validate is not None:
+            validate()
         self.admitted = True
         return True
 
@@ -246,7 +269,7 @@ class RunningApps:
 
 def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
                 clock=None, alive=lambda _s: True, timer_usage=None,
-                application_catalog=None, running_apps=None, grant_store=None):
+                application_catalog=None, running_apps=None, grant_store=None, sessions=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
                   preferences or Preferences(), extensions or Extensions(), timer_usage or TimerUsage(),
@@ -254,4 +277,4 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
                   running_apps or RunningApps(),
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
-                  caller_alive=alive, grant_store=grant_store)
+                  caller_alive=alive, grant_store=grant_store, sessions=sessions)

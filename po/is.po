@@ -186,6 +186,14 @@ msgstr "Veita %(target)s aðgang\ní %(duration)s\n\n✗ Forrit með tímabundi�
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "Veita %(target)s aðgang\ní %(duration)s\n\n✓ Forrit með tímabundið afléttanlegri lokun eru leyfð"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "Byrjaðu að nota samþykkta tímann núna."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "Vistaðu samþykkta tímann til seinna. Við það fara allar virkar heimildir með fasta tímalengd í hlé. Valið fyrir forrit gildir þegar vistaði tíminn er notaður."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

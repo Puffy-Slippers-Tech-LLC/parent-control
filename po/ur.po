@@ -186,6 +186,14 @@ msgstr "%(target)s کو رسائی دیں\n%(duration)s کے لیے\n\n✗ عا�
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "%(target)s کو رسائی دیں\n%(duration)s کے لیے\n\n✓ عارضی اجازت کی اہل مسدود ایپس کی اجازت ہے"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "منظور شدہ وقت کا استعمال ابھی شروع کریں۔"
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "منظور شدہ وقت بعد میں استعمال کرنے کے لیے محفوظ کریں۔ اس سے مقررہ مدت کی کوئی بھی فعال اجازت عارضی طور پر رک جائے گی۔ ایپس کے لیے منتخب کردہ اختیار محفوظ شدہ وقت استعمال کرنے پر لاگو ہوگا۔"
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

@@ -327,6 +327,10 @@ REST_OF_DAY = gettext('Rest of the day')
 # Keep the blank line before the soft-app status; ✓/✗ show the selected state.
 POLKIT_GRANT = gettext('Grant access to %(target)s\nfor %(duration)s\n\n✗ Soft-blocked not allowed')
 POLKIT_GRANT_SOFT_APPS = gettext('Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed')
+# Translators: PolicyKit prompt paragraph for immediate use of approved time.
+POLKIT_APPROVE_NOW = gettext('Start the approved time now.')
+# Translators: PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+POLKIT_APPROVE_LATER = gettext('Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used.')
 # Translators: Separator between nonzero hour, minute and second duration units.
 DURATION_LIST_SEPARATOR = pgettext('duration list separator', ', ')
 SELECT_ACCOUNT = gettext('Select an account to manage')

@@ -288,6 +288,22 @@ def test_error_editor_prompt_has_two_nonempty_lines_in_every_language(production
         assert len(lines) == 2 and all(line.strip() for line in lines), language
 
 
+def test_trusted_approval_prompt_has_distinct_localized_modes(production_catalogues):
+    from common.oh_no_parent_control_ui import messages as m
+    from common.oh_no_parent_control_ui.approval_prompt import format_approval_message
+
+    for language, _name in SUPPORTED_LANGUAGES:
+        translations = load_translations(language, localedir=production_catalogues)
+        immediate = format_approval_message(300, True, translations)
+        deferred = format_approval_message(300, True, translations, deferred=True)
+        request, mode = deferred.rsplit('\n\n', 1)
+        assert immediate.rsplit('\n\n', 1)[0] == request, language
+        assert mode == m.POLKIT_APPROVE_LATER.render(translations), language
+        assert mode != m.POLKIT_APPROVE_NOW.render(translations), language
+        assert mode != m.POLKIT_APPROVE_LATER.source or language == 'en'
+        assert '$(target-account)' in request, language
+
+
 @pytest.mark.parametrize('language', [identity for identity, _name in SUPPORTED_LANGUAGES])
 @pytest.mark.parametrize('surface', ['child', 'kiosk'])
 def test_polkit_request_uses_child_catalogue_and_complete_prompt(
@@ -324,10 +340,13 @@ def test_polkit_request_uses_child_catalogue_and_complete_prompt(
             assert (kind, sender, target, approver) == (surface, ':1.42', 'Child', 'admin')
             duration = core.format_requested_duration(seconds, translations)
             template = m.POLKIT_GRANT_SOFT_APPS if allow_soft else m.POLKIT_GRANT
-            assert message == translations.gettext(template.source) % {
+            expected = translations.gettext(template.source) % {
                 'target': '$(target-account)', 'duration': duration,
             }
-            lines = message.splitlines()
+            request, mode = message.rsplit('\n\n', 1)
+            assert request == expected
+            assert mode == translations.gettext(m.POLKIT_APPROVE_NOW.source)
+            lines = request.splitlines()
             assert len(lines) == 4, (language, message)
             assert lines[0].strip() and '$(target-account)' in lines[0], language
             assert duration in lines[1], language

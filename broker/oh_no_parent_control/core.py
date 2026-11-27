@@ -86,6 +86,10 @@ class Stale(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.Stale"
 
 
+class _NoPausableTime(Stale):
+    """The running fixed grant contributes no time that can be transferred."""
+
+
 class RecoveryPending(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.RecoveryPending"
 
@@ -159,6 +163,14 @@ class SavedTimeContext:
 
 
 @dataclass(frozen=True)
+class DeferredApproval:
+    correlation_id: str
+    result_code: str
+    pause_error: str = ""
+    saved_seconds: int | None = None
+
+
+@dataclass(frozen=True)
 class DailyCapture:
     context: SavedTimeContext
     evaluated_at: datetime
@@ -188,9 +200,18 @@ class Approval(Protocol):
     def admit(self) -> bool: ...
 
 
+class DeferredAuthorization(Approval, Protocol):
+    session: SessionState | None
+
+    def authenticate(self, target_label: str, approver_username: str, message: str) -> str: ...
+    def admit(self, *, validate: Callable[[], None] | None = None) -> bool: ...
+
+
 class Authorizer(Protocol):
     def check(self, request_kind: str, sender: str, correlation_id: str, target_label: str,
               approver_username: str, message: str) -> AbstractContextManager[Approval]: ...
+    def watch_deferred(self, request_kind: str, sender: str, correlation_id: str,
+                       caller_uid: int) -> AbstractContextManager[DeferredAuthorization]: ...
 
 
 class Accounts(Protocol):
@@ -974,23 +995,22 @@ class Broker:
     def _saved_time_context(self, caller_uid: int, sender: str, target_uid: int) -> SavedTimeContext:
         config = self._load_config()
         request_kind = self._saved_time_request_kind(config, caller_uid, target_uid)
+        target, preferences = self._saved_time_target(config, target_uid)
+        session = self._resolve_saved_time_session(caller_uid, sender)
+        return SavedTimeContext(caller_uid, sender, request_kind, target, preferences, session)
+
+    def _saved_time_target(self, config: Configuration, target_uid: int) -> tuple[UserAccount, dict]:
         target = self._target(config, target_uid)
         if target.uid != target_uid:
             raise AccessDenied("selected account identity changed")
         preferences = self._load_request_preferences(target.uid)
         if not preferences["parent_control_enabled"]:
             raise AccessDenied("parent control is not enabled for this account")
-        session = self._resolve_saved_time_session(caller_uid, sender)
-        return SavedTimeContext(caller_uid, sender, request_kind, target, preferences, session)
+        return target, preferences
 
     def _recheck_saved_time_context(self, context: SavedTimeContext) -> None:
         config = self._load_config()
-        request_kind = self._saved_time_request_kind(config, context.caller_uid, context.target.uid)
-        if request_kind != context.request_kind:
-            raise AccessDenied("caller role changed during request")
-        self._check_grant_account(config, context.target)
-        if self._load_request_preferences(context.target.uid) != context.preferences:
-            raise AccessDenied("preferences changed during request")
+        self._recheck_saved_time_selection(config, context)
         if context.lock_capture_complete:
             self._require_no_unlocked_child_desktops(context)
         self._resolve_saved_time_session(
@@ -999,6 +1019,17 @@ class Broker:
         )
         if not self._caller_alive(context.sender):
             raise AccessDenied("caller disconnected during request")
+
+    def _recheck_saved_time_selection(self, config: Configuration, context: SavedTimeContext, *,
+                                      approver: UserAccount | None = None) -> None:
+        request_kind = self._saved_time_request_kind(config, context.caller_uid, context.target.uid)
+        if request_kind != context.request_kind:
+            raise AccessDenied("caller role changed during request")
+        self._check_grant_account(config, context.target)
+        if approver is not None and self._approver(config, approver.uid) != approver:
+            raise AccessDenied("selected approver changed during authorization")
+        if self._load_request_preferences(context.target.uid) != context.preferences:
+            raise AccessDenied("preferences changed during request")
 
     def pause_grant(self, caller_uid: int, sender: str, target_uid: int, revision: int) -> None:
         if not self._acquire_request_lock():
@@ -1098,12 +1129,14 @@ class Broker:
             raise RecoveryPending("a saved-time transfer is awaiting recovery")
         return record
 
-    def _load_saved_time_record(self, target: UserAccount) -> GrantRecord:
+    def _load_saved_time_record(self, target: UserAccount, *, invalidate_account=True) -> GrantRecord:
         if self._grant_store is None:
             raise BackendFailure("saved-time store is unavailable")
         try:
             return self._grant_store.load(target.uid, target.username)
-        except GrantAccountError:
+        except GrantAccountError as error:
+            if not invalidate_account:
+                raise Stale("saved time belonged to a previous account") from error
             self._check_grant_account(self._load_config(), target)
             try:
                 self._grant_store.clear(target.uid, target.username)
@@ -1128,7 +1161,7 @@ class Broker:
             raise BackendFailure("remaining-time grant is invalid")
         return issued, duration
 
-    def _pause_grant_locked(self, context: SavedTimeContext, record: GrantRecord) -> None:
+    def _pause_grant_locked(self, context: SavedTimeContext, record: GrantRecord) -> GrantRecord:
         """Pause a fixed grant under the transaction lock using a validated record."""
         if record.intent is not None:
             raise RecoveryPending("a saved-time transfer is awaiting recovery")
@@ -1139,7 +1172,7 @@ class Broker:
         except ValueError as error:
             raise BackendFailure("remaining-time grant is outside the supported range") from error
         if running_mode(record, source, remaining) != "fixed":
-            raise Stale("there is no running fixed grant to pause")
+            raise _NoPausableTime("there is no running fixed grant to pause")
 
         self._active_pause = _ActivePause(uid)
         capture = self._capture_pause_daily_remaining(context)
@@ -1164,7 +1197,7 @@ class Broker:
         except ValueError as error:
             raise BackendFailure("pause balance is outside the supported range") from error
         if transferable == 0:
-            raise Stale("no approved time beyond the daily allowance remains to save")
+            raise _NoPausableTime("no approved time beyond the daily allowance remains to save")
         shortened = (source[0], boundary - source[0])
         if shortened[1] <= 0:
             raise BackendFailure("grant was issued after the pause boundary")
@@ -1209,9 +1242,10 @@ class Broker:
             if resolved.fixed is None or not resolved.fixed.ended_by_pause:
                 raise BackendFailure("the shortened grant could not be verified") from error
         else:
-            self._finish_pause_intent(pending, live)
+            resolved = self._finish_pause_intent(pending, live)
             if live != shortened:
                 raise BackendFailure("the running grant changed before it could be shortened")
+        return resolved
 
     def _wait_for_pause_boundary(self, boundary: int, transfer_deadline: float | None) -> None:
         wall_delay = boundary - self._now().timestamp()
@@ -2314,6 +2348,109 @@ class Broker:
             duration_seconds, allow_soft_blocked_apps,
         )
 
+    def request_deferred_access(self, caller_uid: int, sender: str, target_uid: int,
+                                approver_uid: int, duration_seconds: int,
+                                allow_soft_blocked_apps: bool, revision: int) -> DeferredApproval:
+        correlation_id = str(uuid.uuid4())
+        if not self._acquire_request_lock():
+            raise Busy("another request is already in progress")
+        try:
+            config = self._load_config()
+            request_kind = self._saved_time_request_kind(config, caller_uid, target_uid)
+            self._validate_approval_values(duration_seconds, allow_soft_blocked_apps, deferred=True)
+            if type(revision) is not int or not 0 <= revision <= UINT64_MAX:
+                raise InvalidRequest("grant record revision is invalid")
+            with self._authorizer.watch_deferred(
+                request_kind, sender, correlation_id, caller_uid,
+            ) as approval:
+                if approval.session is None:
+                    raise AccessDenied("caller has no eligible local session")
+                target, preferences = self._saved_time_target(config, target_uid)
+                context = SavedTimeContext(caller_uid, sender, request_kind, target, preferences, approval.session)
+                approver = self._approver(config, approver_uid)
+                if approver.uid != approver_uid:
+                    raise AccessDenied("selected approver identity changed")
+                record = self._load_saved_time_record(target)
+                if record.revision != revision:
+                    raise Stale("grant record changed since it was read")
+                if record.intent is not None:
+                    raise RecoveryPending("a saved-time transfer is awaiting recovery")
+                try:
+                    seconds = merged_saved_seconds(record.saved.seconds if record.saved else 0, duration_seconds)
+                except ValueError as error:
+                    raise InvalidRequest("approval would exceed the saved-time limit") from error
+
+                message = self._approval_message(request_kind, caller_uid, target, duration_seconds,
+                                                 allow_soft_blocked_apps, deferred=True)
+                outcome = approval.authenticate(target.label, approver.username, message)
+                if outcome in {"denied", "cancelled"}:
+                    return DeferredApproval(correlation_id, outcome)
+                if outcome != "approved":
+                    raise BackendFailure("authorizer returned an invalid outcome")
+                try:
+                    self._resolve_saved_time_session(caller_uid, sender, expected=context.session)
+                except AccessDenied:
+                    return DeferredApproval(correlation_id, "cancelled")
+                if not self._caller_alive(sender):
+                    return DeferredApproval(correlation_id, "cancelled")
+
+                def validate_selection():
+                    current = self._load_saved_time_record(target, invalidate_account=False)
+                    if current != record:
+                        raise Stale("grant record changed during authorization")
+                    self._recheck_saved_time_selection(self._load_config(), context, approver=approver)
+
+                if not approval.admit(validate=validate_selection):
+                    return DeferredApproval(correlation_id, "cancelled")
+                return self._save_deferred_approval(
+                    context, record, SavedBalance(seconds, allow_soft_blocked_apps), correlation_id,
+                )
+        finally:
+            self._release_request_lock()
+
+    def _save_deferred_approval(self, context, record, balance, correlation_id) -> DeferredApproval:
+        try:
+            saved = self._grant_store.write(replace(record, saved=balance))
+        except GrantStoreError as error:
+            # The replacement can be visible even if its directory sync failed.
+            # Report uncertainty and leave the live grant alone.
+            raise BackendFailure("approved time could not be durably saved") from error
+        if saved.fixed is not None and not saved.fixed.ended_by_pause:
+            try:
+                with self._accounts.bind_grant_mutations(saved.uid, saved.username):
+                    paused = self._pause_grant_locked(context, saved)
+            except _NoPausableTime:
+                pass
+            except BrokerError as error:
+                emit_backend_failure(error)
+                pause_error = (error.dbus_name if isinstance(error, (DesktopInUse, RecoveryPending))
+                               else BackendFailure.dbus_name)
+                return DeferredApproval(correlation_id, "saved_pause_error", pause_error,
+                                        saved_seconds=balance.seconds)
+            else:
+                return DeferredApproval(correlation_id, "saved_paused", saved_seconds=paused.saved.seconds)
+        return DeferredApproval(correlation_id, "saved", saved_seconds=balance.seconds)
+
+    @staticmethod
+    def _validate_approval_values(duration_seconds, allow_soft_blocked_apps, *, deferred=False):
+        if type(duration_seconds) is not int or not (
+            MIN_REQUEST_SECONDS <= duration_seconds <= MAX_REQUEST_SECONDS or
+            (not deferred and duration_seconds == 0)
+        ):
+            raise InvalidRequest("duration is outside the supported range")
+        if type(allow_soft_blocked_apps) is not bool:
+            raise InvalidRequest("allow-soft value must be boolean")
+
+    def _approval_message(self, request_kind, caller_uid, target, duration_seconds,
+                          allow_soft_blocked_apps, *, deferred=False) -> str:
+        language = (self.get_own_language(caller_uid) if request_kind == "child"
+                    else self.get_child_language(caller_uid, target.uid))
+        translations = (load_translations(language, (target.desktop_language,))
+                        if not language and request_kind == "kiosk" else
+                        load_translations(language))
+        return format_approval_message(duration_seconds, allow_soft_blocked_apps, translations,
+                                       deferred=deferred)
+
     def _request_access(self, request_kind: str, caller_uid: int, sender: str,
                         target_uid: int, approver_uid: int,
                         duration_seconds: int,
@@ -2328,13 +2465,7 @@ class Broker:
                 self._check_caller(config, caller_uid)
             elif request_kind != "child":
                 raise BackendFailure("request kind is invalid")
-            if type(duration_seconds) is not int or not (
-                duration_seconds == 0 or
-                MIN_REQUEST_SECONDS <= duration_seconds <= MAX_REQUEST_SECONDS
-            ):
-                raise InvalidRequest("duration is outside the supported range")
-            if type(allow_soft_blocked_apps) is not bool:
-                raise InvalidRequest("allow-soft value must be boolean")
+            self._validate_approval_values(duration_seconds, allow_soft_blocked_apps)
             target = self._target(config, target_uid)
             if request_kind == "child" and caller_uid != target.uid:
                 raise AccessDenied("a child can request access only for itself")
@@ -2350,16 +2481,10 @@ class Broker:
                 kind=request_kind,
             )
 
-            language = (self.get_own_language(caller_uid) if request_kind == "child"
-                        else self.get_child_language(caller_uid, target.uid))
-            translations = (load_translations(language, (target.desktop_language,))
-                            if not language and request_kind == "kiosk" else
-                            load_translations(language))
-            message = format_approval_message(
-                duration_seconds, allow_soft_blocked_apps, translations)
+            message = self._approval_message(request_kind, caller_uid, target, duration_seconds,
+                                             allow_soft_blocked_apps)
             approval = authorization_scope.enter_context(self._authorizer.check(
-                request_kind, sender, correlation_id, target.label, approver.username,
-                message,
+                request_kind, sender, correlation_id, target.label, approver.username, message,
             ))
             outcome = approval.outcome
             if outcome not in {"approved", "denied", "cancelled"}:

@@ -24,7 +24,7 @@ from oh_no_parent_control.preferences import (
 )
 from oh_no_parent_control.config import UINT32_MAX, validate
 from oh_no_parent_control.grant_store import (
-    FixedGrant, GrantRecord, GrantStore, GrantStoreError, PauseIntent, RedeemIntent,
+    MAX_SAVED_SECONDS, FixedGrant, GrantRecord, GrantStore, GrantStoreError, PauseIntent, RedeemIntent,
     RedeemTimeState, SavedBalance, remaining_seconds, running_mode,
 )
 from oh_no_parent_control.execution_policy import ExecutionPolicyError
@@ -1260,7 +1260,8 @@ class CoreTests(unittest.TestCase):
         broker.request_access(991, ":1.42", 1001, 1003, 0, False)
         call = authorizer.calls[0]
         self.assertEqual(call[3:5], ("Zoë <&> $(approver-user)", "admin"))
-        self.assertEqual(call[5], "Grant access to $(target-account)\nfor Rest of the day\n\n✗ Soft-blocked not allowed")
+        self.assertEqual(call[5], "Grant access to $(target-account)\nfor Rest of the day\n\n"
+                                  "✗ Soft-blocked not allowed\n\nStart the approved time now.")
 
     def test_remaining_time_formula_uses_later_backend_expiry_then_adds_grant(self):
         self.assertEqual(calculate_active_extension_seconds(31 * 60, 10 * 60, 5 * 60),
@@ -3057,7 +3058,8 @@ def pause_transaction(saved_time_session, tmp_path, monkeypatch):
     def restart():
         state.store = GrantStore(state.store.directory)
         state.broker = Broker(
-            lambda: validate(valid_config()), Authorizer(), state.accounts, state.preferences,
+            lambda: validate(valid_config()), Authorizer(resolve_session=state.sessions.resolve),
+            state.accounts, state.preferences,
             timer_usage=state.usage, running_apps=state.running_apps, sessions=state.sessions,
             grant_store=state.store, now=state.clock, monotonic=state.monotonic, sleep=state.sleep,
         )
@@ -3100,6 +3102,123 @@ def pause_transaction(saved_time_session, tmp_path, monkeypatch):
     state.restart, state.pause, state.record, state.overlay_lock = restart, pause, record, overlay_lock
     restart()
     return state
+
+
+def test_deferred_approval_saves_twenty_minutes_before_pausing_eighteen(pause_transaction):
+    state = pause_transaction
+    source = (state.source[0], state.destination[1] + 18 * 60)
+    state.accounts.extension = source
+    state.usage.query_usage.return_value = ((state.epoch - 120, state.epoch),)
+    before = seed_record(state.store, fixed=FixedGrant(source, True))
+    write_record = state.store.write
+
+    def write(record):
+        if record.intent is not None:
+            assert state.record().saved == SavedBalance(20 * 60, False)
+            assert state.accounts.extension == source
+        return write_record(record)
+
+    with mock.patch.object(state.store, "write", side_effect=write):
+        result = state.broker.request_deferred_access(991, ":1.42", 1001, 1003, 20 * 60, False,
+                                                      before.revision)
+
+    assert (result.result_code, result.pause_error, result.saved_seconds) == ("saved_paused", "", 38 * 60)
+    assert state.record() == replace(before, revision=before.revision + 3, saved=SavedBalance(38 * 60, False),
+                                     fixed=FixedGrant(state.destination, True, ended_by_pause=True))
+    assert state.accounts.extension == state.destination
+    assert state.accounts.filter == (False, ("org.example.Game",))
+    assert [event[0] for event in state.accounts.events if event[0].startswith("set_")] == ["set_extension"]
+    assert state.running_apps.calls == []
+
+
+def test_deferred_approval_leaves_daily_allowance_and_running_deadline_unchanged(pause_transaction):
+    state = pause_transaction
+    before = seed_record(state.store, saved=SavedBalance(MAX_SAVED_SECONDS - 300, True))
+    with pytest.raises(InvalidRequest, match="saved-time limit"):
+        state.broker.request_deferred_access(991, ":1.42", 1001, 1003, 301, False, before.revision)
+    assert state.broker._authorizer.calls == []
+    assert state.record() == before
+
+    state.sessions.resolve.return_value = state.child
+    result = state.broker.request_deferred_access(1001, ":1.42", 1001, 1003, 300, False,
+                                                  before.revision)
+    assert (result.result_code, result.pause_error, result.saved_seconds) == ("saved", "", MAX_SAVED_SECONDS)
+    assert state.record().saved == SavedBalance(MAX_SAVED_SECONDS, False)
+    assert state.accounts.events == []
+    assert state.accounts.extension == state.source
+    state.sessions.lock.assert_not_called()
+    state.usage.query_usage.assert_not_called()
+    status = state.broker.get_time_status(991, 1001, 0)
+    assert status.daily_allowance_remaining_seconds == 120
+    assert status.one_time_grant_remaining_seconds == 600
+
+
+@pytest.mark.parametrize(("fault", "pause_error"), [
+    ("daily covers remaining", ""),
+    ("desktop in use", DesktopInUse.dbus_name),
+    ("balance limit", BackendFailure.dbus_name),
+    ("unconfirmed intent", RecoveryPending.dbus_name),
+])
+def test_deferred_approval_reports_pause_outcome_without_losing_saved_time(pause_transaction, fault, pause_error):
+    state = pause_transaction
+    existing = MAX_SAVED_SECONDS - 300 if fault == "balance limit" else 100
+    before = seed_record(state.store, saved=SavedBalance(existing, False), fixed=FixedGrant(state.source, False))
+    if fault == "daily covers remaining":
+        state.preferences.values[1001]["daily_time_limit_minutes"] = 15
+    if fault == "desktop in use":
+        state.sessions.for_user.return_value = (state.child,)
+        state.sessions.for_user.side_effect = None
+    write_record = state.store.write
+
+    def write(record):
+        committed = write_record(record)
+        if fault == "unconfirmed intent" and record.intent is not None:
+            raise GrantStoreError("directory sync failed after replacement")
+        return committed
+
+    with mock.patch.object(state.store, "write", side_effect=write):
+        result = state.broker.request_deferred_access(991, ":1.42", 1001, 1003, 300, True,
+                                                      before.revision)
+    assert result.result_code == ("saved_pause_error" if pause_error else "saved")
+    assert (result.pause_error, result.saved_seconds) == (pause_error, existing + 300)
+    assert state.record().saved == SavedBalance(existing + 300, True)
+    assert (state.record().intent is not None) == (fault == "unconfirmed intent")
+    assert state.accounts.extension == state.source
+    assert state.writes == state.running_apps.calls == []
+
+
+@pytest.mark.parametrize(("change", "error"), [
+    ("rest of day", InvalidRequest), ("cross-account rest of day", AccessDenied),
+    ("stale at entry", Stale), ("stale after prompt", Stale),
+    ("approver replaced", AccessDenied), ("preferences changed", AccessDenied),
+])
+def test_deferred_approval_revalidates_before_effect_admission(pause_transaction, change, error):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    authorizer = state.broker._authorizer
+
+    def during_prompt():
+        if change == "stale after prompt":
+            state.store.write(before)
+        elif change == "approver replaced":
+            admin = state.accounts.users[1003]
+            state.accounts.users[1003] = replace(admin, username="replacement")
+        elif change == "preferences changed":
+            state.preferences.values[1001]["parent_control_enabled"] = False
+
+    authorizer.callback = during_prompt
+    revision = before.revision - 1 if change == "stale at entry" else before.revision
+    caller = 1002 if change == "cross-account rest of day" else 991
+    seconds = 0 if change in {"rest of day", "cross-account rest of day"} else 300
+    with pytest.raises(error):
+        state.broker.request_deferred_access(caller, ":1.42", 1001, 1003, seconds, True, revision)
+    if change in {"rest of day", "cross-account rest of day", "stale at entry"}:
+        assert authorizer.calls == []
+    else:
+        assert len(authorizer.calls) == 1 and authorizer.pending.closed and not authorizer.pending.admitted
+    assert state.record() == replace(before, revision=before.revision + (change == "stale after prompt"))
+    assert state.accounts.events == []
+    state.sessions.lock.assert_not_called()
 
 
 @pytest.mark.parametrize(("caller", "daily", "saved"), [

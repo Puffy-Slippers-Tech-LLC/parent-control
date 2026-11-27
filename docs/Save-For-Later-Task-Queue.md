@@ -7,7 +7,7 @@ recorded native qualification.
 
 | Done | ID | Task | Requires | Scope | Estimate |
 | --- | --- | --- | --- | --- | --- |
-| [ ] | 001 | [Define how requests and results travel between the app and broker](Save-For-Later-Tasks/001.md) | Baseline | Additive method signatures, status, errors, and client compatibility | 30–60 min |
+| [x] | 001 | Define how requests and results travel between the app and broker | Baseline | Additive method signatures, status, errors, and client compatibility | Done: [wire contract](Save-For-Later-Design.md#wire-contract) reviewed |
 | [ ] | 002 | [Store saved time securely for each child](Save-For-Later-Tasks/002.md) | 001 | Private versioned records, account binding, revisions, and JSON migration | 1–2 h |
 | [ ] | 003 | [Track what can be paused without changing immediate approvals](Save-For-Later-Tasks/003.md) | 002 | Balance arithmetic, grant classification, and immediate approval recording | 1–2 h |
 | [ ] | 004 | [Keep saved time through upgrades and clear it on removal](Save-For-Later-Tasks/004.md) | 002 | DEB/RPM package hooks, state retention and cleanup, and activation | 1–2 h |

@@ -7,6 +7,7 @@ Agent-free policy defaults need no selection.
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+import re
 from typing import Iterator, Literal, NamedTuple, Protocol
 
 
@@ -179,6 +180,22 @@ class SessionEvent:
                   'command_output', 'usage', 'notice', 'failure', 'model_options',
                   'model_changed', 'skill_options']
     data: dict
+
+
+def model_choice(text: str, options: dict, model: str) -> tuple[str, str]:
+    """Resolve `/model [model] [--reasoning=<level>]` against published options."""
+    match = re.fullmatch(r'/model(?:[ \t]+([^\s-][^\s]*))?(?:[ \t]+--reasoning(?:=|[ \t]+)(\S+))?',
+                         text.strip())
+    if not match or not any(match.groups()):
+        raise ValueError('Use /model, /model <model>, or /model [model] --reasoning=<level>.')
+    requested, effort = match.groups()
+    choice = options.get(requested or model)
+    if choice is None:
+        raise ValueError('Choose a model from the /model picker.')
+    effort = effort or choice['default']
+    if effort not in choice['efforts']:
+        raise ValueError(f"Choose a reasoning level for {choice['model']}: {', '.join(choice['efforts'])}.")
+    return choice['model'], effort
 
 
 class BatchPresentation(Protocol):

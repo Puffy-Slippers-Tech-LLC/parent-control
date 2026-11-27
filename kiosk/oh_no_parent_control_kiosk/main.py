@@ -1793,16 +1793,12 @@ class RequestWindow(Adw.ApplicationWindow):
 
     def _load_users(self, *_args):
         if self._preview and not self._interactive_preview:
-            from .preview_data import PREVIEW_APPROVERS, PREVIEW_USERS
+            from .preview_data import INTERACTIVE_PREVIEW_USERS, PREVIEW_APPROVERS, PREVIEW_USERS
 
-            users = PREVIEW_USERS[:1] if self._child_overlay else PREVIEW_USERS
+            users = INTERACTIVE_PREVIEW_USERS if self._preview_approval is not None else PREVIEW_USERS
             self._request_content.set_loading()
-            self._request_content.set_accounts(users)
-            if self._preview_approval is not None:
-                from .preview_auth import approvers
-                self._request_content.set_approvers(approvers())
-            else:
-                self._request_content.set_approvers(PREVIEW_APPROVERS)
+            self._request_content.set_accounts(users[:1] if self._child_overlay else users)
+            self._request_content.set_approvers(PREVIEW_APPROVERS)
             self._queue_time_estimate()
             return
         LOG.info("kiosk.013", overlay=self._child_overlay)
@@ -1862,11 +1858,13 @@ class RequestWindow(Adw.ApplicationWindow):
         self._grant_retry_step = None
         self._queue_time_estimate()
         if self._preview and not self._interactive_preview:
-            from .preview_data import PREVIEW_PREFERENCES
+            from .preview_data import preview_preferences
 
             self._applying_preferences = True
             try:
-                self._request_content.set_preferences(PREVIEW_PREFERENCES[target_uid])
+                self._request_content.set_preferences(preview_preferences(
+                    target_uid, interactive=self._preview_approval is not None,
+                ))
                 if target_uid in getattr(self, '_preview_presets', {}):
                     self._request_content.set_time_grant_presets(self._preview_presets[target_uid])
                 if self._child_overlay:

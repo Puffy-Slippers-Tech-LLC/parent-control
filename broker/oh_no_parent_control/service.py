@@ -14,6 +14,7 @@ import signal
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
@@ -49,6 +50,7 @@ BUS_NAME = "com.puffyslippers.OhNoParentControl1"
 OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
 INTERFACE = BUS_NAME
 CONFIG_PATH = os.environ.get("OH_NO_PARENT_CONTROL_CONFIG", "/etc/oh-no-parent-control/config.json")
+MAX_QUEUED_GRANT_RECOVERIES = 32
 
 INTROSPECTION_XML = f"""
 <node>
@@ -317,6 +319,9 @@ class Service:
         self.diagnostics_only = diagnostics_only
         self._diagnostic_export_lock = threading.Lock()
         self._grant_observation_lock = threading.Lock()
+        self._grant_recovery_lock = threading.Lock()
+        self._grant_recovery_queued: set[int] = set()
+        self._grant_recovery_executor = None
         if dependencies is None and diagnostics_only:
             # Presentation reads need identity and saved language, but no
             # enforcement adapters or preference writes before reboot.
@@ -382,6 +387,8 @@ class Service:
             if cap_uids:
                 LOG.info("service.003", child_count=len(cap_uids))
         self._startup_times["caps_attempted_ns"] = time.monotonic_ns()
+        if dependencies.grant_store is not None:
+            self.broker.recover_grants_at_startup()
         self._app_filter_signal_id = self.connection.signal_subscribe(
             ACCOUNTS_NAME, PROPERTIES_INTERFACE, "PropertiesChanged",
             None, APP_FILTER_INTERFACE, Gio.DBusSignalFlags.NONE,
@@ -409,6 +416,10 @@ class Service:
         if dependencies.extension_monitor_factory is not None:
             self._extension_monitor = dependencies.extension_monitor_factory(
                 self.broker, dependencies.extensions, self.connection)
+        if dependencies.grant_store is not None:
+            self._grant_recovery_executor = ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="broker-grant-recovery",
+            )
 
     def _periodic_policy_rescan(self):
         while not self._policy_rescan_stop.wait(
@@ -447,6 +458,28 @@ class Service:
             self._observe_grants()
         finally:
             self._grant_observation_lock.release()
+
+    def _schedule_grant_recovery(self, target_uid: int) -> None:
+        """Coalesce status requests without waiting for a transaction slot."""
+        with self._grant_recovery_lock:
+            executor = self._grant_recovery_executor
+            if (executor is None or target_uid in self._grant_recovery_queued or
+                    len(self._grant_recovery_queued) >= MAX_QUEUED_GRANT_RECOVERIES):
+                return
+            self._grant_recovery_queued.add(target_uid)
+            try:
+                executor.submit(self._grant_recovery_worker, target_uid)
+            except RuntimeError as error:
+                self._grant_recovery_queued.remove(target_uid)
+                record_exception(error)
+
+    @operation_scope
+    def _grant_recovery_worker(self, target_uid: int) -> None:
+        try:
+            self.broker.recover_grant(target_uid)
+        finally:
+            with self._grant_recovery_lock:
+                self._grant_recovery_queued.remove(target_uid)
 
     def _health_snapshot(self):
         result = {}
@@ -507,6 +540,12 @@ class Service:
 
     def close(self):
         """Release transport resources owned by this service instance."""
+        with self._grant_recovery_lock:
+            recovery_executor = self._grant_recovery_executor
+            self._grant_recovery_executor = None
+        if recovery_executor is not None:
+            recovery_executor.shutdown(cancel_futures=True)
+            self._grant_recovery_queued.clear()
         self._policy_rescan_stop.set()
         if self._extension_monitor is not None:
             self._extension_monitor.close()

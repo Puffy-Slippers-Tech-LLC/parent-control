@@ -555,19 +555,21 @@ be determined is never sent as zero; the read fails instead:
 | Error | Meaning and client action |
 | --- | --- |
 | `Error.Busy` | The transaction lock is held, including during another child's parent prompt; the revision changed between the two record reads; or native time is suspended, as today. Retry later |
-| `Error.RecoveryPending` | The record holds an intent or fails account validation. The read queued one attempt; retry rereads |
+| `Error.RecoveryPending` | The record holds an intent, needs native settings repaired after withdrawal, or fails account validation. The read queued one attempt; retry rereads |
 | `Error.BackendFailure` | Usage, AccountsService or the record is unreadable, invalid or out of uint32 range. Show unavailable with retry |
 | Existing `InvalidRequest`, `AccessDenied`, `RebootRequired` | As for `GetTimeStatus` |
 
 **Account invalidation during a read.** A missing or ineligible target fails the
-target check before its record is read, so the record is never exposed. If the
-target is eligible but the record fails its
+target check. The broker withholds that account's record and queues its clear.
+If the target is eligible but the record fails its
 [account binding](#account-binding), the read suppresses it. It returns
 `RecoveryPending` without any record value and queues the attempt, which clears
-the record under the lock as Revoke does. The next read shows the cleared
-record's new revision, nothing saved and no fixed grant. A mutation that finds
-an invalid record clears it first under the lock and then refuses with
-`Error.Stale`, because the revision changed.
+the record under the lock as Revoke does. The broker tracks the rejected
+revision through any writes that carry its record forward. A fresh grant after
+a clear is unaffected by the older observation. The next successful read shows the
+cleared record's new revision, nothing saved and no fixed grant. A revisioned
+mutation that finds an invalid record clears it first under the lock and then
+refuses with `Error.Stale`, because the revision changed.
 
 **Revisions.** A revision is an opaque uint64, compared only for equality; 0
 means that no record has been written for the UID. Every record write produces a
@@ -695,8 +697,8 @@ every child while any child's prompt is open; clients report busy with retry.
 Never hold two unrelated locks in inconsistent order.
 
 `GetGrantStatus` does not take the lock, and it never writes. It reports busy
-while the lock is held, and recovery-pending while the record holds an intent and
-the lock is free; in that case it also queues one
+while the lock is held, and recovery-pending while the record holds an intent or
+withdrawal repair and the lock is free. In that case it also queues one
 [recovery attempt](#revisions-recovery-and-invalidation) for that child, at most
 one at a time, which runs on the broker worker under the lock like a mutation.
 Otherwise it reads the record, then the live tuple, then the record again, and
@@ -739,9 +741,11 @@ record read, a record is invalid when the live account is missing, no longer
 eligible, or has a different username. Package removal also invalidates it; an
 ordinary reboot does not. The residual risk is documented: an account deleted
 and recreated while the broker is down, with the same UID and username, inherits
-saved time, just as it already inherits preferences. Because validation is
-lazy, an eligibility lapse that ends before the next record read is not
-observed either: reads during the lapse refuse the target before the record.
+saved time, just as it already inherits preferences. An eligibility lapse that
+ends before the next record check is also unobservable. When a status read
+detects an invalid account, it refuses the record and queues a clear under the
+transaction lock. An unavailable account service leaves the record untouched
+for the next attempt.
 
 ### Saving approved minutes
 
@@ -858,10 +862,13 @@ read. Until it is resolved, status reports recovery-pending. An attempt that
 cannot read or write AccountsService leaves the intent for the next attempt.
 
 Revoke and a screen-time control toggle first durably clear the record: saved
-balance, recorded tuple and any intent. They then run today's operation. If that
-operation fails and rolls back, saved time stays cleared, so failure always
-leaves less access and recovery has nothing to replay. Account invalidation
-clears the record the same way.
+balance, recorded tuple and any transfer intent. If a redemption may have left
+temporary native time settings, the clear retains only the data needed to
+restore those settings. That repair can retry after a failure or restart and
+cannot publish the withdrawn grant or apply its app choice. Revoke or a toggle
+then runs its ordinary operation. If it fails and rolls back, saved time stays
+cleared. Account invalidation clears the record and discards any repair for the
+former account.
 
 Before the durable intent, failure preserves prior policy/time state except
 ordinary elapsed time. After it, an uncertain result is reported as uncertain and

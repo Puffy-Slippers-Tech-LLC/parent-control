@@ -18,6 +18,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from .core import GrantAccountChanged
+
 
 FLATPAK = "/usr/bin/flatpak"
 PROC_ROOT = Path("/proc")
@@ -213,6 +215,8 @@ class RunningAppTerminator:
                     for pattern in patterns
                 ) for target in app["targets"])
             }))
+        except GrantAccountChanged:
+            raise
         except Exception as error:
             raise AppTerminationError("application identity discovery failed") from error
 

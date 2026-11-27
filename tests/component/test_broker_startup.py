@@ -1,9 +1,14 @@
 """Runtime startup ordering on the established, independently owned private bus."""
 
+from contextlib import ExitStack
+from dataclasses import replace
+from datetime import datetime, timezone
 import json
 from io import BytesIO
 import logging
+import threading
 import time
+from types import SimpleNamespace
 from unittest import mock
 from zipfile import ZipFile
 
@@ -16,11 +21,16 @@ from common.oh_no_parent_control_ui.diagnostic_bundle import validate_bundle
 from common.oh_no_parent_control_ui.diagnostic_events import encode, event
 from common.oh_no_parent_control_ui.reboot import product_reboot_required
 from oh_no_parent_control.adapters import AccountsService
-from oh_no_parent_control.core import AccessDenied, UserAccount
+from oh_no_parent_control.config import validate
+from oh_no_parent_control.core import AccessDenied, RecoveryPending, UserAccount
 from oh_no_parent_control.execution_policy import FapolicydPolicy
-from oh_no_parent_control.service import Service
+from oh_no_parent_control.grant_store import FixedGrant, GrantRecord, GrantStore, PauseIntent, SavedBalance
+from oh_no_parent_control.service import Service, ServiceDependencies
+from tests.support.broker import Accounts, Authorizer, Extensions, Preferences, RunningApps, TimerUsage
+from tests.support.configuration import valid_config
 from tests.support.dbus import (
     RecordingAccounts, RecordingBroker, broker_service, call, close_connection, open_bus,
+    release_name, request_name, spin_until,
 )
 
 
@@ -228,3 +238,82 @@ def test_startup_does_not_log_invalid_invocation_or_require_systemd(
         assert 'bus_owner' not in witness
         assert 'pid' not in witness
         assert 'private-startup-canary' not in json.dumps(witness)
+
+
+def test_startup_recovers_available_children_and_a_status_read_retries_an_outage(
+        dbusmock_system, tmp_path, monkeypatch):
+    accounts, preferences = Accounts(), Preferences()
+    for uid in (1001, 1002):
+        preferences.save(uid, {**preferences.load(uid), "parent_control_enabled": True,
+                               "daily_time_limit_minutes": 0})
+    monkeypatch.setattr(accounts, "sync_execution_policy", lambda: None, raising=False)
+    config = validate(valid_config())
+    now = datetime(2026, 9, 3, tzinfo=timezone.utc)
+    source = (int(now.timestamp()) - 60, 300)
+    destination = (source[0], 60)
+    store = GrantStore(tmp_path / "grants")
+    intent = PauseIntent(source, destination, SavedBalance(240, False))
+    records = {
+        uid: store.write(GrantRecord(uid, name, fixed=FixedGrant(source, False), intent=intent))
+        for uid, name in ((1001, "child"), (1002, "other"))
+    }
+    outage = True
+
+    def read_extension(uid, *, deadline=None):
+        if uid == 1002 and outage:
+            raise TimeoutError("native grant temporarily unavailable")
+        return destination
+
+    monkeypatch.setattr(accounts, "get_extension", read_extension)
+    started, release = threading.Event(), threading.Event()
+    with ExitStack() as owned:
+        server = open_bus(dbusmock_system.address)
+        owned.callback(close_connection, server)
+        request_name(server)
+        owned.callback(release_name, server)
+        client = open_bus(dbusmock_system.address)
+        owned.callback(close_connection, client)
+        dependencies = ServiceDependencies(
+            credentials=SimpleNamespace(uid=lambda _sender: 0, alive=lambda _sender: True),
+            accounts=accounts, config_loader=lambda: config, authorizer=Authorizer(),
+            preferences=preferences, extensions=Extensions(), timer_usage=TimerUsage(),
+            application_catalog=None, running_apps=RunningApps(), now=lambda: now,
+            grant_store=store, policy_rescan_interval_seconds=None,
+        )
+        service = Service(server, DailyLogWriter(tmp_path / "logs", now=lambda: now),
+                          dependencies=dependencies)
+        owned.callback(service.close)
+        assert store.load(1001, "child") == replace(
+            records[1001], revision=records[1001].revision + 1,
+            fixed=FixedGrant(destination, False, ended_by_pause=True), saved=intent.saved, intent=None,
+        )
+        assert store.load(1002, "other") == records[1002]
+        service.register()
+        assert call(client, "GetTimeStatus", GLib.Variant("(uu)", (1001, 0)),
+                    "(uuuu)").unpack() == (0, 0, 0, 0)
+
+        recover = service.broker.recover_grant
+
+        def hold_worker(uid):
+            started.set()
+            assert release.wait(3)
+            return recover(uid)
+
+        worker = mock.Mock(side_effect=hold_worker)
+        monkeypatch.setattr(service.broker, "recover_grant", worker)
+        try:
+            for _ in range(6):
+                with pytest.raises(RecoveryPending):
+                    # Task 010 supplies the public D-Bus method using this read hook.
+                    service.broker._read_grant_record_for_status(
+                        config, 1002, schedule_recovery=service._schedule_grant_recovery,
+                    )
+                assert started.wait(3)
+            worker.assert_called_once_with(1002)
+            assert store.load(1002, "other") == records[1002]
+            outage = False
+        finally:
+            release.set()
+        spin_until(lambda: store.load(1002, "other").intent is None)
+        assert store.load(1002, "other").saved == intent.saved
+        worker.assert_called_once_with(1002)

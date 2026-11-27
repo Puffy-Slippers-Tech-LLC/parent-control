@@ -326,8 +326,8 @@ can only reduce the recorded-use operand and never replaces the root-owned
 grant or the authenticated additional interval. The final identity, preference
 and lifecycle checks cover this read too. A
 nonblocking broker lock permits only one app-policy save, approval, revocation,
-or session-entry reconciliation transaction at a time. Once that transaction and
-its cleanup finish, a new request may begin immediately on either request
+session-entry reconciliation or saved-time transaction at a time. Once the
+transaction and its cleanup finish, a new request may begin on either request
 surface, including for another child at the kiosk. There is no repeat-request
 timer or successful-request history. Every new request requires fresh parent
 authentication and the full current-state validation.
@@ -342,6 +342,13 @@ bridge or writing a grant after disable. Both request-preference methods and
 `SetRequestMuted` do not take that lock. The parent serializes its own saves,
 and approval checks for stale preferences; other settings writes retain their
 existing boundaries.
+
+The broker resolves a child's pending transfer under this lock before admitting
+ordinary grant and policy mutations for that child. It uses the same recovery
+path at startup and for work queued by saved-time status reads. A revisioned
+request must refresh its revision after recovery changes the record. The lock
+also spans the parent's approval prompt, so another child's mutation can return
+`Busy` while the prompt is open. See [saved-time serialization](../Save-For-Later-Design.md#serialization-and-status-reads).
 
 For a request that keeps soft blocks enabled, the broker writes and verifies the
 complete hard-and-soft filter, terminates matching apps owned by the selected
@@ -365,6 +372,12 @@ restores the complete old account state. Once termination may have changed a
 process, that side effect cannot be rolled back; failure instead restores the
 old time values, keeps the strict filter active, and reports the failure. A
 rollback read-back failure is reported distinctly.
+Revocation and a control toggle durably clear the saved balance, fixed-grant
+tracking and any transfer intent before changing the account. An interrupted
+redemption may leave native time settings that the broker repairs after the
+clear using a record that cannot replay the grant. Native rollback leaves the
+clear in place. Changing the allowance while control stays enabled preserves
+the saved balance and current grant.
 Time-state commit and rollback share the verified
 [native transition bridge](Screen-Time.md#screen-time-model), preserving the
 original daily schedule as well as limit type, daily allowance and grant.
@@ -379,7 +392,8 @@ revocation. A positive result enables Revoke even in a locked child desktop.
 App-policy save rollback has a different persistence boundary: before termination,
 failure restores the old preference record and filter; once termination starts,
 failure keeps the requested preferences and strict filter. Session preparation
-also keeps strict policy once termination starts and does not modify the grant.
+also keeps strict policy once termination starts. Any pending transfer is resolved
+before session preparation evaluates the current grant.
 Account read-back and successful fapolicyd compile/reload commands are the current
 verification boundary. There is no active-generation acknowledgement in the
 production adapter; see [notification recovery](Applications.md#notification-recovery-and-acknowledgement-limit).

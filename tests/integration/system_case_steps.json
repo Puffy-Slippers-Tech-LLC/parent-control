@@ -2642,5 +2642,15 @@
       "Select a child whose controls are off, then turn controls on while GNOME extensions are globally disabled."
     ],
     "expected": "Each Parent recovery restores the extension and preserves unrelated settings; selecting saved-off controls leaves them off, and first enablement applies the daily limit and clears the stale grant."
+  },
+  "320": {
+    "summary": "Keep saved time and running grants through a package update",
+    "steps": [
+      "With a package that can save time, save time for one child, restart the service and leave a second child's pause unfinished just before the update.",
+      "Or, with the newest earlier release, approve extra time for a child before saved time existed.",
+      "Update parental control, then restart the computer.",
+      "Check both children's time again; after the earlier release, save newly approved time for later."
+    ],
+    "expected": "Saved time and its app choice stay exact, the unfinished pause resolves once without adding time, and an older grant keeps running as a grant that cannot be paused. Newly saved time is stored separately. Engineering check only."
   }
 }

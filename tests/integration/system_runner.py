@@ -50,6 +50,9 @@ FIRST_CONFIGURE_CASE = 'test_first_configuration_interruption_retry'
 FIRST_CONFIGURE_PHASES = ('first-configure', 'first-configure-rebooted')
 PREVIOUS_POLICY_CASE = 'test_previous_package_policy_preservation'
 PREVIOUS_POLICY_PHASES = ('previous-policy', 'installed', 'rebooted')
+# Explicit-only history on the same old-package/update/reboot phases.
+SAVED_GRANT_UPDATE_CASE = 'test_saved_grant_update'
+PREVIOUS_HISTORY_CASES = (PREVIOUS_POLICY_CASE, SAVED_GRANT_UPDATE_CASE)
 TRUSTED_FIXTURES_CASE = 'test_trusted_native_upgrade_fixtures'
 TRUSTED_FIXTURES_PHASE = 'trusted-fixtures'
 NATIVE_UPDATE_CASE = 'test_native_dependency_update_retained_session'
@@ -502,6 +505,7 @@ def case_phases(area, case_id):
         ENFORCEMENT_STARTUP_CASE: (ENFORCEMENT_STARTUP_PHASE,),
         TRUSTED_FIXTURES_CASE: (TRUSTED_FIXTURES_PHASE,),
         PREVIOUS_POLICY_CASE: PREVIOUS_POLICY_PHASES,
+        SAVED_GRANT_UPDATE_CASE: PREVIOUS_POLICY_PHASES,
         **{history.case_id: history.phases for history in PAM_HISTORIES},
         FIRST_CONFIGURE_CASE: FIRST_CONFIGURE_PHASES,
         'test_installed_package': ('installed', 'rebooted'),
@@ -585,14 +589,18 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         # a lightweight prerequisite, without scheduling a duplicate history.
         chosen['package'] = tuple(case for case in chosen['package']
                                   if case not in PACKAGE_READINESS_CASES)
-    # Qualification is an explicit, isolated old-package history. In particular,
-    # --previous-artifacts alone must not add it to an upgrade suite.
-    if test != TRUSTED_FIXTURES_CASE and not identities and 'package' in chosen:
-        chosen['package'] = tuple(case for case in chosen['package']
-                                  if case != TRUSTED_FIXTURES_CASE)
+    # Qualification and the saved-time update are explicit, isolated old-package
+    # histories. In particular, --previous-artifacts alone must not add them to
+    # an upgrade suite.
+    explicit = (TRUSTED_FIXTURES_CASE, SAVED_GRANT_UPDATE_CASE)
+    if test not in explicit and not identities and 'package' in chosen:
+        chosen['package'] = tuple(case for case in chosen['package'] if case not in explicit)
     trusted_fixtures = TRUSTED_FIXTURES_CASE in chosen.get('package', ())
     require(not trusted_fixtures or chosen == {'package': (TRUSTED_FIXTURES_CASE,)},
             'selection:trusted-fixtures-requires-isolated-history')
+    require(SAVED_GRANT_UPDATE_CASE not in chosen.get('package', ()) or
+            chosen == {'package': (SAVED_GRANT_UPDATE_CASE,)},
+            'selection:saved-grant-update-requires-isolated-history')
     # This optional history needs explicit earlier-package inputs. Ordinary
     # current-package suites keep their independent baseline histories.
     if not fresh_install and test is None and not identities and 'package' in chosen:
@@ -709,7 +717,7 @@ def resume_selection(selection, completed, *, fresh_install=False):
         # Upgrade attempts reinstall from the baseline before dependent areas.
         dependencies.update(('installed', 'rebooted'))
     for item in remaining:
-        if item.case_id == PREVIOUS_POLICY_CASE:
+        if item.case_id in PREVIOUS_HISTORY_CASES:
             dependencies.update(PREVIOUS_POLICY_PHASES[:PREVIOUS_POLICY_PHASES.index(item.phase)])
     # A newly restored guest needs predecessors, never later lifecycle phases.
     # In particular, an installation case must not pull in removal histories
@@ -2922,7 +2930,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 require_fixture_ready()
             vm.copy(False, str(directory / 'input') + '/', PAYLOAD + '/')
         require(sum(path.exists() for path in previous) <= 1, 'assets:ambiguous-previous-package')
-        previous_policy = any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+        previous_policy = any(item.case_id in PREVIOUS_HISTORY_CASES for item in selection.executions)
         trusted_fixtures = any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)
         require(not trusted_fixtures or (has_previous and not already_installed and
                 selection.phases == (TRUSTED_FIXTURES_PHASE,) and
@@ -3359,7 +3367,7 @@ def main(argv=None):
                                       qualification_failure=args.qualification_failure,
                                       fresh_install=args.previous_artifacts is not None,
                                       target_package_format=configured.require_package_format())
-        require(not any(item.case_id == PREVIOUS_POLICY_CASE for item in selection.executions)
+        require(not any(item.case_id in PREVIOUS_HISTORY_CASES for item in selection.executions)
                 or args.previous_artifacts is not None,
                 'selection:previous-policy-requires-previous-artifacts')
         require(not any(item.case_id == TRUSTED_FIXTURES_CASE for item in selection.executions)

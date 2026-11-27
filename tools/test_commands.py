@@ -495,6 +495,7 @@ Aggregate aliases (no suite selectors)
   upgrade pair without starting the customer journey.
   artifacts prepare --no-action-inputs --package-format deb|rpm builds the same
   finite pair for packaging diagnosis without checking or starting a VM.
+  Add --build-target NAME (for example fedora45) for a target on another host.
   artifacts prepare --for-vm --native-inputs prepares the reviewed native dependency
   pair in retained storage; it does not install packages or qualify the live history.
   artifacts prepare --native-inputs --package-format deb|rpm prepares that finite
@@ -743,6 +744,14 @@ def allocate_artifact_output(value):
         return str(path)
 
     return test_retention.allocate(create)
+
+
+def vm_free_pair(argv):
+    """Match a VM-free native or no-action pair; no-action may name its build target."""
+    return (len(argv) in (4, 6) and argv[0] == 'prepare'
+            and argv[1] in ('--native-inputs', '--no-action-inputs')
+            and argv[2] == '--package-format' and argv[3] in ('deb', 'rpm')
+            and (len(argv) == 4 or argv[1] == '--no-action-inputs' and argv[4] == '--build-target'))
 
 
 def qualification_input_options(root, selector):
@@ -1278,11 +1287,12 @@ def plan(root, category, argv):
         if category == 'artifacts' and argv == ['prepare', '--for-vm', '--native-inputs']:
             from vm_selection import arguments
             return [python_file(root, 'tools/vm_artifacts.py', '--native-inputs', *arguments())], False
-        if (category == 'artifacts' and len(argv) == 4 and
-                argv[0] == 'prepare' and argv[1] in ('--native-inputs', '--no-action-inputs')
-                and argv[2] == '--package-format' and
-                argv[3] in ('deb', 'rpm')):
-            return [[*command, argv[1], '--package-format', argv[3]]], False
+        if category == 'artifacts' and vm_free_pair(argv):
+            target = []
+            if len(argv) == 6:
+                from build_targets import get
+                target = ['--build-target', get(argv[5], package_format=argv[3]).name]
+            return [[*command, *argv[1:4], *target]], False
         if category == 'artifacts' and (argv == ['prepare', '--for-vm'] or
                 len(argv) == 4 and argv[:3] == ['prepare', '--for-vm', '--candidate']):
             from vm_selection import arguments
@@ -1420,9 +1430,7 @@ def _main(argv=None, *, detached=False, checkpoint=None, reloading=False, upstre
         if (category in ('fixtures', 'artifacts') and
                 (not args or args in (['build'], ['prepare']) or
                  category == 'fixtures' and args[:3] == ['build', '--kind', 'native-runtime'] or
-                 category == 'artifacts' and len(args) == 4 and args[0] == 'prepare'
-                 and args[1] in ('--native-inputs', '--no-action-inputs')
-                 and args[2] == '--package-format')):
+                 category == 'artifacts' and vm_free_pair(args))):
             from test_retention import allocate
             directory = allocate(tempfile.mkdtemp, prefix=f'onpc-test-{category}-')
             commands[0] += ['--output', directory]

@@ -87,17 +87,24 @@ def grant_record(uid):
     return json.loads(contents), hashlib.sha256(contents).hexdigest()
 
 
-def seed_saved_time(child, *, pending=True):
-    """Stage a saved grant and, for rollback, a pause just before its native write."""
+def installed_grant_store():
+    """Import the installed package's record writer, never the checkout's copy."""
     guest.guard()
     previous_path = sys.path[:]
     sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
     try:
-        from oh_no_parent_control.grant_store import FixedGrant, GrantStore, PauseIntent, SavedBalance
+        from oh_no_parent_control import grant_store
     finally:
         sys.path[:] = previous_path
+    return grant_store
+
+
+def seed_saved_time(child, *, pending=True):
+    """Stage a saved grant and, for rollback, a pause just before its native write."""
+    module = installed_grant_store()
+    FixedGrant, PauseIntent, SavedBalance = module.FixedGrant, module.PauseIntent, module.SavedBalance
     username = pwd.getpwuid(child).pw_name
-    store = GrantStore(GRANTS)
+    store = module.GrantStore(GRANTS)
     current = store.load(child, username)
     live = tuple(account_property(child, LIMITS, 'ActiveExtension'))
     guest.require(not current.has_state and live[0] > 0 and live[1] > 1,
@@ -131,6 +138,7 @@ def verify_saved_balance(accounts, *, seconds, revision=None):
     guest.require(len(status) == 12 and status[5] == seconds and
                   (revision is None or status[0] == revision),
                   'removal:unexpected-saved-balance-or-revision')
+    return status
 
 
 def verify_recovered_saved_time(accounts, before):

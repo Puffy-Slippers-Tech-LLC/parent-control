@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 from tests.support.events import read_events as records
@@ -204,6 +205,249 @@ def status(ui, wait, expected):
     wait(lambda: ui.text("kiosk-request-status") == expected, expected)
 
 
+def approved_status(ui, wait, expected, *, text=None):
+    wait(lambda: (node := ui.find("kiosk-approved-status")) is not None
+         and node.getValue() == expected, f"Approved time status is {expected}")
+    if text is not None:
+        assert ui.showing("kiosk-approved-status")
+        assert ui.getText("kiosk-approved-status") == text
+
+
+def lock_confirmation(ui):
+    client = ui.target("kiosk-request-window").client
+    modal = client.getSurfaceById("kiosk-lock-confirmation")
+    metadata, = [surface for surface in client.listSurfaces() if surface["id"] == modal.id]
+    assert metadata["visible"] and metadata["modal"]
+    assert metadata["parent_id"] == "kiosk-request-window"
+    return modal
+
+
+def assert_lock_confirmation_copy(modal, title, duration):
+    assert modal.getText("kiosk-lock-title") == title
+    body = modal.getText("kiosk-lock-body")
+    assert f"About {duration} will be saved." in body
+    assert all(detail in body for detail in ("lock now", "password", "Approved time", "request station"))
+
+
+def wait_for_confirmation_closed(ui, wait):
+    client = ui.target("kiosk-request-window").client
+    wait(lambda: not any(surface["id"] == "kiosk-lock-confirmation" and surface["visible"]
+                        for surface in client.listSurfaces()), "lock confirmation closes")
+    assert ui.showing("kiosk-request-window")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay, scenario="approved-combined")
+    ready(ui, wait)
+    assert ui.getValue("kiosk-request-tabs") == "request"
+    assert ui.getValue("kiosk-tab-request") is True
+    assert ui.getValue("kiosk-tab-approved") is False
+    assert ui.showing("kiosk-approver-selector")
+    ui.setValue("kiosk-approver-selector", "1010")
+    ui.setValue("kiosk-duration", "custom")
+    ui.setValue("kiosk-custom-duration-units", "hours")
+    ui.setText("kiosk-custom-duration", "1.25")
+    ui.setValue("kiosk-soft-apps-toggle", True)
+
+    ui.activate("kiosk-tab-approved")
+    approved_status(ui, wait, "ready")
+    assert ui.getValue("kiosk-request-tabs") == "approved"
+    assert ui.getValue("kiosk-tab-request") is False
+    assert ui.getValue("kiosk-tab-approved") is True
+    assert not ui.showing("kiosk-approver-selector")
+    assert ui.showing("kiosk-child-selector")
+    assert ui.getValue("kiosk-child-selector") == "1001"
+    assert ui.state("kiosk-child-selector", ui.api.StateType.SENSITIVE) is (not overlay)
+    assert ui.getValue("kiosk-approved-running") == 1080
+    assert ui.getValue("kiosk-approved-saved") == 1200
+    assert ui.getText("kiosk-approved-saved") == "20m"
+    assert ui.getText("kiosk-approved-use-saved") == "Add saved time to the timer"
+
+    ui.setValue("kiosk-request-tabs", "request")
+    assert ui.getValue("kiosk-tab-request") is True
+    assert ui.showing("kiosk-approver-selector")
+    assert ui.getValue("kiosk-approver-selector") == "1010"
+    assert ui.getValue("kiosk-duration") == "custom"
+    assert ui.getValue("kiosk-custom-duration-units") == "hours"
+    assert ui.getText("kiosk-custom-duration") == "1.25"
+    assert ui.getValue("kiosk-soft-apps-toggle") is True
+    assert not (events(path, "pause-grant") or events(path, "use-saved-time")
+                or events(path, "request-save-for-later") or calls(path, "RequestAccess")
+                or calls(path, "RequestOwnAccess"))
+
+    if not overlay:
+        ui.setValue("kiosk-request-tabs", "approved")
+        ui.setValue("kiosk-child-selector", "1002")
+        wait(lambda: ui.showing("kiosk-approved-saved")
+             and ui.getValue("kiosk-approved-saved") == 480, "new child's saved balance")
+        assert ui.getValue("kiosk-request-tabs") == "approved"
+        assert not ui.showing("kiosk-approved-running")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_approved_time_pause_pending_and_saved_balance(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    release = tmp_path / "pause-release"
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay,
+                        scenario="approved-running", request_release=release)
+    ready(ui, wait)
+    ui.activate("kiosk-tab-approved")
+    approved_status(ui, wait, "ready")
+    assert ui.getText("kiosk-approved-running-status") == "Timer running"
+    assert ui.getValue("kiosk-approved-running") == 1080
+    assert ui.getText("kiosk-approved-running") == "18m"
+    assert ui.getValue("kiosk-approved-daily") == 720
+    assert "12m" in ui.getText("kiosk-approved-daily")
+    assert not ui.showing("kiosk-approved-use-saved")
+
+    try:
+        ui.activate("kiosk-approved-pause")
+        if overlay:
+            modal = lock_confirmation(ui)
+            assert_lock_confirmation_copy(modal, "Pause and lock the screen?", "18m")
+            modal.activate(modal.id)
+            wait_for_confirmation_closed(ui, wait)
+            assert ui.getValue("kiosk-request-tabs") == "approved"
+            assert not events(path, "pause-grant")
+
+            ui.activate("kiosk-approved-pause")
+            lock_confirmation(ui).close()
+            wait_for_confirmation_closed(ui, wait)
+            assert not events(path, "pause-grant")
+
+            ui.activate("kiosk-approved-pause")
+            modal = lock_confirmation(ui)
+            assert modal.getText("kiosk-lock-confirm") == "Pause and lock"
+            modal.activate("kiosk-lock-confirm")
+        wait_for_confirmation_closed(ui, wait)
+        approved_status(ui, wait, "pending", text="Updating approved time…")
+        assert len(events(path, "pause-grant")) == 1
+        assert not ui.state("kiosk-tab-request", ui.api.StateType.SENSITIVE)
+        assert not ui.state("kiosk-child-selector", ui.api.StateType.SENSITIVE)
+        assert ui.getValue("kiosk-child-selector") == "1001"
+        assert not ui.showing("kiosk-approved-pause")
+        assert not ui.showing("kiosk-approved-use-saved")
+    finally:
+        release.touch()
+
+    approved_status(ui, wait, "ready")
+    assert not ui.showing("kiosk-approved-running")
+    assert ui.getValue("kiosk-approved-saved") == 1080
+    assert ui.getText("kiosk-approved-use-saved") == "Use saved time"
+    assert ui.getText("kiosk-approved-saved-hint") == (
+        "Add it to your time now." if overlay else "Start the timer and return to sign-in."
+    )
+    ui.activate("kiosk-approved-use-saved")
+    assert len(events(path, "use-saved-time")) == 1
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+@pytest.mark.parametrize("scenario", ("approved-covered", "approved-deadline"))
+def test_approved_time_grants_without_pausable_balance(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay, scenario):
+    ui, wait = request_ui, wait_for_accessible_state
+    open_request(launch_ui, tmp_path, ui, wait, overlay=overlay, scenario=scenario)
+    ready(ui, wait)
+    ui.activate("kiosk-tab-approved")
+    approved_status(ui, wait, "ready")
+    running_status = ui.getText("kiosk-approved-running-status")
+    if scenario == "approved-covered":
+        assert running_status == "Covered by today's daily time"
+        assert ui.getValue("kiosk-approved-daily") == 720
+        assert not ui.showing("kiosk-approved-running")
+    else:
+        assert re.fullmatch(r"Approved until (?:[01][0-9]|2[0-3]):[0-5][0-9]", running_status)
+    assert not ui.showing("kiosk-approved-pause")
+    assert not ui.showing("kiosk-approved-use-saved")
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_grant_status_retry_works_from_both_tabs_until_daily_only_is_known(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay, scenario="approved-retry")
+    status(ui, wait, "Time controls are busy. Try again.")
+    assert ui.getValue("kiosk-request-tabs") == "request"
+    assert not ui.state("kiosk-tab-approved", ui.api.StateType.SENSITIVE)
+    ui.activate("kiosk-request-retry")
+    ready(ui, wait)
+    ui.activate("kiosk-tab-approved")
+    approved_status(ui, wait, "unavailable", text="Time status unavailable")
+    assert not ui.showing("kiosk-approved-running")
+    assert not ui.showing("kiosk-approved-saved")
+    assert not ui.showing("kiosk-approved-daily")
+    ui.activate("kiosk-approved-retry")
+    approved_status(ui, wait, "busy", text="Time controls are busy. Try again.")
+    assert not ui.state("kiosk-tab-request", ui.api.StateType.SENSITIVE)
+    assert not ui.state("kiosk-child-selector", ui.api.StateType.SENSITIVE)
+    ui.activate("kiosk-approved-retry")
+    approved_status(ui, wait, "recovery", text="Time status unavailable")
+    assert not ui.showing("kiosk-approved-pause")
+    assert not ui.showing("kiosk-approved-use-saved")
+    ui.activate("kiosk-approved-retry")
+    approved_status(ui, wait, "empty", text="No approved time available")
+    assert [item["state"] for item in events(path, "retry-grant-status")] == [
+        "unavailable", "busy", "recovery", "ready",
+    ]
+    assert not ui.showing("kiosk-approved-retry")
+    assert not ui.showing("kiosk-approved-pause")
+    assert not ui.showing("kiosk-approved-use-saved")
+    assert ui.getValue("kiosk-approved-daily") == 720
+    ui.activate("kiosk-approved-request-more")
+    assert ui.getValue("kiosk-request-tabs") == "request"
+
+
+@pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
+def test_save_for_later_menu_dismisses_or_dispatches_selected_action(
+        launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
+    ui, wait = request_ui, wait_for_accessible_state
+    path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay, scenario="approved-running")
+    ready(ui, wait)
+    status(ui, wait, "Estimated remaining time: 1h")
+    assert ui.getValue("kiosk-request-menu") is False
+    assert not ui.showing("kiosk-request-save-for-later")
+    ui.activate("kiosk-request-menu")
+    assert ui.getValue("kiosk-request-menu") is True
+    assert ui.showing("kiosk-request-save-for-later")
+    assert ui.getText("kiosk-request-save-hint") == "Saved if approved: 48m"
+    ui.setValue("kiosk-request-menu", False)
+    assert ui.getValue("kiosk-request-menu") is False
+    assert ui.showing("kiosk-request-submit")
+    assert not events(path, "request-save-for-later")
+
+    ui.setValue("kiosk-duration", "custom")
+    ui.setText("kiosk-custom-duration", "0.09")
+    ui.activate("kiosk-request-menu")
+    ui.activate("kiosk-request-save-for-later")
+    status(ui, wait, "Enter a number from 0.1 to 1440 minutes.")
+    assert ui.getValue("kiosk-request-menu") is False
+    assert not events(path, "request-save-for-later")
+    ui.setValue("kiosk-duration", "1800")
+
+    ui.setValue("kiosk-request-menu", True)
+    ui.activate("kiosk-request-save-for-later")
+    assert ui.getValue("kiosk-request-menu") is False
+    if overlay:
+        modal = lock_confirmation(ui)
+        assert_lock_confirmation_copy(modal, "Save for later and lock?", "48m")
+        assert modal.getText("kiosk-lock-cancel") == "Cancel"
+        modal.activate("kiosk-lock-cancel")
+        wait_for_confirmation_closed(ui, wait)
+        assert not events(path, "request-save-for-later")
+        ui.activate("kiosk-request-menu")
+        ui.activate("kiosk-request-save-for-later")
+        modal = lock_confirmation(ui)
+        assert modal.getText("kiosk-lock-confirm") == "Continue"
+        modal.activate("kiosk-lock-confirm")
+    wait_for_confirmation_closed(ui, wait)
+    assert len(events(path, "request-save-for-later")) == 1
+    assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
+
+
 @pytest.mark.parametrize("overlay", (False, True), ids=("kiosk", "child-overlay"))
 def test_shared_loading_keeps_controls_disabled_until_preferences_arrive(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
@@ -214,6 +458,10 @@ def test_shared_loading_keeps_controls_disabled_until_preferences_arrive(
         wait_for_accessible_state(lambda: bool(calls(path, "GetPreferences")),
                                   "preferences request is pending")
         assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+        request_ui.activate("kiosk-tab-approved")
+        approved_status(request_ui, wait_for_accessible_state, "loading", text="Loading time status…")
+        assert not request_ui.showing("kiosk-approved-saved")
+        request_ui.activate("kiosk-tab-request")
         assert not events(path, "preferences-ready")
         assert not events(path, "preferences-release-timeout")
     finally:
@@ -232,6 +480,11 @@ def test_control_disabled_never_submits(
         lambda: request_ui.text("kiosk-screen-limit-notice") ==
         "Screen limit is not enabled in Parent App", "disabled-screen explanation")
     assert not request_ui.state("kiosk-request-submit", request_ui.api.StateType.SENSITIVE)
+    request_ui.activate("kiosk-tab-approved")
+    approved_status(request_ui, wait_for_accessible_state, "disabled",
+                    text="Screen limit is not enabled in Parent App")
+    assert not request_ui.showing("kiosk-approved-pause")
+    assert not request_ui.showing("kiosk-approved-use-saved")
     assert not calls(path, "RequestOwnAccess" if overlay else "RequestAccess")
 
 
@@ -270,6 +523,12 @@ def test_shared_rest_of_day_choice_submits_zero_seconds(
     path = open_request(launch_ui, tmp_path, request_ui, wait_for_accessible_state,
                         overlay=overlay, scenario="rest-of-day")
     ready(request_ui, wait_for_accessible_state)
+    request_ui.activate("kiosk-request-menu")
+    assert request_ui.showing("kiosk-request-save-for-later")
+    assert not request_ui.state("kiosk-request-save-for-later", request_ui.api.StateType.SENSITIVE)
+    assert request_ui.getText("kiosk-request-save-hint") == "Rest of the day can't be saved."
+    request_ui.setValue("kiosk-request-menu", False)
+    assert not events(path, "request-save-for-later")
     request_ui.activate("kiosk-request-submit")
     method = "RequestOwnAccess" if overlay else "RequestAccess"
     wait_for_accessible_state(lambda: bool(calls(path, method)), "rest-of-day request")

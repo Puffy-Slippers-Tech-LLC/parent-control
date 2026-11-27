@@ -1758,3 +1758,92 @@ msgstr "Жарамды сан енгізіңіз."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Рұқсат етілген ауқым: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Көбірек уақыт сұрау"
+
+msgid "Approved time"
+msgstr "Мақұлданған уақыт"
+
+msgid "Request & use now"
+msgstr "Сұрау және қазір пайдалану"
+
+msgid "More request options"
+msgstr "Сұраудың басқа нұсқалары"
+
+msgid "Request & save for later"
+msgstr "Сұрау және кейінге сақтау"
+
+msgid "Rest of the day can't be saved."
+msgstr "«Күннің қалған бөлігі» нұсқасын сақтау мүмкін емес."
+
+msgid "Saved for later"
+msgstr "Кейінге сақталған"
+
+msgid "Use saved time"
+msgstr "Сақталған уақытты пайдалану"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Таймерді іске қосып, кіру экранына оралыңыз."
+
+msgid "Add it to your time now."
+msgstr "Сақталған уақытты өз уақытыңызға қазір қосыңыз."
+
+msgid "Timer running"
+msgstr "Таймер жұмыс істеп тұр"
+
+msgid "Pause timer"
+msgstr "Таймерді уақытша тоқтату"
+
+msgid "Save the remaining time for later."
+msgstr "Қалған уақытты кейінге сақтаңыз."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Бүгінгі күндік уақыт: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Таймерді уақытша тоқтатып, экранды құлыптау керек пе?"
+
+msgid "Save for later and lock?"
+msgstr "Кейінге сақтап, экранды құлыптау керек пе?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Шамамен %(duration)s сақталады. Экран қазір құлыпталады, ал қайта кіру үшін құпиясөз қажет болады. Күндік уақыт әлі барда сақталған уақытты осы жердегі «Мақұлданған уақыт» бөлімінен немесе сұрау бекетінен пайдалана бастаңыз."
+
+msgid "Pause and lock"
+msgstr "Уақытша тоқтату және құлыптау"
+
+msgid "No approved time available"
+msgstr "Мақұлданған уақыт жоқ"
+
+msgid "Covered by today's daily time"
+msgstr "Бүгінгі күндік уақытқа кіреді"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s дейін мақұлданған"
+
+msgid "Add saved time to the timer"
+msgstr "Сақталған уақытты таймерге қосу"
+
+msgid "Loading time status…"
+msgstr "Уақыт күйі жүктелуде…"
+
+msgid "Time status unavailable"
+msgstr "Уақыт күйі қолжетімсіз"
+
+msgid "Time controls are busy. Try again."
+msgstr "Уақытты басқару құралдары бос емес. Қайталап көріңіз."
+
+msgid "Updating approved time…"
+msgstr "Мақұлданған уақыт жаңартылуда…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Мақұлданса, сақталады: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Бұрын сақталған: %(duration)s"

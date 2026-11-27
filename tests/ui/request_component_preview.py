@@ -16,6 +16,7 @@ from broker.oh_no_parent_control.preferences import (
 from gi.repository import Gio, GLib
 
 from kiosk.oh_no_parent_control_kiosk.main import Application, RequestWindow, configure_logging
+from kiosk.oh_no_parent_control_kiosk.request_content import GrantView
 from kiosk.oh_no_parent_control_kiosk.selection_store import SelectionStore
 from gi.repository import Gtk
 
@@ -366,6 +367,14 @@ feedback_transport.requests.Session = lambda: feedback_session
 class ComponentWindow(RequestWindow):
     def _build(self):
         super()._build()
+        self._request_content.set_grant_actions(
+            save_for_later=lambda: BROKER.record("request-save-for-later"),
+            pause=self._pause_grant,
+            use_saved=lambda: BROKER.record("use-saved-time"),
+            retry=self._retry_grant_status,
+        )
+        if BROKER.scenario == "approved-retry":
+            self._grant_retry_states = iter(("unavailable", "busy", "recovery", "ready"))
         # Explicit test-local storage exercises the production form's persistence
         # without enabling writes to the developer's normal preview state.
         path = os.environ.get("ONPC_REQUEST_COMPONENT_SELECTIONS_PATH")
@@ -373,6 +382,59 @@ class ComponentWindow(RequestWindow):
             self._request_content._selection_store = SelectionStore(
                 path, child_overlay=self._child_overlay,
             )
+
+    def _preferences_done(self, target_uid, connection, result):
+        super()._preferences_done(target_uid, connection, result)
+        content = self._request_content
+        if not content.is_selected_account(target_uid):
+            return
+        if BROKER.scenario == "approved-retry":
+            content.set_grant_status("busy")
+            return
+        if BROKER.scenario == "approved-deadline":
+            view = GrantView(running_mode="deadline", running_seconds=18 * 60,
+                             running_end=int(time.time()) + 3600)
+        elif BROKER.scenario == "approved-covered":
+            view = GrantView(daily_seconds=12 * 60, running_mode="fixed")
+        elif BROKER.scenario == "approved-combined" and target_uid == 1002:
+            view = GrantView(saved_seconds=8 * 60)
+        elif BROKER.scenario in {"approved-running", "approved-combined"}:
+            combined = BROKER.scenario == "approved-combined"
+            view = GrantView(daily_seconds=12 * 60, running_mode="fixed",
+                             running_seconds=18 * 60, saved_seconds=20 * 60 if combined else 0,
+                             requested_seconds=1800, immediate_estimate=3600,
+                             deferred_estimate=(68 if combined else 48) * 60)
+        else:
+            return
+        content.set_grant_status("ready", view)
+
+    def _retry_grant_status(self):
+        state = next(self._grant_retry_states)
+        BROKER.record("retry-grant-status", state=state)
+        if state == "ready":
+            self._request_content.set_grant_status(state, GrantView(daily_seconds=12 * 60))
+        else:
+            self._request_content.set_grant_status(state)
+
+    def _pause_grant(self):
+        BROKER.record("pause-grant")
+        self._request_content.set_grant_status("pending")
+        release = Path(os.environ["ONPC_REQUEST_COMPONENT_REQUEST_RELEASE"])
+        deadline = time.monotonic() + 60
+
+        def finish_pause():
+            if release.is_file():
+                self._request_content.set_grant_status(
+                    "ready", GrantView(daily_seconds=12 * 60, saved_seconds=18 * 60),
+                )
+            elif time.monotonic() >= deadline:
+                BROKER.record("pause-release-timeout")
+                self._request_content.set_grant_status("unavailable")
+            else:
+                return GLib.SOURCE_CONTINUE
+            return GLib.SOURCE_REMOVE
+
+        GLib.timeout_add(20, finish_pause)
 
     def __init__(self, application, **kwargs):
         super().__init__(application, broker_connection=BROKER, **kwargs)

@@ -1758,3 +1758,95 @@ msgstr "ئىناۋەتلىك سان كىرگۈزۈڭ."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "رۇخسەت قىلىنغان دائىرە: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "تېخىمۇ كۆپ ۋاقىت ئىلتىماس قىلىڭ"
+
+msgid "Approved time"
+msgstr "تەستىقلانغان ۋاقىت"
+
+msgid "Request & use now"
+msgstr "ئىلتىماس قىلىپ ھازىر ئىشلىتىڭ"
+
+msgid "More request options"
+msgstr "باشقا ئىلتىماس تاللانمىلىرى"
+
+msgid "Request & save for later"
+msgstr "ئىلتىماس قىلىپ كېيىنگە ساقلاڭ"
+
+msgid "Rest of the day can't be saved."
+msgstr "بۈگۈننىڭ قالغان قىسمىنى كېيىنگە ساقلىغىلى بولمايدۇ."
+
+msgid "Saved for later"
+msgstr "كېيىنگە ساقلاندى"
+
+msgid "Use saved time"
+msgstr "ساقلانغان ۋاقىتنى ئىشلىتىڭ"
+
+msgid "Start the timer and return to sign-in."
+msgstr "ۋاقىت ھېسابلىغۇچنى قوزغىتىپ، كىرىش ئېكرانىغا قايتىڭ."
+
+msgid "Add it to your time now."
+msgstr "بۇ ۋاقىتنى ھازىرقى ئىشلىتەلەيدىغان ۋاقتىڭىزغا قوشۇڭ."
+
+msgid "Timer running"
+msgstr "ۋاقىت ھېسابلىغۇچ ئىشلەۋاتىدۇ"
+
+msgid "Pause timer"
+msgstr "ۋاقىت ھېسابلىغۇچنى ۋاقىتلىق توختىتىڭ"
+
+msgid "Save the remaining time for later."
+msgstr "قالغان ۋاقىتنى كېيىنگە ساقلاڭ."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "بۈگۈنكى كۈندىلىك ۋاقىت: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "ۋاقىت ھېسابلىغۇچنى ۋاقىتلىق توختىتىپ ئېكراننى قۇلۇپلامسىز؟"
+
+msgid "Save for later and lock?"
+msgstr "ۋاقىتنى كېيىنگە ساقلاپ ئېكراننى قۇلۇپلامسىز؟"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "تەخمىنەن %(duration)s ساقلىنىدۇ. ئېكرانىڭىز ھازىر قۇلۇپلىنىدۇ، قايتىش ئۈچۈن ئىم كېرەك. كۈندىلىك ۋاقتىڭىز قالغان بولسا، بۇ يەردىكى «تەستىقلانغان ۋاقىت» بۆلىكىدىن ساقلانغان ۋاقىتنى ئىشلىتىشنى باشلىيالايسىز. ئىلتىماس پونكىتىدىنمۇ ئىشلىتىشنى باشلىيالايسىز."
+
+msgid "Pause and lock"
+msgstr "ۋاقىتلىق توختىتىپ قۇلۇپلاڭ"
+
+msgid "No approved time available"
+msgstr "ئىشلەتكىلى بولىدىغان تەستىقلانغان ۋاقىت يوق"
+
+msgid "Covered by today's daily time"
+msgstr "بۈگۈنكى كۈندىلىك ۋاقىتقا كىرىدۇ"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s غىچە تەستىقلاندى"
+
+msgid "Add saved time to the timer"
+msgstr "ساقلانغان ۋاقىتنى ھېسابلىغۇچقا قوشۇڭ"
+
+msgid "Loading time status…"
+msgstr "ۋاقىت ھالىتى يۈكلىنىۋاتىدۇ…"
+
+msgid "Time status unavailable"
+msgstr "ۋاقىت ھالىتىنى كۆرگىلى بولمايدۇ"
+
+msgid "Time controls are busy. Try again."
+msgstr "ۋاقىت باشقۇرۇشى ھازىر ئالدىراش. قايتا سىناڭ."
+
+msgid "Updating approved time…"
+msgstr "تەستىقلانغان ۋاقىت يېڭىلىنىۋاتىدۇ…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "تەستىقلانسا ساقلىنىدىغان ۋاقىت: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "ئاللىقاچان ساقلانغان ۋاقىت: %(duration)s"

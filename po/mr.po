@@ -1764,3 +1764,95 @@ msgstr "वैध संख्या प्रविष्ट करा."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमत श्रेणी: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "अधिक वेळ मागा"
+
+msgid "Approved time"
+msgstr "मंजूर वेळ"
+
+msgid "Request & use now"
+msgstr "विनंती करा आणि आता वापरा"
+
+msgid "More request options"
+msgstr "विनंतीचे आणखी पर्याय"
+
+msgid "Request & save for later"
+msgstr "विनंती करा आणि नंतरसाठी जतन करा"
+
+msgid "Rest of the day can't be saved."
+msgstr "दिवसाचा उरलेला भाग नंतरसाठी जतन करता येत नाही."
+
+msgid "Saved for later"
+msgstr "नंतरसाठी जतन केलेला वेळ"
+
+msgid "Use saved time"
+msgstr "जतन केलेला वेळ वापरा"
+
+msgid "Start the timer and return to sign-in."
+msgstr "टायमर सुरू करा आणि साइन इनच्या पडद्यावर परत जा."
+
+msgid "Add it to your time now."
+msgstr "हा वेळ तुमच्या उपलब्ध वेळेत आताच जोडा."
+
+msgid "Timer running"
+msgstr "टायमर चालू आहे"
+
+msgid "Pause timer"
+msgstr "टायमर तात्पुरता थांबवा"
+
+msgid "Save the remaining time for later."
+msgstr "उरलेला वेळ नंतरसाठी जतन करा."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "आजचा दैनिक वेळ: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "टायमर थांबवून पडदा लॉक करायचा का?"
+
+msgid "Save for later and lock?"
+msgstr "वेळ नंतरसाठी जतन करून पडदा लॉक करायचा का?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "सुमारे %(duration)s जतन केला जाईल. तुमचा पडदा आता लॉक होईल आणि परत येण्यासाठी तुमचा पासवर्ड लागेल. दैनिक वेळ शिल्लक असेल तर इथल्या «मंजूर वेळ» विभागातून जतन केलेला वेळ वापरता येईल. विनंती केंद्रातूनही तो वापरता येईल."
+
+msgid "Pause and lock"
+msgstr "थांबवा आणि लॉक करा"
+
+msgid "No approved time available"
+msgstr "मंजूर वेळ उपलब्ध नाही"
+
+msgid "Covered by today's daily time"
+msgstr "आजच्या दैनिक वेळेत समाविष्ट आहे"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s पर्यंत मंजूर"
+
+msgid "Add saved time to the timer"
+msgstr "जतन केलेला वेळ टायमरमध्ये जोडा"
+
+msgid "Loading time status…"
+msgstr "वेळेची स्थिती लोड होत आहे…"
+
+msgid "Time status unavailable"
+msgstr "वेळेची स्थिती उपलब्ध नाही"
+
+msgid "Time controls are busy. Try again."
+msgstr "वेळेची नियंत्रणे व्यस्त आहेत. पुन्हा प्रयत्न करा."
+
+msgid "Updating approved time…"
+msgstr "मंजूर वेळ अद्ययावत होत आहे…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "मंजुरी मिळाल्यास जतन होईल: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "आधीच जतन केलेला वेळ: %(duration)s"

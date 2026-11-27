@@ -1758,3 +1758,95 @@ msgstr "Nhập một số hợp lệ."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Phạm vi cho phép: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Xin thêm thời gian"
+
+msgid "Approved time"
+msgstr "Thời gian được duyệt"
+
+msgid "Request & use now"
+msgstr "Xin và dùng ngay"
+
+msgid "More request options"
+msgstr "Các tùy chọn yêu cầu khác"
+
+msgid "Request & save for later"
+msgstr "Xin và để dành dùng sau"
+
+msgid "Rest of the day can't be saved."
+msgstr "Không thể để dành phần còn lại của ngày."
+
+msgid "Saved for later"
+msgstr "Đã để dành dùng sau"
+
+msgid "Use saved time"
+msgstr "Dùng thời gian đã để dành"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Bắt đầu đếm giờ và quay lại màn hình đăng nhập."
+
+msgid "Add it to your time now."
+msgstr "Cộng ngay khoảng này vào thời gian bạn có thể dùng."
+
+msgid "Timer running"
+msgstr "Đang đếm giờ"
+
+msgid "Pause timer"
+msgstr "Tạm dừng đếm giờ"
+
+msgid "Save the remaining time for later."
+msgstr "Để dành thời gian còn lại để dùng sau."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Hạn mức thời gian hôm nay: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Tạm dừng đếm giờ và khóa màn hình?"
+
+msgid "Save for later and lock?"
+msgstr "Để dành thời gian và khóa màn hình?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Khoảng %(duration)s sẽ được để dành. Màn hình sẽ khóa ngay và bạn cần mật khẩu để quay lại. Nếu vẫn còn thời gian trong hạn mức hằng ngày, bạn có thể bắt đầu dùng thời gian đã để dành ở mục “Thời gian được duyệt” tại đây. Bạn cũng có thể bắt đầu dùng thời gian đó tại trạm xin thêm thời gian."
+
+msgid "Pause and lock"
+msgstr "Tạm dừng và khóa"
+
+msgid "No approved time available"
+msgstr "Không có thời gian được duyệt để dùng"
+
+msgid "Covered by today's daily time"
+msgstr "Nằm trong hạn mức thời gian hôm nay"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Được duyệt đến %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Cộng thời gian đã để dành vào bộ đếm giờ"
+
+msgid "Loading time status…"
+msgstr "Đang tải trạng thái thời gian…"
+
+msgid "Time status unavailable"
+msgstr "Không xem được trạng thái thời gian"
+
+msgid "Time controls are busy. Try again."
+msgstr "Điều khiển thời gian đang bận. Hãy thử lại."
+
+msgid "Updating approved time…"
+msgstr "Đang cập nhật thời gian được duyệt…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Sẽ để dành nếu được duyệt: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Đã để dành: %(duration)s"

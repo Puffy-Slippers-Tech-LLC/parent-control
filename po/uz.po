@@ -1759,3 +1759,95 @@ msgstr "Yaroqli raqam kiriting."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Ruxsat etilgan oraliq: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Ko‘proq vaqt so‘rash"
+
+msgid "Approved time"
+msgstr "Tasdiqlangan vaqt"
+
+msgid "Request & use now"
+msgstr "So‘rash va hozir ishlatish"
+
+msgid "More request options"
+msgstr "Boshqa so‘rov variantlari"
+
+msgid "Request & save for later"
+msgstr "So‘rash va keyinga saqlash"
+
+msgid "Rest of the day can't be saved."
+msgstr "Kunning qolgan qismini keyinga saqlab bo‘lmaydi."
+
+msgid "Saved for later"
+msgstr "Keyinga saqlangan"
+
+msgid "Use saved time"
+msgstr "Saqlangan vaqtni ishlatish"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Taymerni ishga tushiring va kirish ekraniga qayting."
+
+msgid "Add it to your time now."
+msgstr "Bu vaqtni hozir foydalanish mumkin bo‘lgan vaqtingizga qo‘shing."
+
+msgid "Timer running"
+msgstr "Taymer ishlayapti"
+
+msgid "Pause timer"
+msgstr "Taymerni vaqtincha to‘xtatish"
+
+msgid "Save the remaining time for later."
+msgstr "Qolgan vaqtni keyinga saqlang."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Bugunga ajratilgan vaqt: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Taymer vaqtincha to‘xtatilsin va ekran qulflansinmi?"
+
+msgid "Save for later and lock?"
+msgstr "Vaqt keyinga saqlansin va ekran qulflansinmi?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Taxminan %(duration)s saqlanadi. Ekraningiz hozir qulflanadi va qaytish uchun parolingiz kerak bo‘ladi. Kunlik vaqtingiz qolgan bo‘lsa, saqlangan vaqtni shu yerdagi «Tasdiqlangan vaqt» bo‘limidan ishga tushirishingiz mumkin. Uni so‘rov punktidan ham ishga tushirishingiz mumkin."
+
+msgid "Pause and lock"
+msgstr "Vaqtincha to‘xtatish va qulflash"
+
+msgid "No approved time available"
+msgstr "Tasdiqlangan vaqt mavjud emas"
+
+msgid "Covered by today's daily time"
+msgstr "Bugunga ajratilgan vaqt doirasida"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s gacha tasdiqlangan"
+
+msgid "Add saved time to the timer"
+msgstr "Saqlangan vaqtni taymerga qo‘shish"
+
+msgid "Loading time status…"
+msgstr "Vaqt holati yuklanmoqda…"
+
+msgid "Time status unavailable"
+msgstr "Vaqt holati mavjud emas"
+
+msgid "Time controls are busy. Try again."
+msgstr "Vaqt boshqaruvi band. Qayta urinib ko‘ring."
+
+msgid "Updating approved time…"
+msgstr "Tasdiqlangan vaqt yangilanmoqda…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Tasdiqlansa saqlanadigan vaqt: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Allaqachon saqlangan: %(duration)s"

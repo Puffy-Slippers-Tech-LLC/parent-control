@@ -1770,3 +1770,92 @@ msgstr "Zadejte platné číslo."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Povolený rozsah: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Požádat o více času"
+
+msgid "Approved time"
+msgstr "Schválený čas"
+
+msgid "Request & use now"
+msgstr "Požádat a využít hned"
+
+msgid "More request options"
+msgstr "Další možnosti žádosti"
+
+msgid "Request & save for later"
+msgstr "Požádat a uložit na později"
+
+msgid "Rest of the day can't be saved."
+msgstr "Možnost „Zbytek dne“ nelze uložit."
+
+msgid "Saved for later"
+msgstr "Uloženo na později"
+
+msgid "Use saved time"
+msgstr "Využít uložený čas"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Spusťte časovač a vraťte se na přihlašovací obrazovku."
+
+msgid "Add it to your time now."
+msgstr "Přidejte si uložený čas hned."
+
+msgid "Timer running"
+msgstr "Časovač běží"
+
+msgid "Pause timer"
+msgstr "Pozastavit časovač"
+
+msgid "Save the remaining time for later."
+msgstr "Uložte zbývající čas na později."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Dnešní denní čas: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Pozastavit časovač a zamknout obrazovku?"
+
+msgid "Save for later and lock?"
+msgstr "Uložit čas na později a zamknout obrazovku?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Uloží se přibližně %(duration)s. Obrazovka se teď zamkne a k návratu budete potřebovat heslo. Uložený čas začněte využívat zde v části „Schválený čas“, dokud zbývá denní čas, nebo na stanici pro žádosti."
+
+msgid "Pause and lock"
+msgstr "Pozastavit a zamknout obrazovku"
+
+msgid "No approved time available"
+msgstr "Není k dispozici žádný schválený čas"
+
+msgid "Covered by today's daily time"
+msgstr "Pokryto dnešním denním časem"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Schváleno do %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Přidat uložený čas k časovači"
+
+msgid "Loading time status…"
+msgstr "Načítá se stav času…"
+
+msgid "Time status unavailable"
+msgstr "Stav času není k dispozici"
+
+msgid "Time controls are busy. Try again."
+msgstr "Ovládání času je zaneprázdněné. Zkuste to znovu."
+
+msgid "Updating approved time…"
+msgstr "Aktualizuje se schválený čas…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Uloží se po schválení: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Již uloženo: %(duration)s"

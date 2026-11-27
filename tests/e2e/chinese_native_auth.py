@@ -9,7 +9,7 @@ from private_artifacts import require
 from request_flow import chinese_request
 
 FORM = {'kiosk-child-account-caption': '孩子', 'kiosk-approver-account-caption': '批准人',
-        'kiosk-duration-label-1800': '30 分钟', 'kiosk-request-submit': '提交请求',
+        'kiosk-duration-label-1800': '30 分钟', 'kiosk-request-submit': '请求并立即使用',
         'kiosk-request-cancel': '取消'}
 
 SCREENS = {

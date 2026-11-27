@@ -1764,3 +1764,95 @@ msgstr "Ange ett giltigt tal."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Tillåtet intervall: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Be om mer tid"
+
+msgid "Approved time"
+msgstr "Godkänd tid"
+
+msgid "Request & use now"
+msgstr "Be om tid och använd den nu"
+
+msgid "More request options"
+msgstr "Fler alternativ för begäran"
+
+msgid "Request & save for later"
+msgstr "Be om tid och spara den till senare"
+
+msgid "Rest of the day can't be saved."
+msgstr "Resten av dagen går inte att spara."
+
+msgid "Saved for later"
+msgstr "Sparad till senare"
+
+msgid "Use saved time"
+msgstr "Använd sparad tid"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Starta timern och återgå till inloggningsskärmen."
+
+msgid "Add it to your time now."
+msgstr "Lägg till den i din tillgängliga tid nu."
+
+msgid "Timer running"
+msgstr "Timern är igång"
+
+msgid "Pause timer"
+msgstr "Pausa timern"
+
+msgid "Save the remaining time for later."
+msgstr "Spara den återstående tiden till senare."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Dagens tidskvot: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Pausa timern och låsa skärmen?"
+
+msgid "Save for later and lock?"
+msgstr "Spara till senare och låsa skärmen?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "Ungefär %(duration)s sparas. Skärmen låses nu och du behöver ditt lösenord för att komma tillbaka. Börja använda sparad tid från ”Godkänd tid” här, så länge du har tid kvar av dagskvoten, eller vid begäransstationen."
+
+msgid "Pause and lock"
+msgstr "Pausa och lås"
+
+msgid "No approved time available"
+msgstr "Ingen godkänd tid tillgänglig"
+
+msgid "Covered by today's daily time"
+msgstr "Ryms inom dagens tidskvot"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Godkänd till %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Lägg till sparad tid på timern"
+
+msgid "Loading time status…"
+msgstr "Läser in tidsstatus…"
+
+msgid "Time status unavailable"
+msgstr "Tidsstatus är inte tillgänglig"
+
+msgid "Time controls are busy. Try again."
+msgstr "Tidskontrollerna är upptagna. Försök igen."
+
+msgid "Updating approved time…"
+msgstr "Uppdaterar godkänd tid…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Sparas vid godkännande: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Redan sparad: %(duration)s"

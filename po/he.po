@@ -1764,3 +1764,92 @@ msgstr "יש להזין מספר תקין."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "הטווח המותר: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "לבקש עוד זמן"
+
+msgid "Approved time"
+msgstr "זמן שאושר"
+
+msgid "Request & use now"
+msgstr "לבקש ולהשתמש עכשיו"
+
+msgid "More request options"
+msgstr "אפשרויות בקשה נוספות"
+
+msgid "Request & save for later"
+msgstr "לבקש ולשמור למועד מאוחר יותר"
+
+msgid "Rest of the day can't be saved."
+msgstr "אי אפשר לשמור את האפשרות ״שאר היום״."
+
+msgid "Saved for later"
+msgstr "נשמר למועד מאוחר יותר"
+
+msgid "Use saved time"
+msgstr "להשתמש בזמן שנשמר"
+
+msgid "Start the timer and return to sign-in."
+msgstr "יש להפעיל את הטיימר ולחזור למסך הכניסה."
+
+msgid "Add it to your time now."
+msgstr "אפשר להוסיף עכשיו את הזמן שנשמר לזמן שלך."
+
+msgid "Timer running"
+msgstr "הטיימר פועל"
+
+msgid "Pause timer"
+msgstr "להשהות את הטיימר"
+
+msgid "Save the remaining time for later."
+msgstr "אפשר לשמור את הזמן שנותר למועד מאוחר יותר."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "הזמן היומי להיום: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "להשהות את הטיימר ולנעול את המסך?"
+
+msgid "Save for later and lock?"
+msgstr "לשמור למועד מאוחר יותר ולנעול את המסך?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "יישמרו כ־%(duration)s. המסך שלך יינעל עכשיו, וכדי לחזור יהיה צורך בסיסמה שלך. כל עוד נותר זמן יומי, אפשר להתחיל להשתמש בזמן שנשמר כאן, ב״זמן שאושר״. אפשר לעשות זאת גם בעמדת הבקשות."
+
+msgid "Pause and lock"
+msgstr "להשהות ולנעול"
+
+msgid "No approved time available"
+msgstr "אין זמן מאושר זמין"
+
+msgid "Covered by today's daily time"
+msgstr "כלול בזמן היומי של היום"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "מאושר עד %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "להוסיף את הזמן שנשמר לטיימר"
+
+msgid "Loading time status…"
+msgstr "מצב הזמן בטעינה…"
+
+msgid "Time status unavailable"
+msgstr "מצב הזמן אינו זמין"
+
+msgid "Time controls are busy. Try again."
+msgstr "בקרי הזמן תפוסים. כדאי לנסות שוב."
+
+msgid "Updating approved time…"
+msgstr "הזמן שאושר מתעדכן…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "יישמר אם יאושר: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "כבר נשמר: %(duration)s"

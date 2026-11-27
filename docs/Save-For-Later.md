@@ -1,7 +1,7 @@
 # Save approved time for later execution plan
 
 Task queue: [Ordered task queue](Save-For-Later-Task-Queue.md).
-Next task: **011 — [Build the request and approved-time tabs](Save-For-Later-Tasks/011.md)**.
+Next task: **012 — [Connect both request screens to the timer actions](Save-For-Later-Tasks/012.md)**.
 
 Implement deferred parent approval, manual pause, and use of saved time in the
 kiosk and child overlay. The [feature design](Save-For-Later-Design.md) retains
@@ -21,6 +21,8 @@ for changes affecting packaging. Apply the backend review mandate in
 [VM](Mandates/VM-Mandate.MD), and [test storage](Mandates/Test-Storage-Mandate.md)
 contracts when those tasks begin.
 
+Whenever a task in this plan needs a VM, use a registered VM hosted on
+`myserver`. Use `--vmhost myserver` with VM launchers to restrict selection.
 Installed tasks use one registered general VM per supported family in the
 [VM registry](../config/environment.json). Engineering checks own fault
 injection and private state. Customer acceptance uses public results from the

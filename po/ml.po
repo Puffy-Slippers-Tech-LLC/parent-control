@@ -1764,3 +1764,95 @@ msgstr "സാധുവായ ഒരു സംഖ്യ നൽകുക."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "അനുവദനീയമായ പരിധി: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "കൂടുതൽ സമയം ആവശ്യപ്പെടുക"
+
+msgid "Approved time"
+msgstr "അനുവദിച്ച സമയം"
+
+msgid "Request & use now"
+msgstr "ആവശ്യപ്പെട്ട് ഇപ്പോൾ ഉപയോഗിക്കുക"
+
+msgid "More request options"
+msgstr "കൂടുതൽ അഭ്യർത്ഥനാ ഓപ്ഷനുകൾ"
+
+msgid "Request & save for later"
+msgstr "ആവശ്യപ്പെട്ട് പിന്നീടത്തേക്ക് സൂക്ഷിക്കുക"
+
+msgid "Rest of the day can't be saved."
+msgstr "ദിവസത്തിന്റെ ബാക്കി സമയം പിന്നീടത്തേക്ക് സൂക്ഷിക്കാനാവില്ല."
+
+msgid "Saved for later"
+msgstr "പിന്നീടത്തേക്ക് സൂക്ഷിച്ച സമയം"
+
+msgid "Use saved time"
+msgstr "സൂക്ഷിച്ച സമയം ഉപയോഗിക്കുക"
+
+msgid "Start the timer and return to sign-in."
+msgstr "ടൈമർ ആരംഭിച്ച് പ്രവേശന സ്ക്രീനിലേക്ക് മടങ്ങുക."
+
+msgid "Add it to your time now."
+msgstr "ഇപ്പോൾ തന്നെ ഇത് നിങ്ങളുടെ സമയത്തിലേക്ക് ചേർക്കുക."
+
+msgid "Timer running"
+msgstr "ടൈമർ പ്രവർത്തിക്കുന്നു"
+
+msgid "Pause timer"
+msgstr "ടൈമർ താൽക്കാലികമായി നിർത്തുക"
+
+msgid "Save the remaining time for later."
+msgstr "ബാക്കിയുള്ള സമയം പിന്നീടത്തേക്ക് സൂക്ഷിക്കുക."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "ഇന്നത്തെ പ്രതിദിന സമയം: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "ടൈമർ നിർത്തി സ്ക്രീൻ പൂട്ടണോ?"
+
+msgid "Save for later and lock?"
+msgstr "സമയം പിന്നീടത്തേക്ക് സൂക്ഷിച്ച് സ്ക്രീൻ പൂട്ടണോ?"
+
+#, python-format
+msgid ""
+"About %(duration)s will be saved. Your screen will lock now and you’ll need "
+"your password to return. Start saved time from Approved time here while daily "
+"time remains, or at the request station."
+msgstr "ഏകദേശം %(duration)s പിന്നീടത്തേക്ക് സൂക്ഷിക്കും. സ്ക്രീൻ ഇപ്പോൾ പൂട്ടും. തിരിച്ചെത്താൻ നിങ്ങളുടെ പാസ്‌വേഡ് വേണം. പ്രതിദിന സമയം ബാക്കിയുള്ളപ്പോൾ ഇവിടെ «അനുവദിച്ച സമയം» എന്നതിൽ നിന്ന് സൂക്ഷിച്ച സമയം ഉപയോഗിക്കാൻ തുടങ്ങാം. അഭ്യർത്ഥനാ കേന്ദ്രത്തിൽ നിന്നും അത് ഉപയോഗിക്കാൻ തുടങ്ങാം."
+
+msgid "Pause and lock"
+msgstr "ടൈമർ നിർത്തി സ്ക്രീൻ പൂട്ടുക"
+
+msgid "No approved time available"
+msgstr "അനുവദിച്ച സമയം ലഭ്യമല്ല"
+
+msgid "Covered by today's daily time"
+msgstr "ഇന്നത്തെ പ്രതിദിന സമയത്തിൽ ഉൾപ്പെടുന്നു"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "%(time)s വരെ അനുവദിച്ചു"
+
+msgid "Add saved time to the timer"
+msgstr "സൂക്ഷിച്ച സമയം ടൈമറിലേക്ക് ചേർക്കുക"
+
+msgid "Loading time status…"
+msgstr "സമയത്തിന്റെ നില ലഭ്യമാക്കുന്നു…"
+
+msgid "Time status unavailable"
+msgstr "സമയത്തിന്റെ നില ലഭ്യമല്ല"
+
+msgid "Time controls are busy. Try again."
+msgstr "സമയ നിയന്ത്രണങ്ങൾ ഇപ്പോൾ തിരക്കിലാണ്. വീണ്ടും ശ്രമിക്കുക."
+
+msgid "Updating approved time…"
+msgstr "അനുവദിച്ച സമയം പുതുക്കുന്നു…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "അനുമതി ലഭിച്ചാൽ സൂക്ഷിക്കുന്ന സമയം: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "ഇതിനകം സൂക്ഷിച്ചത്: %(duration)s"

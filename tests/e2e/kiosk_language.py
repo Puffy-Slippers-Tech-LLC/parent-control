@@ -14,13 +14,12 @@ CHOOSER = {
     'he': ('עברית', 'בחירת השפה שלך', 'שמירה', 'שמירת העדפת השפה שלך.'),
 }
 # Captions, duration, then each button's visible caption and accessible name.
-# Descriptive accessible names are intentional and checked separately.
 FORM = {
-    'en': ('Child', 'Approver', '30 minutes', 'REQUEST', 'Request access', 'CANCEL', 'Cancel request'),
-    'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'ANFRAGEN', 'Zugriff anfragen',
+    'en': ('Child', 'Approver', '30 minutes', 'Request & use now', 'Request & use now', 'CANCEL', 'Cancel request'),
+    'de': ('Kind', 'Genehmigung durch', '30 Minuten', 'Anfragen und jetzt nutzen', 'Anfragen und jetzt nutzen',
            'Abbrechen', 'Anfrage abbrechen'),
-    'zh-Hans': ('孩子', '批准人', '30 分钟', '提交请求', '请求访问权限', '取消', '取消请求'),
-    'he': ('ילד', 'מאשר', '30 דקות', 'בקשה', 'בקשת גישה', 'ביטול', 'ביטול הבקשה'),
+    'zh-Hans': ('孩子', '批准人', '30 分钟', '请求并立即使用', '请求并立即使用', '取消', '取消请求'),
+    'he': ('ילד', 'מאשר', '30 דקות', 'לבקש ולהשתמש עכשיו', 'לבקש ולהשתמש עכשיו', 'ביטול', 'ביטול הבקשה'),
 }
 TEXT_IDS = ('kiosk-child-account-caption', 'kiosk-approver-account-caption',
             'kiosk-duration-label-1800', 'kiosk-request-submit', 'kiosk-request-cancel')

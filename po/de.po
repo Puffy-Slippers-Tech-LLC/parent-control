@@ -1762,3 +1762,92 @@ msgstr "Geben Sie eine gültige Zahl ein."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Zulässiger Bereich: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Mehr Zeit anfragen"
+
+msgid "Approved time"
+msgstr "Genehmigte Zeit"
+
+msgid "Request & use now"
+msgstr "Anfragen und jetzt nutzen"
+
+msgid "More request options"
+msgstr "Weitere Anfrageoptionen"
+
+msgid "Request & save for later"
+msgstr "Anfragen und für später speichern"
+
+msgid "Rest of the day can't be saved."
+msgstr "„Rest des Tages“ kann nicht gespeichert werden."
+
+msgid "Saved for later"
+msgstr "Für später gespeichert"
+
+msgid "Use saved time"
+msgstr "Gespeicherte Zeit nutzen"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Starten Sie den Timer und kehren Sie zum Anmeldebildschirm zurück."
+
+msgid "Add it to your time now."
+msgstr "Fügen Sie die gespeicherte Zeit jetzt Ihrer verfügbaren Zeit hinzu."
+
+msgid "Timer running"
+msgstr "Timer läuft"
+
+msgid "Pause timer"
+msgstr "Timer pausieren"
+
+msgid "Save the remaining time for later."
+msgstr "Speichern Sie die verbleibende Zeit für später."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Heutiges Tageskontingent: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Timer pausieren und Bildschirm sperren?"
+
+msgid "Save for later and lock?"
+msgstr "Für später speichern und Bildschirm sperren?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Etwa %(duration)s werden gespeichert. Der Bildschirm wird jetzt gesperrt. Zum Entsperren benötigen Sie Ihr Passwort. Starten Sie die gespeicherte Zeit hier unter „Genehmigte Zeit“, solange noch etwas vom Tageskontingent übrig ist, oder an der Anfragestation."
+
+msgid "Pause and lock"
+msgstr "Pausieren und sperren"
+
+msgid "No approved time available"
+msgstr "Keine genehmigte Zeit verfügbar"
+
+msgid "Covered by today's daily time"
+msgstr "Durch das heutige Tageskontingent abgedeckt"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Genehmigt bis %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Gespeicherte Zeit zum Timer hinzufügen"
+
+msgid "Loading time status…"
+msgstr "Zeitstatus wird geladen…"
+
+msgid "Time status unavailable"
+msgstr "Zeitstatus nicht verfügbar"
+
+msgid "Time controls are busy. Try again."
+msgstr "Die Zeitsteuerung ist beschäftigt. Versuchen Sie es erneut."
+
+msgid "Updating approved time…"
+msgstr "Genehmigte Zeit wird aktualisiert…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Wird bei Genehmigung gespeichert: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Bereits gespeichert: %(duration)s"

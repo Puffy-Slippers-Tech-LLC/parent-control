@@ -227,3 +227,92 @@ msgstr "Enter a valid number."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Request more time"
+
+msgid "Approved time"
+msgstr "Approved time"
+
+msgid "Request & use now"
+msgstr "Request & use now"
+
+msgid "More request options"
+msgstr "More request options"
+
+msgid "Request & save for later"
+msgstr "Request & save for later"
+
+msgid "Rest of the day can't be saved."
+msgstr "Rest of the day can't be saved."
+
+msgid "Saved for later"
+msgstr "Saved for later"
+
+msgid "Use saved time"
+msgstr "Use saved time"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Start the timer and return to sign-in."
+
+msgid "Add it to your time now."
+msgstr "Add it to your time now."
+
+msgid "Timer running"
+msgstr "Timer running"
+
+msgid "Pause timer"
+msgstr "Pause timer"
+
+msgid "Save the remaining time for later."
+msgstr "Save the remaining time for later."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Today's daily time: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Pause and lock the screen?"
+
+msgid "Save for later and lock?"
+msgstr "Save for later and lock?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+
+msgid "Pause and lock"
+msgstr "Pause and lock"
+
+msgid "No approved time available"
+msgstr "No approved time available"
+
+msgid "Covered by today's daily time"
+msgstr "Covered by today's daily time"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Approved until %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Add saved time to the timer"
+
+msgid "Loading time status…"
+msgstr "Loading time status…"
+
+msgid "Time status unavailable"
+msgstr "Time status unavailable"
+
+msgid "Time controls are busy. Try again."
+msgstr "Time controls are busy. Try again."
+
+msgid "Updating approved time…"
+msgstr "Updating approved time…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Saved if approved: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Already saved: %(duration)s"

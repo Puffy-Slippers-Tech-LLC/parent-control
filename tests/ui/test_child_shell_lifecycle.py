@@ -214,13 +214,13 @@ def test_child_panel_refreshes_language_after_overlay_save(render_artifacts):
     # overlay-to-panel refresh. Catalogue parity covers every other language.
     # Independently reviewed literal meanings; do not predict from runtime MO.
     oracles = {
-        'he': dict(request='בקשה', panel='בקשת זמן, %(time)s',
+        'he': dict(request='לבקש ולהשתמש עכשיו', panel='בקשת זמן, %(time)s',
             countdown='הנפשת ספירה לאחור של דקה אחת',
             description='קריאת הזמן שנותר או פתיחת טופס בקשה לזמן נוסף. פתיחת תפריט ההקשר להגדרות הנפשת הספירה לאחור.'),
-        'ta': dict(request='கோரிக்கை', panel='நேரத்தைக் கோரவும், %(time)s',
+        'ta': dict(request='கேட்டு இப்போதே பயன்படுத்தவும்', panel='நேரத்தைக் கோரவும், %(time)s',
             countdown='ஒரு நிமிட பின்னோக்கு எண்ணிக்கை அசைவூட்டம்',
             description='மீதமுள்ள நேரத்தைப் படிக்கவும் அல்லது கூடுதல் நேரத்தைக் கோரும் படிவத்தைத் திறக்கவும். பின்னோக்கு எண்ணிக்கை அசைவூட்ட அமைப்புகளுக்குச் சூழல் பட்டியைத் திறக்கவும்.'),
-        'en': dict(request='REQUEST', panel='Request time, %(time)s',
+        'en': dict(request='Request & use now', panel='Request time, %(time)s',
             countdown='One minute count down animation',
             description='Read the remaining time or open the request-more-time form. Open the context menu for countdown animation settings.'),
     }

@@ -1758,3 +1758,92 @@ msgstr "Masukkan angka yang valid."
 #, python-format
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Rentang yang diizinkan: %(minimum)s – %(maximum)s %(unit)s."
+
+msgid "Request more time"
+msgstr "Minta waktu tambahan"
+
+msgid "Approved time"
+msgstr "Waktu yang disetujui"
+
+msgid "Request & use now"
+msgstr "Minta dan gunakan sekarang"
+
+msgid "More request options"
+msgstr "Opsi permintaan lainnya"
+
+msgid "Request & save for later"
+msgstr "Minta dan simpan untuk nanti"
+
+msgid "Rest of the day can't be saved."
+msgstr "Opsi “Sisa hari ini” tidak dapat disimpan."
+
+msgid "Saved for later"
+msgstr "Disimpan untuk nanti"
+
+msgid "Use saved time"
+msgstr "Gunakan waktu yang disimpan"
+
+msgid "Start the timer and return to sign-in."
+msgstr "Mulai pewaktu dan kembali ke layar masuk."
+
+msgid "Add it to your time now."
+msgstr "Tambahkan waktu yang disimpan ke waktumu sekarang."
+
+msgid "Timer running"
+msgstr "Pewaktu berjalan"
+
+msgid "Pause timer"
+msgstr "Jeda pewaktu"
+
+msgid "Save the remaining time for later."
+msgstr "Simpan waktu yang tersisa untuk nanti."
+
+#, python-format
+msgid "Today's daily time: %(duration)s"
+msgstr "Waktu harian hari ini: %(duration)s"
+
+msgid "Pause and lock the screen?"
+msgstr "Jeda pewaktu dan kunci layar?"
+
+msgid "Save for later and lock?"
+msgstr "Simpan untuk nanti dan kunci layar?"
+
+#, python-format
+msgid "About %(duration)s will be saved. Your screen will lock now and you’ll need your password to return. Start saved time from Approved time here while daily time remains, or at the request station."
+msgstr "Sekitar %(duration)s akan disimpan. Layar akan dikunci sekarang dan kamu perlu kata sandi untuk kembali. Mulai gunakan waktu yang disimpan dari “Waktu yang disetujui” di sini selama masih ada waktu harian, atau dari stasiun permintaan."
+
+msgid "Pause and lock"
+msgstr "Jeda dan kunci layar"
+
+msgid "No approved time available"
+msgstr "Tidak ada waktu yang disetujui"
+
+msgid "Covered by today's daily time"
+msgstr "Tercakup oleh waktu harian hari ini"
+
+#, python-format
+msgid "Approved until %(time)s"
+msgstr "Disetujui sampai pukul %(time)s"
+
+msgid "Add saved time to the timer"
+msgstr "Tambahkan waktu yang disimpan ke pewaktu"
+
+msgid "Loading time status…"
+msgstr "Memuat status waktu…"
+
+msgid "Time status unavailable"
+msgstr "Status waktu tidak tersedia"
+
+msgid "Time controls are busy. Try again."
+msgstr "Kontrol waktu sedang sibuk. Coba lagi."
+
+msgid "Updating approved time…"
+msgstr "Memperbarui waktu yang disetujui…"
+
+#, python-format
+msgid "Saved if approved: %(duration)s"
+msgstr "Disimpan jika disetujui: %(duration)s"
+
+#, python-format
+msgid "Already saved: %(duration)s"
+msgstr "Sudah disimpan: %(duration)s"

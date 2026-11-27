@@ -22,8 +22,7 @@ def test_child_preview_language_survives_overlay_cancel_and_reopen(
     assert language_file.read_text(encoding='utf-8') == 'de'
     ui.reconstruct('child-request')
     launch_ui('child_overlay_preview', environment_overrides=environment)
-    # Read the displayed caption, not the separate accessible action name.
-    wait(lambda: ui.getText('kiosk-request-submit') == 'ANFRAGEN',
+    wait(lambda: ui.getText('kiosk-request-submit') == 'Anfragen und jetzt nutzen',
          'reopened overlay reads the shared preview language')
 
 
@@ -45,9 +44,8 @@ def test_translated_request_preserves_choices_and_custom_draft(
     wait(lambda: ui.content('kiosk-custom-duration') == '2.75', 'custom draft typed')
     switch_language(ui, wait, 'kiosk', language)
     assert ui.content('kiosk-custom-duration') == '2.75'
-    visible = {'de': 'ANFRAGEN', 'zh-Hans': '提交请求',
-               'he': 'בקשה', 'ta': 'கோரிக்கை'}
-    # Read the displayed caption, not the separate accessible action name.
+    visible = {'de': 'Anfragen und jetzt nutzen', 'zh-Hans': '请求并立即使用',
+               'he': 'לבקש ולהשתמש עכשיו', 'ta': 'கேட்டு இப்போதே பயன்படுத்தவும்'}
     assert ui.getText('kiosk-request-submit') == visible[language]
     review_frame('request-' + language + ('-overlay' if overlay else '-kiosk'))
     soft_label = ui.text('kiosk-soft-apps-label')
@@ -71,7 +69,8 @@ def test_request_layout_keeps_all_choices_and_submission_reachable(
         tmp_path, overlay, dpi_scale):
     """Exercise the full form through public IDs after actual display scaling."""
     _process, path = launch_request(
-        launch_ui, tmp_path, overlay=overlay, wait_for_application=False,
+        launch_ui, tmp_path, overlay=overlay, scenario="approved-combined",
+        wait_for_application=False,
     )
     ui = automation
     wait_for_accessible_state(lambda: ui.find("kiosk-request-submit") is not None,
@@ -80,6 +79,17 @@ def test_request_layout_keeps_all_choices_and_submission_reachable(
         lambda: ui.state("kiosk-request-submit", ui.api.StateType.SENSITIVE),
         "scaled form is ready",
     )
+    ui.activate("kiosk-tab-approved")
+    wait_for_accessible_state(
+        lambda: ui.showing("kiosk-approved-saved")
+        and ui.getValue("kiosk-approved-saved") == 1200,
+        "scaled Approved time page publishes the saved balance",
+    )
+    assert ui.getValue("kiosk-approved-running") == 1080
+    ui.activate("kiosk-tab-request")
+    ui.activate("kiosk-request-menu")
+    assert ui.showing("kiosk-request-save-for-later")
+    ui.setValue("kiosk-request-menu", False)
     ui.setValue("kiosk-approver-selector", "1010")
     ui.activate("kiosk-duration-300")
     ui.activate("kiosk-request-submit")

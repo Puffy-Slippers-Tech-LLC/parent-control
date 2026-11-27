@@ -53,8 +53,8 @@ REQUEST_VALUES = {'surface': 'kiosk', 'form_count': 1, 'child': 'fixture-child',
     'approver': 'fixture-parent', 'duration_seconds': 75, 'custom_text': '1.25', 'allow_soft': True,
     'child_selector_enabled': True, 'approver_selector_enabled': True, 'duration_enabled': True,
     'soft_choice_enabled': True, 'request_enabled': True, 'cancel_enabled': True, 'message': '', 'mute': None}
-TEXT = {'en': ('Child', 'Approver', '30 minutes', 'Request access', 'Cancel request', 'REQUEST', 'CANCEL'),
-        'he': ('ילד', 'מאשר', '30 דקות', 'בקשת גישה', 'ביטול הבקשה', 'בקשה', 'ביטול')}
+TEXT = {'en': ('Child', 'Approver', '30 minutes', 'Request & use now', 'Cancel request', 'Request & use now', 'CANCEL'),
+        'he': ('ילד', 'מאשר', '30 דקות', 'לבקש ולהשתמש עכשיו', 'ביטול הבקשה', 'לבקש ולהשתמש עכשיו', 'ביטול')}
 CHECKS = {stage: public_language_value('language_form', {
     'request': {**REQUEST_VALUES, 'approver': approver},
     'texts': dict(zip(IDS, TEXT[language][:5])),

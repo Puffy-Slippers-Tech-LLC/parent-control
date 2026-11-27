@@ -5,15 +5,16 @@ import logging
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
 from common.oh_no_parent_control_ui.diagnostic_events import record_payload, record_exception, gio_error_category
 from common.oh_no_parent_control_ui.errors import broker_reboot_required
+from common.oh_no_parent_control_ui.grant_client import (
+    BUS_NAME, OBJECT_PATH, INTERFACE, GRANT_STATUS_SIGNATURE, STATUS_TIMEOUT_MS,
+    GrantStatus, saved_time_method_missing,
+)
 
 import gi
 
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-BUS_NAME = "com.puffyslippers.OhNoParentControl1"
-OBJECT_PATH = "/com/puffyslippers/OhNoParentControl1"
-INTERFACE = BUS_NAME
 LOG = get_logger("parent-client")
 
 
@@ -36,14 +37,16 @@ class BrokerClient:
     def __init__(self, connection=None):
         self.connection = connection or Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
 
-    def _call(self, method, parameters, signature):
+    def _call(self, method, parameters, signature, *, timeout=120_000, allow_unknown_method=False):
         try:
             result = self.connection.call_sync(
                 BUS_NAME, OBJECT_PATH, INTERFACE, method, parameters,
-                GLib.VariantType.new(signature), Gio.DBusCallFlags.NONE, 120_000, None,
+                GLib.VariantType.new(signature), Gio.DBusCallFlags.NONE, timeout, None,
             )
             return result.unpack()
         except Exception as error:
+            if allow_unknown_method and saved_time_method_missing(error):
+                return None
             LOG.warning("parent-client.call-failed", method=method,
                         error_type=error_code(error), category=gio_error_category(error))
             record_exception(error)
@@ -126,6 +129,14 @@ class BrokerClient:
             )
             status["has_running_soft_blocked_apps"] = running
         return status
+
+    def get_grant_status(self, uid, requested_seconds=0):
+        """Return the saved-time snapshot, or None if the broker lacks it."""
+        values = self._call(
+            "GetGrantStatus", GLib.Variant("(uu)", (uid, requested_seconds)),
+            GRANT_STATUS_SIGNATURE, timeout=STATUS_TIMEOUT_MS, allow_unknown_method=True,
+        )
+        return None if values is None else GrantStatus(*values)
 
     def set_preferences(self, uid, value):
         encoded, = self._call(

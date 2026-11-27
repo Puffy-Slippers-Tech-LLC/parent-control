@@ -16,7 +16,7 @@ recorded native qualification.
 | [x] | 007 | Start saved time once with the approved app access | 003, 005 | Shared redemption transaction and roll-forward recovery | Done. 447 focused host checks, queued package builds, and independent backend review passed. |
 | [x] | 008 | Let a parent approve time for later | 006 | Mode-bound authentication, durable approval, and optional pause | Done. 766 focused host checks, queued package builds, and independent backend review passed. |
 | [x] | 009 | Recover interrupted transfers and clear withdrawn time | 006, 007, 008 | Recovery triggers and serialization, revoke, and control-toggle invalidation | Done. 727 scoped host checks, queued package builds, and independent backend review passed. |
-| [ ] | 010 | [Make saved time and timer actions available to the apps](Save-For-Later-Tasks/010.md) | 004, 009 | Broker dispatch, consistent status, and frontend client transport | 1–2 h |
+| [x] | 010 | Make saved time and timer actions available to the apps | 004, 009 | Broker dispatch, consistent status, and frontend client transport | Done. Host checks, queued DEB and RPM builds, and independent backend review passed. |
 | [ ] | 025 | [Refresh the child countdown while the overlay stays open](Save-For-Later-Tasks/025.md) | 001 | Overlay-to-panel refresh request bound to the started overlay process | 45–90 min |
 | [ ] | 011 | [Build the request and approved-time tabs](Save-For-Later-Tasks/011.md) | 001 | Shared layout, menu, Approved time states, and lock dialog | 1–2 h |
 | [ ] | 012 | [Connect both request screens to the timer actions](Save-For-Later-Tasks/012.md) | 010, 011, 025 | Request form state and actions, success routes, and the countdown refresh call | 2–3 h |

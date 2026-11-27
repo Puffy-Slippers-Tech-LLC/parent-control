@@ -91,6 +91,7 @@ COMMON_SOURCES += message.py messages.py translation_widgets.py reboot.py
 COMMON_SOURCES += approval_prompt.py
 COMMON_SOURCES += application_ui.py application_ui_client.py
 COMMON_SOURCES += whats_new.py release_markdown.py
+COMMON_SOURCES += grant_client.py
 KIOSK_SOURCES := __init__.py agent_locale.py chrome.py duration_controls.py floating_islands.py preference_dialog.py preset_dialog.py lava.py lava_artwork.py lightning.py main.py model.py request_content.py selection_store.py session_logout.py snowflakes.py thunder.py
 KIOSK_SOURCES += notifications.py
 KIOSK_SOURCES += whats_new.py whats_new_dialog.py

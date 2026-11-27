@@ -16,16 +16,22 @@ from parent.oh_no_parent_control_parent.client import (
 class FakeConnection:
     """An administrator without retained AccountsService authorization."""
 
-    def __init__(self, status=(1800, 600, 300, 2100), error=None):
+    def __init__(self, status=(1800, 600, 300, 2100), error=None,
+                 grant_status=(2**40, 1234, 30, 90, 60, 600, 90, 690, "fixed", 1324, 390, 960),
+                 grant_error=None):
         self.status = status
         self.error = error
+        self.grant_status = grant_status
+        self.grant_error = grant_error
         self.calls = []
+        self.timeouts = []
 
     def call_sync(self, name, path, interface, method, parameters,
-                  reply_type, flags, _timeout, _cancellable):
+                  reply_type, flags, timeout, _cancellable):
         unpacked = None if parameters is None else parameters.unpack()
         self.calls.append((name, path, interface, method, unpacked,
                            reply_type.dup_string(), flags))
+        self.timeouts.append(timeout)
         if name == "org.freedesktop.Accounts":
             raise Gio.DBusError.new_for_dbus_error(
                 "org.freedesktop.Accounts.Error.PermissionDenied",
@@ -51,6 +57,10 @@ class FakeConnection:
             if self.error is not None:
                 raise self.error
             return GLib.Variant("(uuuu)", self.status)
+        if name == BUS_NAME and method == "GetGrantStatus":
+            if self.grant_error is not None:
+                raise self.grant_error
+            return GLib.Variant("(ttuuuuuustuu)", self.grant_status)
         if name == BUS_NAME and method == "HasRunningSoftBlockedApps":
             return GLib.Variant("(b)", (True,))
         if name == BUS_NAME and method == "ListRunningSoftBlockedApps":
@@ -157,6 +167,42 @@ class ParentClientTests(unittest.TestCase):
             ("HasRunningSoftBlockedApps", (1001,)),
             ("GetTimeStatus", (1002, 0)),
         ])
+
+    def test_grant_status_distinguishes_desktop_and_saved_time(self):
+        connection = FakeConnection()
+
+        status = BrokerClient(connection).get_grant_status(1001, 300)
+
+        self.assertEqual(status.revision, 2**40)
+        self.assertEqual(status.usable_seconds, 90)
+        self.assertEqual(status.saved_seconds, 600)
+        self.assertEqual(status.total_seconds, 690)
+        self.assertEqual(status.deferred_estimate_seconds, 960)
+        self.assertEqual(connection.calls[0][3:6],
+                         ("GetGrantStatus", (1001, 300), "(ttuuuuuustuu)"))
+        self.assertEqual(connection.timeouts, [30_000])
+
+    def test_older_broker_keeps_time_status_with_saved_time_unavailable(self):
+        connection = FakeConnection(grant_error=Gio.DBusError.new_for_dbus_error(
+            "org.freedesktop.DBus.Error.UnknownMethod", "unknown method",
+        ))
+        client = BrokerClient(connection)
+
+        self.assertIsNone(client.get_grant_status(1001))
+        self.assertEqual(client.get_time_status(1001, 300)["calculated_active_extension_seconds"],
+                         2100)
+        self.assertEqual([call[3] for call in connection.calls], ["GetGrantStatus", "GetTimeStatus"])
+
+    def test_grant_status_preserves_broker_failure(self):
+        error = Gio.DBusError.new_for_dbus_error(
+            f"{BUS_NAME}.Error.RecoveryPending", "try again",
+        )
+        client = BrokerClient(FakeConnection(grant_error=error))
+
+        with self.assertRaises(GLib.Error) as caught:
+            client.get_grant_status(1001)
+
+        self.assertIs(caught.exception, error)
 
     def test_broker_failures_reach_ui_without_fabricating_time_or_logging_pii(self):
         for name in ("AccessDenied", "BackendFailure"):

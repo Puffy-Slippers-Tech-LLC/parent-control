@@ -135,6 +135,7 @@ the broker resolves and revalidates it.
 | `GetPolicyWarnings` | own | selected child | selected child |
 | `ListApplications` | - | - | selected child |
 | `GetTimeStatus` | own | selected child | selected child |
+| `GetGrantStatus` | own | selected child | selected child |
 | `HasRunningSoftBlockedApps` | - | - | selected child |
 | `ListRunningSoftBlockedApps` | - | - | selected child |
 | `CalculateRemainingTime` | own | selected child | selected child |
@@ -150,12 +151,22 @@ the broker resolves and revalidates it.
 | `RevokeOneTimeGrant` | - | - | selected child |
 | `RequestOwnAccess` | own | - | - |
 | `RequestAccess` | - | selected child | - |
+| `RequestDeferredAccess` | own | selected child | - |
+| `PauseGrant` | own | selected child | - |
+| `UseSavedTime` | own | selected child | - |
 | `LogEvent` | child component | kiosk component | parent component |
 | `ExportDiagnosticLogs` | all product logs | all product logs | all product logs |
 | `GetStartupTimings` | read | read | read |
 
 `LogEvent` is intentionally role-scoped: a front end cannot choose another
 component's log, and no D-Bus caller may write the broker component log.
+
+`GetGrantStatus` reports usable and saved time separately and can queue recovery
+for an unfinished transfer. `GetTimeStatus` continues to measure usable desktop
+time. The three saved-time mutations require a current record revision, enabled
+screen-time control and a bound local session. The
+[saved-time wire contract](../Save-For-Later-Design.md#wire-contract) defines the
+replies and errors.
 
 For the language methods, `own` means the caller's account for every role,
 including the kiosk and administrators, rather than a selected child. These

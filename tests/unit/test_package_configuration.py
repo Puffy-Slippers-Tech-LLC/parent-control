@@ -19,7 +19,7 @@ REBOOT_NOTICE = "*** REBOOT REQUIRED: reboot before using the kiosk session. ***
 
 
 from tests.support.package_scripts import (
-    mapped_pam_worker, package_machine, prepared_lifecycle_machine, rpm_script_source,
+    Machine, mapped_pam_worker, package_machine, prepared_lifecycle_machine, rpm_script_source,
     selected_pam_transactions, use_real_account_lifecycle, use_real_state_migration,
 )
 from tests.support.shell import relocate_system_paths
@@ -1555,6 +1555,64 @@ esac
     assert restore < confinement < commands.index(f'systemctl --system restart {BROKER}')
     assert commands.count('oh-no-parent-control-uninstall --restore') == 1
     assert commands.count('oh-no-parent-control-kiosk-lifecycle --distribution ' + distribution + ' commit') == 1
+
+
+@pytest.mark.parametrize(('package_machine', 'complete_removal'), [
+    ('ubuntu', False), ('fedora', False), ('fedora', True),
+], indirect=['package_machine'], ids=['ubuntu-interrupted', 'fedora-interrupted', 'fedora-completed'])
+def test_configuration_preserves_grants_through_upgrade_then_reinstalls_after_removal(
+    package_machine, complete_removal,
+):
+    from oh_no_parent_control.grant_store import GrantRecord, GrantStore, RedeemIntent, SavedBalance
+
+    root, state, run = package_machine
+    use_real_state_migration(root)
+    product = root / 'usr/share/oh-no-parent-control/app.json'
+    product.write_text('{"version": "1.4"}')
+    preferences = state / 'preferences' / '1001.json'
+    preferences.parent.mkdir(mode=0o700)
+    preferences.write_text('{"version": 4, "personal": {"language": "fr"}}\n')
+    preferences.chmod(0o600)
+    saved_preferences = preferences.read_bytes()
+    grants = state / 'grants'
+    store = GrantStore(grants)
+    saved = store.write(GrantRecord(1001, 'child', saved=SavedBalance(300, True),
+                                    intent=RedeemIntent((0, 0), (1000, 300), True, True)))
+    grants.chmod(0o1700)
+    record = grants / '1001.json'
+    saved_bytes = record.read_bytes()
+
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert store.load(1001, 'child') == saved
+    assert record.read_bytes() == saved_bytes
+    assert preferences.read_bytes() == saved_preferences
+
+    retired = state / 'grants.removed'
+    snapshot = state / 'uninstall-enforcement.json'
+    snapshot.write_text('{}')
+    if complete_removal:
+        # Pass the persistent data through native post-erase cleanup and
+        # return the surviving data to the configuration machine.
+        removal = Machine(root / 'erased-package', 'fedora')
+        removal_state = removal.root / 'var/lib/oh-no-parent-control'
+        for entry in (grants, preferences.parent, snapshot):
+            entry.rename(removal_state / entry.name)
+        result = removal.run_rpm('postun', 0)
+        assert result.returncode == 0, result.stderr
+        assert not any((removal_state / name).exists() for name in (grants.name, retired.name, snapshot.name))
+        (removal_state / preferences.parent.name).rename(preferences.parent)
+    else:
+        # Stop just after retirement, before the snapshot is deleted.
+        grants.rename(retired)
+    (root / 'commands').write_text('')
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert (grants.stat().st_mode & 0o777) == 0o700
+    assert store.load(1001, 'child') == GrantRecord(1001, 'child')
+    assert not retired.exists() and not snapshot.exists()
+    assert 'oh-no-parent-control-uninstall --restore' not in (root / 'commands').read_text()
+    assert preferences.read_bytes() == saved_preferences
 
 
 @pytest.mark.parametrize('package_machine', ['ubuntu', 'fedora'], indirect=True)

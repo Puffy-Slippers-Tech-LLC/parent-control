@@ -216,8 +216,23 @@ def migrate_preferences(directory: Path = PREFERENCES_DIRECTORY, *,
 
 
 def migrate_grants(directory: Path = GRANTS_DIRECTORY) -> int:
-    """Migrate saved-time records; AccountsService binding is checked at read."""
+    """Provision private grant storage and validate it before broker startup."""
     from .grant_store import FORMAT_VERSION as GRANT_FORMAT_VERSION, validate_grant_record
+
+    try:
+        try:
+            directory.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        else:
+            os.chmod(directory, 0o700)
+            _fsync_directory(directory.parent)
+        info = directory.lstat()
+    except OSError as error:
+        raise MigrationError("grant directory is unavailable") from error
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or
+            info.st_mode & 0o077):
+        raise MigrationError("grant directory has unsafe ownership or permissions")
     return _migrate_uid_records(directory, "grant", current_version=GRANT_FORMAT_VERSION,
                                 migrations=GRANT_MIGRATIONS, validator=validate_grant_record)
 

@@ -20,7 +20,9 @@ import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from .core import AccessDenied, NativeDeadlineSuspended, SessionState, UserAccount
+from .core import (
+    AccessDenied, AccountMissing, GrantAccountChanged, NativeDeadlineSuspended, SessionState, UserAccount,
+)
 
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
@@ -271,11 +273,18 @@ class AccountsService:
         return reply
 
     def _user_path(self, uid: int, *, deadline: float | None = None) -> str:
-        reply = self._call(
-            ACCOUNTS_PATH, ACCOUNTS_INTERFACE,
-            "FindUserById", GLib.Variant("(x)", (uid,)), "(o)",
-            deadline=deadline,
-        )
+        try:
+            reply = self._call(
+                ACCOUNTS_PATH, ACCOUNTS_INTERFACE,
+                "FindUserById", GLib.Variant("(x)", (uid,)), "(o)",
+                deadline=deadline,
+            )
+        except GLib.Error as error:
+            # FindUserById documents this reply specifically for an absent
+            # UID. A failure reading properties on the object is different.
+            if Gio.dbus_error_get_remote_error(error) == "org.freedesktop.Accounts.Error.Failed":
+                raise AccountMissing("account does not exist") from error
+            raise
         path = reply.unpack()[0]
         if path != f"/org/freedesktop/Accounts/User{uid}":
             LOG.error("adapters.account-object-mismatch", stage="find-user")
@@ -314,11 +323,20 @@ class AccountsService:
 
     def _get(self, uid: int, interface: str, prop: str, *, deadline: float | None = None):
         reply = self._call(
-            self._user_path(uid, deadline=deadline), PROPERTIES_INTERFACE,
+            self._grant_checked_user_path(uid, deadline=deadline), PROPERTIES_INTERFACE,
             "Get", GLib.Variant("(ss)", (interface, prop)), "(v)",
             deadline=deadline,
         )
         return reply.unpack()[0]
+
+    def _grant_checked_user_path(self, uid: int, *, deadline: float | None = None) -> str:
+        try:
+            return self._user_path(uid, deadline=deadline)
+        except AccountMissing as error:
+            bound_account = self._grant_mutation_account.get()
+            if bound_account is not None and uid == bound_account[0]:
+                raise GrantAccountChanged("saved-time account changed") from error
+            raise
 
     def _account_from_path(self, path: str, *, expected_grant_account: tuple[int, str] | None = None,
                            deadline: float | None = None,
@@ -328,21 +346,29 @@ class AccountsService:
             "GetAll", GLib.Variant("(s)", (ACCOUNTS_INTERFACE + ".User",)), "(a{sv})",
             deadline=deadline, wall_deadline=wall_deadline,
         )
-        properties = reply.unpack()[0]
-        uid = properties["Uid"]
+        properties = reply.get_child_value(0)
+
+        def get(name, signature):
+            value = properties.lookup_value(name, GLib.VariantType.new(signature))
+            if value is None:
+                raise RuntimeError("AccountsService returned incomplete or invalid account properties")
+            return value.unpack()
+
+        uid = get("Uid", "t")
+        username = get("UserName", "s")
+        account_type = get("AccountType", "i")
+        is_system = get("SystemAccount", "b")
+        is_local = get("LocalAccount", "b")
+        if uid > (1 << 32) - 1 or not username or account_type not in (0, 1):
+            raise RuntimeError("AccountsService returned incomplete or invalid account properties")
         expected_path = f"/org/freedesktop/Accounts/User{uid}"
         if path != expected_path:
             LOG.error("adapters.account-object-mismatch", stage="get-all")
             raise RuntimeError("AccountsService returned an unexpected user object")
-        username = properties.get("UserName", "")
-        account_type = properties.get("AccountType", 0)
-        is_system = properties.get("SystemAccount", True)
-        is_local = properties.get("LocalAccount", False)
         if expected_grant_account is not None and (
-                (uid, username) != expected_grant_account or
-                type(properties.get("AccountType")) is not int or account_type != 0 or
-                is_system is not False or is_local is not True):
-            raise AccessDenied("redemption account changed")
+                (uid, username) != expected_grant_account or account_type != 0 or is_system or not is_local):
+            raise GrantAccountChanged("saved-time account changed")
+        properties = properties.unpack()
         real_name = " ".join(properties.get("RealName", "").split())[:120]
         label = real_name or username or str(uid)
         return UserAccount(
@@ -386,7 +412,7 @@ class AccountsService:
         for uid in uids:
             try:
                 users.append(self.get_user(uid))
-            except GLib.Error as error:
+            except (AccountMissing, GLib.Error) as error:
                 # The account may have been deleted during enumeration.
                 LOG.warning("adapters.account-enumeration-skipped",
                             candidate="display-manager-greeter" if uid in greeter_uids else "other",
@@ -400,6 +426,11 @@ class AccountsService:
         return tuple(users)
 
     def get_user(self, uid: int) -> UserAccount:
+        bound_account = self._grant_mutation_account.get()
+        if bound_account is not None and uid == bound_account[0]:
+            return self._account_from_path(
+                self._grant_checked_user_path(uid), expected_grant_account=bound_account,
+            )
         return self._account_from_path(self._user_path(uid))
 
     def diagnostic_user_roles(self, *, excluded_uid, deadline, limit):
@@ -461,7 +492,7 @@ class AccountsService:
         bound_account = self._grant_mutation_account.get()
         if bound_account is not None and uid != bound_account[0]:
             raise AccessDenied("redemption account changed")
-        path = self._user_path(uid, deadline=deadline)
+        path = self._grant_checked_user_path(uid, deadline=deadline)
         if bound_account is not None:
             # FindUserById can block and return the same path for a replacement.
             self._account_from_path(path, expected_grant_account=bound_account,

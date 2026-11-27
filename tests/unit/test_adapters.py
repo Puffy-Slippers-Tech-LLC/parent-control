@@ -8,8 +8,43 @@ from oh_no_parent_control.adapters import (
     AccountsService, LOGIN_MANAGER_INTERFACE, LOGIN_NAME, LOGIN_PATH, LogindSessions,
     RUNTIME_MAX_USEC_INFINITY, TimerUsage, TimerUsageError,
 )
-from oh_no_parent_control.core import AccessDenied, NativeDeadlineSuspended, SessionState, UserAccount
+from oh_no_parent_control.core import (
+    AccountMissing, GrantAccountChanged, NativeDeadlineSuspended, SessionState, UserAccount,
+)
+from oh_no_parent_control.grant_store import GrantRecord, GrantStore, SavedBalance
 from tests.support.broker import make_broker
+
+
+def test_incomplete_account_properties_preserve_saved_time_until_promotion_is_confirmed(tmp_path):
+    uid = 1001
+    store = GrantStore(tmp_path / "grants")
+    before = store.write(GrantRecord(uid, "child", saved=SavedBalance(300, False)))
+    properties = {
+        "Uid": GLib.Variant("t", uid),
+        "UserName": GLib.Variant("s", "child"),
+        "AccountType": GLib.Variant("i", 1),
+        "SystemAccount": GLib.Variant("b", False),
+    }
+
+    def call(_name, _path, _interface, method, *_args):
+        if method == "FindUserById":
+            return GLib.Variant("(o)", (f"/org/freedesktop/Accounts/User{uid}",))
+        assert method == "GetAll"
+        return GLib.Variant("(a{sv})", (properties,))
+
+    accounts = AccountsService(SimpleNamespace(call_sync=call))
+    broker = make_broker(accounts=accounts, grant_store=store)
+    broker.recover_grant(uid)
+    assert store.load(uid, "child") == before
+
+    properties["LocalAccount"] = GLib.Variant("b", True)
+    properties["AccountType"] = GLib.Variant("u", 1)
+    broker.recover_grant(uid)
+    assert store.load(uid, "child") == before
+
+    properties["AccountType"] = GLib.Variant("i", 1)
+    broker.recover_grant(uid)
+    assert store.load(uid, "child") == GrantRecord(uid, "child", before.revision + 1)
 
 
 class LogindSessionsTests(unittest.TestCase):
@@ -118,6 +153,40 @@ class LogindSessionsTests(unittest.TestCase):
 
 
 class PolkitAdapterTests(unittest.TestCase):
+    def test_account_lookup_distinguishes_deleted_accounts_from_service_failures(self):
+        missing_reply = "org.freedesktop.Accounts.Error.Failed"
+        user_path = GLib.Variant("(o)", ("/org/freedesktop/Accounts/User1001",))
+        for operation, reply, expected in (
+                ("FindUserById", missing_reply, AccountMissing),
+                ("FindUserById", "org.freedesktop.DBus.Error.NoReply", GLib.Error),
+                ("GetAll", missing_reply, GLib.Error)):
+            with self.subTest(operation=operation, reply=reply):
+                error = Gio.DBusError.new_for_dbus_error(reply, "private detail")
+                call = mock.Mock(side_effect=[error] if operation == "FindUserById" else [user_path, error])
+                accounts = AccountsService(SimpleNamespace(call_sync=call))
+                with self.assertRaises(expected):
+                    accounts.get_user(1001)
+
+    def test_bound_grant_read_preserves_confirmed_absence_but_leaves_timeouts_retryable(self):
+        for reply, expected in (
+                ("org.freedesktop.Accounts.Error.Failed", GrantAccountChanged),
+                ("org.freedesktop.DBus.Error.NoReply", GLib.Error)):
+            with self.subTest(reply=reply):
+                error = Gio.DBusError.new_for_dbus_error(reply, "private detail")
+                call = mock.Mock(side_effect=error)
+                accounts = AccountsService(SimpleNamespace(call_sync=call))
+                with accounts.bind_grant_mutations(1001, "child"), self.assertRaises(expected):
+                    accounts.get_extension(1001)
+
+    def test_filter_reconciliation_does_not_skip_the_bound_childs_confirmed_absence(self):
+        error = Gio.DBusError.new_for_dbus_error("org.freedesktop.Accounts.Error.Failed", "private detail")
+        accounts = AccountsService(SimpleNamespace(call_sync=mock.Mock(side_effect=error)), mock.Mock())
+        with mock.patch("oh_no_parent_control.adapters.pwd.getpwall", return_value=(
+                SimpleNamespace(pw_uid=1001, pw_name="child", pw_shell="/bin/bash"),)):
+            accounts.sync_execution_policy()
+            with accounts.bind_grant_mutations(1001, "child"), self.assertRaises(GrantAccountChanged):
+                accounts.sync_execution_policy()
+
     def test_bound_grant_write_rechecks_account_after_resolving_the_uid_path(self):
         path = "/org/freedesktop/Accounts/User1001"
         username = "child"
@@ -151,7 +220,7 @@ class PolkitAdapterTests(unittest.TestCase):
             self.assertEqual(calls, ["FindUserById", "GetAll", "Set"])
             calls.clear()
             reassign_on_find = True
-            with self.assertRaises(AccessDenied):
+            with self.assertRaises(GrantAccountChanged):
                 accounts.set_daily_schedule(1001, (300, 60_000))
             self.assertEqual(calls, ["FindUserById", "GetAll"])
 
@@ -238,18 +307,17 @@ class PolkitAdapterTests(unittest.TestCase):
 
     def test_accounts_service_exposes_the_system_user_icon_file(self):
         accounts = AccountsService(object())
-        reply = mock.Mock()
-        reply.unpack.return_value = ({
-            "Uid": 1001,
-            "UserName": "child",
-            "RealName": "Child",
-            "AccountType": 0,
-            "SystemAccount": False,
-            "LocalAccount": True,
-            "Locked": False,
-            "IconFile": "/var/lib/AccountsService/icons/child",
-            "Language": "zh_CN.UTF-8",
-        },)
+        reply = GLib.Variant("(a{sv})", ({
+            "Uid": GLib.Variant("t", 1001),
+            "UserName": GLib.Variant("s", "child"),
+            "RealName": GLib.Variant("s", "Child"),
+            "AccountType": GLib.Variant("i", 0),
+            "SystemAccount": GLib.Variant("b", False),
+            "LocalAccount": GLib.Variant("b", True),
+            "Locked": GLib.Variant("b", False),
+            "IconFile": GLib.Variant("s", "/var/lib/AccountsService/icons/child"),
+            "Language": GLib.Variant("s", "zh_CN.UTF-8"),
+        },))
         with mock.patch.object(accounts, "_user_path", return_value="/org/freedesktop/Accounts/User1001"), \
                 mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
             user = accounts.get_user(1001)
@@ -276,12 +344,12 @@ class PolkitAdapterTests(unittest.TestCase):
         for shell in (None, "", "/bin/false", "/usr/bin/false", "/sbin/nologin",
                       "/usr/sbin/nologin", "/bin/bash", "/bin/sh"):
             with self.subTest(shell=shell):
-                properties = {"Uid": 1003, "AccountType": 1,
-                              "LocalAccount": True, "SystemAccount": False, "Locked": False}
+                properties = {"Uid": GLib.Variant("t", 1003), "UserName": GLib.Variant("s", "parent"),
+                              "AccountType": GLib.Variant("i", 1), "LocalAccount": GLib.Variant("b", True),
+                              "SystemAccount": GLib.Variant("b", False), "Locked": GLib.Variant("b", False)}
                 if shell is not None:
-                    properties["Shell"] = shell
-                reply = mock.Mock()
-                reply.unpack.return_value = (properties,)
+                    properties["Shell"] = GLib.Variant("s", shell)
+                reply = GLib.Variant("(a{sv})", (properties,))
                 with mock.patch.object(accounts, "_user_path", return_value="/org/freedesktop/Accounts/User1003"), \
                         mock.patch("oh_no_parent_control.adapters._call", return_value=reply):
                     user = accounts.get_user(1003)

@@ -94,7 +94,11 @@ blocklist, limit type, daily limit and one-time grant. Malcontent owns measured
 usage. The broker derives
 UID-scoped fapolicyd execution rules from live filters and saved patterns, and
 controls per-account activation of the packaged GNOME extension. Runtime grants,
-usage, and generated rules are never imported into preferences.
+usage, and generated rules are never imported into preferences. The broker's
+separate grant store holds saved time and unfinished transfers. AccountsService
+still supplies the running time used for desktop access.
+[Saved-time grant records](SystemDesign/State.md#saved-time-grant-records) describes
+the state boundary.
 
 Request duration/custom value and soft-app choice are shared per child. Actual
 child/approver selector defaults are user-local, non-authoritative UI state;
@@ -179,8 +183,9 @@ later app-policy save. See the
 [frontend limitation](SystemDesign/Frontends.md#parent-controls-and-shared-information).
 
 The broker's shared transaction lock covers screen-time controls,
-app-policy saves, approvals, revocations and session preparation; request-choice
-persistence does not take that lock. Policy requests acquire it without waiting;
+app-policy saves, approvals, revocations, session preparation and saved-time
+writes including recovery. Request-choice persistence keeps its own write
+path. Policy requests acquire the transaction lock without waiting;
 explicit extension recovery waits within a finite bound before revalidating the
 target and saved control, including when background monitoring holds the lock.
 Approval revalidates its preference snapshot

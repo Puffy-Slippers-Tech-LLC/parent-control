@@ -83,13 +83,16 @@ def begin():
     # Do not stop an independently restarted replacement invocation.
     guest.require(service()['InvocationID'] == value['invocation'],
                   'kiosk-feedback:broker-replaced')
+    stop_start = action_time()
     guest.run(['systemctl', 'stop', guest.BROKER], timeout=45)
+    stop_end = action_time()
     stopped = service()
     guest.require(stopped['ActiveState'] == 'inactive' and stopped['LoadState'] == 'masked',
                   'kiosk-feedback:broker-not-stopped')
     value['state'] = 'stopped'
     write_record(value)
-    return {'broker_unavailable': True, 'runtime_mask_owned': True, 'fault_time': fault_time}
+    return {'broker_unavailable': True, 'runtime_mask_owned': True, 'fault_time': fault_time,
+            'stop_allowance': [stop_start, stop_end]}
 
 
 def restore():

@@ -41,6 +41,7 @@ from .dependency_diagnostics import (
     collect_dependency_diagnostics, collect_kiosk_admission_diagnostics, collect_kiosk_diagnostics,
 )
 from .logs import DailyLogWriter, configure_broker_logging
+from .grant_store import GrantStore
 from .preferences import PreferenceStore, decode_preferences
 
 LOG = get_logger("service")
@@ -276,6 +277,7 @@ class ServiceDependencies:
     broker_factory: Any = Broker
     policy_rescan_interval_seconds: float | None = 30
     extension_monitor_factory: Any = None
+    grant_store: Any = None
 
 
 def production_dependencies(connection) -> ServiceDependencies:
@@ -299,6 +301,7 @@ def production_dependencies(connection) -> ServiceDependencies:
             application_catalog=lambda uid: list_apps(accounts.get_user(uid)),
         ),
         extension_monitor_factory=ExtensionMonitor,
+        grant_store=GrantStore(),
     )
 
 
@@ -353,6 +356,7 @@ class Service:
             monotonic=dependencies.monotonic,
             now=dependencies.now,
             caller_alive=self.credentials.alive,
+            grant_store=dependencies.grant_store,
         )
 
     def _start_policy(self, dependencies):

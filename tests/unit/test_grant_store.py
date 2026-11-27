@@ -8,10 +8,13 @@ import pytest
 
 from oh_no_parent_control.data_migration import MigrationError, migrate_all_state
 from oh_no_parent_control.grant_store import (
-    FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, PauseIntent,
-    RedeemIntent, SavedBalance, UINT64_MAX,
+    FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, MAX_SAVED_SECONDS,
+    PauseIntent, RedeemIntent, SavedBalance, UINT64_MAX, beyond_daily_seconds,
+    merged_saved_seconds, new_grant_is_fixed, remaining_seconds, running_mode,
 )
 from oh_no_parent_control.config import UINT32_MAX
+from oh_no_parent_control.core import InvalidRequest, calculate_active_extension_seconds
+from oh_no_parent_control.preferences import MAX_TIME_GRANT_SECONDS
 
 
 UID = 1001
@@ -290,3 +293,98 @@ def test_state_migration_validates_saved_time_without_rewriting_it(tmp_path):
     path.write_text('{"version": 1, "version": 1}', encoding="utf-8")
     with pytest.raises(MigrationError, match="duplicate JSON key"):
         migrate_all_state(tmp_path)
+
+
+@pytest.mark.parametrize("in_intent", (False, True))
+def test_saved_limit_is_enforced_in_writes_reads_and_migration(directory, in_intent):
+    store = GrantStore(directory)
+
+    def with_balance(record, seconds):
+        saved = SavedBalance(seconds, False)
+        if in_intent:
+            return replace(record, intent=replace(record.intent, saved=saved))
+        return replace(record, saved=saved)
+
+    before = store.write(with_balance(paused_record(store), MAX_SAVED_SECONDS))
+    assert store.load(UID, USERNAME) == before
+    assert migrate_all_state(directory.parent) == 0
+
+    invalid = with_balance(before, MAX_SAVED_SECONDS + 1)
+    with pytest.raises(GrantStoreError, match="saved balance"):
+        store.write(invalid)
+    assert store.load(UID, USERNAME) == before
+
+    write_raw(directory, invalid.document())
+    with pytest.raises(GrantStoreError, match="saved balance"):
+        store.load(UID, USERNAME)
+    with pytest.raises(MigrationError, match="failed current validation") as failure:
+        migrate_all_state(directory.parent)
+    assert isinstance(failure.value.__cause__, GrantStoreError)
+    assert "saved balance" in str(failure.value.__cause__)
+
+
+NOW = 1_700_000_000
+MINUTE = 60
+
+
+@pytest.mark.parametrize("daily, running, saved, added, beyond, usable, merged", (
+    (0, 0, 0, 5 * MINUTE, 0, 0, 5 * MINUTE),
+    (30 * MINUTE, 0, 0, 5 * MINUTE, 0, 30 * MINUTE, 5 * MINUTE),
+    (10 * MINUTE, 20 * MINUTE, 0, 0, 10 * MINUTE, 20 * MINUTE, 10 * MINUTE),
+    (20 * MINUTE, 20 * MINUTE, 7, 0, 0, 20 * MINUTE, 7),
+    (30 * MINUTE, 20 * MINUTE, 20 * MINUTE, 0, 0, 30 * MINUTE, 20 * MINUTE),
+    (0, 18 * MINUTE, 20 * MINUTE, 0, 18 * MINUTE, 18 * MINUTE, 38 * MINUTE),
+))
+def test_balance_arithmetic_conserves_daily_running_and_saved_seconds(
+        daily, running, saved, added, beyond, usable, merged):
+    # X is the running time beyond daily time; saving it keeps D + X == U.
+    assert beyond_daily_seconds(daily, running) == beyond
+    assert daily + beyond == usable == max(daily, running)
+    assert merged_saved_seconds(saved, added + beyond) == merged
+    # Immediate approval and redemption share max(D, A) + seconds.
+    assert calculate_active_extension_seconds(daily, running, saved) == usable + saved
+
+
+def test_balance_arithmetic_refuses_values_beyond_the_public_and_saved_limits():
+    assert MAX_SAVED_SECONDS == MAX_TIME_GRANT_SECONDS
+    assert merged_saved_seconds(MAX_SAVED_SECONDS - 1, 1) == MAX_SAVED_SECONDS
+    for saved, added in ((MAX_SAVED_SECONDS, 1), (-1, 2), (1.5, 1), (True, 1), (0, UINT32_MAX + 1)):
+        with pytest.raises(ValueError):
+            merged_saved_seconds(saved, added)
+    with pytest.raises(InvalidRequest):
+        calculate_active_extension_seconds(0, UINT32_MAX, 1)
+    with pytest.raises(ValueError):
+        beyond_daily_seconds(-1, 0)
+
+    assert remaining_seconds((NOW - 100, 60), NOW) == 0
+    assert remaining_seconds((NOW - 60, 1200), NOW) == 1140
+    assert remaining_seconds((UINT64_MAX, 0), UINT64_MAX) == 0
+    for grant, now in (((UINT64_MAX + 1, 1), NOW), ((NOW, UINT32_MAX + 1), NOW),
+                       ((NOW, 1), -1), ((NOW, 1.0), NOW), ((NOW + UINT32_MAX, 1), NOW)):
+        with pytest.raises(ValueError):
+            remaining_seconds(grant, now)
+
+
+def test_running_mode_is_derived_from_the_recorded_fixed_tuple_only():
+    live = (NOW - 60, 1200)
+    empty = GrantRecord(UID, USERNAME)
+    fixed = replace(empty, revision=3, fixed=FixedGrant(live, False),
+                    saved=SavedBalance(600, True))
+    paused = replace(fixed, fixed=FixedGrant(live, False, ended_by_pause=True))
+
+    assert running_mode(fixed, live, 1140) == "fixed"
+    # Pre-feature, external and rest-of-day tuples never match the record.
+    assert running_mode(empty, live, 1140) == "deadline"
+    assert running_mode(fixed, (NOW - 60, 1201), 1141) == "deadline"
+    assert running_mode(fixed, (0, 0), 0) == "none"
+    assert running_mode(fixed, live, 0) == "none"
+    assert running_mode(paused, live, 1140) == "none"
+
+    # A new grant absorbing a deadline grant with X > 0 stays deadline.
+    daily_above, daily_equal, daily_below = 1141, 1140, 1139
+    assert new_grant_is_fixed(empty, live, daily_above, 1140)
+    assert new_grant_is_fixed(empty, live, daily_equal, 1140)
+    assert not new_grant_is_fixed(empty, live, daily_below, 1140)
+    assert new_grant_is_fixed(fixed, live, 0, 1140)
+    assert new_grant_is_fixed(paused, live, 0, 1140)
+    assert new_grant_is_fixed(empty, live, 0, 0)

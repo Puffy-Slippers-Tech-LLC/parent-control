@@ -6,6 +6,7 @@ The existing outer VM lease owns restoration, including failed transactions.
 """
 
 import ast
+from dataclasses import replace
 import grp
 import hashlib
 import json
@@ -34,6 +35,9 @@ DEBIAN_NOTICE = '/etc/apt/apt.conf.d/99zz-oh-no-parent-control-reboot-notice'
 REMOVAL_NOTICE = '*** REBOOT REQUIRED: reboot to finish removing Oh No! Parent Control. ***'
 GENERATED_POLICY = ('/etc/fapolicyd/rules.d/01-oh-no-parent-control-deny.rules',
                     '/etc/fapolicyd/rules.d/89-oh-no-parent-control.rules')
+GRANTS = Path('/var/lib/oh-no-parent-control/grants')
+RETIRED_GRANTS = GRANTS.with_name('grants.removed')
+SAVED_SECONDS = 137
 
 
 def state_path():
@@ -72,6 +76,80 @@ def _account_digest(state, *, include_preferences):
 
 def preference_digest(uid):
     return guest.sha(Path('/var/lib/oh-no-parent-control/preferences') / f'{uid}.json')
+
+
+def grant_record(uid):
+    """Read the installed record independently of the broker and fixture writer."""
+    info = GRANTS.lstat()
+    guest.require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and
+                  not info.st_mode & 0o077, 'removal:unsafe-grant-directory')
+    contents = private_recovery_record(GRANTS / f'{uid}.json').contents
+    return json.loads(contents), hashlib.sha256(contents).hexdigest()
+
+
+def seed_saved_time(child, *, pending=True):
+    """Stage a saved grant and, for rollback, a pause just before its native write."""
+    guest.guard()
+    previous_path = sys.path[:]
+    sys.path[:0] = ['/usr/lib/oh-no-parent-control', '/usr/lib/oh-no-parent-control/broker']
+    try:
+        from oh_no_parent_control.grant_store import FixedGrant, GrantStore, PauseIntent, SavedBalance
+    finally:
+        sys.path[:] = previous_path
+    username = pwd.getpwuid(child).pw_name
+    store = GrantStore(GRANTS)
+    current = store.load(child, username)
+    live = tuple(account_property(child, LIMITS, 'ActiveExtension'))
+    guest.require(not current.has_state and live[0] > 0 and live[1] > 1,
+                  'removal:saved-time-fixture-not-fresh')
+    saved = SavedBalance(SAVED_SECONDS, False)
+    # The source stays live. Normal startup must abandon this pending write
+    # after its boundary, keeping the original saved balance and fixed tuple.
+    intent = (PauseIntent(live, (live[0], 1), SavedBalance(saved.seconds + live[1] - 1, False))
+              if pending else None)
+    written = store.write(replace(current, saved=saved, fixed=FixedGrant(live, False), intent=intent))
+    observed, digest = grant_record(child)
+    guest.require(observed == written.document(), 'removal:saved-time-fixture-readback')
+    return observed, digest
+
+
+def verify_pending_saved_time(child, digest):
+    guest.require(grant_record(child)[1] == digest, 'rollback:saved-time-or-intent-changed')
+
+
+def verify_saved_balance(accounts, *, seconds, revision=None):
+    # A read can overlap the broker's normal policy reconciliation after boot.
+    # Retry only the documented transient Busy reply before checking the balance.
+    deadline = time.monotonic() + 30
+    while True:
+        reply = call(accounts['parent'], 'GetGrantStatus', '(uu)', (accounts['child'], 0))
+        if reply.get('error') != guest.BUS + '.Error.Busy':
+            break
+        guest.require(time.monotonic() < deadline, 'removal:grant-status-still-busy')
+        time.sleep(0.25)
+    status = accepted(reply, category='removal:grant-status-unavailable')
+    guest.require(len(status) == 12 and status[5] == seconds and
+                  (revision is None or status[0] == revision),
+                  'removal:unexpected-saved-balance-or-revision')
+
+
+def verify_recovered_saved_time(accounts, before):
+    child = accounts['child']
+    expected = dict(before, intent=None, revision=before['revision'] + 1)
+    verify_saved_balance(accounts, seconds=SAVED_SECONDS, revision=expected['revision'])
+    after, digest = grant_record(child)
+    guest.require(after == expected and
+                  account_property(child, LIMITS, 'ActiveExtension') ==
+                  [before['fixed']['issued_at'], before['fixed']['duration']],
+                  'rollback:saved-time-recovery-changed-entitlements')
+    return digest
+
+
+def verify_reinstalled_grants(accounts):
+    child = accounts['child']
+    guest.require(not os.path.lexists(GRANTS / f'{child}.json') and
+                  not os.path.lexists(RETIRED_GRANTS), 'removal:reinstall-replayed-saved-time')
+    verify_saved_balance(accounts, seconds=0, revision=0)
 
 
 def verify_other_account(state, *, purged=False, category='removal:other-account-changed'):
@@ -246,6 +324,9 @@ def verify_removed(state, *, purged=False, record=None):
     guest.require(session_limits(uid) == (0, 0, [0, 0]) and
                   account_property(uid, 'com.endlessm.ParentalControls.AppFilter',
                                    'AppFilter') == [False, []], 'removal:restrictions-remain')
+    if state.get('saved_time_fixture'):
+        guest.require(not os.path.lexists(GRANTS) and not os.path.lexists(RETIRED_GRANTS),
+                      'removal:grant-store-remains')
     if purged:
         for name in ('/var/lib/oh-no-parent-control', '/var/log/oh-no-parent-control'):
             path = Path(name)
@@ -832,6 +913,8 @@ def aborted_cleanup_rollback_retry(record):
                        extension_lists(accounts[role])) for role in ('parent', 'other')}
     from system_removal_faults import interruption_fault
     check_remove_preflight()
+    pending, pending_digest = seed_saved_time(child)
+    state['saved_time_fixture'] = pending
     with interruption_fault('pam-restoration', record) as fault:
         output, status = observe_aborted_transaction(child, expected, saved, record)
         fault.verify_triggered()
@@ -849,6 +932,7 @@ def aborted_cleanup_rollback_retry(record):
         guest.require(account_digest(child) == policy and extension_lists(child) == extensions and
                       all((Path(name).read_bytes() if os.path.lexists(name) else None) == value
                           for name, value in generated.items()), 'rollback:enforcement-not-restored')
+        verify_pending_saved_time(child, pending_digest)
         verify_other_account(state)
         guest.require(extension_lists(accounts['other']) == other_extensions,
                       'rollback:other-extension-changed')
@@ -938,6 +1022,7 @@ def rollback_rearmed_rebooted(record):
                   'rollback:rearm-reboot-not-observed')
     guest.installed()
     child, parent = state['accounts']['child'], state['accounts']['parent']
+    verify_recovered_saved_time(state['accounts'], state['saved_time_fixture'])
     guest.require(current_expiry() == rearm['expires'] and
                   account_digest(child) == rearm['policy'] and
                   extension_lists(child) == rearm['extensions'],
@@ -1322,7 +1407,7 @@ def private_recovery_record(path):
     return value
 
 
-def observe_rpm_reinstall(state, recovery, generated, record):
+def observe_rpm_reinstall(state, recovery, generated, pending_digest, record):
     """Witness restored enforcement while durable admission still excludes kiosk."""
     from guest_install_recipe import install
     from system_removal_faults import expiry_release_gate, record_reinstall_access
@@ -1373,6 +1458,7 @@ def observe_rpm_reinstall(state, recovery, generated, record):
                     sample['restored'] = restored
                     sample['state_read_seconds'] = round(time.monotonic() - sample_started, 6)
                     guest.require(restored, 'rpm-posterase:enforcement-not-restored-before-release')
+                    verify_pending_saved_time(state['accounts']['child'], pending_digest)
                     launch_started = time.monotonic()
                     observe_launch(state['accounts']['child'], False,
                                    variant=state.get('native_variant', 'command'))
@@ -1426,6 +1512,8 @@ def rpm_posterase_recovery(record):
     provenance = private_recovery_record(Path(
         '/var/lib/oh-no-parent-control/fedora-execution-policy.json'))
     check_remove_preflight()
+    pending, pending_digest = seed_saved_time(child)
+    state['saved_time_fixture'] = pending
     with identity_filesystem_conflict('home-mount', state['accounts']['other'], record) as conflict:
         output = guest.commands.run(['/usr/bin/oh-no-parent-control-purge', '--yes'],
                                     check=False, timeout=1800, merge_stderr=True)
@@ -1439,6 +1527,7 @@ def rpm_posterase_recovery(record):
             '/var/lib/oh-no-parent-control/uninstall-enforcement.json'))
         guest.require(json.loads(snapshot.contents) == {'version': 1, 'accounts': [snapshot_account]},
                       'rpm-posterase:rollback-snapshot-not-retained')
+        verify_pending_saved_time(child, pending_digest)
         mask = Path('/run/systemd/system/oh-no-parent-control-broker.service')
         guest.require(fault_file_identity(Path(
             '/var/lib/oh-no-parent-control/uninstall-broker-mask'))[-1] == b'' and
@@ -1454,7 +1543,7 @@ def rpm_posterase_recovery(record):
                       'rpm-posterase:logs-or-intent-not-retained-safely')
         record('onpc.rpm-posterase.retained',
                'RPM-absent; real-postun-refused; payload-erased; foreign-home-and-sentinel-preserved; exact-rollback-authselect-and-execution-records-retained')
-        observe_rpm_reinstall(state, recovery, generated, record)
+        observe_rpm_reinstall(state, recovery, generated, pending_digest, record)
         guest.verify_package_files()
         conflict.verify()
         verify_surviving_identity(state, recovery, record)
@@ -1493,6 +1582,7 @@ def rpm_posterase_reinstalled_rebooted(record):
     guest.require(recovery['variant'] == 'rpm-posterase' and boot() != recovery['boot'] and
                   guest.reboot_cleared(), 'rpm-posterase:retry-identity-or-boot')
     guest.installed()
+    verify_recovered_saved_time(state['accounts'], state['saved_time_fixture'])
     verify_surviving_identity(state, recovery, record)
     guest.require(current_expiry() == recovery['expires'] and
                   account_digest(state['accounts']['child']) == recovery['policy'] and
@@ -1895,9 +1985,14 @@ def remove(record):
             restriction_failure_diagnostics()
         raise
     verify_active_kiosk_refusal(record, accounts)
-    verify_inflight_admission_refusal(record, accounts, variant=variant)
     fedora = guest.package_path().suffix == '.rpm'
+    saved_digest = verify_inflight_admission_refusal(record, accounts, variant=variant)
     hook = foreign_integration_refusals(record, accounts, other, fedora=fedora)
+    if fedora:
+        seed_saved_time(child, pending=False)
+        verify_saved_balance(accounts, seconds=SAVED_SECONDS)
+    else:
+        guest.require(grant_record(child)[1] == saved_digest, 'removal:retry-changed-saved-time')
     config = json.loads(Path('/etc/oh-no-parent-control/config.json').read_text())
     kiosk = pwd.getpwuid(config['kiosk_uid'])
     guest.require(kiosk.pw_name == PRODUCT and kiosk.pw_dir == '/home/' + PRODUCT,
@@ -1905,6 +2000,7 @@ def remove(record):
     guest.retain_identity_for_redaction(kiosk.pw_uid)
     state = {'accounts': accounts, 'other': other, 'other_policy': other_policy,
              'native_variant': variant,
+             'saved_time_fixture': True,
              'preferences': preference_digest(child),
              'defaults': defaults,
              'other_extensions': other_extensions,
@@ -2054,6 +2150,9 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
     home = Path(account.pw_dir).lstat()
     lease = Path('/run/oh-no-parent-control-kiosk-admission.lock')
     lease_info = lease.lstat()
+    fedora = guest.package_path().suffix == '.rpm'
+    if not fedora:
+        pending, pending_digest = seed_saved_time(accounts['child'])
     with held_account(record) as pid:
         process = Path('/proc') / str(pid)
         pidfd = os.pidfd_open(pid)
@@ -2101,6 +2200,8 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
             guest.require(all(account_digest(accounts[role]) == digest
                               for role, digest in policies.items()),
                           'removal:inflight-refusal-changed-policy')
+            if not fedora:
+                verify_pending_saved_time(accounts['child'], pending_digest)
             # Exercise both an allowed ordinary launch and the existing child
             # denial while the same root handle is still alive.
             observe_launch(accounts['other'], True, variant=variant)
@@ -2114,7 +2215,6 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
             os.close(pidfd)
     check_remove_preflight()
     record('onpc.removal.inflight-admission-drained', 'normal-pam-end; removal-preflight-passed')
-    fedora = guest.package_path().suffix == '.rpm'
     if not fedora:
         status = guest.run(['dpkg-query', '-W', '-f=${Status}', PRODUCT])
         guest.require(status == 'install ok half-configured',
@@ -2154,6 +2254,8 @@ def verify_inflight_admission_refusal(record, accounts, *, variant='command'):
     verify_gates(record)
     record('onpc.removal.inflight-admission-restored',
            'native-configuration-complete; exact-PAM-ownership-and-enforcement-restored; owned-mask-released')
+    if not fedora:
+        return verify_recovered_saved_time(accounts, pending)
 
 
 def verify_active_kiosk_refusal(record, accounts):
@@ -2327,10 +2429,13 @@ def reinstalled_rebooted(record):
     verify_other_account(state, category='removal:reinstall-other-account-changed')
     guest.require(account_property(state['accounts']['child'], LIMITS, 'ActiveExtension') == [0, 0],
                   'removal:reinstall-replayed-grant')
+    verify_reinstalled_grants(state['accounts'])
     record('onpc.removal.reinstall', 'payload-verified; readiness-passed; preferences-retained; grant-cleared')
     # Exercise the package-delivered action while its payload is installed;
     # the action owns native package removal and its subsequent guarded purge.
     configure_restrictions(state['accounts'], variant=state.get('native_variant', 'command'))
+    seed_saved_time(state['accounts']['child'], pending=False)
+    verify_saved_balance(state['accounts'], seconds=SAVED_SECONDS)
     state['purged_boot'] = boot()
     save_state(state)
     purge_path_diagnostics(record, 'before-purge')
@@ -2362,6 +2467,7 @@ def purge_reinstalled_rebooted(record):
     verify_other_account(state, purged=True, category='purge:reinstall-other-account-changed')
     guest.require(account_property(accounts['child'], LIMITS, 'ActiveExtension') == [0, 0],
                   'purge:reinstall-replayed-grant')
+    verify_reinstalled_grants(accounts)
     record('onpc.purge.reinstall', 'payload-verified; readiness-passed; fresh-policy-and-request-defaults')
 
 

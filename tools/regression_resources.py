@@ -77,6 +77,9 @@ DEMANDS = {
     # they use no live bus/session, subprocess, mutable file or shared cache.
     # Unlock-recovery cases also own their native shield and event-loop doubles;
     # admission and cancellation tests neither operate a real lock nor use I/O.
+    # Overlay refresh checks own a private bus on a unique abstract socket and
+    # one short child at a time in the GJS worker's bounded process group.
+    # No host desktop, settings, files or cache.
     'child-node': Demand(2, GIB),
     'child-gjs': Demand(1, GIB),
     'backend': Demand(1, GIB),

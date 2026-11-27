@@ -448,7 +448,10 @@ broker result and panel cache. This calculation is distinct from Parent's
 
 Initial load, native state/deadline/enabled notifications, the timer's estimate
 signal, session-mode transitions, overlay completion and broker-owner changes
-refresh the calculation. GNOME's existing deadline notifications cover
+refresh the calculation. The running overlay can also request a refresh with an
+empty session-bus signal. The extension checks that the bus sender is the live
+overlay process it started and uses its usual broker calculation for usable time.
+GNOME's existing deadline notifications cover
 session-limit/grant changes, inactivity/resume and clock adjustments; no new
 event framework or expiry scheduler is added. Pending reads coalesce, and a
 newer invalidation or disposal rejects obsolete replies. Requests pin the known

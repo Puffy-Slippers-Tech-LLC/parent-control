@@ -630,13 +630,16 @@ test('locking waits for the latest balance through coalesced reads and refresh f
     await new Promise(setImmediate);
     indicator._sync(); // Native state changed while the old cached balance is zero.
     assert.equal(locks, 0, 'an old zero cannot lock while its replacement is pending');
-    indicator.refreshEstimate(); // A newer change supersedes the pending read.
+    // Several overlay invalidations supersede the pending read together.
+    for (let request = 0; request < 8; request++)
+        indicator.refreshEstimate();
     replies.shift().resolve(100_000_000);
     await pending;
     assert.equal(locks, 0, 'the gap before a coalesced replacement cannot lock');
     await new Promise(setImmediate);
     indicator._sync();
     assert.equal(locks, 0);
+    assert.equal(replies.length, 1, 'a burst produces one replacement read');
     replies.shift().resolve(160_000_000);
     await new Promise(setImmediate);
     assert.equal(locks, 0, 'fresh usable time preserves the desktop');

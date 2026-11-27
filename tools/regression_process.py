@@ -606,6 +606,7 @@ def category_run(root, category, argv, *, pipe=True):
                         and test_retention.token() is not None):
                     command.insert(4, '--retention-run=' + test_retention.token())
             status = control.run(command, cwd=root, env=env, cooperative=privileged,
+                                 owned_group=category == 'child-gjs',
                                  **({'preserve_exit': True} if preserve_exit else {}),
                                  **({'umask': 0o077} if category == 'coverage' else {}))
             if status:

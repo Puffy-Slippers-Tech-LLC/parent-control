@@ -1,7 +1,8 @@
 """Session preparation and protocol boundary; acceptance belongs to launchers.
 
-Live sessions pin their executing checkout's selection. Unqualified transports
-are refused before task launch; agent-free policy defaults need no selection.
+Live sessions pin their executing checkout's selection. The checked-in `agent`
+field selects one of two fixed adapters; there is no cross-agent fallback.
+Agent-free policy defaults need no selection.
 """
 
 from dataclasses import dataclass, replace
@@ -12,6 +13,49 @@ from typing import Iterator, Literal, NamedTuple, Protocol
 Role = Literal['backend_reviewer', 'monitor', 'worker', 'translator']
 ProfileRole = Literal['implementation', 'backend_reviewer', 'monitor',
                       'worker', 'translator', 'commit_helper', 'conflict_resolver']
+
+# Shared policy text. Adapters render it through their native mechanisms.
+SESSION_GOAL = ('Simple, lean, robust; do not overengineer. Prefer solutions that simplify '
+                'the resulting codebase as a whole, not merely minimize the patch. '
+                'Keep refactoring within the task’s scope.')
+
+BACKEND_REVIEW_INSTRUCTIONS = """For product backend code involving core functionalities,
+AGENTS.md requires an independent code review by the backend_reviewer agent
+(using its configured metadata profile) before completing the changes. This mandate applies across
+all launchers, including repair, recovery and optimization sessions. It overrides
+coordinator-model and no-delegation rules only for this required review; keep the launcher's
+existing coordinator, implementation, consultation and escalation model policy.
+Do not request this review for changes outside core backend code. Give the reviewer
+the exact owned changes, relevant source/contracts and validation evidence in a
+fresh context. Pause implementation while it reviews; wait for its findings and
+close it before resuming. Resolve actionable findings and revalidate material
+revisions; obtain a fresh review of material backend revisions before completion.
+Record the review findings and resolution in the existing summary or handoff.
+A missing or failed review is incomplete work, never a completed change; use the
+launcher's existing continuation or blocker route. Review gives no test or installed
+acceptance credit. The reviewer cannot implement, test, control resources or delegate.
+"""
+
+# Delegated roles: native name, instruction asset and description. The TOML
+# assets' developer_instructions are the shared role instructions.
+ROLES = {
+    'backend_reviewer': ('backend_reviewer', 'backend_reviewer.toml',
+        'Mandatory independent review of core backend changes only; no implementation'),
+    'monitor': ('plan_monitor', 'plan_monitor.toml',
+        'Routine read-only monitoring; no resource ownership or mutations'),
+    'worker': ('plan_worker', 'plan_worker.toml',
+        'Bounded routine work or coverage refresh on explicitly assigned files'),
+    'translator': ('whatsnew_translator', 'sync_whatsnew_translator.toml',
+        'Read-only latest-release translator/reviewer'),
+}
+
+# Roles name the metadata profiles in config/environment.json agents.tools.
+WORKFLOWS = {
+    'implementation': 'execute-plan', 'translator': 'sync-whatsnew',
+    'commit_helper': 'commit-skill-driver', 'conflict_resolver': 'conflict-resolver',
+    'worker': 'execution-plan-worker', 'monitor': 'execution-plan-monitor',
+    'backend_reviewer': 'backend-reviewer',
+}
 
 
 @dataclass(frozen=True)
@@ -34,17 +78,11 @@ class AgentSelection:
             raise ValueError('invalid executing checkout agent selection handoff')
         return cls(value['name'], root.resolve())
 
-    @property
-    def execution_qualified(self) -> bool:
-        # Transport foundations do not grant workflow execution capabilities.
-        return self.name == 'codex'
-
     def adapter(self) -> 'AgentAdapter':
-        """Fixed qualified mapping; no config-supplied import or executable."""
-        if not self.execution_qualified:
-            raise ValueError(f'Agent {self.name!r} selected by {self.root} is not qualified '
-                             'for workflow execution; no agent was started or fallback selected. '
-                             'Configure a qualified agent before starting a workflow')
+        """Fixed mapping; no config-supplied import or executable."""
+        if self.name == 'claude':
+            from agent_claude import ClaudeAdapter
+            return ClaudeAdapter(self.root)
         from agent_codex import CodexAdapter
         return CodexAdapter(self.root)
 
@@ -144,7 +182,11 @@ class SessionEvent:
 
 
 class BatchPresentation(Protocol):
-    """Decode batch stdout only; the native result file retains its owner."""
+    """Decode batch stdout; the native result file retains its owner.
+
+    A CLI without a result-file option has its adapter persist only the
+    successful coordinator's structured result to the run's agent-result.json.
+    """
 
     def feed(self, data: bytes) -> Iterator[SessionEvent]: ...
     def finish(self) -> Iterator[SessionEvent]: ...
@@ -184,11 +226,15 @@ class GoalSessionProtocol(Protocol):
     """A fresh plain assignment whose native runtime owns goal continuation.
 
     done/status describe native lifecycle only. Plain sessions have neither a
-    workflow response schema nor a final-result decoder.
+    workflow response schema nor a final-result decoder. chat_ready reports
+    when steer() can accept developer input.
     """
     outgoing: bytearray
     done: bool
     status: int
+
+    @property
+    def chat_ready(self) -> bool: ...
 
     def start(self) -> None: ...
     def start_turn(self, text: str) -> None: ...
@@ -230,6 +276,21 @@ def resolve_profile(role: ProfileRole, *, model: str | None = None,
     return selection.adapter().resolve_profile(role, model=model, effort=effort)
 
 
+def resolve_role_profile(role: ProfileRole, *, selection: AgentSelection,
+                         model: str | None = None, effort: str | None = None) -> ModelProfile:
+    if role not in WORKFLOWS:
+        raise ValueError('unsupported agent model profile')
+    return resolve_workflow_profile(WORKFLOWS[role], selection=selection, model=model, effort=effort)
+
+
+def helper_profile(adapter: AgentAdapter, request: SessionRequest, role: Role) -> ModelProfile:
+    """Translators follow their coordinator; other helpers use their pinned role profile."""
+    delegation = request.delegation
+    return (adapter.resolve_profile(role, model=delegation.model or request.model,
+                                    effort=delegation.effort or request.effort)
+            if role == 'translator' else adapter.resolve_profile(role))
+
+
 def _token(value, field):
     if not isinstance(value, str) or not value or any(c.isspace() or ord(c) < 32 for c in value):
         raise ValueError(f'{field} must be a nonempty token')
@@ -251,7 +312,6 @@ def _profile(profiles, key, field):
 
 def _profiles(selection):
     from vm_selection import read_document
-    selection.adapter()  # Metadata cannot qualify an inactive provider.
     path = selection.root / 'config/environment.json'
     field = f'{path}: agents'
     document = read_document(path)
@@ -333,9 +393,9 @@ def capacity_fallback(model: str, *, selection: AgentSelection | None = None) ->
 def setup_agent(root: Path, *, headless: bool = False) -> None:
     """User-owned native policy preparation, called only by setup.sh.
 
-    Unqualified selections are informational during setup, never permission to
+    An invalid selection is informational during setup, never permission to
     prepare another provider or install/authenticate a CLI. Installer failures
-    for a qualified provider still fail setup normally.
+    for the selected provider still fail setup normally.
     """
     try:
         selection = resolve_selection(root)

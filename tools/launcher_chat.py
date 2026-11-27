@@ -420,7 +420,8 @@ class AppSession:
         self.final = None
         self.completed = False
         launcher.atomic(self.run / 'agent-error.json', {
-            'message': message, 'context': failure['context'], **failure['details']})
+            'message': message, 'context': failure['context'], 'capacity': failure['capacity'],
+            **failure['details']})
         update_task_info(self.run, self.task, {'last_error': clean(failure['task_error'])})
         self.publish('finished')
         if failure['capacity']:

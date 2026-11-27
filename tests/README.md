@@ -605,8 +605,8 @@ an already running session. `--model` and `--effort` override their respective
 profile values, including remembered explicit overrides on `--resume`. Model and
 effort must resolve to nonempty tokens. Missing or malformed profiles fail without hidden defaults;
 the native runtime still determines model and effort support.
-The workflow has no automatic escalation ladder. The `agents.claude.defaults` presets
-do not enable the unqualified Claude transport.
+The workflow has no automatic escalation ladder. When `agent` is `claude`, the
+`agents.claude.defaults` presets resolve the same profile names.
 Existing authentication, sandbox and command
 authorization remain in effect. Core product backend edits retain the
 [independent review requirement](../AGENTS.md#product-boundaries).

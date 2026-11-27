@@ -10,7 +10,7 @@ usage() {
 Usage: ./setup.sh [MODE] [--vm NAME | --vmhost NAME]
   (no mode)             Set up/refresh an Ubuntu or Fedora 44/45 development machine (no VMs needed)
   --server              Set up an Ubuntu 26.04+ SSH automation and VM host; disable sleep
-                       Includes libvirt/QEMU and configured KVM halt polling; no Codex CLI installation
+                       Includes libvirt/QEMU and configured KVM halt polling; no coding-agent CLI installation
   --connect-server      Verify SSH access to all configured servers and install Watch for local checkouts
   --dependencies-only   Install development, build and UI/GUI-fixture dependencies
   --vm-host-only        Add VM host dependencies and refresh development helpers/policies

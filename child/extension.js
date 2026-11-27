@@ -17,6 +17,7 @@ import {WellbeingSuppression} from './wellbeingSuppression.js';
 import {LockedSessionFocus} from './lockedSessionFocus.js';
 import {SessionDiagnostics} from './sessionDiagnostics.js';
 import {SessionUnlockRecovery} from './sessionUnlock.js';
+import {OVERLAY_BUS_NAME, OVERLAY_OBJECT_PATH, watchOverlayRefresh} from './overlayRefresh.js';
 
 const INSTALLED_REQUEST_APP = '/usr/bin/oh-no-parent-control';
 const SETTINGS_SCHEMA = 'com.puffyslippers.oh-no-parent-control.child';
@@ -91,13 +92,15 @@ export default class OhNoParentControlExtension extends Extension {
         // so every overlay exit reloads the child's saved presentation settings.
         this._requestOwner = null;
         this._requestWatch = Gio.bus_watch_name_on_connection(Gio.DBus.session,
-            'com.puffyslippers.OhNoParentControl.ChildRequest', Gio.BusNameWatcherFlags.NONE,
+            OVERLAY_BUS_NAME, Gio.BusNameWatcherFlags.NONE,
             (_connection, _name, owner) => { this._requestOwner = owner; },
             () => {
                 if (!this._requestOwner) return;
                 this._requestOwner = null;
                 this._refreshLanguage();
             });
+        this._requestRefreshWatch = watchOverlayRefresh(Gio.DBus.session,
+            () => this._requestProcess, () => this._indicator?.refreshEstimate());
         this._refreshLanguage();
     }
 
@@ -180,6 +183,8 @@ export default class OhNoParentControlExtension extends Extension {
         if (this._requestWatch) Gio.bus_unwatch_name(this._requestWatch);
         this._requestWatch = 0;
         this._requestOwner = null;
+        if (this._requestRefreshWatch) Gio.DBus.session.signal_unsubscribe(this._requestRefreshWatch);
+        this._requestRefreshWatch = 0;
         this._sessionUnlock?.close();
         this._sessionUnlock = null;
         this._sessionDiagnostics?.close();
@@ -208,8 +213,8 @@ export default class OhNoParentControlExtension extends Extension {
 
     _showRequest(preferences = false) {
         if (preferences && this._requestProcess) {
-            Gio.DBus.session.call('com.puffyslippers.OhNoParentControl.ChildRequest',
-                '/com/puffyslippers/OhNoParentControl/ChildRequest', 'org.gtk.Actions', 'Activate',
+            Gio.DBus.session.call(OVERLAY_BUS_NAME,
+                OVERLAY_OBJECT_PATH, 'org.gtk.Actions', 'Activate',
                 new GLib.Variant('(sava{sv})', ['preferences', [], {}]), null,
                 Gio.DBusCallFlags.NONE, 5000, null, (connection, result) => {
                     try { connection.call_finish(result); }
@@ -229,12 +234,13 @@ export default class OhNoParentControlExtension extends Extension {
             this._requestProcess = Gio.Subprocess.new(
                 argv, Gio.SubprocessFlags.NONE);
             this._requestProcess.wait_async(null, (process, result) => {
+                if (this._requestProcess !== process)
+                    return;
                 try {
                     process.wait_finish(result);
-                    if (this._requestProcess === process)
-                        recordChildProcessExit(process, 'request');
+                    recordChildProcessExit(process, 'request');
                 } catch (error) {
-                    this._errors.report(error, 'request-wait');
+                    this._errors?.report(error, 'request-wait');
                 }
                 this._requestProcess = null;
                 const completion = requestCompletionState();
@@ -252,13 +258,14 @@ export default class OhNoParentControlExtension extends Extension {
     }
 
     _stopRequest() {
-        if (!this._requestProcess)
+        const process = this._requestProcess;
+        this._requestProcess = null;
+        if (!process)
             return;
         try {
-            this._requestProcess.force_exit();
+            process.force_exit();
         } catch (_error) {
             logWarning('child.overlay-stop-failed', {}, 'operation');
         }
-        this._requestProcess = null;
     }
 }

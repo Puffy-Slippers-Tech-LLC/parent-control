@@ -1,8 +1,4 @@
-"""Real host-desktop authentication with no privileged preview effects.
-
-Only interactive launchers enable this. Automated component previews retain
-their private dependencies. PolicyKit owns administrator selection and secrets.
-"""
+"""Real host-desktop authentication for interactive preview requests."""
 
 import grp
 import os
@@ -14,6 +10,7 @@ from gi.repository import Gio, GLib
 from common.oh_no_parent_control_ui import messages as m
 from common.oh_no_parent_control_ui.approval_prompt import format_approval_message
 from common.oh_no_parent_control_ui.localization import load_translations
+from common.oh_no_parent_control_ui.test_identities import TEST_IDENTITIES
 
 NAME = 'org.freedesktop.PolicyKit1'
 PATH = '/org/freedesktop/PolicyKit1/Authority'
@@ -21,13 +18,24 @@ INTERFACE = NAME + '.Authority'
 ACTION = 'com.puffyslippers.onpc.preview.approve'
 
 
-def approvers():
-    """Use real local administrators; fixture child accounts remain disposable."""
+def host_approver(approver_uid):
+    """Resolve a preview parent to a real administrator for PolicyKit."""
+    fixture = next((identity for identity in TEST_IDENTITIES
+                    if identity.role == 'administrator' and identity.preview_uid == approver_uid), None)
+    if fixture is None:
+        return None
     group_name = 'wheel' if platform.freedesktop_os_release().get('ID') == 'fedora' else 'sudo'
-    group = grp.getgrnam(group_name)
-    return tuple((user.pw_uid, user.pw_gecos.split(',')[0] or user.pw_name, '')
-                 for user in pwd.getpwall()
-                 if user.pw_name in group.gr_mem or user.pw_gid == group.gr_gid)
+    try:
+        group = grp.getgrnam(group_name)
+    except KeyError:
+        return None
+    administrators = (user for user in pwd.getpwall()
+                      if user.pw_name in group.gr_mem or user.pw_gid == group.gr_gid)
+    caller_uid = os.getuid()
+    # Prefer the selected fixture if it exists on this host, then the caller.
+    account = min(administrators, key=lambda user: (
+        user.pw_name != fixture.username, user.pw_uid != caller_uid, user.pw_uid), default=None)
+    return account.pw_name if account is not None else None
 
 
 class PreviewApproval:
@@ -47,7 +55,8 @@ class PreviewApproval:
         try:
             _target_uid, target_label, approver_uid, duration_seconds, allow_soft = \
                 window._request_content.selected()
-            if approver_uid not in {uid for uid, _label, _icon in approvers()}:
+            approver = host_approver(approver_uid)
+            if approver is None:
                 raise ValueError(m.REQUEST_DENIED)
         except ValueError as error:
             window._state.finish()
@@ -61,7 +70,7 @@ class PreviewApproval:
                 window._applied_language or '', (window._desktop_language,))
             details = {
                 'target-account': target_label,
-                'approver-user': pwd.getpwuid(approver_uid).pw_name,
+                'approver-user': approver,
                 'polkit.message': format_approval_message(
                     duration_seconds, allow_soft, translations),
             }

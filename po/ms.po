@@ -186,6 +186,14 @@ msgstr "Berikan akses kepada %(target)s\nselama %(duration)s\n\n✗ Aplikasi den
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "Berikan akses kepada %(target)s\nselama %(duration)s\n\n✓ Aplikasi dengan sekatan yang boleh dilonggarkan dibenarkan"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "Mula gunakan masa yang diluluskan sekarang."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "Simpan masa yang diluluskan untuk digunakan kemudian. Tindakan ini menghentikan buat sementara sebarang kebenaran bertempoh tetap yang sedang aktif. Pilihan untuk aplikasi berkuat kuasa apabila masa yang disimpan digunakan."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

@@ -186,6 +186,14 @@ msgstr "Acordați acces pentru %(target)s\npentru %(duration)s\n\n✗ Aplicații
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "Acordați acces pentru %(target)s\npentru %(duration)s\n\n✓ Aplicațiile blocate condiționat sunt permise"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "Începeți acum să folosiți timpul aprobat."
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "Salvați timpul aprobat pentru mai târziu. Această acțiune suspendă temporar orice permisiune activă cu durată fixă. Opțiunea aleasă pentru aplicații se aplică atunci când este folosit timpul salvat."
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

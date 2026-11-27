@@ -62,6 +62,14 @@ msgstr "%(target)s にアクセスを許可\n%(duration)s の間\n\n✗ 一時�
 msgid "Grant access to %(target)s\nfor %(duration)s\n\n✓ Soft-blocked apps allowed"
 msgstr "%(target)s にアクセスを許可\n%(duration)s の間\n\n✓ 一時的にブロックを解除できるアプリを許可"
 
+#. PolicyKit prompt paragraph for immediate use of approved time.
+msgid "Start the approved time now."
+msgstr "許可された時間の利用を今すぐ開始します。"
+
+#. PolicyKit prompt paragraph for saving approved time, including when the soft-app choice applies.
+msgid "Save the approved time for later. This pauses any running fixed-duration grant. The app choice applies when the saved time is used."
+msgstr "許可された時間を後で使えるように保存します。一定時間の利用許可がすでに有効な場合は、一時停止します。アプリの許可設定は、保存した時間を使うときに適用されます。"
+
 #. Separator between nonzero duration units.
 msgctxt "duration list separator"
 msgid ", "

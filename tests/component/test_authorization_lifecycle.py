@@ -8,6 +8,7 @@ No real agent, host session, shared socket or new storage owner is introduced.
 """
 
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 import logging
 import threading
 from types import SimpleNamespace
@@ -17,14 +18,15 @@ from gi.repository import Gio, GLib
 
 from oh_no_parent_control import authorization
 from oh_no_parent_control.adapters import (
-    CallerCredentials, DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
+    CallerCredentials, LogindSessions, DBUS_NAME, DBUS_PATH, DBUS_INTERFACE,
     LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE, LOGIN_SESSION_INTERFACE,
     PROPERTIES_INTERFACE,
 )
 from oh_no_parent_control.authorization import (
     PolkitAuthorizer, POLKIT_NAME, POLKIT_PATH, POLKIT_INTERFACE,
 )
-from oh_no_parent_control.core import BackendFailure, Busy
+from oh_no_parent_control.core import AccessDenied, BackendFailure, Busy
+from oh_no_parent_control.grant_store import GrantStore, SavedBalance
 from tests.support.broker import Accounts, Preferences, make_broker
 from tests.support.dbus import open_bus, close_connection, spin_until
 
@@ -132,7 +134,8 @@ class Authorities:
 
     @staticmethod
     def variants(values):
-        return {key: GLib.Variant("b" if type(value) is bool else "s", value)
+        signatures = {"User": "(uo)", "TimestampMonotonic": "t"}
+        return {key: GLib.Variant(signatures.get(key, "b" if type(value) is bool else "s"), value)
                 for key, value in values.items()}
 
     def change(self, values, *, path=SESSION, invalidated=()):
@@ -165,7 +168,7 @@ class Authorities:
 
 
 @pytest.fixture
-def lifecycle(dbusmock_system):
+def lifecycle(dbusmock_system, tmp_path):
     with ExitStack() as owned:
         server = open_bus(dbusmock_system.address)
         owned.callback(close_connection, server)
@@ -193,23 +196,34 @@ def lifecycle(dbusmock_system):
         owned.callback(close_connection, kiosk)
         accounts, preferences = Accounts(), Preferences()
         preferences.values[1001]["parent_control_enabled"] = True
+        store = GrantStore(tmp_path / "grants")
         broker = make_broker(accounts=accounts, preferences=preferences,
                              authorizer=PolkitAuthorizer(broker_bus),
-                             alive=CallerCredentials(broker_bus).alive)
+                             alive=CallerCredentials(broker_bus).alive,
+                             grant_store=store, sessions=LogindSessions(broker_bus))
         threads = []
 
-        def start(surface="child", connection=None, *, duration=300, allow_soft=True):
+        def start(surface="child", connection=None, *, duration=300, allow_soft=True,
+                  deferred_revision=None, approver_uid=1003):
             connection = connection or (caller if surface == "child" else kiosk)
+            caller_uid = 1001 if surface == "child" else 991
             state = {"done": False}
+            if deferred_revision is not None:
+                authorities.properties.update(Id="child", User=(caller_uid, USER), Remote=False,
+                                              TimestampMonotonic=1, Type="wayland")
 
             def run():
                 try:
-                    if surface == "child":
+                    if deferred_revision is not None:
+                        state["result"] = broker.request_deferred_access(
+                            caller_uid, connection.get_unique_name(), 1001, approver_uid,
+                            duration, allow_soft, deferred_revision)
+                    elif surface == "child":
                         state["result"] = broker.request_own_access(
-                            1001, connection.get_unique_name(), 1003, duration, allow_soft)
+                            1001, connection.get_unique_name(), approver_uid, duration, allow_soft)
                     else:
                         state["result"] = broker.request_access(
-                            991, connection.get_unique_name(), 1001, 1003, duration, allow_soft)
+                            991, connection.get_unique_name(), 1001, approver_uid, duration, allow_soft)
                 except Exception as error:
                     state["error"] = error
                 finally:
@@ -222,7 +236,7 @@ def lifecycle(dbusmock_system):
 
         try:
             yield SimpleNamespace(authorities=authorities, broker=broker, accounts=accounts,
-                                  caller=caller, kiosk=kiosk, start=start, server=server)
+                                  caller=caller, kiosk=kiosk, start=start, server=server, store=store)
         finally:
             # Release only our own outstanding fake method invocations/threads.
             for item in authorities.checks:
@@ -400,7 +414,8 @@ def test_authentication_outcomes_and_selected_identity_are_preserved(lifecycle, 
         "own-access" if surface == "child" else "access")
     assert flags == 1
     assert details == {"target-account": "Child", "approver-user": "admin",
-                       "polkit.message": "Grant access to $(target-account)\nfor 5 minutes\n\n✓ Soft-blocked apps allowed"}
+                       "polkit.message": "Grant access to $(target-account)\nfor 5 minutes\n\n"
+                       "✓ Soft-blocked apps allowed\n\nStart the approved time now."}
     lifecycle.authorities.reply(authorized=outcome == "approved",
                                 details={"polkit.dismissed": "true"} if outcome == "cancelled" else {},
                                 error=outcome == "agent-lost")
@@ -448,6 +463,124 @@ def test_dismissal_detail_not_challenge_controls_silent_return(
     assert pending["result"][1] == expected
     assert lifecycle.accounts.events == []
     assert lifecycle.authorities.cancellations == []
+
+
+@pytest.mark.parametrize("surface", ("child", "kiosk"))
+def test_deferred_approval_names_the_mode_and_only_saves_time(lifecycle, surface):
+    authority = lifecycle.authorities
+    authority.fallback = True
+    accounts = lifecycle.accounts
+    accounts.users[1006] = replace(accounts.users[1003], uid=1006, username="selected_parent")
+    pending = lifecycle.start(surface, deferred_revision=0, approver_uid=1006, duration=1200)
+    spin_until(lambda: authority.checks or pending["done"])
+    assert "error" not in pending
+    subject, action, details, flags, _cancel_id = authority.checks[0]["parameters"]
+    connection = lifecycle.caller if surface == "child" else lifecycle.kiosk
+    assert subject == ("system-bus-name", {"name": connection.get_unique_name()})
+    assert action == authorization.REQUEST_ACTION_IDS[surface]
+    assert flags == 1
+    assert details == {"target-account": "Child", "approver-user": "selected_parent",
+                       "polkit.message": "Grant access to $(target-account)\nfor 20 minutes\n\n"
+                       "✓ Soft-blocked apps allowed\n\nSave the approved time for later. This pauses "
+                       "any running fixed-duration grant. The app choice applies when the saved time is used."}
+    assert lifecycle.store.load(1001, "child").revision == 0
+    authority.reply(authorized=True)
+    spin_until(lambda: pending["done"])
+    result = pending["result"]
+    assert (result.result_code, result.pause_error, result.saved_seconds) == ("saved", "", 1200)
+    assert lifecycle.store.load(1001, "child").saved == SavedBalance(1200, True)
+    assert accounts.events == []
+
+
+@pytest.mark.parametrize("refusal", ("denied", "dismissed", "disconnected"))
+def test_deferred_refusal_never_saves_or_writes_policy(lifecycle, monkeypatch, refusal):
+    authority = lifecycle.authorities
+    pending = lifecycle.start(deferred_revision=0)
+    spin_until(lambda: authority.checks or pending["done"])
+    assert authority.checks
+    if refusal == "disconnected":
+        with pause_operation(monkeypatch, lifecycle.broker, "_caller_alive") as (entered, release):
+            authority.reply(authorized=True)
+            spin_until(entered.is_set)
+            close_connection(lifecycle.caller)
+            release.set()
+            spin_until(lambda: pending["done"])
+    else:
+        authority.reply(details={"polkit.dismissed": "true"} if refusal == "dismissed" else {})
+        spin_until(lambda: pending["done"])
+    result = pending["result"]
+    assert result.result_code == ("denied" if refusal == "denied" else "cancelled")
+    assert result.saved_seconds is None and result.pause_error == ""
+    assert lifecycle.store.load(1001, "child").revision == 0
+    assert lifecycle.accounts.events == []
+
+
+def test_deferred_authorizer_rejects_session_replaced_before_its_prompt(lifecycle):
+    authority = lifecycle.authorities
+    # The first GetAll resolves the caller; the response carries the original
+    # start timestamp. The prompt must refuse the replacement on the same path.
+    authority.on_snapshot = lambda: authority.properties.update(TimestampMonotonic=2)
+    pending = lifecycle.start(deferred_revision=0)
+    spin_until(lambda: pending["done"])
+    assert pending["result"].result_code == "cancelled"
+    assert authority.checks == lifecycle.accounts.events == []
+    assert lifecycle.store.load(1001, "child").revision == 0
+
+
+@pytest.mark.parametrize("notification", ("activity", "activity invalidated", "display invalidated"))
+def test_deferred_kiosk_request_cancels_after_departure_and_return_before_prompt(
+        lifecycle, monkeypatch, notification):
+    authority = lifecycle.authorities
+    authority.fallback = True
+    with pause_operation(monkeypatch, lifecycle.store, "load") as (entered, release):
+        pending = lifecycle.start("kiosk", deferred_revision=0)
+        spin_until(entered.is_set)
+        if notification == "activity":
+            authority.change({"Active": False})
+            authority.change({"Active": True})
+        elif notification == "activity invalidated":
+            for active in (False, True):
+                authority.properties["Active"] = active
+                authority.change({}, invalidated=("Active",))
+        else:
+            authority.change_display(("other", OTHER_SESSION), invalidated=True)
+            authority.change_display(("child", SESSION), invalidated=True)
+        release.set()
+        spin_until(lambda: pending["done"] or authority.checks)
+        assert authority.checks == []
+    assert pending["result"].result_code == "cancelled"
+    assert lifecycle.accounts.events == []
+    assert lifecycle.store.load(1001, "child").revision == 0
+
+
+@pytest.mark.parametrize("change", ("request choices", "parent demoted"))
+def test_deferred_approval_rechecks_selection_after_the_final_session_read(lifecycle, change):
+    authority = lifecycle.authorities
+    pending = lifecycle.start(deferred_revision=0)
+    spin_until(lambda: authority.checks or pending["done"])
+    assert authority.checks
+    snapshots = 0
+
+    def change_during_admission_read():
+        nonlocal snapshots
+        snapshots += 1
+        # After Polkit replies, core resolves the caller again and then the
+        # authorizer rereads the bound session before its admission latch.
+        if snapshots != 2:
+            return
+        if change == "request choices":
+            lifecycle.broker.update_request_preferences(1001, 1001, "custom", 22, False)
+        else:
+            parent = lifecycle.accounts.users[1003]
+            lifecycle.accounts.users[1003] = replace(parent, is_admin=False)
+
+    authority.on_snapshot = change_during_admission_read
+    authority.reply(authorized=True)
+    spin_until(lambda: pending["done"])
+    assert snapshots == 2
+    assert isinstance(pending["error"], AccessDenied)
+    assert lifecycle.accounts.events == []
+    assert lifecycle.store.load(1001, "child").revision == 0
 
 
 @pytest.mark.parametrize("outcome", ("approved", "denied", "cancelled"))

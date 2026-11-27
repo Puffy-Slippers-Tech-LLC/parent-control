@@ -21,12 +21,14 @@ def format_requested_duration(duration_seconds: int, translations=None) -> str:
     return m.DURATION_LIST_SEPARATOR.render(translations).join(parts)
 
 
-def format_approval_message(duration_seconds, allow_soft_blocked_apps, translations):
+def format_approval_message(duration_seconds, allow_soft_blocked_apps, translations, *, deferred=False):
     template = (m.POLKIT_GRANT_SOFT_APPS if allow_soft_blocked_apps
                 else m.POLKIT_GRANT)
+    mode = m.POLKIT_APPROVE_LATER if deferred else m.POLKIT_APPROVE_NOW
     # Polkit expands details once, after translation. Account labels stay in
     # their own detail so literal $(...) in user data is never reinterpreted.
-    return (template % {
+    request = (template % {
         'target': '$(target-account)',
         'duration': format_requested_duration(duration_seconds, translations),
     }).render(translations)
+    return f"{request}\n\n{mode.render(translations)}"

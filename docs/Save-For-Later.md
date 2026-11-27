@@ -1,7 +1,7 @@
 # Save approved time for later execution plan
 
 Task queue: [Ordered task queue](Save-For-Later-Task-Queue.md).
-Next task: **008 — [Let a parent approve time for later](Save-For-Later-Tasks/008.md)**.
+Next task: **009 — [Recover interrupted transfers and clear withdrawn time](Save-For-Later-Tasks/009.md)**.
 
 Implement deferred parent approval, manual pause, and use of saved time in the
 kiosk and child overlay. The [feature design](Save-For-Later-Design.md) retains

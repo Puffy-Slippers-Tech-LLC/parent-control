@@ -1373,7 +1373,7 @@ def chinese_mate_texts(provider_version=None):
     require(version in ('1.26.1', '1.28.1'), 'ui:mate-native-version')
     return {'recipient': 'onpc-parent-jamie 的密码(P)：',
             'message': '允许 Jordan (Child) 访问\n时长为 1 分钟、15 秒\n\n'
-                       '✓ 允许使用可临时解除封锁的应用',
+                       '✓ 允许使用可临时解除封锁的应用\n\n立即开始使用已批准的时长。',
             'cancel': '取消' if version == '1.28.1' else '取消(C)', 'authenticate': '授权(A)',
             'explanation': ('一个程序正试图执行一个需要特权的动作。要求授权为超级用户以执行该动作。'
                             if version == '1.28.1' else
@@ -12509,7 +12509,12 @@ class AccessibleUI:
                 message = (f'Zugriff für {child} gewähren\nfür {request["duration_seconds"] // 60} Minuten\n\n'
                            + ('✓ Vorübergehend freigebbare Apps erlaubt' if request['allow_soft'] else
                               '✗ Vorübergehend freigebbare Apps nicht erlaubt'))
-        require(labels.count(texts['message'] if texts else message) == 1, 'ui:mate-request-context-missing')
+        if texts:
+            message = texts['message']
+        else:
+            mode = 'Die genehmigte Zeit jetzt starten.' if language == 'de' else 'Start the approved time now.'
+            message += '\n\n' + mode
+        require(labels.count(message) == 1, 'ui:mate-request-context-missing')
         if texts:
             require(labels.count(texts['explanation']) == 1, 'ui:mate-native-explanation')
             authenticators = [node for node in controls if facts[node]['role'] in ('push button', 'button')

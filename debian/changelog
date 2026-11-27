@@ -1,8 +1,15 @@
 oh-no-parent-control (2.1+local1~ubuntu26.04.1) resolute; urgency=medium
 
-  * Start development builds for version 2.1.
+  Bug Fixes
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Mon, 23 Nov 2026 03:35:10 +0000
+  Robustness and Reliability Improvements
+  * Parent App: Background refreshes interrupted by a broker restart show a
+    brief notification and keep the window usable.
+  * Child App: Retries saving recent screen time when the parental controls
+    timer is briefly busy, so active use is not lost from the child's
+    countdown.
+
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 26 Nov 2026 23:05:34 +0000
 
 oh-no-parent-control (2.0+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

@@ -468,16 +468,13 @@ Do not duplicate these transitions in several handlers, and do not implement
 deferred approval by issuing an active grant followed by Pause. Pause is not a
 call to Revoke: revocation destroys the entitlement and has app effects.
 
-The public method names below are proposed additive contracts; finalize their
-wire signatures together in both introspection definitions and clients.
-
-| Method | Caller and behavior |
+| Method | Behavior |
 | --- | --- |
 | Existing RequestAccess, RequestOwnAccess | Immediate requests; parent approval; unchanged arithmetic; saved time unchanged; additionally [record](#immediate-approvals) a fixed result |
-| RequestDeferredAccess(target, approver, duration, allow_soft, revision) | Selected-parent authentication; saves the approved minutes, then runs the pause step when a fixed grant runs |
-| PauseGrant(target, revision) | Running fixed grant; the pause step |
-| UseSavedTime(target, revision) | Positive saved balance; redemption |
-| GetGrantStatus(target) | Same target-read boundary as GetTimeStatus; explicit state, coherent D/A/X/S, usable U, total T, derived running mode and end time, optional estimates for both request modes, evaluation time, revision, and availability |
+| RequestDeferredAccess | Selected-parent authentication; saves the approved minutes, then runs the pause step when a fixed grant runs |
+| PauseGrant | Running fixed grant; the pause step |
+| UseSavedTime | Positive saved balance; redemption |
+| GetGrantStatus | Coherent snapshot of D/A/X/S/U/T, running mode, estimates and revision |
 | Existing RevokeOneTimeGrant | Administrator only; clears running and saved time and any pending transition |
 
 The caller selects the rules, as `GetTimeStatus` already does. The configured
@@ -485,7 +482,154 @@ kiosk UID gets kiosk rules for an eligible target. A caller equal to the target
 gets child rules. Every other caller, including an administrator, is refused.
 The kiosk UID is never an eligible child, so the roles cannot overlap. Each
 mutation carries the revision the client last read; the broker refuses a
-mismatch with refresh guidance.
+mismatch with refresh guidance. The [wire contract](#wire-contract) fixes the
+exact signatures, results and compatibility rules.
+
+### Wire contract
+
+The additions use the existing interface and object path,
+`com.puffyslippers.OhNoParentControl1`. Existing methods keep their names,
+signatures, argument names, result codes and error names. Both introspection
+definitions, the installed XML and `INTROSPECTION_XML` in `service.py`, list the
+same four methods after the existing ones. The bus policy already allows the
+whole interface. `Error.X` below means
+`com.puffyslippers.OhNoParentControl1.Error.X`.
+
+| Method | In | Out |
+| --- | --- | --- |
+| `RequestDeferredAccess` | `u target_uid`, `u approver_uid`, `u duration_seconds`, `b allow_soft_blocked_apps`, `t revision` | `s correlation_id`, `s result_code`, `s pause_error` |
+| `PauseGrant` | `u target_uid`, `t revision` | none |
+| `UseSavedTime` | `u target_uid`, `t revision` | none |
+| `GetGrantStatus` | `u target_uid`, `u requested_seconds` | the twelve status values below, `(ttuuuuuustuu)` |
+
+| Method | Child, target is caller | Kiosk UID, eligible target | Administrator or UID 0 | Other callers |
+| --- | --- | --- | --- | --- |
+| The three mutations | child rules | kiosk rules | `AccessDenied` | `AccessDenied` |
+| `GetGrantStatus` | own | selected child | selected child | `AccessDenied` |
+| `RevokeOneTimeGrant` | `AccessDenied` | `AccessDenied` | selected child | `AccessDenied` |
+
+Roles come only from the sender's bus credentials: its UID, and its process for
+logind session resolution. No argument names a role or surface. The mutations
+check the caller role before reading the target, so another caller learns
+nothing about the account; a child naming another target gets `AccessDenied`.
+Target errors then match today's (`InvalidRequest` for an unavailable account,
+`AccessDenied` for an ineligible one). The mutations also require the
+[signed-in session binding](#caller-and-session-binding) and enabled
+screen-time control; a failure of either is `AccessDenied`. Like
+`GetTimeStatus`, `GetGrantStatus` needs no session and also answers for a
+disabled control, whose cleared record reads as nothing saved.
+
+**Status values,** in reply order. All seconds values use one broker evaluation
+time.
+
+| Name | Type | Meaning |
+| --- | --- | --- |
+| `revision` | `t` | Record revision, defined below |
+| `evaluated_at_epoch_seconds` | `t` | Broker wall-clock time of this snapshot |
+| `daily_remaining_seconds` | `u` | D: completed records only; a child's own read may lower it with its fresh native deadline, as `GetTimeStatus` does |
+| `running_remaining_seconds` | `u` | A |
+| `running_beyond_daily_seconds` | `u` | X |
+| `saved_seconds` | `u` | S |
+| `usable_seconds` | `u` | U = max(D, A) |
+| `total_seconds` | `u` | T = U + S |
+| `running_mode` | `s` | `none`, `fixed` or `deadline`, [derived](#grant-modes) |
+| `running_end_epoch_seconds` | `t` | i + d of the running tuple; 0 for `none` |
+| `immediate_estimate_seconds` | `u` | U after an immediate approval of `requested_seconds`: max(D, A) + N |
+| `deferred_estimate_seconds` | `u` | S after a deferred approval: S + N, plus X when the mode is `fixed` |
+
+The mode is `none` when A = 0, and for a live tuple equal to the record's
+pause-ended R', which the broker treats as ended, as `PrepareOwnSession` does.
+`none` reports A = X = 0. Clients offer Pause only for `fixed` with X > 0, and
+Use saved time only with S > 0. `requested_seconds` is 0 for no estimate, which
+makes both estimates 0; otherwise it must be within the request bounds or the
+read fails with `InvalidRequest`. Because N > 0, a valid estimate is positive. A
+zero estimate for a nonzero request means the broker would refuse that request
+because its result exceeds the uint32 or saved-balance limit. Rest of the day
+keeps its client-side “until midnight” estimate and cannot be deferred.
+Estimates are advisory: status reads never lock before capture, and the commit
+recaptures every operand.
+
+A successful reply is always a complete, coherent snapshot. A value that cannot
+be determined is never sent as zero; the read fails instead:
+
+| Error | Meaning and client action |
+| --- | --- |
+| `Error.Busy` | The transaction lock is held, including during another child's parent prompt; the revision changed between the two record reads; or native time is suspended, as today. Retry later |
+| `Error.RecoveryPending` | The record holds an intent or fails account validation. The read queued one attempt; retry rereads |
+| `Error.BackendFailure` | Usage, AccountsService or the record is unreadable, invalid or out of uint32 range. Show unavailable with retry |
+| Existing `InvalidRequest`, `AccessDenied`, `RebootRequired` | As for `GetTimeStatus` |
+
+**Account invalidation during a read.** A missing or ineligible target fails the
+target check before its record is read, so the record is never exposed. If the
+target is eligible but the record fails its
+[account binding](#account-binding), the read suppresses it. It returns
+`RecoveryPending` without any record value and queues the attempt, which clears
+the record under the lock as Revoke does. The next read shows the cleared
+record's new revision, nothing saved and no fixed grant. A mutation that finds
+an invalid record clears it first under the lock and then refuses with
+`Error.Stale`, because the revision changed.
+
+**Revisions.** A revision is an opaque uint64, compared only for equality; 0
+means that no record has been written for the UID. Every record write produces a
+new value: approvals, pause, redemption, recovery, Revoke, control toggles and
+invalidation. A UID's value never repeats while the store exists, so clearing
+writes an empty record with a new revision instead of deleting the file. Only
+purge deletes records; completed package removal clears them. The revision
+covers the record only. Natural expiry, daily use and external tuple writes do
+not change it, so every mutation derives the mode, D, A and X again at commit.
+A mutation compares its revision before any prompt, lock or write. Deferred
+requests compare it again after authentication, immediately before the store
+write. A mismatch is `Error.Stale` with no change. `Error.Stale` also reports a
+precondition that no longer holds at a matching revision: a grant that is no
+longer fixed, X = 0 at B, or no saved balance. Under child rules, a pause step
+that finds X = 0 after its lock leaves the screen locked and changes nothing
+else.
+
+**Mutation results.** `RequestDeferredAccess` returns one of these result codes:
+
+| Result code | Meaning |
+| --- | --- |
+| `saved` | The minutes were saved. No pause was needed: no fixed grant was running, or nothing beyond daily time remained at B |
+| `saved_paused` | The minutes were saved, and the pause step ended the fixed grant and saved its X |
+| `saved_pause_error` | The minutes were saved, but the pause step did not commit. `pause_error` names the cause: `Error.DesktopInUse` or `Error.BackendFailure` mean that the grant keeps running; `Error.RecoveryPending` means that its outcome is not final yet |
+| `denied`, `cancelled` | No change, as for immediate requests |
+
+`pause_error` is empty for every other result code. `PauseGrant` and
+`UseSavedTime` return an empty reply only after their committed record write.
+All three mutations refuse with these typed errors:
+
+| Error | Meaning |
+| --- | --- |
+| Existing `AccessDenied`, `InvalidRequest`, `Busy` | Role, session, control, target or argument refusal, including deferred Rest of the day (`duration_seconds` 0), or the transaction lock is held. No change |
+| `Error.Stale` | Revision mismatch or failed precondition. No change; reread status |
+| `Error.DesktopInUse` | Kiosk rules found the child's active, unlocked session; the client shows “Riley is using the desktop.” No change |
+| `Error.RecoveryPending` | An earlier intent could not be resolved before the mutation, or this mutation's own outcome is not final yet. Status shows the outcome |
+| Existing `BackendFailure`, `RollbackFailure`, `Failed` | The operation failed. Status shows whether anything committed |
+
+`denied`, `cancelled`, the existing refusal errors, `Error.Stale` and
+`Error.DesktopInUse` mean that nothing changed. After any other error or a lost
+reply, including timeout, `NoReply` and broker exit, the client does not resend.
+It rereads `GetGrantStatus`, retrying `Busy` and `RecoveryPending`, and displays
+that state. A changed revision means that this or another mutation committed;
+a resend with the old revision would be refused as stale. `RequestDeferredAccess`
+uses the existing unbounded request timeout because it waits for a person.
+`PauseGrant` and `UseSavedTime` use a client timeout of at least 120 seconds;
+`GetGrantStatus` uses the existing 30-second status timeout.
+
+**Compatibility.** With a new broker, the existing methods behave the same at
+the protocol boundary. `GetTimeStatus` keeps A from the live tuple and its
+`max(D, A) + additional` result, so it never includes S. Old request forms
+neither show nor consume saved time, and their immediate approvals leave it
+saved. Revoke keeps its `(u)` signature and empty reply and also clears saved
+time. An old Parent cannot see saved-only time and may keep Revoke disabled for
+such a child until it is reloaded; saved time grants no desktop access, so this
+fails safe. With an old broker, GDBus rejects a method missing from the
+registered interface with `org.freedesktop.DBus.Error.UnknownMethod` before
+dispatch. A new client treats that reply from any new method as “saved time
+unavailable”. It shows no balance, disables Request & save for later, Pause and
+Use saved time, and keeps immediate requests on the existing methods. It never
+treats an unknown method as zero and never substitutes an immediate request for
+a deferred one. The existing `RebootRequired` route is unchanged.
 
 ### Caller and session binding
 
@@ -595,7 +739,9 @@ record read, a record is invalid when the live account is missing, no longer
 eligible, or has a different username. Package removal also invalidates it; an
 ordinary reboot does not. The residual risk is documented: an account deleted
 and recreated while the broker is down, with the same UID and username, inherits
-saved time, just as it already inherits preferences.
+saved time, just as it already inherits preferences. Because validation is
+lazy, an eligibility lapse that ends before the next record read is not
+observed either: reads during the lapse refuse the target before the record.
 
 ### Saving approved minutes
 

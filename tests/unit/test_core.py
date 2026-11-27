@@ -5,19 +5,21 @@ import pytest
 from pathlib import Path
 from dataclasses import replace
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest import mock
 from zoneinfo import ZoneInfo
 
 from oh_no_parent_control import data_migration
 from oh_no_parent_control.core import (
-    AccessDenied, BackendFailure, Broker, Busy, InvalidRequest, RollbackFailure,
-    NativeDeadlineSuspended, UserAccount, calculate_active_extension_seconds, emit_backend_failure,
+    AccessDenied, BackendFailure, Broker, Busy, DesktopInUse, InvalidRequest, RollbackFailure,
+    NativeDeadlineSuspended, SessionState, UserAccount, calculate_active_extension_seconds,
+    emit_backend_failure,
     format_requested_duration, seconds_until_local_midnight,
 )
 from oh_no_parent_control.preferences import (
     PreferencesError, default_preferences, validate_preferences, PreferenceStore, FORMAT_VERSION,
 )
-from oh_no_parent_control.config import UINT32_MAX
+from oh_no_parent_control.config import UINT32_MAX, validate
 from oh_no_parent_control.grant_store import (
     FixedGrant, GrantRecord, GrantStore, GrantStoreError, PauseIntent, RedeemIntent,
     SavedBalance, remaining_seconds, running_mode,
@@ -31,8 +33,314 @@ from oh_no_parent_control.extension_manager import (
 from tests.support.broker import (
     Accounts, Authorizer, Extensions, Preferences, RunningApps, TimerUsage, make_broker,
 )
+from tests.support.configuration import valid_config
 
 FAILURE_SINK = "common.oh_no_parent_control_ui.diagnostic_events.emit_failure"
+
+
+def local_session(session_id, uid, **changes):
+    return replace(SessionState(
+        path=f"/org/freedesktop/login1/session/{session_id}", session_id=session_id,
+        uid=uid, remote=False, active=True, locked=False, state="active", kind="wayland",
+        started_monotonic=1,
+    ), **changes)
+
+
+@pytest.fixture
+def saved_time_session():
+    accounts, preferences = Accounts(), Preferences()
+    preferences.values[1001].update(parent_control_enabled=True, daily_time_limit_minutes=2)
+    kiosk, child = local_session("kiosk", 991), local_session("child", 1001)
+    sessions = mock.Mock(spec=("resolve", "get", "for_user", "lock"))
+    sessions.resolve.return_value = child
+
+    def sessions_for_user(uid, **_kwargs):
+        session = sessions.resolve.return_value
+        return (session,) if session is not None and session.uid == uid else ()
+
+    sessions.for_user.side_effect = sessions_for_user
+    usage = mock.Mock(spec=TimerUsage)
+    usage.query_usage.return_value = ()
+    usage.query_native_deadline.return_value = (1 << 64) - 1
+    now = datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles"))
+    elapsed = 0.0
+
+    def sleep(seconds):
+        nonlocal elapsed
+        elapsed += seconds
+
+    broker = Broker(
+        lambda: validate(valid_config()), Authorizer(), accounts, preferences,
+        timer_usage=usage, sessions=sessions, now=lambda: now + timedelta(seconds=elapsed),
+        monotonic=lambda: 100 + elapsed, sleep=sleep,
+    )
+    return SimpleNamespace(broker=broker, sessions=sessions, usage=usage, accounts=accounts,
+                           preferences=preferences, child=child, kiosk=kiosk,
+                           epoch=int(now.timestamp()), elapsed=lambda: elapsed)
+
+
+@pytest.mark.parametrize("caller_uid", [0, 1002, 1003])
+def test_saved_time_refuses_cross_account_callers_before_target_lookup(saved_time_session, caller_uid):
+    fixture = saved_time_session
+    with mock.patch.object(fixture.accounts, "get_user", wraps=fixture.accounts.get_user) as lookup:
+        with pytest.raises(AccessDenied):
+            fixture.broker._saved_time_context(caller_uid, ":1.42", 1001)
+    lookup.assert_not_called()
+    fixture.sessions.resolve.assert_not_called()
+
+
+@pytest.mark.parametrize(("caller_uid", "target_uid"), [(1003, 1003), (991, 991), (991, 1002)])
+def test_saved_time_refuses_ineligible_or_disabled_targets(saved_time_session, caller_uid, target_uid):
+    fixture = saved_time_session
+    with pytest.raises(AccessDenied):
+        fixture.broker._saved_time_context(caller_uid, ":1.42", target_uid)
+    fixture.sessions.resolve.assert_not_called()
+
+
+@pytest.mark.parametrize("changes", [None, {"uid": 1002}, {"remote": True}, {"state": "closing"},
+                                     {"active": False}, {"locked": True}])
+def test_saved_time_requires_the_callers_own_active_unlocked_local_session(saved_time_session, changes):
+    fixture = saved_time_session
+    fixture.sessions.resolve.return_value = None if changes is None else replace(fixture.child, **changes)
+    with pytest.raises(AccessDenied):
+        fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    fixture.sessions.lock.assert_not_called()
+    fixture.usage.query_usage.assert_not_called()
+
+
+@pytest.mark.parametrize("changes", [{"uid": 1002}, {"started_monotonic": 2}, {"remote": True},
+                                     {"active": False}, {"locked": True}])
+def test_saved_time_admission_requires_the_original_eligible_session(saved_time_session, changes):
+    fixture = saved_time_session
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    fixture.sessions.resolve.return_value = replace(fixture.child, **changes)
+    with pytest.raises(AccessDenied):
+        fixture.broker._recheck_saved_time_context(context)
+
+
+@pytest.mark.parametrize("change", ["account", "disabled"])
+def test_saved_time_admission_rechecks_the_target(saved_time_session, change):
+    fixture = saved_time_session
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    if change == "account":
+        fixture.accounts.users[1001] = replace(fixture.accounts.users[1001], username="replacement")
+    else:
+        fixture.preferences.values[1001]["parent_control_enabled"] = False
+    with pytest.raises(AccessDenied):
+        fixture.broker._recheck_saved_time_context(context)
+
+
+@pytest.mark.parametrize(("native_deadline", "daily"), [(0, 0), (125_000_000, 25), ((1 << 64) - 1, 100)])
+def test_overlay_use_saved_time_can_only_lower_completed_daily_time(
+        saved_time_session, native_deadline, daily):
+    fixture = saved_time_session
+    fixture.usage.query_usage.return_value = ((fixture.epoch - 60, fixture.epoch - 40),)
+    fixture.usage.query_native_deadline.return_value = native_deadline
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+
+    capture = fixture.broker._capture_use_saved_time_daily_remaining(context)
+    assert capture.daily_remaining_seconds == daily
+    fixture.broker._recheck_saved_time_context(capture.context)
+    fixture.usage.query_native_deadline.assert_called_once_with(1001)
+    fixture.sessions.lock.assert_not_called()
+
+
+@pytest.mark.parametrize("method", ["_capture_pause_daily_remaining", "_capture_use_saved_time_daily_remaining"])
+def test_kiosk_capture_refuses_a_child_using_the_desktop_before_it_locks_sessions(
+        saved_time_session, method):
+    fixture = saved_time_session
+    fixture.sessions.resolve.return_value = fixture.kiosk
+    fixture.sessions.for_user.side_effect = None
+    fixture.sessions.for_user.return_value = (
+        local_session("inactive", 1001, active=False, state="online"), fixture.child,
+    )
+    context = fixture.broker._saved_time_context(991, ":1.42", 1001)
+
+    with pytest.raises(DesktopInUse):
+        getattr(fixture.broker, method)(context)
+    fixture.sessions.lock.assert_not_called()
+    assert fixture.accounts.events == []
+
+
+@pytest.mark.parametrize("changes", [{"active": True}, {"locked": True}])
+def test_kiosk_rechecks_target_state_immediately_before_lock(saved_time_session, changes):
+    fixture = saved_time_session
+    fixture.sessions.resolve.return_value = fixture.kiosk
+    target = replace(fixture.child, active=False, state="online")
+    fixture.sessions.for_user.side_effect = None
+    fixture.sessions.for_user.return_value = (target,)
+    fixture.sessions.get.return_value = replace(target, **changes)
+    context = fixture.broker._saved_time_context(991, ":1.42", 1001)
+
+    error = DesktopInUse if changes.get("active") else BackendFailure
+    with pytest.raises(error):
+        fixture.broker._capture_pause_daily_remaining(context)
+    fixture.sessions.lock.assert_not_called()
+
+
+@pytest.mark.parametrize("clock_corrected", [False, True])
+def test_overlay_pause_observes_lock_and_fresh_completed_usage_before_admission(
+        saved_time_session, clock_corrected):
+    fixture = saved_time_session
+    stale = (fixture.epoch - 45, fixture.epoch - 30)
+    completed = (fixture.epoch - 21, fixture.epoch - 1)
+    prior = (stale,)
+    if clock_corrected:
+        prior += ((fixture.epoch + 3600, fixture.epoch + 3700),)
+    locked = replace(fixture.child, active=False, locked=True, state="online")
+    fixture.sessions.get.side_effect = lambda *_args, **_kwargs: fixture.sessions.resolve.return_value
+    fixture.usage.query_native_deadline.return_value = 0
+    observed = []
+
+    def lock(session_id, *, timeout_seconds):
+        assert session_id == fixture.child.session_id
+        assert 0 < timeout_seconds <= 5
+        fixture.sessions.resolve.return_value = locked
+
+    def query(uid, **_kwargs):
+        assert uid == 1001
+        observed.append(fixture.sessions.resolve.return_value.locked)
+        if (len(observed) > 2 and all(observed[-2:])):
+            return (*prior, completed)
+        return prior
+
+    fixture.sessions.lock.side_effect = lock
+    fixture.usage.query_usage.side_effect = query
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    capture = fixture.broker._capture_pause_daily_remaining(context)
+
+    assert capture.daily_remaining_seconds == 85
+    assert observed[0] is False and all(observed[1:]) and len(observed) >= 3
+    fixture.usage.query_native_deadline.assert_not_called()
+    fixture.broker._recheck_saved_time_context(capture.context)
+    with pytest.raises(AccessDenied):
+        fixture.broker._recheck_saved_time_context(context)
+    fixture.sessions.resolve.return_value = replace(locked, uid=1002)
+    with pytest.raises(AccessDenied):
+        fixture.broker._recheck_saved_time_context(capture.context)
+    assert fixture.accounts.events == []
+
+
+def test_overlay_pause_refuses_a_non_graphical_caller_before_lock(saved_time_session):
+    fixture = saved_time_session
+    fixture.sessions.resolve.return_value = replace(fixture.child, kind="tty")
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+
+    with pytest.raises(AccessDenied):
+        fixture.broker._capture_pause_daily_remaining(context)
+    fixture.sessions.lock.assert_not_called()
+
+
+@pytest.mark.parametrize("other_active", [False, True])
+def test_overlay_pause_captures_other_unlocked_desktops_before_it_locks_the_caller(
+        saved_time_session, other_active):
+    fixture = saved_time_session
+    other = local_session("other", 1001, active=other_active, state="active" if other_active else "online")
+    state = {session.path: session for session in (fixture.child, other)}
+    records = []
+    fixture.sessions.for_user.side_effect = lambda *_args, **_kwargs: tuple(state.values())
+    fixture.sessions.get.side_effect = lambda path, **_kwargs: state[path]
+    fixture.sessions.resolve.side_effect = lambda *_args, **_kwargs: state[fixture.child.path]
+    fixture.usage.query_usage.side_effect = lambda *_args, **_kwargs: tuple(records)
+
+    def lock(session_id, **_kwargs):
+        session = next(session for session in state.values() if session.session_id == session_id)
+        state[session.path] = replace(session, locked=True)
+        end = fixture.epoch + int(fixture.elapsed())
+        records[:] = [(fixture.epoch - 20, end)]
+
+    fixture.sessions.lock.side_effect = lock
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    capture = fixture.broker._capture_pause_daily_remaining(context)
+
+    assert [call.args[0] for call in fixture.sessions.lock.call_args_list] == ["other", "child"]
+    assert capture.daily_remaining_seconds == 100 - (records[0][1] - fixture.epoch)
+    fixture.broker._recheck_saved_time_context(capture.context)
+
+
+@pytest.mark.parametrize(("method", "missing_last_record"), [
+    ("_capture_pause_daily_remaining", False),
+    ("_capture_use_saved_time_daily_remaining", False),
+    ("_capture_pause_daily_remaining", True),
+])
+def test_kiosk_capture_requires_a_record_for_each_switched_away_local_graphical_session(
+        saved_time_session, method, missing_last_record):
+    fixture = saved_time_session
+    fixture.sessions.resolve.return_value = fixture.kiosk
+    graphical = (
+        local_session("wayland", 1001, active=False, state="online"),
+        local_session("x11", 1001, active=False, state="online", kind="x11"),
+    )
+    ignored = (
+        replace(fixture.child, locked=True), local_session("tty", 1001, kind="tty"),
+        local_session("remote", 1001, remote=True),
+    )
+    state = {session.path: session for session in (*graphical, *ignored)}
+    fixture.sessions.for_user.side_effect = lambda *_args, **_kwargs: tuple(state.values())
+    fixture.sessions.get.side_effect = lambda path, **_kwargs: state[path]
+    records = [(fixture.epoch - 75, fixture.epoch - 35)]
+
+    def lock(session_id, *, timeout_seconds):
+        assert 0 < timeout_seconds <= 5
+        session = next(session for session in graphical if session.session_id == session_id)
+        state[session.path] = replace(session, locked=True)
+        end = fixture.epoch + int(fixture.elapsed())
+        if fixture.sessions.lock.call_count == 1:
+            records.append((fixture.epoch - 31, end))
+        elif not missing_last_record:
+            assert end > records[-1][1]
+            # Malcontent merges an overlapping completion into the first one.
+            records[-1] = (records[-1][0], end)
+
+    fixture.sessions.lock.side_effect = lock
+    fixture.usage.query_usage.side_effect = lambda _uid, **_kwargs: tuple(records)
+    context = fixture.broker._saved_time_context(991, ":1.42", 1001)
+    capture_daily_time = getattr(fixture.broker, method)
+    if missing_last_record:
+        with pytest.raises(BackendFailure):
+            capture_daily_time(context)
+        assert fixture.sessions.lock.call_count == 2
+        assert fixture.accounts.events == []
+        return
+
+    capture = capture_daily_time(context)
+
+    assert capture.daily_remaining_seconds == 49 - (records[-1][1] - fixture.epoch)
+    assert {call.args[0] for call in fixture.sessions.lock.call_args_list} == {"wayland", "x11"}
+    assert fixture.sessions.lock.call_count == 2
+    fixture.usage.query_native_deadline.assert_not_called()
+    fixture.broker._recheck_saved_time_context(capture.context)
+    state[fixture.child.path] = fixture.child
+    with pytest.raises(DesktopInUse):
+        fixture.broker._recheck_saved_time_context(capture.context)
+    assert fixture.accounts.events == []
+
+
+@pytest.mark.parametrize(("lock_observed", "record_end_offset"), [(False, 0), (True, 0), (True, 2)])
+def test_pause_bounds_wait_for_lock_and_new_usage(saved_time_session, lock_observed, record_end_offset):
+    fixture = saved_time_session
+    state = fixture.child
+    fixture.sessions.get.side_effect = lambda *_args, **_kwargs: state
+    end = fixture.epoch + record_end_offset
+    recorded = ((end - 20, end),)
+    # A fresh record alone cannot attest a lock, and an old record cannot be
+    # reused if its end is close to the request or the wall clock catches up to it.
+    fixture.usage.query_usage.side_effect = lambda *_args, **_kwargs: (
+        recorded if lock_observed or fixture.sessions.lock.called else ())
+
+    def lock(_session_id, *, timeout_seconds):
+        nonlocal state
+        if lock_observed:
+            state = replace(state, locked=True)
+
+    fixture.sessions.lock.side_effect = lock
+    context = fixture.broker._saved_time_context(1001, ":1.42", 1001)
+    with pytest.raises(BackendFailure):
+        fixture.broker._capture_pause_daily_remaining(context)
+
+    fixture.sessions.lock.assert_called_once()
+    assert fixture.elapsed() == pytest.approx(5)
+    assert fixture.accounts.events == []
 
 
 @pytest.mark.parametrize('approval_utc, midnight_utc', (

@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import json
 from common.oh_no_parent_control_ui.diagnostic_events import get_logger, error_code
+import math
 import os
 import pwd
 import re
 import subprocess
 import tempfile
 import threading
+import time
 
 import gi
 
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
 
-from .core import NativeDeadlineSuspended, UserAccount
+from .core import NativeDeadlineSuspended, SessionState, UserAccount
 
 DBUS_NAME = "org.freedesktop.DBus"
 DBUS_PATH = "/org/freedesktop/DBus"
@@ -40,6 +42,9 @@ LOGIN_NAME = "org.freedesktop.login1"
 LOGIN_PATH = "/org/freedesktop/login1"
 LOGIN_MANAGER_INTERFACE = "org.freedesktop.login1.Manager"
 LOGIN_SESSION_INTERFACE = "org.freedesktop.login1.Session"
+LOGIN_USER_INTERFACE = "org.freedesktop.login1.User"
+LOGIN_SESSION_STATES = frozenset({"opening", "online", "active", "closing"})
+LOGIN_SESSION_PATH = re.compile(r"/org/freedesktop/login1/session/[A-Za-z0-9_]+")
 SYSTEMD_NAME = "org.freedesktop.systemd1"
 SYSTEMD_PATH = "/org/freedesktop/systemd1"
 SYSTEMD_MANAGER_INTERFACE = "org.freedesktop.systemd1.Manager"
@@ -79,6 +84,132 @@ def _call(connection, name, path, interface, method, parameters, reply_type,
         name, path, interface, method, parameters,
         GLib.VariantType.new(reply_type), Gio.DBusCallFlags.NONE, timeout, None,
     )
+
+
+def _bounded_deadline(timeout_seconds: float) -> float:
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise TimeoutError("no time remaining for backend call")
+    return time.monotonic() + min(timeout_seconds, CALL_TIMEOUT_MS / 1000)
+
+
+def _read_login_display(read, user_path):
+    display, = read(
+        LOGIN_NAME, user_path, PROPERTIES_INTERFACE, "Get",
+        GLib.Variant("(ss)", (LOGIN_USER_INTERFACE, "Display")), "(v)",
+    )
+    return display
+
+
+def _resolve_login_session(read, sender, *, before_display=None):
+    """Resolve the sender's PID or its user manager's primary display."""
+    pid, = read(DBUS_NAME, DBUS_PATH, DBUS_INTERFACE, "GetConnectionUnixProcessID",
+                GLib.Variant("(s)", (sender,)), "(u)")
+    parameters = GLib.Variant("(u)", (pid,))
+    try:
+        path, = read(LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
+                     "GetSessionByPID", parameters, "(o)")
+        return path, None
+    except GLib.Error as error:
+        if Gio.dbus_error_get_remote_error(error) != "org.freedesktop.login1.NoSessionForPID":
+            raise
+
+    # User services such as the kiosk and GNOME session apps can run outside
+    # a session scope. The process's user manager identifies its display.
+    try:
+        user_path, = read(LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
+                          "GetUserByPID", parameters, "(o)")
+    except GLib.Error as error:
+        if Gio.dbus_error_get_remote_error(error) == "org.freedesktop.login1.NoUserForPID":
+            return None, None
+        raise
+
+    if before_display is not None:
+        before_display(user_path)
+    display = _read_login_display(read, user_path)
+    session_id, path = display
+    return (path if session_id else None), display
+
+
+class LogindSessions:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def _call(self, deadline, name, path, interface, method, parameters, reply_type):
+        timeout_ms = int((deadline - time.monotonic()) * 1000)
+        if timeout_ms <= 0:
+            raise TimeoutError("logind operation timed out")
+        reply = _call(self.connection, name, path, interface, method,
+                      parameters, reply_type, timeout=timeout_ms)
+        if time.monotonic() >= deadline:
+            raise TimeoutError("logind operation timed out")
+        return reply
+
+    def resolve(self, sender: str, *, timeout_seconds: float = 5.0) -> SessionState | None:
+        deadline = _bounded_deadline(timeout_seconds)
+
+        def read(*args):
+            return self._call(deadline, *args).unpack()
+
+        path, display = _resolve_login_session(read, sender)
+        if path is None:
+            return None
+        session = self._get(path, deadline)
+        if display is not None and session.session_id != display[0]:
+            raise RuntimeError("logind display session changed")
+        return session
+
+    def get(self, path: str, *, timeout_seconds: float) -> SessionState:
+        return self._get(path, _bounded_deadline(timeout_seconds))
+
+    def _get(self, path, deadline):
+        if type(path) is not str or not LOGIN_SESSION_PATH.fullmatch(path):
+            raise ValueError("invalid logind session path")
+        properties = self._call(
+            deadline, LOGIN_NAME, path, PROPERTIES_INTERFACE, "GetAll",
+            GLib.Variant("(s)", (LOGIN_SESSION_INTERFACE,)), "(a{sv})",
+        ).get_child_value(0)
+
+        def get(name, signature):
+            value = properties.lookup_value(name, GLib.VariantType.new(signature))
+            if value is None:
+                raise RuntimeError("invalid logind session properties")
+            return value.unpack()
+
+        session_id = get("Id", "s")
+        uid, _user_path = get("User", "(uo)")
+        state = get("State", "s")
+        kind = get("Type", "s")
+        started_monotonic = get("TimestampMonotonic", "t")
+        if (not SESSION_SCOPE_ID.fullmatch(session_id) or state not in LOGIN_SESSION_STATES
+                or not kind or not started_monotonic):
+            raise RuntimeError("invalid logind session properties")
+        return SessionState(
+            path=path, session_id=session_id, uid=uid,
+            remote=get("Remote", "b"), active=get("Active", "b"), locked=get("LockedHint", "b"),
+            state=state, kind=kind, started_monotonic=started_monotonic,
+        )
+
+    def for_user(self, uid: int, *, timeout_seconds: float) -> tuple[SessionState, ...]:
+        deadline = _bounded_deadline(timeout_seconds)
+        entries, = self._call(deadline, LOGIN_NAME, LOGIN_PATH, LOGIN_MANAGER_INTERFACE,
+                              "ListSessions", None, "(a(susso))").unpack()
+        sessions = []
+        seen_ids = set()
+        for session_id, listed_uid, _user, _seat, path in entries:
+            if listed_uid != uid:
+                continue
+            session = self._get(path, deadline)
+            if session.uid != uid or session.session_id != session_id or session_id in seen_ids:
+                raise RuntimeError("logind session listing changed")
+            sessions.append(session)
+            seen_ids.add(session_id)
+        return tuple(sessions)
+
+    def lock(self, session_id: str, *, timeout_seconds: float) -> None:
+        if type(session_id) is not str or not SESSION_SCOPE_ID.fullmatch(session_id):
+            raise ValueError("invalid logind session ID")
+        self._call(_bounded_deadline(timeout_seconds), LOGIN_NAME, LOGIN_PATH,
+                   LOGIN_MANAGER_INTERFACE, "LockSession", GLib.Variant("(s)", (session_id,)), "()")
 
 
 class CallerCredentials:
@@ -395,16 +526,23 @@ class TimerUsage:
     def __init__(self, connection):
         self.connection = connection
 
-    def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]:
+    def query_usage(self, uid: int, *, timeout_seconds: float | None = None
+                    ) -> tuple[tuple[int, int], ...]:
         # The broker has authorized the target before reaching this adapter.
         # Malcontent rejects root, but permits an account to query its own
         # records. Open the helper's fresh bus connection as that exact child.
         LOG.info("adapters.004")
+        deadline = None
+        if timeout_seconds is not None:
+            try:
+                deadline = _bounded_deadline(timeout_seconds)
+            except TimeoutError as error:
+                raise TimerUsageError("timeout") from error
         try:
             identity = pwd.getpwuid(uid)
         except KeyError as error:
             raise TimerUsageError("child-unavailable") from error
-        return self._query_usage_with_identity(uid, uid, identity.pw_gid)
+        return self._query_usage_with_identity(uid, uid, identity.pw_gid, deadline=deadline)
 
     def query_usage_as(
             self, uid: int,
@@ -421,8 +559,9 @@ class TimerUsage:
 
     def _query_usage_with_identity(
             self, uid: int, reader_uid: int,
-            reader_gid: int) -> tuple[tuple[int, int], ...]:
-        raw = self._query_helper([str(uid)], reader_uid, reader_gid, {"LANG": "C.UTF-8"})
+            reader_gid: int, *, deadline: float | None = None) -> tuple[tuple[int, int], ...]:
+        raw = self._query_helper([str(uid)], reader_uid, reader_gid, {"LANG": "C.UTF-8"},
+                                 deadline=deadline)
         if not isinstance(raw, list):
             raise TimerUsageError("invalid-helper-reply")
 
@@ -451,16 +590,19 @@ class TimerUsage:
             raise TimerUsageError("invalid-helper-reply")
         return raw
 
-    def _query_helper(self, arguments, reader_uid, reader_gid, environment):
+    def _query_helper(self, arguments, reader_uid, reader_gid, environment, *, deadline=None):
         LOG.info("adapters.006")
         try:
             with tempfile.TemporaryFile() as output:
+                timeout = CALL_TIMEOUT_MS / 1000 if deadline is None else deadline - time.monotonic()
+                if timeout <= 0:
+                    raise TimerUsageError("timeout")
                 result = subprocess.run(
                     [USAGE_HELPER, *arguments],
                     stdin=subprocess.DEVNULL,
                     stdout=output,
                     stderr=subprocess.DEVNULL,
-                    timeout=CALL_TIMEOUT_MS / 1000,
+                    timeout=timeout,
                     check=False,
                     shell=False,
                     close_fds=True,
@@ -471,6 +613,8 @@ class TimerUsage:
                     extra_groups=(),
                     umask=0o077,
                 )
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise TimerUsageError("timeout")
                 if (result.returncode == NATIVE_SESSION_INACTIVE_EXIT and
                         arguments == ["--native-deadline"]):
                     raise NativeDeadlineSuspended

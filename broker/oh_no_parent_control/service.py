@@ -25,7 +25,7 @@ from gi.repository import Gio, GLib
 from . import config
 from .adapters import (
     ACCOUNTS_NAME, APP_FILTER_INTERFACE, PROPERTIES_INTERFACE,
-    AccountsService, CallerCredentials, TimerUsage,
+    AccountsService, CallerCredentials, LogindSessions, TimerUsage,
 )
 from .authorization import PolkitAuthorizer
 from .app_termination import RunningAppTerminator
@@ -278,6 +278,7 @@ class ServiceDependencies:
     policy_rescan_interval_seconds: float | None = 30
     extension_monitor_factory: Any = None
     grant_store: Any = None
+    sessions: Any = None
 
 
 def production_dependencies(connection) -> ServiceDependencies:
@@ -302,6 +303,7 @@ def production_dependencies(connection) -> ServiceDependencies:
         ),
         extension_monitor_factory=ExtensionMonitor,
         grant_store=GrantStore(),
+        sessions=LogindSessions(connection),
     )
 
 
@@ -357,6 +359,7 @@ class Service:
             now=dependencies.now,
             caller_alive=self.credentials.alive,
             grant_store=dependencies.grant_store,
+            sessions=dependencies.sessions,
         )
 
     def _start_policy(self, dependencies):

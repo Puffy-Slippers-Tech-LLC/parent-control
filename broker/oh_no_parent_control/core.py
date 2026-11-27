@@ -24,7 +24,7 @@ import uuid
 from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from typing import Callable, Protocol
+from typing import Callable, Iterable, Protocol
 from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
@@ -52,7 +52,11 @@ FULL_DAY_SCHEDULE = (0, 86400)
 MAX_SAFE_DEADLINE_USEC = (1 << 53) - 1
 CLOCK_SAMPLE_TOLERANCE_USEC = 1000
 EXTENSION_RECOVERY_LOCK_TIMEOUT_SECONDS = 30
+SESSION_LOCK_TIMEOUT_SECONDS = 5
+SESSION_LOCK_POLL_SECONDS = 0.05
+GRAPHICAL_SESSION_TYPES = frozenset({"wayland", "x11"})
 APPROVER_USERNAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*[$]?$")
+UsageIntervals = tuple[tuple[int, int], ...]
 
 
 class BrokerError(RuntimeError):
@@ -69,6 +73,10 @@ class AccessDenied(BrokerError):
 
 class Busy(BrokerError):
     dbus_name = "com.puffyslippers.OhNoParentControl1.Error.Busy"
+
+
+class DesktopInUse(BrokerError):
+    dbus_name = "com.puffyslippers.OhNoParentControl1.Error.DesktopInUse"
 
 
 class BackendFailure(BrokerError):
@@ -113,6 +121,37 @@ class TimeStatus:
     one_time_grant_remaining_seconds: int
     additional_one_time_grant_seconds: int
     calculated_active_extension_seconds: int
+
+
+@dataclass(frozen=True)
+class SessionState:
+    path: str
+    session_id: str
+    uid: int
+    remote: bool
+    active: bool
+    locked: bool
+    state: str
+    kind: str
+    started_monotonic: int
+
+
+@dataclass(frozen=True)
+class SavedTimeContext:
+    caller_uid: int
+    sender: str
+    request_kind: str
+    target: UserAccount
+    preferences: dict
+    session: SessionState
+    lock_capture_complete: bool = False
+
+
+@dataclass(frozen=True)
+class DailyCapture:
+    context: SavedTimeContext
+    evaluated_at: datetime
+    daily_remaining_seconds: int
 
 
 class Approval(Protocol):
@@ -161,10 +200,19 @@ class Extensions(Protocol):
 
 
 class TimerUsage(Protocol):
-    def query_usage(self, uid: int) -> tuple[tuple[int, int], ...]: ...
+    def query_usage(self, uid: int, *,
+                    timeout_seconds: float | None = None) -> UsageIntervals: ...
     def query_usage_as(
-            self, uid: int, approver: UserAccount) -> tuple[tuple[int, int], ...]: ...
+            self, uid: int, approver: UserAccount) -> UsageIntervals: ...
     def query_native_deadline(self, uid: int) -> int: ...
+
+
+class Sessions(Protocol):
+    def resolve(self, sender: str, *,
+                timeout_seconds: float = SESSION_LOCK_TIMEOUT_SECONDS) -> SessionState | None: ...
+    def get(self, path: str, *, timeout_seconds: float) -> SessionState: ...
+    def for_user(self, uid: int, *, timeout_seconds: float) -> tuple[SessionState, ...]: ...
+    def lock(self, session_id: str, *, timeout_seconds: float) -> None: ...
 
 
 class RunningApps(Protocol):
@@ -219,6 +267,26 @@ def seconds_until_local_midnight(now: datetime) -> int:
     return seconds
 
 
+def _valid_usage_interval(start: int, end: int) -> bool:
+    return type(start) is int and type(end) is int and 0 <= start <= end
+
+
+def _merge_usage_intervals(intervals: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged = []
+    for start, end in sorted(intervals):
+        if not merged or start > merged[-1][1]:
+            merged.append((start, end))
+        elif end > merged[-1][1]:
+            merged[-1] = (merged[-1][0], end)
+    return merged
+
+
+def _same_session(left: SessionState, right: SessionState) -> bool:
+    return (left.path, left.session_id, left.uid, left.started_monotonic) == (
+        right.path, right.session_id, right.uid, right.started_monotonic,
+    )
+
+
 class Broker:
     def __init__(self, config_loader: Callable[[], Configuration], authorizer: Authorizer,
                  accounts: Accounts, preferences: Preferences | None = None,
@@ -228,7 +296,8 @@ class Broker:
                  *, monotonic=time.monotonic,
                  now=local_now, caller_alive=lambda _sender: True,
                  whats_new_loader=WhatsNewCatalog.load,
-                 grant_store: GrantStore | None = None):
+                 grant_store: GrantStore | None = None,
+                 sessions: Sessions | None = None, sleep=time.sleep):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
@@ -242,6 +311,8 @@ class Broker:
         self._caller_alive = caller_alive
         self._whats_new_loader = whats_new_loader
         self._grant_store = grant_store
+        self._sessions = sessions
+        self._sleep = sleep
         self._request_lock = threading.Lock()
         self._request_lock_diagnostic = None
         self._transaction_revision = 0
@@ -752,7 +823,7 @@ class Broker:
         return deadline
 
     def _time_status_from_usage(
-            self, preferences: dict, usage_entries: tuple[tuple[int, int], ...],
+            self, preferences: dict, usage_entries: UsageIntervals,
             grant_time: int, grant_duration: int, additional_seconds: int,
             evaluated_at: datetime | None = None,
             *, native_deadline: int | None = None) -> TimeStatus:
@@ -768,21 +839,13 @@ class Broker:
         start_of_today_seconds = int(start_of_today.timestamp())
         today_intervals = []
         for start, end in usage_entries:
-            if (type(start) is not int or type(end) is not int or
-                    start < 0 or end < start):
+            if not _valid_usage_interval(start, end):
                 raise BackendFailure("timer usage returned an invalid interval")
             clipped_start = max(start, start_of_today_seconds)
             clipped_end = min(end, now_seconds)
             if clipped_end > clipped_start:
                 today_intervals.append((clipped_start, clipped_end))
-        used_today = 0
-        merged_end = 0
-        for start, end in sorted(today_intervals):
-            if start >= merged_end:
-                used_today += end - start
-            elif end > merged_end:
-                used_today += end - merged_end
-            merged_end = max(merged_end, end)
+        used_today = sum(end - start for start, end in _merge_usage_intervals(today_intervals))
         daily_remaining = max(0, daily_limit_seconds - used_today)
         if native_deadline is not None:
             # Completed records omit uninterrupted activity. The child's fresh
@@ -805,6 +868,218 @@ class Broker:
     def _check_caller(config: Configuration, caller_uid: int) -> None:
         if caller_uid != config.kiosk_uid:
             raise AccessDenied("caller is not the configured request station")
+
+    @staticmethod
+    def _saved_time_request_kind(config: Configuration, caller_uid: int, target_uid: int) -> str:
+        if caller_uid != 0 and caller_uid == config.kiosk_uid:
+            return "kiosk"
+        if caller_uid >= MIN_MANAGED_UID and caller_uid == target_uid:
+            return "child"
+        raise AccessDenied("caller cannot manage this account's saved time")
+
+    def _resolve_saved_time_session(
+            self, caller_uid: int, sender: str, *, expected: SessionState | None = None,
+            after_own_lock: bool = False,
+            timeout_seconds: float = SESSION_LOCK_TIMEOUT_SECONDS) -> SessionState:
+        if self._sessions is None:
+            raise AccessDenied("caller session is unavailable")
+        try:
+            session = self._sessions.resolve(sender, timeout_seconds=timeout_seconds)
+        except Exception as error:
+            raise AccessDenied("caller session is unavailable") from error
+        if (session is None or session.uid != caller_uid or session.remote or
+                session.state == "closing" or
+                (not after_own_lock and (not session.active or session.locked)) or
+                (expected is not None and not _same_session(session, expected))):
+            raise AccessDenied("caller has no eligible local session")
+        return session
+
+    def _saved_time_context(self, caller_uid: int, sender: str, target_uid: int) -> SavedTimeContext:
+        config = self._load_config()
+        request_kind = self._saved_time_request_kind(config, caller_uid, target_uid)
+        target = self._target(config, target_uid)
+        if target.uid != target_uid:
+            raise AccessDenied("selected account identity changed")
+        preferences = self._load_request_preferences(target.uid)
+        if not preferences["parent_control_enabled"]:
+            raise AccessDenied("parent control is not enabled for this account")
+        session = self._resolve_saved_time_session(caller_uid, sender)
+        return SavedTimeContext(caller_uid, sender, request_kind, target, preferences, session)
+
+    def _recheck_saved_time_context(self, context: SavedTimeContext) -> None:
+        config = self._load_config()
+        request_kind = self._saved_time_request_kind(config, context.caller_uid, context.target.uid)
+        if request_kind != context.request_kind:
+            raise AccessDenied("caller role changed during request")
+        self._check_grant_account(config, context.target)
+        if self._load_request_preferences(context.target.uid) != context.preferences:
+            raise AccessDenied("preferences changed during request")
+        if context.lock_capture_complete:
+            self._require_no_unlocked_child_desktops(context)
+        self._resolve_saved_time_session(
+            context.caller_uid, context.sender, expected=context.session,
+            after_own_lock=context.lock_capture_complete and context.request_kind == "child",
+        )
+        if not self._caller_alive(context.sender):
+            raise AccessDenied("caller disconnected during request")
+
+    def _capture_pause_daily_remaining(self, context: SavedTimeContext) -> DailyCapture:
+        return self._capture_saved_time_daily_remaining(context, lock_before_capture=True)
+
+    def _capture_use_saved_time_daily_remaining(self, context: SavedTimeContext) -> DailyCapture:
+        return self._capture_saved_time_daily_remaining(
+            context, lock_before_capture=context.request_kind == "kiosk",
+        )
+
+    def _capture_saved_time_daily_remaining(
+            self, context: SavedTimeContext, *, lock_before_capture: bool) -> DailyCapture:
+        self._recheck_saved_time_context(context)
+        uid = context.target.uid
+        usage = None
+        if lock_before_capture:
+            own_session = context.session if context.request_kind == "child" else None
+            if own_session is not None and own_session.kind not in GRAPHICAL_SESSION_TYPES:
+                raise AccessDenied("pausing requires the child's local graphical session")
+            targets = self._unlocked_child_desktops(context)
+            if own_session is not None:
+                targets += (own_session,)
+            seen_ends = set()
+            witnesses = []
+            for session in targets:
+                usage = self._lock_and_observe_usage(context, session, seen_ends, witnesses)
+            if usage is not None:
+                coverage = _merge_usage_intervals(usage)
+                if not all(any(start <= first and last <= end for start, end in coverage)
+                           for first, last in witnesses):
+                    raise BackendFailure("completed usage changed during desktop locking")
+        if usage is None:
+            usage = self._saved_time_usage(uid)
+        if lock_before_capture:
+            self._require_no_unlocked_child_desktops(context)
+
+        native_deadline = None
+        if not lock_before_capture:
+            try:
+                native_deadline = self._native_deadline(uid, context.preferences)
+            except NativeDeadlineSuspended as error:
+                raise Busy("native time is suspended while the child session is inactive") from error
+            except Exception as error:
+                raise BackendFailure("native remaining time is unavailable") from error
+        evaluated_at = self._now()
+        status = self._time_status_from_usage(
+            context.preferences, usage, 0, 0, 0, evaluated_at, native_deadline=native_deadline,
+        )
+        return DailyCapture(replace(context, lock_capture_complete=lock_before_capture),
+                            evaluated_at, status.daily_allowance_remaining_seconds)
+
+    def _require_no_unlocked_child_desktops(self, context: SavedTimeContext) -> None:
+        if self._unlocked_child_desktops(context):
+            raise BackendFailure("child desktop is unlocked after usage capture")
+
+    def _unlocked_child_desktops(self, context: SavedTimeContext) -> tuple[SessionState, ...]:
+        uid = context.target.uid
+        try:
+            sessions = self._sessions.for_user(uid, timeout_seconds=SESSION_LOCK_TIMEOUT_SECONDS)
+        except Exception as error:
+            raise BackendFailure("child sessions are unavailable") from error
+        if any(session.uid != uid for session in sessions):
+            raise BackendFailure("child session owner changed during request")
+        own_session = context.session if context.request_kind == "child" else None
+        unlocked = tuple(session for session in sessions
+                         if not session.remote and session.kind in GRAPHICAL_SESSION_TYPES
+                         and not session.locked
+                         and (own_session is None or not _same_session(session, own_session)))
+        if context.request_kind == "kiosk" and any(session.active for session in unlocked):
+            raise DesktopInUse("child desktop is active and unlocked")
+        return unlocked
+
+    def _saved_time_usage(self, uid: int, *, deadline: float | None = None) -> UsageIntervals:
+        timeout = None if deadline is None else self._lock_time_remaining(deadline)
+        if self._timer_usage is None:
+            raise BackendFailure("completed usage is unavailable")
+        try:
+            usage = self._timer_usage.query_usage(uid, timeout_seconds=timeout)
+            valid = all(isinstance(entry, tuple) and len(entry) == 2 and
+                        _valid_usage_interval(*entry) for entry in usage)
+        except Exception as error:
+            raise BackendFailure("completed usage is unavailable") from error
+        if not valid:
+            raise BackendFailure("timer usage returned an invalid interval")
+        if deadline is not None:
+            self._lock_time_remaining(deadline)
+        return usage
+
+    def _lock_time_remaining(self, deadline: float) -> float:
+        remaining = deadline - self._monotonic()
+        if remaining <= 0:
+            raise BackendFailure("desktop lock or completed usage timed out")
+        return remaining
+
+    def _read_lock_session(self, session: SessionState, deadline: float) -> SessionState:
+        timeout = self._lock_time_remaining(deadline)
+        try:
+            current = self._sessions.get(session.path, timeout_seconds=timeout)
+        except Exception as error:
+            raise BackendFailure("desktop session is unavailable") from error
+        self._lock_time_remaining(deadline)
+        if (not _same_session(current, session) or current.remote or current.state == "closing" or
+                current.kind != session.kind):
+            raise BackendFailure("desktop session changed during locking")
+        return current
+
+    def _lock_and_observe_usage(
+            self, context: SavedTimeContext, session: SessionState,
+            seen_ends: set[int], witnesses: list[tuple[int, int]],
+    ) -> UsageIntervals:
+        uid = context.target.uid
+        deadline = self._monotonic() + SESSION_LOCK_TIMEOUT_SECONDS
+        # QueryUsage merges overlaps and has second precision. Give each lock
+        # a new end timestamp, including one second of API rounding tolerance.
+        while True:
+            baseline = self._saved_time_usage(uid, deadline=deadline)
+            seen_ends.update(end for _, end in baseline)
+            now = self._now().timestamp()
+            # After the wall clock moves back, a previously seen record may
+            # be in the future. Keep it as old evidence without waiting for it.
+            watermark = max((end for end in seen_ends if end <= now), default=-1)
+            delay = watermark + 2 - now
+            if delay <= 0:
+                break
+            self._sleep(min(delay, self._lock_time_remaining(deadline)))
+        caller = self._resolve_saved_time_session(
+            context.caller_uid, context.sender, expected=context.session,
+            timeout_seconds=self._lock_time_remaining(deadline),
+        )
+        if context.request_kind == "child" and caller.kind not in GRAPHICAL_SESSION_TYPES:
+            raise AccessDenied("pausing requires the child's local graphical session")
+        if not _same_session(caller, session):
+            current = self._read_lock_session(session, deadline)
+            if current.locked:
+                raise BackendFailure("child desktop locked before usage could be captured")
+            if context.request_kind == "kiosk" and current.active:
+                raise DesktopInUse("child desktop is active and unlocked")
+        earliest_end = int(self._now().timestamp()) - 1
+        if earliest_end <= watermark:
+            raise BackendFailure("wall clock changed before desktop locking")
+        timeout = self._lock_time_remaining(deadline)
+        try:
+            self._sessions.lock(session.session_id, timeout_seconds=timeout)
+        except Exception as error:
+            raise BackendFailure("could not lock desktop session") from error
+        while not self._read_lock_session(session, deadline).locked:
+            self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
+
+        while True:
+            usage = self._saved_time_usage(uid, deadline=deadline)
+            observed_at = int(self._now().timestamp())
+            self._lock_time_remaining(deadline)
+            witness = next(((start, end) for start, end in usage
+                            if earliest_end <= end <= observed_at and end not in seen_ends), None)
+            seen_ends.update(end for _, end in usage)
+            if witness is not None:
+                witnesses.append(witness)
+                return usage
+            self._sleep(min(SESSION_LOCK_POLL_SECONDS, self._lock_time_remaining(deadline)))
 
     @staticmethod
     def _eligible(config: Configuration, user: UserAccount) -> bool:

@@ -12,7 +12,7 @@ recorded native qualification.
 | [x] | 003 | Track what can be paused without changing immediate approvals | 002 | Balance arithmetic, grant classification, and immediate approval recording | Done. Focused host checks, queued package builds, and independent backend review passed. |
 | [x] | 004 | Keep saved time through upgrades and clear it on removal | 002 | DEB/RPM package hooks, state retention and cleanup, and activation | Done. Host checks, queued package builds, and independent backend review passed. |
 | [x] | 005 | Verify who can control the timer and capture time at lock | 001 | Caller/session binding and bounded lock-and-usage capture | Done. Host checks, queued package builds, and independent backend review passed. |
-| [ ] | 006 | [Pause the timer and preserve the remaining approved time](Save-For-Later-Tasks/006.md) | 003, 005 | Shared pause transaction, fault recovery, and expiry policy on session entry | 2–3 h |
+| [x] | 006 | Pause the timer and preserve the remaining approved time | 003, 005 | Shared pause transaction, fault recovery, and expiry policy on session entry | Done. 388 host checks, queued package builds, and independent backend review passed. |
 | [ ] | 007 | [Start saved time once with the approved app access](Save-For-Later-Tasks/007.md) | 003, 005 | Shared redemption transaction and roll-forward recovery | 2–3 h |
 | [ ] | 008 | [Let a parent approve time for later](Save-For-Later-Tasks/008.md) | 006 | Mode-bound authentication, durable approval, and optional pause | 1–2 h |
 | [ ] | 009 | [Recover interrupted transfers and clear withdrawn time](Save-For-Later-Tasks/009.md) | 006, 007, 008 | Recovery triggers and serialization, revoke, and control-toggle invalidation | 1–2 h |

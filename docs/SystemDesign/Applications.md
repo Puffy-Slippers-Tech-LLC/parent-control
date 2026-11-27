@@ -242,12 +242,17 @@ approval/revocation. Under that lock it re-reads authoritative `ActiveExtension`
 
 | Grant state | Effect |
 | --- | --- |
-| Nonzero and expired | Restore/verify complete saved hard and soft filters and native rules, then terminate matching child-owned apps across retained sessions. |
+| Nonzero and expired, or matches the shortened tuple from a pause | Restore/verify complete saved hard and soft filters and native rules, then terminate matching child-owned apps across retained sessions. |
 | Current, including a replacement approval | Preserve current policy and running apps. |
 | Zero duration | No transition. |
 
 The request form's remembered soft-app choice is not authority. An expired
 nonzero record is not cleared, so later calls may repeat reconciliation.
+The shortened tuple from a pause is treated as expired at session entry even
+if its final seconds are still active in AccountsService. Session entry waits
+within a finite deadline if the same child's pause is still resolving. The app
+policy change is part of session entry. See the
+[pause protocol](../Save-For-Later-Design.md#the-pause-step).
 There is no expiry worker that immediately rewrites policy: periodic native
 reconciliation mirrors the live filter. While daily time remains, natural grant
 expiry alone neither locks the desktop nor restores omitted soft blocks.

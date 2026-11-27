@@ -365,10 +365,14 @@ private bus, leaving host displays and saved data unchanged. Their viewer/input
 support is a manual review aid, not an automation or installed-acceptance route.
 Child previews require GNOME Shell 50 and isolated payload/presentation state.
 `make preview-child`, `make preview-kiosk` and `make preview-child-overlay`
-authenticate a real selected host administrator through the host desktop's
-PolicyKit agent. They share the broker's localized prompt/duration builder and
-the request window's approval, denial, cancellation and confirmation handling.
-Only the grant is simulated: previews never write account policy or screen time.
+use the shared VM baseline parent and child identities in their request forms.
+The overlay is fixed to Jordan, who starts with Parent Control enabled. Riley
+has Parent Control disabled in the kiosk preview. The host desktop's PolicyKit
+agent authenticates the selected fixture parent when it is a host administrator.
+Otherwise the preview uses the invoking administrator or the lowest-UID host
+administrator. The previews share the broker's localized prompt/duration builder
+and the request window's approval, denial, cancellation and confirmation handling.
+Previews simulate grants without writing account policy or screen time.
 The dialog appears on the host desktop; its provider styling follows that
 desktop, rather than the kiosk's dedicated MATE agent. Automated component
 previews retain their explicit private dependencies.

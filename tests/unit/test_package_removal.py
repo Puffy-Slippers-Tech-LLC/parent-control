@@ -257,6 +257,8 @@ def test_notice_bootstrap_and_cleanup_do_not_follow_substituted_configuration(ma
 def test_purge_removes_saved_state_logs_and_empty_policy(machine):
     machine.baseline()
     machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
+    grant = machine.write('var/lib/oh-no-parent-control/grants/1001.json', '{}')
+    grant.parent.chmod(0o700)
     machine.write("var/log/oh-no-parent-control/broker/day.log", "redacted fixture")
     # Model trusted system ancestors and the product's 0750 log directories
     # independently of the host umask; purge runs the real directory guards.
@@ -277,15 +279,63 @@ def test_purge_removes_saved_state_logs_and_empty_policy(machine):
 
 
 def test_remove_retains_preferences_until_later_purge(machine):
+    from oh_no_parent_control.grant_store import GrantRecord, GrantStore, SavedBalance
+
     # Purge validates /var even without logs. Model a trusted system ancestor
     # independently of the host umask so this reaches saved-state cleanup.
     (machine.root / 'var').chmod(0o755)
     path = machine.write("var/lib/oh-no-parent-control/preferences/1001.json", "{}")
+    grants = path.parent.parent / 'grants'
+    GrantStore(grants).write(GrantRecord(1001, 'child', saved=SavedBalance(300, True)))
+    grants.chmod(0o1700)
+    machine.write('var/lib/oh-no-parent-control/grants/.1001.interrupted-write', '{')
     assert machine.run("postrm", "remove").returncode == 0
-    assert path.exists()
+    assert path.read_text() == '{}'
+    assert not grants.exists()
+    assert not (grants.parent / 'grants.removed').exists()
     assert machine.run("postrm", "purge").returncode == 0
     assert not path.exists()
     assert machine.run("postrm", "purge").returncode == 0
+
+
+@pytest.mark.parametrize('with_grant_store', [True, False], ids=['with-grants', 'snapshot-only'])
+def test_remove_retries_interrupted_grant_retirement(machine, with_grant_store):
+    snapshot = machine.write('var/lib/oh-no-parent-control/uninstall-enforcement.json', 'rollback\n')
+    grant = snapshot.parent / 'grants' / '1001.json'
+    retired = snapshot.parent / 'grants.removed'
+    if with_grant_store:
+        grant.parent.mkdir(mode=0o700)
+        grant.write_text('saved grant\n')
+        machine.write('test-bin/mv', '''#!/bin/sh
+if [ "${REFUSE_GRANT_RENAME:-0}" = 1 ]; then
+    test "$1" = --no-copy || exit 99
+    exit 8
+fi
+exec /usr/bin/mv "$@"
+''').chmod(0o755)
+        result = machine.run('postrm', 'remove', REFUSE_GRANT_RENAME='1')
+        assert result.returncode == 8, result.stderr
+        assert grant.read_text() == 'saved grant\n'
+        assert snapshot.read_text() == 'rollback\n' and not retired.exists()
+    machine.write('test-bin/sync', '''#!/bin/sh
+if [ "${FAIL_GRANT_SYNC:-0}" = 1 ] && [ "$1" = "$AUDIT_ROOT/var/lib/oh-no-parent-control" ]; then
+    exit 7
+fi
+exec /usr/bin/sync "$@"
+''').chmod(0o755)
+
+    result = machine.run('postrm', 'remove', FAIL_GRANT_SYNC='1')
+    assert result.returncode == 7, result.stderr
+    assert not grant.parent.exists()
+    if with_grant_store:
+        assert (retired / grant.name).read_text() == 'saved grant\n'
+        assert snapshot.read_text() == 'rollback\n'
+    else:
+        assert not snapshot.exists()
+
+    result = machine.run('postrm', 'remove')
+    assert result.returncode == 0, result.stderr
+    assert not grant.parent.exists() and not retired.exists() and not snapshot.exists()
 
 
 @pytest.mark.parametrize(('machine', 'action'), [
@@ -447,6 +497,8 @@ def test_prerm_masks_before_stopping_and_clearing_enforcement(machine):
 
 
 def test_failed_remove_keeps_guard_until_verified_rollback(machine):
+    grant = machine.write('var/lib/oh-no-parent-control/grants/1001.json', 'saved grant\n')
+    grant.parent.chmod(0o700)
     result = machine.run("prerm", "remove", UNINSTALL_FAILURE="1")
     assert result.returncode != 0
     mask = machine.root / "run/systemd/system/oh-no-parent-control-broker.service"
@@ -454,9 +506,11 @@ def test_failed_remove_keeps_guard_until_verified_rollback(machine):
     result = machine.run("postinst", "abort-remove", UNINSTALL_FAILURE="1")
     assert result.returncode != 0
     assert mask.is_symlink()
+    assert grant.read_text() == 'saved grant\n'
     result = machine.run("postinst", "abort-remove")
     assert result.returncode == 0, result.stderr
     assert not mask.is_symlink()
+    assert grant.read_text() == 'saved grant\n'
     assert machine.commands.index("uninstall --restore") < machine.commands.index("systemctl unmask")
 
 

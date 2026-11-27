@@ -434,7 +434,8 @@ esac
 exit 99
 ''').chmod(0o755)
         self.write("test-bin/mountpoint", """#!/bin/sh
-test -n "$MOUNTED_PATH" && test "$2" = "$MOUNTED_PATH"
+if [ -n "$MOUNTED_PATH" ] && [ "$2" = "$MOUNTED_PATH" ]; then exit 0; fi
+exit 32
 """).chmod(0o755)
 
     def write(self, path, text=""):
@@ -729,7 +730,9 @@ case "$name" in
     getent)
         printf 'oh-no-parent-control:x:1006:1006::%s/home/oh-no-parent-control:/bin/bash\n' "$AUDIT_ROOT"
         ;;
-    stat) printf '%s\n' "${KIOSK_MARKER_METADATA:-0:600}" ;;
+    stat)
+        if [ "$2" = '%a' ]; then exec /usr/bin/stat "$@"; fi
+        printf '%s\n' "${KIOSK_MARKER_METADATA:-0:600}" ;;
     debconf-communicate) printf '%s\n' "${PAM_PROFILES:-0 unix, malcontent}" ;;
     pam-auth-update)
         if [ "${PAM_LOCAL_CHANGES:-0}" != 1 ]; then
@@ -866,7 +869,7 @@ esac
                  "chown", "chmod", "systemd-sysusers", "invoke-rc.d", "pam-auth-update",
                  "stat", "debconf-communicate", "usermod", "passwd", "setpriv", "restorecon", "sleep"):
         (bin_dir / name).symlink_to(stub)
-    for name in ("rm", "touch", "grep", "cut", "cat", "cmp", "sync"):
+    for name in ("rm", "touch", "grep", "cut", "cat", "cmp", "sync", "mountpoint", "find", "rmdir"):
         (bin_dir / name).symlink_to(Path("/usr/bin") / name)
     for name in ("migrate-state", "provision", "package-activation", "fedora-pam", "fedora-execution-policy", "kiosk-lifecycle"):
         target = tmp_path / f"usr/libexec/oh-no-parent-control-{name}"

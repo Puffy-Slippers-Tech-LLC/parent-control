@@ -79,6 +79,15 @@ satisfies Malcontent's requirement that an active grant has an enabled limit.
 The snapshot is removed after either a successful rollback or successful
 package removal.
 
+The broker's [saved-time store](State.md#saved-time-grant-records) stays intact
+through reversible removal and `abort-remove`. After owned post-erase cleanup,
+the package atomically retires the grant directory before discarding the
+enforcement snapshot. If interrupted at that point, the next removal, rollback,
+or package configuration finishes deleting the retired directory and snapshot
+before it can restore enforcement or activate the broker. A completed removal
+therefore clears saved time and pending transfers. Purge also deletes the store
+along with the rest of the product state.
+
 Version-4 personal-only preference records contain no policy ownership. The
 removal helper excludes those records, so saving a language for an administrator,
 kiosk or otherwise unmanaged child does not cause enforcement cleanup for that

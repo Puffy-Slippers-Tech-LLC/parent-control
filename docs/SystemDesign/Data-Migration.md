@@ -40,6 +40,10 @@ After unpacking, `debian/postinst` runs the newly installed `/usr/libexec/oh-no-
 
 The maintainer script deliberately fails if migration fails. The marker then keeps the broker unavailable and APT leaves the package unconfigured. Fixing the underlying record or migration and running `dpkg --configure -a` retries the operation. A successfully migrated record is skipped on retry, so an interruption between records is safe.
 
+Configuration finishes any [committed grant-store retirement](Package-Removal.md#payload-and-reversible-enforcement-cleanup)
+before migration. The migration command creates the private `grants/` directory
+when absent and leaves existing valid records and pending transfers intact.
+
 The Fedora RPM embeds the same lifecycle templates. Its `%pre` creates the
 exclusion marker and stops the broker, and `%posttrans` invokes migration before
 provisioning/activation. RPM can record an installed package despite a failed

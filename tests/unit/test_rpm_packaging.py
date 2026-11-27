@@ -92,6 +92,10 @@ def test_fedora_payload_shares_runtime_and_has_native_integrations(fedora_payloa
     assert 'session required pam_oh_no_parent_control.so kiosk\n' in stack
     manifest = json.loads((payload / 'usr/share/oh-no-parent-control/package-activation.json').read_text())
     files = {entry['path']: entry for entry in manifest['files']}
+    broker_path = 'usr/lib/oh-no-parent-control/broker/oh_no_parent_control'
+    for name in ('data_migration.py', 'grant_store.py'):
+        assert files[f'{broker_path}/{name}']['activation'] == 'process-restart'
+    assert files['usr/libexec/oh-no-parent-control-migrate-state']['activation'] == 'none'
     assert files['usr/lib64/security/pam_oh_no_parent_control.so']['activation'] == 'session-renewal'
     assert files['usr/libexec/oh-no-parent-control-kiosk-lifecycle']['activation'] == 'none'
     accounts_dropin = 'usr/lib/systemd/system/accounts-daemon.service.d/oh-no-parent-control.conf'
@@ -487,10 +491,13 @@ def test_rpm_upgrade_erasure_callbacks_leave_replacement_state_untouched(
     machine.baseline(rules='installed policy\n')
     hook = machine.integration('gdm-presession', machine.gdm_hook)
     prefs = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', '{}')
+    grant = machine.write('var/lib/oh-no-parent-control/grants/1004.json', 'saved grant\n')
+    grant.parent.chmod(0o700)
     result = machine.run_rpm(scriptlet, 1, KIOSK_ACTIVE='1')
     assert result.returncode == 0, result.stderr
     assert machine.commands == ''
     assert hook.exists() and prefs.exists()
+    assert grant.read_text() == 'saved grant\n'
     assert (machine.root / 'account').exists()
     assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
 
@@ -531,6 +538,8 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     machine.integration('child-extension-trust',
                         'etc/fapolicyd/trust.d/oh-no-parent-control.trust')
     prefs = machine.write('var/lib/oh-no-parent-control/preferences/1004.json', '{}')
+    grant = machine.write('var/lib/oh-no-parent-control/grants/1004.json', 'saved grant\n')
+    grant.parent.chmod(0o700)
     log = machine.write('var/log/oh-no-parent-control/broker/day.log', 'retained log')
     provenance = machine.write('var/lib/oh-no-parent-control/fedora-execution-policy.json', 'owned receipt')
     # RPM has erased all product helpers before postun. Its callback is embedded
@@ -550,6 +559,7 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     assert marker.exists()
     assert provenance.exists(), 'failed post-erase must retain original-policy provenance'
     assert prefs.read_text() == '{}' and log.read_text() == 'retained log'
+    assert grant.read_text() == 'saved grant\n'
     if failure != 'kiosk':
         assert (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install/complete').exists()
     result = machine.run_rpm('postun', 0, SERVICE_ACTIVE='1', READINESS_STATE='active')
@@ -559,9 +569,34 @@ def test_rpm_postun_erased_payload_cleanup_retains_retry_records(
     assert not (machine.root / 'home/oh-no-parent-control').exists()
     assert not (machine.root / 'var/lib/oh-no-parent-control/fapolicyd-before-install').exists()
     assert prefs.exists() and log.exists()
+    assert not grant.parent.exists()
     assert 'uninstall --' not in machine.commands and 'fedora-pam ' not in machine.commands
     assert 'distro-pam ' not in machine.commands and 'kiosk-lifecycle ' not in machine.commands
     assert not (machine.root / 'usr/share/oh-no-parent-control/lifecycle/postinst').exists()
+
+
+@pytest.mark.parametrize('preflight_refuses', [True, False])
+def test_rpm_erase_never_restores_a_prior_committed_retirement(fedora_removal_machine, preflight_refuses):
+    machine = fedora_removal_machine
+    machine.kiosk()
+    snapshot = machine.write('var/lib/oh-no-parent-control/uninstall-enforcement.json', 'rollback\n')
+    grant = machine.write('var/lib/oh-no-parent-control/grants.removed/1004.json', 'saved grant\n')
+    grant.parent.chmod(0o700)
+    # A late preun refusal reaches capture first. An early one enters the
+    # RPM abort callback directly, as after unpack without configuration.
+    machine.write('usr/libexec/oh-no-parent-control-uninstall', '''#!/bin/sh
+if [ -e "$AUDIT_ROOT/var/lib/oh-no-parent-control/uninstall-enforcement.json" ]; then
+    touch "$AUDIT_ROOT/stale-snapshot-used"
+fi
+printf 'uninstall %s\\n' "$1" >> "$AUDIT_ROOT/commands"
+if [ "$1" = --remove ]; then exit 7; fi
+''').chmod(0o755)
+    result = machine.run_rpm('preun', 0, KIOSK_ACTIVE='1' if preflight_refuses else '0')
+    assert result.returncode == (1 if preflight_refuses else 7), result.stderr
+    assert ('uninstall --remove' in machine.commands) == (not preflight_refuses)
+    assert 'uninstall --restore' in machine.commands
+    assert not (machine.root / 'stale-snapshot-used').exists()
+    assert not snapshot.exists() and not grant.parent.exists()
 
 
 def test_ubuntu_removal_does_not_touch_fedora_readiness(machine):

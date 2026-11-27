@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+@grant_retirement@
+
 if [ "$1" = remove ]; then
     # Refuse changed shared integrations while all package files still exist.
     check_integration() {
@@ -66,6 +68,7 @@ if [ "$1" = remove ]; then
         echo 'oh-no-parent-control: broker remained active; refusing unsafe removal' >&2
         exit 1
     fi
+    finish_grant_retirement
     /usr/libexec/oh-no-parent-control-uninstall --remove
 
     /usr/libexec/oh-no-parent-control-kiosk-lifecycle --distribution @kiosk_distribution@ prepare-remove

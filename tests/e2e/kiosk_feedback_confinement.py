@@ -59,6 +59,11 @@ class BrokerOutage:
         self.fault_pending = True
         value = self.engineering('begin')
         self._outage_boundary = value.pop('fault_time', None)
+        stop_start, stop_end = value.pop('stop_allowance')
+        observation = self.transport.product_failures
+        if observation is not None:
+            # Stopping the unit can terminate an in-flight broker usage helper.
+            observation.add_allowance('broker', 'backend', stop_start, stop_end)
         return value
 
     def restore_fault(self):

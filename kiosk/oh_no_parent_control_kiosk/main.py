@@ -2293,6 +2293,23 @@ class Application(Adw.Application):
         self._timing_registration = 0
         self._timing_pending = {}
 
+    def request_countdown_refresh(self):
+        """Ask the panel to reread usable time after an overlay action."""
+        if not self._child_overlay or not self.get_is_registered():
+            return
+        connection = self.get_dbus_connection()
+        if connection is None:
+            return
+        try:
+            connection.emit_signal(
+                None, self.get_dbus_object_path(),
+                'com.puffyslippers.OhNoParentControl.ChildRequest1',
+                'CountdownChanged', None,
+            )
+        except GLib.Error:
+            # Session-bus shutdown can race this best-effort notification.
+            pass
+
     def do_dbus_register(self, connection, object_path):
         if not Adw.Application.do_dbus_register(self, connection, object_path):
             return False

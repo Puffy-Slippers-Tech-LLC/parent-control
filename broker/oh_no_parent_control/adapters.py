@@ -242,19 +242,36 @@ class AccountsService:
         self._preferences = preferences
         self._execution_policy_lock = threading.RLock()
 
-    def _user_path(self, uid: int) -> str:
-        reply = _call(
-            self.connection, ACCOUNTS_NAME, ACCOUNTS_PATH, ACCOUNTS_INTERFACE,
+    def _call(self, path, interface, method, parameters, reply_type, *,
+              deadline=None, wall_deadline=None, timeout=CALL_TIMEOUT_MS):
+        if deadline is not None:
+            timeout = min(timeout, int((deadline - time.monotonic()) * 1000))
+        if wall_deadline is not None:
+            timeout = min(timeout, int((wall_deadline - time.time()) * 1000))
+        if timeout <= 0:
+            raise TimeoutError("AccountsService operation timed out")
+        reply = _call(self.connection, ACCOUNTS_NAME, path, interface, method,
+                      parameters, reply_type, timeout=timeout)
+        if ((deadline is not None and time.monotonic() >= deadline) or
+                (wall_deadline is not None and time.time() >= wall_deadline)):
+            raise TimeoutError("AccountsService operation timed out")
+        return reply
+
+    def _user_path(self, uid: int, *, deadline: float | None = None) -> str:
+        reply = self._call(
+            ACCOUNTS_PATH, ACCOUNTS_INTERFACE,
             "FindUserById", GLib.Variant("(x)", (uid,)), "(o)",
+            deadline=deadline,
         )
         path = reply.unpack()[0]
         if path != f"/org/freedesktop/Accounts/User{uid}":
             LOG.error("adapters.account-object-mismatch", stage="find-user")
-            self._log_account_object_context(uid, path)
+            self._log_account_object_context(uid, path, deadline=deadline)
             raise RuntimeError("AccountsService returned an unexpected user object")
         return path
 
-    def _log_account_object_context(self, requested_uid: int, path: str) -> None:
+    def _log_account_object_context(self, requested_uid: int, path: str, *,
+                                    deadline: float | None = None) -> None:
         """Observe rejected identity metadata without changing its rejection.
 
         The additional read has a one-second budget and cannot replace the
@@ -263,10 +280,10 @@ class AccountsService:
         shape = "uid-path" if re.fullmatch(r"/org/freedesktop/Accounts/User[0-9]+", path) else "other"
         requested_match = object_match = role = "unknown"
         try:
-            properties = _call(
-                self.connection, ACCOUNTS_NAME, path, PROPERTIES_INTERFACE,
+            properties = self._call(
+                path, PROPERTIES_INTERFACE,
                 "GetAll", GLib.Variant("(s)", (ACCOUNTS_INTERFACE + ".User",)),
-                "(a{sv})", timeout=1000,
+                "(a{sv})", deadline=deadline, timeout=1000,
             ).unpack()[0]
             observed_uid = properties.get("Uid")
             if type(observed_uid) is int and 0 <= observed_uid <= (1 << 32) - 1:
@@ -282,10 +299,11 @@ class AccountsService:
                   requested_uid_match=requested_match, object_uid_match=object_match,
                   account_role=role)
 
-    def _get(self, uid: int, interface: str, prop: str):
-        reply = _call(
-            self.connection, ACCOUNTS_NAME, self._user_path(uid), PROPERTIES_INTERFACE,
+    def _get(self, uid: int, interface: str, prop: str, *, deadline: float | None = None):
+        reply = self._call(
+            self._user_path(uid, deadline=deadline), PROPERTIES_INTERFACE,
             "Get", GLib.Variant("(ss)", (interface, prop)), "(v)",
+            deadline=deadline,
         )
         return reply.unpack()[0]
 
@@ -414,10 +432,12 @@ class AccountsService:
             cleared.append(unit)
         return tuple(cleared)
 
-    def _set(self, uid: int, interface: str, prop: str, value: GLib.Variant):
-        _call(
-            self.connection, ACCOUNTS_NAME, self._user_path(uid), PROPERTIES_INTERFACE,
+    def _set(self, uid: int, interface: str, prop: str, value: GLib.Variant, *,
+             deadline: float | None = None, wall_deadline: float | None = None):
+        self._call(
+            self._user_path(uid, deadline=deadline), PROPERTIES_INTERFACE,
             "Set", GLib.Variant("(ssv)", (interface, prop, value)), "()",
+            deadline=deadline, wall_deadline=wall_deadline,
         )
 
     def get_filter(self, target_uid: int) -> tuple[bool, tuple[str, ...]]:
@@ -492,15 +512,17 @@ class AccountsService:
             else:
                 self._execution_policy.reconcile(filters)
 
-    def get_extension(self, target_uid: int) -> tuple[int, int]:
+    def get_extension(self, target_uid: int, *,
+                      deadline: float | None = None) -> tuple[int, int]:
         grant_time, duration = self._get(
-            target_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension"
+            target_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension", deadline=deadline,
         )
         return grant_time, duration
 
-    def set_extension(self, target_uid: int, value: tuple[int, int]) -> None:
+    def set_extension(self, target_uid: int, value: tuple[int, int], *,
+                      deadline: float | None = None, wall_deadline: float | None = None) -> None:
         self._set(target_uid, SESSION_LIMITS_INTERFACE, "ActiveExtension",
-                  GLib.Variant("(tu)", value))
+                  GLib.Variant("(tu)", value), deadline=deadline, wall_deadline=wall_deadline)
 
     def get_limit_type(self, uid: int) -> int:
         return self._get(uid, SESSION_LIMITS_INTERFACE, "LimitType")

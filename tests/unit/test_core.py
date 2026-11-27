@@ -2,6 +2,7 @@ import threading
 import tempfile
 import unittest
 import pytest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -12,7 +13,8 @@ from zoneinfo import ZoneInfo
 from oh_no_parent_control import data_migration
 from oh_no_parent_control.core import (
     AccessDenied, BackendFailure, Broker, Busy, DesktopInUse, InvalidRequest, RollbackFailure,
-    NativeDeadlineSuspended, SessionState, UserAccount, calculate_active_extension_seconds,
+    NativeDeadlineSuspended, RecoveryPending, SessionState, Stale, UserAccount,
+    TRANSFER_MARGIN_SECONDS, calculate_active_extension_seconds,
     emit_backend_failure,
     format_requested_duration, seconds_until_local_midnight,
 )
@@ -69,14 +71,20 @@ def saved_time_session():
         nonlocal elapsed
         elapsed += seconds
 
+    def clock():
+        return now + timedelta(seconds=elapsed)
+
+    def monotonic():
+        return 100 + elapsed
+
     broker = Broker(
         lambda: validate(valid_config()), Authorizer(), accounts, preferences,
-        timer_usage=usage, sessions=sessions, now=lambda: now + timedelta(seconds=elapsed),
-        monotonic=lambda: 100 + elapsed, sleep=sleep,
+        timer_usage=usage, sessions=sessions, now=clock, monotonic=monotonic, sleep=sleep,
     )
     return SimpleNamespace(broker=broker, sessions=sessions, usage=usage, accounts=accounts,
                            preferences=preferences, child=child, kiosk=kiosk,
-                           epoch=int(now.timestamp()), elapsed=lambda: elapsed)
+                           epoch=int(now.timestamp()), elapsed=lambda: elapsed,
+                           clock=clock, monotonic=monotonic, sleep=sleep)
 
 
 @pytest.mark.parametrize("caller_uid", [0, 1002, 1003])
@@ -3032,6 +3040,464 @@ def tracked(tmp_path):
 
 def seed_record(store, **fields):
     return store.write(replace(store.load(1001, "child"), **fields))
+
+
+@pytest.fixture
+def pause_transaction(saved_time_session, tmp_path, monkeypatch):
+    state = saved_time_session
+    state.store = GrantStore(tmp_path / "grants")
+    state.running_apps = RunningApps()
+    state.source = (state.epoch - 60, 660)
+    state.destination = (state.source[0], 60 + TRANSFER_MARGIN_SECONDS)
+    state.accounts.extension = state.source
+    state.accounts.filter = (False, ("org.example.Game",))
+    state.sessions.resolve.return_value = state.kiosk
+
+    def restart():
+        state.store = GrantStore(state.store.directory)
+        state.broker = Broker(
+            lambda: validate(valid_config()), Authorizer(), state.accounts, state.preferences,
+            timer_usage=state.usage, running_apps=state.running_apps, sessions=state.sessions,
+            grant_store=state.store, now=state.clock, monotonic=state.monotonic, sleep=state.sleep,
+        )
+
+    def pause(revision, *, caller=991):
+        return state.broker.pause_grant(caller, ":1.42", 1001, revision)
+
+    def record():
+        return state.store.load(1001, "child")
+
+    def overlay_lock(*, completed=True):
+        state.sessions.resolve.return_value = state.child
+        state.sessions.get.side_effect = lambda *_args, **_kwargs: state.sessions.resolve.return_value
+
+        def lock(session_id, *, timeout_seconds):
+            assert session_id == state.child.session_id and timeout_seconds > 0
+            state.sessions.resolve.return_value = replace(state.child, locked=True)
+            if completed:
+                state.usage.query_usage.return_value = ((state.epoch - 20, state.epoch),)
+
+        state.sessions.lock.side_effect = lock
+
+    def read_extension(uid, *, deadline=None):
+        if deadline is not None:
+            assert 0 < deadline - state.monotonic() <= TRANSFER_MARGIN_SECONDS
+        state.reads.append((state.elapsed(), deadline))
+        return read(uid)
+
+    def write_extension(uid, grant, *, deadline, wall_deadline):
+        assert 0 < deadline - state.monotonic() <= TRANSFER_MARGIN_SECONDS
+        assert state.clock().timestamp() < wall_deadline == sum(grant)
+        assert record().intent.destination == grant
+        state.writes.append((state.elapsed(), deadline))
+        write(uid, grant)
+
+    read, write = state.accounts.get_extension, state.accounts.set_extension
+    state.reads, state.writes = [], []
+    monkeypatch.setattr(state.accounts, "get_extension", read_extension)
+    monkeypatch.setattr(state.accounts, "set_extension", write_extension)
+    state.restart, state.pause, state.record, state.overlay_lock = restart, pause, record, overlay_lock
+    restart()
+    return state
+
+
+@pytest.mark.parametrize(("caller", "daily", "saved"), [
+    (991, 0, None),
+    (1001, 100, SavedBalance(300, False)),
+])
+def test_pause_conserves_seconds_at_boundary_and_restores_strict_policy_on_entry(
+        pause_transaction, caller, daily, saved):
+    state = pause_transaction
+    if caller == 1001:
+        state.overlay_lock()
+    else:
+        state.usage.query_usage.return_value = ((state.epoch - 120, state.epoch),)
+    state.usage.query_native_deadline.return_value = 0
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=saved)
+    # File persistence consumes part of the same write/read-back budget.
+    write_record = state.store.write
+
+    def write_with_delay(record):
+        if record.intent is not None:
+            state.sleep(1)
+        return write_record(record)
+
+    with mock.patch.object(state.store, "write", side_effect=write_with_delay):
+        assert state.pause(before.revision, caller=caller) is None
+
+    transfer_at = state.epoch + TRANSFER_MARGIN_SECONDS
+    running = remaining_seconds(state.source, transfer_at)
+    expected_saved = (saved.seconds if saved else 0) + running - daily
+    assert (state.accounts.extension, sum(state.accounts.extension)) == (state.destination, transfer_at)
+    assert state.record() == replace(before, revision=before.revision + 2, intent=None,
+                                     fixed=FixedGrant(state.destination, True, ended_by_pause=True),
+                                     saved=SavedBalance(expected_saved, saved is None))
+    assert daily + expected_saved == max(daily, running) + (saved.seconds if saved else 0)
+    assert state.writes == [(1, 100 + TRANSFER_MARGIN_SECONDS)]
+    assert state.reads[-1] == state.writes[0]
+    assert state.sessions.lock.call_count == (caller == 1001)
+    state.usage.query_native_deadline.assert_not_called()
+    assert state.accounts.filter == (False, ("org.example.Game",))
+    assert state.running_apps.calls == []
+
+    # Child re-enters within the short tail of the still-live OS tuple.
+    assert state.elapsed() < TRANSFER_MARGIN_SECONDS
+    state.sessions.resolve.return_value = state.child
+    after = state.record()
+    assert state.broker.prepare_own_session(1001)
+    assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert [name for name, *_ in state.running_apps.calls] == ["preflight", "terminate"]
+    assert state.record() == after
+    assert state.accounts.extension == state.destination
+
+
+@pytest.mark.parametrize(("refusal", "error", "locks"), [
+    ("stale revision", Stale, 0), ("deadline tuple", Stale, 0), ("expired", Stale, 0),
+    ("zero beyond daily", Stale, 1), ("replacement during capture", Stale, 1),
+    ("failed lock", BackendFailure, 1), ("missing completed usage", BackendFailure, 1),
+])
+def test_pause_refusal_preserves_time_and_apps(pause_transaction, refusal, error, locks):
+    state = pause_transaction
+    source = state.source
+    if refusal == "expired":
+        source = (state.epoch - 70, 60)
+    elif refusal == "zero beyond daily":
+        source = (state.epoch - 60, 160 + TRANSFER_MARGIN_SECONDS)
+    state.accounts.extension = source
+    before = seed_record(state.store, fixed=FixedGrant(source, True), saved=SAVED)
+    state.overlay_lock(completed=refusal != "missing completed usage")
+    initial_lock = state.sessions.lock.side_effect
+    if refusal == "failed lock":
+        state.sessions.lock.side_effect = RuntimeError("lock unavailable")
+    elif refusal == "replacement during capture":
+        def replace_during_lock(*args, **kwargs):
+            initial_lock(*args, **kwargs)
+            state.accounts.extension = (state.epoch, 50)
+
+        state.sessions.lock.side_effect = replace_during_lock
+    elif refusal == "deadline tuple":
+        state.accounts.extension = (state.epoch, 50)
+
+    revision = before.revision - 1 if refusal == "stale revision" else before.revision
+    with pytest.raises(error):
+        state.pause(revision, caller=1001)
+
+    assert state.sessions.lock.call_count == locks
+    expected = (state.epoch, 50) if refusal in {"deadline tuple", "replacement during capture"} else source
+    assert state.accounts.extension == expected
+    assert state.record() == before
+    assert state.writes == state.running_apps.calls == []
+    assert state.accounts.filter == (False, ("org.example.Game",))
+
+
+@pytest.mark.parametrize("outcome", ("source", "late write", "unreadable verify", "external"))
+def test_pause_resolves_uncertain_write_from_live_tuple_at_boundary(pause_transaction, outcome):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    replacement = (state.epoch, 50)
+    read, write = state.accounts.get_extension, state.accounts.set_extension
+    attempted = False
+    observations = []
+
+    def attempt(uid, grant, **bounds):
+        nonlocal attempted
+        assert state.record().intent.destination == grant
+        attempted = True
+        if outcome == "external":
+            state.accounts.extension = replacement
+        elif outcome == "late write":
+            raise TimeoutError("write acknowledgement unavailable")
+        elif outcome == "unreadable verify":
+            write(uid, grant, **bounds)
+
+    def observe(uid, *, deadline=None):
+        if attempted:
+            observations.append(state.elapsed())
+            if state.elapsed() >= TRANSFER_MARGIN_SECONDS and outcome == "late write":
+                state.accounts.extension = state.destination
+            elif state.elapsed() < TRANSFER_MARGIN_SECONDS and outcome == "unreadable verify":
+                raise TimeoutError("read-back unavailable")
+        return read(uid, deadline=deadline)
+
+    with mock.patch.object(state.accounts, "set_extension", side_effect=attempt) as writes, \
+            mock.patch.object(state.accounts, "get_extension", side_effect=observe):
+        if outcome in {"source", "external"}:
+            with pytest.raises(BackendFailure):
+                state.pause(before.revision)
+        else:
+            assert state.pause(before.revision) is None
+
+    writes.assert_called_once()
+    assert observations[-1] == pytest.approx(TRANSFER_MARGIN_SECONDS)
+    if outcome in {"source", "unreadable verify", "external"}:
+        assert observations[0] < TRANSFER_MARGIN_SECONDS
+    result = state.record()
+    assert result.revision == before.revision + 2
+    assert result.intent is None
+    if outcome in {"source", "external"}:
+        assert (result.fixed, result.saved) == (before.fixed, SAVED)
+        if outcome == "external":
+            assert state.accounts.extension == replacement
+            assert running_mode(result, replacement, 45) == "deadline"
+        else:
+            assert state.accounts.extension == state.source
+    else:
+        assert state.accounts.extension == state.destination
+        assert result.fixed == FixedGrant(state.destination, True, ended_by_pause=True)
+        assert result.saved == SavedBalance(900 + 600 - TRANSFER_MARGIN_SECONDS - 120, False)
+
+
+def test_pause_preserves_replacement_observed_after_intent_is_written(pause_transaction):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    replacement = (state.epoch, 50)
+    write_record = state.store.write
+
+    def replace_live_after_intent(record):
+        written = write_record(record)
+        if written.intent is not None:
+            state.accounts.extension = replacement
+        return written
+
+    with mock.patch.object(state.store, "write", side_effect=replace_live_after_intent):
+        with pytest.raises(BackendFailure):
+            state.pause(before.revision)
+
+    assert state.writes == []
+    assert state.accounts.extension == replacement
+    assert state.record() == replace(before, revision=before.revision + 2)
+
+
+@pytest.mark.parametrize("delayed_observation", ("usage reply", "desktop check"))
+def test_early_unlock_during_capture_keeps_the_original_pause_boundary(
+        pause_transaction, delayed_observation, monkeypatch):
+    state = pause_transaction
+    state.overlay_lock()
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True))
+    delayed = False
+
+    def unlock_during_observation():
+        nonlocal delayed
+        if state.sessions.lock.called and not delayed:
+            delayed = True
+            state.sessions.resolve.return_value = state.child
+            state.sleep(3)
+
+    if delayed_observation == "usage reply":
+        def read_usage(*_args, **_kwargs):
+            unlock_during_observation()
+            return state.usage.query_usage.return_value
+
+        state.usage.query_usage.side_effect = read_usage
+    else:
+        check = state.broker._require_no_unlocked_child_desktops
+
+        def check_desktops(context):
+            unlock_during_observation()
+            check(context)
+
+        monkeypatch.setattr(state.broker, "_require_no_unlocked_child_desktops", check_desktops)
+
+    assert state.pause(before.revision, caller=1001) is None
+    assert delayed and state.accounts.extension == state.destination
+    assert state.writes == [(3, 100 + TRANSFER_MARGIN_SECONDS)]
+    assert state.record().saved == SavedBalance(600 - TRANSFER_MARGIN_SECONDS - 100, True)
+
+
+def test_pause_refuses_stale_usage_if_the_child_unlocks_during_recheck(pause_transaction):
+    state = pause_transaction
+    state.overlay_lock()
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    recheck = state.broker._recheck_saved_time_context
+
+    def unlock_and_delay(context):
+        if context.lock_capture_complete:
+            state.sessions.resolve.return_value = state.child
+            state.sleep(TRANSFER_MARGIN_SECONDS + 1)
+        recheck(context)
+
+    with mock.patch.object(state.broker, "_recheck_saved_time_context", side_effect=unlock_and_delay):
+        with pytest.raises(BackendFailure):
+            state.pause(before.revision, caller=1001)
+
+    state.sessions.lock.assert_called_once()
+    assert state.accounts.extension == state.source and state.record() == before
+    assert state.writes == []
+
+
+def test_pause_does_not_shorten_an_expired_grant_after_wall_clock_jump(pause_transaction):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    write_record = state.store.write
+
+    def jump_after_persisting(record):
+        written = write_record(record)
+        if written.intent is not None:
+            state.broker._now = lambda: state.clock() + timedelta(hours=1)
+        return written
+
+    with mock.patch.object(state.store, "write", side_effect=jump_after_persisting):
+        with pytest.raises(BackendFailure):
+            state.pause(before.revision)
+
+    assert state.accounts.extension == state.source and state.writes == []
+    assert remaining_seconds(state.source, int(state.broker._now().timestamp())) == 0
+    assert state.record() == replace(before, revision=before.revision + 2)
+
+
+def test_early_unlock_waits_for_overlapping_pause_recovery_before_restoring_apps(pause_transaction):
+    state = pause_transaction
+    state.overlay_lock()
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    write = state.accounts.set_extension
+    wait = state.broker._wait_for_active_pause
+    waiting = threading.Event()
+    entry_attempt = None
+
+    def lose_reply(uid, grant, **bounds):
+        write(uid, grant, **bounds)
+        state.sessions.resolve.return_value = state.child
+        raise TimeoutError("the shortening applied but its reply was lost")
+
+    def observe_wait(uid):
+        assert uid == 1001
+        waiting.set()
+        return wait(uid)
+
+    def unlock_before_boundary(seconds):
+        nonlocal entry_attempt
+        assert 0 <= state.elapsed() < TRANSFER_MARGIN_SECONDS
+        entry_attempt = worker.submit(state.broker.prepare_own_session, 1001)
+        assert waiting.wait(2)
+        assert not entry_attempt.done()
+        assert state.accounts.filter == (False, ("org.example.Game",))
+        state.sleep(seconds)
+
+    with ThreadPoolExecutor(max_workers=1) as worker, \
+            mock.patch.object(state.accounts, "set_extension", side_effect=lose_reply), \
+            mock.patch.object(state.broker, "_wait_for_active_pause", side_effect=observe_wait), \
+            mock.patch.object(state.broker, "_sleep", side_effect=unlock_before_boundary):
+        assert state.pause(before.revision, caller=1001) is None
+        assert entry_attempt.result(timeout=2)
+
+    assert state.record().fixed.ended_by_pause
+    assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+    assert [name for name, *_ in state.running_apps.calls] == ["preflight", "terminate"]
+
+
+@pytest.mark.parametrize("boundary", ("before intent", "intent", "live write", "commit"))
+def test_pause_restart_never_repeats_or_loses_a_durable_transfer(pause_transaction, boundary):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    write_record, write_live = state.store.write, state.accounts.set_extension
+
+    def interrupt_record(record):
+        if boundary == "before intent" and record.intent is not None:
+            raise SystemExit
+        written = write_record(record)
+        if boundary == ("intent" if written.intent is not None else "commit"):
+            raise SystemExit
+        return written
+
+    def interrupt_live(uid, grant, **bounds):
+        write_live(uid, grant, **bounds)
+        if boundary == "live write":
+            raise SystemExit
+
+    with mock.patch.object(state.store, "write", side_effect=interrupt_record), \
+            mock.patch.object(state.accounts, "set_extension", side_effect=interrupt_live):
+        with pytest.raises(SystemExit):
+            state.pause(before.revision)
+
+    state.restart()
+    recovered = state.record()
+    if boundary == "before intent":
+        assert recovered == before
+        assert state.accounts.extension == state.source
+        assert state.pause(recovered.revision) is None
+    else:
+        if boundary == "live write":
+            assert state.elapsed() < TRANSFER_MARGIN_SECONDS
+            assert recovered.intent is not None and recovered.intent.destination == state.destination
+            # Session entry can use the matching journaled destination before recovery runs.
+            assert state.broker.prepare_own_session(1001)
+            assert state.accounts.filter == (False, ("/usr/bin/game", "org.example.Game"))
+            assert state.record() == recovered
+        with pytest.raises(Stale):
+            state.pause(recovered.revision if recovered.intent is not None else before.revision)
+
+    after = state.record()
+    assert after.revision == before.revision + 2 and after.intent is None
+    if boundary == "intent":
+        assert state.elapsed() == pytest.approx(TRANSFER_MARGIN_SECONDS)
+        assert state.accounts.extension == state.source
+        assert (after.fixed, after.saved, state.writes) == (before.fixed, SAVED, [])
+    else:
+        assert state.accounts.extension == state.destination
+        assert after.fixed == FixedGrant(state.destination, True, ended_by_pause=True)
+        assert after.saved == SavedBalance(900 + 600 - TRANSFER_MARGIN_SECONDS - 120, False)
+        assert len(state.writes) == 1
+
+
+@pytest.mark.parametrize("failing_write", (1, 2))
+def test_pause_directory_sync_failure_does_not_claim_success(pause_transaction, failing_write):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    fsync_directory = data_migration._fsync_directory
+    calls = 0
+
+    def fail_once(path):
+        nonlocal calls
+        calls += 1
+        if calls == failing_write:
+            raise OSError("directory sync unavailable")
+        fsync_directory(path)
+
+    with mock.patch.object(data_migration, "_fsync_directory", side_effect=fail_once):
+        with pytest.raises(RecoveryPending):
+            state.pause(before.revision)
+
+    state.restart()
+    visible = state.record()
+    if failing_write == 1:
+        assert state.accounts.extension == state.source and state.writes == []
+        assert visible.saved == SAVED and visible.fixed == before.fixed
+        if visible.intent is not None:
+            with pytest.raises(Stale):
+                state.pause(visible.revision)
+        assert state.record().intent is None and state.record().saved == SAVED
+    else:
+        assert state.accounts.extension == state.destination and len(state.writes) == 1
+        assert visible.intent is None and visible.fixed.ended_by_pause
+        assert visible.saved == SavedBalance(900 + 600 - TRANSFER_MARGIN_SECONDS - 120, False)
+        with pytest.raises(Stale):
+            state.pause(before.revision)
+        assert state.record() == visible
+
+
+def test_pause_read_outage_after_boundary_leaves_intent_for_next_mutation(pause_transaction):
+    state = pause_transaction
+    before = seed_record(state.store, fixed=FixedGrant(state.source, True), saved=SAVED)
+    read = state.accounts.get_extension
+
+    def unavailable_after_write(uid, *, deadline=None):
+        if state.writes:
+            raise TimeoutError("active grant unavailable")
+        return read(uid, deadline=deadline)
+
+    with mock.patch.object(state.accounts, "get_extension", side_effect=unavailable_after_write):
+        with pytest.raises(RecoveryPending):
+            state.pause(before.revision)
+
+    assert state.elapsed() == pytest.approx(TRANSFER_MARGIN_SECONDS)
+    pending = state.record()
+    assert pending.intent.destination == state.destination
+    assert pending.saved == SAVED
+    with pytest.raises(Stale):
+        state.pause(pending.revision)
+    result = state.record()
+    assert result.intent is None and result.saved == pending.intent.saved
+    assert result.fixed.ended_by_pause and len(state.writes) == 1
 
 
 @pytest.mark.parametrize("surface", ("child", "kiosk"))

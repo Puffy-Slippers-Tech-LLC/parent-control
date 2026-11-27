@@ -118,6 +118,61 @@ class LogindSessionsTests(unittest.TestCase):
 
 
 class PolkitAdapterTests(unittest.TestCase):
+    def test_active_extension_set_is_refused_if_wall_clock_passes_boundary_during_lookup(self):
+        wall = 1000.0
+        path = "/org/freedesktop/Accounts/User1001"
+
+        def call(_name, _path, _interface, method, *_args):
+            nonlocal wall
+            self.assertEqual(method, "FindUserById")
+            wall += 3600
+            return GLib.Variant("(o)", (path,))
+
+        connection = SimpleNamespace(call_sync=mock.Mock(side_effect=call))
+        accounts = AccountsService(connection)
+        with mock.patch("oh_no_parent_control.adapters.time.monotonic", return_value=100), \
+                mock.patch("oh_no_parent_control.adapters.time.time", side_effect=lambda: wall):
+            with self.assertRaises(TimeoutError):
+                accounts.set_extension(1001, (945, 60), deadline=105, wall_deadline=1005)
+
+        connection.call_sync.assert_called_once()
+
+    def test_active_extension_write_and_read_back_share_the_absolute_call_deadline(self):
+        now = 100.0
+        calls = []
+        path = "/org/freedesktop/Accounts/User1001"
+        interface = "com.endlessm.ParentalControls.SessionLimits"
+        grant = (123, 456)
+
+        def call(_name, object_path, _interface, method, parameters, _reply, _flags,
+                 timeout_ms, _cancellable):
+            nonlocal now
+            calls.append((method, timeout_ms))
+            now += 0.5
+            if method == "FindUserById":
+                self.assertEqual(parameters.unpack(), (1001,))
+                return GLib.Variant("(o)", (path,))
+            self.assertEqual(object_path, path)
+            if method == "Set":
+                self.assertEqual(parameters.unpack(), (interface, "ActiveExtension", grant))
+                return GLib.Variant("()", ())
+            self.assertEqual(method, "Get")
+            self.assertEqual(parameters.unpack(), (interface, "ActiveExtension"))
+            return GLib.Variant("(v)", (GLib.Variant("(tu)", grant),))
+
+        accounts = AccountsService(SimpleNamespace(call_sync=call))
+        with mock.patch("oh_no_parent_control.adapters.time.monotonic", side_effect=lambda: now):
+            accounts.set_extension(1001, grant, deadline=102.5)
+            self.assertEqual(accounts.get_extension(1001, deadline=102.5), grant)
+            with self.assertRaises(TimeoutError):
+                # Account resolution consumes the remaining budget for this attempt.
+                accounts.set_extension(1001, grant, deadline=102.5)
+
+        self.assertEqual(calls, [
+            ("FindUserById", 2500), ("Set", 2000), ("FindUserById", 1500), ("Get", 1000),
+            ("FindUserById", 500),
+        ])
+
     def test_daily_schedule_uses_the_public_session_limits_property(self):
         accounts = AccountsService(object())
         with mock.patch.object(accounts, "_get", return_value=(123, 456)) as read, \

@@ -830,9 +830,15 @@ including any downtime.
 After `_apply` succeeds, an immediate fixed approval writes the record with the
 new tuple as the recorded fixed tuple and the approval's app choice, unless it
 absorbed a contributing deadline grant. A rest-of-day approval clears the
-recorded fixed tuple. No intent is needed: a crash between `_apply` and this
-write leaves a grant that does not match the record. That grant is a safe,
-unpausable deadline grant.
+recorded fixed tuple. Each verified approval advances the record revision.
+No immediate approval intent is needed. Before account effects, the broker
+checks the record and refuses an immediate approval while a transfer intent is
+pending or the record cannot be read. If the destination already equals the
+recorded fixed tuple, the broker durably clears that marker first. If approval
+fails before account effects or those effects are rolled back, the broker
+restores the prior marker when it can verify the clear. A crash after the new
+tuple is published and before tracking completes leaves an unpausable deadline
+grant.
 
 ### Revisions, recovery and invalidation
 

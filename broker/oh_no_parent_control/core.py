@@ -22,12 +22,16 @@ import threading
 import time
 import uuid
 from contextlib import AbstractContextManager, ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Callable, Protocol
 from zoneinfo import ZoneInfo
 
 from .config import Configuration, ConfigurationError, UINT32_MAX
+from .grant_store import (
+    FixedGrant, GrantAccountError, GrantRecord, GrantStore, GrantStoreError, GrantTuple,
+    UINT64_MAX, new_grant_is_fixed, remaining_seconds,
+)
 from .whats_new import WhatsNewCatalog, WhatsNewError
 from .preferences import (
     MAX_DAILY_LIMIT_MINUTES, MIN_DAILY_LIMIT_MINUTES, PreferencesError, StoredPreferencesError,
@@ -223,7 +227,8 @@ class Broker:
                  running_apps: RunningApps | None = None,
                  *, monotonic=time.monotonic,
                  now=local_now, caller_alive=lambda _sender: True,
-                 whats_new_loader=WhatsNewCatalog.load):
+                 whats_new_loader=WhatsNewCatalog.load,
+                 grant_store: GrantStore | None = None):
         self._config_loader = config_loader
         self._authorizer = authorizer
         self._accounts = accounts
@@ -236,6 +241,7 @@ class Broker:
         self._now = now
         self._caller_alive = caller_alive
         self._whats_new_loader = whats_new_loader
+        self._grant_store = grant_store
         self._request_lock = threading.Lock()
         self._request_lock_diagnostic = None
         self._transaction_revision = 0
@@ -457,14 +463,12 @@ class Broker:
             grant_time, grant_duration = self._accounts.get_extension(target.uid)
         except Exception as error:
             raise BackendFailure("remaining-time grant is unavailable") from error
-        if (type(grant_time) is not int or type(grant_duration) is not int or
-                grant_time < 0 or not 0 <= grant_duration <= UINT32_MAX):
-            raise BackendFailure("remaining-time grant is invalid")
-        grant_remaining = max(
-            0, grant_time + grant_duration - int(self._now().timestamp()),
-        )
-        if grant_remaining > UINT32_MAX:
-            raise BackendFailure("remaining-time grant is invalid")
+        try:
+            grant_remaining = remaining_seconds(
+                (grant_time, grant_duration), int(self._now().timestamp()),
+            )
+        except ValueError as error:
+            raise BackendFailure("remaining-time grant is invalid") from error
         return calculate_active_extension_seconds(
             daily_allowance_remaining_seconds, grant_remaining, 0,
         )
@@ -786,7 +790,10 @@ class Broker:
             # authenticated additional interval remain broker-owned.
             native_remaining = max(0, math.ceil(native_deadline / 1_000_000 - self._monotonic()))
             daily_remaining = min(daily_remaining, native_remaining)
-        grant_remaining = max(0, grant_time + grant_duration - now_seconds)
+        try:
+            grant_remaining = remaining_seconds((grant_time, grant_duration), now_seconds)
+        except ValueError as error:
+            raise InvalidRequest("remaining-time values must be unsigned 32-bit integers") from error
         calculated = calculate_active_extension_seconds(
             daily_remaining, grant_remaining, additional_seconds,
         )
@@ -1754,6 +1761,7 @@ class Broker:
             if self._load_request_preferences(target.uid) != preferences:
                 raise AccessDenied("preferences changed during authorization")
 
+            replaced = None  # A rest-of-day grant is never fixed.
             if duration_seconds == 0:
                 issued_at_time = self._now()
                 duration = seconds_until_local_midnight(issued_at_time)
@@ -1798,6 +1806,7 @@ class Broker:
                     duration_seconds, issued_at_time, native_deadline=native_deadline,
                 )
                 duration = status.calculated_active_extension_seconds
+                replaced = ((grant_time, grant_duration), status)
                 LOG.info("core.grant-calculation", request=correlation_id,
                          daily=status.daily_allowance_remaining_seconds,
                          grant=status.one_time_grant_remaining_seconds,
@@ -1815,8 +1824,9 @@ class Broker:
             if self._load_request_preferences(target.uid) != preferences:
                 raise AccessDenied("preferences changed during request")
             issued_at = int(issued_at_time.timestamp())
-            if issued_at <= 0 or issued_at > (1 << 64) - 1 or not 0 < duration <= UINT32_MAX:
+            if not 0 < issued_at <= UINT64_MAX or not 0 < duration <= UINT32_MAX:
                 raise BackendFailure("calculated extension is outside the supported range")
+            grant = (issued_at, duration)
             terminate_blocked_apps = (
                 not allow_soft_blocked_apps and
                 (bool(desired_filter[1]) or bool(termination_patterns))
@@ -1833,8 +1843,18 @@ class Broker:
                         "blocked applications could not be stopped"
                     ) from error
 
+            record = cleared_record = None
+
             def admit_effect():
-                # Preflight and all account snapshots may block. Revalidate the
+                nonlocal record, cleared_record
+                if self._grant_store is not None:
+                    self._check_grant_account(config, target)
+                    try:
+                        record = self._grant_store.load(target.uid, target.username)
+                    except GrantAccountError:
+                        # Leave invalidation until after a verified account write.
+                        pass
+                # Preflight and snapshot reads may block. Revalidate the
                 # original selection after those reads, then let the authorizer
                 # observe queued departure events and claim the sole boundary.
                 if not self._caller_alive(sender):
@@ -1845,26 +1865,84 @@ class Broker:
                     raise AccessDenied("selected approver changed during request")
                 if self._load_request_preferences(target.uid) != preferences:
                     raise AccessDenied("preferences changed during request")
-                return approval.admit()
+                if record is not None and record.intent is not None:
+                    raise Busy("a saved-time transfer is awaiting recovery")
+                if not approval.admit():
+                    return False
+                if record is not None and record.fixed is not None and record.fixed.grant == grant:
+                    # If the new grant has the same tuple, a crash could
+                    # otherwise make it inherit the previous fixed marker.
+                    cleared_record = replace(record, fixed=None)
+                    cleared_record = self._grant_store.write(cleared_record)
+                return True
 
-            applied = self._apply(
-                target.uid, preferences, desired_filter,
-                (issued_at, duration), correlation_id,
-                termination_patterns if terminate_blocked_apps else None,
-                admit=admit_effect,
-                activate_child_extension=(request_kind == "kiosk" and
-                                          preferences["parent_control_enabled"]),
-            )
+            try:
+                applied = self._apply(
+                    target.uid, preferences, desired_filter, grant, correlation_id,
+                    termination_patterns if terminate_blocked_apps else None,
+                    admit=admit_effect,
+                    activate_child_extension=(request_kind == "kiosk" and
+                                              preferences["parent_control_enabled"]),
+                )
+            except BrokerError as error:
+                if cleared_record is not None and not isinstance(error, RollbackFailure):
+                    self._restore_immediate_tracking(config, target, record)
+                raise
             if not applied:
                 LOG.info("core.027", request=correlation_id, outcome="cancelled")
                 return correlation_id, "cancelled", 0
             LOG.info("core.032", request=correlation_id)
+            self._track_immediate_grant(config, target, correlation_id, grant,
+                                        allow_soft_blocked_apps, replaced, record, cleared_record)
             return correlation_id, "approved", duration
         finally:
             try:
                 authorization_scope.close()
             finally:
                 self._release_request_lock()
+
+    def _check_grant_account(self, config: Configuration, target: UserAccount) -> None:
+        current = self._target(config, target.uid)
+        if (current.uid, current.username) != (target.uid, target.username):
+            raise AccessDenied("selected account changed during request")
+
+    def _restore_immediate_tracking(self, config: Configuration, target: UserAccount,
+                                    record: GrantRecord) -> None:
+        try:
+            self._check_grant_account(config, target)
+            current = self._grant_store.load(target.uid, target.username)
+            cleared = replace(record, revision=record.revision + 1, fixed=None)
+            # A failed directory sync can leave the marker clear published.
+            if current == cleared:
+                self._grant_store.write(replace(record, revision=current.revision))
+        except (BrokerError, GrantStoreError) as error:
+            record_exception(error)
+
+    def _track_immediate_grant(
+            self, config: Configuration, target: UserAccount, correlation_id: str, grant: GrantTuple,
+            allow_soft_blocked_apps: bool, replaced: tuple[GrantTuple, TimeStatus] | None,
+            record: GrantRecord | None, cleared_record: GrantRecord | None) -> None:
+        """Persist the verified result without changing the saved balance."""
+        if self._grant_store is None:
+            return
+        try:
+            self._check_grant_account(config, target)
+            if record is None:
+                record = self._grant_store.clear(target.uid, target.username)
+            fixed = None
+            if replaced is not None:
+                live, status = replaced
+                if new_grant_is_fixed(record, live, status.daily_allowance_remaining_seconds,
+                                      status.one_time_grant_remaining_seconds):
+                    fixed = FixedGrant(grant, allow_soft_blocked_apps)
+            self._grant_store.write(replace(cleared_record or record, fixed=fixed))
+        except (BrokerError, GrantStoreError) as error:
+            # The account grant has committed and cannot inherit an old marker.
+            record_exception(error)
+            LOG.warning("core.grant-tracking", request=correlation_id, outcome="failed")
+        else:
+            LOG.info("core.grant-tracking", request=correlation_id,
+                     outcome="deadline" if fixed is None else "fixed")
 
     def _load_config(self) -> Configuration:
         try:

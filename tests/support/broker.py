@@ -242,7 +242,7 @@ class RunningApps:
 
 def make_broker(authorizer=None, accounts=None, preferences=None, extensions=None,
                 clock=None, alive=lambda _s: True, timer_usage=None,
-                application_catalog=None, running_apps=None):
+                application_catalog=None, running_apps=None, grant_store=None):
     config = validate(valid_config())
     return Broker(lambda: config, authorizer or Authorizer(), accounts or Accounts(),
                   preferences or Preferences(), extensions or Extensions(), timer_usage or TimerUsage(),
@@ -250,4 +250,4 @@ def make_broker(authorizer=None, accounts=None, preferences=None, extensions=Non
                   running_apps or RunningApps(),
                   monotonic=clock or (lambda: 100),
                   now=lambda: datetime(2026, 8, 30, 10, tzinfo=ZoneInfo("America/Los_Angeles")),
-                  caller_alive=alive)
+                  caller_alive=alive, grant_store=grant_store)

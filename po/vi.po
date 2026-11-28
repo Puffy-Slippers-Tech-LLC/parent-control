@@ -1774,8 +1774,8 @@ msgstr "Xin và dùng ngay"
 msgid "More request options"
 msgstr "Các tùy chọn yêu cầu khác"
 
-msgid "Request & save for later"
-msgstr "Xin và để dành dùng sau"
+msgid "Save & use later"
+msgstr "Lưu và dùng sau"
 
 msgid "Rest of the day can't be saved."
 msgstr "Không thể để dành phần còn lại của ngày."

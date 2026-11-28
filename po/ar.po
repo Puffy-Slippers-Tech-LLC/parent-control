@@ -1804,8 +1804,8 @@ msgstr "اطلب الوقت واستخدمه الآن"
 msgid "More request options"
 msgstr "المزيد من خيارات الطلب"
 
-msgid "Request & save for later"
-msgstr "اطلب الوقت واحفظه لوقت لاحق"
+msgid "Save & use later"
+msgstr "احفظ واستخدم لاحقًا"
 
 msgid "Rest of the day can't be saved."
 msgstr "لا يمكن حفظ الوقت عند اختيار «بقية اليوم»."

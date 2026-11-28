@@ -1786,8 +1786,8 @@ msgstr "Požádat a využít hned"
 msgid "More request options"
 msgstr "Další možnosti žádosti"
 
-msgid "Request & save for later"
-msgstr "Požádat a uložit na později"
+msgid "Save & use later"
+msgstr "Uložit a použít později"
 
 msgid "Rest of the day can't be saved."
 msgstr "Možnost „Zbytek dne“ nelze uložit."

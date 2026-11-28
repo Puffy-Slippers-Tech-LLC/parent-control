@@ -1780,8 +1780,8 @@ msgstr "Be om tid og bruk den nå"
 msgid "More request options"
 msgstr "Flere valg for forespørselen"
 
-msgid "Request & save for later"
-msgstr "Be om tid og spar den til senere"
+msgid "Save & use later"
+msgstr "Lagre og bruk senere"
 
 msgid "Rest of the day can't be saved."
 msgstr "Resten av dagen kan ikke spares til senere."

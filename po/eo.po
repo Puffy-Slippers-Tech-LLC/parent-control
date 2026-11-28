@@ -1780,8 +1780,8 @@ msgstr "Peti kaj uzi nun"
 msgid "More request options"
 msgstr "Pliaj petopcioj"
 
-msgid "Request & save for later"
-msgstr "Peti kaj konservi por poste"
+msgid "Save & use later"
+msgstr "Konservi kaj uzi poste"
 
 msgid "Rest of the day can't be saved."
 msgstr "La opcio «Resto de la tago» ne estas konservebla."

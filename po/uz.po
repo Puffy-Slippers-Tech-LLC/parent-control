@@ -1775,8 +1775,8 @@ msgstr "So‘rash va hozir ishlatish"
 msgid "More request options"
 msgstr "Boshqa so‘rov variantlari"
 
-msgid "Request & save for later"
-msgstr "So‘rash va keyinga saqlash"
+msgid "Save & use later"
+msgstr "Saqlash va keyin ishlatish"
 
 msgid "Rest of the day can't be saved."
 msgstr "Kunning qolgan qismini keyinga saqlab bo‘lmaydi."

@@ -35,7 +35,7 @@ msgid "More request options"
 msgstr ""
 
 #. Shared message: REQUEST_SAVE_FOR_LATER
-msgid "Request & save for later"
+msgid "Save & use later"
 msgstr ""
 
 #. Shared message: REST_OF_DAY_CANNOT_BE_SAVED

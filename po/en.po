@@ -243,8 +243,8 @@ msgstr "Request & use now"
 msgid "More request options"
 msgstr "More request options"
 
-msgid "Request & save for later"
-msgstr "Request & save for later"
+msgid "Save & use later"
+msgstr "Save & use later"
 
 msgid "Rest of the day can't be saved."
 msgstr "Rest of the day can't be saved."

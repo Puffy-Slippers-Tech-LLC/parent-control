@@ -1775,8 +1775,8 @@ msgstr "提出要求並立即使用"
 msgid "More request options"
 msgstr "更多要求選項"
 
-msgid "Request & save for later"
-msgstr "提出要求並保留供日後使用"
+msgid "Save & use later"
+msgstr "儲存並稍後使用"
 
 msgid "Rest of the day can't be saved."
 msgstr "今天剩餘時間無法保留供日後使用。"

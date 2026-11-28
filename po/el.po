@@ -1780,8 +1780,8 @@ msgstr "Ζητήστε και χρησιμοποιήστε τώρα"
 msgid "More request options"
 msgstr "Περισσότερες επιλογές αιτήματος"
 
-msgid "Request & save for later"
-msgstr "Ζητήστε και αποθηκεύστε για αργότερα"
+msgid "Save & use later"
+msgstr "Αποθήκευση & χρήση αργότερα"
 
 msgid "Rest of the day can't be saved."
 msgstr "Η επιλογή «Υπόλοιπο ημέρας» δεν μπορεί να αποθηκευτεί."

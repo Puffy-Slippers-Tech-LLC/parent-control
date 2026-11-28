@@ -1780,8 +1780,8 @@ msgstr "Eskatu eta erabili orain"
 msgid "More request options"
 msgstr "Eskaera egiteko aukera gehiago"
 
-msgid "Request & save for later"
-msgstr "Eskatu eta gorde gerorako"
+msgid "Save & use later"
+msgstr "Gorde eta erabili geroago"
 
 msgid "Rest of the day can't be saved."
 msgstr "Ezin da «Egunaren gainerakoa» aukera gorde."

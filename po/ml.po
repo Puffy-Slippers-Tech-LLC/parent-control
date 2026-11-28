@@ -1780,8 +1780,8 @@ msgstr "ആവശ്യപ്പെട്ട് ഇപ്പോൾ ഉപയോ�
 msgid "More request options"
 msgstr "കൂടുതൽ അഭ്യർത്ഥനാ ഓപ്ഷനുകൾ"
 
-msgid "Request & save for later"
-msgstr "ആവശ്യപ്പെട്ട് പിന്നീടത്തേക്ക് സൂക്ഷിക്കുക"
+msgid "Save & use later"
+msgstr "സൂക്ഷിച്ച് പിന്നീട് ഉപയോഗിക്കുക"
 
 msgid "Rest of the day can't be saved."
 msgstr "ദിവസത്തിന്റെ ബാക്കി സമയം പിന്നീടത്തേക്ക് സൂക്ഷിക്കാനാവില്ല."

@@ -1780,8 +1780,8 @@ msgstr "கேட்டு இப்போதே பயன்படுத்த�
 msgid "More request options"
 msgstr "கோரிக்கைக்கான கூடுதல் விருப்பங்கள்"
 
-msgid "Request & save for later"
-msgstr "கேட்டுப் பின்னர் பயன்படுத்தச் சேமிக்கவும்"
+msgid "Save & use later"
+msgstr "சேமித்துப் பின்னர் பயன்படுத்தவும்"
 
 msgid "Rest of the day can't be saved."
 msgstr "நாளின் மீதமுள்ள பகுதியைப் பின்னர் பயன்படுத்தச் சேமிக்க முடியாது."

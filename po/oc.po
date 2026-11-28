@@ -1780,8 +1780,8 @@ msgstr "Demandar e utilizar ara"
 msgid "More request options"
 msgstr "Mai d’opcions de demanda"
 
-msgid "Request & save for later"
-msgstr "Demandar e gardar per mai tard"
+msgid "Save & use later"
+msgstr "Gardar e utilizar mai tard"
 
 msgid "Rest of the day can't be saved."
 msgstr "La rèsta del jorn se pòt pas gardar per mai tard."

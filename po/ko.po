@@ -1774,8 +1774,8 @@ msgstr "요청하고 지금 사용하기"
 msgid "More request options"
 msgstr "다른 요청 옵션"
 
-msgid "Request & save for later"
-msgstr "요청하고 나중을 위해 저장하기"
+msgid "Save & use later"
+msgstr "저장하고 나중에 사용"
 
 msgid "Rest of the day can't be saved."
 msgstr "‘오늘 남은 시간 전체’ 옵션은 저장할 수 없습니다."

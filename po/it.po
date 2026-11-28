@@ -1778,8 +1778,8 @@ msgstr "Richiedi e usa subito"
 msgid "More request options"
 msgstr "Altre opzioni di richiesta"
 
-msgid "Request & save for later"
-msgstr "Richiedi e salva per dopo"
+msgid "Save & use later"
+msgstr "Salva e usa dopo"
 
 msgid "Rest of the day can't be saved."
 msgstr "L’opzione «Resto della giornata» non si può salvare."

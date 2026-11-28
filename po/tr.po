@@ -1774,8 +1774,8 @@ msgstr "İste ve şimdi kullan"
 msgid "More request options"
 msgstr "Diğer istek seçenekleri"
 
-msgid "Request & save for later"
-msgstr "İste ve sonraya sakla"
+msgid "Save & use later"
+msgstr "Sakla ve sonra kullan"
 
 msgid "Rest of the day can't be saved."
 msgstr "Günün geri kalanı sonraya saklanamaz."

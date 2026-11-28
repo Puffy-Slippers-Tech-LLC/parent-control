@@ -1792,8 +1792,8 @@ msgstr "Попросити й використати зараз"
 msgid "More request options"
 msgstr "Інші варіанти запиту"
 
-msgid "Request & save for later"
-msgstr "Попросити й зберегти на потім"
+msgid "Save & use later"
+msgstr "Зберегти й використати пізніше"
 
 msgid "Rest of the day can't be saved."
 msgstr "Час до кінця дня не можна зберегти на потім."

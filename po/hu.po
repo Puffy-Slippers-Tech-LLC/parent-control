@@ -1780,8 +1780,8 @@ msgstr "Kérés és azonnali használat"
 msgid "More request options"
 msgstr "További kérési lehetőségek"
 
-msgid "Request & save for later"
-msgstr "Kérés és mentés későbbre"
+msgid "Save & use later"
+msgstr "Mentés és későbbi használat"
 
 msgid "Rest of the day can't be saved."
 msgstr "„A nap hátralévő része” nem menthető."

@@ -1780,8 +1780,8 @@ msgstr "Поискайте и използвайте сега"
 msgid "More request options"
 msgstr "Още опции за заявка"
 
-msgid "Request & save for later"
-msgstr "Поискайте и запазете за по-късно"
+msgid "Save & use later"
+msgstr "Запазете и използвайте по-късно"
 
 msgid "Rest of the day can't be saved."
 msgstr "„Остатъкът от деня“ не може да се запази."

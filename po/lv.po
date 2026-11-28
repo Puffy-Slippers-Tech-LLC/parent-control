@@ -1786,8 +1786,8 @@ msgstr "Lūgt un izmantot tūlīt"
 msgid "More request options"
 msgstr "Citas pieprasījuma iespējas"
 
-msgid "Request & save for later"
-msgstr "Lūgt un saglabāt vēlākam laikam"
+msgid "Save & use later"
+msgstr "Saglabāt un izmantot vēlāk"
 
 msgid "Rest of the day can't be saved."
 msgstr "Atlikušo dienas daļu nevar saglabāt."

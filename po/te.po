@@ -1780,8 +1780,8 @@ msgstr "అడిగి ఇప్పుడే వాడండి"
 msgid "More request options"
 msgstr "అభ్యర్థనకు మరిన్ని ఎంపికలు"
 
-msgid "Request & save for later"
-msgstr "అడిగి తర్వాత కోసం దాచండి"
+msgid "Save & use later"
+msgstr "దాచి తర్వాత వాడండి"
 
 msgid "Rest of the day can't be saved."
 msgstr "రోజులో మిగిలిన భాగాన్ని తర్వాత కోసం దాచలేరు."

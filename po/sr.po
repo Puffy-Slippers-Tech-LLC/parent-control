@@ -1792,8 +1792,8 @@ msgstr "Затражи и искористи одмах"
 msgid "More request options"
 msgstr "Још опција за захтев"
 
-msgid "Request & save for later"
-msgstr "Затражи и сачувај за касније"
+msgid "Save & use later"
+msgstr "Сачувај и искористи касније"
 
 msgid "Rest of the day can't be saved."
 msgstr "Остатак дана не може да се сачува за касније."

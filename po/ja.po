@@ -1772,8 +1772,8 @@ msgstr "リクエストして今すぐ使う"
 msgid "More request options"
 msgstr "その他のリクエストオプション"
 
-msgid "Request & save for later"
-msgstr "リクエストして後で使うために保存"
+msgid "Save & use later"
+msgstr "保存して後で使う"
 
 msgid "Rest of the day can't be saved."
 msgstr "「今日の残りすべて」は保存できません。"

@@ -557,6 +557,13 @@ sub run {
             $ready->{delayed_grant_approval} ? 'grant-only' : 'daily-only');
         return;
     }
+    if ($ready->{saved_time_fresh_login}) {
+        console('sut')->disable();
+        exchange('setup-detached', undef);
+        onpc_request_flow::saved_time_fresh_login(\&exchange, $ready->{invocations},
+            $ready->{challenge_bindings}, $ready->{kiosk_request});
+        return;
+    }
     if ($ready->{saved_time_retained_unlock}) {
         console('sut')->disable();
         exchange('setup-detached', undef);

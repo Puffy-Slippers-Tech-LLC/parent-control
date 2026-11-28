@@ -563,7 +563,10 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
                 session_command(root, spec)  # Construct only; no model/process launch.
             return dict(run=identity, next_task=plan.next_task().id if plan.next_task() else None,
                         reconciled=True, checked=check, resume_ready=True)
-        if any(state.get(key) for key in ('commit_intent', 'pull_intent', 'git_reconciliation')):
+        ownership = state.get('git_reconciliation') or {}
+        if (any(state.get(key) for key in ('commit_intent', 'pull_intent', 'upstream_pull', 'worktree_propagation'))
+                or (ownership and (not ownership.get('ownership_paths') or state.get('pending_completion')
+                                   or merge_tasks or base or split or revisions))):
             raise ValueError('finish the retained Git transaction before reconciling the queue')
         if state.get('result_recovery'):
             if not split:
@@ -616,17 +619,27 @@ def reconcile_plan(root, spec, identity, *, check=False, merge_tasks=(), base=No
             merges, obligations = consolidation(root, plan, state, merge_tasks, base, git=git_output)
         elif [key for key in after if key in before] != list(before):
             raise ValueError('reconciliation cannot remove or reorder existing tasks')
-        result = state.get('pending_completion')
+        result = ownership.get('accepted_result') if ownership else state.get('pending_completion')
         changed = [key for key in before if key in after and before[key] != after[key]]
         if changed:
             if (changed != [state.get('task_id')] or not after[changed[0]]
-                    or result != read_session_result(run) or result.get('status') != 'task_complete'
+                    or not isinstance(result, dict) or result.get('status') != 'task_complete'
+                    or (not ownership and result != read_session_result(run))
                     or result.get('task_id') != changed[0] or result.get('cleanup_complete') is not True):
                 raise ValueError('reconciliation cannot grant task completion')
             validate_result_payload(state, result)
             if not {plan.path, plan.queue}.issubset(result['stage_paths']):
                 raise ValueError('retained completion lacks its plan close-out paths')
-        elif result is not None:
+            if ownership:
+                validate_pull_identity(root, state, git=git_output)
+                if git_output(root, 'merge-base', '--is-ancestor', 'HEAD', '@{upstream}', check=False).returncode:
+                    raise ValueError('push the manual close-out to the configured upstream before reconciliation')
+                paths = [*result['stage_paths'], *ownership['ownership_paths'], *state.get('stage_candidates', [])]
+                stage_task(root, paths)
+                if git_output(root, '--literal-pathspecs', 'status', '--porcelain', '--untracked-files=all',
+                              '--', *paths).stdout:
+                    raise ValueError('commit the retained task paths before reconciling manual close-out')
+        elif result is not None or ownership:
             raise ValueError('pending completion must be recorded in the committed queue first')
         if any(after[key] for key in after if key not in before):
             raise ValueError('new plan tasks must remain unchecked')

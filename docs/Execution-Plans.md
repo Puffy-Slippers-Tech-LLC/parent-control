@@ -763,6 +763,11 @@ verification pin each fetch to a temporary worktree ref, leaving another
 session's `FETCH_HEAD` alone. If the skill
 already finished its assigned branches, recovery uses its retained result and
 journal to continue controller-owned propagation and verification.
+If a blocked skill result records completed pushes for its assigned branches,
+the controller can verify those pushes and resume its own destinations directly.
+This requires a pinned source commit, no saved work or active Git operations, and
+no recorded skill writes to a remote-only checkout. An earlier fetch error for
+a controller-owned branch stays in the journal and does not prevent handoff.
 Verification reports fetch errors separately from missing remote ancestry and
 preserves Git diagnostics. Later task edits
 stay untouched and earn no acceptance credit.

@@ -2652,5 +2652,14 @@
       "Check both children's time again; after the earlier release, save newly approved time for later."
     ],
     "expected": "Saved time and its app choice stay exact, the unfinished pause resolves once without adding time, and an older grant keeps running as a grant that cannot be paused. Newly saved time is stored separately. Engineering check only."
+  },
+  "322": {
+    "summary": "Let children with time sign in through SSH on Fedora",
+    "steps": [
+      "Give the child daily time and sign in through the installed SSH service with the child's key while SELinux is enforcing.",
+      "Set the child's daily time to zero with no extra time and try the same SSH sign-in.",
+      "Restore daily time and sign in again with the same key."
+    ],
+    "expected": "The child opens a real SSH session and can run a command with time. At zero time the key is verified, PAM account management refuses entry, and no session opens. Restoring time allows sign-in again."
   }
 }

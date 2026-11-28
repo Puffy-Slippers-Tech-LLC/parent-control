@@ -1,6 +1,12 @@
 """Authselect ownership and restoration with private paths and command doubles."""
+from contextlib import contextmanager
+import fcntl
+import hashlib
 import importlib.util
 import json
+import os
+import stat
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -196,40 +202,91 @@ def test_dangling_ownership_record_is_rejected(pam_machine):
 
 @pytest.fixture
 def prepared_fedora(pam_machine, monkeypatch):
-    """Compose the prepared caller with the retained authselect owner itself."""
+    """Compose the prepared caller with authselect and the private policy store."""
     authselect, current, commands = pam_machine
     source = ROOT / 'packaging/distro_pam.py'
     spec = importlib.util.spec_from_file_location('prepared_fedora_distro', source)
     prepared = importlib.util.module_from_spec(spec)
     exec(compile(source.read_bytes(), str(source), 'exec'), prepared.__dict__)
     monkeypatch.setattr(prepared, 'PAM', authselect.PAM_DIR)
+    monkeypatch.setattr(prepared, 'SSH_POLICY', authselect.STACK.with_name('onpc-ssh-accounts.cil'))
+    monkeypatch.setattr(prepared, 'SSH_POLICY_RECEIPT', authselect.STATE.with_name('ssh-policy.json'))
+    prepared.SSH_POLICY.write_bytes((ROOT / 'data/pam-configs/onpc-ssh-accounts.cil').read_bytes())
+    policy = SimpleNamespace(active=True, installed=None, loaded=None, foreign=False,
+                             fail_after_publish=False,
+                             native_transaction=prepared.ssh_policy_transaction)
+
+    def secure_policy_path(path, *, directory=False):
+        path.lstat()  # Preserve FileNotFoundError for the first configuration.
+        authselect.secure(path, directory=directory)
+
+    monkeypatch.setattr(prepared, 'secure_ssh_policy_path', secure_policy_path)
+    monkeypatch.setattr(prepared, 'ssh_policy_store_active', lambda: policy.active)
+
+    @contextmanager
+    def policy_transaction(*, writable, reload):
+        draft = policy.installed
+
+        def install(data):
+            nonlocal draft
+            assert writable
+            commands.append(('policy-install',))
+            draft = 'sha256:' + hashlib.sha256(data).hexdigest()
+
+        def remove():
+            nonlocal draft
+            assert writable and draft is not None
+            commands.append(('policy-remove',))
+            draft = None
+
+        def commit():
+            assert writable
+            policy.installed = draft
+            if policy.fail_after_publish:
+                policy.fail_after_publish = False
+                raise OSError('test policy commit interrupted after store publication')
+            if reload:
+                policy.loaded = draft
+
+        yield SimpleNamespace(inventory=lambda: (draft, policy.foreign), install=install,
+                              remove=remove, commit=commit)
+
+    monkeypatch.setattr(prepared, 'ssh_policy_transaction', policy_transaction)
 
     def run(arguments, *, input=None):
+        assert input is None
         assert arguments[0] == str(prepared.FEDORA_HELPER)
         assert arguments[1] in ('install', 'remove')
-        assert input is None
         authselect.configure(arguments[1])
 
     monkeypatch.setattr(prepared, 'run', run)
-    return prepared, authselect, current, commands
+    return prepared, authselect, current, commands, policy
 
 
 def test_prepared_fedora_transaction_preserves_profile_features_and_rolls_back(prepared_fedora):
-    prepared, authselect, current, _commands = prepared_fedora
+    prepared, authselect, current, commands, policy = prepared_fedora
     original = current.copy()
     prepared.configure('fedora', 'install')
     assert current == [authselect.PROFILE, *original[1:]]
+    assert policy.loaded == policy.installed and policy.loaded is not None
+    install = ('policy-install',)
+    assert commands.index(install) < commands.index(('select', *current))
     prepared.configure('fedora', 'restore')
+    assert commands.count(install) == 1
     prepared.configure('fedora', 'remove')
     assert current == original
     assert not authselect.PROFILE_DIR.exists()
+    remove = ('policy-remove',)
+    assert commands.index(('select', *original)) < commands.index(remove)
+    assert policy.loaded is policy.installed is None
     prepared.configure('fedora', 'remove')
+    assert commands.count(remove) == 1
     prepared.configure('fedora', 'install')
     assert current == [authselect.PROFILE, *original[1:]]
 
 
 def test_prepared_fedora_respects_explicit_passwordless_denial(prepared_fedora):
-    prepared, authselect, current, commands = prepared_fedora
+    prepared, authselect, current, commands, _policy = prepared_fedora
     current.append('without-nullok')
     with pytest.raises(ValueError, match='disallows the passwordless kiosk'):
         prepared.configure('fedora', 'install')
@@ -238,7 +295,7 @@ def test_prepared_fedora_respects_explicit_passwordless_denial(prepared_fedora):
 
 
 def test_prepared_fedora_owned_profile_edit_is_preserved_for_restore_and_remove(prepared_fedora):
-    prepared, authselect, current, _commands = prepared_fedora
+    prepared, authselect, current, _commands, _policy = prepared_fedora
     prepared.configure('fedora', 'install')
     profile = authselect.PROFILE_DIR / 'system-auth'
     profile.write_text('administrator replacement\n')
@@ -250,8 +307,137 @@ def test_prepared_fedora_owned_profile_edit_is_preserved_for_restore_and_remove(
         assert current == selected
 
 
+def test_prepared_fedora_preserves_replaced_selinux_module(prepared_fedora):
+    prepared, _authselect, current, commands, policy = prepared_fedora
+    prepared.configure('fedora', 'install')
+    replacement = 'sha256:' + 'a' * 64
+    policy.installed = replacement
+    selected = current.copy()
+    for action in ('restore', 'remove'):
+        commands.clear()
+        with pytest.raises(ValueError, match='unknown ownership'):
+            prepared.configure('fedora', action)
+        assert current == selected
+        assert policy.installed == replacement
+        assert not any(command[0] in ('select', 'policy-install', 'policy-remove')
+                       for command in commands)
+
+
+def test_prepared_fedora_does_not_shadow_an_existing_selinux_module(prepared_fedora):
+    prepared, authselect, current, commands, policy = prepared_fedora
+    policy.foreign = True
+    with pytest.raises(ValueError, match='SSH SELinux policy'):
+        prepared.configure('fedora', 'install')
+    assert current[0] != authselect.PROFILE
+    assert policy.installed is None and policy.foreign
+    assert ('policy-install',) not in commands
+
+
+def test_prepared_fedora_reloads_after_interrupted_policy_publication(prepared_fedora):
+    prepared, authselect, current, _commands, policy = prepared_fedora
+    original = current.copy()
+    policy.fail_after_publish = True
+    with pytest.raises(OSError, match='interrupted after store publication'):
+        prepared.configure('fedora', 'install')
+    assert policy.installed is not None and policy.loaded is None
+    assert current == original
+    prepared.configure('fedora', 'install')
+    assert policy.loaded == policy.installed
+    assert current[0] == authselect.PROFILE
+
+    policy.fail_after_publish = True
+    with pytest.raises(OSError, match='interrupted after store publication'):
+        prepared.configure('fedora', 'remove')
+    assert policy.installed is None and policy.loaded is not None
+    assert current == original
+    prepared.configure('fedora', 'remove')
+    assert policy.loaded is None
+    assert not prepared.SSH_POLICY_RECEIPT.exists()
+
+
+def test_prepared_fedora_removes_policy_from_its_original_store(prepared_fedora):
+    prepared, _authselect, current, _commands, policy = prepared_fedora
+    original = current.copy()
+    prepared.configure('fedora', 'install')
+    # The now-active local store also has a module with the same digest.
+    active_local_policy = policy.installed
+    policy.active = False
+    prepared.configure('fedora', 'remove')
+    assert current == original
+    assert policy.installed is None
+    assert policy.loaded == active_local_policy
+    assert not prepared.SSH_POLICY_RECEIPT.exists()
+
+
+def test_prepared_fedora_never_opens_an_alternate_selinux_store_root(prepared_fedora, tmp_path, monkeypatch):
+    prepared, _authselect, current, _commands, policy = prepared_fedora
+    prepared.configure('fedora', 'install')
+    selected = current.copy()
+    original_policy = policy.installed
+
+    source = ROOT / 'packaging/fedora_selinux.py'
+    spec = importlib.util.spec_from_file_location('fedora_selinux', source)
+    adapter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(adapter)
+    monkeypatch.setitem(sys.modules, 'fedora_selinux', adapter)
+    config = tmp_path / 'semanage.conf'
+    monkeypatch.setattr(adapter, 'SEMANAGE_CONFIG', config)
+    monkeypatch.setattr(adapter, 'semanage', lambda: pytest.fail('opened an alternate policy store'))
+    monkeypatch.setattr(prepared, 'ssh_policy_transaction', policy.native_transaction)
+    for contents in ('store-root = "/alternate/selinux"\n',
+                     'module-store = policy.example\n',
+                     'module-store # administrator setting\n= policy.example\n',
+                     'store-root = "/var/lib/selinux" \n',
+                     'module-store = direct\nmodule-store = direct\n'):
+        config.write_text(contents)
+        assert adapter.configured_store() is None
+        with pytest.raises(ValueError, match='store root and direct connection'):
+            prepared.configure('fedora', 'remove')
+    assert current == selected
+    assert policy.installed == original_policy
+    assert prepared.SSH_POLICY_RECEIPT.exists()
+
+    config.write_text('# store-root = "/alternate/selinux"\nmodule-store = direct\n'
+                      'ignoredirs = /srv/store-root\nstore-root = "/var/lib/selinux"\n')
+    events = []
+    lib = SimpleNamespace(
+        semanage_handle_create=lambda: 1,
+        semanage_set_store_root=lambda _handle, root: events.append(('root', root)),
+        semanage_select_store=lambda _handle, name, _mode: events.append(('name', name)),
+        semanage_connect=lambda _handle: events.append(('connect',)) or 0,
+        semanage_disconnect=lambda _handle: 0,
+        semanage_handle_destroy=lambda _handle: None,
+    )
+    monkeypatch.setattr(adapter, 'semanage', lambda: lib)
+    with adapter.module_store('targeted', prepared.SSH_POLICY.stem, 200, writable=False, reload=False):
+        pass
+    assert set(events[:2]) == {('root', b'/var/lib/selinux'), ('name', b'targeted')}
+    assert events[2:] == [('connect',)]
+
+
+def test_prepared_fedora_ready_under_migration_state_lock(prepared_fedora, monkeypatch):
+    prepared, _authselect, _current, _commands, _policy = prepared_fedora
+    prepared.configure('fedora', 'install')
+    payload = SimpleNamespace(stat=lambda: SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0))
+    monkeypatch.setattr(prepared, 'MODULES', {'fedora': payload})
+    monkeypatch.setattr(prepared, 'LOGIN_CHECK', payload)
+    monkeypatch.setattr(prepared, 'TIME_CHECK', payload)
+    # An accidental recursive lock must fail immediately instead of hanging pytest.
+    monkeypatch.setattr(prepared, 'fcntl', SimpleNamespace(
+        LOCK_EX=fcntl.LOCK_EX, flock=lambda fd, op: fcntl.flock(fd, op | fcntl.LOCK_NB)))
+    descriptor = os.open(prepared.SSH_POLICY_RECEIPT.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            prepared.runtime_ready('fedora')
+        prepared.runtime_ready('fedora', state_locked=True)
+    finally:
+        os.close(descriptor)
+    prepared.runtime_ready('fedora')
+
+
 def test_prepared_fedora_interrupted_select_keeps_original_for_exact_retry(prepared_fedora, monkeypatch):
-    prepared, authselect, current, _commands = prepared_fedora
+    prepared, authselect, current, _commands, _policy = prepared_fedora
     import subprocess
     original, real_run = current.copy(), authselect.run
 

@@ -62,6 +62,8 @@ BROKER_STARTUP_CASE = 'test_broker_policy_startup_failure_recovery'
 BROKER_STARTUP_PHASE = 'broker-startup'
 USAGE_CHECKPOINT_CASE = 'test_active_usage_checkpoint_retry'
 USAGE_CHECKPOINT_PHASE = 'usage-checkpoint'
+SSH_ADMISSION_CASE = 'test_child_ssh_time_admission'
+SSH_ADMISSION_PHASE = 'ssh-admission'
 
 
 @dataclass(frozen=True)
@@ -121,7 +123,8 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', 'extension', 'extension-login',
+               'authorization', 'enforcement', 'session', SSH_ADMISSION_PHASE,
+               'extension', 'extension-login',
                USAGE_CHECKPOINT_PHASE, 'startup',
                ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE)
 AREA_SOURCES = {
@@ -203,6 +206,7 @@ PHASE_DEPENDENCIES = {
     'authorization': (),
     'enforcement': (),
     'session': (),
+    SSH_ADMISSION_PHASE: (),
     'extension': (),
     'extension-login': (),
     USAGE_CHECKPOINT_PHASE: (),
@@ -245,6 +249,7 @@ PHASE_PREREQUISITES = {
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot',),
+    SSH_ADMISSION_PHASE: ('retained-app-snapshot',),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
     'extension-login': ('retained-app-snapshot', 'fresh-gdm-login-and-retained-unlock'),
     USAGE_CHECKPOINT_PHASE: ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot',
@@ -494,6 +499,8 @@ def case_phases(area, case_id):
         return ('extension-login',)
     if area == 'extension' and case_id == USAGE_CHECKPOINT_CASE:
         return (USAGE_CHECKPOINT_PHASE,)
+    if area == 'session' and case_id == SSH_ADMISSION_CASE:
+        return (SSH_ADMISSION_PHASE,)
     if area == 'removal':
         history = next((item for item in REMOVAL_HISTORIES if item.case_id == case_id), None)
         require(history is not None, 'selection:unregistered-removal-case')
@@ -555,12 +562,16 @@ def resolve_selection(area=None, test=None, *, inventories=None, qualification_f
         # independent oneshot remains outside its installed acceptance scope.
         incompatible_histories.add(ENFORCEMENT_STARTUP_CASE)
         incompatible_histories.add(BROKER_STARTUP_CASE)
+    if target_package_format == 'deb':
+        incompatible_histories.add(SSH_ADMISSION_CASE)
     require(test not in incompatible_histories, 'selection:history-package-format-mismatch')
     require(not any(identity.case_id in incompatible_histories for identity in identities),
             'selection:history-package-format-mismatch')
     inventories['removal'] = tuple(case for case in inventories['removal']
                                   if case not in incompatible_histories)
     inventories['package'] = tuple(case for case in inventories['package']
+                                  if case not in incompatible_histories)
+    inventories['session'] = tuple(case for case in inventories['session']
                                   if case not in incompatible_histories)
 
     family = REMOVAL_FAMILIES.get(test) if area == 'removal' else (
@@ -682,6 +693,8 @@ def print_selection(selection, stream=None):
     print('  vm-required-for-execution: yes', file=stream)
     print('  phases: ' + ','.join(selection.phases), file=stream)
     print('  prerequisites: ' + ','.join(selection.prerequisites), file=stream)
+    if any(item.case_id == SSH_ADMISSION_CASE for item in selection.executions):
+        print(f'  required-package-format: {SSH_ADMISSION_CASE}=rpm', file=stream)
     for history in REMOVAL_HISTORIES:
         if history.package_format and any(item.case_id == history.case_id
                                           for item in selection.executions):
@@ -745,6 +758,9 @@ def verify_history_target(selection, capture):
     if any(item.case_id in (ENFORCEMENT_STARTUP_CASE, BROKER_STARTUP_CASE)
            for item in selection.executions):
         require(package_format(capture.state['guest']) == 'deb',
+                'selection:history-package-format-mismatch')
+    if any(item.case_id == SSH_ADMISSION_CASE for item in selection.executions):
+        require(package_format(capture.state['guest']) == 'rpm',
                 'selection:history-package-format-mismatch')
     for history in REMOVAL_HISTORIES:
         if history.package_format and any(item.case_id == history.case_id
@@ -3043,8 +3059,9 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for phase in recovery_phases
                                          if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
-                      *recovery_phases, 'authorization', 'enforcement', 'session', 'extension', 'extension-login',
-                      USAGE_CHECKPOINT_PHASE, 'startup', ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
+                      *recovery_phases, 'authorization', 'enforcement', 'session',
+                      SSH_ADMISSION_PHASE, 'extension', 'extension-login', USAGE_CHECKPOINT_PHASE, 'startup',
+                      ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
             if phase not in selection.phases:
                 continue
             if phase in (*rebooted_recovery_phases, FIRST_CONFIGURE_PHASES[1],

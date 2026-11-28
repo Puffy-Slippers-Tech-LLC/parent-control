@@ -28,6 +28,7 @@ def attempts(selection, *, fresh_install=False):
     # autologin fixture. Keep it isolated for both current and fresh installs.
     groups.append((('extension-login',), not fresh_install))
     groups.append(((system.USAGE_CHECKPOINT_PHASE,), True))
+    groups.append(((system.SSH_ADMISSION_PHASE,), True))
     result = []
     def append(phases, executions, installed):
         if phases:

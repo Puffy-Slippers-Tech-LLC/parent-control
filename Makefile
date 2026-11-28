@@ -72,6 +72,7 @@ ACTIVATION_MANIFEST_PATHS = \
 	$(DATADIR)/polkit-1/rules.d/00-oh-no-parent-control-session.rules
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/managed-stack
+ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/pam/onpc-ssh-accounts.cil
 ACTIVATION_MANIFEST_PATHS += $(SYSTEMD_SYSTEM_DIR)/oh-no-parent-control-execution-policy-ready.service
 ACTIVATION_MANIFEST_PATHS += $(DATADIR)/oh-no-parent-control/00-oh-no-parent-control-canary.rules
 ACTIVATION_MANIFEST_PATHS += $(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy
@@ -158,6 +159,7 @@ PACKAGE_SOURCE_FILES = Makefile LICENSE COPYRIGHT NOTICE \
 	data/polkit-1/actions/tech.puffyslippers.com.ohnoparentcontrol.kiosk.request-access.policy.in \
 	data/polkit-1/rules.d/00-oh-no-parent-control-session.rules \
 	data/pam-configs/oh-no-parent-control-session-limits data/pam-configs/oh-no-parent-control-kiosk-only \
+	data/pam-configs/onpc-ssh-accounts.cil \
 	data/fapolicyd/99-oh-no-parent-control-allow.rules \
 	data/fapolicyd/00-oh-no-parent-control-canary.rules \
 	data/systemd/oh-no-parent-control-broker.service \
@@ -182,7 +184,7 @@ PACKAGE_SOURCE_FILES += tools/export_messages.py
 PACKAGE_SOURCE_FILES += data/systemd/accounts-daemon.service.d/oh-no-parent-control.conf
 PACKAGE_SOURCE_FILES += tools/kiosk_session.c tools/kiosk_entry.c
 PACKAGE_SOURCE_FILES += tools/oh-no-parent-control-kiosk-lifecycle \
-	packaging/lifecycle_migration.py packaging/distro_pam.py
+	packaging/lifecycle_migration.py packaging/distro_pam.py packaging/fedora_selinux.py
 
 .PHONY: publish updateversion bump-version build install uninstalldeb check-release-version check check-unit check-component check-test-fixtures build-test-fixtures build-test-artifacts verify-test-artifacts check-child-node check-child-gjs check-child-shell check-marker check-coverage check-static check-shell check-gjs _install-product-files _generate-package-activation-manifest pack-extension install-extension preview-kiosk preview-parent preview-child preview-child-overlay
 
@@ -555,6 +557,7 @@ endif
 ifeq ($(PACKAGE_DISTRIBUTION),fedora)
 	install -m 0755 packaging/fedora_pam.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-pam"
 	install -m 0755 packaging/fedora_execution_policy.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-fedora-execution-policy"
+	install -D -m 0644 data/pam-configs/onpc-ssh-accounts.cil "$(DESTDIR)$(DATADIR)/oh-no-parent-control/pam/onpc-ssh-accounts.cil"
 endif
 	install -m 0755 tools/oh-no-parent-control-login-check "$(DESTDIR)$(LIBEXECDIR)/"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \
@@ -570,6 +573,9 @@ endif
 	install -m 0755 packaging/distro_pam.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-distro-pam"
 	install -d "$(DESTDIR)$(PRODUCT_LIBDIR)/lifecycle"
 	install -m 0644 packaging/lifecycle_migration.py packaging/distro_pam.py "$(DESTDIR)$(PRODUCT_LIBDIR)/lifecycle/"
+ifeq ($(PACKAGE_DISTRIBUTION),fedora)
+	install -m 0644 packaging/fedora_selinux.py "$(DESTDIR)$(PRODUCT_LIBDIR)/lifecycle/"
+endif
 	install -m 0755 tools/execution_policy_ready.py "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-ready"
 	install -m 0755 tools/execution_policy_probe "$(DESTDIR)$(LIBEXECDIR)/oh-no-parent-control-execution-policy-probe"
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $(LDFLAGS) \

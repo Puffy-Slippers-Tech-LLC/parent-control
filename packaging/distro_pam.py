@@ -6,11 +6,15 @@ owner. Does not inspect unrelated modules, included stacks or vendor callbacks.
 The lifecycle keeps its own account quarantine/removal lease while calling us.
 """
 import argparse
+from contextlib import contextmanager
+import fcntl
+import hashlib
 import os
 from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 
 PAM = Path('/etc/pam.d')
@@ -18,6 +22,13 @@ BASELINE = Path('/var/lib/oh-no-parent-control/malcontent-pam-before-install')
 LOGIN_CHECK = Path('/usr/libexec/oh-no-parent-control-login-check')
 TIME_CHECK = Path('/usr/libexec/oh-no-parent-control-session-limit-check')
 FEDORA_HELPER = Path('/usr/libexec/oh-no-parent-control-fedora-pam')
+SELINUX_ENFORCE = Path('/sys/fs/selinux/enforce')
+SSH_POLICY = Path('/usr/share/oh-no-parent-control/pam/onpc-ssh-accounts.cil')
+SSH_POLICY_RECEIPT = Path('/var/lib/oh-no-parent-control/selinux-ssh-accounts')
+# Receipt store names refer to the default root fixed by the Fedora adapter.
+SSH_POLICY_STORE = 'targeted'
+SSH_POLICY_PRIORITY = 200
+POLICY_CHECKSUM = re.compile(r'sha256:[a-f0-9]{64}')
 MODULES = {
     'ubuntu': Path('/usr/lib/x86_64-linux-gnu/security/pam_oh_no_parent_control.so'),
     'fedora': Path('/usr/lib64/security/pam_oh_no_parent_control.so'),
@@ -35,6 +46,120 @@ def run(arguments, *, input=None):
     # Keep helper refusal reasons visible in the native package transaction.
     return subprocess.run(arguments, input=input, check=True, stdout=subprocess.PIPE,
                           text=True, timeout=60, env=ENV)
+
+
+def secure_ssh_policy_path(path, *, directory=False):
+    info = path.lstat()
+    if directory:
+        valid = stat.S_ISDIR(info.st_mode) and not info.st_mode & 0o022
+    else:
+        valid = stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+    if info.st_uid != 0 or not valid:
+        raise ValueError('unsafe SSH SELinux policy receipt path')
+
+
+def read_ssh_policy_receipt():
+    try:
+        secure_ssh_policy_path(SSH_POLICY_RECEIPT)
+    except FileNotFoundError:
+        return None
+    fields = SSH_POLICY_RECEIPT.read_text(encoding='ascii').split()
+    if (len(fields) == 3 and fields[:2] == [SSH_POLICY_STORE, 'ready']
+            and POLICY_CHECKSUM.fullmatch(fields[2])):
+        return 'ready', (fields[2],)
+    if len(fields) == 4 and fields[:2] == [SSH_POLICY_STORE, 'pending'] and all(
+            value == '-' or POLICY_CHECKSUM.fullmatch(value) for value in fields[2:]):
+        return 'pending', tuple(value for value in fields[2:] if value != '-')
+    raise ValueError('invalid SSH SELinux policy receipt')
+
+
+def write_ssh_policy_receipt(directory_fd, phase, *checksums):
+    # Publish both possible store contents before changing policy. Keep the
+    # receipt pending until the native commit has returned after policy reload.
+    fd, temporary = tempfile.mkstemp(dir=SSH_POLICY_RECEIPT.parent, prefix='.ssh-policy-')
+    pending = Path(temporary)
+    try:
+        with os.fdopen(fd, 'w', encoding='ascii') as stream:
+            fields = [SSH_POLICY_STORE, phase, *(value or '-' for value in checksums)]
+            stream.write(' '.join(fields) + '\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        pending.replace(SSH_POLICY_RECEIPT)
+        os.fsync(directory_fd)
+    finally:
+        pending.unlink(missing_ok=True)
+
+
+def ssh_policy_store_active():
+    if not SELINUX_ENFORCE.exists():
+        return False
+    from fedora_selinux import configured_store
+
+    return configured_store() == SSH_POLICY_STORE
+
+
+def ssh_policy_transaction(*, writable, reload):
+    from fedora_selinux import module_store
+
+    return module_store(SSH_POLICY_STORE, SSH_POLICY.stem, SSH_POLICY_PRIORITY,
+                        writable=writable, reload=reload)
+
+
+@contextmanager
+def ssh_policy_action(action, *, state_locked=False):
+    directory = SSH_POLICY_RECEIPT.parent
+    try:
+        secure_ssh_policy_path(directory, directory=True)
+    except FileNotFoundError:
+        if action != 'remove' and ssh_policy_store_active():
+            raise
+        yield
+        return
+    descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # The native lock covers policy writers. This lock also covers our own
+        # receipt after libsemanage releases the transaction on commit.
+        if not state_locked:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        receipt = read_ssh_policy_receipt()
+        if action == 'remove' and receipt is None:
+            yield
+            return
+        active = ssh_policy_store_active()
+        if receipt is None and not active:
+            yield
+            return
+        phase, checksums = receipt or (None, ())
+        with ssh_policy_transaction(writable=action != 'verify', reload=active) as store:
+            installed, conflict = store.inventory()
+            if installed is not None and installed not in checksums:
+                raise ValueError('SSH SELinux policy at the package priority has unknown ownership')
+            if action == 'remove':
+                # Keep the native lock while authselect restores original PAM.
+                yield
+                write_ssh_policy_receipt(descriptor, 'pending', installed, None)
+                if installed is not None:
+                    store.remove()
+                store.commit()
+                SSH_POLICY_RECEIPT.unlink()
+                os.fsync(descriptor)
+                return
+
+            if conflict:
+                raise ValueError('SSH SELinux policy was disabled or has a local same-name module')
+            data = SSH_POLICY.read_bytes()
+            expected = 'sha256:' + hashlib.sha256(data).hexdigest()
+            if phase != 'ready' or installed != expected:
+                if action == 'verify':
+                    raise ValueError('SSH SELinux policy is not active')
+                write_ssh_policy_receipt(descriptor, 'pending', installed, expected)
+                if installed != expected:
+                    store.install(data)
+                store.commit()
+                write_ssh_policy_receipt(descriptor, 'ready', expected)
+            yield
+    finally:
+        os.close(descriptor)
 
 
 def private_baseline(*, optional=False):
@@ -175,16 +300,20 @@ def verify(distribution, *, installed):
     verify_time_policy(distribution, files)
 
 
-def runtime_ready(distribution):
+def runtime_ready(distribution, *, state_locked=False):
     """Side-effect-free migration callback for the active installed integration.
 
     C02 installs the prepared module/helper/account/session assets, restores the
     original gdm-password/systemd-user, and activates shared profiles first.
-    Call this inside commit_migration, before releasing account quarantine.
-    This checks installed payload availability and effective shared PAM output;
+    The migration callback already holds the state-directory lock. Standalone
+    verification acquires it here before reading the Fedora policy receipt.
+    This checks installed payload, effective shared PAM output and Fedora policy;
     it supplies no real GDM login, next-exec or administrator-policy proof.
     """
     verify(distribution, installed=True)
+    if distribution == 'fedora':
+        with ssh_policy_action('verify', state_locked=state_locked):
+            pass
     for path, executable in ((MODULES[distribution], False), (LOGIN_CHECK, True), (TIME_CHECK, True)):
         info = path.stat()
         # Distro-owned lib directories may be canonical aliases. Trust their
@@ -200,23 +329,25 @@ def configure(distribution, action):
     if distribution == 'fedora':
         # Preserve the maintained owner: original profile/features, without-nullok
         # policy, file digests, modified-profile refusal and owned removal/retry.
-        run([str(FEDORA_HELPER), 'remove' if action == 'remove' else 'install'])
+        with ssh_policy_action('remove' if action == 'remove' else 'install'):
+            run([str(FEDORA_HELPER), 'remove' if action == 'remove' else 'install'])
+            verify(distribution, installed=action != 'remove')
+        return
+    if action == 'install':
+        capture_baseline()
+    baseline = private_baseline(optional=action == 'remove')
+    arguments = ['/usr/sbin/pam-auth-update', '--package']
+    if action == 'remove':
+        for profile in PROFILES:
+            arguments.extend(('--remove', profile))
+        if baseline is not None:
+            arguments.extend(('--enable' if baseline == 'enabled' else '--disable', 'malcontent'))
     else:
-        if action == 'install':
-            capture_baseline()
-        baseline = private_baseline(optional=action == 'remove')
-        arguments = ['/usr/sbin/pam-auth-update', '--package']
-        if action == 'remove':
-            for profile in PROFILES:
-                arguments.extend(('--remove', profile))
-            if baseline is not None:
-                arguments.extend(('--enable' if baseline == 'enabled' else '--disable', 'malcontent'))
-        else:
-            arguments.extend(('--disable', 'malcontent'))
-            for profile in PROFILES:
-                arguments.extend(('--enable', profile))
-        # Never --force: an administrator's local edit is not ours to replace.
-        run(arguments, input='')
+        arguments.extend(('--disable', 'malcontent'))
+        for profile in PROFILES:
+            arguments.extend(('--enable', profile))
+    # Never --force: an administrator's local edit is not ours to replace.
+    run(arguments, input='')
     verify(distribution, installed=action != 'remove')
 
 
@@ -227,6 +358,8 @@ if __name__ == '__main__':
     arguments = parser.parse_args()
     if os.geteuid() != 0:
         parser.exit(1, 'distro-pam: must run as root\n')
+    if arguments.distribution == 'fedora':
+        sys.path.insert(0, '/usr/lib/oh-no-parent-control/lifecycle')
     try:
         if arguments.action == 'verify':
             runtime_ready(arguments.distribution)

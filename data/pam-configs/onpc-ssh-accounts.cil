@@ -1,0 +1,5 @@
+; Match Fedora's accountsd_dbus_chat interface for the PAM account worker.
+(optional onpc_ssh_accounts
+    (allow sshd_session_t accountsd_t (dbus (send_msg)))
+    (allow accountsd_t sshd_session_t (dbus (send_msg)))
+)

@@ -274,6 +274,15 @@ def test_approved_time_tabs_preserve_request_choices_and_show_combined_balances(
     assert ui.getValue("kiosk-approved-saved") == 1200
     assert ui.getText("kiosk-approved-saved") == "20m"
     assert ui.getText("kiosk-approved-use-saved") == "Add saved time to the timer"
+    assert ui.target("kiosk-approved-use-saved").get_parent() == ui.target("kiosk-request-actions")
+    ui.activate("kiosk-approved-menu")
+    assert ui.getText("kiosk-approved-menu-pause") == "Pause timer"
+    if overlay:
+        ui.activate("kiosk-approved-menu-pause")
+        lock_confirmation(ui).activate("kiosk-lock-cancel")
+        wait_for_confirmation_closed(ui, wait)
+    else:
+        ui.setValue("kiosk-approved-menu", False)
 
     ui.setValue("kiosk-request-tabs", "request")
     assert ui.getValue("kiosk-tab-request") is True
@@ -303,8 +312,10 @@ def test_approved_time_pause_pending_and_saved_balance(
         launch_ui, request_ui, wait_for_accessible_state, tmp_path, overlay):
     ui, wait = request_ui, wait_for_accessible_state
     release = tmp_path / "pause-release"
+    refresh_release = tmp_path / "pause-status-release"
     path = open_request(launch_ui, tmp_path, ui, wait, overlay=overlay,
-                        scenario="approved-running", request_release=release)
+                        scenario="approved-running", request_release=release,
+                        loading_release=refresh_release)
     ready(ui, wait)
     ui.activate("kiosk-tab-approved")
     approved_status(ui, wait, "ready")
@@ -338,14 +349,28 @@ def test_approved_time_pause_pending_and_saved_balance(
         assert not ui.state("kiosk-tab-request", ui.api.StateType.SENSITIVE)
         assert not ui.state("kiosk-child-selector", ui.api.StateType.SENSITIVE)
         assert ui.getValue("kiosk-child-selector") == "1001"
-        assert not ui.showing("kiosk-approved-pause")
+        assert ui.showing("kiosk-approved-pause")
+        assert ui.getText("kiosk-approved-pause") == "Pause timer"
+        assert not ui.state("kiosk-approved-pause", ui.api.StateType.SENSITIVE)
+        assert not ui.showing("kiosk-approved-request-more")
         assert not ui.showing("kiosk-approved-use-saved")
+        reads_before_release = len(calls(path, "GetGrantStatus"))
     finally:
         release.touch()
 
     if overlay:
         wait(lambda: bool(events(path, "close_overlay")), "pause closes behind the lock")
         return
+    try:
+        wait(lambda: len(calls(path, "GetGrantStatus")) > reads_before_release,
+             "the kiosk requests the updated balance")
+        approved_status(ui, wait, "pending", text="Updating approved time…")
+        assert ui.showing("kiosk-approved-pause")
+        assert ui.getText("kiosk-approved-pause") == "Pause timer"
+        assert not ui.state("kiosk-approved-pause", ui.api.StateType.SENSITIVE)
+        assert not ui.showing("kiosk-approved-request-more")
+    finally:
+        refresh_release.touch()
     approved_status(ui, wait, "ready")
     assert not ui.showing("kiosk-approved-running")
     assert ui.getValue("kiosk-approved-saved") == 1080
@@ -410,6 +435,8 @@ def test_grant_status_retry_works_from_both_tabs_until_daily_only_is_known(
     assert not ui.showing("kiosk-approved-pause")
     assert not ui.showing("kiosk-approved-use-saved")
     assert 660 <= ui.getValue("kiosk-approved-daily") <= 720
+    assert ui.getText("kiosk-approved-request-more") == "Request more time"
+    assert ui.target("kiosk-approved-request-more").get_parent() == ui.target("kiosk-request-actions")
     ui.activate("kiosk-approved-request-more")
     assert ui.getValue("kiosk-request-tabs") == "request"
 

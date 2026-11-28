@@ -2428,7 +2428,7 @@ class RequestWindow(Adw.ApplicationWindow):
             if self._child_overlay:
                 self._close_overlay()
                 return
-            self._request_content.set_grant_status("loading")
+            # Keep the footer action disabled until the refreshed balance arrives.
         else:
             self._request_content.set_grant_status("loading")
             self._refresh_child_countdown()

@@ -126,12 +126,18 @@ class Broker:
             GLib.timeout_add(20, finish_save)
             return
         reply = self.reply(method, values)
+        release_path = None
         if ((self.scenario in {"slow-request", "deferred-cancelled"} and method.startswith("Request"))
                 or (self.scenario == "approved-running" and method == "PauseGrant")):
+            release_path = os.environ["ONPC_REQUEST_COMPONENT_REQUEST_RELEASE"]
+        elif (self.scenario == "approved-running" and method == "GetGrantStatus"
+              and values[0] in self.grants):
+            release_path = os.environ.get("ONPC_REQUEST_COMPONENT_LOADING_RELEASE")
+        if release_path:
             if self.pending_slow_reply is not None:
                 raise RuntimeError("duplicate pending request reply")
             self.pending_slow_reply = callback, reply
-            release = Path(os.environ["ONPC_REQUEST_COMPONENT_REQUEST_RELEASE"])
+            release = Path(release_path)
             deadline = time.monotonic() + 60
 
             def finish_request():

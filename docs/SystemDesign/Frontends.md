@@ -360,7 +360,9 @@ and wrapped text/vertical scrolling retain corner controls and stationary frames
 Expanded account lists open over the controls below their triggers, keeping the
 account icons, labels and form at their collapsed positions.
 The request form measures both tabs and reserves space for the Request time
-actions and status footer. Switching tabs keeps the frame at the same height.
+status below the shared action row. Switching tabs keeps the frame and action
+row in place. The Approved time panel fills the space above the row. Cancel
+stays on the left and the right action occupies the same frame on both tabs.
 External scrollbar allocation follows the projected viewport so its input target
 matches its visible track. Results share the same sizing/overflow container.
 

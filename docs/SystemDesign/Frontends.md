@@ -357,6 +357,8 @@ bases rather than stretching silhouettes. Lightning follows the same transforms.
 Chains share a coarse pixel grid with nearest-neighbour enlargement.
 Duration choices reflow into one/two columns, account labels stack as needed,
 and wrapped text/vertical scrolling retain corner controls and stationary frames.
+The request form measures both tabs and reserves space for the Request time
+actions and status footer. Switching tabs keeps the frame at the same height.
 External scrollbar allocation follows the projected viewport so its input target
 matches its visible track. Results share the same sizing/overflow container.
 

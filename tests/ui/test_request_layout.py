@@ -88,7 +88,8 @@ def test_request_layout_keeps_all_choices_and_submission_reachable(
         and ui.getValue("kiosk-approved-saved") == 1200,
         "scaled Approved time page publishes the saved balance",
     )
-    assert ui.getValue("kiosk-approved-running") == 1080
+    # The kiosk's running balance counts down while the form loads.
+    assert 1020 <= ui.getValue("kiosk-approved-running") <= 1080
     ui.activate("kiosk-tab-request")
     ui.activate("kiosk-request-menu")
     assert ui.showing("kiosk-request-save-for-later")

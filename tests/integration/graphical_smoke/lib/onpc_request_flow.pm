@@ -748,6 +748,56 @@ sub saved_time {
     $journey->finish();
 }
 
+sub saved_time_retained_unlock {
+    onpc_progress::operation('Saving running time at the kiosk and unlocking the retained child desktop');
+    my ($exchange, $declared, $challenges, $binding) = @_;
+    die 'saved-time-retained-unlock:binding' unless @_ == 4 && ref($exchange) eq 'CODE'
+        && ref($binding) eq 'ARRAY' && join(',', @$binding) eq 'child,parent,60,1';
+    my $journey = onpc_journey->new(exchange => $exchange, prefix => 'saved-time-retained-unlock', review => 0);
+    $journey->{kiosk_request} = $binding;
+    $journey->declare_invocations($declared);
+    $journey->declare_challenges($challenges);
+    onpc_gdm::reattach_functional();
+
+    onpc_app_rows::named_app_set($journey, 'gdm', 'fresh', 'new', 'child', [
+        ['A', 'match-precise', 'allowed'], ['S', 'match-soft-wildcard', 'conditional']], 'rules');
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'parent', 'retained', 'success', 'setup-return');
+    onpc_parent::grant_only_time_profile($journey, 'desktop', 'same-user', 'retained', 0, 0, 180, 'default', 0);
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'fresh', 'success', 'fresh');
+    onpc_app_rows::native_activity_entry($journey, 'activity', 'command', 'child');
+    my $soft = $journey->scope('soft');
+    onpc_app_rows::native_usable_app($soft, 'command', $soft->seen('desktop'), 'child', 'S');
+    onpc_app_rows::native_read_activity($journey, 'soft-capture');
+
+    $journey->consume_observation('child-switch-ready', $journey->seen('child-switch-ready'));
+    $journey->seen($_) for qw(child-switch child-greeter retained-before);
+    onpc_gdm::enter_station($journey->scope('running'), '');
+    $journey->seen($_) for qw(running-child approved-tab running-read running-reread request-tab);
+    prepare($journey, 'new', 'open', 'observed', 'fixture-child', 'fixture-parent', 60, 1, 'kiosk');
+    $journey->consume_observation('approval-open', $journey->seen('approval-open'));
+    onpc_password::enter_kiosk_mate_password($journey, 'bound-request');
+    $journey->consume_observation('approval-success', $journey->seen('approval-success'));
+
+    $journey->seen($_) for qw(saved-read saved-cancel saved-returned saved-retained-locked enter-locked);
+    onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'denial');
+    $journey->seen($_) for qw(denial-return-greeter denial-returned retained-after-save);
+    onpc_gdm::enter_station($journey->scope('reuse'), '');
+    $journey->seen($_) for qw(reuse-child reuse-tab reuse-read use-saved use-returned);
+
+    onpc_desktop_session::enter_desktop($journey, 'gdm', 'child', 'retained', 'success', 'retained');
+    $journey->seen($_) for qw(countdown recovery-identity);
+    onpc_app_rows::native_activity_resume($journey, 'resume-soft');
+    onpc_app_rows::native_read_activity($journey, 'soft-retained');
+    $journey->invoke('natural-expiry');
+    onpc_desktop_session::verify_locked_input($journey, 'lock-input-ready', 'lock-result');
+    onpc_desktop_session::enter_desktop($journey, 'locked', 'child', 'lock', 'time-denied', 'expired');
+    $journey->seen($_) for qw(expired-return-greeter expired-returned retained-after-expiry);
+
+    onpc_gdm::enter_station($journey->scope('after'), '');
+    $journey->seen($_) for qw(after-child after-tab after-read after-cancel after-returned);
+    $journey->finish();
+}
+
 sub kiosk_delayed_approval {
     onpc_progress::operation('Approving two station requests while preserving [Child user] work');
     my ($exchange, $declared, $challenges, $binding, $balance) = @_;

@@ -12757,7 +12757,8 @@ class AccessibleUI:
         """Approved time page: canonical balances and actionable controls, no input."""
         balances = {name: 'kiosk-approved-' + name for name in ('running', 'saved', 'daily')}
         targets = self.saved_time_targets(('kiosk-request-tabs', 'kiosk-approved-status',
-            *balances.values(), *SAVED_TIME_ACTIONS.values()), overlay=overlay, child=child)
+            'kiosk-approved-menu', *balances.values(), *SAVED_TIME_ACTIONS.values()),
+            overlay=overlay, child=child)
         state = targets['kiosk-approved-status'].getValue()
         require(state in ('ready', 'empty', 'loading', 'unavailable', 'busy', 'recovery',
                           'pending', 'disabled'), 'ui:saved-time-state')
@@ -12771,6 +12772,7 @@ class AccessibleUI:
                  'actions': {name: self.available(targets[identity])
                              for name, identity in SAVED_TIME_ACTIONS.items()},
                  'observed_monotonic_ns': time.monotonic_ns()}
+        value['actions']['pause'] |= self.available(targets['kiosk-approved-menu'])
         require(value['tab'] == 'approved' and all(
             value[name + '_seconds'] is None or type(value[name + '_seconds']) is int
             and 0 <= value[name + '_seconds'] <= 86400 for name in balances),
@@ -12937,8 +12939,16 @@ class AccessibleUI:
             before = self.wait(lambda: self.saved_time_state(overlay=True), 'saved-time-read')
             require(before['state'] == 'ready' and before['actions']['pause'],
                     'ui:saved-time-pause-unavailable')
-            self._invoke_target(self.saved_time_targets(('kiosk-approved-pause',), overlay=True)[
-                'kiosk-approved-pause'])
+            primary, menu, option = ('kiosk-approved-pause', 'kiosk-approved-menu',
+                                     'kiosk-approved-menu-pause')
+            targets = self.saved_time_targets((primary, menu, option), overlay=True, child=child)
+            if self.available(targets[menu]):
+                if not targets[menu].getValue():
+                    self._invoke_target(targets[menu])
+                targets = self.saved_time_targets((option,), overlay=True, child=child)
+                self._invoke_target(targets[option])
+            else:
+                self._invoke_target(targets[primary])
             self.wait(lambda: self.overlay_lock_dialog(child=child), 'saved-lock-dialog')
             return {'confirmation': 'pause-and-lock', 'running_seconds': before['running_seconds']}
         targets = self.overlay_lock_dialog(child=child)

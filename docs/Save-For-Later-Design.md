@@ -142,6 +142,15 @@ immediately below the tabs and applies to both pages. The kiosk lists eligible
 children. The overlay keeps its selector fixed to the signed-in child. Preserve
 the shared form's responsive layout at different display scales.
 
+Both tabs share the footer positions for Cancel on the left and the primary
+action on the right. The Approved time panel fills the space above these
+buttons and contains only balances, status and hints. Its footer uses
+**Use saved time** when saved time is available and **Pause timer** when there
+is only a pausable timer. If both are available, **Add saved time to the timer**
+is the primary action and the chevron opens **Pause timer**. **Try again** takes
+the primary position when status needs a retry. Otherwise, **Request more time**
+opens the Request time tab.
+
 ### Request time
 
 ![Request tab with immediate request and save-for-later menu](images/save-for-later/request-more-time.png)
@@ -209,8 +218,10 @@ because the child's session is inactive. In the overlay, X stays constant while
 the child uses daily time and the grant together, and decreases once daily time
 is gone.
 
-Kiosk Pause stays on this tab and changes it to the saved state. Overlay Pause
-opens the [lock confirmation](#overlay-lock-confirmation).
+Kiosk Pause stays on this tab and keeps the footer action visible and disabled
+while the pause and status refresh complete. When the saved balance arrives,
+the footer switches to **Use saved time**. Overlay Pause opens the
+[lock confirmation](#overlay-lock-confirmation).
 
 ### Overlay lock confirmation
 
@@ -236,7 +247,7 @@ the grant keeps running if the pause did not commit.
 
 | State | Approved time page |
 | --- | --- |
-| No running or saved approved time | “No approved time available” and a “Request more time” action that selects the Request time tab. Daily-only time does not enable Pause. |
+| No running or saved approved time | “No approved time available” in the panel and “Request more time” in the footer. Daily-only time does not enable Pause. |
 | Running grant fully covered by daily time (X = 0) | “Covered by today's daily time”; no Pause |
 | Rest-of-day or pre-feature grant running | “Approved until HH:MM”; no Pause |
 | Running grant and saved time together | Running row (Pause only for a fixed grant) above the saved row; Use saved time is labelled as adding to the running timer |

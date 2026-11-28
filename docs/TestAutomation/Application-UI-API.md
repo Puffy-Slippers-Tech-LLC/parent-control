@@ -209,7 +209,8 @@ screen-time control and absent accounts retain their existing restrictions.
 | `kiosk-approved-feedback` | Translated error from the last action, visible alongside refreshed balances when available |
 | `kiosk-approved-running`, `kiosk-approved-saved`, `kiosk-approved-daily` | Canonical seconds and translated display text for the running time beyond daily time, saved time and daily time. Unavailable snapshots have no seconds value. |
 | `kiosk-approved-running-status`, `kiosk-approved-pause-hint`, `kiosk-approved-saved-title`, `kiosk-approved-saved-hint` | Translated running and saved row captions and hints |
-| `kiosk-approved-pause`, `kiosk-approved-use-saved`, `kiosk-approved-retry`, `kiosk-approved-request-more` | Ordinary actions, available according to status, balance and screen-time control. Request more time switches tabs. |
+| `kiosk-approved-pause`, `kiosk-approved-use-saved`, `kiosk-approved-retry`, `kiosk-approved-request-more` | Primary Approved time footer actions, shown according to status, balance and screen-time control. Request more time switches tabs. |
+| `kiosk-approved-menu`, `kiosk-approved-menu-pause` | When both time actions are available, open the footer menu by activation or get/set its boolean open state. Activate its Pause timer option to pause. |
 | `kiosk-lock-confirmation`, `kiosk-lock-title`, `kiosk-lock-body` | Overlay-only modal owned by `kiosk-request-window`. Close cancels, and activation uses the dialog's default action, Cancel. |
 | `kiosk-lock-cancel`, `kiosk-lock-confirm` | Dismiss the dialog or continue the current Pause and lock / Save for later and lock operation. Bind to `kiosk-lock-confirmation`. |
 | `kiosk-menu-button` | `setValue` commands `preferences`/`about`, `whats-new` with current Child notes, plus `help` in overlay; preview additionally offers `change-screens`; `getChoices` reflects actual availability |

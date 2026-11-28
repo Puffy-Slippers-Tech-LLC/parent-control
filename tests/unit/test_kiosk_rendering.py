@@ -769,7 +769,7 @@ class KioskRenderingTests(unittest.TestCase):
                 if attribute == "_request":
                     # The split container carries one frame around both halves.
                     self.assertEqual([ast.unparse(arg) for arg in button.args], ["Gtk.Button"])
-                    self.assertIn('ArmoredBox(spacing=3, hexpand=True, armor_kind="cancel")',
+                    self.assertIn('ArmoredBox(hexpand=True, armor_kind="cancel")',
                                   content)
                 else:
                     self.assertEqual([ast.unparse(arg) for arg in button.args],

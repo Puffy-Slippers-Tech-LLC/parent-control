@@ -842,11 +842,12 @@ class RequestContent(MetalBoard):
 
     def _build_approved_page(self):
         page = MetalPanel(orientation=Gtk.Orientation.VERTICAL, spacing=10,
-                          panel_kind="well")
+                          panel_kind="well", vexpand=False)
         set_automation_id(page, "kiosk-approved-page")
         page.set_margin_start(10)
         page.set_margin_end(10)
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
+                       vexpand=True, valign=Gtk.Align.CENTER,
                        margin_start=12, margin_end=12, margin_top=12, margin_bottom=12)
         page.append(body)
         self._approved_status = self._approved_label("kiosk-approved-status")

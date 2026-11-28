@@ -601,6 +601,40 @@ def commit_push_propagate(root, run, state, paths, message, *, git=None, selecti
         raise
 
 
+def _skill_pushes_recorded(root, intent, targets, progress, *, git):
+    """Recognize a retained handoff with no unfinished skill-owned Git work."""
+    from launcher_worktrees import _idle
+
+    commit = progress.get('pushed_head')
+    if (not intent.get('controller_remote') or progress.get('stashes') != []
+            or not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit)
+            or progress.get('source_commit') != commit or commit == intent['parent']):
+        return False
+    destinations = progress.get('destinations')
+    if not isinstance(destinations, dict) or destinations.keys() - {target['branch'] for target in targets[1:]}:
+        return False
+    for target in targets[1:]:
+        entry = destinations.get(target['branch'], {})
+        if not isinstance(entry, dict):
+            return False
+        if 'path' not in target:
+            # Older sessions could record a failed fetch of a controller-owned branch.
+            # A recorded checkout or any other write intent still needs skill recovery.
+            if entry and (entry.keys() - {'remote_only', 'ref', 'status', 'diagnostic'}
+                          or entry.get('status') != 'blocked' or entry.get('remote_only') is not True
+                          or entry.get('ref') != target['ref']):
+                return False
+            continue
+        if entry.get('checkout') != target['path'] or entry.get('status') != 'pushed':
+            return False
+        destination = Path(target['path'])
+        _idle(git, destination)
+        if git(destination, 'merge-base', '--is-ancestor', commit, 'HEAD', check=False).returncode:
+            return False
+    _idle(git, root)
+    return True
+
+
 def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=None,
                        selection=None, published_main=None):
     """Keep acceptance in the controller and Git ownership in the commit skill."""
@@ -646,13 +680,17 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
     result_path = session / 'agent-result.json'
     if previous and result_path.exists():
         result = json.loads(result_path.read_text())
-        if result.get('status') == 'complete':
+        if (result.get('status') == 'complete'
+                or (not publishing and result.get('status') == 'blocked'
+                    and _skill_pushes_recorded(root, intent, targets, previous, git=git))):
             return _verify_skill_completion(root, run, state, intent, targets, previous,
                                             previous, git=git, publishing=publishing,
                                             selection=selection)
     remote_destinations = [target for target in targets[1:] if 'path' not in target]
+    assigned_intent = intent
     placement_instructions = ''
     if remote_destinations and not publishing:
+        assigned_intent = dict(intent, targets=[targets[0], *(target for target in targets[1:] if 'path' in target)])
         placement_instructions = f"""
 The controller will merge and push these remote-only branches through detached
 worktrees, starting from their fetched upstream commits:
@@ -662,7 +700,10 @@ explicit paths. Never switch the source or a registered worktree to a destinatio
 branch. Do not start Git writes for a remote-only destination. On recovery of an
 older journal, reconcile any earlier skill-owned mutations in their recorded
 checkouts and verify restoration before handing off to the controller. A branch
-merely being behind its remote requires no action from you.
+merely being behind its remote requires no action from you. A historical failed
+fetch with no recorded worktree or pending Git writes is part of the controller's
+scope. Report complete when your assigned branches are verified, even if that
+remote-only branch still has a blocked entry in the journal.
 If the journal already has pushed_head, verify that exact commit on the source
 remote and resume only unfinished work in the explicit same-host worktrees.
 Keep the original pushed_head and leave the source working files and index intact.
@@ -687,7 +728,7 @@ with the exact Git diagnostic. The controller owns timed outage retries using
 this same journal; never create a second completion commit. Permission or
 authentication denials are blockers, not outage evidence.
 Accepted task scope and original branch identity:
-{json.dumps(intent, indent=2)}
+{json.dumps(assigned_intent, indent=2)}
 Session ownership and acceptance context (read only): {run / 'checkpoint.json'}
 Only the listed task paths are candidates, not proof of hunk ownership. Preserve
 all unrelated staged, unstaged and untracked work, including within those files.
@@ -794,9 +835,13 @@ exact blocker and completed destinations. Do not modify the controller checkpoin
         if status:
             raise ValueError('commit skill session failed; resume the retained Git journal')
     result = json.loads(result_path.read_text())
-    if result.get('status') != 'complete':
-        raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
-    progress = json.loads(receipt.read_text())
+    if result.get('status') == 'complete':
+        progress = json.loads(receipt.read_text())
+    else:
+        progress = json.loads(receipt.read_text()) if receipt.exists() else {}
+        if (publishing or result.get('status') != 'blocked'
+                or not _skill_pushes_recorded(root, intent, targets, progress, git=git)):
+            raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
     return _verify_skill_completion(root, run, state, intent, targets, progress, previous,
                                     git=git, publishing=publishing, selection=selection)
 

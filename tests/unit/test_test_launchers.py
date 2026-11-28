@@ -1126,6 +1126,9 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
     git('init', '--bare', str(remote))
     git('remote', 'add', 'origin', str(remote))
     git('push', '--set-upstream', 'origin', 'main')
+    local_peer = root.parent / 'local-peer'
+    git('worktree', 'add', '-b', 'local-peer', str(local_peer), 'HEAD')
+    git('-C', str(local_peer), 'push', '--set-upstream', 'origin', 'local-peer')
     git('branch', 'server')
     peer = root.parent / 'peer'
     git('worktree', 'add', '--detach', str(peer), 'HEAD')
@@ -1143,6 +1146,7 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
         hosts=[dict(name=host, enabled='true', transport=transport, max_compute_unit=1)
                for host, transport in [('local', 'local'), ('remote', 'ssh')]],
         branches=[dict(name='main', host='local', repo_root=str(root)),
+                  dict(name='local-peer', host='local', repo_root=str(local_peer)),
                   dict(name='server', host='remote', repo_root=str(peer))])))
     preview = plan_launcher.review_ownership(root, spec, previous.name, check=True)
     plan_launcher.review_ownership(root, spec, previous.name, approval=preview['approval'])
@@ -1155,6 +1159,9 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
     git('commit', '-m', 'Journaled private commit')
     commit = git('rev-parse', 'HEAD')
     git('push', 'origin', 'main')
+    git('-C', str(local_peer), 'merge', '--ff-only', commit)
+    git('-C', str(local_peer), 'push', 'origin', 'local-peer')
+    (local_peer / 'parallel.txt').write_text('Untracked peer work\n')
     git('fetch', 'origin', 'refs/heads/main')
     fetch_head = git('rev-parse', 'FETCH_HEAD')
     (root / 'parallel.txt').write_text('Untracked parallel work\n')
@@ -1167,8 +1174,11 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
     worktrees = git('worktree', 'list', '--porcelain')
     sessions = launcher.private_directory(previous / 'commit-skill')
     session = launcher.private_directory(sessions / ('b' * 32))
-    launcher.atomic(session / 'progress.json', dict(source_commit=commit, pushed_head=commit))
-    launcher.atomic(session / 'agent-result.json', dict(status='complete'))
+    launcher.atomic(session / 'progress.json', dict(source_commit=commit, pushed_head=commit, stashes=[],
+        destinations={'local-peer': dict(checkout=str(local_peer), status='pushed'),
+                      'server': dict(remote_only=True, ref='refs/heads/server', status='blocked',
+                                     diagnostic='An earlier skill fetch was denied')}))
+    launcher.atomic(session / 'agent-result.json', dict(status='blocked'))
     state['recovery_run'] = str(previous)
     run = launcher.private_directory(previous.parent / ('c' * 32))
     launcher_git.retain_commit_skill_recovery(run, state)
@@ -1181,6 +1191,7 @@ def test_shared_closeout_review_keeps_journaled_commit_recovery(shared_closeout,
     git('merge-base', '--is-ancestor', commit, 'origin/server')
     git('merge-base', '--is-ancestor', server, 'origin/server')
     assert launcher_git.worktree_snapshot(root) == active
+    assert (local_peer / 'parallel.txt').read_text() == 'Untracked peer work\n'
     assert git('ls-files', '--stage') == index
     assert git('stash', 'list') == stashes
     assert git('worktree', 'list', '--porcelain') == worktrees

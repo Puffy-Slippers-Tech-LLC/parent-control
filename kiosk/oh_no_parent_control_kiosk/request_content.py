@@ -24,7 +24,7 @@ from common.oh_no_parent_control_ui.accessibility import describe_control, set_a
 from common.oh_no_parent_control_ui.application_ui import bind_ui
 from common.oh_no_parent_control_ui.user_icon import apply_gtk_user_icon, parse_listed_user
 from .chrome import (
-    POINTER, SHIELD, GEAR, ArmoredButton,
+    POINTER, SHIELD, GEAR, ArmoredBox, ArmoredButton,
     MetalBoard, MetalPanel, PixelIcon,
 )
 from broker.oh_no_parent_control.preferences import (
@@ -538,11 +538,11 @@ class RequestContent(MetalBoard):
         self._filter_row = filter_row
         self._request_form.append(filter_row)
 
-        actions = Gtk.Box(spacing=10)
+        actions = Gtk.Box(spacing=6, margin_start=10, margin_end=10)
         set_automation_id(actions, "kiosk-request-actions")
         actions.add_css_class("oh-no-parent-control-actions")
         self._request = localized(
-            ArmoredButton, hexpand=True, armor_kind="request",
+            Gtk.Button, hexpand=True,
             child=localized(Gtk.Label, label=m.REQUEST_USE_NOW, wrap=True,
                             wrap_mode=Pango.WrapMode.WORD_CHAR, justify=Gtk.Justification.CENTER),
         )
@@ -573,7 +573,7 @@ class RequestContent(MetalBoard):
         self._pages.add_named(self._build_approved_page(), "approved")
 
         self._cancel = localized(ArmoredButton, 
-            label=m.CANCEL_2, hexpand=True,
+            label=m.CANCEL_2,
             css_classes=["oh-no-parent-control-cancel-button"],
         )
         describe_control(
@@ -698,8 +698,6 @@ class RequestContent(MetalBoard):
         request = active == "request"
         self._request_split.set_visible(request)
         self._status_row.set_visible(request)
-        self._cancel.set_hexpand(request)
-        self._cancel.set_halign(Gtk.Align.FILL if request else Gtk.Align.END)
         self._cancel.get_parent().set_halign(Gtk.Align.FILL if request else Gtk.Align.END)
 
     def _tab_key_pressed(self, _controller, keyval, _keycode, modifiers):
@@ -737,7 +735,8 @@ class RequestContent(MetalBoard):
         return label
 
     def _build_request_split(self):
-        split = Gtk.Box(spacing=1, hexpand=True)
+        split = ArmoredBox(spacing=3, hexpand=True, armor_kind="cancel")
+        split.add_css_class("oh-no-parent-control-request-split")
         split.append(self._request)
         popover = Gtk.Popover(autohide=True, position=Gtk.PositionType.BOTTOM)
         set_automation_id(popover, "kiosk-request-menu-popover")

@@ -772,15 +772,22 @@ class KioskRenderingTests(unittest.TestCase):
                 button = assignments[0]
                 self.assertIsInstance(button, ast.Call)
                 self.assertEqual(ast.unparse(button.func), "localized")
-                self.assertEqual([ast.unparse(arg) for arg in button.args], ["ArmoredButton"])
                 keywords = {item.arg: item.value for item in button.keywords}
                 text_widget = keywords.get("child", button)
                 captions = [ast.unparse(item.value) for item in text_widget.keywords
                             if item.arg == "label"]
                 self.assertEqual(captions, [label])
-                kind = (ast.literal_eval(keywords["armor_kind"])
-                        if "armor_kind" in keywords else default_kind)
-                self.assertEqual(kind, "request")
+                if attribute == "_request":
+                    # The split container carries one frame around both halves.
+                    self.assertEqual([ast.unparse(arg) for arg in button.args], ["Gtk.Button"])
+                    self.assertIn('ArmoredBox(spacing=3, hexpand=True, armor_kind="cancel")',
+                                  content)
+                else:
+                    self.assertEqual([ast.unparse(arg) for arg in button.args],
+                                     ["ArmoredButton"])
+                    kind = (ast.literal_eval(keywords["armor_kind"])
+                            if "armor_kind" in keywords else default_kind)
+                    self.assertEqual(kind, "request")
 
                 metadata = [call for call in calls
                             if ast.unparse(call.func) == "describe_control"

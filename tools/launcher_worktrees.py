@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import detached_launcher as launcher
 from agent_adapter import AgentSelection, resolve_profile, resolve_selection
-from launcher_git import _operation_selection, git_for_run, git_output, worktree_fingerprint
+from launcher_git import _operation_selection, fetch_branch_head, git_for_run, git_output, worktree_fingerprint
 
 
 _held = threading.local()
@@ -254,10 +254,11 @@ def _branch_upstream(git, root, branch):
     return None
 
 
-def _prepare_remote(git, root, run, target, save):
+def _prepare_remote(git, root, run, target, commit, save):
     """Retain a detached checkout without creating or moving a local branch."""
     if 'phase' not in target:
-        remote, ref = _remote_destination(git, root, target['branch'])
+        remote, ref = ((target['remote'], target['remote_ref']) if 'remote' in target
+                       else _remote_destination(git, root, target['branch']))
         target.update(path=str((run / ('remote-worktree-' + uuid.uuid4().hex)).resolve()),
                       remote=remote, remote_ref=ref,
                       configured_upstream=_branch_upstream(git, root, target['branch']),
@@ -267,10 +268,14 @@ def _prepare_remote(git, root, run, target, save):
         save()
     _remote_identity(git, root, target)
     if target['phase'] == 'remote-fetch':
-        _run(git, root, 'fetch', target['remote'], target['remote_ref'])
-        target.update(upstream_commit=_run(git, root, 'rev-parse', '--verify', 'FETCH_HEAD'),
-                      phase='remote-checkout')
+        upstream = fetch_branch_head(git, root, target['remote'], target['remote_ref'])
+        contains = git(root, 'merge-base', '--is-ancestor', commit, upstream, check=False)
+        if contains.returncode not in (0, 1):
+            raise ValueError('could not verify fetched destination ancestry: ' + contains.stderr.strip())
+        target.update(upstream_commit=upstream, phase='remote-checkout' if contains.returncode else 'done')
         save()
+        if target['phase'] == 'done':
+            return
     if not os.path.lexists(target['path']) and target['phase'] != 'remote-remove':
         if target['phase'] != 'remote-checkout':
             # Restart copies the checkpoint, not the old run's bulk output.
@@ -294,7 +299,7 @@ def _prepare_remote(git, root, run, target, save):
             # A successful push may be the only remaining reference to this
             # exact merge after old worktrees expire and Git collects objects.
             if git(root, 'cat-file', '-e', checkout_commit + '^{commit}', check=False).returncode:
-                _run(git, root, 'fetch', target['remote'], target['remote_ref'])
+                fetch_branch_head(git, root, target['remote'], target['remote_ref'])
             _run(git, root, 'worktree', 'add', '--detach', str(destination), checkout_commit)
         # Also authenticate an add that finished just before interruption.
         _identity(git, destination, target)
@@ -326,8 +331,7 @@ def _refresh_remote(git, destination, target, save, resolve):
     _expect_head(git, destination, target['merged_head'], 'remote push recovery')
     if target['phase'] == 'remote-refetch':
         _idle(git, destination)
-        _run(git, destination, 'fetch', target['remote'], target['remote_ref'])
-        target.update(upstream_commit=_run(git, destination, 'rev-parse', '--verify', 'FETCH_HEAD'),
+        target.update(upstream_commit=fetch_branch_head(git, destination, target['remote'], target['remote_ref']),
                       phase='remote-remerge')
         save()
     _merge(git, destination, target, target['upstream_commit'], resolve)
@@ -624,7 +628,7 @@ def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
         raise ValueError('worktree propagation source commit changed')
     resolve = resolve or (lambda target, phase, details: resolve_conflicts(
         target, run, phase, dict(details, source_root=str(root.resolve()), checkpoint=checkpoint,
-                                pull=pull), selection=selection))
+                                pull=pull), git=git, selection=selection))
     with transaction_lock(root, run, git=git):
         def save():
             if save_state is not None:
@@ -637,7 +641,9 @@ def _propagate_once(root, run, state, commit, *, git=git_output, resolve=None,
             if not _configured(root, target, git):
                 raise ValueError('configured destination changed during worktree propagation')
             if target.get('remote_target'):
-                _prepare_remote(git, root, run, target, save)
+                _prepare_remote(git, root, run, target, commit, save)
+                if target['phase'] == 'done':
+                    continue
             destination = Path(target['path'])
             if target.get('phase') == 'remote-remove':
                 _remove_remote(git, root, target)

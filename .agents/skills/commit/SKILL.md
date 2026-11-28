@@ -40,12 +40,20 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
 4. Fetch and reconcile remote state without discarding work or rewriting
    published history. Push the source and record its exact successfully pushed
    HEAD. Merge that pinned commit into every other configured destination and
-   push each, preserving local and remote work. Merge each destination directly;
+   push each, preserving local and remote work. In a supervised launcher
+   session, follow the caller's destination scope. The ordinary-plan
+   controller handles branches on other hosts after the skill reports success
+   for its assigned branches. Merge each assigned destination directly;
    a pre-merge `git merge-base --is-ancestor` exit 1 only means a merge is
    needed. Judge commands by exit status and Git output, not unrelated stderr
    from shell startup. Do not force-push, invent missing
    branches or alter Git configuration. Reuse an applicable maintained public
    workflow when available; do not invoke private launcher helpers ad hoc.
+   For an assigned remote-only branch, fetch its exact remote ref and add a
+   detached worktree at that fetched commit. Merge in the detached worktree and
+   push the resulting commit to the exact remote ref. Journal the checkout
+   and remove it after the push succeeds. Never switch an active checkout or
+   advance an unchecked local branch to propagate to a remote-only destination.
    Before saving dirty destination work, follow the Git contract's
    [destination snapshot procedure](../../../docs/Approval-Tools.md#destination-work-snapshots-with-existing-grants).
    Use its direct Git, checksum and metadata readers for preservation checks;
@@ -73,5 +81,6 @@ For code changes required by this workflow, follow the coding mandate in AGENTS.
    and completed destinations. Resume unfinished propagation with the same
    pinned source commit rather than creating another source commit.
 7. On success, leave the source checkout on its original branch. Report the
-   source commit hash and each destination pushed. Completion requires every
-   configured destination to succeed. This does not publish a product release.
+   source commit hash and each assigned destination pushed. Overall close-out
+   requires every configured destination to succeed. This does not publish a
+   product release.

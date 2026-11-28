@@ -515,12 +515,62 @@ def git_for_run(git, run, *, deadline=None):
     return git
 
 
+def fetch_branch_head(git, root, remote, ref):
+    """Read the exact fetched commit even if another session fetches concurrently."""
+    # A private ref pins the result without reading or writing FETCH_HEAD.
+    local_ref = 'refs/worktree/onpc-fetch-' + uuid.uuid4().hex
+    result = git(root, 'fetch', '--no-tags', '--no-prune', '--no-prune-tags', '--no-recurse-submodules',
+                 '--no-write-fetch-head', '--refmap=', remote, ref + ':' + local_ref, check=False)
+    if result.returncode:
+        raise ValueError(f'Git fetch failed for {remote} {ref} (exit {result.returncode}): '
+                         + (result.stderr or result.stdout).strip())
+    head = git(root, 'rev-parse', '--verify', local_ref).stdout.strip()
+    git(root, 'update-ref', '-d', local_ref, head)
+    return head
+
+
 def closeout_lock(root, run, state):
     """Serialize source Git writes with reverse-direction destination updates."""
     if not (root / 'config/environment.json').exists() and not state.get('worktree_propagation'):
         return nullcontext()
     from launcher_worktrees import transaction_lock
     return transaction_lock(root, run)
+
+
+def _skill_session(run, intent):
+    sessions = launcher.private_directory(run / 'commit-skill')
+    return launcher.private_directory(sessions / intent['session'])
+
+
+def retain_commit_skill_recovery(run, state):
+    """Carry the previous skill's Git journal into a newly admitted run."""
+    intent = state.get('commit_intent')
+    previous = state.get('recovery_run')
+    if not intent or intent.get('engine') != 'skill' or not previous:
+        return
+    previous = Path(previous)
+    if previous == run:
+        return
+    if (previous.parent != run.parent or not re.fullmatch('[0-9a-f]{32}', previous.name)
+            or not re.fullmatch('[0-9a-f]{32}', intent['session'])):
+        raise ValueError('invalid retained commit skill session identity')
+    if not os.path.lexists(previous / 'commit-skill' / intent['session']):
+        return
+    source = _skill_session(previous, intent)
+    with launcher.lock(source / 'owner') as owner:
+        try:
+            fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ValueError('retained commit skill is still running; wait for it to exit') from error
+        # The result is useful only with the journal that identifies its commit.
+        receipt = source / 'progress.json'
+        if not receipt.exists():
+            return
+        destination = _skill_session(run, intent)
+        launcher.durable_json(destination / receipt.name, json.loads(receipt.read_text()))
+        result = source / 'agent-result.json'
+        if result.exists():
+            launcher.durable_json(destination / result.name, json.loads(result.read_text()))
 
 
 def commit_push_propagate(root, run, state, paths, message, *, git=None, selection=None, published_main=None):
@@ -588,16 +638,35 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
             or intent['targets'] != targets
             or (publishing and intent.get('pushed_head') != published_main)):
         raise ValueError('commit skill scope or branch destinations changed; retain the checkpoint')
-    sessions = launcher.private_directory(run / 'commit-skill')
-    session = launcher.private_directory(sessions / intent['session'])
+    session = _skill_session(run, intent)
     receipt = session / 'progress.json'
     previous = json.loads(receipt.read_text()) if receipt.exists() else {}
+    if not publishing and intent.get('pushed_head') and previous.get('pushed_head') != intent['pushed_head']:
+        raise ValueError('the retained commit skill journal does not match the pinned pushed HEAD')
     result_path = session / 'agent-result.json'
     if previous and result_path.exists():
         result = json.loads(result_path.read_text())
         if result.get('status') == 'complete':
             return _verify_skill_completion(root, run, state, intent, targets, previous,
-                                            previous, git=git, publishing=publishing)
+                                            previous, git=git, publishing=publishing,
+                                            selection=selection)
+    remote_destinations = [target for target in targets[1:] if 'path' not in target]
+    placement_instructions = ''
+    if remote_destinations and not publishing:
+        placement_instructions = f"""
+The controller will merge and push these remote-only branches through detached
+worktrees, starting from their fetched upstream commits:
+{json.dumps(remote_destinations, indent=2)}
+Your completion covers the source and the configured same-host worktrees with
+explicit paths. Never switch the source or a registered worktree to a destination
+branch. Do not start Git writes for a remote-only destination. On recovery of an
+older journal, reconcile any earlier skill-owned mutations in their recorded
+checkouts and verify restoration before handing off to the controller. A branch
+merely being behind its remote requires no action from you.
+If the journal already has pushed_head, verify that exact commit on the source
+remote and resume only unfinished work in the explicit same-host worktrees.
+Keep the original pushed_head and leave the source working files and index intact.
+"""
     schema = dict(type='object', additionalProperties=False,
         properties=dict(status=dict(type='string', enum=['complete', 'blocked']),
                         summary=dict(type='string')),
@@ -611,7 +680,7 @@ def _commit_with_skill(root, run, state, paths, message, *, git, retry_deadline=
         if publishing else '')
     (session / 'prompt.txt').write_text(f"""Use $commit, reading {skill}, to close out this accepted launcher task.
 The user authorized the full skill workflow. Do not start another launcher.
-{publishing_instructions}The controller holds the repository Git transaction lock. Do not acquire it
+{publishing_instructions}{placement_instructions}The controller holds the repository Git transaction lock. Do not acquire it
 again or invoke private launcher Git helpers. Perform Git operations directly.
 On a transient Git network/service failure, journal progress and return blocked
 with the exact Git diagnostic. The controller owns timed outage retries using
@@ -687,11 +756,14 @@ Restore saved work with its index state; retain recoverable stashes on failure.
 For dirty destination snapshots, follow docs/Approval-Tools.md section
 "Destination work snapshots with existing grants", linked from the commit skill.
 Use its existing direct readers; do not construct ad hoc host interpreter probes.
-Return complete only after every configured destination is pushed and the source
-checkout is back on its original branch. Otherwise return blocked with the exact
-blocker and completed destinations. Do not modify the controller checkpoint.
+Return complete only after every assigned destination is pushed and the source
+checkout is back on its original branch. Otherwise return blocked with the
+exact blocker and completed destinations. Do not modify the controller checkpoint.
 """)
     result_path.unlink(missing_ok=True)
+    if placement_instructions:
+        intent['controller_remote'] = True
+        launcher.atomic(run / 'checkpoint.json', state)
     with launcher.lock(session / 'owner') as owner:
         fcntl.flock(owner, fcntl.LOCK_EX)
         selected = _operation_selection(root, selection).get()
@@ -726,12 +798,13 @@ blocker and completed destinations. Do not modify the controller checkpoint.
         raise ValueError('commit skill blocked: ' + result.get('summary', 'inspect retained session'))
     progress = json.loads(receipt.read_text())
     return _verify_skill_completion(root, run, state, intent, targets, progress, previous,
-                                    git=git, publishing=publishing)
+                                    git=git, publishing=publishing, selection=selection)
 
 
-def _verify_skill_completion(root, run, state, intent, targets, progress, previous, *, git, publishing=False):
-    """Retry independent verification without replaying a completed skill session."""
-    from launcher_worktrees import commit_skill_targets
+def _verify_skill_completion(root, run, state, intent, targets, progress, previous, *,
+                             git, publishing=False, selection=None):
+    """Verify skill-owned pushes and finish any controller-owned destinations."""
+    from launcher_worktrees import commit_skill_targets, propagate
 
     commit = progress.get('pushed_head', '')
     if (not isinstance(commit, str) or len(commit) != 40
@@ -750,16 +823,26 @@ def _verify_skill_completion(root, run, state, intent, targets, progress, previo
     # completion credit; the caller still requires every remote check to pass.
     intent['pushed_head'] = commit
     launcher.atomic(run / 'checkpoint.json', state)
-    # Independently verify every remote branch, rather than trusting the agent's
-    # completion text or remote-tracking refs left by an earlier fetch.
+    remote_only = []
+    if intent.get('controller_remote'):
+        remote_only = [target for target in targets[1:] if 'path' not in target]
+    # Verify skill-owned pushes before the controller writes any destinations.
+    _verify_remote_containment(root, commit, [target for target in targets if target not in remote_only], git)
+    if remote_only:
+        destinations = [dict(branch=target['branch'], remote_target=True,
+                             remote=target['remote'], remote_ref=target['ref']) for target in remote_only]
+        propagate(root, run, state, commit, git=git, targets=destinations, selection=selection)
+        _verify_remote_containment(root, commit, remote_only, git)
+    intent['commit'] = commit
+    launcher.atomic(run / 'checkpoint.json', state)
+    return commit
+
+
+def _verify_remote_containment(root, commit, targets, git):
     for target in targets:
-        fetched = git(root, 'fetch', '--no-tags', target['remote'], target['ref'], check=False)
         label = f"{target['branch']} ({target['remote']} {target['ref']})"
-        if fetched.returncode:
-            raise ValueError(f'commit skill verification fetch failed for {label} '
-                             f'(exit {fetched.returncode}): '
-                             + (fetched.stderr or fetched.stdout).strip())
-        contains = git(root, 'merge-base', '--is-ancestor', commit, 'FETCH_HEAD', check=False)
+        fetched = fetch_branch_head(git, root, target['remote'], target['ref'])
+        contains = git(root, 'merge-base', '--is-ancestor', commit, fetched, check=False)
         if contains.returncode == 1:
             raise ValueError(f'commit skill remote branch {label} does not contain '
                              f'pushed commit {commit}; retain the Git journal')
@@ -767,9 +850,6 @@ def _verify_skill_completion(root, run, state, intent, targets, progress, previo
             raise ValueError(f'commit skill ancestry verification failed for {label} '
                              f'(exit {contains.returncode}): '
                              + (contains.stderr or contains.stdout).strip())
-    intent.update(commit=commit, pushed_head=commit)
-    launcher.atomic(run / 'checkpoint.json', state)
-    return commit
 
 
 if __name__ == '__main__':

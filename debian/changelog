@@ -2,6 +2,10 @@ oh-no-parent-control (2.1+local1~ubuntu26.04.1) resolute; urgency=medium
 
   Bug Fixes
 
+  UI Improvements
+  * Kiosk: Neater look! Kiosk session now automatically synchronizes with the
+    selected child's screen layout (resolution, scale etc.).
+
   Robustness and Reliability Improvements
   * Parent App: Background refreshes interrupted by a broker restart show a
     brief notification and keep the window usable.
@@ -9,7 +13,7 @@ oh-no-parent-control (2.1+local1~ubuntu26.04.1) resolute; urgency=medium
     timer is briefly busy, so active use is not lost from the child's
     countdown.
 
- -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Thu, 26 Nov 2026 23:05:34 +0000
+ -- Puffy Slippers Tech LLC <dev@tech.puffyslippers.com>  Fri, 27 Nov 2026 23:53:58 +0000
 
 oh-no-parent-control (2.0+ppa1~ubuntu26.04.1) resolute; urgency=medium
 

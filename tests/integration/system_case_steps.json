@@ -2653,6 +2653,15 @@
     ],
     "expected": "Saved time and its app choice stay exact, the unfinished pause resolves once without adding time, and an older grant keeps running as a grant that cannot be paused. Newly saved time is stored separately. Engineering check only."
   },
+  "321": {
+    "summary": "Check that pausing captures all usage on every target",
+    "steps": [
+      "Leave a child desktop unlocked and switch away without using the desktop's switch-user action.",
+      "Pause approved time from the request-station account and observe the desktop lock, completed usage and saved balance.",
+      "Use the saved time and pause again with the desktop already locked and a child SSH session still connected."
+    ],
+    "expected": "The pause waits for the lock and completed usage before transferring the balance. The time spent switched away counts as used. An already locked desktop needs no new lock or usage record, and the SSH session does not block the pause."
+  },
   "322": {
     "summary": "Let children with time sign in through SSH on Fedora",
     "steps": [

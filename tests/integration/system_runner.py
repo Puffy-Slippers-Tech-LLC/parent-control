@@ -62,6 +62,8 @@ BROKER_STARTUP_CASE = 'test_broker_policy_startup_failure_recovery'
 BROKER_STARTUP_PHASE = 'broker-startup'
 USAGE_CHECKPOINT_CASE = 'test_active_usage_checkpoint_retry'
 USAGE_CHECKPOINT_PHASE = 'usage-checkpoint'
+SAVED_TIME_LOCK_CASE = 'test_saved_time_lock_before_capture'
+SAVED_TIME_LOCK_PHASE = 'saved-time-lock'
 SSH_ADMISSION_CASE = 'test_child_ssh_time_admission'
 SSH_ADMISSION_PHASE = 'ssh-admission'
 
@@ -123,7 +125,7 @@ PHASE_SEMANTICS = {phase: semantic for history in REMOVAL_HISTORIES[1:]
 PHASE_ORDER = (TRUSTED_FIXTURES_PHASE, 'previous-policy', 'installed', 'rebooted', *FIRST_CONFIGURE_PHASES, *PAM_PHASES, *REMOVAL_PHASES,
                *(phase for history in REMOVAL_HISTORIES[1:]
                  for phase in (*history.prerequisites, *history.phases)),
-               'authorization', 'enforcement', 'session', SSH_ADMISSION_PHASE,
+               'authorization', 'enforcement', 'session', SAVED_TIME_LOCK_PHASE, SSH_ADMISSION_PHASE,
                'extension', 'extension-login',
                USAGE_CHECKPOINT_PHASE, 'startup',
                ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE)
@@ -206,6 +208,7 @@ PHASE_DEPENDENCIES = {
     'authorization': (),
     'enforcement': (),
     'session': (),
+    SAVED_TIME_LOCK_PHASE: (),
     SSH_ADMISSION_PHASE: (),
     'extension': (),
     'extension-login': (),
@@ -249,6 +252,7 @@ PHASE_PREREQUISITES = {
     'authorization': ('retained-app-snapshot', 'authorization-accounts'),
     'enforcement': ('retained-app-snapshot', 'native-enforcement-fixture'),
     'session': ('retained-app-snapshot',),
+    SAVED_TIME_LOCK_PHASE: ('retained-app-snapshot', 'child-autologin-fixture-and-second-reboot'),
     SSH_ADMISSION_PHASE: ('retained-app-snapshot',),
     'extension': ('retained-app-snapshot', 'gnome-monitor-fixture-and-second-reboot'),
     'extension-login': ('retained-app-snapshot', 'fresh-gdm-login-and-retained-unlock'),
@@ -499,6 +503,8 @@ def case_phases(area, case_id):
         return ('extension-login',)
     if area == 'extension' and case_id == USAGE_CHECKPOINT_CASE:
         return (USAGE_CHECKPOINT_PHASE,)
+    if area == 'session' and case_id == SAVED_TIME_LOCK_CASE:
+        return (SAVED_TIME_LOCK_PHASE,)
     if area == 'session' and case_id == SSH_ADMISSION_CASE:
         return (SSH_ADMISSION_PHASE,)
     if area == 'removal':
@@ -3059,7 +3065,7 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
         rebooted_recovery_phases = tuple(phase for phase in recovery_phases
                                          if phase.endswith('-rebooted'))
         for phase in (TRUSTED_FIXTURES_PHASE, *FIRST_CONFIGURE_PHASES, *PAM_PHASES,
-                      *recovery_phases, 'authorization', 'enforcement', 'session',
+                      *recovery_phases, 'authorization', 'enforcement', 'session', SAVED_TIME_LOCK_PHASE,
                       SSH_ADMISSION_PHASE, 'extension', 'extension-login', USAGE_CHECKPOINT_PHASE, 'startup',
                       ENFORCEMENT_STARTUP_PHASE, BROKER_STARTUP_PHASE):
             if phase not in selection.phases:
@@ -3093,6 +3099,10 @@ def installed_run(vm, lease, directory, selection, ledger=None, *, already_insta
                 with ledger.measure('test', operation='kiosk-agent'):
                     observe_kiosk_agent(vm, lease, directory, ledger,
                                         fixture_context, fixture_selection)
+            if phase == SAVED_TIME_LOCK_PHASE:
+                if current_build:
+                    history.start(phase_owner(phase))
+                prepare_reboot('system_saved_time_lock.py', phase, ordinary_daytime=True)
             if phase == 'session' and graphical_expiry:
                 owner = next(item for item in phase_executions(selection, phase)
                              if item.case_id in GRAPHICAL_EXPIRY_CASES)

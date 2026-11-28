@@ -70,6 +70,11 @@ def test_persistent_lock_outage(record_testsuite_property):
     verify_lock_outage(record_testsuite_property)
 
 
+def test_saved_time_lock_before_capture(record_testsuite_property, tmp_path):
+    from system_saved_time_lock import verify
+    verify(record_testsuite_property, tmp_path)
+
+
 def test_child_ssh_time_admission(record_testsuite_property, tmp_path):
     from system_saved_time_lock import verify_ssh_admission
     verify_ssh_admission(record_testsuite_property, tmp_path)

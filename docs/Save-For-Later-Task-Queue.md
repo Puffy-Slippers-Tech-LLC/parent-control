@@ -25,7 +25,7 @@ recorded native qualification.
 | [x] | 015 | Check that removal preserves saved time only if it is aborted | 010 | Installed removal, rollback, retry, reinstall, and purge engineering histories | Done. Installed checks passed on all three targets, including both Fedora rollback histories. Host fixture checks passed. |
 | [x] | 016 | Check that an upgrade preserves saved time | 010 | Installed broker restart and package update with saved time and recovery state | Done. Both installed upgrade histories passed on all three targets. |
 | [x] | 026 | Let children sign in remotely when they have time | 010 | Installed Fedora child SSH admission with time available under SELinux | Done. Both Fedora targets admitted SSH with time and refused at zero under enforcing SELinux. |
-| [ ] | 023 | [Check that pausing captures all usage on every target](Save-For-Later-Tasks/023.md) | 010 | Installed kiosk-rule lock before capture after a raw VT switch, per target | 2–3 h |
+| [x] | 023 | Check that pausing captures all usage on every target | 010 | Installed kiosk-rule lock before capture after a raw VT switch, per target | Done. Installed checks passed on all three targets, and cleanup finished. Focused host checks passed. |
 | [ ] | 017 | [Qualify the shared test actions for saved time](Save-For-Later-Tasks/017.md) | 012, 013, 014 | Reusable public UI actions and observations on both surfaces | 2–3 h |
 | [ ] | 018 | [Save a running grant at the kiosk and unlock the retained desktop](Save-For-Later-Tasks/018.md) | 017, 023 | Scenario 1 retained desktop variant | 1–2 h |
 | [ ] | 019 | [Keep a kiosk approval through reboot and use it at a fresh login](Save-For-Later-Tasks/019.md) | 018 | Scenario 1 reboot and fresh login variant | 1–2 h |

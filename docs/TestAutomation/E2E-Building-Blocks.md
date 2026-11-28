@@ -1561,10 +1561,12 @@ GNOME Shell bindings used `en_US.UTF-8` and `xkb/us`.
 
 Complete customer journeys use their own inputs and results, including overlay
 deferred approval, overlay redemption and kiosk pause.
-The [retained desktop recipe](E2E-Scenario-Recipes.md#save-and-use-a-running-grant-at-the-kiosk)
-combines the same guarded kiosk actions with retained lock and password entry,
-the public countdown, and real use of the original soft-blocked window. The
-installed case measures both the transfer and redemption intervals.
+The [saved-time recipes](E2E-Scenario-Recipes.md#save-and-use-a-running-grant-at-the-kiosk)
+combine these actions with password entry, the public countdown and real use
+of a soft-blocked app. Case 267 qualifies return to a retained desktop.
+Case 268 uses the guarded [customer reboot route](#customer-reboot-continuity)
+and fresh password denial and success. Both cases measure the transfer and
+redemption intervals.
 
 #### Overlay Shell prompt and Cancel qualification
 

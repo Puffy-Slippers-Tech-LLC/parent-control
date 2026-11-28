@@ -130,11 +130,11 @@ PLAN = JourneyPlan(
 )
 
 
-def elapsed_interval(before, after):
+def elapsed_interval(before, after, *, maximum_seconds=INITIAL_SECONDS):
     """Bracket elapsed time between events observed within two controller reads."""
     low = (after[0] - before[1]) / 1e9
     high = (after[1] - before[0]) / 1e9
-    require(0 < low <= high <= INITIAL_SECONDS, 'saved-time:read-interval')
+    require(0 < low <= high <= maximum_seconds, 'saved-time:read-interval')
     return low, high
 
 

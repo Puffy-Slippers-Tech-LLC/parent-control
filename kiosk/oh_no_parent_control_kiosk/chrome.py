@@ -822,6 +822,22 @@ class ArmoredMenuButton(Gtk.MenuButton):
         )
 
 
+class ArmoredBox(Gtk.Box):
+    """A box whose children share one set of iron clamps, e.g. a split button."""
+
+    __gtype_name__ = "OhNoArmoredBox"
+
+    def __init__(self, *args, armor_kind="request", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._armor_kind = armor_kind
+
+    def do_snapshot(self, snapshot):
+        Gtk.Box.do_snapshot(self, snapshot)
+        paint_button_hardware(
+            snapshot, self.get_width(), self.get_height(), self._armor_kind,
+        )
+
+
 class HudIconFrame(Gtk.Overlay):
     """A compact illuminated HUD chassis around a pixel-art menu icon."""
 

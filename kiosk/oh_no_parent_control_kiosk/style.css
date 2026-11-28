@@ -206,8 +206,7 @@ button.oh-no-parent-control-request-tab {
   font-weight: bold;
 }
 
-button.oh-no-parent-control-request-tab.selected,
-menubutton.oh-no-parent-control-request-menu > button {
+button.oh-no-parent-control-request-tab.selected {
   border-color: #245421;
   border-top-color: #a5d795;
   background: #4b9341;
@@ -215,14 +214,11 @@ menubutton.oh-no-parent-control-request-menu > button {
 }
 
 button.oh-no-parent-control-request-tab:hover,
-button.oh-no-parent-control-request-tab:focus-visible,
-menubutton.oh-no-parent-control-request-menu > button:hover,
-menubutton.oh-no-parent-control-request-menu > button:focus-visible {
+button.oh-no-parent-control-request-tab:focus-visible {
   border-top-color: #d8ffd0;
 }
 
-button.oh-no-parent-control-request-tab:disabled,
-menubutton.oh-no-parent-control-request-menu > button:disabled {
+button.oh-no-parent-control-request-tab:disabled {
   background: #2a2a2e;
   border-color: #1a1a1c;
   color: rgba(255, 255, 255, 0.50);
@@ -562,13 +558,6 @@ entry.oh-no-parent-control-custom-entry {
   font-size: 14px;
 }
 
-menubutton.oh-no-parent-control-request-menu > button {
-  margin-top: 4px;
-  padding: 3px 6px;
-  border-width: 3px;
-  border-radius: 0;
-}
-
 button.oh-no-parent-control-request-button,
 button.oh-no-parent-control-cancel-button,
 .oh-no-parent-control-secondary-page button.suggested-action {
@@ -579,6 +568,7 @@ button.oh-no-parent-control-cancel-button,
 }
 
 button.oh-no-parent-control-request-button,
+menubutton.oh-no-parent-control-request-menu > button,
 .oh-no-parent-control-secondary-page button.suggested-action {
   min-height: 26px;
   padding: 3px 6px;
@@ -599,8 +589,31 @@ button.oh-no-parent-control-request-button,
   text-shadow: none;
 }
 
+/* One Cancel-style iron frame around both split halves. */
+.oh-no-parent-control-request-split {
+  border: 3px solid #222922;
+  border-top-color: #9aab91;
+  border-left-color: #74816e;
+  padding: 3px;
+  background-color: #2b302a;
+  box-shadow: 0 3px 0 #20261f;
+}
+
+.oh-no-parent-control-request-split button.oh-no-parent-control-request-button,
+.oh-no-parent-control-request-split menubutton > button {
+  margin-top: 0;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.28);
+}
+
+/* Match Cancel's capitalised caption in every language. */
+.oh-no-parent-control-request-split button.oh-no-parent-control-request-button {
+  text-transform: uppercase;
+}
+
 button.oh-no-parent-control-request-button:hover,
 button.oh-no-parent-control-request-button:focus-visible,
+menubutton.oh-no-parent-control-request-menu > button:hover,
+menubutton.oh-no-parent-control-request-menu > button:focus-visible,
 .oh-no-parent-control-secondary-page button.suggested-action:hover,
 .oh-no-parent-control-secondary-page button.suggested-action:focus-visible {
   border-top-color: #d8ffd0;
@@ -609,7 +622,19 @@ button.oh-no-parent-control-request-button:focus-visible,
   box-shadow: 0 3px 0 #163c14, inset 0 1px rgba(255, 255, 255, 0.36);
 }
 
-button.oh-no-parent-control-request-button:disabled {
+/* A slim chevron leaves the request label the width it needs. */
+.oh-no-parent-control-request-split menubutton > button {
+  min-width: 0;
+  padding: 3px 5px;
+}
+
+.oh-no-parent-control-request-split button:hover,
+.oh-no-parent-control-request-split button:focus-visible {
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.36);
+}
+
+button.oh-no-parent-control-request-button:disabled,
+menubutton.oh-no-parent-control-request-menu > button:disabled {
   color: rgba(255, 255, 255, 0.42);
   border-color: #1a1a1c;
   background: #2a2a2e;
@@ -628,6 +653,14 @@ button.kiosk-whats-new-dismiss,
   background-image: linear-gradient(to bottom, #4a5047, #353b34);
   box-shadow: 0 3px 0 #20261f, inset 0 1px rgba(255, 255, 255, 0.25);
   text-shadow: none;
+}
+/* Clamps sit at the content corners: keep them at the frame and pad the label
+   instead, so Cancel stays compact and its text clears the clamps. */
+button.oh-no-parent-control-cancel-button {
+  padding: 3px 2px;
+}
+button.oh-no-parent-control-cancel-button > label {
+  padding: 0 18px;
 }
 button.oh-no-parent-control-cancel-button:hover,
 button.oh-no-parent-control-cancel-button:focus-visible,

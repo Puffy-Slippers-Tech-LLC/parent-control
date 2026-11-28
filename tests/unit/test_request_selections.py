@@ -81,6 +81,9 @@ def test_duration_range_uses_request_unit(unit, expected):
 def test_escape_exits_request_with_inline_unit_choices(overlay):
     window = SimpleNamespace(
         _child_overlay=overlay, _state=RequestState(),
+        _request_content=SimpleNamespace(dismiss_request_menu=lambda: False,
+                                         dismiss_account_choices=lambda: False,
+                                         can_cancel=lambda: True),
         _stack=Mock(), _cancel=Mock(), _result_dismissed=Mock(),
     )
     window._stack.get_visible_child_name.return_value = "request"
@@ -98,7 +101,9 @@ def test_escape_exits_request_with_inline_unit_choices(overlay):
 def test_escape_preserves_other_keys_authentication_and_results(
         page, busy, key, consumed):
     window = SimpleNamespace(
-        _state=SimpleNamespace(in_flight=busy), _request_content=Mock(),
+        _state=SimpleNamespace(in_flight=busy),
+        _request_content=SimpleNamespace(dismiss_request_menu=lambda: False,
+                                         dismiss_account_choices=lambda: False),
         _stack=Mock(), _cancel=Mock(), _result_dismissed=Mock(),
     )
     window._stack.get_visible_child_name.return_value = page

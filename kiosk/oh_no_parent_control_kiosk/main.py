@@ -1730,7 +1730,8 @@ class RequestWindow(Adw.ApplicationWindow):
     def _escape_pressed(self, _controller, keyval, _keycode, _state):
         if keyval != Gdk.KEY_Escape:
             return False
-        if self._request_content.dismiss_request_menu():
+        if (self._request_content.dismiss_request_menu()
+                or self._request_content.dismiss_account_choices()):
             return True
         # Escape matches Cancel. While Polkit is prompting, leave the key
         # for the authentication agent instead of closing or logging out.

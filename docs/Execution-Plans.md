@@ -465,6 +465,13 @@ transactions and active owners must finish first. This explicit administrative
 operation retains its own guards; ordinary execution consumes current definitions
 without requiring it.
 
+If an ownership block stopped close-out before Git writes, the developer can
+commit and propagate the task manually. After the launcher stops, use the same
+`--reconcile` commands to acknowledge that close-out. The launcher checks the
+retained passing result and cleanup, the completed queue row, the task paths
+against HEAD, and the configured upstream. It then resumes the next unchecked
+task within a new run's task limit.
+
 For explicitly reviewed consolidation of equivalent unfinished tasks, the same
 route accepts repeated `--merge-task 'OLD=KEEP'` declarations and
 `--reconcile-base FULL_COMMIT`. The base must be an ancestor commit whose master,

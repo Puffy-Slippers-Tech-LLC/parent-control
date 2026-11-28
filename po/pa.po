@@ -1765,6 +1765,9 @@ msgstr "ਇੱਕ ਵੈਧ ਨੰਬਰ ਦਾਖਲ ਕਰੋ।"
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "ਮਨਜ਼ੂਰ ਸੀਮਾ: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "ਸਮਾਂ ਮੰਗੋ"
+
 msgid "Request more time"
 msgstr "ਹੋਰ ਸਮਾਂ ਮੰਗੋ"
 

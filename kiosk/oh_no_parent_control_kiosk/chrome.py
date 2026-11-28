@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import cairo
 import gi
 
 gi.require_version("Gdk", "4.0")
@@ -569,7 +570,7 @@ def _paint_panel(snapshot, width, height, kind):
     if width < 8 or height < 8:
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-    dark = kind in {"header", "well", "footer"}
+    dark = kind in {"well", "footer"}
     _paint_block_texture(context, 0, 0, width, height, dark=dark)
     inset = kind == "well"
     _paint_bevel(context, 0, 0, width, height, inset=inset, heavy=True)
@@ -579,7 +580,7 @@ def _paint_panel(snapshot, width, height, kind):
             context, 5, height - 8, width - 10, 3,
             0.37, 0.38, 0.35, 0.72,
         )
-    elif kind in {"header", "footer"}:
+    elif kind == "footer":
         _rectangle(
             context, 5, height - 5, width - 10, 2,
             0.035, 0.038, 0.036, 0.9,
@@ -590,10 +591,7 @@ def _paint_panel_hardware(snapshot, width, height, kind):
     if width < 28 or height < 22:
         return
     context = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
-    if kind == "header":
-        for x, y in ((9, 9), (width - 9, 9)):
-            _paint_rivet(context, x, y, 2.7)
-    elif kind == "footer":
+    if kind == "footer":
         # Short nameplate: keep the rivets on the caption midline.
         rivet_y = height / 2.0
         for x in (12, width - 12):
@@ -771,6 +769,37 @@ def paint_button_hardware(snapshot, width, height, kind):
         _rectangle(context, x, y, size, size, *colour)
         _paint_bevel(context, x, y, size, size)
         _paint_rivet(context, x + size / 2, y + size / 2, rivet_radius)
+
+
+class PlateTab(Gtk.ToggleButton):
+    """A stepped cyan or purple tab for the request and preferences pages."""
+
+    def do_snapshot(self, snapshot):
+        width, height = self.get_width(), self.get_height()
+        cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, width, height))
+        active = self.get_active()
+        top = 1 if active else 3
+        cr.move_to(1, height - 1)
+        for x, y in ((1, height - 5), (5, height - 5), (5, height - 10),
+                     (9, height - 10), (9, top + 8), (13, top + 8),
+                     (13, top + 4), (19, top + 4), (19, top),
+                     (width - 19, top), (width - 19, top + 4),
+                     (width - 13, top + 4), (width - 13, top + 8),
+                     (width - 9, top + 8), (width - 9, height - 10),
+                     (width - 5, height - 10), (width - 5, height - 5),
+                     (width - 1, height - 5), (width - 1, height - 1)):
+            cr.line_to(x, y)
+        cr.close_path()
+        fill = cairo.LinearGradient(0, 0, 0, height)
+        rgb = (0.04, 0.40, 0.36) if active else (0.23, 0.19, 0.36)
+        fill.add_color_stop_rgba(0, *rgb, 0.95)
+        fill.add_color_stop_rgba(1, *rgb, 0.65)
+        cr.set_source(fill)
+        cr.fill_preserve()
+        cr.set_source_rgb(*((0.16, 0.91, 0.79) if active else (0.57, 0.43, 0.78)))
+        cr.set_line_width(2)
+        cr.stroke()
+        Gtk.ToggleButton.do_snapshot(self, snapshot)
 
 
 class MetalPanel(Gtk.Box):

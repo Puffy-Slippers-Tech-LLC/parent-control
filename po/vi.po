@@ -1759,6 +1759,9 @@ msgstr "Nhập một số hợp lệ."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Phạm vi cho phép: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Xin thời gian"
+
 msgid "Request more time"
 msgstr "Xin thêm thời gian"
 

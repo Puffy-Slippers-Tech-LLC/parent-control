@@ -1765,6 +1765,9 @@ msgstr "मान्य सङ्ख्या प्रविष्ट गर्
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "अनुमति दिइएको दायरा: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "समय माग्नुहोस्"
+
 msgid "Request more time"
 msgstr "थप समय माग्नुहोस्"
 

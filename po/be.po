@@ -1771,6 +1771,9 @@ msgstr "Увядзіце карэктны лік."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Дапушчальны дыяпазон: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Запытаць час"
+
 msgid "Request more time"
 msgstr "Запытаць больш часу"
 

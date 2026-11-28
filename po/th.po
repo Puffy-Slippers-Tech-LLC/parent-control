@@ -1759,6 +1759,9 @@ msgstr "ป้อนตัวเลขที่ถูกต้อง"
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "ช่วงที่อนุญาต: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "ขอเวลา"
+
 msgid "Request more time"
 msgstr "ขอเวลาเพิ่ม"
 

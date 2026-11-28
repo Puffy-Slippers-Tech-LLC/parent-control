@@ -1765,6 +1765,9 @@ msgstr "Въведете валидно число."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Допустим диапазон: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Поискайте време"
+
 msgid "Request more time"
 msgstr "Поискайте още време"
 

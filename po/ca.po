@@ -1765,6 +1765,9 @@ msgstr "Introduïu un nombre vàlid."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Interval permès: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Demana temps"
+
 msgid "Request more time"
 msgstr "Demana més temps"
 

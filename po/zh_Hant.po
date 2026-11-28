@@ -1760,6 +1760,9 @@ msgstr "請輸入有效數字。"
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "允許範圍: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "要求時間"
+
 msgid "Request more time"
 msgstr "要求更多時間"
 

@@ -47,6 +47,9 @@ def test_translated_request_preserves_choices_and_custom_draft(
     visible = {'de': 'Anfragen und jetzt nutzen', 'zh-Hans': '请求并立即使用',
                'he': 'לבקש ולהשתמש עכשיו', 'ta': 'கேட்டு இப்போதே பயன்படுத்தவும்'}
     assert ui.getText('kiosk-request-submit') == visible[language]
+    request_tab = {'de': 'Zeit anfragen', 'zh-Hans': '请求时间',
+                   'he': 'לבקש זמן', 'ta': 'நேரம் கேட்கவும்'}
+    assert ui.getText('kiosk-tab-request') == request_tab[language]
     review_frame('request-' + language + ('-overlay' if overlay else '-kiosk'))
     soft_label = ui.text('kiosk-soft-apps-label')
     ui.activate('kiosk-request-submit')

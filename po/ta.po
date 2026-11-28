@@ -1765,6 +1765,9 @@ msgstr "செல்லுபடியாகும் எண்ணை உள்�
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "அனுமதிக்கப்பட்ட வரம்பு: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "நேரம் கேட்கவும்"
+
 msgid "Request more time"
 msgstr "கூடுதல் நேரம் கேட்கவும்"
 

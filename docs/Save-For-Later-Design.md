@@ -135,15 +135,14 @@ surfaces, account artwork, compact proportions, and background. Their text is
 illustrative, including its typos; product strings come from this document and
 are translated into every supported language.
 
-**On both surfaces, the two tab headers replace the “Oh No! Parent Control”
-title.** Keep the small app icon. Order the tabs **Request more time**, then
-**Approved time**. The shared child selector sits immediately below the tabs,
-as shown in the drafts, and its selection applies to both pages. The kiosk lists
-eligible children; the overlay keeps its selector fixed to the signed-in child,
-as today. Preserve the shared form's responsive/scaled layout rather than
-hardcoding these image dimensions.
+**On both surfaces, the header contains the tabs Request time and Approved
+time.** The tabs share the Preferences dialog’s stepped styling. Open
+Preferences from the request screen menu. The shared child selector sits
+immediately below the tabs and applies to both pages. The kiosk lists eligible
+children. The overlay keeps its selector fixed to the signed-in child. Preserve
+the shared form's responsive layout at different display scales.
 
-### Request more time
+### Request time
 
 ![Request tab with immediate request and save-for-later menu](images/save-for-later/request-more-time.png)
 
@@ -237,7 +236,7 @@ the grant keeps running if the pause did not commit.
 
 | State | Approved time page |
 | --- | --- |
-| No running or saved approved time | “No approved time available” and an action selecting Request more time; daily-only time does not enable Pause |
+| No running or saved approved time | “No approved time available” and a “Request more time” action that selects the Request time tab. Daily-only time does not enable Pause. |
 | Running grant fully covered by daily time (X = 0) | “Covered by today's daily time”; no Pause |
 | Rest-of-day or pre-feature grant running | “Approved until HH:MM”; no Pause |
 | Running grant and saved time together | Running row (Pause only for a fixed grant) above the saved row; Use saved time is labelled as adding to the running timer |
@@ -249,7 +248,7 @@ the grant keeps running if the pause did not commit.
 Show Pause only for a running fixed grant with X > 0, and Use saved time only
 with a positive saved balance.
 
-Open Request more time by default to preserve today's initial task. Returning
+Open Request time by default to preserve today's initial task. Returning
 from a kiosk Pause or any saved request selects Approved time. Within one form,
 preserve the selected tab when switching children but discard stale asynchronous
 replies. Tab switching does not save a request, authenticate, pause, redeem, or
@@ -276,7 +275,7 @@ for the numeric example. Riley has a running fixed-duration grant and locks the
 desktop.
 
 1. Riley switches to the kiosk and selects Riley. The grant keeps ticking.
-2. On Request more time, select the parent, Custom **20 minutes**, the app choice,
+2. On Request time, select the parent, Custom **20 minutes**, the app choice,
    and **Request & save for later**.
 3. The selected parent authenticates in the trusted prompt. Assume **18 minutes
    remain at the broker's transfer boundary B**, not at form opening.

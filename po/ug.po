@@ -1759,6 +1759,9 @@ msgstr "ئىناۋەتلىك سان كىرگۈزۈڭ."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "رۇخسەت قىلىنغان دائىرە: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "ۋاقىت ئىلتىماس قىلىڭ"
+
 msgid "Request more time"
 msgstr "تېخىمۇ كۆپ ۋاقىت ئىلتىماس قىلىڭ"
 

@@ -1765,6 +1765,9 @@ msgstr "చెల్లుబాటు అయ్యే సంఖ్యను న
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "అనుమతించబడిన పరిధి: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "సమయం అడగండి"
+
 msgid "Request more time"
 msgstr "మరింత సమయం అడగండి"
 

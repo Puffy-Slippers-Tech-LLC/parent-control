@@ -1765,6 +1765,9 @@ msgstr "Voer een geldig getal in."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Toegestaan bereik: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Tijd aanvragen"
+
 msgid "Request more time"
 msgstr "Meer tijd aanvragen"
 

@@ -1763,6 +1763,9 @@ msgstr "Inserisci un numero valido."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Intervallo consentito: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Richiedi tempo"
+
 msgid "Request more time"
 msgstr "Richiedi più tempo"
 

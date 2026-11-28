@@ -1765,6 +1765,9 @@ msgstr "Adjon meg egy érvényes számot."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Megengedett tartomány: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Idő kérése"
+
 msgid "Request more time"
 msgstr "Több idő kérése"
 

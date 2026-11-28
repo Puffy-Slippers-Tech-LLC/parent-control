@@ -304,17 +304,6 @@ class KioskRenderingTests(unittest.TestCase):
         self.assertEqual(COUNT_MULTIPLIER, 1.2)
         self.assertEqual(len(field._flakes), 59)
 
-    def test_request_header_uses_the_product_logo(self):
-        source = KIOSK_CONTENT.read_text(encoding="utf-8")
-
-        self.assertIn('branding_asset_path("app_logo.png")', source)
-        self.assertIn("Gtk.Image.new_from_file", source)
-        self.assertIn("icon.set_pixel_size(36)", source)
-        self.assertIn("xalign=0.5", source)
-        self.assertIn("justify=Gtk.Justification.CENTER", source)
-        self.assertNotIn('Gtk.Image.new_from_icon_name("alarm-symbolic")', source)
-        self.assertNotIn("Choose your extra time", source)
-
     def test_custom_duration_caption_has_display_only_pointer_spacing(self):
         source = KIOSK_CONTENT.read_text(encoding="utf-8")
 
@@ -696,8 +685,6 @@ class KioskRenderingTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
         self.assertIn("class RequestContent(MetalBoard):", content)
-        self.assertIn('branding_asset_path("app_logo.png")', content)
-        self.assertIn("oh-no-parent-control-logo-plate", content)
         self.assertIn("icon = dropdown.account_icon", content)
         self.assertIn("apply_gtk_user_icon", content)
         self.assertIn("SHIELD", content)
@@ -735,7 +722,6 @@ class KioskRenderingTests(unittest.TestCase):
             self.assertTrue(sprite)
             self.assertTrue(sprite[0])
             self.assertTrue(all(len(row) == len(sprite[0]) for row in sprite))
-        self.assertIn('panel_kind="header"', content)
         self.assertIn('panel_kind="well"', content)
         self.assertIn('panel_kind="footer"', content)
 

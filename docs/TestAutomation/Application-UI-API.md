@@ -222,7 +222,6 @@ screen-time control and absent accounts retain their existing restrictions.
 | `language-list` | Get/set canonical catalogue language code; choices enumerate catalogue codes; filtered-out choices refuse until search is cleared |
 | `language-choice-<lowercase-code>` | Actual language radio; selection relabels the chooser |
 | `language-continue`, `language-cancel`, `language-error` | Main preferences Save, Cancel and ordinary save error readback; Save commits preset/reminder drafts, Cancel discards them |
-| `kiosk-preferences-button` | Title-bar gear; activate the ordinary request Preferences action |
 | `preferences-tab-language`, `preferences-tab-reminders`, `preferences-tab-presets`, `preferences-close` | Request-screen preference tabs and ordinary draft cancellation |
 | `preferences-tabs` | Get/set canonical active page `language`, `reminders` or `presets`; `getChoices` enumerates current pages; setter uses the normal tab handler |
 | `preset-list` | Sorted editable draft seconds via `getValue`; canonical seconds strings followed by `0`, `custom` via `getChoices` |

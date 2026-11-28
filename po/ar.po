@@ -1789,6 +1789,9 @@ msgstr "أدخل رقمًا صالحًا."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "النطاق المسموح: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "اطلب وقتًا"
+
 msgid "Request more time"
 msgstr "اطلب المزيد من الوقت"
 

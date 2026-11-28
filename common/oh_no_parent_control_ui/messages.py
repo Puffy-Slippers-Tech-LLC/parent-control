@@ -156,6 +156,8 @@ SELECT_NAME_S = gettext('Select %(name)s.')
 TIME_GRANTED = gettext('Time granted')
 TIME_GRANTED_CLOSE = gettext('Time granted, Close')
 ESTIMATED_REMAINING_TIME_FORMAT_DURATION_SECONDS_S = gettext('Estimated remaining time: %(format_duration_seconds)s')
+# Translators: Tab for requesting screen time, next to the Approved time tab.
+REQUEST_TIME = gettext('Request time')
 REQUEST_MORE_TIME = gettext('Request more time')
 APPROVED_TIME = gettext('Approved time')
 REQUEST_USE_NOW = gettext('Request & use now')

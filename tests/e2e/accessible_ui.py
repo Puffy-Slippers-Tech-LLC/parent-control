@@ -14233,8 +14233,6 @@ class AccessibleUI:
                 'kiosk-child-selector', 'kiosk-approver-selector',
                 'kiosk-soft-apps-row', 'kiosk-soft-apps-toggle',
                 'kiosk-request-submit', 'kiosk-request-cancel', 'kiosk-menu-button',
-                # Documented title-bar entry to the request Preferences action.
-                'kiosk-preferences-button',
                 'kiosk-menu-item-about', 'kiosk-custom-duration',
                 # Inline request-unit radios required by ONPC-CORE-REQUEST-004.
                 'kiosk-custom-duration-unit-minutes',
@@ -14269,7 +14267,7 @@ class AccessibleUI:
                             'kiosk-custom-duration-units',
                             'kiosk-custom-duration-row',
                             'kiosk-duration-choices', 'kiosk-request-form',
-                            'kiosk-menu-button', 'kiosk-preferences-button',
+                            'kiosk-menu-button',
                             'kiosk-mute-button', 'kiosk-request-status',
                             'kiosk-result-action', 'kiosk-report-toggle',
                         }

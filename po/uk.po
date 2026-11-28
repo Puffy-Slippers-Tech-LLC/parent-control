@@ -1777,6 +1777,9 @@ msgstr "Введіть коректне число."
 msgid "Allowed range: %(minimum)s – %(maximum)s %(unit)s."
 msgstr "Допустимий діапазон: %(minimum)s – %(maximum)s %(unit)s."
 
+msgid "Request time"
+msgstr "Попросити час"
+
 msgid "Request more time"
 msgstr "Попросити більше часу"
 
